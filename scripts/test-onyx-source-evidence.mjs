@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
+import { logError } from "./diagnostic-logger.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) {
@@ -488,10 +489,10 @@ async function main() {
       "PASS Onyx source evidence: tenant-scoped RPC/grants, source hash match and mismatch, unlinked snapshots, bounded external IDs, truncation flags, no invented sync proof, staff/customer/inactive/foreign-tenant denial.\n",
     );
   } finally {
-    try { await db.unsafe("reset role"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] reset role cleanup failed: " + String(cleanupError) + "\n"); }
-    try { await db.unsafe("rollback"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] rollback cleanup failed: " + String(cleanupError) + "\n"); }
-    try { await db.unsafe("select set_config('request.jwt.claim.sub','',false)"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] clear JWT subject failed: " + String(cleanupError) + "\n"); }
-    try { await db.unsafe("select set_config('request.jwt.claims','',false)"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] clear JWT claims failed: " + String(cleanupError) + "\n"); }
+    try { await db.unsafe("reset role"); } catch (cleanupError) { logError("[onyx-source-evidence] reset role cleanup failed", cleanupError); }
+    try { await db.unsafe("rollback"); } catch (cleanupError) { logError("[onyx-source-evidence] rollback cleanup failed", cleanupError); }
+    try { await db.unsafe("select set_config('request.jwt.claim.sub','',false)"); } catch (cleanupError) { logError("[onyx-source-evidence] clear JWT subject failed", cleanupError); }
+    try { await db.unsafe("select set_config('request.jwt.claims','',false)"); } catch (cleanupError) { logError("[onyx-source-evidence] clear JWT claims failed", cleanupError); }
   }
 }
 

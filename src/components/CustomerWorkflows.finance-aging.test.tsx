@@ -34,6 +34,18 @@ vi.mock("@/lib/customer-company-contacts", () => ({
   deleteCustomerCompanyContact: vi.fn(),
 }));
 
+const emptyStaffFinanceData = { invoices: [], payments: [] };
+const emptyFinancePrintOptions = {
+  organization_name: "مؤسسة المالية الاختبارية",
+  customers: [],
+  customers_has_more: false,
+  invoices: [],
+  invoices_has_more: false,
+  credit_memos: [],
+  credit_memos_has_more: false,
+  limit: 500,
+};
+
 const agingReport = {
   as_of_utc: "2026-10-18",
   limit: 200,
@@ -75,17 +87,10 @@ describe("finance receivables aging UI", () => {
     mocks.rpc.mockReset();
     mocks.rpc.mockImplementation((name: string) => {
       if (name === "fetch_staff_finance_data") {
-        return Promise.resolve({ data: { invoices: [], payments: [] }, error: null });
+        return Promise.resolve({ data: emptyStaffFinanceData, error: null });
       }
       if (name === "get_finance_document_print_options") {
-        return Promise.resolve({
-          data: {
-            organization_name: "مؤسسة المالية الاختبارية",
-            customers: [], customers_has_more: false, invoices: [], invoices_has_more: false,
-            credit_memos: [], credit_memos_has_more: false, limit: 500,
-          },
-          error: null,
-        });
+        return Promise.resolve({ data: emptyFinancePrintOptions, error: null });
       }
       if (name === "fetch_staff_receivables_aging") {
         return Promise.resolve({ data: agingReport, error: null });

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import postgres from "postgres";
+import { logError } from "./diagnostic-logger.mjs";
 const connectionString=process.env.TEST_DATABASE_URL;if(!connectionString)throw new Error("TEST_DATABASE_URL is required for AI gateway telemetry acceptance.");
 const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
 async function reportCleanupFailure(label, action) {
  try { await action(); }
  catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write("AI_GATEWAY_CLEANUP_WARNING " + JSON.stringify({label,error:message}) + "\n");
+  logError("AI_GATEWAY_CLEANUP_WARNING " + label, error);
  }
 }
 async function expectFailure(label,action,pattern){

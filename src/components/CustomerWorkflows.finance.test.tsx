@@ -51,6 +51,46 @@ const FINANCE_DATA = {
   has_more: false,
 };
 
+
+async function defaultFinanceRpcImplementation(name: string) {
+  if (name === "fetch_staff_finance_invoice_page") {
+    return { data: FINANCE_DATA, error: null };
+  }
+  if (name === "record_customer_payment") {
+    return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
+  }
+  if (name === "fetch_staff_receivables_aging") {
+    return {
+      data: {
+        as_of_utc: "2026-10-20T00:00:00.000Z",
+        total_open_invoices: 1,
+        summary: [],
+        items: [],
+        has_more: false,
+        limit: 50,
+        offset: 0,
+      },
+      error: null,
+    };
+  }
+  if (name === "get_finance_document_print_options") {
+    return {
+      data: {
+        organization_name: "شركة الاختبار",
+        customers: [],
+        customers_has_more: false,
+        invoices: [],
+        invoices_has_more: false,
+        credit_memos: [],
+        credit_memos_has_more: false,
+        limit: 100,
+      },
+      error: null,
+    };
+  }
+  return { data: null, error: { message: "Unexpected RPC in test" } };
+}
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -96,27 +136,7 @@ describe("StaffFinancePage payment amount guard", () => {
   beforeEach(() => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     rpcMock.mockReset();
-    rpcMock.mockImplementation(async (name: string) => {
-      if (name === "fetch_staff_finance_invoice_page") {
-        return { data: FINANCE_DATA, error: null };
-      }
-      if (name === "record_customer_payment") {
-        return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
-      }
-      if (name === "fetch_staff_receivables_aging") {
-        return {
-          data: { as_of_utc: "2026-10-20T00:00:00.000Z", total_open_invoices: 1, summary: [], items: [], has_more: false, limit: 50, offset: 0 },
-          error: null,
-        };
-      }
-      if (name === "get_finance_document_print_options") {
-        return {
-          data: { organization_name: "شركة الاختبار", customers: [], customers_has_more: false, invoices: [], invoices_has_more: false, credit_memos: [], credit_memos_has_more: false, limit: 100 },
-          error: null,
-        };
-      }
-      return { data: null, error: { message: "Unexpected RPC in test" } };
-    });
+    rpcMock.mockImplementation(defaultFinanceRpcImplementation);
 
     container = document.createElement("div");
     document.body.appendChild(container);
