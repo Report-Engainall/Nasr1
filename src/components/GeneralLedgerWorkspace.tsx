@@ -77,13 +77,13 @@ function TrialBalancePanel({ payload, loading }: { payload: LedgerPayload | null
 }
 
 function TrialBalanceContent({ payload }: { payload: LedgerPayload | null }) {
-  if (!payload) return <p style={muted}>لا توجد نتيجة قابلة للعرض من المصدر حتى الآن.</p>;
-  const isBalanced = payload.summary.debit_total === payload.summary.credit_total;
+  const summary = payload?.summary ?? { posted_entry_count: 0, debit_total: "0.00", credit_total: "0.00" };
+  const isBalanced = summary.debit_total === summary.credit_total;
   return (
     <>
-      <TrialBalanceTotals summary={payload.summary} />
-      {!isBalanced && <p role="alert" style={{ color: "#9b2828" }}>تحذير: ميزان المراجعة غير متوازن. أوقف الترحيل وافحص قيود الفترة.</p>}
-      <TrialBalanceAccounts accounts={payload.accounts} />
+      <TrialBalanceTotals summary={summary} />
+      {payload && !isBalanced && <p role="alert" style={{ color: "#9b2828" }}>تحذير: ميزان المراجعة غير متوازن. أوقف الترحيل وافحص قيود الفترة.</p>}
+      <TrialBalanceAccounts accounts={payload?.accounts ?? []} />
     </>
   );
 }
