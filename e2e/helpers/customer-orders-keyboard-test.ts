@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { expect, test, type Route } from "@playwright/test";
 
 const orderRows = [
@@ -39,11 +40,11 @@ function signedInCustomerFixtureSession() {
   })).toString("base64url");
 
   return {
-    access_token: header + "." + claims + ".fixture-only-signature",
+    access_token: header + "." + claims + "." + randomBytes(32).toString("base64url"),
     token_type: "bearer",
     expires_in: 3600,
     expires_at: now + 3600,
-    refresh_token: "fixture-only-refresh-token",
+    refresh_token: randomBytes(32).toString("base64url"),
     user: {
       id: "a1000000-0000-0000-0000-000000000201",
       aud: "authenticated",

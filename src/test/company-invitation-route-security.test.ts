@@ -43,8 +43,14 @@ describe("company invitation bearer-token route security", () => {
     expect(routeTreeSource).toContain("'/company/accept-invitation'");
   });
 
-  it("removes the bearer token URL after the server accepts the invitation", () => {
-    expect(acceptanceSource).toContain("await acceptCompanyInvitation(token)");
-    expect(acceptanceSource).toContain('window.history.replaceState(null,"","/company/accept-invitation")');
+  it("removes the bearer token from browser history before the server acceptance request", () => {
+    const historyRemoval = acceptanceSource.indexOf("window.history.replaceState(");
+    const acceptanceRequest = acceptanceSource.indexOf("await acceptCompanyInvitation(token)");
+
+    expect(acceptanceSource).toMatch(
+      /window\.history\.replaceState\(null,\s*["']["'],\s*["']\/company\/accept-invitation["']\)/,
+    );
+    expect(historyRemoval).toBeGreaterThanOrEqual(0);
+    expect(historyRemoval).toBeLessThan(acceptanceRequest);
   });
 });

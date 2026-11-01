@@ -40,6 +40,56 @@ function financePrintOptionsArgs(offset: number): { p_limit: number; p_offset?: 
   return offset === 0 ? { p_limit: 500 } : { p_limit: 500, p_offset: offset };
 }
 
+function isAuthorizedFinancePrintSource(
+  kind: DocumentKind,
+  selectedId: string,
+  options: FinancePrintOptions,
+): boolean {
+  if (kind === "invoice") return options.invoices.some((row) => row.id === selectedId);
+  if (kind === "statement") return options.customers.some((row) => row.id === selectedId);
+  return options.credit_memos.some((row) => row.id === selectedId);
+}
+
+function statementPrintErrorMessage(message: string): string {
+  if (/customer statement exceeds full-print row limit/i.test(message)) {
+    return "تجاوز كشف الحساب الحد الآمن للطباعة (10,000 سجل). لم تتم طباعة كشف جزئي؛ صغّر نطاق التقرير ثم أعد المحاولة.";
+  }
+  return message || "تعذر تحميل كشف حساب العميل الكامل ضمن المؤسسة الحالية.";
+}
+
+async function renderAuthorizedFinanceDocument(
+  kind: DocumentKind,
+  selectedId: string,
+  options: FinancePrintOptions,
+  document: Document,
+): Promise<void> {
+  if (kind === "invoice") {
+    const result = await supabase.rpc("get_staff_customer_invoice_print_data", { p_invoice_id: selectedId });
+    if (result.error) throw new Error(result.error.message || "تعذر تحميل مصدر الفاتورة ضمن المؤسسة الحالية.");
+    renderStaffInvoiceDocument(document, readStaffInvoicePrintPayload(result.data), options.organization_name);
+    return;
+  }
+
+  if (kind === "statement") {
+    const result = await supabase.rpc("get_staff_customer_account_statement_full", { p_customer_id: selectedId });
+    if (result.error) throw new Error(statementPrintErrorMessage(result.error.message || ""));
+    renderStaffStatementDocument(document, readStaffStatementPrintPayload(result.data), options.organization_name);
+    return;
+  }
+
+  const result = await supabase.rpc("get_customer_return_credit_memo_pdf", { p_credit_memo_id: selectedId });
+  if (result.error) throw new Error(result.error.message || "تعذر تحميل الإشعار الدائن؛ يلزم دور المحاسبة.");
+  renderCreditMemoDocument(document, readPrintableCreditMemo(result.data), options.organization_name);
+}
+
+function closePrintWindow(target: Window | null): void {
+  if (target && !target.closed) target.close();
+}
+
+function printReadyWindow(target: Window | null): void {
+  if (target && !target.closed) target.print();
+}
+
 export function FinanceDocumentPrintActions() {
   const [options, setOptions] = useState<FinancePrintOptions>(emptyOptions);
   const [kind, setKind] = useState<DocumentKind>("invoice");
@@ -111,42 +161,30 @@ export function FinanceDocumentPrintActions() {
       const optionsResult = await supabase.rpc("get_finance_document_print_options", financePrintOptionsArgs(pageOffset));
       if (optionsResult.error) throw new Error(optionsResult.error.message || "تعذر التحقق من المؤسسة النشطة قبل الطباعة.");
       const currentOptions = readFinancePrintOptions(optionsResult.data);
-      const sourceStillAuthorized = requestedKind === "invoice"
-        ? currentOptions.invoices.some((row) => row.id === selectedId)
-        : requestedKind === "statement"
-          ? currentOptions.customers.some((row) => row.id === selectedId)
-          : currentOptions.credit_memos.some((row) => row.id === selectedId);
+      const sourceStillAuthorized = isAuthorizedFinancePrintSource(
+        requestedKind,
+        selectedId,
+        currentOptions,
+      );
       setOptions(currentOptions);
       if (!sourceStillAuthorized) {
         setSourceId("");
         throw new Error("تغيرت المؤسسة النشطة أو لم يعد المصدر ضمن صلاحيتها. حدّث القائمة واختر مصدرًا من المؤسسة الحالية.");
       }
 
-      if (requestedKind === "invoice") {
-        const result = await supabase.rpc("get_staff_customer_invoice_print_data", { p_invoice_id: selectedId });
-        if (result.error) throw new Error(result.error.message || "تعذر تحميل مصدر الفاتورة ضمن المؤسسة الحالية.");
-        renderStaffInvoiceDocument(printWindow.document, readStaffInvoicePrintPayload(result.data), currentOptions.organization_name);
-      } else if (requestedKind === "statement") {
-        const result = await supabase.rpc("get_staff_customer_account_statement_full", { p_customer_id: selectedId });
-        if (result.error) {
-          if (/customer statement exceeds full-print row limit/i.test(result.error.message || "")) {
-            throw new Error("تجاوز كشف الحساب الحد الآمن للطباعة (10,000 سجل). لم تتم طباعة كشف جزئي؛ صغّر نطاق التقرير ثم أعد المحاولة.");
-          }
-          throw new Error(result.error.message || "تعذر تحميل كشف حساب العميل الكامل ضمن المؤسسة الحالية.");
-        }
-        renderStaffStatementDocument(printWindow.document, readStaffStatementPrintPayload(result.data), currentOptions.organization_name);
-      } else {
-        const result = await supabase.rpc("get_customer_return_credit_memo_pdf", { p_credit_memo_id: selectedId });
-        if (result.error) throw new Error(result.error.message || "تعذر تحميل الإشعار الدائن؛ يلزم دور المحاسبة.");
-        renderCreditMemoDocument(printWindow.document, readPrintableCreditMemo(result.data), currentOptions.organization_name);
-      }
+      await renderAuthorizedFinanceDocument(
+        requestedKind,
+        selectedId,
+        currentOptions,
+        printWindow.document,
+      );
 
       printWindow.focus();
-      printWindow.onafterprint = () => { if (printWindow && !printWindow.closed) printWindow.close(); };
-      window.setTimeout(() => { if (printWindow && !printWindow.closed) printWindow.print(); }, 180);
+      printWindow.onafterprint = () => closePrintWindow(printWindow);
+      window.setTimeout(() => printReadyWindow(printWindow), 180);
       setNotice("تم تجهيز المستند من بيانات خادمية مفحوصة ضمن المؤسسة الحالية. لم تتغير أي حركة مالية.");
     } catch (cause) {
-      if (printWindow && !printWindow.closed) printWindow.close();
+      closePrintWindow(printWindow);
       setError(cause instanceof Error ? cause.message : "تعذر تجهيز المستند المالي للطباعة.");
     } finally {
       setBusy(false);

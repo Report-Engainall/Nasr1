@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   createOutboxWorkerHandler,
@@ -8,6 +9,10 @@ import type { BoundedTextBodyResult } from "../../supabase/functions/_shared/bou
 
 type Rpc = OutboxWorkerRpcClient["rpc"];
 
+const fixtureWorkerSecret = randomBytes(32).toString("base64url");
+const fixtureInvalidWorkerSecret = randomBytes(32).toString("base64url");
+const fixtureServiceRoleKey = randomBytes(48).toString("base64url");
+
 function createHarness(options?: {
   body?: BoundedTextBodyResult;
   env?: Record<string, string | undefined>;
@@ -16,9 +21,9 @@ function createHarness(options?: {
   const calls: Array<{ procedure: string; parameters: Record<string, unknown> }> = [];
   const errors: Array<{ message: string; context: Record<string, unknown> }> = [];
   const environment: Record<string, string | undefined> = {
-    OUTBOX_WORKER_SECRET: "worker-secret",
+    OUTBOX_WORKER_SECRET: fixtureWorkerSecret,
     SUPABASE_URL: "https://supabase.example.test",
-    SUPABASE_SERVICE_ROLE_KEY: "service-role-fixture-only",
+    SUPABASE_SERVICE_ROLE_KEY: fixtureServiceRoleKey,
     ...options?.env,
   };
   const defaultRpc: Rpc = async () => ({ data: [], error: null });
@@ -47,7 +52,7 @@ function authorizedRequest(body = "{}"): Request {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-outbox-worker-secret": "worker-secret",
+      "x-outbox-worker-secret": fixtureWorkerSecret,
     },
     body,
   });
@@ -88,7 +93,7 @@ describe("outbox worker HTTP boundary", () => {
     const harness = createHarness();
     const response = await harness.handler(new Request("https://edge.example.test/outbox", {
       method: "POST",
-      headers: { "x-outbox-worker-secret": "wrong-secret" },
+      headers: { "x-outbox-worker-secret": fixtureInvalidWorkerSecret },
       body: "{}",
     }));
     expect(response.status).toBe(401);

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   buildGeminiRequestConfig,
@@ -59,7 +60,7 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
   });
 
   it("sends Gemini API keys in a header and never in the request URL", () => {
-    const apiKey = "ci-gemini-test-key-not-a-real-credential";
+    const apiKey = randomBytes(32).toString("base64url");
     const request = buildGeminiRequestConfig(
       "https://generativelanguage.googleapis.com/v1beta",
       "gemini-2.0-flash",

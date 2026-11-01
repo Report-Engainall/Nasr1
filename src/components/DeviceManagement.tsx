@@ -99,25 +99,35 @@ function parseOrganizationSession(value: unknown): OrganizationSession | null {
   };
 }
 
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function hasUniqueRevokedSessionIds(
+  value: unknown,
+  expectedCount: number,
+  currentSessionId: string,
+): value is string[] {
+  if (!Array.isArray(value) || value.length !== expectedCount) return false;
+  if (!value.every(isUuid)) return false;
+  if (new Set(value).size !== value.length) return false;
+  return !value.includes(currentSessionId);
+}
+
 function parseOtherSessionRevocationCount(value: unknown, currentSessionId: string | null): number | null {
   if (!currentSessionId || !value || typeof value !== 'object' || Array.isArray(value)) return null;
+
   const result = value as Record<string, unknown>;
-  const sessionIds = result.revoked_session_ids;
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (
-    result.current_session_id !== currentSessionId ||
-    typeof result.revoked_count !== 'number' ||
-    !Number.isSafeInteger(result.revoked_count) ||
-    result.revoked_count < 0 ||
-    !Array.isArray(sessionIds) ||
-    sessionIds.length !== result.revoked_count ||
-    !sessionIds.every((id) => typeof id === 'string' && uuidPattern.test(id)) ||
-    new Set(sessionIds).size !== sessionIds.length ||
-    sessionIds.includes(currentSessionId) ||
-    typeof result.revoked_at !== 'string' ||
-    !Number.isFinite(Date.parse(result.revoked_at))
-  ) return null;
-  return result.revoked_count;
+  if (result.current_session_id !== currentSessionId) return null;
+
+  const count = result.revoked_count;
+  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) return null;
+  if (!hasUniqueRevokedSessionIds(result.revoked_session_ids, count, currentSessionId)) return null;
+
+  const revokedAt = result.revoked_at;
+  if (typeof revokedAt !== 'string' || !Number.isFinite(Date.parse(revokedAt))) return null;
+  return count;
 }
 
 function dateLabel(value: string | null): string {
@@ -126,6 +136,294 @@ function dateLabel(value: string | null): string {
   return Number.isFinite(timestamp)
     ? new Date(timestamp).toLocaleString('ar-YE', { dateStyle: 'medium', timeStyle: 'short' })
     : 'تاريخ غير صالح في سجل المصادقة';
+}
+
+
+function DeviceManagementHeader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <MonitorSmartphone size={24} aria-hidden="true" />
+      <div>
+        <h1 id="device-management-title" style={{ margin: 0 }}>الأجهزة والجلسات</h1>
+        <p style={{ margin: '5px 0 0', lineHeight: 1.7 }}>
+          الجلسة الحالية من خدمة المصادقة؛ وقائمة المؤسسة من سجل الجلسات الخادمي، إن كان عقده منشورًا.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CurrentSessionCard({
+  session,
+  currentSessionInServerList,
+}: {
+  session: CurrentSession;
+  currentSessionInServerList?: OrganizationSession;
+}) {
+  return (
+    <article style={{ border: '1px solid #dcebed', borderRadius: 14, padding: 16, marginTop: 18 }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <ShieldCheck size={21} aria-hidden="true" />
+        <div>
+          <strong>الجلسة الحالية</strong>
+          <div style={{ fontSize: 13, color: '#71868a', marginTop: 3 }}>{session.deviceLabel}</div>
+        </div>
+        <span className="badge success" style={{ marginInlineStart: 'auto' }}>جلسة المتصفح الحالي</span>
+      </div>
+      <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12, marginTop: 18 }}>
+        <div>
+          <dt style={{ color: '#71868a', fontSize: 12 }}>الحساب</dt>
+          <dd style={{ margin: '4px 0', overflowWrap: 'anywhere' }}>{session.email || 'بريد غير متاح'}</dd>
+        </div>
+        <div>
+          <dt style={{ color: '#71868a', fontSize: 12 }}>معرّف الجلسة</dt>
+          <dd style={{ margin: '4px 0', fontFamily: 'monospace' }}>
+            {session.sessionId ? session.sessionId.slice(0, 8) + '…' : 'غير متاح'}
+          </dd>
+        </div>
+        <div>
+          <dt style={{ color: '#71868a', fontSize: 12 }}>انتهاء رمز الوصول</dt>
+          <dd style={{ margin: '4px 0' }}>
+            {session.expiresAt ? new Date(session.expiresAt * 1000).toLocaleString('ar-YE') : 'غير متاح'}
+          </dd>
+        </div>
+        {currentSessionInServerList ? (
+          <div>
+            <dt style={{ color: '#71868a', fontSize: 12 }}>آخر نشاط مسجل خادميًا</dt>
+            <dd style={{ margin: '4px 0' }}>{dateLabel(currentSessionInServerList.last_activity_at)}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </article>
+  );
+}
+
+function DeviceManagementActions({
+  session,
+  loading,
+  action,
+  onRefresh,
+  onSignOutOthers,
+  onSignOutCurrent,
+}: {
+  session: CurrentSession | null;
+  loading: boolean;
+  action: string | null;
+  onRefresh: () => void;
+  onSignOutOthers: () => void;
+  onSignOutCurrent: () => void;
+}) {
+  const disabled = loading || action !== null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 18 }}>
+      <button type="button" className="btn btn-outline" onClick={onRefresh} disabled={disabled}>
+        <RefreshCw size={16} /> تحديث الجلسة الحالية
+      </button>
+      <button
+        type="button"
+        className="btn primary"
+        aria-label="تسجيل الخروج من الأجهزة الأخرى"
+        onClick={onSignOutOthers}
+        disabled={!session?.sessionId || disabled}
+      >
+        {action === 'others' ? <RefreshCw size={16} className="spin" /> : <ShieldCheck size={16} />}
+        {action === 'others' ? 'جار إبطال الجلسات…' : 'الخروج من الجلسات الأخرى لهذا الحساب'}
+      </button>
+      <button
+        type="button"
+        className="btn btn-outline"
+        aria-label="تسجيل الخروج من هذا الجهاز"
+        onClick={onSignOutCurrent}
+        disabled={!session || disabled}
+      >
+        <LogOut size={16} /> {action === 'current' ? 'جار تسجيل الخروج…' : 'تسجيل الخروج من هذا الجهاز'}
+      </button>
+    </div>
+  );
+}
+
+function OrganizationSessionCard({
+  item,
+  currentProfileId,
+  action,
+  sessionsLoading,
+  canManage,
+  onRevoke,
+}: {
+  item: OrganizationSession;
+  currentProfileId?: string;
+  action: string | null;
+  sessionsLoading: boolean;
+  canManage: boolean;
+  onRevoke: (item: OrganizationSession) => void;
+}) {
+  const isCurrentUser = item.profile_id === currentProfileId;
+  const isBusy = action === item.session_id;
+  const revokeDisabled = !canManage || item.is_current_session || isCurrentUser || action !== null || sessionsLoading;
+
+  return (
+    <article style={{ border: '1px solid var(--border, #dcebed)', borderRadius: 12, padding: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 220, flex: '1 1 300px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <UserRound size={17} aria-hidden="true" />
+            <strong>{item.display_name}</strong>
+            {item.is_current_session ? <span className="badge success">الجلسة الحالية</span> : null}
+            {!item.is_current_session && isCurrentUser ? <span className="badge">جلسة أخرى لحسابك</span> : null}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 13, color: '#71868a', overflowWrap: 'anywhere' }}>
+            {item.email ?? 'بريد غير متاح'}
+          </div>
+          <div style={{ marginTop: 5, fontSize: 12, color: '#71868a' }}>
+            {item.user_agent ? browserLabel(item.user_agent) : 'نوع الجهاز غير محدد في سجل المصادقة'}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-outline"
+          aria-label={'إبطال جلسة ' + item.display_name}
+          onClick={() => onRevoke(item)}
+          disabled={revokeDisabled}
+        >
+          {isBusy ? <RefreshCw size={15} className="spin" /> : <Ban size={15} />}
+          {isBusy ? 'جار الإبطال…' : isCurrentUser ? 'تُدار من إجراء حسابك' : 'إبطال هذه الجلسة'}
+        </button>
+      </div>
+      <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 10, margin: '14px 0 0' }}>
+        <div><dt style={{ color: '#71868a', fontSize: 12 }}>آخر نشاط</dt><dd style={{ margin: '4px 0', fontSize: 13 }}>{dateLabel(item.last_activity_at)}</dd></div>
+        <div><dt style={{ color: '#71868a', fontSize: 12 }}>تاريخ الإنشاء</dt><dd style={{ margin: '4px 0', fontSize: 13 }}>{dateLabel(item.created_at)}</dd></div>
+        <div><dt style={{ color: '#71868a', fontSize: 12 }}>انتهاء الجلسة</dt><dd style={{ margin: '4px 0', fontSize: 13 }}>{dateLabel(item.expires_at)}</dd></div>
+        {item.ip_address ? (
+          <div><dt style={{ color: '#71868a', fontSize: 12 }}>عنوان الشبكة</dt><dd style={{ margin: '4px 0', fontSize: 13, fontFamily: 'monospace' }}>{item.ip_address}</dd></div>
+        ) : null}
+        <div><dt style={{ color: '#71868a', fontSize: 12 }}>معرّف الجلسة</dt><dd style={{ margin: '4px 0', fontFamily: 'monospace', fontSize: 12 }}>{item.session_id.slice(0, 8)}…</dd></div>
+      </dl>
+    </article>
+  );
+}
+
+function OrganizationSessionList({
+  sessions,
+  loading,
+  error,
+  canManage,
+  action,
+  currentProfileId,
+  onRefresh,
+  onRevoke,
+}: {
+  sessions: OrganizationSession[];
+  loading: boolean;
+  error: string;
+  canManage: boolean;
+  action: string | null;
+  currentProfileId?: string;
+  onRefresh: () => void;
+  onRevoke: (item: OrganizationSession) => void;
+}) {
+  if (!canManage) {
+    return (
+      <div role="note" className="privacy-note" style={{ marginTop: 12 }}>
+        لا تملك صلاحية إدارة جلسات بقية مستخدمي المؤسسة. يمكنك فقط إدارة جلسات حسابك من إجراءات المصادقة أعلاه.
+      </div>
+    );
+  }
+  if (loading) return <p role="status" style={{ marginTop: 14 }}>جار تحميل سجل الجلسات من الخادم…</p>;
+  if (error) {
+    return (
+      <div role="alert" className="error-box" style={{ display: 'block', marginTop: 14 }}>
+        {error}
+        <button type="button" className="btn btn-outline" onClick={onRefresh} disabled={action !== null}>
+          <RefreshCw size={14} /> إعادة المحاولة
+        </button>
+      </div>
+    );
+  }
+  if (sessions.length === 0) {
+    return <div role="status" className="privacy-note" style={{ marginTop: 14 }}>لم يُرجع الخادم جلسات نشطة ضمن النطاق المصرح به.</div>;
+  }
+
+  return (
+    <>
+      {sessions.length >= ORGANIZATION_SESSION_LIST_LIMIT ? (
+        <div role="status" className="privacy-note" style={{ marginTop: 14, lineHeight: 1.8 }}>
+          يعرض الخادم حتى {ORGANIZATION_SESSION_LIST_LIMIT} جلسة نشطة في هذا الطلب. قد توجد جلسات أخرى لم تظهر؛ لا تعتبر هذه القائمة جردًا كاملًا عند بلوغ الحد.
+        </div>
+      ) : null}
+      <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
+        {sessions.map((item) => (
+          <OrganizationSessionCard
+            key={item.session_id}
+            item={item}
+            currentProfileId={currentProfileId}
+            action={action}
+            sessionsLoading={loading}
+            canManage={canManage}
+            onRevoke={onRevoke}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function OrganizationSessionsSection({
+  sessions,
+  loading,
+  error,
+  canManage,
+  action,
+  currentProfileId,
+  onRefresh,
+  onRevoke,
+}: {
+  sessions: OrganizationSession[];
+  loading: boolean;
+  error: string;
+  canManage: boolean;
+  action: string | null;
+  currentProfileId?: string;
+  onRefresh: () => void;
+  onRevoke: (item: OrganizationSession) => void;
+}) {
+  return (
+    <section aria-labelledby="organization-session-list-title" style={{ marginTop: 24, borderTop: '1px solid var(--border, #dcebed)', paddingTop: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h2 id="organization-session-list-title" style={{ margin: 0, fontSize: 18 }}>جلسات المؤسسة المسجلة خادميًا</h2>
+          <p style={{ margin: '5px 0 0', color: '#71868a', fontSize: 13, lineHeight: 1.7 }}>
+            تظهر السجلات التي يعيدها الخادم فقط. الجلسة الحالية وجلسات حسابك الأخرى لا تُبطل من هذه القائمة؛ استخدم إجراء «الخروج من الجلسات الأخرى لهذا الحساب» لجلسات حسابك.
+          </p>
+        </div>
+        <button type="button" className="btn btn-outline" onClick={onRefresh} disabled={loading || action !== null || !canManage}>
+          <RefreshCw size={16} /> تحديث القائمة
+        </button>
+      </div>
+      <OrganizationSessionList
+        sessions={sessions}
+        loading={loading}
+        error={error}
+        canManage={canManage}
+        action={action}
+        currentProfileId={currentProfileId}
+        onRefresh={onRefresh}
+        onRevoke={onRevoke}
+      />
+    </section>
+  );
+}
+
+function DeviceManagementPrivacyNote() {
+  return (
+    <>
+      <p style={{ fontSize: 12, color: '#71868a', lineHeight: 1.8, marginTop: 14 }}>
+        إبطال الجلسة يتم عبر أمر خادمي مقيّد بالمؤسسة ويسجل في سجل التدقيق. قد تبقى رموز وصول صدرت سابقًا صالحة خارج نطاق نقاط التطبيق التي تتحقق من الجلسة حتى انتهاء مدتها؛ لا يُعرض الإجراء كإبطال لتوكنات خارج آلية الخادم.
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: '#71868a' }}>
+        <AlertTriangle size={14} aria-hidden="true" /> لا تُعرض أو تُخزّن رموز الوصول أو التجديد في سجل الأجهزة.
+      </div>
+    </>
+  );
 }
 
 export function DeviceManagement({ onNotice }: { onNotice: (message: string) => void }) {
@@ -304,124 +602,37 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
     }
   }
 
+
   const currentSessionInServerList = organizationSessions.find((item) => item.is_current_session);
 
-  return <section className="panel" dir="rtl" aria-labelledby="device-management-title" style={{ padding: 22 }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <MonitorSmartphone size={24} aria-hidden="true" />
-      <div><h1 id="device-management-title" style={{ margin: 0 }}>الأجهزة والجلسات</h1>
-        <p style={{ margin: '5px 0 0', lineHeight: 1.7 }}>الجلسة الحالية من خدمة المصادقة؛ وقائمة المؤسسة من سجل الجلسات الخادمي، إن كان عقده منشورًا.</p></div>
-    </div>
-
-    {error && <div role="alert" className="error-box" style={{ display: 'block', marginTop: 14 }}>{error}</div>}
-    {loading ? <p role="status" style={{ marginTop: 18 }}>جار قراءة جلسة الدخول…</p> : session ? (
-      <article style={{ border: '1px solid #dcebed', borderRadius: 14, padding: 16, marginTop: 18 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <ShieldCheck size={21} aria-hidden="true" />
-          <div><strong>الجلسة الحالية</strong><div style={{ fontSize: 13, color: '#71868a', marginTop: 3 }}>{session.deviceLabel}</div></div>
-          <span className="badge success" style={{ marginInlineStart: 'auto' }}>جلسة المتصفح الحالي</span>
-        </div>
-        <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12, marginTop: 18 }}>
-          <div><dt style={{ color: '#71868a', fontSize: 12 }}>الحساب</dt><dd style={{ margin: '4px 0', overflowWrap: 'anywhere' }}>{session.email || 'بريد غير متاح'}</dd></div>
-          <div><dt style={{ color: '#71868a', fontSize: 12 }}>معرّف الجلسة</dt><dd style={{ margin: '4px 0', fontFamily: 'monospace' }}>{session.sessionId ? session.sessionId.slice(0, 8) + '…' : 'غير متاح'}</dd></div>
-          <div><dt style={{ color: '#71868a', fontSize: 12 }}>انتهاء رمز الوصول</dt><dd style={{ margin: '4px 0' }}>{session.expiresAt ? new Date(session.expiresAt * 1000).toLocaleString('ar-YE') : 'غير متاح'}</dd></div>
-          {currentSessionInServerList && <div><dt style={{ color: '#71868a', fontSize: 12 }}>آخر نشاط مسجل خادميًا</dt><dd style={{ margin: '4px 0' }}>{dateLabel(currentSessionInServerList.last_activity_at)}</dd></div>}
-        </dl>
-      </article>
-    ) : null}
-
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 18 }}>
-      <button type="button" className="btn btn-outline" onClick={() => void load()} disabled={loading || action !== null}>
-        <RefreshCw size={16} /> تحديث الجلسة الحالية
-      </button>
-      <button type="button" className="btn primary" aria-label="تسجيل الخروج من الأجهزة الأخرى"
-        onClick={() => void signOutOthers()} disabled={!session?.sessionId || loading || action !== null}>
-        {action === 'others' ? <RefreshCw size={16} className="spin" /> : <ShieldCheck size={16} />}
-        {action === 'others' ? 'جار إبطال الجلسات…' : 'الخروج من الجلسات الأخرى لهذا الحساب'}
-      </button>
-      <button type="button" className="btn btn-outline" aria-label="تسجيل الخروج من هذا الجهاز"
-        onClick={() => void signOutCurrent()} disabled={!session || loading || action !== null}>
-        <LogOut size={16} /> {action === 'current' ? 'جار تسجيل الخروج…' : 'تسجيل الخروج من هذا الجهاز'}
-      </button>
-    </div>
-
-    <section aria-labelledby="organization-session-list-title" style={{ marginTop: 24, borderTop: '1px solid var(--border, #dcebed)', paddingTop: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h2 id="organization-session-list-title" style={{ margin: 0, fontSize: 18 }}>جلسات المؤسسة المسجلة خادميًا</h2>
-          <p style={{ margin: '5px 0 0', color: '#71868a', fontSize: 13, lineHeight: 1.7 }}>
-            تظهر السجلات التي يعيدها الخادم فقط. الجلسة الحالية وجلسات حسابك الأخرى لا تُبطل من هذه القائمة؛ استخدم إجراء «الخروج من الجلسات الأخرى لهذا الحساب» لجلسات حسابك.
-          </p>
-        </div>
-        <button type="button" className="btn btn-outline" onClick={() => void loadOrganizationSessions()} disabled={sessionsLoading || action !== null || !canManageOrganizationSessions}>
-          <RefreshCw size={16} /> تحديث القائمة
-        </button>
-      </div>
-
-      {!canManageOrganizationSessions ? (
-        <div role="note" className="privacy-note" style={{ marginTop: 12 }}>
-          لا تملك صلاحية إدارة جلسات بقية مستخدمي المؤسسة. يمكنك فقط إدارة جلسات حسابك من إجراءات المصادقة أعلاه.
-        </div>
-      ) : sessionsLoading ? (
-        <p role="status" style={{ marginTop: 14 }}>جار تحميل سجل الجلسات من الخادم…</p>
-      ) : sessionsError ? (
-        <div role="alert" className="error-box" style={{ display: 'block', marginTop: 14 }}>
-          {sessionsError}
-          <button type="button" className="btn btn-outline" onClick={() => void loadOrganizationSessions()} disabled={sessionsLoading || action !== null}>
-            <RefreshCw size={14} /> إعادة المحاولة
-          </button>
-        </div>
-      ) : organizationSessions.length === 0 ? (
-        <div role="status" className="privacy-note" style={{ marginTop: 14 }}>لم يُرجع الخادم جلسات نشطة ضمن النطاق المصرح به.</div>
-      ) : (
-        <>
-          {organizationSessions.length >= ORGANIZATION_SESSION_LIST_LIMIT && (
-            <div role="status" className="privacy-note" style={{ marginTop: 14, lineHeight: 1.8 }}>
-              يعرض الخادم حتى {ORGANIZATION_SESSION_LIST_LIMIT} جلسة نشطة في هذا الطلب. قد توجد جلسات أخرى لم تظهر؛ لا تعتبر هذه القائمة جردًا كاملًا عند بلوغ الحد.
-            </div>
-          )}
-          <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
-          {organizationSessions.map((item) => (
-            <article key={item.session_id} style={{ border: '1px solid var(--border, #dcebed)', borderRadius: 12, padding: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ minWidth: 220, flex: '1 1 300px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <UserRound size={17} aria-hidden="true" />
-                    <strong>{item.display_name}</strong>
-                    {item.is_current_session && <span className="badge success">الجلسة الحالية</span>}
-                    {!item.is_current_session && item.profile_id === user?.profileId && <span className="badge">جلسة أخرى لحسابك</span>}
-                  </div>
-                  <div style={{ marginTop: 4, fontSize: 13, color: '#71868a', overflowWrap: 'anywhere' }}>{item.email ?? 'بريد غير متاح'}</div>
-                  <div style={{ marginTop: 5, fontSize: 12, color: '#71868a' }}>
-                    {item.user_agent ? browserLabel(item.user_agent) : 'نوع الجهاز غير محدد في سجل المصادقة'}
-                  </div>
-                </div>
-                <button type="button" className="btn btn-outline" aria-label={'إبطال جلسة ' + item.display_name}
-                  onClick={() => void revokeOrganizationSession(item)}
-                  disabled={!canManageOrganizationSessions || item.is_current_session || item.profile_id === user?.profileId || action !== null || sessionsLoading}>
-                  {action === item.session_id ? <RefreshCw size={15} className="spin" /> : <Ban size={15} />}
-                  {action === item.session_id ? 'جار الإبطال…' : item.profile_id === user?.profileId && !item.is_current_session ? 'تُدار من إجراء حسابك' : 'إبطال هذه الجلسة'}
-                </button>
-              </div>
-              <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 10, margin: '14px 0 0' }}>
-                <div><dt style={{ color: '#71868a', fontSize: 12 }}>آخر نشاط</dt><dd style={{ margin: '4px 0', fontSize: 13 }}>{dateLabel(item.last_activity_at)}</dd></div>
-                <div><dt style={{ color: '#71868a', fontSize: 12 }}>تاريخ الإنشاء</dt><dd style={{ margin: '4px 0', fontSize: 13 }}>{dateLabel(item.created_at)}</dd></div>
-                <div><dt style={{ color: '#71868a', fontSize: 12 }}>انتهاء الجلسة</dt><dd style={{ margin: '4px 0', fontSize: 13 }}>{dateLabel(item.expires_at)}</dd></div>
-                {item.ip_address && <div><dt style={{ color: '#71868a', fontSize: 12 }}>عنوان الشبكة</dt><dd style={{ margin: '4px 0', fontSize: 13, fontFamily: 'monospace' }}>{item.ip_address}</dd></div>}
-                <div><dt style={{ color: '#71868a', fontSize: 12 }}>معرّف الجلسة</dt><dd style={{ margin: '4px 0', fontFamily: 'monospace', fontSize: 12 }}>{item.session_id.slice(0, 8)}…</dd></div>
-              </dl>
-            </article>
-          ))}
-          </div>
-        </>
-      )}
+  return (
+    <section className="panel" dir="rtl" aria-labelledby="device-management-title" style={{ padding: 22 }}>
+      <DeviceManagementHeader />
+      {error ? <div role="alert" className="error-box" style={{ display: 'block', marginTop: 14 }}>{error}</div> : null}
+      {loading ? (
+        <p role="status" style={{ marginTop: 18 }}>جار قراءة جلسة الدخول…</p>
+      ) : session ? (
+        <CurrentSessionCard session={session} currentSessionInServerList={currentSessionInServerList} />
+      ) : null}
+      <DeviceManagementActions
+        session={session}
+        loading={loading}
+        action={action}
+        onRefresh={() => void load()}
+        onSignOutOthers={() => void signOutOthers()}
+        onSignOutCurrent={() => void signOutCurrent()}
+      />
+      <OrganizationSessionsSection
+        sessions={organizationSessions}
+        loading={sessionsLoading}
+        error={sessionsError}
+        canManage={canManageOrganizationSessions}
+        action={action}
+        currentProfileId={user?.profileId}
+        onRefresh={() => void loadOrganizationSessions()}
+        onRevoke={(target) => void revokeOrganizationSession(target)}
+      />
+      <DeviceManagementPrivacyNote />
     </section>
-
-    <p style={{ fontSize: 12, color: '#71868a', lineHeight: 1.8, marginTop: 14 }}>
-      إبطال الجلسة يتم عبر أمر خادمي مقيّد بالمؤسسة ويسجل في سجل التدقيق. قد تبقى رموز وصول صدرت سابقًا صالحة خارج نطاق نقاط التطبيق التي تتحقق من الجلسة حتى انتهاء مدتها؛ لا يُعرض الإجراء كإبطال لتوكنات خارج آلية الخادم.
-    </p>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: '#71868a' }}>
-      <AlertTriangle size={14} aria-hidden="true" /> لا تُعرض أو تُخزّن رموز الوصول أو التجديد في سجل الأجهزة.
-    </div>
-  </section>;
+  );
 }

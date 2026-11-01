@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { act } from "react";
 import type { ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -55,6 +56,11 @@ import { routeTree } from "@/routeTree.gen";
 
 type Mount = { root: Root; host: HTMLDivElement; active: boolean };
 const mounts: Mount[] = [];
+const routeTokens = {
+  queryInvitation: randomBytes(32).toString("hex"),
+  pathInvitation: randomBytes(32).toString("hex"),
+  activation: randomBytes(32).toString("hex"),
+};
 
 async function mountAt(path: string): Promise<Mount> {
   const host = document.createElement("div");
@@ -99,9 +105,9 @@ describe("customer company and token routes resolve through the generated route 
     { path: "/quotes", testId: "quote-workspace-page" },
     { path: "/reorder", testId: "reorder-workspace-page" },
     { path: "/company/members", testId: "company-members-page" },
-    { path: "/company/accept-invitation?token=query-invitation-test-token", testId: "company-invitation-page" },
-    { path: "/invite/path-invitation-test-token", testId: "company-invitation-page", token: "path-invitation-test-token" },
-    { path: "/customer/activate/path-activation-test-token", testId: "customer-activation-page", token: "path-activation-test-token" },
+    { path: `/company/accept-invitation?token=${routeTokens.queryInvitation}`, testId: "company-invitation-page" },
+    { path: `/invite/${routeTokens.pathInvitation}`, testId: "company-invitation-page", token: routeTokens.pathInvitation },
+    { path: `/customer/activate/${routeTokens.activation}`, testId: "customer-activation-page", token: routeTokens.activation },
   ])("resolves $path to its real route wrapper", async ({ path, testId, token }) => {
     const mount = await mountAt(path);
     const page = mount.host.querySelector(`[data-testid="${testId}"]`);

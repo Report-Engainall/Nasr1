@@ -136,14 +136,328 @@ export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: strin
     }
   }
 
+
+type ReturnableItem = CustomerReturnSummary["returnable_items"][number];
+
+function CustomerReturnItemRow({
+  item,
+  value,
+  disabled,
+  onChange,
+}: {
+  item: ReturnableItem;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid #e3ebec",
+        borderRadius: 10,
+        padding: 12,
+        display: "grid",
+        gridTemplateColumns: "minmax(0,1fr) minmax(125px,180px)",
+        gap: 12,
+        alignItems: "center",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <strong>{item.product_name}</strong>
+        <p style={{ ...muted, marginTop: 3 }}>
+          الرمز: {item.item_code || "غير مسجل"} · الوحدة: {item.unit || "غير محددة"}
+        </p>
+        <p style={{ ...muted, marginTop: 3 }}>
+          الكمية في الطلب: {item.ordered_quantity.toLocaleString("ar-YE")} · سبق طلب إرجاعها:{" "}
+          {item.already_requested_quantity.toLocaleString("ar-YE")} · المتاح:{" "}
+          <strong>{item.remaining_quantity.toLocaleString("ar-YE")}</strong>
+        </p>
+      </div>
+      <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 750 }}>
+        كمية الإرجاع
+        <input
+          aria-label={"كمية الإرجاع: " + item.product_name}
+          type="number"
+          inputMode="decimal"
+          min="0"
+          max={item.remaining_quantity}
+          step="0.001"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          style={field}
+          disabled={disabled}
+        />
+      </label>
+    </div>
+  );
+}
+
+function CustomerReturnReasonField({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: CustomerReturnReason | "";
+  disabled: boolean;
+  onChange: (value: CustomerReturnReason | "") => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6, fontWeight: 750, fontSize: 13 }}>
+      سبب الإرجاع <span aria-hidden="true">*</span>
+      <select
+        required
+        value={value}
+        onChange={(event) => onChange(event.target.value as CustomerReturnReason | "")}
+        style={field}
+        disabled={disabled}
+      >
+        <option value="">اختر السبب</option>
+        {Object.entries(reasonLabels).map(([reason, label]) => (
+          <option key={reason} value={reason}>{label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CustomerReturnNotesField({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6, fontWeight: 750, fontSize: 13 }}>
+      تفاصيل إضافية (اختياري)
+      <textarea
+        value={value}
+        maxLength={1000}
+        rows={3}
+        onChange={(event) => onChange(event.target.value)}
+        style={{ ...field, resize: "vertical" }}
+        disabled={disabled}
+      />
+      <span style={{ ...muted, textAlign: "left" }}>{value.length}/1000</span>
+    </label>
+  );
+}
+
+function CustomerReturnForm({
+  available,
+  drafts,
+  reason,
+  notes,
+  busy,
+  onDraftChange,
+  onReasonChange,
+  onNotesChange,
+  onSubmit,
+  onClear,
+}: {
+  available: ReturnableItem[];
+  drafts: Record<string, string>;
+  reason: CustomerReturnReason | "";
+  notes: string;
+  busy: boolean;
+  onDraftChange: (itemId: string, value: string) => void;
+  onReasonChange: (value: CustomerReturnReason | "") => void;
+  onNotesChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onClear: () => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+      <div style={{ display: "grid", gap: 10 }}>
+        {available.map((item) => (
+          <CustomerReturnItemRow
+            key={item.order_item_id}
+            item={item}
+            value={drafts[item.order_item_id] ?? ""}
+            disabled={busy}
+            onChange={(value) => onDraftChange(item.order_item_id, value)}
+          />
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+          gap: 12,
+        }}
+      >
+        <CustomerReturnReasonField
+          value={reason}
+          onChange={onReasonChange}
+          disabled={busy}
+        />
+        <CustomerReturnNotesField
+          value={notes}
+          onChange={onNotesChange}
+          disabled={busy}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-start" }}>
+        <button type="submit" style={primary} disabled={busy}>
+          {busy ? <RefreshCw size={16} /> : <Send size={16} />}
+          {busy ? "جارٍ إرسال الطلب..." : "إرسال طلب الإرجاع"}
+        </button>
+        <button type="button" style={button} disabled={busy} onClick={onClear}>
+          إفراغ النموذج
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CustomerReturnStatusMessages({
+  loading,
+  error,
+  notice,
+  canRequest,
+  hasAvailableItems,
+  currentStatus,
+}: {
+  loading: boolean;
+  error: string;
+  notice: string;
+  canRequest: boolean;
+  hasAvailableItems: boolean;
+  currentStatus: string;
+}) {
+  return (
+    <>
+      {loading ? <p role="status" style={muted}>جارٍ تحميل أهلية الإرجاع وسجل الطلبات...</p> : null}
+      {error ? (
+        <p role="alert" style={{ ...muted, color: "#a32929", background: "#fff1f1", padding: 10, borderRadius: 8 }}>
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p role="status" style={{ color: "#17684d", background: "#edf9f2", padding: 10, borderRadius: 8, margin: 0 }}>
+          {notice}
+        </p>
+      ) : null}
+      {!loading && !canRequest ? (
+        <p style={muted}>
+          يمكن فتح طلب إرجاع بعد أن تصبح حالة الطلب «تم التسليم» فقط. الحالة الحالية: {currentStatus}.
+        </p>
+      ) : null}
+      {!loading && canRequest && !hasAvailableItems ? (
+        <p style={muted}>
+          لا توجد كميات إضافية متاحة لطلب إرجاعها. يتم احتساب الطلبات المرسلة والمقبولة لمنع تكرار الكمية.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function CustomerReturnHistoryLine({
+  item,
+}: {
+  item: CustomerReturnSummary["requests"][number]["items"][number];
+}) {
+  return (
+    <li style={{ fontSize: 13 }}>
+      {item.product_name}: {item.requested_quantity.toLocaleString("ar-YE")} {item.unit ?? ""}
+    </li>
+  );
+}
+
+function CustomerReturnHistoryCard({
+  request,
+}: {
+  request: CustomerReturnSummary["requests"][number];
+}) {
+  const rejected = request.status === "rejected";
+
+  return (
+    <article style={{ border: "1px solid #e3ebec", borderRadius: 10, padding: 12, display: "grid", gap: 7 }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+        <strong>{request.request_number}</strong>
+        <span
+          style={{
+            padding: "3px 8px",
+            borderRadius: 20,
+            background: rejected ? "#fff1f1" : "#eef7f5",
+            color: rejected ? "#a32929" : "#17684d",
+            fontSize: 12,
+            fontWeight: 800,
+          }}
+        >
+          {statusLabels[request.status]}
+        </span>
+      </div>
+      <p style={muted}>
+        السبب: {reasonLabels[request.reason]} · التاريخ: {new Date(request.created_at).toLocaleString("ar-YE")}
+      </p>
+      <ul style={{ margin: 0, paddingInlineStart: 22 }}>
+        {request.items.map((item) => (
+          <CustomerReturnHistoryLine key={item.order_item_id} item={item} />
+        ))}
+      </ul>
+      {request.notes ? <p style={muted}>تفاصيل العميل: {request.notes}</p> : null}
+      {request.review_note ? (
+        <p style={{ ...muted, color: "#3e5e61" }}>ملاحظة القرار: {request.review_note}</p>
+      ) : null}
+    </article>
+  );
+}
+
+function CustomerReturnHistory({
+  requests,
+}: {
+  requests: CustomerReturnSummary["requests"];
+}) {
+  if (requests.length === 0) return null;
+
+  return (
+    <section
+      aria-label="سجل طلبات الإرجاع"
+      style={{ display: "grid", gap: 10, borderTop: "1px solid #e3ebec", paddingTop: 14 }}
+    >
+      <h3 style={{ margin: 0, fontSize: 16, display: "flex", alignItems: "center", gap: 7 }}>
+        <ClipboardCheck size={17} /> سجل طلبات الإرجاع
+      </h3>
+      {requests.map((request) => (
+        <CustomerReturnHistoryCard key={request.id} request={request} />
+      ))}
+    </section>
+  );
+}
+
+function CustomerReturnPolicyNote() {
+  return (
+    <p style={{ ...muted, display: "flex", gap: 7, alignItems: "flex-start" }}>
+      <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 3 }} />
+      لا تُغيّر هذه الشاشة المخزون أو الفاتورة أو رصيد العميل تلقائيًا. بعد الاستلام والفحص الفعلي تُسجل حركة المخزون والإشعار الدائن عبر مساراتها المخوّلة.
+    </p>
+  );
+}
+
   const canRequest = orderStatus === "delivered" && summary?.order_status === "delivered";
   const available = (summary?.returnable_items ?? []).filter((item) => item.remaining_quantity > 0);
 
   return (
     <section style={panel} aria-labelledby="customer-return-heading" dir="rtl">
-      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
-          <h2 id="customer-return-heading" style={{ margin: 0, fontSize: 19, display: "flex", alignItems: "center", gap: 8 }}>
+          <h2
+            id="customer-return-heading"
+            style={{ margin: 0, fontSize: 19, display: "flex", alignItems: "center", gap: 8 }}
+          >
             <RotateCcw size={19} /> طلب إرجاع / مرتجع
           </h2>
           <p style={{ ...muted, marginTop: 5 }}>
@@ -155,100 +469,38 @@ export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: strin
         </button>
       </header>
 
-      {loading && <p role="status" style={muted}>جارٍ تحميل أهلية الإرجاع وسجل الطلبات...</p>}
-      {error && <p role="alert" style={{ ...muted, color: "#a32929", background: "#fff1f1", padding: 10, borderRadius: 8 }}>{error}</p>}
-      {notice && <p role="status" style={{ color: "#17684d", background: "#edf9f2", padding: 10, borderRadius: 8, margin: 0 }}>{notice}</p>}
+      <CustomerReturnStatusMessages
+        loading={loading}
+        error={error}
+        notice={notice}
+        canRequest={canRequest}
+        hasAvailableItems={available.length > 0}
+        currentStatus={statusLabels[summary?.order_status ?? orderStatus] ?? (summary?.order_status ?? orderStatus)}
+      />
 
-      {!loading && !canRequest && (
-        <p style={muted}>يمكن فتح طلب إرجاع بعد أن تصبح حالة الطلب «تم التسليم» فقط. الحالة الحالية: {statusLabels[summary?.order_status ?? orderStatus] ?? (summary?.order_status ?? orderStatus)}.</p>
-      )}
+      {!loading && canRequest && available.length > 0 ? (
+        <CustomerReturnForm
+          available={available}
+          drafts={drafts}
+          reason={reason}
+          notes={notes}
+          busy={busy}
+          onDraftChange={(itemId, value) => setDrafts((current) => ({ ...current, [itemId]: value }))}
+          onReasonChange={setReason}
+          onNotesChange={setNotes}
+          onSubmit={(event) => void submit(event)}
+          onClear={() => {
+            setDrafts({});
+            setReason("");
+            setNotes("");
+            setError("");
+            attemptRef.current = null;
+          }}
+        />
+      ) : null}
 
-      {!loading && canRequest && available.length === 0 && (
-        <p style={muted}>لا توجد كميات إضافية متاحة لطلب إرجاعها. يتم احتساب الطلبات المرسلة والمقبولة لمنع تكرار الكمية.</p>
-      )}
-
-      {!loading && canRequest && available.length > 0 && (
-        <form onSubmit={(event) => void submit(event)} style={{ display: "grid", gap: 14 }}>
-          <div style={{ display: "grid", gap: 10 }}>
-            {available.map((item) => (
-              <div key={item.order_item_id} style={{ border: "1px solid #e3ebec", borderRadius: 10, padding: 12, display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(125px,180px)", gap: 12, alignItems: "center" }}>
-                <div style={{ minWidth: 0 }}>
-                  <strong>{item.product_name}</strong>
-                  <p style={{ ...muted, marginTop: 3 }}>
-                    الرمز: {item.item_code || "غير مسجل"} · الوحدة: {item.unit || "غير محددة"}
-                  </p>
-                  <p style={{ ...muted, marginTop: 3 }}>
-                    الكمية في الطلب: {item.ordered_quantity.toLocaleString("ar-YE")} · سبق طلب إرجاعها: {item.already_requested_quantity.toLocaleString("ar-YE")} · المتاح: <strong>{item.remaining_quantity.toLocaleString("ar-YE")}</strong>
-                  </p>
-                </div>
-                <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 750 }}>
-                  كمية الإرجاع
-                  <input
-                    aria-label={"كمية الإرجاع: " + item.product_name}
-                    type="number" inputMode="decimal" min="0" max={item.remaining_quantity} step="0.001"
-                    value={drafts[item.order_item_id] ?? ""}
-                    onChange={(event) => setDrafts((current) => ({ ...current, [item.order_item_id]: event.target.value }))}
-                    style={field} disabled={busy}
-                  />
-                </label>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-            <label style={{ display: "grid", gap: 6, fontWeight: 750, fontSize: 13 }}>
-              سبب الإرجاع <span aria-hidden="true">*</span>
-              <select required value={reason} onChange={(event) => setReason(event.target.value as CustomerReturnReason | "")} style={field} disabled={busy}>
-                <option value="">اختر السبب</option>
-                {Object.entries(reasonLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </label>
-            <label style={{ display: "grid", gap: 6, fontWeight: 750, fontSize: 13 }}>
-              تفاصيل إضافية (اختياري)
-              <textarea value={notes} maxLength={1000} rows={3} onChange={(event) => setNotes(event.target.value)} style={{ ...field, resize: "vertical" }} disabled={busy} />
-              <span style={{ ...muted, textAlign: "left" }}>{notes.length}/1000</span>
-            </label>
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-start" }}>
-            <button type="submit" style={primary} disabled={busy || loading}>
-              {busy ? <RefreshCw size={16} /> : <Send size={16} />}
-              {busy ? "جارٍ إرسال الطلب..." : "إرسال طلب الإرجاع"}
-            </button>
-            <button type="button" style={button} disabled={busy} onClick={() => { setDrafts({}); setReason(""); setNotes(""); setError(""); attemptRef.current = null; }}>
-              إفراغ النموذج
-            </button>
-          </div>
-        </form>
-      )}
-
-      {summary && summary.requests.length > 0 && (
-        <section aria-label="سجل طلبات الإرجاع" style={{ display: "grid", gap: 10, borderTop: "1px solid #e3ebec", paddingTop: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 16, display: "flex", alignItems: "center", gap: 7 }}>
-            <ClipboardCheck size={17} /> سجل طلبات الإرجاع
-          </h3>
-          {summary.requests.map((request) => (
-            <article key={request.id} style={{ border: "1px solid #e3ebec", borderRadius: 10, padding: 12, display: "grid", gap: 7 }}>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-                <strong>{request.request_number}</strong>
-                <span style={{ padding: "3px 8px", borderRadius: 20, background: request.status === "rejected" ? "#fff1f1" : "#eef7f5", color: request.status === "rejected" ? "#a32929" : "#17684d", fontSize: 12, fontWeight: 800 }}>
-                  {statusLabels[request.status]}
-                </span>
-              </div>
-              <p style={muted}>السبب: {reasonLabels[request.reason]} · التاريخ: {new Date(request.created_at).toLocaleString("ar-YE")}</p>
-              <ul style={{ margin: 0, paddingInlineStart: 22 }}>
-                {request.items.map((line) => <li key={line.order_item_id} style={{ fontSize: 13 }}>{line.product_name}: {line.requested_quantity.toLocaleString("ar-YE")} {line.unit ?? ""}</li>)}
-              </ul>
-              {request.notes && <p style={muted}>تفاصيل العميل: {request.notes}</p>}
-              {request.review_note && <p style={{ ...muted, color: "#3e5e61" }}>ملاحظة القرار: {request.review_note}</p>}
-            </article>
-          ))}
-        </section>
-      )}
-      <p style={{ ...muted, display: "flex", gap: 7, alignItems: "flex-start" }}>
-        <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 3 }} />
-        لا تُغيّر هذه الشاشة المخزون أو الفاتورة أو رصيد العميل تلقائيًا. بعد الاستلام والفحص الفعلي تُسجل حركة المخزون والإشعار الدائن عبر مساراتها المخوّلة.
-      </p>
+      <CustomerReturnHistory requests={summary?.requests ?? []} />
+      <CustomerReturnPolicyNote />
     </section>
   );
 }

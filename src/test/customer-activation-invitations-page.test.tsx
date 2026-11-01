@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -20,7 +21,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { CustomerActivationInvitationPage } from "@/components/CustomerActivationInvitationPage";
 
-const TOKEN = "a".repeat(64);
+const TOKEN = randomBytes(32).toString("hex");
 
 describe("customer activation invitation page", () => {
   beforeEach(() => {
@@ -36,7 +37,8 @@ describe("customer activation invitation page", () => {
   });
 
   it("rejects malformed tokens before rendering an account acceptance action", () => {
-    render(<CustomerActivationInvitationPage token="invalid" />);
+    const malformedToken = randomBytes(8).toString("hex");
+    render(<CustomerActivationInvitationPage token={malformedToken} />);
     expect(screen.getByRole("alert")).toHaveTextContent("رابط تفعيل غير صالح");
     expect(screen.queryByRole("button", { name: /التحقق من الدعوة/ })).not.toBeInTheDocument();
     expect(mocks.accept).not.toHaveBeenCalled();
