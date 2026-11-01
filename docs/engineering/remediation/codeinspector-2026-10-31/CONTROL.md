@@ -286,3 +286,13 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - The stable baseline row `CI31-TS0003-755abde8-1` for `src/components/intelligence/CashflowForecastCard.tsx:53` is now `IMPLEMENTED_PENDING_FRESH_SCAN`; no finding is marked CLOSED until fresh CodeInspector.
 - P2 counts after #348: 1 TS0002 + 22 TS0003 implemented pending fresh scan; 82 active current-tree TS0003 OPEN; 10 archive-only scope-review; TS0010 not reproduced/not closed. All 239 original rows retained.
 - #347 ActionCard branch must be synchronized/retested against this main and then reviewed/merged; #349/#350/#351/#352 also require latest-main sync before merge.
+
+
+## Live merge checkpoint — 2026-11-01 — P2 batch 08
+
+- Latest main: `15eb044c0651dafc7ef279d6253431e777d5f097` (merge of PR #349).
+- PR #349 EvidencePassport is merged. Exact-head Core 41264989329 SUCCESS; Secret Scan 41264989609 SUCCESS; Playwright 41264989433 public UI/auth/local Supabase order persistence and tenant isolation SUCCESS. Hosted tenant E2E SKIPPED, not PASS.
+- Baseline stable finding `CI31-TS0003-bc02df01-1` is now IMPLEMENTED_PENDING_FRESH_SCAN; implementation source commit `61ec2e77f780f1bfda163f80b9891f9dc567b7de`. Fresh CodeInspector rule rerun is still required for closure.
+- Updated P2 counts: 1 TS0002 + 23 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 81 active TS0003 OPEN; 10 archived scope-review; TS0010 not reproduced/not closed. All 239 original findings remain.
+- Post-#349 main runs at this checkpoint: Core 41265344644 IN_PROGRESS; P2 Playwright 41265344647 IN_PROGRESS; Secret Scan 41265344638 IN_PROGRESS; branch cleanup 41265344707 IN_PROGRESS. Exact current-main verification is not yet complete.
+- #352 admin notifications, #350 P1 security and #351 P3 tooling are synchronized/revalidation ongoing against latest main; their prior-head checks do not transfer.

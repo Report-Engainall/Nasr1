@@ -213,3 +213,12 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - Source SHA: `9be5ce76d3f264bb5e5c0e59412f675d485a8b2e`.
 - Exact checks: Core 41263937229 SUCCESS; Gitleaks 41263937233 SUCCESS; Playwright 41263937251 public/auth/local Supabase order+tenant SUCCESS; hosted tenant job SKIPPED.
 - Original CodeInspector finding `CI31-TS0003-755abde8-1` is recorded as IMPLEMENTED_PENDING_FRESH_SCAN. Fresh scan remains required.
+
+
+## P2 batch 08 merge proof — 2026-11-01
+
+- PR #349 merge SHA: `15eb044c0651dafc7ef279d6253431e777d5f097`; implementation source commit `61ec2e77f780f1bfda163f80b9891f9dc567b7de`.
+- Exact head Core 41264989329 SUCCESS; Secret Scan 41264989609 SUCCESS; Playwright 41264989433 public/auth/local Supabase persistence and tenant isolation SUCCESS; hosted tenant E2E SKIPPED.
+- Original TS0003 finding `CI31-TS0003-bc02df01-1` for EvidencePassport is IMPLEMENTED_PENDING_FRESH_SCAN.
+- Main commit post-merge validation runs 41265344644 / 41265344647 / 41265344638 were still in progress at the checkpoint; poll current-head results before final status.
+
