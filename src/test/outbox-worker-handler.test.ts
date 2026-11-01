@@ -15,7 +15,7 @@ function createHarness(options?: {
 }) {
   const calls: Array<{ procedure: string; parameters: Record<string, unknown> }> = [];
   const errors: Array<{ message: string; context: Record<string, unknown> }> = [];
-  const environment = {
+  const environment: Record<string, string | undefined> = {
     OUTBOX_WORKER_SECRET: "worker-secret",
     SUPABASE_URL: "https://supabase.example.test",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-fixture-only",
