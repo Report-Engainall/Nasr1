@@ -402,6 +402,45 @@ function MemberCard({
   );
 }
 
+function MembersSectionHeading() {
+  return (
+    <h2
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 0,
+      }}
+    >
+      <Users size={20} /> عضويات الشركة
+    </h2>
+  );
+}
+
+function InvitationsSectionHeading() {
+  return (
+    <h2
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 0,
+      }}
+    >
+      <Link2 size={20} /> سجل الدعوات
+    </h2>
+  );
+}
+
+function InvitationHistoryDisclosure() {
+  return (
+    <p style={{ color: "#526b70", fontSize: 13 }}>
+      يعرض هذا القسم آخر 100 دعوة فقط. قد توجد دعوات أقدم محفوظة في سجل النظام
+      وغير ظاهرة هنا؛ لا تعتبر القائمة سجلًا تاريخيًا كاملًا.
+    </p>
+  );
+}
+
 function MembersSection({
   members,
   loading,
@@ -418,7 +457,7 @@ function MembersSection({
   if (loading) {
     return (
       <section style={{ ...panel, marginBottom: 18 }}>
-        <h2>عضويات الشركة</h2>
+        <MembersSectionHeading />
         <p role="status">جارٍ تحميل العضويات...</p>
       </section>
     );
@@ -427,7 +466,7 @@ function MembersSection({
   if (members.length === 0) {
     return (
       <section style={{ ...panel, marginBottom: 18 }}>
-        <h2>عضويات الشركة</h2>
+        <MembersSectionHeading />
         <p>لا توجد عضويات إضافية حتى الآن.</p>
       </section>
     );
@@ -435,16 +474,7 @@ function MembersSection({
 
   return (
     <section style={{ ...panel, marginBottom: 18 }}>
-      <h2
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginTop: 0,
-        }}
-      >
-        <Users size={20} /> عضويات الشركة
-      </h2>
+      <MembersSectionHeading />
       <div
         style={{
           display: "grid",
@@ -531,7 +561,8 @@ function InvitationsSection({
   if (loading) {
     return (
       <section style={panel}>
-        <h2>سجل الدعوات</h2>
+        <InvitationsSectionHeading />
+        <InvitationHistoryDisclosure />
         <p role="status">جارٍ تحميل سجل الدعوات...</p>
       </section>
     );
@@ -540,7 +571,8 @@ function InvitationsSection({
   if (invitations.length === 0) {
     return (
       <section style={panel}>
-        <h2>سجل الدعوات</h2>
+        <InvitationsSectionHeading />
+        <InvitationHistoryDisclosure />
         <p>لا توجد دعوات محفوظة.</p>
       </section>
     );
@@ -548,20 +580,8 @@ function InvitationsSection({
 
   return (
     <section style={panel}>
-      <h2
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginTop: 0,
-        }}
-      >
-        <Link2 size={20} /> سجل الدعوات
-      </h2>
-      <p style={{ color: "#526b70", fontSize: 13 }}>
-        يعرض هذا القسم آخر 100 دعوة فقط. قد توجد دعوات أقدم محفوظة في سجل النظام
-        وغير ظاهرة هنا؛ لا تعتبر القائمة سجلًا تاريخيًا كاملًا.
-      </p>
+      <InvitationsSectionHeading />
+      <InvitationHistoryDisclosure />
       <div style={{ display: "grid", gap: 10 }}>
         {invitations.map((invitation) => (
           <InvitationRow
