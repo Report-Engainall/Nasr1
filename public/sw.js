@@ -28,7 +28,7 @@ function isHtmlResponse(response) {
   return mimeType === 'text/html' || mimeType === 'application/xhtml+xml';
 }
 
-// Never emit Error.message, Error.stack, URL queries or fragments in a diagnostic.
+// Diagnostics expose only safe metadata, never raw exception payloads or request credentials.
 function diagnosticErrorType(error) {
   const tag = Object.prototype.toString.call(error);
   if (error instanceof TypeError || tag === '[object TypeError]') return 'TypeError';

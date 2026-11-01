@@ -70,10 +70,13 @@ async function loadServiceWorker(overrides: {
   };
   const skipWaiting = vi.fn(async () => undefined);
   const claim = vi.fn(async () => undefined);
+  const diagnosticMessages: unknown[] = [];
+  const diagnosticClient = { postMessage: (message: unknown) => diagnosticMessages.push(message) };
+  const matchAll = vi.fn(async () => [diagnosticClient]);
   const selfMock = {
     addEventListener: (name: string, listener: Listener) => listeners.set(name, listener),
     skipWaiting,
-    clients: { claim },
+    clients: { claim, matchAll },
     location: { origin: "https://aghbari.example" },
   };
 
@@ -86,10 +89,9 @@ async function loadServiceWorker(overrides: {
     fetch: vi.fn((request: Request | string) => overrides.fetcher
       ? overrides.fetcher(request)
       : Promise.reject(new Error("unexpected network request"))),
-    console,
   });
 
-  return { listeners, cacheAdd, cachePut, cachesMock, cacheDelete, skipWaiting, claim };
+  return { listeners, cacheAdd, cachePut, cachesMock, cacheDelete, skipWaiting, claim, diagnosticMessages, matchAll };
 }
 
 describe("Aghbari PWA offline shell", () => {
@@ -97,7 +99,7 @@ describe("Aghbari PWA offline shell", () => {
     const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
     expect(source).toContain("aghbari:service-worker-diagnostic");
     expect(source).not.toMatch(/\bconsole\.(?:log|warn|error)\s*\(/);
-    expect(source).not.toMatch(/error\\.(?:message|stack)/);
+    expect(source).not.toMatch(/\bError\.(?:message|stack)/);
   });
 
   it("precaches MIME-valid shell assets while skipping an optional asset with the wrong MIME", async () => {
@@ -231,7 +233,6 @@ describe("Aghbari PWA offline shell", () => {
     });
     const pending: Promise<Response>[] = [];
     const lifecycle: Promise<unknown>[] = [];
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     worker.listeners.get("fetch")?.({
       request: {
         method: "GET",
@@ -244,12 +245,14 @@ describe("Aghbari PWA offline shell", () => {
 
     await expect(Promise.all(pending)).resolves.toEqual([cachedResponse]);
     await expect(Promise.all(lifecycle)).resolves.toBeDefined();
-    expect(warn).toHaveBeenCalledWith(
-      "[aghbari-sw] background asset refresh failed; serving cached response",
-      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
-    );
-    expectNoDiagnosticSecrets(warn.mock.calls);
-    warn.mockRestore();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "warning",
+      code: "background-asset-refresh-failed",
+      pathname: "/assets/app.js",
+      errorType: "Error",
+    });
+    expectNoDiagnosticSecrets(worker.diagnosticMessages);
   });
 
 
@@ -257,7 +260,6 @@ describe("Aghbari PWA offline shell", () => {
     const requestUrl = "https://aghbari.example/assets/app.js?access_token=do-not-log-this";
     const pending: Promise<Response>[] = [];
     const lifecycle: Promise<unknown>[] = [];
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const worker = await loadServiceWorker({
       fetcher: async () => sameOriginResponse("export const ok = true;", {
         status: 200,
@@ -276,13 +278,15 @@ describe("Aghbari PWA offline shell", () => {
 
     await expect(Promise.all(pending)).resolves.toHaveLength(1);
     await expect(Promise.all(lifecycle)).resolves.toBeDefined();
-    expect(warn).toHaveBeenCalledWith(
-      "[aghbari-sw] static asset cache write failed",
-      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
-    );
-    expectNoDiagnosticSecrets(warn.mock.calls);
-    expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log-this");
-    warn.mockRestore();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "warning",
+      code: "static-asset-cache-write-failed",
+      pathname: "/assets/app.js",
+      errorType: "Error",
+    });
+    expectNoDiagnosticSecrets(worker.diagnosticMessages);
+    expect(JSON.stringify(worker.diagnosticMessages)).not.toContain("do-not-log-this");
   });
 
   it("removes previous shell cache versions during activation", async () => {
