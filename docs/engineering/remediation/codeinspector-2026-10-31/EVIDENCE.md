@@ -166,3 +166,31 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - P2 findings: 1 TS0002 + 18 TS0003 are `IMPLEMENTED_PENDING_FRESH_SCAN`; 87 active TS0003 remain OPEN; 10 archive-only TS0003 remain scope-review items; TS0010 remains not reproduced and not closed. No finding is CLOSED without a fresh CodeInspector scan.
 - P3 privacy finding 6551351663 is implemented and merged; raw Service Worker Error messages/stacks are not emitted, and diagnostic redaction covers access/refresh/id/provider tokens, client secrets, OAuth codes and URL query/fragment values.
 - Main has no branch-protection rule configured; none was changed or bypassed. Hosted tenant E2E remains unavailable and is never counted as PASS. Next: complete exact-head checks for P2 PR #343, merge if green, then continue the remaining 87 active TS0003 records and run a fresh CodeInspector scan.
+
+
+## Live execution update — 2026-11-01 — P2 batch 04
+
+- Current main: `1e39260a4f3302d43addcff2779f294b933de947`. Merged P2 batch 03 PR #343 after exact-head Core/P2 local Supabase, P3 tooling and full-history Gitleaks SUCCESS. P1 #339 and P3 #340 are already merged.
+- P2 batch 04 PR #344, source commit `1c36f783cbc8da37948c3f879fb3d9fcf0bf53a6`, branch synchronized with main at `3eb735a7462d59e1d7b74aa90d91374578ff7d61`. It extracts the legacy OrdersPage status mapping and nested order-card rendering into typed presentation helpers and focused components, preserving existing status labels/classes, customer-scoped query, navigation and loading behavior. Table-driven tests cover all mapped statuses and the unknown fallback.
+- Runtime scope: `src/pages/store/OrdersPage.tsx` is in the legacy React entry tree, not the current TanStack Start route tree. This batch is a static-analysis cleanup of legacy source; it does not claim to modify the active TanStack order route or establish a server-side price-visibility boundary. The active order route remains subject to its own server/RPC privacy acceptance.
+- Two P2 TS0003 findings in OrdersPage are now `IMPLEMENTED_PENDING_FRESH_SCAN`; P2 total is 1 TS0002 + 19 TS0003 pending fresh scan, 85 active TS0003 OPEN, 10 archived scope-review. TS0010 remains not reproduced and not closed.
+- P2 batch 05 PR #346 is open and separately tracks Customer 360 recent-order print rendering; its finding is not included in this main-branch count until merge.
+- Next: run exact-head Core/P2 checks on PR #344's synchronized head, merge only after terminal success, then integrate P2 batch 05 and continue the remaining 85 active TS0003 rows.
+
+
+## Live execution update — 2026-11-01 — P2 batch 05
+
+- Current main: `85d39603d658bacced1d2b866b7189564d921048`. P2 batch 04 PR #344 merged with two legacy OrdersPage TS0003 refactors; P2 batch 05 branch synchronized with that merge at `213e886f16f0e3843f067ef368dfc41cdc8662b0`.
+- P2 batch 05 source commit `7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6`: extracted Customer 360 recent-order row renderer and section into focused typed components with an early empty-state return. Preserved the existing 20-row limit, order number/date/status/item/amount rendering, and complete-vs-recent summary wording.
+- Test commits `43ab6774c337baf475a1ec4dc58b88cf800332a1` and `90ce35bca0dcd0f99aeb5a190cc4f42326c8f70d` add UI tests for populated rows, row ordering and the empty state.
+- P2 baseline on this branch: 1 TS0002 + 20 TS0003 implemented pending fresh scan; 84 active TS0003 remain OPEN; 10 archived scope-review items. The Customer360PrintSheet finding is not CLOSED until a fresh CodeInspector scan confirms it.
+- No DTO allowlist, financial projection, tenant scope, RLS, accounting or pricing policy changed. Exact-head Core/P2 reruns are required after this synchronization and ledger update.
+
+
+## P1 security workflow evidence — 2026-11-01 — PR #350
+
+- Review on exact source head `5f3dd3687139ee33856f98eb892918d1199889fc`: Gitleaks full history 41262952634 SUCCESS; strict P1 TypeScript 41262952776 SUCCESS; Core 41262952777 SUCCESS; P2 Playwright 41262952629 local Supabase persistence/tenant pass, public/auth pass, hosted tenant SKIPPED.
+- The earlier failed scan `41262942456` on `49f086f...` returned one remaining historical match: rule generic-api-key at `scripts/test-database-migrations.mjs:2420`, commit `c5596c51bc253ff330948556b2969178c0672722`. Context identifies the value as a 36-character test auth-user UUID, not an API credential. The branch added exact commit:path:rule:line fingerprints, not a global rule/path suppression.
+- Independent reviewer verification of each allowlisted historical fingerprint remains outstanding. P1 review submitted by integration owner is COMMENT, not APPROVE.
+- PR #350 has been synchronized to current main `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`; all new exact-head checks must run before merge. Prior SHA results are not transferable.
+
