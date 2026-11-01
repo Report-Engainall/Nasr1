@@ -12,7 +12,7 @@ const decision: DecisionCandidate = {
  what: "مراجعة الصنف منخفض المخزون",
  why: "المخزون المتاح أقل من حد إعادة الطلب.",
  soWhat: "قد يتأثر توافر الصنف للطلبات الجديدة.",
- impact: { value: 12, unit: "EA", currency: "EA", formulaId: "inventory.replenishment", formulaVersion: "1.0.0", sourceMetricIds: ["metric-1"] },
+ impact: { value: 12, unit: "EA", currency: "YER", formulaId: "inventory.replenishment", formulaVersion: "1.0.0", sourceMetricIds: ["metric-1"] },
  impactStatus: "CALCULATED",
  impactReason: null,
  whatNext: "راجع حركة الصنف قبل اتخاذ قرار الشراء.",
@@ -56,7 +56,7 @@ describe("ActionCard", () => {
   const article = screen.getByRole("article");
   expect(within(article).getByText("مراجعة الصنف منخفض المخزون")).toBeInTheDocument();
   expect(within(article).getByText("المالك: مدير المخزون")).toBeInTheDocument();
-  expect(within(article).getByText(/12 EA EA/)).toBeInTheDocument();
+  expect(within(article).getByText(/12 EA YER/)).toBeInTheDocument();
   expect(within(article).getByText("Evidence IDs: evidence-1")).toBeInTheDocument();
   expect(within(article).getByText("Formula versions: 1.0.0")).toBeInTheDocument();
 
