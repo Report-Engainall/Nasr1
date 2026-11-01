@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { logError } from "./diagnostic-logger.mjs";
+import { runCriticalCleanup } from "./critical-cleanup.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) {
@@ -489,10 +490,12 @@ async function main() {
       "PASS Onyx source evidence: tenant-scoped RPC/grants, source hash match and mismatch, unlinked snapshots, bounded external IDs, truncation flags, no invented sync proof, staff/customer/inactive/foreign-tenant denial.\n",
     );
   } finally {
-    try { await db.unsafe("reset role"); } catch (cleanupError) { logError("[onyx-source-evidence] reset role cleanup failed", cleanupError); }
-    try { await db.unsafe("rollback"); } catch (cleanupError) { logError("[onyx-source-evidence] rollback cleanup failed", cleanupError); }
-    try { await db.unsafe("select set_config('request.jwt.claim.sub','',false)"); } catch (cleanupError) { logError("[onyx-source-evidence] clear JWT subject failed", cleanupError); }
-    try { await db.unsafe("select set_config('request.jwt.claims','',false)"); } catch (cleanupError) { logError("[onyx-source-evidence] clear JWT claims failed", cleanupError); }
+    await runCriticalCleanup("onyx-source-evidence", [
+      { name: "RESET ROLE", run: () => db.unsafe("reset role") },
+      { name: "ROLLBACK", run: () => db.unsafe("rollback") },
+      { name: "clear JWT subject", run: () => db.unsafe("select set_config('request.jwt.claim.sub','',false)") },
+      { name: "clear JWT claims", run: () => db.unsafe("select set_config('request.jwt.claims','',false)") },
+    ], (message, error) => logError(message, error));
   }
 }
 
@@ -500,19 +503,7 @@ try {
   await main();
 } catch (cause) {
   const error = cause && typeof cause === "object" ? cause : { message: String(cause) };
-  process.stderr.write(
-    "ONYX_SOURCE_EVIDENCE_ACCEPTANCE_FAILED " +
-      JSON.stringify({
-        name: error.name,
-        message: error.message,
-        code: error.code,
-        detail: error.detail,
-        hint: error.hint,
-        where: error.where,
-        constraint: error.constraint,
-      }) +
-      "\n",
-  );
+  logError("ONYX_SOURCE_EVIDENCE_ACCEPTANCE_FAILED", cause);
   throw cause;
 } finally {
   await db.end({ timeout: 5 });
