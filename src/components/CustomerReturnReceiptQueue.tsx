@@ -77,6 +77,73 @@ type SavedReturnReceipt = {
   }>;
 };
 
+
+function ReturnReceiptItemEditor({requestId,item,draft,busy,onDraftChange}:{
+  requestId:string; item:CustomerReturnReceiptRequest["items"][number]; draft:CustomerReturnReceiptDraft;
+  busy:boolean; onDraftChange:(requestId:string,itemId:string,fieldName:keyof CustomerReturnReceiptDraft,value:string)=>void;
+}) {
+  const defective=Math.max(0,Number(draft.received_quantity)-Number(draft.restockable_quantity));
+  const showDefective=draft.received_quantity.trim()!==""&&draft.restockable_quantity.trim()!=="";
+  return <div style={{display:"grid",gridTemplateColumns:"minmax(180px,2fr) repeat(2,minmax(110px,1fr))",gap:9,alignItems:"end"}}>
+    <div><strong style={{fontSize:13}}>{item.product_name}</strong>
+      <p style={muted}>الرمز {item.item_code??"غير مسجل"} · المتبقي {item.remaining_quantity.toLocaleString("ar-YE")} {item.unit??""}</p>
+      {!item.product_id&&<p style={{...muted,color:"#805413"}}>لا يوجد ربط بمنتج؛ لا يمكن إضافة هذا الصنف إلى المخزون.</p>}
+    </div>
+    <label style={{display:"grid",gap:5,fontSize:12,fontWeight:750}}>الكمية المستلمة
+      <input type="number" min="0.001" max={item.remaining_quantity} step="0.001" inputMode="decimal" value={draft.received_quantity}
+        onChange={(event)=>onDraftChange(requestId,item.request_item_id,"received_quantity",event.target.value)} style={field} disabled={busy}/>
+    </label>
+    <label style={{display:"grid",gap:5,fontSize:12,fontWeight:750}}>الصالح للمخزون
+      <input type="number" min="0" max={draft.received_quantity||item.remaining_quantity} step="0.001" inputMode="decimal" value={draft.restockable_quantity}
+        onChange={(event)=>onDraftChange(requestId,item.request_item_id,"restockable_quantity",event.target.value)} style={field} disabled={busy}/>
+    </label>
+    {showDefective&&<p style={{...muted,gridColumn:"1 / -1"}}>الكمية التالفة المحسوبة: {defective.toLocaleString("ar-YE")} {item.unit??""}</p>}
+  </div>;
+}
+
+function ReturnReceiptRequestCard({request,drafts,notes,busy,disabled,onDraftChange,onNotesChange,onReceive}:{
+  request:CustomerReturnReceiptRequest; drafts:Record<string,CustomerReturnReceiptDraft>; notes:string;
+  busy:boolean; disabled:boolean;
+  onDraftChange:(requestId:string,itemId:string,fieldName:keyof CustomerReturnReceiptDraft,value:string)=>void;
+  onNotesChange:(requestId:string,value:string)=>void; onReceive:(request:CustomerReturnReceiptRequest)=>void;
+}) {
+  return <article style={{display:"grid",gap:12,padding:14,border:"1px solid #e1e9ea",borderRadius:11}}>
+    <header style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <div><h3 style={{margin:0,fontSize:16}}>{request.request_number}</h3>
+        <p style={muted}>الطلب {request.order_number} · العميل {request.customer_name} · {new Date(request.created_at).toLocaleString("ar-YE")}</p></div>
+      <span style={{background:"#fff4df",color:"#805413",borderRadius:20,padding:"4px 9px",fontSize:12,fontWeight:800}}>بانتظار الاستلام</span>
+    </header>
+    {request.items.map(item=><ReturnReceiptItemEditor key={item.request_item_id} requestId={request.id} item={item}
+      draft={drafts[item.request_item_id]??{received_quantity:"",restockable_quantity:""}} busy={busy} onDraftChange={onDraftChange}/>)}
+    <label style={{display:"grid",gap:6,fontSize:13,fontWeight:750}}>ملاحظة الاستلام (اختياري)
+      <textarea rows={2} maxLength={2000} value={notes} onChange={(event)=>onNotesChange(request.id,event.target.value)}
+        style={{...field,resize:"vertical"}} disabled={busy}/>
+    </label>
+    <footer style={{display:"flex",flexWrap:"wrap",gap:8}}>
+      <button type="button" style={primary} disabled={disabled} onClick={()=>onReceive(request)}><ClipboardCheck size={16}/> تسجيل الاستلام والفحص</button>
+    </footer>
+  </article>;
+}
+
+function ReturnReceiptHistoryCard({receipt,busy,disabled,onPrepare}:{
+  receipt:CustomerReturnReceiptHistoryEntry; busy:boolean; disabled:boolean;
+  onPrepare:(receipt:CustomerReturnReceiptHistoryEntry)=>void;
+}) {
+  return <article style={{display:"grid",gap:6,padding:12,border:"1px solid #e1e9ea",borderRadius:9}}>
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <div><strong>{receipt.receipt_number}</strong>
+        <p style={muted}>طلب المرتجع {receipt.request_number} · الطلب الأصلي {receipt.order_number}</p>
+        <p style={muted}>العميل {receipt.customer_name} · المخزن {receipt.warehouse_name}</p>
+        <p style={muted}>{new Date(receipt.received_at).toLocaleString("ar-YE")} · {receipt.received_line_count} بند</p>
+        <p style={muted}>المستلم {receipt.received_quantity.toLocaleString("ar-YE")} · الصالح {receipt.restockable_quantity.toLocaleString("ar-YE")} · التالف {receipt.defective_quantity.toLocaleString("ar-YE")}</p>
+      </div>
+      <button type="button" style={button} disabled={disabled} aria-label={"إعادة تجهيز الإيصال للطباعة "+receipt.receipt_number} onClick={()=>onPrepare(receipt)}>
+        <Printer size={14}/> {busy?"جار تحميل النسخة...":"إعادة تجهيز للطباعة"}
+      </button>
+    </div>
+  </article>;
+}
+
 async function loadValidatedReturnReceipt(
   receiptId: string,
   expected: ReturnType<typeof readReturnReceiptMutationResult>,
@@ -346,57 +413,12 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       {!loading && !error && queue.requests.length === 0 && <p style={muted}>لا توجد مرتجعات معتمدة بانتظار الاستلام الفعلي.</p>}
 
       {queue.requests.map((request) => (
-        <article key={request.id} style={{ display: "grid", gap: 12, padding: 14, border: "1px solid #e1e9ea", borderRadius: 11 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16 }}>{request.request_number}</h3>
-              <p style={muted}>الطلب {request.order_number} · العميل {request.customer_name} · {new Date(request.created_at).toLocaleString("ar-YE")}</p>
-            </div>
-            <span style={{ background: "#fff4df", color: "#805413", borderRadius: 20, padding: "4px 9px", fontSize: 12, fontWeight: 800 }}>بانتظار الاستلام</span>
-          </div>
-
-          {request.items.map((item) => {
-            const draft = drafts[request.id]?.[item.request_item_id] ?? { received_quantity: "", restockable_quantity: "" };
-            return (
-              <div key={item.request_item_id} style={{ display: "grid", gridTemplateColumns: "minmax(180px, 2fr) repeat(2, minmax(110px, 1fr))", gap: 9, alignItems: "end" }}>
-                <div>
-                  <strong style={{ fontSize: 13 }}>{item.product_name}</strong>
-                  <p style={muted}>الرمز {item.item_code ?? "غير مسجل"} · المتبقي {item.remaining_quantity.toLocaleString("ar-YE")} {item.unit ?? ""}</p>
-                  {!item.product_id && <p style={{ ...muted, color: "#805413" }}>لا يوجد ربط بمنتج؛ لا يمكن إضافة هذا الصنف إلى المخزون.</p>}
-                </div>
-                <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
-                  الكمية المستلمة
-                  <input type="number" min="0.001" max={item.remaining_quantity} step="0.001" inputMode="decimal"
-                    value={draft.received_quantity} onChange={(event) => updateDraft(request.id,item.request_item_id,"received_quantity",event.target.value)}
-                    style={field} disabled={busyId === request.id} />
-                </label>
-                <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
-                  الصالح للمخزون
-                  <input type="number" min="0" max={draft.received_quantity || item.remaining_quantity} step="0.001" inputMode="decimal"
-                    value={draft.restockable_quantity} onChange={(event) => updateDraft(request.id,item.request_item_id,"restockable_quantity",event.target.value)}
-                    style={field} disabled={busyId === request.id} />
-                </label>
-                {draft.received_quantity.trim() && draft.restockable_quantity.trim() && (
-                  <p style={{ ...muted, gridColumn: "1 / -1" }}>
-                    الكمية التالفة المحسوبة: {Math.max(0,Number(draft.received_quantity)-Number(draft.restockable_quantity)).toLocaleString("ar-YE")} {item.unit ?? ""}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-
-          <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 750 }}>
-            ملاحظة الاستلام (اختياري)
-            <textarea rows={2} maxLength={2000} value={notes[request.id] ?? ""}
-              onChange={(event) => setNotes((current) => ({ ...current, [request.id]: event.target.value }))}
-              style={{ ...field, resize: "vertical" }} disabled={busyId === request.id} />
-          </label>
-          <footer style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <button type="button" style={primary} disabled={busyId !== null || loading || queue.warehouses.length === 0} onClick={() => void receive(request)}>
-              <ClipboardCheck size={16} /> تسجيل الاستلام والفحص
-            </button>
-          </footer>
-        </article>
+        <ReturnReceiptRequestCard key={request.id} request={request} drafts={drafts[request.id]??{}}
+          notes={notes[request.id]??""} busy={busyId===request.id}
+          disabled={busyId!==null||loading||queue.warehouses.length===0}
+          onDraftChange={updateDraft}
+          onNotesChange={(requestId,value)=>setNotes(current=>({...current,[requestId]:value}))}
+          onReceive={selectedRequest=>void receive(selectedRequest)}/>
       ))}
 
       <section aria-labelledby="return-receipt-history-heading" style={{ display: "grid", gap: 10, paddingTop: 16, borderTop: "1px solid #e1e9ea" }}>
@@ -412,23 +434,11 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
         {historyLoading && <p role="status" style={muted}>جار تحميل سجل الإيصالات المحفوظة...</p>}
         {historyError && <p role="alert" style={{ ...muted, color: "#a32929" }}>{historyError}</p>}
         {!historyLoading && !historyError && receiptHistory.length === 0 && <p style={muted}>لا توجد إيصالات محفوظة متاحة لإعادة الطباعة.</p>}
-        {receiptHistory.map((receipt) => (
-          <article key={receipt.receipt_id} style={{ display: "grid", gap: 6, padding: 12, border: "1px solid #e1e9ea", borderRadius: 9 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-              <div>
-                <strong>{receipt.receipt_number}</strong>
-                <p style={muted}>طلب المرتجع {receipt.request_number} · الطلب الأصلي {receipt.order_number}</p>
-                <p style={muted}>العميل {receipt.customer_name} · المخزن {receipt.warehouse_name}</p>
-                <p style={muted}>{new Date(receipt.received_at).toLocaleString("ar-YE")} · {receipt.received_line_count} بند</p>
-                <p style={muted}>المستلم {receipt.received_quantity.toLocaleString("ar-YE")} · الصالح {receipt.restockable_quantity.toLocaleString("ar-YE")} · التالف {receipt.defective_quantity.toLocaleString("ar-YE")}</p>
-              </div>
-              <button type="button" style={button} disabled={busyId !== null || historyLoading || historyBusyId !== null}
-                aria-label={"إعادة تجهيز الإيصال للطباعة " + receipt.receipt_number}
-                onClick={() => void prepareHistoricalReceipt(receipt)}>
-                <Printer size={14} /> {historyBusyId === receipt.receipt_id ? "جار تحميل النسخة..." : "إعادة تجهيز للطباعة"}
-              </button>
-            </div>
-          </article>
+        {receiptHistory.map(receipt=>(
+          <ReturnReceiptHistoryCard key={receipt.receipt_id} receipt={receipt}
+            busy={historyBusyId===receipt.receipt_id}
+            disabled={busyId!==null||historyLoading||historyBusyId!==null}
+            onPrepare={selectedReceipt=>void prepareHistoricalReceipt(selectedReceipt)}/>
         ))}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
           <p style={muted}>الصفحة {Math.floor(historyOffset / 50) + 1} · السجلات {historyOffset + 1}–{historyOffset + receiptHistory.length}</p>
