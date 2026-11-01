@@ -50,40 +50,50 @@ function requireArray(value: unknown, label: string): unknown[] {
   return value;
 }
 
+type SalesTrendRow = StoreExecutiveAnalytics["sales_trend"][number];
+type TopProductRow = StoreExecutiveAnalytics["top_products"][number];
+type TopCustomerRow = StoreExecutiveAnalytics["top_customers"][number];
+
+function parseSalesTrendRow(raw: unknown, index: number): SalesTrendRow {
+  const row = requireRecord(raw, `صف اتجاه المبيعات ${index + 1}`);
+  const day = requireText(row.day, `تاريخ اتجاه المبيعات ${index + 1}`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    throw new Error('أعاد الخادم تاريخًا غير صالح ضمن اتجاه المبيعات.');
+  }
+  return {
+    day,
+    orders: requireNonNegativeInteger(row.orders, `عدد الطلبات بتاريخ ${day}`),
+    sales: requireNonNegativeNumber(row.sales, `مبيعات يوم ${day}`),
+  };
+}
+
+function parseTopProductRow(raw: unknown, index: number): TopProductRow {
+  const row = requireRecord(raw, `الصنف الأعلى ${index + 1}`);
+  return {
+    item_code: typeof row.item_code === 'string' ? row.item_code : '',
+    product_name: requireText(row.product_name, `اسم الصنف الأعلى ${index + 1}`),
+    quantity: requireNonNegativeNumber(row.quantity, `كمية الصنف الأعلى ${index + 1}`),
+    sales: requireNonNegativeNumber(row.sales, `مبيعات الصنف الأعلى ${index + 1}`),
+  };
+}
+
+function parseTopCustomerRow(raw: unknown, index: number): TopCustomerRow {
+  const row = requireRecord(raw, `العميل الأعلى ${index + 1}`);
+  return {
+    customer_id: requireText(row.customer_id, `معرّف العميل الأعلى ${index + 1}`),
+    customer_name: requireText(row.customer_name, `اسم العميل الأعلى ${index + 1}`),
+    order_count: requireNonNegativeInteger(row.order_count, `عدد طلبات العميل الأعلى ${index + 1}`),
+    sales: requireNonNegativeNumber(row.sales, `مبيعات العميل الأعلى ${index + 1}`),
+  };
+}
+
 /** Validate the server response before rendering executive financial information. */
 export function parseStoreExecutiveAnalytics(value: unknown): StoreExecutiveAnalytics {
   const root = requireRecord(value, 'التحليل التنفيذي');
   const kpis = requireRecord(root.kpis, 'مؤشرات التحليل التنفيذي');
-  const salesTrend = requireArray(root.sales_trend, 'اتجاه المبيعات').map((raw, index) => {
-    const row = requireRecord(raw, `صف اتجاه المبيعات ${index + 1}`);
-    const day = requireText(row.day, `تاريخ اتجاه المبيعات ${index + 1}`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-      throw new Error('أعاد الخادم تاريخًا غير صالح ضمن اتجاه المبيعات.');
-    }
-    return {
-      day,
-      orders: requireNonNegativeInteger(row.orders, `عدد الطلبات بتاريخ ${day}`),
-      sales: requireNonNegativeNumber(row.sales, `مبيعات يوم ${day}`),
-    };
-  });
-  const topProducts = requireArray(root.top_products, 'أعلى الأصناف').map((raw, index) => {
-    const row = requireRecord(raw, `الصنف الأعلى ${index + 1}`);
-    return {
-      item_code: typeof row.item_code === 'string' ? row.item_code : '',
-      product_name: requireText(row.product_name, `اسم الصنف الأعلى ${index + 1}`),
-      quantity: requireNonNegativeNumber(row.quantity, `كمية الصنف الأعلى ${index + 1}`),
-      sales: requireNonNegativeNumber(row.sales, `مبيعات الصنف الأعلى ${index + 1}`),
-    };
-  });
-  const topCustomers = requireArray(root.top_customers, 'أعلى العملاء').map((raw, index) => {
-    const row = requireRecord(raw, `العميل الأعلى ${index + 1}`);
-    return {
-      customer_id: requireText(row.customer_id, `معرّف العميل الأعلى ${index + 1}`),
-      customer_name: requireText(row.customer_name, `اسم العميل الأعلى ${index + 1}`),
-      order_count: requireNonNegativeInteger(row.order_count, `عدد طلبات العميل الأعلى ${index + 1}`),
-      sales: requireNonNegativeNumber(row.sales, `مبيعات العميل الأعلى ${index + 1}`),
-    };
-  });
+  const salesTrend = requireArray(root.sales_trend, 'اتجاه المبيعات').map(parseSalesTrendRow);
+  const topProducts = requireArray(root.top_products, 'أعلى الأصناف').map(parseTopProductRow);
+  const topCustomers = requireArray(root.top_customers, 'أعلى العملاء').map(parseTopCustomerRow);
   return {
     generated_at: requireText(root.generated_at, 'وقت إنشاء التحليل'),
     kpis: {
