@@ -29,21 +29,27 @@ async function signIn(page: Page, email: string, password: string) {
 
 async function currentSessionId(page: Page): Promise<string> {
   const id = await page.evaluate(() => {
-    for (const [key, value] of Object.entries(window.localStorage)) {
-      if (!key.endsWith("-auth-token")) continue;
+    function sessionIdFromStorageEntry(storageKey: string, value: string): string | null {
+      if (!storageKey.endsWith("-auth-token")) return null;
       try {
         const record = JSON.parse(value) as { access_token?: unknown };
-        if (typeof record.access_token !== "string") continue;
+        if (typeof record.access_token !== "string") return null;
         const payload = record.access_token.split(".")[1];
-        if (!payload) continue;
+        if (!payload) return null;
         const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
         const claims = JSON.parse(window.atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="))) as {
           session_id?: unknown;
         };
-        if (typeof claims.session_id === "string") return claims.session_id;
+        return typeof claims.session_id === "string" ? claims.session_id : null;
       } catch {
         // Continue through local Supabase storage entries; never return or log the token.
+        return null;
       }
+    }
+
+    for (const [key, value] of Object.entries(window.localStorage)) {
+      const sessionId = sessionIdFromStorageEntry(key, value);
+      if (sessionId) return sessionId;
     }
     return null;
   });
