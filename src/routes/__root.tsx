@@ -198,6 +198,37 @@ export function AuthScopedOutlet() {
   return <Outlet key={identityKey} />;
 }
 
+
+const ROOT_NAV_ITEMS = [
+  ["/", "المتجر"],
+  ["/orders", "طلباتي"],
+  ["/admin", "لوحة الإدارة"],
+  ["/login", "الحساب"],
+] as const;
+
+type RootNavigationItem = typeof ROOT_NAV_ITEMS[number];
+
+function RootNavigationLink({ item }: { item: RootNavigationItem }) {
+  return (
+    <Link
+      to={item[0]}
+      activeOptions={{ exact: item[0] === "/" }}
+      style={{ color: "var(--background, #fff)", padding: "4px 12px", borderRadius: 999, textDecoration: "none" }}
+      activeProps={{ style: { background: "var(--primary, #0e7c66)", color: "var(--primary-foreground, #fff)", padding: "4px 12px", borderRadius: 999, textDecoration: "none" } }}
+    >
+      {item[1]}
+    </Link>
+  );
+}
+
+function RootNavigation() {
+  return (
+    <nav className="no-print" aria-label="التنقل الرئيسي" style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", padding: "6px 10px", background: "var(--foreground, #0f172a)", fontSize: 13 }}>
+      {ROOT_NAV_ITEMS.map((item) => <RootNavigationLink key={item[0]} item={item} />)}
+    </nav>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useEffect(() => {
@@ -211,13 +242,7 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <AuthProvider>
         <AuthHealthNotice />
-        <nav className="no-print" aria-label="التنقل الرئيسي" style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", padding: "6px 10px", background: "var(--foreground, #0f172a)", fontSize: 13 }}>
-          {([["/", "المتجر"], ["/orders", "طلباتي"], ["/admin", "لوحة الإدارة"], ["/login", "الحساب"]] as const).map(([to, label]) => (
-            <Link key={to} to={to} activeOptions={{ exact: to === "/" }} style={{ color: "var(--background, #fff)", padding: "4px 12px", borderRadius: 999, textDecoration: "none" }} activeProps={{ style: { background: "var(--primary, #0e7c66)", color: "var(--primary-foreground, #fff)", padding: "4px 12px", borderRadius: 999, textDecoration: "none" } }}>
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <RootNavigation />
         <AuthScopedOutlet />
       </AuthProvider>
     </QueryClientProvider>
