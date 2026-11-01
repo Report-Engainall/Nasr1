@@ -167,12 +167,17 @@ function cacheStaticAssetResponse(event, request, response, url) {
   event.waitUntil(cacheWrite);
 }
 
-function fetchStaticAsset(request, url, event) {
-  return fetch(request).then((response) => {
+async function fetchStaticAsset(request, url, event) {
+  try {
+    const response = await fetch(request);
     // A missing JS asset can fall back to index.html with HTTP 200; never cache it as JS.
     cacheStaticAssetResponse(event, request, response, url);
     return response;
-  });
+  } catch (error) {
+    // Keep the rejection visible to the caller while recording a redacted diagnostic.
+    await reportServiceWorkerDiagnostic('warning', 'static-asset-fetch-failed', 'static_asset', error);
+    throw error;
+  }
 }
 
 function refreshCachedAssetInBackground(event, networkResponse) {
@@ -183,27 +188,35 @@ function refreshCachedAssetInBackground(event, networkResponse) {
   );
 }
 
-function respondWithCachedOrNetworkAsset(cached, event, request, url) {
+async function respondWithCachedOrNetworkAsset(cached, event, request, url) {
   const networkResponse = fetchStaticAsset(request, url, event);
   if (cached) {
     // Serve the cache immediately while keeping refresh failures observable and handled.
     refreshCachedAssetInBackground(event, networkResponse);
     return cached;
   }
-  return networkResponse.catch((error) =>
-    reportServiceWorkerDiagnostic('error', 'static-asset-request-failed', 'static_asset', error)
-      .then(() => Response.error()),
-  );
+
+  try {
+    return await networkResponse;
+  } catch (error) {
+    await reportServiceWorkerDiagnostic('error', 'static-asset-request-failed', 'static_asset', error);
+    return Response.error();
+  }
+}
+
+async function resolveStaticAssetResponse(request, event, url) {
+  try {
+    const cached = await caches.match(request);
+    return await respondWithCachedOrNetworkAsset(cached, event, request, url);
+  } catch (error) {
+    await reportServiceWorkerDiagnostic('error', 'static-asset-cache-lookup-failed', 'static_asset', error);
+    return Response.error();
+  }
 }
 
 function handleStaticAssetFetch(event, request, url) {
-  const assetResponse = caches.match(request)
-    .then((cached) => respondWithCachedOrNetworkAsset(cached, event, request, url))
-    .catch((error) =>
-      reportServiceWorkerDiagnostic('error', 'static-asset-cache-lookup-failed', 'static_asset', error)
-        .then(() => Response.error()),
-    );
-  event.respondWith(assetResponse);
+  // respondWith must be called synchronously during the fetch event.
+  event.respondWith(resolveStaticAssetResponse(request, event, url));
 }
 
 function shouldHandleSameOriginGet(request, url) {
