@@ -223,7 +223,7 @@ describe("TaskCenter role-boundary and print integration", () => {
   it("keeps role-compatible assignment when creating a manual task", async () => {
     setUser(["manager"]);
     mocks.fetchOperationalTaskAssignees.mockResolvedValue([
-      { profile_id: "profile-sales", full_name: "موظف مبيعات", email: "sales@example.test", roles: ["sales"] },
+      { profile_id: "profile-manager", full_name: "مدير المتجر", email: "manager@example.test", roles: ["manager"] },
       { profile_id: "profile-accountant", full_name: "محاسب", email: "accountant@example.test", roles: ["accountant"] },
     ]);
     const onNotice = vi.fn();
@@ -238,12 +238,12 @@ describe("TaskCenter role-boundary and print integration", () => {
 
     const roleSelect = screen.getByLabelText("الدور المستهدف") as HTMLSelectElement;
     const assigneeSelect = screen.getByLabelText(/الموظف المسؤول/) as HTMLSelectElement;
-    fireEvent.change(assigneeSelect, { target: { value: "profile-sales" } });
-    expect(assigneeSelect.value).toBe("profile-sales");
+    fireEvent.change(assigneeSelect, { target: { value: "profile-manager" } });
+    expect(assigneeSelect.value).toBe("profile-manager");
 
     fireEvent.change(roleSelect, { target: { value: "accountant" } });
     expect(assigneeSelect.value).toBe("");
-    expect(within(assigneeSelect).queryByRole("option", { name: "موظف مبيعات — sales@example.test" })).not.toBeInTheDocument();
+    expect(within(assigneeSelect).queryByRole("option", { name: "مدير المتجر — manager@example.test" })).not.toBeInTheDocument();
     expect(within(assigneeSelect).getByRole("option", { name: "محاسب — accountant@example.test" })).toBeInTheDocument();
 
     fireEvent.change(assigneeSelect, { target: { value: "profile-accountant" } });
