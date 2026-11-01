@@ -219,4 +219,48 @@ describe("TaskCenter role-boundary and print integration", () => {
     ));
     await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
   });
+
+  it("keeps role-compatible assignment when creating a manual task", async () => {
+    setUser(["manager"]);
+    mocks.fetchOperationalTaskAssignees.mockResolvedValue([
+      { profile_id: "profile-sales", full_name: "موظف مبيعات", email: "sales@example.test", roles: ["sales"] },
+      { profile_id: "profile-accountant", full_name: "محاسب", email: "accountant@example.test", roles: ["accountant"] },
+    ]);
+    const onNotice = vi.fn();
+    render(<TaskCenter onNotice={onNotice} />);
+
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    await waitFor(() => expect(mocks.fetchOperationalTaskAssignees).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: /مهمة يدوية/ }));
+
+    fireEvent.change(screen.getByLabelText("عنوان المهمة"), { target: { value: "متابعة تسوية مستحقات العميل" } });
+    fireEvent.change(screen.getByLabelText("التفاصيل"), { target: { value: "مطابقة مستندات التحصيل" } });
+
+    const roleSelect = screen.getByLabelText("الدور المستهدف") as HTMLSelectElement;
+    const assigneeSelect = screen.getByLabelText("الموظف المسؤول") as HTMLSelectElement;
+    fireEvent.change(assigneeSelect, { target: { value: "profile-sales" } });
+    expect(assigneeSelect.value).toBe("profile-sales");
+
+    fireEvent.change(roleSelect, { target: { value: "accountant" } });
+    expect(assigneeSelect.value).toBe("");
+    expect(within(assigneeSelect).queryByRole("option", { name: "موظف مبيعات — sales@example.test" })).not.toBeInTheDocument();
+    expect(within(assigneeSelect).getByRole("option", { name: "محاسب — accountant@example.test" })).toBeInTheDocument();
+
+    fireEvent.change(assigneeSelect, { target: { value: "profile-accountant" } });
+    fireEvent.change(screen.getByLabelText("الأولوية"), { target: { value: "critical" } });
+    const dueAt = "2026-11-05T13:30";
+    fireEvent.change(screen.getByLabelText("الموعد (اختياري)"), { target: { value: dueAt } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ المهمة" }));
+
+    await waitFor(() => expect(mocks.createOperationalTask).toHaveBeenCalledWith({
+      title: "متابعة تسوية مستحقات العميل",
+      description: "مطابقة مستندات التحصيل",
+      taskRole: "accountant",
+      priority: "critical",
+      dueAt: new Date(dueAt).toISOString(),
+      assignedTo: "profile-accountant",
+    }));
+    expect(onNotice).toHaveBeenCalledWith("حُفظت المهمة الجديدة مع سجل تدقيق.");
+    expect(screen.queryByRole("heading", { name: "إسناد مهمة جديدة" })).not.toBeInTheDocument();
+  });
 });
