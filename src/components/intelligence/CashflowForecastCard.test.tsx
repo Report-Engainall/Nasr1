@@ -30,7 +30,7 @@ describe("CashflowForecastCard", () => {
 
     expect(within(usd).getAllByText("غير متاح").length).toBeGreaterThan(0);
     expect(within(usd).getAllByText(/غير مكتمل · المعادلة: cashflow.scheduled-net@1.0.0/)).toHaveLength(3);
-    expect(within(usd).getByText(/OPENING_BALANCE_NOT_VERIFIED/)).toBeInTheDocument();
+    expect(within(usd).getAllByText(/OPENING_BALANCE_NOT_VERIFIED/)).toHaveLength(3);
     expect(within(usd).getByText(/proof-USD-7/)).toBeInTheDocument();
 
     expect(screen.queryByText(formatEvidenceNumber(210) + " YER")).not.toBeInTheDocument();
