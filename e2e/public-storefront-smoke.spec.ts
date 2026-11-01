@@ -1,8 +1,31 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 import { registerCustomerOrdersKeyboardAcceptance } from "./helpers/customer-orders-keyboard-test";
+
 
 registerCustomerOrdersKeyboardAcceptance();
 import { storefrontCategorySlug } from "../src/lib/storefront-slugs";
+
+async function fulfillCategoryFixture(
+  route: Route,
+  headers: Record<string, string>,
+  allowSuccess: boolean,
+) {
+  const response = allowSuccess
+    ? {
+        status: 200,
+        contentType: "application/json",
+        headers: { ...headers, "content-range": "0-0/*" },
+        body: "[]",
+      }
+    : {
+        status: 503,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({ message: "synthetic category outage" }),
+      };
+  await route.fulfill(response);
+}
+
 
 test("public storefront and login routes render without external backend writes", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -172,22 +195,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
 
     if (url.pathname === "/rest/v1/categories") {
       categoryReads += 1;
-      if (!allowCategorySuccess) {
-        await route.fulfill({
-          status: 503,
-          contentType: "application/json",
-          headers,
-          body: JSON.stringify({ message: "synthetic category outage" }),
-        });
-        return;
-      }
-
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers: { ...headers, "content-range": "0-0/*" },
-        body: "[]",
-      });
+      await fulfillCategoryFixture(route, headers, allowCategorySuccess);
       return;
     }
 
