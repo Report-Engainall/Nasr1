@@ -135,11 +135,15 @@ jobs:
             process.stderr.write = originalStderr;
           }
 
-          const info = JSON.parse(stdout.trim());
-          const error = JSON.parse(stderr.trim());
-          assert.equal(info.level, "INFO");
-          assert.equal(error.level, "ERROR");
-          assert.equal(error.errors.length, 2);
+          const infoRecords = stdout.trim().split(/\\r?\\n/).map((line) => JSON.parse(line));
+          const errorRecords = stderr.trim().split(/\\r?\\n/).map((line) => JSON.parse(line));
+          assert.ok(infoRecords.length >= 2, "expected independent INFO JSONL records");
+          assert.equal(errorRecords.length, 2, "expected one JSONL record per logError call");
+          assert.ok(infoRecords.every((record) => record.level === "INFO"));
+          assert.ok(errorRecords.every((record) => record.level === "ERROR"));
+          assert.equal(errorRecords[0].errors.length, 1);
+          assert.equal(errorRecords[1].errors.length, 1);
+          const sensitiveError = errorRecords[1].errors[0];
           const output = stdout + stderr;
           for (const secret of [
             "fixture-db-password",
