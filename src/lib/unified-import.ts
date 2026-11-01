@@ -308,6 +308,7 @@ function validateImportTransformationRule(
 }
 
 const SAFE_IMPORT_PATTERN_CACHE = new Map<string, RegExp>();
+const MAX_SAFE_IMPORT_PATTERN_INPUT_LENGTH = 4096;
 
 function compileSafeImportPattern(pattern: unknown, field: string): RegExp {
   // Keep user-configurable expressions bounded and reject common exponential-backtracking forms.
@@ -319,8 +320,8 @@ function compileSafeImportPattern(pattern: unknown, field: string): RegExp {
   const cached = SAFE_IMPORT_PATTERN_CACHE.get(pattern);
   if (cached) return cached;
   try {
-    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     // The pattern is length-bounded and screened above; this is the only allowed dynamic RegExp compilation path.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const compiled = new RegExp(pattern, 'u');
     if (SAFE_IMPORT_PATTERN_CACHE.size >= 256) {
       const oldest = SAFE_IMPORT_PATTERN_CACHE.keys().next().value;
@@ -471,7 +472,7 @@ function importValidationFailed(value: string, rule: ImportValidationRule): bool
     case 'max_length':
       return value.length > Number(rule.value);
     case 'safe_pattern':
-      return value !== '' && !compileSafeImportPattern(rule.value, rule.field).test(value);
+      return value !== '' && (value.length > MAX_SAFE_IMPORT_PATTERN_INPUT_LENGTH || !compileSafeImportPattern(rule.value, rule.field).test(value));
     default:
       return false;
   }
