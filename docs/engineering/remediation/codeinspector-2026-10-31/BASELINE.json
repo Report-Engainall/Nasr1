@@ -2953,11 +2953,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "EvidencePassport.test.tsx verifies unavailable versus empty states, metric values, evidence lineage/source rows and nested status text; exact synchronized-head Core 41264989329, P2 41264989433 (public/auth/local Supabase), and Secret Scan 41264989609 all passed; fresh CodeInspector rerun still required.",
+      "implementation_branch_sha": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
+      "fixed_by_sha": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
+      "evidence": "PR #349 merged at 15eb044c0651dafc7ef279d6253431e777d5f097; implementation commit 61ec2e77f780f1bfda163f80b9891f9dc567b7de; exact-head Core/P2 local Supabase/Secret Scan all SUCCESS; hosted tenant E2E SKIPPED.",
       "occurrence": 1
     },
     {
@@ -5429,16 +5429,16 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 22,
-      "TS0003_active_open": 82,
+      "TS0003_implemented_pending_fresh_scan": 23,
+      "TS0003_active_open": 81,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
-      "latest_pr": 348,
-      "latest_merged_pr": 348
+      "latest_code_commit": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
+      "latest_pr": 349,
+      "latest_merged_pr": 349
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5447,9 +5447,13 @@
       "fresh_codeinspector_scan": "PENDING",
       "P2_batch_06_latest_main_core": "PENDING",
       "P2_batch_06_latest_main_playwright": "PENDING",
-      "P2_batch_06_latest_main_gitleaks": "PENDING"
+      "P2_batch_06_latest_main_gitleaks": "PENDING",
+      "P2_batch_08_core_run": 41264989329,
+      "P2_batch_08_playwright_run": 41264989433,
+      "P2_batch_08_secret_run": 41264989609,
+      "P2_batch_08_hosted_tenant_e2e": "SKIPPED"
     },
-    "main_sha": "ab8bb1804230925858903344606ba6721fd16faa"
+    "main_sha": "15eb044c0651dafc7ef279d6253431e777d5f097"
   },
   "integration_history": [
     {
@@ -5475,6 +5479,14 @@
       "source_commit": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
       "merge_commit": "ab8bb1804230925858903344606ba6721fd16faa",
       "note": "CashflowForecastCard TS0003 row moved from OPEN_ASSIGNED_P2 to IMPLEMENTED_PENDING_FRESH_SCAN after exact-head Core, P2/local Supabase and Secret Scan success. Hosted tenant E2E skipped; fresh CodeInspector scan still required."
+    },
+    {
+      "event": "MERGED",
+      "pr": 349,
+      "source_commit": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
+      "merge_commit": "15eb044c0651dafc7ef279d6253431e777d5f097",
+      "note": "EvidencePassport TS0003 finding moved to IMPLEMENTED_PENDING_FRESH_SCAN after exact-head Core, P2 public/auth/local Supabase and Secret Scan success. Hosted tenant E2E skipped."
     }
-  ]
+  ],
+  "main_sha": "15eb044c0651dafc7ef279d6253431e777d5f097"
 }
