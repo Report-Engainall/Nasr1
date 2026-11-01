@@ -122,7 +122,40 @@
           "open_closed": 0,
           "liskov_substitution": "TRUNCATED_IN_SUPPLIED_EXCERPT"
         },
-        "note": "Separate from the recovered 239-row baseline and earlier 181-finding follow-up. No individual findings or source SHA were provided. Do not merge these counts into the historical baseline or infer that its rows map to these findings."
+        "note": "Separate from the recovered 239-row baseline and earlier 181-finding follow-up. No individual findings or source SHA were provided. Do not merge these counts into the historical baseline or infer that its rows map to these findings.",
+        "post_scan_merges": [
+          {
+            "pr": 396,
+            "merged_at_utc": "2026-11-01T18:59:48Z",
+            "merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+            "scope": "six P3 test fixture refactors"
+          },
+          {
+            "pr": 397,
+            "merged_at_utc": "2026-11-01T19:08:27Z",
+            "merge_sha": "eed901bb4802fae9ad8c36407344c7199a2ac64d",
+            "scope": "documentation/ledger reconciliation"
+          },
+          {
+            "pr": 398,
+            "merged_at_utc": "2026-11-01T19:16:25Z",
+            "merge_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+            "scope": "AI telemetry fail-closed test cleanup"
+          },
+          {
+            "pr": 399,
+            "merged_at_utc": "2026-11-01T19:23:59Z",
+            "merge_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+            "scope": "documentation/ledger reconciliation"
+          },
+          {
+            "pr": 400,
+            "merged_at_utc": "2026-11-01T19:33:30Z",
+            "merge_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+            "tested_head": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+            "scope": "Python diagnostic redaction logger, atomic evidence persistence, source-release snapshot integrity and bounded extraction"
+          }
+        ]
       }
     ]
   },
@@ -203,7 +236,7 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "0dc6f75d3767fe15d472ed28284332273061bb81",
+    "main": "ef825892641b9a821e59ad0896babc827f95dee2",
     "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
     "P2": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
     "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
@@ -228,7 +261,7 @@
     "P3_batch_12_tested_head": "63fbdfa84187e5ad9e8b6432f70b899cdfa0a2a3",
     "P3_batch_12_merge": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
     "P3_batch_12_pr": 360,
-    "last_reconciled_main": "0dc6f75d3767fe15d472ed28284332273061bb81",
+    "last_reconciled_main": "ef825892641b9a821e59ad0896babc827f95dee2",
     "P2_last_validated_source": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
     "P2_last_merged_head": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
     "P2_last_merge": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
@@ -662,11 +695,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -684,11 +717,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -1130,10 +1163,10 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
+      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED. Revalidated in PR #400 merge SHA 453afeeb: recovery archive reconciliation and helper self-test 41342335822 SUCCESS.",
       "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": " PR #400 run 41342335822 re-ran archive helper self-test and full ZIP/hash/CRC reconciliation successfully; no finding was closed.",
       "occurrence": 1
     },
     {
@@ -1152,11 +1185,12 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
-      "occurrence": 1
+      "test": "PR #400 merge SHA 453afeeb: source-release audit 41342335817 SUCCESS; three published source ZIP snapshots and two Bolt ZIP archives passed size/SHA-256, full decompression/CRC and bounded extraction. Recovery/persistence self-tests 41342335822 SUCCESS. Fresh CodeInspector scan still required.",
+      "implementation_branch_sha": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+      "fixed_by_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+      "evidence": "PR #400 merged at 453afeebfc76f7c685792a7885115ce4ccabb7f3 from head cc5ae37ae87e0c7bff051ca7ff0742c1abf68555. Script now uses diagnostic_logging redaction for URLs, errors, tracebacks and persisted URL/error values; safe_print redacts progress; failed member writes remove only this invocation's partial artifact; exclusive-create prevents overwriting existing files; exact member sizes are verified. Run 41342335817 completed errors=[] and all integrity states PASS. Status remains IMPLEMENTED_PENDING_FRESH_SCAN.",
+      "occurrence": 1,
+      "implementation_pr": 400
     },
     {
       "id": "CI31-JS0007-dcde7dfd-1",
@@ -2009,11 +2043,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -2053,11 +2087,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -2119,11 +2153,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -2186,11 +2220,12 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
-      "occurrence": 1
+      "test": "PR #400 merge SHA 453afeeb: recovery-source reconciliation run 41342335822 passed persistence self-test for missing/corrupt input, atomic publish failure, preservation of prior evidence, temp cleanup and successful restore. Core 41342335810 SUCCESS. Official CodeInspector closure still needs a fresh scan.",
+      "implementation_branch_sha": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+      "fixed_by_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+      "evidence": "PR #400 merged at 453afeebfc76f7c685792a7885115ce4ccabb7f3 (head cc5ae37ae87e0c7bff051ca7ff0742c1abf68555). CSV writer now publishes atomically via same-directory temp + os.replace; denied publish leaves prior evidence intact and cleans temp. Job 124954811343 in run 41342335822 verifies this. Status remains IMPLEMENTED_PENDING_FRESH_SCAN.",
+      "occurrence": 1,
+      "implementation_pr": 400
     },
     {
       "id": "CI31-PY0003-4cb57e99-1",
@@ -2252,11 +2287,12 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
-      "occurrence": 1
+      "test": "PR #400 merge SHA 453afeeb: source-release audit 41342335817 SUCCESS; three published source ZIP snapshots and two Bolt ZIP archives passed size/SHA-256, full decompression/CRC and bounded extraction. Recovery/persistence self-tests 41342335822 SUCCESS. Fresh CodeInspector scan still required.",
+      "implementation_branch_sha": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+      "fixed_by_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+      "evidence": "PR #400 merged at 453afeebfc76f7c685792a7885115ce4ccabb7f3 from head cc5ae37ae87e0c7bff051ca7ff0742c1abf68555. Script now uses diagnostic_logging redaction for URLs, errors, tracebacks and persisted URL/error values; safe_print redacts progress; failed member writes remove only this invocation's partial artifact; exclusive-create prevents overwriting existing files; exact member sizes are verified. Run 41342335817 completed errors=[] and all integrity states PASS. Status remains IMPLEMENTED_PENDING_FRESH_SCAN.",
+      "occurrence": 1,
+      "implementation_pr": 400
     },
     {
       "id": "CI31-PY0003-0f7ee588-1",
@@ -2274,11 +2310,12 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
-      "occurrence": 1
+      "test": "PR #400 merge SHA 453afeeb: source-release audit 41342335817 SUCCESS; three published source ZIP snapshots and two Bolt ZIP archives passed size/SHA-256, full decompression/CRC and bounded extraction. Recovery/persistence self-tests 41342335822 SUCCESS. Fresh CodeInspector scan still required.",
+      "implementation_branch_sha": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+      "fixed_by_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+      "evidence": "PR #400 merged at 453afeebfc76f7c685792a7885115ce4ccabb7f3 from head cc5ae37ae87e0c7bff051ca7ff0742c1abf68555. Script now uses diagnostic_logging redaction for URLs, errors, tracebacks and persisted URL/error values; safe_print redacts progress; failed member writes remove only this invocation's partial artifact; exclusive-create prevents overwriting existing files; exact member sizes are verified. Run 41342335817 completed errors=[] and all integrity states PASS. Status remains IMPLEMENTED_PENDING_FRESH_SCAN.",
+      "occurrence": 1,
+      "implementation_pr": 400
     },
     {
       "id": "CI31-TS0003-e271d286-1",
@@ -4693,11 +4730,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -5155,11 +5192,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -5531,10 +5568,10 @@
       "latest_merged_pr": 395,
       "TS0003_in_progress": 0,
       "latest_tested_head": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
-      "main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+      "main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
       "verification": {
         "fresh_codeinspector_scan": "PENDING",
-        "current_main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+        "current_main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
         "PR384_core_run": 41318647101,
         "PR384_playwright_run": 41318647093,
         "PR384_gitleaks_run": 41318647094,
@@ -5569,7 +5606,19 @@
         "PR395_gitleaks_run": 41333817863,
         "PR395_p2_playwright_run": 41333817737,
         "PR395_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
-        "PR396_merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0"
+        "PR396_merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+        "latest_main_post_pr399_core_run": 41341535268,
+        "latest_main_post_pr399_core_status": "SUCCESS",
+        "latest_main_post_pr399_gitleaks_run": 41341535276,
+        "latest_main_post_pr399_gitleaks_status": "SUCCESS",
+        "latest_main_post_pr399_p1_typescript_run": 41341535316,
+        "latest_main_post_pr399_p1_typescript_status": "SUCCESS",
+        "latest_main_post_pr399_core_completed_at_utc": "2026-11-01T19:28:36Z",
+        "latest_main_after_pr400_core_run": 41342335810,
+        "latest_main_after_pr400_core_status": "SUCCESS",
+        "latest_main_after_pr400_gitleaks_run": 41342335816,
+        "latest_main_after_pr400_gitleaks_status": "SUCCESS",
+        "P2_playwright_after_pr400": "NOT_REPORTED"
       },
       "TS0003_not_reproduced_current_source_not_closed": 26,
       "last_source_recheck": {
@@ -5638,10 +5687,10 @@
       "TS0003_implemented_pending_fresh_scan": 51,
       "TS0003_active_open_or_in_progress": 0,
       "TS0003_total_original": 51,
-      "latest_pr": 398,
-      "latest_tested_head": "9c72e0e7d1dfe42c8131a57c31a39bb27afdb85e",
-      "latest_merge_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
-      "main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+      "latest_pr": 400,
+      "latest_tested_head": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+      "latest_merge_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+      "main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
       "extra_test_cleanup_not_in_recovered_239_row_manifest": [
         "src/test/outbox-worker-handler.test.ts"
       ],
@@ -5663,7 +5712,7 @@
         "P3_batch_13_local_supabase_order_tenant_isolation": "SUCCESS",
         "P3_batch_13_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
         "P3_batch_13_coderabbit": "SKIPPED_FREE_REVIEW_QUOTA",
-        "current_main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+        "current_main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
         "PR396_core_run": 41338965333,
         "PR396_gitleaks_run": 41338965377,
         "PR396_typescript_run": 41338965256,
@@ -5678,7 +5727,18 @@
         "PR398_public_ui_smoke": "SUCCESS",
         "PR398_authenticated_e2e_infrastructure": "SUCCESS",
         "PR398_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
-        "PR398_coderabbit": "SKIPPED"
+        "PR398_coderabbit": "SKIPPED",
+        "latest_main_post_pr399_core_run": 41341535268,
+        "latest_main_post_pr399_core_status": "SUCCESS",
+        "PR400_core_run": 41342335810,
+        "PR400_core_status": "SUCCESS",
+        "PR400_gitleaks_run": 41342335816,
+        "PR400_gitleaks_status": "SUCCESS",
+        "PR400_recovery_archive_run": 41342335822,
+        "PR400_recovery_archive_status": "SUCCESS",
+        "PR400_source_release_audit_run": 41342335817,
+        "PR400_source_release_audit_status": "SUCCESS",
+        "p3_tooling_on_current_pr": "PENDING"
       },
       "total_p3_findings": 98,
       "implemented_pending_fresh_scan": 98,
@@ -5719,10 +5779,69 @@
           "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
           "active": 0
         }
+      },
+      "latest_main_core_run": 41342335810,
+      "latest_main_core_status": "SUCCESS",
+      "latest_merge_details": {
+        "python_diagnostic_module": "scripts/diagnostic_logging.py",
+        "code_changes": [
+          "atomic CSV evidence writes through temporary file plus os.replace",
+          "redacted Python logs and traceback output",
+          "redacted source-release URL and error persistence",
+          "safe ZIP member streaming with incomplete-file cleanup",
+          "P3 workflow compiles and self-tests the Python diagnostic module"
+        ],
+        "p3_tooling_run": "RECHECK_REQUIRED_ON_CURRENT_BRANCH"
+      }
+    },
+    "P1": {
+      "status": "IMPLEMENTATION_COMPLETE_PENDING_OFFICIAL_CODEINSPECTOR_SCAN",
+      "main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
+      "TS0002_implemented_pending_fresh_scan": 2,
+      "TS0003_implemented_pending_fresh_scan": 5,
+      "fixture_detector_records_triaged_not_applicable": 18,
+      "active_implementation_open": 0,
+      "closed": 0,
+      "source_merge_pr": 339,
+      "source_merge_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "structural_guard_pr": 350,
+      "structural_guard_merge_sha": "4d95a6ed39387555bc29698b510b607b45498549",
+      "exact_main_core_run": 41341535268,
+      "exact_main_core_status": "SUCCESS",
+      "exact_main_targeted_typecheck_run": 41341535316,
+      "exact_main_targeted_typecheck_status": "SUCCESS",
+      "fresh_codeinspector_scan": "PENDING",
+      "note": "The 7 P1 TS0002/TS0003 implementation rows have exact-main TypeScript, AST structural-budget, P1 Vitest and Core success evidence. The 18 TS0004/TS0009 records remain triaged as test fixtures; neither group is CLOSED until fresh official CodeInspector results are captured.",
+      "verification": {
+        "current_main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
+        "latest_main_core_run": 41342335810,
+        "latest_main_core_status": "SUCCESS",
+        "latest_main_gitleaks_run": 41342335816,
+        "latest_main_gitleaks_status": "SUCCESS",
+        "latest_main_targeted_typescript_run": 41342335851,
+        "latest_main_targeted_typescript_status": "SUCCESS"
       }
     }
   },
   "integration_history": [
+    {
+      "event": "MERGED",
+      "pr": 400,
+      "source_commit": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+      "tested_head": "cc5ae37ae87e0c7bff051ca7ff0742c1abf68555",
+      "merge_commit": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+      "merged_at": "2026-11-01T19:33:30Z",
+      "note": "P3 Python tooling hardening: diagnostic redaction module, atomic evidence persistence, source-release snapshot redaction and integrity-safe extraction. Recovery archive/persistence self-tests, source-release audit, Core, P1 TypeScript, Gitleaks and branch cleanup passed on merge SHA 453afeeb; P3-specific tooling must be rechecked on a current-base PR."
+    },
+    {
+      "event": "MERGED",
+      "pr": 399,
+      "source_commit": "02384a6b5564d7c238f14511deeb4d3bdd0f7052",
+      "tested_head": "02384a6b5564d7c238f14511deeb4d3bdd0f7052",
+      "merge_commit": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+      "merged_at": "2026-11-01T19:23:59Z",
+      "note": "Documentation-only reconciliation after PR #398. No application source files changed; main SHA advanced to the merge commit. The 118-finding scan excerpt remains separate and predates PRs #396-#399; no baseline finding is CLOSED."
+    },
     {
       "event": "MERGED",
       "pr": 398,
@@ -6016,6 +6135,67 @@
       "note": "Exact current-main file blobs were inspected. The historical TS0003 nesting pattern was not reproduced at these source locations. Original CodeInspector input SHA is UNKNOWN; these rows are NOT_CLOSED and require a fresh authorized CodeInspector scan."
     }
   ],
-  "main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
-  "last_reconciled_main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81"
+  "main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
+  "last_reconciled_main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
+  "latest_main_checkpoint": {
+    "observed_at_utc": "2026-11-01",
+    "main_sha": "ef825892641b9a821e59ad0896babc827f95dee2",
+    "source_commit_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
+    "source_commit_relation": "PR #400 is the latest code-bearing P3 integration; current main ef825892 is a documentation-only follow-up after PR #400. Source changes and their CI evidence are on merge SHA 453afeeb.",
+    "post_merge_ci": {
+      "core_run": 41342335810,
+      "core_status": "SUCCESS",
+      "p1_targeted_typescript_run": 41342335851,
+      "p1_targeted_typescript": "SUCCESS",
+      "full_history_gitleaks_run": 41342335816,
+      "full_history_gitleaks": "SUCCESS",
+      "recovery_archive_reconciliation_run": 41342335822,
+      "recovery_archive_reconciliation": "SUCCESS",
+      "source_release_snapshot_audit_run": 41342335817,
+      "source_release_snapshot_audit": "SUCCESS",
+      "branch_cleanup_run": 41342335828,
+      "branch_cleanup": "SUCCESS",
+      "verified_details": [
+        "Recovery archive and persistence self-tests passed; atomic CSV publication failure preserved historical evidence and left no temporary artifact.",
+        "Two Bolt recovery ZIP archives (717 members total) passed SHA-256/Git blob hash and CRC/decompression checks; 69 potential reuse rows remain review-only.",
+        "Three published source snapshots and two Bolt archives passed expected size/SHA-256 and ZIP CRC/decompression checks; bounded source/text extraction only; no code or SQL was executed.",
+        "P1 strict TypeScript, AST structural budgets and P1 Vitest suites passed.",
+        "Core/test-and-build passed on merge SHA 453afeeb."
+      ],
+      "hosted_tenant_e2e": "NOT_REPORTED_ON_THIS_MERGE",
+      "p2_playwright": "NOT_REPORTED_ON_THIS_MERGE",
+      "p3_tooling": "RECHECK_REQUIRED_ON_NEW_DOC_PR_HEAD",
+      "codeinspector": "NOT_RUN"
+    },
+    "codeinspector_latest_supplied_scan": {
+      "generated_at_utc": "2026-11-01T17:38:11.0353760Z",
+      "reported_findings": 118,
+      "scan_input_sha": "UNKNOWN",
+      "detailed_findings": "NOT_PROVIDED",
+      "temporal_boundary": "Predates PR #396, #397, #398, #399 and #400; it is not a scan of current source SHA 453afeeb or current main ef825892.",
+      "status": "FOLLOW_UP_SUMMARY_ONLY_REQUIRES_FULL_RAW_EXPORT_AND_FRESH_SCAN"
+    },
+    "stale_pr_351": {
+      "state": "OPEN",
+      "merged": false,
+      "branch": "fix/p3-reset-role-fail-closed-20261101",
+      "ahead_by": 73,
+      "behind_by": 44,
+      "merge_base": "6cb364193285840b6d68a620d0db69eadb5d6ef1",
+      "disposition": "DO_NOT_MERGE_WHOLE_BRANCH; #383/#396/#398/#400 supersede known portions"
+    },
+    "P1": {
+      "TS0002_implemented_pending_fresh_scan": 2,
+      "TS0003_implemented_pending_fresh_scan": 5,
+      "fixture_detector_records_triaged_not_applicable": 18,
+      "active_implementation_open": 0,
+      "closed": 0,
+      "source_merge_pr": 339,
+      "structural_budget_guard_pr": 350,
+      "exact_main_targeted_run": 41342335851,
+      "exact_main_targeted_status": "SUCCESS",
+      "exact_source_core_run": 41342335810,
+      "exact_source_core_status": "SUCCESS"
+    }
+  }
 }
