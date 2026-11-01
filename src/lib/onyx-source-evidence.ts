@@ -139,6 +139,53 @@ function nullableString(value: unknown, field: string): string | null {
   return value;
 }
 
+function parseOnyxImportJob(value: unknown): OnyxSnapshotSourceEvidence["import_job"] {
+  if (value == null) return null;
+  if (!isRecord(value)) throw new Error("مرجع دفعة الاستيراد غير صالح.");
+  const job = value;
+  if (
+    typeof job.id !== "string" ||
+    typeof job.status !== "string" ||
+    typeof job.file_hash !== "string" ||
+    typeof job.created_at !== "string" ||
+    typeof job.file_hash_matches_snapshot !== "boolean"
+  ) throw new Error("بيانات دفعة الاستيراد غير مكتملة.");
+  return {
+    id: job.id,
+    source_system: nullableString(job.source_system, "source_system"),
+    job_type: nullableString(job.job_type, "job_type"),
+    status: job.status,
+    file_name: nullableString(job.file_name, "file_name"),
+    file_hash: job.file_hash,
+    period_key: nullableString(job.period_key, "period_key"),
+    created_at: job.created_at,
+    updated_at: nullableString(job.updated_at, "updated_at"),
+    error_code: nullableString(job.error_code, "error_code"),
+    file_hash_matches_snapshot: job.file_hash_matches_snapshot,
+  };
+}
+
+type OnyxExternalIdExample = OnyxSnapshotSourceEvidence["source_identity"]["external_id_examples"][number];
+
+function parseOnyxExternalIdExample(example: unknown): OnyxExternalIdExample {
+  if (
+    !isRecord(example) ||
+    typeof example.row_number !== "number" || !Number.isInteger(example.row_number) || example.row_number < 1 ||
+    typeof example.canonical_key !== "string" ||
+    typeof example.canonical_key_truncated !== "boolean" ||
+    typeof example.value_truncated !== "boolean" ||
+    !isRecord(example.external_ids) ||
+    Object.values(example.external_ids).some((value) => typeof value !== "string")
+  ) throw new Error("صف المعرّفات الخارجية غير صالح.");
+  return {
+    row_number: example.row_number,
+    canonical_key: example.canonical_key,
+    canonical_key_truncated: example.canonical_key_truncated,
+    external_ids: example.external_ids as Record<string, string>,
+    value_truncated: example.value_truncated,
+  };
+}
+
 export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promise<OnyxSnapshotSourceEvidence> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(snapshotId)) {
     throw new Error("معرّف لقطة أونكس غير صالح.");
@@ -165,31 +212,7 @@ export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promi
     throw new Error("لا تطابق بيانات المصدر اللقطة المحددة.");
   }
 
-  let importJob: OnyxSnapshotSourceEvidence["import_job"] = null;
-  if (data.import_job != null) {
-    if (!isRecord(data.import_job)) throw new Error("مرجع دفعة الاستيراد غير صالح.");
-    const job = data.import_job;
-    if (
-      typeof job.id !== "string" ||
-      typeof job.status !== "string" ||
-      typeof job.file_hash !== "string" ||
-      typeof job.created_at !== "string" ||
-      typeof job.file_hash_matches_snapshot !== "boolean"
-    ) throw new Error("بيانات دفعة الاستيراد غير مكتملة.");
-    importJob = {
-      id: job.id,
-      source_system: nullableString(job.source_system, "source_system"),
-      job_type: nullableString(job.job_type, "job_type"),
-      status: job.status,
-      file_name: nullableString(job.file_name, "file_name"),
-      file_hash: job.file_hash,
-      period_key: nullableString(job.period_key, "period_key"),
-      created_at: job.created_at,
-      updated_at: nullableString(job.updated_at, "updated_at"),
-      error_code: nullableString(job.error_code, "error_code"),
-      file_hash_matches_snapshot: job.file_hash_matches_snapshot,
-    };
-  }
+  const importJob = parseOnyxImportJob(data.import_job);
 
   const identity = data.source_identity;
   const allowedProvenance = new Set([
@@ -207,24 +230,7 @@ export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promi
   if (typeof identity.external_id_examples_truncated !== "boolean" || !Array.isArray(identity.external_id_examples)) {
     throw new Error("عينة المعرّفات الخارجية غير مكتملة.");
   }
-  const externalIdExamples = identity.external_id_examples.map((example) => {
-    if (
-      !isRecord(example) ||
-      typeof example.row_number !== "number" || !Number.isInteger(example.row_number) || example.row_number < 1 ||
-      typeof example.canonical_key !== "string" ||
-      typeof example.canonical_key_truncated !== "boolean" ||
-      typeof example.value_truncated !== "boolean" ||
-      !isRecord(example.external_ids) ||
-      Object.values(example.external_ids).some((value) => typeof value !== "string")
-    ) throw new Error("صف المعرّفات الخارجية غير صالح.");
-    return {
-      row_number: example.row_number,
-      canonical_key: example.canonical_key,
-      canonical_key_truncated: example.canonical_key_truncated,
-      external_ids: example.external_ids as Record<string, string>,
-      value_truncated: example.value_truncated,
-    };
-  });
+  const externalIdExamples = identity.external_id_examples.map(parseOnyxExternalIdExample);
   const sync = data.live_sync_evidence;
   if (sync.status !== "not_proven" || sync.live_connection_proven !== false || typeof sync.message !== "string") {
     throw new Error("رفض الخادم حالة مزامنة غير مدعومة بالدليل.");
