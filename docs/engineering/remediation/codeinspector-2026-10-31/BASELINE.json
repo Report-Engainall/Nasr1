@@ -5619,9 +5619,9 @@
         "latest_main_post_pr399_p1_typescript_run": 41341535316,
         "latest_main_post_pr399_p1_typescript_status": "SUCCESS",
         "latest_main_post_pr399_core_completed_at_utc": "2026-11-01T19:28:36Z",
-        "latest_main_core_status": "IN_PROGRESS_AT_LAST_POLL",
-        "latest_main_p2_playwright_status": "IN_PROGRESS_AT_LAST_POLL",
-        "latest_main_local_supabase": "IN_PROGRESS_AT_LAST_POLL",
+        "latest_main_core_status": "SUCCESS",
+        "latest_main_p2_playwright_status": "SUCCESS",
+        "latest_main_local_supabase": "SUCCESS",
         "latest_main_public_ui": "SUCCESS"
       },
       "TS0003_not_reproduced_current_source_not_closed": 26,
@@ -5735,14 +5735,16 @@
         "latest_main_post_pr399_core_run": 41341535268,
         "latest_main_post_pr399_core_status": "SUCCESS",
         "PR402_core_run": 41343175987,
-        "PR402_core_status": "IN_PROGRESS_AT_LAST_POLL",
+        "PR402_core_status": "SUCCESS",
         "PR402_p2_playwright_run": 41343175851,
-        "PR402_p2_playwright_status": "IN_PROGRESS_AT_LAST_POLL",
+        "PR402_p2_playwright_status": "SUCCESS",
         "PR402_gitleaks_run": 41343175952,
         "PR402_gitleaks_status": "SUCCESS",
         "PR402_p1_typescript_run": 41343175864,
         "PR402_p1_typescript_status": "SUCCESS",
-        "p3_tooling_on_current_doc_pr": "PENDING"
+        "p3_tooling_on_current_doc_pr": "PENDING",
+        "PR402_local_supabase_status": "SUCCESS",
+        "PR402_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL"
       },
       "total_p3_findings": 98,
       "implemented_pending_fresh_scan": 98,
@@ -5785,7 +5787,7 @@
         }
       },
       "latest_main_core_run": 41343175987,
-      "latest_main_core_status": "IN_PROGRESS_AT_LAST_POLL",
+      "latest_main_core_status": "SUCCESS",
       "latest_merge_details": {
         "previous_python_tooling_pr": 400,
         "previous_python_tooling_merge_sha": "453afeebfc76f7c685792a7885115ce4ccabb7f3",
@@ -5807,7 +5809,7 @@
       "structural_guard_pr": 350,
       "structural_guard_merge_sha": "4d95a6ed39387555bc29698b510b607b45498549",
       "exact_main_core_run": 41343175987,
-      "exact_main_core_status": "IN_PROGRESS_AT_LAST_POLL",
+      "exact_main_core_status": "SUCCESS",
       "exact_main_targeted_typecheck_run": 41343175864,
       "exact_main_targeted_typecheck_status": "SUCCESS",
       "fresh_codeinspector_scan": "PENDING",
@@ -5819,7 +5821,7 @@
         "latest_main_gitleaks_run": 41343175952,
         "latest_main_gitleaks_status": "SUCCESS",
         "latest_main_core_run": 41343175987,
-        "latest_main_core_status": "IN_PROGRESS_AT_LAST_POLL"
+        "latest_main_core_status": "SUCCESS"
       }
     }
   },
@@ -6144,12 +6146,12 @@
     "source_commit_relation": "PR #400 integrated Python diagnostic/evidence tooling at 453afeeb; PR #402 then merged two residual P3 TypeScript test-helper refactors into current main bdfce992. This is the current code-bearing main head.",
     "post_merge_ci": {
       "core_run": 41343175987,
-      "core_status": "IN_PROGRESS_AT_LAST_POLL",
+      "core_status": "SUCCESS",
       "p2_playwright_run": 41343175851,
-      "p2_playwright_status": "IN_PROGRESS_AT_LAST_POLL",
+      "p2_playwright_status": "SUCCESS",
       "p2_playwright_public_ui": "SUCCESS",
       "p2_playwright_authenticated_infrastructure": "SUCCESS",
-      "p2_playwright_local_supabase": "IN_PROGRESS_AT_LAST_POLL",
+      "p2_playwright_local_supabase": "SUCCESS",
       "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
       "p1_targeted_typescript_run": 41343175864,
       "p1_targeted_typescript": "SUCCESS",
@@ -6169,7 +6171,8 @@
         "PR #402 parameterizes createCurrentUserSession and reuses it for the alternate-account test without changing assertions or test count.",
         "PR #400 atomic evidence persistence, archive reconciliation and source-release audit passed on merge SHA 453afeeb.",
         "PR #402 Core and local Supabase Playwright are still in progress; no terminal result assigned yet."
-      ]
+      ],
+      "completed_at_utc": "2026-11-01T19:48:34Z"
     },
     "codeinspector_latest_supplied_scan": {
       "generated_at_utc": "2026-11-01T17:38:11.0353760Z",
