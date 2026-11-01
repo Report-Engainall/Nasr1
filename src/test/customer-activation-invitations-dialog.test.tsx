@@ -231,5 +231,23 @@ describe("customer activation invitation dialog", () => {
     trigger.remove();
   });
 
+  it("renders an empty invitation history only when the server confirms an empty list", async () => {
+    mocks.fetchWorkspace.mockResolvedValueOnce({ ...workspace, invitations: [] });
+    render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
+
+    expect(await screen.findByText("لا توجد دعوات محفوظة لهذا السجل.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إلغاء الدعوة" })).not.toBeInTheDocument();
+  });
+
+  it("does not expose revoke for an expired pending invitation", async () => {
+    mocks.fetchWorkspace.mockResolvedValueOnce({
+      ...workspace,
+      invitations: [{ ...invitation, expires_at: "2000-01-01T00:00:00.000Z" }],
+    });
+    render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
+
+    expect(await screen.findByText("بانتظار التفعيل")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إلغاء الدعوة" })).not.toBeInTheDocument();
+  });
 
 });
