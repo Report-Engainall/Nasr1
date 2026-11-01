@@ -184,7 +184,7 @@ const VERIFIED_CHECKOUT = {
   }],
 };
 
-function getCurrentCheckoutSession() {
+async function getCurrentCheckoutSession() {
   const userId = mocks.user?.id;
   return { data: { session: userId ? { user: { id: userId } } : null }, error: null };
 }
