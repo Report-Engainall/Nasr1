@@ -26,39 +26,49 @@ const makeOrder = (status = 'pending') => ({
   updated_at: '2026-10-22T10:00:00.000Z',
 })
 
+function adminOrderUpdateQuery(table: string, payload: Record<string, unknown>) {
+  return {
+    eq: vi.fn((_column: string, id: string) => ({
+      select: vi.fn(() => ({
+        maybeSingle: vi.fn(async () => {
+          mocks.updateCall = { table, payload, id };
+          return mocks.updateResult;
+        }),
+      })),
+    })),
+  };
+}
+
+function adminOrdersTableQuery(table: string) {
+  if (table === "orders") {
+    return {
+      select: vi.fn(() => ({
+        order: vi.fn(async () => ({ data: mocks.orders, error: null })),
+      })),
+      update: vi.fn((payload: Record<string, unknown>) => adminOrderUpdateQuery(table, payload)),
+    };
+  }
+  if (table === "customers") {
+    return {
+      select: vi.fn(async () => ({ data: [{ id: "customer-1", full_name: "عميل الاختبار" }], error: null })),
+    };
+  }
+  if (table === "order_items") {
+    return {
+      select: vi.fn(() => ({
+        eq: vi.fn(async () => ({ data: [], error: null })),
+      })),
+    };
+  }
+  throw new Error("Unexpected table: " + table);
+}
+
 describe('admin order status transition UI', () => {
   beforeEach(() => {
     mocks.orders = [makeOrder()]
     mocks.updateResult = { data: { id: 'order-1', status: 'confirmed' }, error: null }
     mocks.updateCall = null
-    mocks.from.mockReset().mockImplementation((table: string) => {
-      if (table === 'orders') {
-        return {
-          select: vi.fn(() => ({
-            order: vi.fn(async () => ({ data: mocks.orders, error: null })),
-          })),
-          update: vi.fn((payload: Record<string, unknown>) => ({
-            eq: vi.fn((_column: string, id: string) => ({
-              select: vi.fn(() => ({
-                maybeSingle: vi.fn(async () => {
-                  mocks.updateCall = { table, payload, id }
-                  return mocks.updateResult
-                }),
-              })),
-            })),
-          })),
-        }
-      }
-      if (table === 'customers') {
-        return {
-          select: vi.fn(async () => ({ data: [{ id: 'customer-1', full_name: 'عميل الاختبار' }], error: null })),
-        }
-      }
-      if (table === 'order_items') {
-        return { select: vi.fn(() => ({ eq: vi.fn(async () => ({ data: [], error: null })) })) }
-      }
-      throw new Error('Unexpected table: ' + table)
-    })
+    mocks.from.mockReset().mockImplementation((table: string) => adminOrdersTableQuery(table))
   })
 
   afterEach(() => {
