@@ -281,7 +281,7 @@ function CashExpensePagination({
   if (!payload || (payload.offset <= 0 && !payload.has_more)) return null;
   return (
     <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-      <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} disabled={loading || page === 0} onClick={() => onPageChange(Math.max(0, page - 1)}>
+      <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} disabled={loading || page === 0} onClick={() => onPageChange(Math.max(0, page - 1))}>
         <ChevronRight size={15} style={{ verticalAlign: "middle" }} /> السابقة
       </button>
       <span style={muted}>تُطبع الصفحة المعروضة فقط، وتُطبق عليها الفلاتر الحالية.</span>
