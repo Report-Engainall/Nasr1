@@ -1,3 +1,28 @@
+## Current main checkpoint — 2026-11-01 after PR #402
+
+- Current main/code SHA: `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc`.
+- PR #400 merged at `453afeebfc76f7c685792a7885115ce4ccabb7f3`: Core 41342335810 PASS; Gitleaks 41342335816 PASS; P1 TS/AST/Vitest 41342335851 PASS; archive/persistence tests 41342335822 PASS; source snapshot audit 41342335817 PASS.
+- PR #402 merged at `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` from tested head `0b0391597a2a70302204e0105355adf96feb62db`. P1 TS 41343175864 PASS; Gitleaks 41343175952 PASS; branch cleanup 41343175904 PASS; Core 41343175987 PASS; P2 Playwright/local Supabase 41343175851 PASS; public UI and authenticated E2E infrastructure PASS; hosted tenant E2E SKIPPED.
+- PR #402 updates the two existing P3 TS0003 finding rows for `quick-order-quantity-controls.test.tsx` and `storefront-saved-products.test.ts`; both still require fresh CodeInspector confirmation.
+- P1: 7 structural records IMPLEMENTED_PENDING_FRESH_SCAN; 18 fixture records triaged. P2: 116 rows not closed, disposition as BASELINE. P3: 98 IMPLEMENTED_PENDING_FRESH_SCAN; no historical finding is CLOSED.
+- User's 118-row CodeInspector summary is from 17:38:11 UTC, predates #396–#402, lacks scan SHA and raw finding rows.
+- Fresh official CodeInspector on exact main `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` remains PENDING.
+
+---
+
+## Current main checkpoint — 2026-11-01T19:24Z
+
+- Current main: `91728da2c76933dbf2c79eceac5a6865483ea5a4` (PR #399 documentation-only merge; parent source-code SHA `0dc6f75d3767fe15d472ed28284332273061bb81`).
+- PR #396 merged at `f9daf09d1e5aa152aaefa4ac628c6074d4721fb0`; #397 at `eed901bb4802fae9ad8c36407344c7199a2ac64d`; #398 at `0dc6f75d3767fe15d472ed28284332273061bb81`; #399 at `91728da2c76933dbf2c79eceac5a6865483ea5a4`.
+- Main-head Core run 41341535268 SUCCESS (completed 2026-11-01T19:28:36Z): unit tests, focused P2 TypeScript, PostgreSQL 17 migrations and finance/inventory/import/export/tenant-concurrency/backup tests, lint, build, production preview smoke, dev-server smoke and Chromium price-visibility acceptance all passed.
+- Full-history Gitleaks run 41341535276 SUCCESS; P1 targeted TypeScript run 41341535316 SUCCESS; branch cleanup run 41341535239 SUCCESS.
+- The supplied 118-finding CodeInspector excerpt is timestamped 17:38:11 UTC, before merges #396–#399; its input SHA is UNKNOWN and per-finding rows were not supplied. Keep it separate from the recovered 239-row manifest.
+- Fresh official CodeInspector scan on exact main `91728da2c76933dbf2c79eceac5a6865483ea5a4` has NOT been run; no findings are marked CLOSED based on CI.
+- P1 status on the recovered 239-row baseline: two TS0002 and five TS0003 records now IMPLEMENTED_PENDING_FRESH_SCAN following merged PR #339 and PR #350 structural guard; all five P1 files passed the exact-main targeted TypeScript + AST + Vitest workflow 41341535316. The 18 TS0004/TS0009 records remain fixture-only NOT_APPLICABLE triage pending fresh scanner confirmation.
+- PR #351 remains OPEN/unmerged, divergent 73 ahead / 42 behind; do not merge wholesale.
+
+---
+
 ## Current integration snapshot — 2026-11-01T19:17Z
 
 - Current source main: 0dc6f75d3767fe15d472ed28284332273061bb81.
