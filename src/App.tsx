@@ -47,25 +47,46 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true
+    let generation = 0
+    let authEventSeen = false
     const actions = { setSession, setCustomer, setAdmin, setLoading }
-    const isMounted = () => mounted
-    const finishFailedHydration = () => {
-      if (!mounted) return
+    const isCurrent = (requestGeneration: number) => mounted && requestGeneration === generation
+    const finishFailedHydration = (requestGeneration: number) => {
+      if (!isCurrent(requestGeneration)) return
+      setSession(null)
       setCustomer(null)
       setAdmin(false)
       setLoading(false)
     }
 
-    void supabase.auth.getSession()
-      .then(({ data: { session } }) => synchronizeSession(session, actions, loadCustomerProfile, isMounted))
-      .catch(finishFailedHydration)
-
+    const initialGeneration = ++generation
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void synchronizeSession(session, actions, loadCustomerProfile, isMounted).catch(finishFailedHydration)
+      authEventSeen = true
+      const requestGeneration = ++generation
+      void synchronizeSession(
+        session,
+        actions,
+        loadCustomerProfile,
+        () => isCurrent(requestGeneration),
+      ).catch(() => finishFailedHydration(requestGeneration))
     })
+
+    void supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        // An auth event is newer than the initial snapshot; never let it be overwritten.
+        if (authEventSeen) return
+        return synchronizeSession(
+          session,
+          actions,
+          loadCustomerProfile,
+          () => isCurrent(initialGeneration),
+        )
+      })
+      .catch(() => finishFailedHydration(initialGeneration))
 
     return () => {
       mounted = false
+      generation += 1
       subscription.unsubscribe()
     }
   }, [setSession, setCustomer, setAdmin, setLoading])

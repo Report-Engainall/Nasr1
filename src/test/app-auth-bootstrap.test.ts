@@ -66,4 +66,33 @@ describe('synchronizeSession', () => {
     expect(actions.setAdmin).not.toHaveBeenCalled();
     expect(actions.setLoading).not.toHaveBeenCalled();
   });
+  it('does not apply a stale profile when a newer auth event starts first', async () => {
+    const actions = createActions();
+    const olderSession = { user: { id: 'older-user' } } as unknown as Session;
+    const newerSession = { user: { id: 'newer-user' } } as unknown as Session;
+    const olderCustomer = { id: 'older-customer' } as Customer;
+    const newerCustomer = { id: 'newer-customer' } as Customer;
+    let generation = 0;
+    let resolveOlderProfile: ((value: { customer: Customer; isAdmin: boolean }) => void) | undefined;
+
+    const start = (session: Session, loader: () => Promise<{ customer: Customer | null; isAdmin: boolean }>) => {
+      const requestGeneration = ++generation;
+      return synchronizeSession(session, actions, loader, () => requestGeneration === generation);
+    };
+
+    const olderPending = start(olderSession, () => new Promise((resolve) => {
+      resolveOlderProfile = resolve;
+    }));
+    const newerPending = start(newerSession, async () => ({ customer: newerCustomer, isAdmin: true }));
+
+    await newerPending;
+    resolveOlderProfile?.({ customer: olderCustomer, isAdmin: false });
+    await olderPending;
+
+    expect(actions.setCustomer).toHaveBeenCalledTimes(1);
+    expect(actions.setCustomer).toHaveBeenCalledWith(newerCustomer);
+    expect(actions.setAdmin).toHaveBeenCalledTimes(1);
+    expect(actions.setAdmin).toHaveBeenCalledWith(true);
+  });
+
 });

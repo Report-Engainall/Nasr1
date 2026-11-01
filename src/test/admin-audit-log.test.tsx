@@ -156,4 +156,22 @@ describe("admin audit log pagination", () => {
     expect(screen.getByText("تقتصر قراءة سجل التدقيق على مدير المؤسسة ومدير النظام، ويفرض الخادم النطاق نفسه بواسطة RLS.")).toBeInTheDocument();
     expect(mocks.from).not.toHaveBeenCalled();
   });
+  it("preserves the loaded page count while filters narrow visible audit rows", async () => {
+    mocks.responses = [{
+      data: [
+        makeAuditRow("aaaaaaaa", "audit-filter-1"),
+        makeAuditRow("bbbbbbbb", "audit-filter-2"),
+      ],
+      count: 2,
+      error: null,
+    }];
+    render(<AdminAuditLog />);
+
+    expect(await screen.findByText("2 نتيجة من 2 سجل محمّل")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("بحث داخل سجلات الصفحة الحالية"), {
+      target: { value: "aaaaaaaa" },
+    });
+    expect(screen.getByText("1 نتيجة من 2 سجل محمّل")).toBeInTheDocument();
+  });
+
 });

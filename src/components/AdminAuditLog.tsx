@@ -91,11 +91,11 @@ function AuditLogRows({ rows }: { rows: AuditLogRow[] }) {
   return <tbody>{rows.map((row) => <AuditLogRowView key={row.id} row={row} />)}</tbody>;
 }
 
-function AuditLogTable({ rows }: { rows: AuditLogRow[] }) {
+function AuditLogTable({ rows, loadedCount }: { rows: AuditLogRow[]; loadedCount: number }) {
   return (
     <section className="panel">
       <div className="panel-head">
-        <div><h2>الأحداث المسجلة</h2><p>{rows.length} نتيجة محمّلة</p></div>
+        <div><h2>الأحداث المسجلة</h2><p>{rows.length} نتيجة من {loadedCount} سجل محمّل</p></div>
       </div>
       <TableWrap>
         <table>
@@ -113,15 +113,17 @@ function AuditLogContent({
   loading,
   error,
   rows,
+  loadedCount,
 }: {
   loading: boolean;
   error: string;
   rows: AuditLogRow[];
+  loadedCount: number;
 }) {
   if (loading) return <Loading />;
   if (error) return <ErrorBox message={error} />;
   if (rows.length === 0) return <Empty text="لا توجد سجلات مطابقة للفلاتر الحالية." />;
-  return <AuditLogTable rows={rows} />;
+  return <AuditLogTable rows={rows} loadedCount={loadedCount} />;
 }
 
 function AuditLogPagination({
@@ -296,7 +298,7 @@ export function AdminAuditLog() {
             onActionFilterChange={setActionFilter}
             actions={actions}
           />
-          <AuditLogContent loading={loading} error={error} rows={filtered} />
+          <AuditLogContent loading={loading} error={error} rows={filtered} loadedCount={rows.length} />
         </>
       ) : <AuditLogAccessDenied />}
     </AdminPage>

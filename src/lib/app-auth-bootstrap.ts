@@ -16,9 +16,9 @@ export async function synchronizeSession(
   session: Session | null,
   actions: SessionSyncActions,
   loadProfile: CustomerProfileLoader,
-  isMounted: () => boolean,
+  isCurrent: () => boolean,
 ): Promise<void> {
-  if (!isMounted()) return;
+  if (!isCurrent()) return;
 
   actions.setSession(session);
   if (!session?.user) {
@@ -29,7 +29,7 @@ export async function synchronizeSession(
   }
 
   const { customer, isAdmin } = await loadProfile(session.user.id);
-  if (!isMounted()) return;
+  if (!isCurrent()) return;
 
   actions.setCustomer(customer);
   actions.setAdmin(isAdmin);
