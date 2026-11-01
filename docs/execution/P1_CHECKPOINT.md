@@ -244,3 +244,60 @@
 
 ## Three-agent ownership override — 2026-10-30
 P1 continues UI ownership and this checkpoint only. P2 owns backend/API/security. P3 owns the intelligence reserved files, global cursor, matrix and central execution log. See section 11 of CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md. P1 must not edit global CURRENT_EXECUTION_STATE, CSV or EXECUTION_LOG. Gallery is docs/reference-app/README.md; no archive re-extraction.
+
+<!-- Historical append-only P1 checkpoint from PR #345; snapshot main SHA 06aaccb0f8172f3f1b682c38885650ce136d0b90. These entries record state at the dated checkpoint, not live current refs. -->
+
+## P1 security closeout resume checkpoint — 2026-11-01
+
+- **Task:** P1-SECURITY-ASSURANCE-EXACT-SHA-CLOSEOUT.
+- **Repository:** `Report-Engainall/Nasr1`; current `main`: `06aaccb0f8172f3f1b682c38885650ce136d0b90`.
+- **P1 original source:** PR #339 MERGED at `71de0500aab508cc4cd4d41265304c397a4f3345`.
+- **P1 security follow-up PR #350:** OPEN / mergeable / not merged; branch `fix/p1-gitleaks-full-history-typecheck-20261101`, source head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`, base current main `06aaccb...`, 18 ahead / 0 behind.
+- **P1 documentation PR #345:** OPEN / mergeable; branch `docs/p1-post-merge-verification-20261101`; latest documented head at this checkpoint `a6708e9a431a8e33568cbfc57a54700831fe21dd`. Files changed by the P1 doc branch: `P1.md` and this `P1_CHECKPOINT.md`; P2/P3 own synchronization/integration.
+
+### Last completed exact P1 proof set
+- P1 source head: `b07bccf...`.
+- Synthetic merge SHA: `d9326bc704bcc65eb409f7a618aef361d188450e` (P1 source b07bccf into main06aaccb).
+- Gitleaks [41266134962](https://github.com/Report-Engainall/Nasr1/actions/runs/41266134962), job 124729216017: terminal SUCCESS; CLI 8.30.1; non-shallow; 3,333 commits available / 3,045 scanned; 11 remote branches / 107 tags; `--full-history --all --diff-filter=tuxdb`; historical Canary PASS; zero remaining findings. Redacted artifact ID 13067138737 was downloaded/inspected and JSON is `[]`.
+- Strict P1 TypeScript + AST [41266134980](https://github.com/Report-Engainall/Nasr1/actions/runs/41266134980), job 124729216018: terminal SUCCESS; five P1 files/import graph typecheck; AST proxy PASS (critical-path max 74 lines / limit80, max depth2 / limit5); AI Gateway 18/18 + password-reset security4/4 =22/22. AST proxy is supplemental only, not CodeInspector.
+- P3 tooling [41266134976](https://github.com/Report-Engainall/Nasr1/actions/runs/41266134976): JavaScript and Python jobs SUCCESS.
+- Current Core [41266135010](https://github.com/Report-Engainall/Nasr1/actions/runs/41266135010), job124729216159: **IN_PROGRESS**, 30 job steps completed; current step Browser price-visibility Chromium. Do not mark PASS until terminal.
+- Current P2 Playwright [41266134959](https://github.com/Report-Engainall/Nasr1/actions/runs/41266134959):
+  - Public Chromium job124729216516: SUCCESS.
+  - Infrastructure evaluation job124729216526: SUCCESS only as an evaluation, emitted `ready=false`.
+  - Hosted authenticated tenant job124729238430: SKIPPED / BLOCKED_EXTERNAL.
+  - Local authenticated Supabase/PostgreSQL/Chromium job124729433829: **IN_PROGRESS**, 27 steps completed, currently running finance-document/operational-task print. No terminal local PASS yet at this checkpoint.
+
+### Latest independent test baseline and known proof
+- Previous exact local P2 job #41265473460 job124727526219 completed SUCCESS 40/40 on P1 source `6000e9ac...` (older, before the current source b07bccf). It proved order persistence/tenant isolation HTTP403/SQLSTATE42501, unchanged foreign customer tier, return/credit memo, Onyx 27-column XLSX, finance/task print, customer-manager privacy/audit, device-session revocation. Do not transfer this to current source b07bccf.
+- Current local P2 job must prove exact checkout source b07bccf, pass all local PG17/browser paths, record proof boundary, stop local services and upload artifacts.
+
+### Remaining open / blocked items
+- **CodeInspector official scan:** BLOCKED_EXTERNAL / IMPLEMENTED_PENDING_FRESH_SCAN for 2 TS0002 + 5 TS0003. No signed-in service session/API/CLI/report. All TinyFish browser profiles have `domain_count=0` and no signed_in_sites; wallet balance `-0.072 USD`. Zero spend; no top-up. The AST proxy does not replace CodeInspector.
+- **Hosted authenticated Tenant E2E:** BLOCKED_EXTERNAL / SKIPPED; missing dedicated hosted staging URL/key, two approved tenant identities and explicit `E2E_ALLOW_TEST_WRITES=YES_I_CONFIRM_NON_PRODUCTION`. No production writes.
+- **Independent review:** PR #350 requested reviewer `adnanabderab2016-sys`; review API has three COMMENTED submissions by repository owner and no APPROVED submission. Wait for independent review; do not self-approve.
+- **PR #350 merge:** currently mergeable after P2 synchronized branch and retained P1/P2 EVIDENCE.md content. P2 owns review/merge.
+- **PR #345 integration:** P1.md + P1_CHECKPOINT only; P2/P3 own sync/integration.
+- **P3 global cursor:** protocol names `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` as sole global resume and P3 owner of matrix/canonical execution log. That file and matrix remained stale at last review; P3 must update them after P1/P2 integration. Do not create a second execution log or edit these global files from P1.
+- **Release:** NO-GO. Hosted E2E, official analyzer, independent review, and production operations/integrations remain unproven.
+
+### Exact next actions
+1. Poll Core run 41266135010 until terminal; record its exact synthetic merge SHA and logs.
+2. Poll P2 run 41266134959 job124729433829 until terminal; verify `E2E_SOURCE_SHA=b07bccf...`, 403/42501/opaque denial/foreign tier unchanged, local shutdown and artifact upload.
+3. P2 must obtain independent APPROVE and merge PR #350 only after all exact checks terminal-success and required review.
+4. P2/P3 synchronize PR #345; P3 then updates global current state, the single acceptance matrix and canonical execution log.
+5. Keep CodeInspector and Hosted E2E BLOCKED_EXTERNAL; never label skipped checks PASS.
+
+
+## P1 checkpoint continuation — after PR #353 — 2026-11-01
+
+- Current main SHA: `3312d571dbb31af3e776cd3f774ba4e725a20492` (P2 PR #353).
+- PR #339: MERGED at `71de0500aab508cc4cd4d41265304c397a4f3345`.
+- PR #350: OPEN, branch `fix/p1-gitleaks-full-history-typecheck-20261101`, head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`, base `06aaccb0f8172f3f1b682c38885650ce136d0b90`; 18 ahead / 14 behind current main. P2 owns sync/retest/merge; prior full-history Gitleaks, strict TypeScript/Vitest, Core and P2 local/public SUCCESS evidence does not transfer to the synchronized successor SHA.
+- PR #345: OPEN, P1 documentation branch `docs/p1-post-merge-verification-20261101`, latest commit will be recorded by the latest branch ref; it updates only P1-owned `P1.md` and `P1_CHECKPOINT.md` relative to current main. P2/P3 own synchronization/integration; P3 owns CURRENT_EXECUTION_STATE, matrix and canonical execution log.
+- Current-main Core run `41267685250` and P2 Playwright run `41267685249` are IN_PROGRESS at latest observation. Hosted tenant E2E is SKIPPED/BLOCKED_EXTERNAL.
+- Current-main P1 Secret Scan `41267685361` has Job SUCCESS but log reports 0 commits / 0 bytes from a first-parent PR range. This is not a valid repository-history scan. The correction is pending integration of PR #350.
+- Initial full-history scan artifact 13065892318 contained 35 findings (1 JWT, 34 generic-api-key). P1 reviewed all 35 historical source contexts: test fixtures, auth/profile UUID identities, request/idempotency/period keys and Git/provenance identifiers; no live service/provider credential identified. The exact-fingerprint allowlist contains 35 unique entries with no broad rule/path suppression. Independent reviewer approval remains OPEN.
+- Official CodeInspector TS0002 (2) / TS0003 (5) remains OPEN / IMPLEMENTED_PENDING_FRESH_SCAN. AST proxy and tsc are not CodeInspector.
+- Do not mark Hosted E2E, official analyzer, independent review or overall production readiness PASS without their own evidence.
+
