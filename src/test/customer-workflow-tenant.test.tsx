@@ -113,6 +113,35 @@ function queryFor(table: string) {
   return query;
 }
 
+function createCustomerInvoicePdfPayload(invoiceId: string) {
+  return {
+    invoice: {
+      id: invoiceId,
+      invoice_number: "INV-UI-001",
+      currency: "YER",
+      subtotal: "25.00",
+      tax_amount: "0.00",
+      total_amount: "25.00",
+    },
+    lines: [{
+      id: "55555555-5555-4555-8555-555555555555",
+      item_code: "000125",
+      description: "سكر أبيض",
+      unit: "كرتون",
+      quantity: "2",
+      unit_price: "12.50",
+      line_total: "25.00",
+    }],
+    customer: {
+      customer_code: "000042",
+      business_name: "متجر الاختبار",
+      contact_name: null,
+    },
+    financial_details_visible: true,
+    customer_tier_visible: false,
+  };
+}
+
 describe("customer quote workspace tenant boundary", () => {
   let root: Root | undefined;
   let host: HTMLDivElement | undefined;
@@ -519,35 +548,7 @@ describe("customer quote workspace tenant boundary", () => {
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
-      return {
-        data: {
-          invoice: {
-            id: invoiceId,
-            invoice_number: "INV-UI-001",
-            currency: "YER",
-            subtotal: "25.00",
-            tax_amount: "0.00",
-            total_amount: "25.00",
-          },
-          lines: [{
-            id: "55555555-5555-4555-8555-555555555555",
-            item_code: "000125",
-            description: "سكر أبيض",
-            unit: "كرتون",
-            quantity: "2",
-            unit_price: "12.50",
-            line_total: "25.00",
-          }],
-          customer: {
-            customer_code: "000042",
-            business_name: "متجر الاختبار",
-            contact_name: null,
-          },
-          financial_details_visible: true,
-          customer_tier_visible: false,
-        },
-        error: null,
-      };
+      return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
     });
 
     await mountQuoteWorkspace("/invoices");

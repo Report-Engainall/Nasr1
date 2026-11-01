@@ -62,11 +62,16 @@ async function loadServiceWorker(overrides: {
   const cache = { add: cacheAdd, put: cachePut };
   const cacheDelete = vi.fn(async () => true);
   const cacheNames = overrides.cacheNames ?? [];
+  const matchCachedRequest = async (request: Request | string) => overrides.cacheMatch?.(request) ?? null;
+  const fetchRequest = (request: Request | string) => {
+    if (overrides.fetcher) return overrides.fetcher(request);
+    return Promise.reject(new Error("unexpected network request"));
+  };
   const cachesMock = {
     open: vi.fn(async () => cache),
     keys: vi.fn(async () => cacheNames),
     delete: cacheDelete,
-    match: vi.fn(async (request: Request | string) => overrides.cacheMatch?.(request) ?? null),
+    match: vi.fn(matchCachedRequest),
   };
   const skipWaiting = vi.fn(async () => undefined);
   const claim = vi.fn(async () => undefined);
@@ -83,9 +88,7 @@ async function loadServiceWorker(overrides: {
     URL,
     Promise,
     Response,
-    fetch: vi.fn((request: Request | string) => overrides.fetcher
-      ? overrides.fetcher(request)
-      : Promise.reject(new Error("unexpected network request"))),
+    fetch: vi.fn(fetchRequest),
     console,
   });
 
