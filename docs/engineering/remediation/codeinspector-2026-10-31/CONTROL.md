@@ -253,3 +253,36 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - Test commits `43ab6774c337baf475a1ec4dc58b88cf800332a1` and `90ce35bca0dcd0f99aeb5a190cc4f42326c8f70d` add UI tests for populated rows, row ordering and the empty state.
 - P2 baseline on this branch: 1 TS0002 + 20 TS0003 implemented pending fresh scan; 84 active TS0003 remain OPEN; 10 archived scope-review items. The Customer360PrintSheet finding is not CLOSED until a fresh CodeInspector scan confirms it.
 - No DTO allowlist, financial projection, tenant scope, RLS, accounting or pricing policy changed. Exact-head Core/P2 reruns are required after this synchronization and ledger update.
+
+
+## Current integration checkpoint — 2026-11-01 — P2 batch 06 after PR #346 merge
+
+- Current main SHA: `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`.
+- PR #346 (Customer 360 recent-order print decomposition) is MERGED at `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`. Its exact-head branch checks: Core 41262839862 SUCCESS; Gitleaks 41262839835 SUCCESS; Playwright 41262839859 public/auth gates SUCCESS and local Supabase order/tenant acceptance SUCCESS. Hosted tenant E2E was SKIPPED, not PASS.
+- Post-merge main workflows on `8f5b843...`: Core 41263444461 and P2 Playwright 41263444463 were IN_PROGRESS at last observation; Secret Scan 41263444466 was IN_PROGRESS at last observation; One-main-branch cleanup 41263444448 SUCCESS. Verify these exact-main checks before treating post-merge validation as complete.
+- P2 batch 06 stable finding `CI31-TS0003-6ae06bf7-1` is implemented in `src/components/intelligence/ActionCard.tsx` by source commit `081af02074061da2c35f1fdf7c5f293536794642`. It remains IMPLEMENTED_PENDING_FRESH_SCAN, not CLOSED.
+- P2 branch `fix/codeinspector-p2-ts0003-batch-06` was synchronized to latest main after PR #346 by preserving the ActionCard source/test blobs on the current main tree and creating a two-parent merge commit; baseline reconciliation is based on main's latest 239-row ledger. This is not a main merge.
+- Current reconciled P2 counts: 1 TS0002 + 21 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 83 active current-tree TS0003 OPEN; 10 archived TS0003 SCOPE_REVIEW; TS0010 NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED. All 239 original rows retained. ORIGINAL_SCAN_SHA=UNKNOWN. Fresh CodeInspector scan remains PENDING.
+- Exact latest-head checks for the synchronized #347 branch are launched by the new branch commit; do not transfer results from older heads.
+- PR #348/#349 have new branch heads and have exact-head checks running; PR #350 P1 and PR #351 P3 are also awaiting their latest Playwright/Supabase job terminal states. See EVIDENCE.md for run IDs.
+
+
+
+## Original CodeInspector artifact recovered — verified 2026-11-01
+
+- Recovered the complete 21-page PDF from the Library: `scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf`.
+- Scan timestamp: `2026-10-31T22:02:18.5552070Z`; branch reported by scanner: `main`.
+- PDF totals: 703 files, 127,555 LOC, 239 findings. Language split: TypeScript 192, JavaScript 40, Python 7. Severity split: Critical 18, High 15, Medium 177, Low 29.
+- Parsed all 239 finding headers from all 21 pages and matched them one-to-one to the 239 BASELINE rows by rule ID, original line and normalized reported basename: 239 matched, 0 unmatched PDF, 0 unmatched manifest.
+- Rule counts: TS0004 9, TS0009 9, TS0002 3, JS0001 12, JS0007 26, PY0005 2, TS0010 1, TS0003 170, JS0005 2, PY0002 3, PY0003 2.
+- The report does not state the input Git commit SHA. `ORIGINAL_SCAN_SHA=UNKNOWN` remains correct; the prior value `46f2fce...` is a path-resolution checkpoint only and must not be represented as the scanner input.
+- Recovery of the original PDF does not equal a fresh CodeInspector rerun. Fresh scan remains pending; no issue becomes CLOSED on extraction alone.
+
+
+## Live merge checkpoint — 2026-11-01 — P2 batch 07
+
+- Latest main after merge: `ab8bb1804230925858903344606ba6721fd16faa`.
+- PR #348 CashflowForecastCard was merged at that SHA. Exact source-head Core 41263937229 SUCCESS; Secret Scan 41263937233 SUCCESS; Playwright 41263937251 public UI/auth/local Supabase order persistence and tenant isolation SUCCESS; hosted tenant E2E SKIPPED, not PASS.
+- The stable baseline row `CI31-TS0003-755abde8-1` for `src/components/intelligence/CashflowForecastCard.tsx:53` is now `IMPLEMENTED_PENDING_FRESH_SCAN`; no finding is marked CLOSED until fresh CodeInspector.
+- P2 counts after #348: 1 TS0002 + 22 TS0003 implemented pending fresh scan; 82 active current-tree TS0003 OPEN; 10 archive-only scope-review; TS0010 not reproduced/not closed. All 239 original rows retained.
+- #347 ActionCard branch must be synchronized/retested against this main and then reviewed/merged; #349/#350/#351/#352 also require latest-main sync before merge.
