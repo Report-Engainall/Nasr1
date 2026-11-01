@@ -93,6 +93,13 @@ async function loadServiceWorker(overrides: {
 }
 
 describe("Aghbari PWA offline shell", () => {
+  it("uses structured, redacted client diagnostics instead of console logging", async () => {
+    const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
+    expect(source).toContain("aghbari:service-worker-diagnostic");
+    expect(source).not.toMatch(/\\bconsole\\.(?:log|warn|error)\\s*\\(/);
+    expect(source).not.toMatch(/error\\.(?:message|stack)/);
+  });
+
   it("precaches MIME-valid shell assets while skipping an optional asset with the wrong MIME", async () => {
     const worker = await loadServiceWorker({
       fetcher: async (url) => {

@@ -28,13 +28,27 @@ function isHtmlResponse(response) {
   return mimeType === 'text/html' || mimeType === 'application/xhtml+xml';
 }
 
-// Never emit Error.message or Error.stack from a browser request/cache path:
-// either may contain a credential-bearing URL or provider response text.
+// Never emit Error.message, Error.stack, URL queries or fragments in a diagnostic.
 function diagnosticErrorType(error) {
   const tag = Object.prototype.toString.call(error);
   if (error instanceof TypeError || tag === '[object TypeError]') return 'TypeError';
   if (error instanceof Error || tag === '[object Error]') return 'Error';
   return 'UnknownError';
+}
+
+function reportServiceWorkerDiagnostic(level, code, pathname, error) {
+  const message = {
+    type: 'aghbari:service-worker-diagnostic',
+    level,
+    code,
+    ...(pathname ? { pathname } : {}),
+    ...(error ? { errorType: diagnosticErrorType(error) } : {}),
+  };
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((clients) => {
+      clients.forEach((client) => client.postMessage(message));
+    })
+    .catch(() => undefined);
 }
 
 function isExpectedShellMimeType(pathname, response) {
@@ -46,20 +60,20 @@ function isExpectedShellMimeType(pathname, response) {
   return hasExpectedStaticAssetMimeType(pathname, response.headers.get('content-type'));
 }
 
+async function cacheShellAsset(url, cache) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok || response.type !== 'basic' || !isExpectedShellMimeType(url, response)) return;
+    await cache.put(url, response);
+  } catch (error) {
+    await reportServiceWorkerDiagnostic('warning', 'optional-shell-asset-not-cached', url, error);
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) =>
-        Promise.all(SHELL.map(async (url) => {
-          try {
-            const response = await fetch(url);
-            if (!response.ok || response.type !== 'basic' || !isExpectedShellMimeType(url, response)) return;
-            await cache.put(url, response);
-          } catch (error) {
-            console.warn('[aghbari-sw] optional shell asset was not cached', { url, errorType: diagnosticErrorType(error) });
-          }
-        })),
-      )
+      .then((cache) => Promise.all(SHELL.map((url) => cacheShellAsset(url, cache))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -72,85 +86,103 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-async function cachedShellOrError(networkError) {
+async function cachedShellOrError(networkError, pathname) {
   if (networkError) {
-    console.warn('[aghbari-sw] navigation network request failed; trying cached shell', { errorType: diagnosticErrorType(networkError) });
+    await reportServiceWorkerDiagnostic('warning', 'navigation-network-failed', pathname, networkError);
   }
   try {
     return (await caches.match('/')) || Response.error();
   } catch (error) {
-    console.error('[aghbari-sw] cached shell lookup failed', { errorType: diagnosticErrorType(error) });
+    await reportServiceWorkerDiagnostic('error', 'cached-shell-lookup-failed', pathname, error);
     return Response.error();
   }
 }
 
-self.addEventListener('fetch', (event) => {
-  const request = event.request;
-  if (request.method !== 'GET') return;
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
-  if (/\/(rest|auth|api|rpc|storage|functions)\//i.test(url.pathname)) return;
+function cachePublicHomeResponse(event, response, pathname) {
+  if (!response.ok || pathname !== '/' || !isHtmlResponse(response)) return;
+  const homeResponse = response.clone();
+  const cacheWrite = caches.open(CACHE_NAME)
+    .then((cache) => cache.put('/', homeResponse))
+    .catch((error) => reportServiceWorkerDiagnostic('warning', 'navigation-shell-cache-write-failed', pathname, error));
+  event.waitUntil(cacheWrite);
+}
 
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).then((response) => {
-        // Only persist the public application shell. Never cache successful deep
-        // navigations such as account, invoice or admin routes: those may contain
-        // identity-bound data in future SSR changes.
-        if (response.ok && url.pathname === '/') {
-          // An SPA/SSR error page must not poison the offline shell cache.
-          if (isHtmlResponse(response)) {
-            const homeResponse = response.clone();
-            const cacheWrite = caches.open(CACHE_NAME)
-              .then((cache) => cache.put('/', homeResponse));
-            event.waitUntil(cacheWrite.catch((error) => {
-              console.warn('[aghbari-sw] navigation shell cache write failed', { url: url.pathname, errorType: diagnosticErrorType(error) });
-            }));
-          }
-        }
-        return response;
-      }).catch(cachedShellOrError),
+function handleNavigationFetch(event, request, url) {
+  const navigationResponse = fetch(request)
+    .then((response) => {
+      // Only the public home shell is cached; identity-bound deep routes stay network-only.
+      cachePublicHomeResponse(event, response, url.pathname);
+      return response;
+    })
+    .catch((error) => cachedShellOrError(error, url.pathname));
+  event.respondWith(navigationResponse);
+}
+
+function isCacheableStaticAsset(url, response) {
+  return response.ok &&
+    response.type === 'basic' &&
+    url.pathname.startsWith('/assets/') &&
+    /\.(js|css|svg|png|jpe?g|webp|woff2?|ico)$/i.test(url.pathname) &&
+    hasExpectedStaticAssetMimeType(url.pathname, response.headers.get('content-type'));
+}
+
+function cacheStaticAssetResponse(event, request, response, url) {
+  if (!isCacheableStaticAsset(url, response)) return;
+  const cacheWrite = caches.open(CACHE_NAME)
+    .then((cache) => cache.put(request, response.clone()))
+    .catch((error) => reportServiceWorkerDiagnostic('warning', 'static-asset-cache-write-failed', url.pathname, error));
+  event.waitUntil(cacheWrite);
+}
+
+function fetchStaticAsset(request, url, event) {
+  return fetch(request).then((response) => {
+    // A missing JS asset can fall back to index.html with HTTP 200; never cache it as JS.
+    cacheStaticAssetResponse(event, request, response, url);
+    return response;
+  });
+}
+
+function refreshCachedAssetInBackground(event, networkResponse, pathname) {
+  event.waitUntil(
+    networkResponse.then(() => undefined).catch((error) =>
+      reportServiceWorkerDiagnostic('warning', 'background-asset-refresh-failed', pathname, error),
+    ),
+  );
+}
+
+function handleStaticAssetFetch(event, request, url) {
+  const assetResponse = caches.match(request).then((cached) => {
+    const networkResponse = fetchStaticAsset(request, url, event);
+    if (cached) {
+      // Serve the cache immediately while keeping refresh failures observable and handled.
+      refreshCachedAssetInBackground(event, networkResponse, url.pathname);
+      return cached;
+    }
+    return networkResponse.catch((error) =>
+      reportServiceWorkerDiagnostic('error', 'static-asset-request-failed', url.pathname, error)
+        .then(() => Response.error()),
     );
+  });
+  event.respondWith(assetResponse);
+}
+
+function shouldHandleSameOriginGet(request, url) {
+  return request.method === 'GET' &&
+    url.origin === self.location.origin &&
+    !/\/(rest|auth|api|rpc|storage|functions)\//i.test(url.pathname);
+}
+
+function handleSameOriginGetFetch(event, request, url) {
+  if (request.mode === 'navigate') {
+    handleNavigationFetch(event, request, url);
     return;
   }
+  handleStaticAssetFetch(event, request, url);
+}
 
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request).then((response) => {
-        if (
-          response.ok &&
-          response.type === 'basic' &&
-          url.pathname.startsWith('/assets/') &&
-          /\.(js|css|svg|png|jpe?g|webp|woff2?|ico)$/i.test(url.pathname) &&
-          hasExpectedStaticAssetMimeType(url.pathname, response.headers.get('content-type'))
-        ) {
-          // A missing JS asset can fall back to index.html with HTTP 200; never persist it as JS.
-          const cacheWrite = caches.open(CACHE_NAME)
-            .then((cache) => cache.put(request, response.clone()));
-          event.waitUntil(cacheWrite.catch((error) => {
-            console.warn('[aghbari-sw] static asset cache write failed', { url: url.pathname, errorType: diagnosticErrorType(error) });
-          }));
-        }
-        return response;
-      });
-      if (cached) {
-        // The network promise is a background refresh; handle failure without
-        // turning an offline refresh into an unhandled rejection.
-        event.waitUntil(network.then(() => undefined).catch((error) => {
-          console.warn('[aghbari-sw] background asset refresh failed; serving cached response', {
-            url: url.pathname,
-            errorType: diagnosticErrorType(error),
-          });
-        }));
-        return cached;
-      }
-      return network.catch((error) => {
-        console.error('[aghbari-sw] static asset request failed with no cached response', {
-          url: url.pathname,
-          errorType: diagnosticErrorType(error),
-        });
-        return Response.error();
-      });
-    }),
-  );
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  const url = new URL(request.url);
+  if (!shouldHandleSameOriginGet(request, url)) return;
+  handleSameOriginGetFetch(event, request, url);
 });

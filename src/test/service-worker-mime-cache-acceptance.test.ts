@@ -38,7 +38,7 @@ function runFetchScenario(url: string, mode: string, response: ResponseStub) {
     location: { origin: "https://aghbari.test" },
     addEventListener: (name: string, callback: (event: unknown) => void) => handlers.set(name, callback),
     skipWaiting: vi.fn(async () => undefined),
-    clients: { claim: vi.fn(async () => undefined) },
+    clients: { claim: vi.fn(async () => undefined), matchAll: vi.fn(async () => []) },
   };
   const fetchMock = vi.fn(async () => response);
   runInNewContext(workerSource, {
@@ -85,7 +85,7 @@ function runInstallScenario(responses: Map<string, ResponseStub>) {
     location: { origin: "https://aghbari.test" },
     addEventListener: (name: string, callback: (event: unknown) => void) => handlers.set(name, callback),
     skipWaiting: vi.fn(async () => undefined),
-    clients: { claim: vi.fn(async () => undefined) },
+    clients: { claim: vi.fn(async () => undefined), matchAll: vi.fn(async () => []) },
   };
   const fetchMock = vi.fn(async (url: string) => {
     const response = responses.get(url);
