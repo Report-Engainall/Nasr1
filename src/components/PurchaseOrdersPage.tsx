@@ -142,9 +142,9 @@ function PurchaseOrderLineTable({ order }: { order: PurchaseOrder }) {
   );
 }
 
-function PurchaseOrderReceiveForm({ order, busy, receiveDrafts, receiptNotes, onQuantityChange, onNotesChange, onSubmit }: {
+function PurchaseOrderReceiveForm({ order, busy, receiveDrafts, receiptNotes, onQuantityChange, onNotesChange }: {
   order: PurchaseOrder; busy: boolean; receiveDrafts: Record<string, string>; receiptNotes: string;
-  onQuantityChange: (itemId: string, value: string) => void; onNotesChange: (value: string) => void; onSubmit: () => void;
+  onQuantityChange: (itemId: string, value: string) => void; onNotesChange: (value: string) => void;
 }) {
   const remainingItems = order.items.filter((item) => item.remaining_quantity > 0);
   if (!["submitted", "partially_received"].includes(order.status)) return null;
@@ -167,7 +167,6 @@ function PurchaseOrderReceiveForm({ order, busy, receiveDrafts, receiptNotes, on
       <label className="po-field" style={{ marginTop: 10 }}>ملاحظات إيصال الاستلام
         <textarea value={receiptNotes} onChange={(event) => onNotesChange(event.target.value)} maxLength={2000} disabled={busy} />
       </label>
-      <button className="btn primary" type="button" onClick={onSubmit} disabled={busy || remainingItems.length === 0}><PackageCheck size={15} /> ترحيل إيصال الاستلام</button>
     </div>
   );
 }
@@ -203,7 +202,7 @@ function PurchaseOrderDetailPanel({ order, busy, cancelReason, receiveDrafts, re
         {["draft", "submitted"].includes(order.status) && <button className="btn outline" type="button" onClick={onCancel} disabled={busy}><Trash2 size={15} /> إلغاء أمر الشراء</button>}
         <button className="btn outline" type="button" onClick={onPrint} disabled={busy}><Printer size={15} /> طباعة الأمر</button>
       </div>
-      <PurchaseOrderReceiveForm order={order} busy={busy} receiveDrafts={receiveDrafts} receiptNotes={receiptNotes} onQuantityChange={onReceiveQuantityChange} onNotesChange={onReceiptNotesChange} onSubmit={onPostReceipt} />
+      <PurchaseOrderReceiveForm order={order} busy={busy} receiveDrafts={receiveDrafts} receiptNotes={receiptNotes} onQuantityChange={onReceiveQuantityChange} onNotesChange={onReceiptNotesChange} />
       <PurchaseOrderStatusMessage order={order} />
       <div className="no-print"><PurchaseReceiptAccountingWorkspace purchaseOrderId={order.id} /></div>
     </section>
@@ -612,56 +611,6 @@ export function PurchaseOrdersPage() {
       onPrint={() => startPrint("order")}
     />
 
-    <div className="panel">
-      <div className="po-actions po-results-header" style={{justifyContent:'space-between'}}>
-        <h2>سجل أوامر الشراء</h2>
-        <label className="po-field no-print">الحالة<select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as typeof statusFilter)}><option value="all">كل الحالات</option><option value="draft">مسودة</option><option value="submitted">مرسل للمورد</option><option value="partially_received">استلام جزئي</option><option value="received">مستلم بالكامل</option><option value="cancelled">ملغى</option></select></label>
-      </div>
-      {loading?<p role="status">جار تحميل سجلات التوريد…</p>:visibleOrders.length===0?<p className="po-muted">لا توجد أوامر شراء تطابق الفلتر الحالي.</p>:
-        <div className="po-layout" style={{marginTop:12}}>
-          <div className="po-results-list" style={{display:'grid',gap:10}}>
-            {visibleOrders.map((order)=><button key={order.id} type="button" className="po-card" aria-current={selectedId===order.id?'true':'false'} onClick={()=>{setSelectedId(order.id);setCancelReason('');setReceiveDrafts({});setError('');}} style={{textAlign:'right',cursor:'pointer'}}>
-              <div className="po-card-top"><strong>{order.purchase_order_number}</strong><span className={'po-status '+statusClass[order.status]}>{statusLabel[order.status]}</span></div>
-              <strong>{order.supplier_name}</strong><span className="po-muted"><Warehouse size={13} style={{verticalAlign:'middle'}}/> {order.warehouse_name}</span>
-              <span className="po-muted">{formatDateShort(order.created_at)} · {formatNumber(order.items.length)} أصناف</span>
-              <div className="po-card-top"><span>التكلفة المسجلة</span><strong>{moneyText(order.total_cost)}</strong></div>
-            </button>)}
-          </div>
-          <div className="po-selected-order">
-            {!selectedOrder?<div className="po-card"><ClipboardList size={28}/><strong>اختر أمر شراء لعرض بنوده وإجراءاته.</strong><span className="po-muted">الإرسال والاستلام يؤثران في المهام وحركات المخزون الحقيقية عبر RPC خادمية.</span></div>:
-              <section className="panel" style={{padding:14}}>
-                <div className="po-card-top"><div><span className="po-muted">أمر الشراء</span><h2>{selectedOrder.purchase_order_number}</h2></div><span className={'po-status '+statusClass[selectedOrder.status]}>{statusLabel[selectedOrder.status]}</span></div>
-                <p><strong>المورد:</strong> {selectedOrder.supplier_name} · {selectedOrder.supplier_code}</p>
-                <p><strong>المخزن:</strong> {selectedOrder.warehouse_name}</p>
-                <p><strong>الإجمالي:</strong> {moneyText(selectedOrder.total_cost)} <span className="po-muted">| لا يُحول الإجمالي المجهول إلى صفر.</span></p>
-                {selectedOrder.notes&&<p><strong>ملاحظات:</strong> {selectedOrder.notes}</p>}
-                {['draft','submitted'].includes(selectedOrder.status)&&<label className="po-field no-print" style={{marginBlock:10}}>سبب الإلغاء (مطلوب عند الإلغاء)<input value={cancelReason} onChange={(e)=>setCancelReason(e.target.value)} maxLength={1000} placeholder="اكتب السبب الداخلي للإلغاء" disabled={busy}/></label>}
-                <div className="po-table-wrap"><table><thead><tr><th>رمز الصنف</th><th>الصنف</th><th>المطلوب</th><th>المستلم</th><th>المتبقي</th><th>تكلفة الوحدة</th><th>قيمة البند</th></tr></thead><tbody>
-                  {selectedOrder.items.map((item)=><tr key={item.id}><td>{item.item_code}</td><td>{item.product_name}</td><td>{numberText(item.quantity_ordered)}</td><td>{numberText(item.quantity_received)}</td><td>{numberText(item.remaining_quantity)}</td><td>{moneyText(item.unit_cost)}</td><td>{moneyText(item.line_total)}</td></tr>)}
-                </tbody></table></div>
-                <div className="po-actions no-print" style={{marginTop:14}}>
-                  {selectedOrder.status==='draft'&&<button className="btn primary" type="button" onClick={()=>void submitSelected()} disabled={busy}><Send size={15}/> اعتماد أمر الشراء للتوريد</button>}
-                  {['submitted','partially_received'].includes(selectedOrder.status)&&<button className="btn primary" type="button" onClick={()=>void postReceipt()} disabled={busy}><PackageCheck size={15}/> ترحيل إيصال الاستلام</button>}
-                  {['draft','submitted'].includes(selectedOrder.status)&&<button className="btn outline" type="button" onClick={()=>void cancelSelected()} disabled={busy}><Trash2 size={15}/> إلغاء أمر الشراء</button>}
-                  <button className="btn outline" type="button" onClick={()=>startPrint('order')} disabled={busy}><Printer size={15}/> طباعة الأمر</button>
-                </div>
-                {['submitted','partially_received'].includes(selectedOrder.status)&&<div className="no-print" style={{marginTop:16}}>
-                  <h3>استلام فعلي (يمكن الاستلام على دفعات)</h3>
-                  <p className="po-muted">أدخل الكمية المستلمة الآن لكل بند؛ الحقل الفارغ لا يُستلم. الخادم يعيد التحقق من الكميات المتبقية ويقفل رصيد المخزون داخل معاملة واحدة.</p>
-                  <div className="po-table-wrap"><table><thead><tr><th>الصنف</th><th>المتبقي</th><th>كمية هذه الدفعة</th></tr></thead><tbody>
-                    {selectedOrder.items.filter((item)=>item.remaining_quantity>0).map((item)=><tr key={item.id}><td>{item.product_name} <small>{item.item_code}</small></td><td>{numberText(item.remaining_quantity)}</td><td><input aria-label={'كمية الاستلام '+item.product_name} type="number" min="0.001" max={item.remaining_quantity} step="0.001" value={receiveDrafts[item.id]??''} onChange={(e)=>setReceiveDrafts((old)=>({...old,[item.id]:e.target.value}))} disabled={busy}/></td></tr>)}
-                  </tbody></table></div>
-                  <label className="po-field" style={{marginTop:10}}>ملاحظات إيصال الاستلام<textarea value={receiptNotes} onChange={(e)=>setReceiptNotes(e.target.value)} maxLength={2000} disabled={busy}/></label>
-                </div>}
-                {selectedOrder.status==='cancelled'&&<p className="po-error">أُلغي هذا الأمر. السبب المسجل: {selectedOrder.cancellation_reason||'غير مسجل'}</p>}
-                {selectedOrder.status==='received'&&<p className="po-notice"><CheckCircle2 size={15} style={{verticalAlign:'middle',marginInlineEnd:5}}/>تم استلام الكميات المطلوبة كاملة؛ مهمة أمين المخزن مرتبطة بالحدث ومغلقة خادميًا.</p>}
-                {selectedOrder.status==='draft'&&<p className="po-muted">المسودة لا تؤثر على المخزون. الإرسال ينشئ مهمة استلام واحدة؛ لا يتغير الرصيد قبل الاستلام الفعلي.</p>}
-                <div className="no-print"><PurchaseReceiptAccountingWorkspace purchaseOrderId={selectedOrder.id} /></div>
-              </section>
-            }
-          </div>
-        </div>}
-    </div>
     <PurchaseOrderPrintViews printMode={printMode} orderDocument={printOrderDocument} resultsDocument={printResultsDocument} />
   </section>;
 }
