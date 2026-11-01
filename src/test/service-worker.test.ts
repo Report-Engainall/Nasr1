@@ -409,6 +409,47 @@ describe("Aghbari PWA offline shell", () => {
     });
   });
 
+  it("returns a safe error response and redacted diagnostics when an uncached asset fetch rejects", async () => {
+    const requestUrl = "https://aghbari.example/assets/app.js?access_token=do-not-log-this";
+    const networkError = createSensitiveDiagnosticFailure("offline asset");
+    const worker = await loadServiceWorker({
+      cacheMatch: async () => null,
+      fetcher: async () => { throw networkError; },
+    });
+    const pending: Promise<Response>[] = [];
+    let respondWithCalledDuringDispatch = false;
+
+    worker.listeners.get("fetch")?.({
+      request: { method: "GET", url: requestUrl, mode: "cors" } as Request,
+      respondWith: (promise) => {
+        respondWithCalledDuringDispatch = true;
+        pending.push(promise);
+      },
+    });
+
+    expect(respondWithCalledDuringDispatch).toBe(true);
+    expect(worker.cachesMock.match).toHaveBeenCalledOnce();
+    const responses = await Promise.all(pending);
+    expect(responses).toHaveLength(1);
+    expect(responses[0]?.type).toBe("error");
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "warning",
+      code: "static-asset-fetch-failed",
+      resource: "static_asset",
+      errorType: "Error",
+    });
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "static-asset-request-failed",
+      resource: "static_asset",
+      errorType: "Error",
+    });
+    expectNoDiagnosticSecrets(worker.diagnosticMessages);
+    expect(JSON.stringify(worker.diagnosticMessages)).not.toContain("do-not-log-this");
+  });
+
   it("returns a safe error response when the Cache API lookup rejects", async () => {
     const worker = await loadServiceWorker({ cacheMatchFails: true });
     const pending: Promise<Response>[] = [];
