@@ -21,12 +21,45 @@ export const Route = createFileRoute("/catalog")({
   component: CatalogPage,
 });
 
+function CatalogLoadingState() {
+  return (
+    <main className="storefront" dir="rtl" role="status">
+      جار تحميل الكتالوج...
+    </main>
+  );
+}
+
+type CatalogStorefrontProps = {
+  query: string;
+  categoryId?: string;
+  availableOnly: boolean;
+  onExit: () => void;
+};
+
+function CatalogStorefront({ query, categoryId, availableOnly, onExit }: CatalogStorefrontProps) {
+  return (
+    <Storefront
+      initialQuery={query}
+      initialCategoryId={categoryId}
+      initialAvailableOnly={availableOnly}
+      onExit={onExit}
+    />
+  );
+}
+
 function CatalogPage() {
   const navigate = useNavigate();
   const { q, category, available } = Route.useSearch();
+  const onExit = () => void navigate({ to: "/admin" });
+
   return (
-    <ClientOnly fallback={<main className="storefront" dir="rtl" role="status">جار تحميل الكتالوج...</main>}>
-      <Storefront initialQuery={q ?? ""} initialCategoryId={category} initialAvailableOnly={available === "1"} onExit={() => void navigate({ to: "/admin" })} />
+    <ClientOnly fallback={<CatalogLoadingState />}>
+      <CatalogStorefront
+        query={q ?? ""}
+        categoryId={category}
+        availableOnly={available === "1"}
+        onExit={onExit}
+      />
     </ClientOnly>
   );
 }
