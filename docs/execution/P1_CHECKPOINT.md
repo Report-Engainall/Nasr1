@@ -286,3 +286,17 @@ P1 continues UI ownership and this checkpoint only. P2 owns backend/API/security
 3. P2 must obtain independent APPROVE and merge PR #350 only after all exact checks terminal-success and required review.
 4. P2/P3 synchronize PR #345; P3 then updates global current state, the single acceptance matrix and canonical execution log.
 5. Keep CodeInspector and Hosted E2E BLOCKED_EXTERNAL; never label skipped checks PASS.
+
+
+## P1 checkpoint continuation — after PR #353 — 2026-11-01
+
+- Current main SHA: `3312d571dbb31af3e776cd3f774ba4e725a20492` (P2 PR #353).
+- PR #339: MERGED at `71de0500aab508cc4cd4d41265304c397a4f3345`.
+- PR #350: OPEN, branch `fix/p1-gitleaks-full-history-typecheck-20261101`, head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`, base `06aaccb0f8172f3f1b682c38885650ce136d0b90`; 18 ahead / 14 behind current main. P2 owns sync/retest/merge; prior full-history Gitleaks, strict TypeScript/Vitest, Core and P2 local/public SUCCESS evidence does not transfer to the synchronized successor SHA.
+- PR #345: OPEN, P1 documentation branch `docs/p1-post-merge-verification-20261101`, latest commit will be recorded by the latest branch ref; it updates only P1-owned `P1.md` and `P1_CHECKPOINT.md` relative to current main. P2/P3 own synchronization/integration; P3 owns CURRENT_EXECUTION_STATE, matrix and canonical execution log.
+- Current-main Core run `41267685250` and P2 Playwright run `41267685249` are IN_PROGRESS at latest observation. Hosted tenant E2E is SKIPPED/BLOCKED_EXTERNAL.
+- Current-main P1 Secret Scan `41267685361` has Job SUCCESS but log reports 0 commits / 0 bytes from a first-parent PR range. This is not a valid repository-history scan. The correction is pending integration of PR #350.
+- Initial full-history scan artifact 13065892318 contained 35 findings (1 JWT, 34 generic-api-key). P1 reviewed all 35 historical source contexts: test fixtures, auth/profile UUID identities, request/idempotency/period keys and Git/provenance identifiers; no live service/provider credential identified. The exact-fingerprint allowlist contains 35 unique entries with no broad rule/path suppression. Independent reviewer approval remains OPEN.
+- Official CodeInspector TS0002 (2) / TS0003 (5) remains OPEN / IMPLEMENTED_PENDING_FRESH_SCAN. AST proxy and tsc are not CodeInspector.
+- Do not mark Hosted E2E, official analyzer, independent review or overall production readiness PASS without their own evidence.
+
