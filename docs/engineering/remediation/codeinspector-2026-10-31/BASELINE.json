@@ -5431,8 +5431,8 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 23,
-      "TS0003_active_open": 81,
+      "TS0003_implemented_pending_fresh_scan": 24,
+      "TS0003_active_open": 80,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
@@ -5510,5 +5510,5 @@
       "note": "CustomerActivationInvitationDialog TS0003 refactor submitted for exact-head validation; not closed."
     }
   ],
-  "main_sha": "15eb044c0651dafc7ef279d6253431e777d5f097"
+  "main_sha": "06aaccb0f8172f3f1b682c38885650ce136d0b90"
 }
