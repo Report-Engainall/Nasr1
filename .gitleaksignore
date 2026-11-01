@@ -14,7 +14,7 @@ ff8863555d2f4fe194c5a24f346c8bbb4f242f2a:scripts/test-database-migrations.mjs:ge
 ff8863555d2f4fe194c5a24f346c8bbb4f242f2a:scripts/test-database-migrations.mjs:generic-api-key:3672
 afa4840c137d9da853c8486b005adb1ffd5fdd0a:scripts/test-database-migrations.mjs:generic-api-key:287
 c5596c51bc253ff330948556b2969178c0672722:scripts/test-database-migrations.mjs:generic-api-key:287
-c5596c51bc253ff330948556b2969178c0672722:scripts/test-database-migrations.mjs:2420
+c5596c51bc253ff330948556b2969178c0672722:scripts/test-database-migrations.mjs:generic-api-key:2420
 c5596c51bc253ff330948556b2969178c0672722:scripts/test-database-migrations.mjs:generic-api-key:2422
 4faf7934512aded52bbc4a3488747ae6521f11cd:scripts/test-admin-catalog-commands.mjs:generic-api-key:21
 e167624a7ba93f885e43782d94ce3b515990b4ef:docs/bolt-source-reconciliation/READY_TO_REUSE_FILE_AUDIT.csv:generic-api-key:8
