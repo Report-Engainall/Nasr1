@@ -34,6 +34,12 @@ type QueryResult = {
   count: number | null;
 };
 
+const ORDER_READ_FAILURE: QueryResult = {
+  data: null,
+  error: { message: "synthetic read failure" },
+  count: null,
+};
+
 const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
   from: vi.fn(),
@@ -110,7 +116,7 @@ function makeQuery() {
       let result: QueryResult;
       if (mocks.failReads > 0) {
         mocks.failReads -= 1;
-        result = { data: null, error: { message: "synthetic read failure" }, count: null };
+        result = ORDER_READ_FAILURE;
       } else {
         const count = mocks.countOverride === undefined ? mocks.rows.length : mocks.countOverride;
         result = {

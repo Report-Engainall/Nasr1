@@ -53,15 +53,18 @@ function runFetchScenario(url: string, mode: string, response: ResponseStub) {
   const handler = handlers.get("fetch");
   if (!handler) throw new Error("Service worker did not register a fetch handler");
   let responsePromise: Promise<unknown> | undefined;
+  const lifecyclePromises: Promise<unknown>[] = [];
   handler({
     request,
     respondWith: (value: Promise<unknown>) => { responsePromise = Promise.resolve(value); },
+    waitUntil: (value: Promise<unknown>) => { lifecyclePromises.push(Promise.resolve(value)); },
   });
   if (!responsePromise) throw new Error("Service worker did not claim the same-origin GET request");
-  return { responsePromise, request, cache, caches, fetchMock, response };
+  return { responsePromise, lifecyclePromises, request, cache, caches, fetchMock, response };
 }
 
-async function flushCacheWrite(): Promise<void> {
+async function flushCacheWrite(lifecyclePromises: Promise<unknown>[]): Promise<void> {
+  await Promise.all(lifecyclePromises);
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
@@ -111,7 +114,7 @@ describe("PWA service-worker MIME cache acceptance", () => {
     const scenario = runFetchScenario("https://aghbari.test/assets/missing.js", "cors", response);
 
     expect(await scenario.responsePromise).toBe(response);
-    await flushCacheWrite();
+    await flushCacheWrite(scenario.lifecyclePromises);
 
     expect(scenario.cache.put).not.toHaveBeenCalled();
   });
@@ -121,7 +124,7 @@ describe("PWA service-worker MIME cache acceptance", () => {
     const scenario = runFetchScenario("https://aghbari.test/assets/app.js", "cors", response);
 
     expect(await scenario.responsePromise).toBe(response);
-    await flushCacheWrite();
+    await flushCacheWrite(scenario.lifecyclePromises);
 
     expect(scenario.cache.put).toHaveBeenCalledTimes(1);
     expect(scenario.cache.put).toHaveBeenCalledWith(scenario.request, { cachedCopy: true });
@@ -132,7 +135,7 @@ describe("PWA service-worker MIME cache acceptance", () => {
     const scenario = runFetchScenario("https://aghbari.test/customers/private-mark.svg", "cors", response);
 
     expect(await scenario.responsePromise).toBe(response);
-    await flushCacheWrite();
+    await flushCacheWrite(scenario.lifecyclePromises);
 
     expect(scenario.cache.put).not.toHaveBeenCalled();
   });
@@ -142,7 +145,7 @@ describe("PWA service-worker MIME cache acceptance", () => {
     const scenario = runFetchScenario("https://aghbari.test/", "navigate", response);
 
     expect(await scenario.responsePromise).toBe(response);
-    await flushCacheWrite();
+    await flushCacheWrite(scenario.lifecyclePromises);
 
     expect(scenario.cache.put).not.toHaveBeenCalled();
   });
@@ -152,7 +155,7 @@ describe("PWA service-worker MIME cache acceptance", () => {
     const scenario = runFetchScenario("https://aghbari.test/", "navigate", response);
 
     expect(await scenario.responsePromise).toBe(response);
-    await flushCacheWrite();
+    await flushCacheWrite(scenario.lifecyclePromises);
 
     expect(scenario.cache.put).toHaveBeenCalledTimes(1);
     expect(scenario.cache.put).toHaveBeenCalledWith("/", { cachedCopy: true });

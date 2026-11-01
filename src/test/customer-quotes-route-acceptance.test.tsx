@@ -28,6 +28,11 @@ type ProductRow = {
 
 type QueryResult = { data: unknown[] | null; error: { message: string } | null };
 
+const PRODUCT_READ_FAILURE: QueryResult = {
+  data: null,
+  error: { message: "synthetic product read failure" },
+};
+
 const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
   from: vi.fn(),
@@ -99,7 +104,7 @@ function makeQuery(table: string) {
       let result: QueryResult;
       if (table === "products" && mocks.failProductReads > 0) {
         mocks.failProductReads -= 1;
-        result = { data: null, error: { message: "synthetic product read failure" } };
+        result = PRODUCT_READ_FAILURE;
       } else if (table === "products") {
         result = { data: [PRODUCT], error: null };
       } else if (table === "sales_quotes") {
