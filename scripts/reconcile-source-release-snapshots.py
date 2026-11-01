@@ -16,6 +16,7 @@ import tempfile
 import time
 import urllib.request
 import zipfile
+from urllib.parse import urlsplit
 from contextlib import redirect_stdout
 from collections import Counter
 from pathlib import Path, PurePosixPath
@@ -102,12 +103,20 @@ def inspect_headers(archive: zipfile.ZipFile) -> tuple[list[zipfile.ZipInfo], in
 def download(spec: dict[str, object]) -> tuple[bytes, str]:
     request_url = str(spec.get("url") or f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}")
     safe_url = redact_diagnostic_text(request_url)
+    parsed_url = urlsplit(request_url)
+    if (
+        parsed_url.scheme != "https"
+        or parsed_url.hostname not in {"github.com", "raw.githubusercontent.com"}
+        or parsed_url.username
+        or parsed_url.password
+    ):
+        raise ValueError("source snapshot URL must use an allowlisted HTTPS GitHub host")
     last_error = ""
     for attempt in range(1, 4):
         safe_print(f"DOWNLOAD_ATTEMPT id={spec['id']} attempt={attempt} url={safe_url}", flush=True)
         try:
             request = urllib.request.Request(request_url, headers={"User-Agent": "Nasr1-Source-Release-Audit/1.0"})
-            with urllib.request.urlopen(request, timeout=90) as response:
+            # SNAPSHOTS is a repository-owned constant list; the URL is also scheme/host allowlisted above.\n            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected\n            with urllib.request.urlopen(request, timeout=90) as response:
                 data = response.read()
                 safe_print(f"DOWNLOAD_RESPONSE id={spec['id']} status={response.status} bytes={len(data)} content_type={response.headers.get('Content-Type', '')}", flush=True)
             return data, safe_url
