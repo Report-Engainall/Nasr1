@@ -20,6 +20,95 @@ function discountLabel(promotion: Promotion): string {
     : formatNumber(promotion.discount_value) + '% (قيمة مسجلة)';
 }
 
+type PromotionCardProps = {
+  promotion: Promotion;
+  saving: boolean;
+  toggling: boolean;
+  onToggle: (promotion: Promotion, isActive: boolean) => void;
+  onEdit: (promotion: Promotion) => void;
+};
+
+function PromotionCard({ promotion, saving, toggling, onToggle, onEdit }: PromotionCardProps) {
+  const toggleLabel = promotion.is_active ? "إيقاف الحملة: " : "تفعيل الحملة: ";
+  const productScope = promotion.product_ids?.length
+    ? promotion.product_ids.length + " صنف"
+    : "جميع الأصناف";
+  const categoryScope = promotion.category_ids?.length
+    ? promotion.category_ids.length + " تصنيف"
+    : "جميع التصنيفات";
+
+  return (
+    <article className="offer-card">
+      <div className="offer-top">
+        <span className="discount">{discountLabel(promotion)}</span>
+        <label className="switch">
+          <input
+            aria-label={toggleLabel + promotion.title}
+            type="checkbox"
+            checked={promotion.is_active}
+            disabled={toggling || saving}
+            onChange={(event) => onToggle(promotion, event.target.checked)}
+          />
+          <span />
+        </label>
+      </div>
+      <h2>{promotion.title}</h2>
+      <p>{promotion.description || "لا يوجد وصف محفوظ."}</p>
+      <div className="offer-date">
+        <span>من {dateLabel(promotion.start_date)}</span>
+        <span>إلى {dateLabel(promotion.end_date)}</span>
+      </div>
+      <p className="text-muted">النطاق: {productScope}؛ {categoryScope}</p>
+      <button className="btn outline" type="button" onClick={() => onEdit(promotion)} disabled={saving || toggling}>
+        <Pencil size={15} /> تعديل الحملة
+      </button>
+    </article>
+  );
+}
+
+type PromotionListContentProps = {
+  loading: boolean;
+  error: unknown;
+  promotions: Promotion[] | null | undefined;
+  saving: boolean;
+  togglingId: string | null;
+  onToggle: (promotion: Promotion, isActive: boolean) => void;
+  onEdit: (promotion: Promotion) => void;
+};
+
+function PromotionListContent(props: PromotionListContentProps) {
+  if (props.loading) {
+    return <section className="panel" role="status">جار تحميل الحملات...</section>;
+  }
+  if (props.error) {
+    const message = props.error instanceof Error ? props.error.message : "تعذر قراءة الحملات.";
+    return <div className="form-error" role="alert">{message}</div>;
+  }
+  if (!props.promotions?.length) {
+    return (
+      <section className="panel">
+        <h2>لا توجد حملات محفوظة</h2>
+        <p className="text-muted">أنشئ حملة حقيقية عند الحاجة؛ لن تُولَّد عروض تجريبية تلقائيًا.</p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="offer-grid">
+      {props.promotions.map((promotion) => (
+        <PromotionCard
+          key={promotion.id}
+          promotion={promotion}
+          saving={props.saving}
+          toggling={props.togglingId === promotion.id}
+          onToggle={props.onToggle}
+          onEdit={props.onEdit}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function PromotionManager({ onNotice }: { onNotice: (message: string) => void }) {
   const { data: promotions, loading, error, refetch } = useFetch(fetchPromotions);
   const { data: products, loading: productsLoading } = useFetch(fetchProducts);
@@ -139,17 +228,14 @@ export function PromotionManager({ onNotice }: { onNotice: (message: string) => 
       </div>
     </form>}
     {formError && !formOpen && <div className="form-error" role="alert">{formError}</div>}
-    {loading ? <section className="panel" role="status">جار تحميل الحملات...</section>
-      : error ? <div className="form-error" role="alert">{error instanceof Error ? error.message : 'تعذر قراءة الحملات.'}</div>
-      : !promotions?.length ? <section className="panel"><h2>لا توجد حملات محفوظة</h2><p className="text-muted">أنشئ حملة حقيقية عند الحاجة؛ لن تُولَّد عروض تجريبية تلقائيًا.</p></section>
-      : <div className="offer-grid">{promotions.map((promotion: Promotion) => <article className="offer-card" key={promotion.id}>
-          <div className="offer-top"><span className="discount">{discountLabel(promotion)}</span>
-            <label className="switch"><input aria-label={promotion.is_active ? 'إيقاف الحملة: ' + promotion.title : 'تفعيل الحملة: ' + promotion.title} type="checkbox" checked={promotion.is_active} disabled={togglingId === promotion.id || saving} onChange={(event) => void changeActive(promotion, event.target.checked)} /><span /></label>
-          </div>
-          <h2>{promotion.title}</h2><p>{promotion.description || 'لا يوجد وصف محفوظ.'}</p>
-          <div className="offer-date"><span>من {dateLabel(promotion.start_date)}</span><span>إلى {dateLabel(promotion.end_date)}</span></div>
-          <p className="text-muted">النطاق: {(promotion.product_ids?.length ?? 0) ? (promotion.product_ids?.length + ' صنف') : 'جميع الأصناف'}؛ {(promotion.category_ids?.length ?? 0) ? (promotion.category_ids?.length + ' تصنيف') : 'جميع التصنيفات'}</p>
-          <button className="btn outline" type="button" onClick={() => beginEdit(promotion)} disabled={saving || Boolean(togglingId)}><Pencil size={15} /> تعديل الحملة</button>
-        </article>)}</div>}
+    <PromotionListContent
+      loading={loading}
+      error={error}
+      promotions={promotions}
+      saving={saving}
+      togglingId={togglingId}
+      onToggle={(promotion, isActive) => void changeActive(promotion, isActive)}
+      onEdit={beginEdit}
+    />
   </section>;
 }

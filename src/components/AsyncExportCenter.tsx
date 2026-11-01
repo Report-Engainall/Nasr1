@@ -31,13 +31,54 @@ type AsyncExportJobRowProps = {
   onCancel: (job: AsyncExportJobState) => void;
 };
 
+type AsyncExportJobActionProps = {
+  job: AsyncExportJobState;
+  isBusy: boolean;
+  onDownload: (job: AsyncExportJobState) => void;
+  onRetry: (job: AsyncExportJobState) => void;
+  onCancel: (job: AsyncExportJobState) => void;
+};
+
+function AsyncExportDownloadAction({ job, isBusy, onDownload }: AsyncExportJobActionProps) {
+  if (job.status !== "ready") return null;
+  return (
+    <button type="button" onClick={() => onDownload(job)} disabled={isBusy} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+      <Download size={14}/> تنزيل
+    </button>
+  );
+}
+
+function AsyncExportRetryAction({ job, isBusy, onRetry }: AsyncExportJobActionProps) {
+  if (job.status !== "queued" && job.status !== "retry") return null;
+  return (
+    <button type="button" onClick={() => onRetry(job)} disabled={isBusy} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-semibold disabled:opacity-60">
+      <RefreshCw size={14}/> تنبيه العامل
+    </button>
+  );
+}
+
+function AsyncExportCancelAction({ job, isBusy, onCancel }: AsyncExportJobActionProps) {
+  if (job.status !== "queued" && job.status !== "retry") return null;
+  return (
+    <button type="button" onClick={() => onCancel(job)} disabled={isBusy} className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-3 py-2 text-xs text-rose-700 disabled:opacity-60">
+      <XCircle size={14}/> إلغاء
+    </button>
+  );
+}
+
 function AsyncExportJobActions({ job, busy, onDownload, onRetry, onCancel }: AsyncExportJobRowProps) {
-  const isBusy = busy === job.job_id;
+  const actionProps: AsyncExportJobActionProps = {
+    job,
+    isBusy: busy === job.job_id,
+    onDownload,
+    onRetry,
+    onCancel,
+  };
   return (
     <div className="flex flex-wrap gap-2">
-      {job.status === "ready" && <button type="button" onClick={() => onDownload(job)} disabled={isBusy} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60"><Download size={14}/> تنزيل</button>}
-      {["queued", "retry"].includes(job.status) && <button type="button" onClick={() => onRetry(job)} disabled={isBusy} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-semibold disabled:opacity-60"><RefreshCw size={14}/> تنبيه العامل</button>}
-      {["queued", "retry"].includes(job.status) && <button type="button" onClick={() => onCancel(job)} disabled={isBusy} className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-3 py-2 text-xs text-rose-700 disabled:opacity-60"><XCircle size={14}/> إلغاء</button>}
+      <AsyncExportDownloadAction {...actionProps} />
+      <AsyncExportRetryAction {...actionProps} />
+      <AsyncExportCancelAction {...actionProps} />
     </div>
   );
 }

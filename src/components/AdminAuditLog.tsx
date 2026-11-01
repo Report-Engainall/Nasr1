@@ -189,6 +189,56 @@ function AuditLogToolbar({
   );
 }
 
+type AuditLogBodyProps = {
+  canReadAudit: boolean;
+  search: string;
+  onSearchChange: (value: string) => void;
+  actionFilter: string;
+  onActionFilterChange: (value: string) => void;
+  actions: string[];
+  loading: boolean;
+  error: string;
+  rows: AuditLogRow[];
+  loadedCount: number;
+};
+
+function AuditLogBody(props: AuditLogBodyProps) {
+  if (!props.canReadAudit) return <AuditLogAccessDenied />;
+
+  return (
+    <>
+      <AuditLogFilters
+        search={props.search}
+        onSearchChange={props.onSearchChange}
+        actionFilter={props.actionFilter}
+        onActionFilterChange={props.onActionFilterChange}
+        actions={props.actions}
+      />
+      <AuditLogContent
+        loading={props.loading}
+        error={props.error}
+        rows={props.rows}
+        loadedCount={props.loadedCount}
+      />
+    </>
+  );
+}
+
+function auditLogStatusNote(input: {
+  canReadAudit: boolean;
+  loading: boolean;
+  totalCount: number | null;
+  page: number;
+  pageCount: number;
+}): string {
+  if (!input.canReadAudit) return "يتطلب العرض صلاحية مدير أو مدير النظام";
+  if (input.loading) return "جارٍ تحميل سجل التدقيق...";
+  if (input.totalCount === null) return "تعذر تأكيد إجمالي سجل التدقيق.";
+  return "إجمالي السجلات في المؤسسة: " +
+    input.totalCount.toLocaleString("ar-YE") +
+    " — الصفحة " + input.page + " من " + input.pageCount;
+}
+
 export function AdminAuditLog() {
   const { user } = useAuth();
   const canReadAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
@@ -260,13 +310,7 @@ export function AdminAuditLog() {
     });
   }, [rows, search, actionFilter]);
 
-  const note = !canReadAudit
-    ? 'يتطلب العرض صلاحية مدير أو مدير النظام'
-    : loading
-      ? 'جارٍ تحميل سجل التدقيق...'
-      : totalCount === null
-        ? 'تعذر تأكيد إجمالي سجل التدقيق.'
-        : 'إجمالي السجلات في المؤسسة: ' + totalCount.toLocaleString('ar-YE') + ' — الصفحة ' + page + ' من ' + pageCount;
+  const note = auditLogStatusNote({ canReadAudit, loading, totalCount, page, pageCount });
 
   return (
     <AdminPage
@@ -289,18 +333,18 @@ export function AdminAuditLog() {
         />
       }
     >
-      {canReadAudit ? (
-        <>
-          <AuditLogFilters
-            search={search}
-            onSearchChange={setSearch}
-            actionFilter={actionFilter}
-            onActionFilterChange={setActionFilter}
-            actions={actions}
-          />
-          <AuditLogContent loading={loading} error={error} rows={filtered} loadedCount={rows.length} />
-        </>
-      ) : <AuditLogAccessDenied />}
+      <AuditLogBody
+        canReadAudit={canReadAudit}
+        search={search}
+        onSearchChange={setSearch}
+        actionFilter={actionFilter}
+        onActionFilterChange={setActionFilter}
+        actions={actions}
+        loading={loading}
+        error={error}
+        rows={filtered}
+        loadedCount={rows.length}
+      />
     </AdminPage>
   );
 }
