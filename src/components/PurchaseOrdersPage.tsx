@@ -562,11 +562,7 @@ export function PurchaseOrdersPage() {
           <button className="btn primary" type="button" onClick={()=>{setShowCreate((v)=>!v);setError('');}} disabled={busy}><Plus size={16}/>{showCreate?'إغلاق نموذج الشراء':'إنشاء مسودة أمر شراء'}</button>
         </div>
       </div>
-      <div className="po-summary" style={{marginTop:14}}>
-        <article><span>أوامر تنتظر الاستلام</span><strong>{formatNumber(totalOpen)}</strong></article>
-        <article><span>مسودات</span><strong>{formatNumber(totalDraft)}</strong></article>
-        <article><span>مكتملة الاستلام</span><strong>{formatNumber(totalReceived)}</strong></article>
-      </div>
+      <PurchaseOrderSummary totalOpen={totalOpen} totalDraft={totalDraft} totalReceived={totalReceived} />
     </section>
 
     {error&&<div className="po-error" role="alert"><AlertTriangle size={16} style={{verticalAlign:'middle',marginInlineEnd:6}}/>{error}</div>}
