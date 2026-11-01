@@ -128,6 +128,14 @@ function clickButton(host: HTMLElement, selector: string, index: number) {
   });
 }
 
+async function waitForRpcCall(name: string, attempts = 12) {
+  await act(async () => {
+    for (let attempt = 0; attempt < attempts && !mocks.rpc.mock.calls.some(([calledName]) => calledName === name); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  });
+}
+
 describe("customer storefront saved discovery", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -371,11 +379,7 @@ describe("customer storefront saved discovery", () => {
       ]);
 
       clickButton(cart.host, "button.sf-btn-primary", 0);
-      await act(async () => {
-        for (let attempt = 0; attempt < 12 && !mocks.rpc.mock.calls.some(([name]) => name === "validate_checkout_cart"); attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        }
-      });
+      await waitForRpcCall("validate_checkout_cart");
       expect(mocks.rpc).toHaveBeenCalledWith("validate_checkout_cart", {
         p_items: [{ product_id: "product-2", quantity: 1 }],
       });
