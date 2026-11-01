@@ -120,6 +120,16 @@ async function unmount(mount: Mount) {
   mount.host.remove();
 }
 
+async function waitForRpcCall(name: string, maxAttempts = 12) {
+  await act(async () => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const called = mocks.rpc.mock.calls.some(([calledName]) => calledName === name);
+      if (called) return;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  });
+}
+
 function clickButton(host: HTMLElement, selector: string, index: number) {
   const button = host.querySelectorAll<HTMLButtonElement>(selector).item(index);
   if (!button) throw new Error("Could not find expected button: " + selector + " index " + index);
@@ -371,11 +381,7 @@ describe("customer storefront saved discovery", () => {
       ]);
 
       clickButton(cart.host, "button.sf-btn-primary", 0);
-      await act(async () => {
-        for (let attempt = 0; attempt < 12 && !mocks.rpc.mock.calls.some(([name]) => name === "validate_checkout_cart"); attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        }
-      });
+      await waitForRpcCall("validate_checkout_cart");
       expect(mocks.rpc).toHaveBeenCalledWith("validate_checkout_cart", {
         p_items: [{ product_id: "product-2", quantity: 1 }],
       });
