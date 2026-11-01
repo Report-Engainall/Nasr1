@@ -89,10 +89,10 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "09747cb6b509a5da5c6c2138dee44c24be194e4f",
-    "P1": "103bc18018a569582208261d16f3f7a2b7e9716f",
-    "P2": "c85601a7d3213d7782c15fed93d0cd373d783025",
-    "P3": "1275602301d0b86857b659ddf76e25cdbe66ade3",
+    "main": "eda843b1932887a2a5219916109ac851b8dfde9f",
+    "P1": "4c58d1a47b8ffef6d14d63fe3000104e95a42f93",
+    "P2": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+    "P3": "15ae8ddfb16c10183b09eabd769d8ac022c06d70",
     "original_scan_sha": "UNKNOWN"
   },
   "verification_policy": {
@@ -1641,11 +1641,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Focused invoice PDF payload-contract and async-export retry-action tests added; exact-head Core/P2 CI pending; fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "fixed_by_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "evidence": "PR #342 source commit 51ea48b8fc78ad4f90a66173966599681bb21ea5; fresh CodeInspector scan not yet run. Final exact-head CI must pass before merge.",
       "occurrence": 1
     },
     {
@@ -2235,11 +2235,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Focused invoice PDF payload-contract and async-export retry-action tests added; exact-head Core/P2 CI pending; fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "fixed_by_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "evidence": "PR #342 source commit 51ea48b8fc78ad4f90a66173966599681bb21ea5; fresh CodeInspector scan not yet run. Final exact-head CI must pass before merge.",
       "occurrence": 1
     },
     {
@@ -2279,11 +2279,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Focused invoice PDF payload-contract and async-export retry-action tests added; exact-head Core/P2 CI pending; fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "fixed_by_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "evidence": "PR #342 source commit 51ea48b8fc78ad4f90a66173966599681bb21ea5; fresh CodeInspector scan not yet run. Final exact-head CI must pass before merge.",
       "occurrence": 1
     },
     {
@@ -4303,11 +4303,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Focused invoice PDF payload-contract and async-export retry-action tests added; exact-head Core/P2 CI pending; fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "fixed_by_sha": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "evidence": "PR #342 source commit 51ea48b8fc78ad4f90a66173966599681bb21ea5; fresh CodeInspector scan not yet run. Final exact-head CI must pass before merge.",
       "occurrence": 2
     },
     {
@@ -5371,13 +5371,15 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 11,
-      "TS0003_active_open": 93,
+      "TS0003_implemented_pending_fresh_scan": 15,
+      "TS0003_active_open": 89,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
-      "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025"
+      "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
+      "latest_code_commit": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
+      "latest_pr": 342
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5385,7 +5387,7 @@
       "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
       "fresh_codeinspector_scan": "PENDING"
     },
-    "main_sha": "09747cb6b509a5da5c6c2138dee44c24be194e4f"
+    "main_sha": "eda843b1932887a2a5219916109ac851b8dfde9f"
   },
   "integration_history": [
     {
