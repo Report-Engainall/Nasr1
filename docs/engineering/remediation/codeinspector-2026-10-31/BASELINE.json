@@ -193,7 +193,7 @@
     "P3_batch_12_tested_head": "63fbdfa84187e5ad9e8b6432f70b899cdfa0a2a3",
     "P3_batch_12_merge": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
     "P3_batch_12_pr": 360,
-    "last_reconciled_main": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+    "last_reconciled_main": "806799c17c633f714296e409e805024726f3c78d",
     "P2_last_validated_source": "a024e18e31de1d0a1cb18fd27e3efcf86f471137"
   },
   "verification_policy": {
@@ -2490,11 +2490,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 944c349814d97e397ce190bd749fbf5353d5ccbb. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -2666,11 +2666,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob f39b21d0f3370af97d42acfb3a925ee7067e4d0d. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -2930,11 +2930,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 24a7d7347d4aeac807aa804230d9d742e816b3b9. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3040,11 +3040,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob b9e2a74b708d3cb78d28d4af1089c7f238f28ef0. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3084,11 +3084,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob cac8a53f9278e6adfd9282283b52e1b9e60658f8. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3106,11 +3106,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 7b1225649a5a3c00b24602b17e62e82e3600e4c7. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3150,11 +3150,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 6673c742bbc5e3ddb3a303f031edfbf8599844c9. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3194,11 +3194,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 7fba3ee8deb15b2e4ac09b20be4723540ae76d4a. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3282,11 +3282,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 988e9c92bc191df4d7085c5ffacf0d73147aea98. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3304,11 +3304,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob f0c27d85de58bbf8168cad0f63ce684ffebcb49c. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3436,11 +3436,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 138520e1c2830e2f2ea4d871f9b5741a5cf2d0c2. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3546,11 +3546,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 94d60d80a7d424fb12587633348fd001d37be5d4. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3590,11 +3590,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob f061a2a72d5a419f8efa11061cbeacf8c0ebc5b1. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3634,11 +3634,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob b7da4ac3ff37e28dd1d02196645bc51dbfb569d0. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3656,11 +3656,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 067fb1ffce3dd932236498282f7218a32150a8d6. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3700,11 +3700,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob d67df3f43be8d19cba37ac7f0ba53d4a50b79ffc. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -3810,11 +3810,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 2a179f734efd3a4b794f2daea593f4d469de4f98. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -4008,11 +4008,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 0dc669f6fe98c8faaff82409a44491eb4af18cd5. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -4030,11 +4030,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 331e32207135ba6e78a39915dcc97f70d5125ea1. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -4096,11 +4096,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 3e028991455a066d0b19a350dab5858122709918. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -4184,11 +4184,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 58fb4f72085ee7a832b10fc0409714ade32af535. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -4250,11 +4250,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob aabce0172ff99020ad561f1a106917efc0de11d2. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -4382,11 +4382,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob abfe455b7f6993d009cb9f6fd97420244d58c2a6. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -5416,11 +5416,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 28bcb9ace489bccd999585f562d6d890a4b0fc8b. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -5438,11 +5438,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob 8e35982eada6f02ad2962c618a479b148c2bb55b. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     },
     {
@@ -5460,11 +5460,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "test": "Manual review of the exact current-main source blob did not reproduce the reported nesting depth at the historical finding location. This is not a false-positive declaration; preserve as NOT_CLOSED until a fresh authorized CodeInspector scan.",
+      "implementation_branch_sha": null,
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "Current main 806799c17c633f714296e409e805024726f3c78d; reviewed file blob bbabe0057ea705aeee6c3ee03ea12d5d6558ac25. Current code at the reported area uses shallow guards/helper components/linear processing rather than the reported nested block. Historical scan SHA remains UNKNOWN; fresh CodeInspector rule-level confirmation required.",
       "occurrence": 1
     }
   ],
@@ -5473,7 +5473,7 @@
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
       "TS0003_implemented_pending_fresh_scan": 76,
-      "TS0003_active_open": 28,
+      "TS0003_active_open": 2,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
@@ -5484,7 +5484,7 @@
       "latest_merged_pr": 389,
       "TS0003_in_progress": 0,
       "latest_tested_head": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
-      "main_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+      "main_sha": "806799c17c633f714296e409e805024726f3c78d",
       "verification": {
         "fresh_codeinspector_scan": "PENDING",
         "current_main_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
@@ -5508,6 +5508,32 @@
         "latest_main_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
         "latest_main_local_supabase_job_id": 124888150619,
         "latest_main_playwright_public_ui": "SUCCESS"
+      },
+      "TS0003_not_reproduced_current_source_not_closed": 26,
+      "last_source_recheck": {
+        "main_sha": "806799c17c633f714296e409e805024726f3c78d",
+        "records": 26,
+        "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+        "fresh_codeinspector_scan": "PENDING"
+      },
+      "pending_pr_391": {
+        "head": "723f18742fa0e1456b1a13f175019a9f1775255c",
+        "base": "806799c17c633f714296e409e805024726f3c78d",
+        "state": "READY_FOR_REVIEW_UNMERGED",
+        "independent_review_requested": "adnanabderab2016-sys",
+        "independent_review_status": "PENDING",
+        "verification": {
+          "core_run": 41328599685,
+          "gitleaks_run": 41328599680,
+          "p3_javascript_python_run": 41328599684,
+          "import_finalizer_postgres17_run": 41328599686,
+          "p2_playwright_run": 41328599676,
+          "public_ui_smoke": "SUCCESS",
+          "local_supabase_order_tenant_isolation": "SUCCESS",
+          "hosted_external_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+          "coderabbit": "SKIPPED_PROVIDER_QUOTA",
+          "purchase_receipt_concurrency": "SUCCESS_EXACTLY_ONE_CANONICAL_RECEIPT_AND_REPLAY"
+        }
       }
     },
     "verification": {
@@ -5831,8 +5857,42 @@
       "tested_head": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
       "merge_commit": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
       "note": "P2 TS0003 source refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings at matching original source coordinates are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED."
+    },
+    {
+      "event": "SOURCE_RECHECK_NOT_REPRODUCED_NOT_CLOSED",
+      "main_sha": "806799c17c633f714296e409e805024726f3c78d",
+      "count": 26,
+      "finding_ids": [
+        "CI31-TS0003-2ac5b24c-1",
+        "CI31-TS0003-2278ec80-1",
+        "CI31-TS0003-790a181c-1",
+        "CI31-TS0003-4f05969b-1",
+        "CI31-TS0003-46c79e47-1",
+        "CI31-TS0003-cfff913b-1",
+        "CI31-TS0003-14ffa54a-1",
+        "CI31-TS0003-45704ae7-1",
+        "CI31-TS0003-6f48b548-1",
+        "CI31-TS0003-68eacc36-1",
+        "CI31-TS0003-4c7aef6d-1",
+        "CI31-TS0003-5df63756-1",
+        "CI31-TS0003-64463e3b-1",
+        "CI31-TS0003-f508beb6-1",
+        "CI31-TS0003-33907f86-1",
+        "CI31-TS0003-998a4568-1",
+        "CI31-TS0003-8013067a-1",
+        "CI31-TS0003-c743f46f-1",
+        "CI31-TS0003-36b497e7-1",
+        "CI31-TS0003-ca914d3d-1",
+        "CI31-TS0003-c3813b04-1",
+        "CI31-TS0003-457ca646-1",
+        "CI31-TS0003-7e18b47d-1",
+        "CI31-TS0003-08ddab5f-1",
+        "CI31-TS0003-8d93166e-1",
+        "CI31-TS0003-2b1f7d9f-1"
+      ],
+      "note": "Exact current-main file blobs were inspected. The historical TS0003 nesting pattern was not reproduced at these source locations. Original CodeInspector input SHA is UNKNOWN; these rows are NOT_CLOSED and require a fresh authorized CodeInspector scan."
     }
   ],
   "main_sha": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
-  "last_reconciled_main_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517"
+  "last_reconciled_main_sha": "806799c17c633f714296e409e805024726f3c78d"
 }
