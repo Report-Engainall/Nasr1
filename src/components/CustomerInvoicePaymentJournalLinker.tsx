@@ -188,6 +188,11 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
  }
  if(!ready)return <section style={panel}><p role="status" style={muted}>جارٍ التحقق من صلاحية المالية...</p></section>;
  if(!canUseFinance)return <section style={panel}><h3 style={{margin:0}}>ربط فواتير العملاء والتحصيلات</h3><p style={muted}>هذه الوظيفة للمحاسب والمسؤول والمدير المخوّلين فقط.</p></section>;
+ const showInvoiceEmpty = !loading && tab === "invoice" && invoices.length === 0;
+ const showInvoiceRows = !loading && tab === "invoice" && invoices.length > 0;
+ const showPaymentEmpty = !loading && tab === "payment" && payments.length === 0;
+ const showPaymentRows = !loading && tab === "payment" && payments.length > 0;
+
  return <section style={panel} aria-label="ربط فواتير العملاء والتحصيلات بالأستاذ">
   <header style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
    <div><h3 style={{margin:0}}>ربط فواتير العملاء والتحصيلات بالأستاذ العام</h3><p style={muted}>المبلغ والتاريخ والضريبة من المصدر فقط. ينشئ النظام مسودة مراجعة؛ الترحيل منفصل ومصرّح.</p></div>
@@ -201,8 +206,9 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
   </div>
   {error&&<p role="alert" style={{...muted,color:"#9b2828"}}>{error}</p>}
   {notice&&<p role="status" style={{...muted,color:"#17684d"}}>{notice}</p>}
-  {loading?<p role="status" style={muted}>جارٍ تحميل المصادر المالية...</p>:
-   tab==="invoice"?(!invoices.length?<p style={muted}>لا توجد فواتير في هذا المرشح.</p>:
+  {loading && <p role="status" style={muted}>جارٍ تحميل المصادر المالية...</p>}
+  {showInvoiceEmpty &&     <p style={muted}>لا توجد فواتير في هذا المرشح.</p>}
+  {showInvoiceRows && (
     <div style={{display:"grid",gap:12}}>
      {invoices.map(item=>{
       const ar=receivableSelection[item.id]||item.receivable_account_id||"";
@@ -231,7 +237,9 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
       </article>;
      })}
     </div>
-   ):(!payments.length?<p style={muted}>لا توجد تحصيلات في هذا المرشح.</p>:
+  )}
+  {showPaymentEmpty &&     <p style={muted}>لا توجد تحصيلات في هذا المرشح.</p>}
+  {showPaymentRows && (
     <div style={{display:"grid",gap:12}}>
      {payments.map(item=>{
       const settlement=settlementSelection[item.id]||item.settlement_account_id||"";
@@ -256,8 +264,7 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
       </article>;
      })}
     </div>
-   )
-  }
+  )}
   <footer className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
    <button type="button" style={button} disabled={page===0||loading||Boolean(busyId)} onClick={()=>setPage(p=>Math.max(0,p-1))}>السابق</button><span style={muted}>صفحة {page+1} · 50 مصدرًا في الصفحة</span><button type="button" style={button} disabled={!hasMore||loading||Boolean(busyId)} onClick={()=>setPage(p=>p+1)}>التالي</button>
   </footer>

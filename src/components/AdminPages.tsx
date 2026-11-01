@@ -158,6 +158,79 @@ const defaultAiGatewayDraft: AiGatewayDraft = {
   daily_cost_limit: '1', monthly_cost_limit: '20', daily_token_limit: '50000', monthly_token_limit: '1000000', per_request_cost_limit: '0.05',
 };
 
+function AiAlertsPanel({
+  alerts,
+  loading,
+  error,
+  onResolve,
+}: {
+  alerts: AiAlert[] | null | undefined;
+  loading: boolean;
+  error: string | null | undefined;
+  onResolve: (id: string) => void;
+}) {
+  if (loading) return <Loading />;
+  if (error) return <ErrorBox message={error} />;
+  if (!alerts) return <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." />;
+
+  const activeAlerts = alerts.filter((alert) => !alert.is_resolved);
+  if (activeAlerts.length === 0) return <Empty text="لا توجد تنبيهات نشطة" />;
+
+  return (
+    <div className="ai-alert-list">
+      {activeAlerts.map((alert) => (
+        <div className="ai-alert-row" key={alert.id}>
+          <span className={`ai-severity ${alert.severity}`}><AlertTriangle size={18} /></span>
+          <div>
+            <strong>{alert.title}</strong>
+            <p>{alert.body ?? '—'}</p>
+            <small>{timeAgo(alert.created_at)}</small>
+          </div>
+          <Button variant="outline" onClick={() => onResolve(alert.id)}>حل</Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AiTasksPanel({
+  tasks,
+  loading,
+  error,
+  onAction,
+}: {
+  tasks: AiTask[] | null | undefined;
+  loading: boolean;
+  error: string | null | undefined;
+  onAction: (id: string, status: string) => void;
+}) {
+  if (loading) return <Loading />;
+  if (error) return <ErrorBox message={error} />;
+  if (!tasks) return <Empty text="تعذر التحقق من المهام؛ حدّث البيانات." />;
+
+  const openTasks = tasks.filter((task) => task.status !== 'completed');
+  if (openTasks.length === 0) return <Empty text="لا توجد مهام معلقة" />;
+
+  return (
+    <div className="ai-task-list">
+      {openTasks.map((task) => (
+        <div className="ai-task-row" key={task.id}>
+          <span className={`ai-priority ${task.priority}`} />
+          <div>
+            <strong>{task.title}</strong>
+            <p>{task.description ?? '—'}</p>
+            <small>{timeAgo(task.created_at)}</small>
+          </div>
+          <div className="ai-task-actions">
+            <Button variant="outline" onClick={() => onAction(task.id, 'in_progress')}>بدء</Button>
+            <Button onClick={() => onAction(task.id, 'completed')}>إنجاز</Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canManageGateway = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
@@ -304,7 +377,11 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
       </>}
     </section>}
     <div className="ai-tabs"><button className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><AlertTriangle size={16} /> التنبيهات</button><button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}><Check size={16} /> المهام</button></div>
-    {tab === 'alerts' ? (aLoading ? <Loading /> : aError ? <ErrorBox message={aError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : <div className="ai-alert-list">{alerts?.filter((a: AiAlert) => !a.is_resolved).map((a: AiAlert) => <div className="ai-alert-row" key={a.id}><span className={`ai-severity ${a.severity}`}><AlertTriangle size={18} /></span><div><strong>{a.title}</strong><p>{a.body ?? '—'}</p><small>{timeAgo(a.created_at)}</small></div><Button variant="outline" onClick={() => resolve(a.id)}>حل</Button></div>)}{!alerts?.filter((a) => !a.is_resolved).length && <Empty text="لا توجد تنبيهات نشطة" />}</div>) : (tLoading ? <Loading /> : tError ? <ErrorBox message={tError} /> : !tasks ? <Empty text="تعذر التحقق من المهام؛ حدّث البيانات." /> : <div className="ai-task-list">{tasks?.filter((t: AiTask) => t.status !== 'completed').map((t: AiTask) => <div className="ai-task-row" key={t.id}><span className={`ai-priority ${t.priority}`} /><div><strong>{t.title}</strong><p>{t.description ?? '—'}</p><small>{timeAgo(t.created_at)}</small></div><div className="ai-task-actions"><Button variant="outline" onClick={() => taskAction(t.id, 'in_progress')}>بدء</Button><Button onClick={() => taskAction(t.id, 'completed')}>إنجاز</Button></div></div>)}{!tasks?.filter((t) => t.status !== 'completed').length && <Empty text="لا توجد مهام معلقة" />}</div>)}
+    {tab === 'alerts' ? (
+      <AiAlertsPanel alerts={alerts} loading={aLoading} error={aError} onResolve={resolve} />
+    ) : (
+      <AiTasksPanel tasks={tasks} loading={tLoading} error={tError} onAction={taskAction} />
+    )}
   </AdminPage>;
 }
 type OrderReviewDraft = { quantity: string; unitPrice: string; reason: string };

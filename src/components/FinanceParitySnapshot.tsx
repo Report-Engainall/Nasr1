@@ -97,6 +97,51 @@ function currencyLabel(currency: string): string {
   return currency === "YER" ? "ر.ي" : currency;
 }
 
+function ReceivablesCurrencySection({ rows }: { rows: ReceivablesCurrency[] }) {
+  return (
+            <section>
+              <h3>الذمم المدينة حسب العملة</h3>
+              {rows.length === 0 ? <p className="report-note">لا توجد فواتير ذات رصيد مستحق.</p> : (
+                <div style={{ overflowX: "auto" }}>
+                  <table>
+                    <thead><tr><th>العملة</th><th>الرصيد المستحق</th><th>فواتير متأخرة</th></tr></thead>
+                    <tbody>{rows.map((item) => (
+                      <tr key={item.currency}>
+                        <td>{item.currency}</td>
+                        <td>{formatLedgerMoney(item.total_outstanding_amount, currencyLabel(item.currency))}</td>
+                        <td>{item.overdue_invoice_count.toLocaleString("en-US")}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+  );
+}
+
+function AssetAccountsSection({ accounts }: { accounts: LedgerAccount[] }) {
+  return (
+            <section>
+              <h3>أرصدة الأصول — دفتر الأستاذ</h3>
+              {accounts.length === 0 ? <p className="report-note">لا توجد حسابات أصول نشطة في دليل الحسابات.</p> : (
+                <div style={{ overflowX: "auto" }}>
+                  <table>
+                    <thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد الطبيعي</th></tr></thead>
+                    <tbody>{accounts.map((account) => (
+                      <tr key={account.id}>
+                        <td><strong>{account.name}</strong><small style={{ display: "block" }}>{account.code}</small></td>
+                        <td>{formatLedgerMoney(account.debit_total)}</td>
+                        <td>{formatLedgerMoney(account.credit_total)}</td>
+                        <td>{formatLedgerBalance(account.debit_total, account.credit_total)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+  );
+}
+
 export function FinanceParitySnapshot() {
   const { user, ready } = useAuth();
   const canManageFinance = Boolean(user?.roles.some((role) => ["admin", "manager", "accountant"].includes(role)));
@@ -173,42 +218,8 @@ export function FinanceParitySnapshot() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 16, marginTop: 16 }}>
-            <section>
-              <h3>الذمم المدينة حسب العملة</h3>
-              {snapshot.receivables.length === 0 ? <p className="report-note">لا توجد فواتير ذات رصيد مستحق.</p> : (
-                <div style={{ overflowX: "auto" }}>
-                  <table>
-                    <thead><tr><th>العملة</th><th>الرصيد المستحق</th><th>فواتير متأخرة</th></tr></thead>
-                    <tbody>{snapshot.receivables.map((item) => (
-                      <tr key={item.currency}>
-                        <td>{item.currency}</td>
-                        <td>{formatLedgerMoney(item.total_outstanding_amount, currencyLabel(item.currency))}</td>
-                        <td>{item.overdue_invoice_count.toLocaleString("en-US")}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            <section>
-              <h3>أرصدة الأصول — دفتر الأستاذ</h3>
-              {snapshot.assetAccounts.length === 0 ? <p className="report-note">لا توجد حسابات أصول نشطة في دليل الحسابات.</p> : (
-                <div style={{ overflowX: "auto" }}>
-                  <table>
-                    <thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد الطبيعي</th></tr></thead>
-                    <tbody>{snapshot.assetAccounts.map((account) => (
-                      <tr key={account.id}>
-                        <td><strong>{account.name}</strong><small style={{ display: "block" }}>{account.code}</small></td>
-                        <td>{formatLedgerMoney(account.debit_total)}</td>
-                        <td>{formatLedgerMoney(account.credit_total)}</td>
-                        <td>{formatLedgerBalance(account.debit_total, account.credit_total)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+            <ReceivablesCurrencySection rows={snapshot.receivables} />
+            <AssetAccountsSection accounts={snapshot.assetAccounts} />
           </div>
           <p className="report-note" style={{ marginTop: 12 }}>
             لا يوجد رصيد نقدي منفصل أو مجمع تقديري؛ رصيد كل حساب محسوب من قيوده المرحلة، والذمم مستخرجة من الفواتير والمدفوعات المسجلة. لا تُجمع مبالغ عملات مختلفة.

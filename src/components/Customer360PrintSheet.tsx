@@ -92,24 +92,9 @@ function RecentOrdersSection({
   );
 }
 
-export function Customer360PrintSheet({ document }: { document: Customer360PrintDocument }) {
-  const generatedAt = new Intl.DateTimeFormat("ar-YE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(document.generatedAt));
+function OrderSummarySection({ document }: { document: Customer360PrintDocument }) {
   return (
-    <article className="customer-360-print-sheet" data-testid="customer-360-print-document" dir="rtl" lang="ar">
-      <header className="customer-360-print-header">
-        <div>
-          <h1>متجر الأغبري | Aghbari Commerce</h1>
-          <p>ملف العميل 360 — تقرير موظفين</p>
-          <strong>{document.customer.businessName}</strong>
-          <p>رمز العميل: {document.customer.customerCode} · الشريحة: {tierLabels[document.customer.tier] ?? document.customer.tier} · الحالة: {statusLabels[document.customer.status] ?? document.customer.status}</p>
-        </div>
-        <div className="customer-360-print-generated">
-          <strong>وقت استخراج التقرير</strong>
-          <span>{generatedAt}</span>
-        </div>
-      </header>
-
-      <section className="customer-360-print-section">
+<section className="customer-360-print-section">
         <h2>ملخص الطلبات الكامل</h2>
         <table>
           <thead><tr><th>المؤشر</th><th>القيمة</th></tr></thead>
@@ -134,8 +119,12 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
           {document.orderSummary.statusDistribution.length === 0 ? <tr><td colSpan={2}>لا توجد حالات طلبات مسجلة.</td></tr> : null}
         </tbody></table>
       </section>
+  );
+}
 
-      <section className="customer-360-print-section">
+function FinanceByCurrencySection({ document }: { document: Customer360PrintDocument }) {
+  return (
+<section className="customer-360-print-section">
         <h2>الدفتر المالي الكامل حسب العملة</h2>
         <table>
           <thead><tr><th>العملة</th><th>الفواتير</th><th>الإجمالي</th><th>المسدّد</th><th>الإشعارات الدائنة</th><th>المتبقي</th><th>المتأخرة</th><th>المتأخرات</th><th>دون استحقاق</th><th>مبالغ غير معروفة</th></tr></thead>
@@ -152,10 +141,12 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
         </table>
         {document.financeByCurrency.some((row) => row.invalidTotalAmountCount > 0) ? <p className="customer-360-print-note">توجد {formatNumber(document.financeByCurrency.reduce((sum, row) => sum + row.invalidTotalAmountCount, 0))} إجماليات فواتير غير صالحة؛ بقيت المجاميع غير المؤكدة «غير متاحة» ولم تُحوّل إلى أصفار.</p> : null}
       </section>
+  );
+}
 
-      <RecentOrdersSection document={document} />
-
-      <section className="customer-360-print-section">
+function RecentInvoicesSection({ document }: { document: Customer360PrintDocument }) {
+  return (
+<section className="customer-360-print-section">
         <h2>آخر الفواتير ({formatNumber(document.recentInvoices.length)} معروضة)</h2>
         <p className="customer-360-print-note">التفاصيل أدناه لأحدث 20 فاتورة فقط؛ إجماليات الدفتر المالي أعلاه كاملة ومفصولة حسب العملة.</p>
         <table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>العملة</th><th>الإجمالي</th><th>المسدّد</th><th>الدائن</th><th>المتبقي</th></tr></thead><tbody>
@@ -167,8 +158,12 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
           {document.recentInvoices.length === 0 ? <tr><td colSpan={9}>لا توجد فواتير حديثة.</td></tr> : null}
         </tbody></table>
       </section>
+  );
+}
 
-      <section className="customer-360-print-section">
+function RecentPaymentsSection({ document }: { document: Customer360PrintDocument }) {
+  return (
+<section className="customer-360-print-section">
         <h2>آخر الدفعات ({formatNumber(document.recentPayments.length)} معروضة)</h2>
         <p className="customer-360-print-note">لا تُعرض عملة أو قيمة دفعة إذا كانت فاتورتها خارج أحدث 20 فاتورة المعادة؛ لا تُستنتج العملة من عميل أو مستند آخر.</p>
         <table><thead><tr><th>التاريخ</th><th>الفاتورة</th><th>طريقة الدفع</th><th>المبلغ</th></tr></thead><tbody>
@@ -179,8 +174,12 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
           {document.recentPayments.length === 0 ? <tr><td colSpan={4}>لا توجد دفعات حديثة.</td></tr> : null}
         </tbody></table>
       </section>
+  );
+}
 
-      <section className="customer-360-print-section">
+function TopProductsSection({ document }: { document: Customer360PrintDocument }) {
+  return (
+<section className="customer-360-print-section">
         <h2>المنتجات الأكثر شراءً</h2>
         <p className="customer-360-print-note">قيمة مبيعات الصنف أدناه رقمية كما وردت من ملخص الخادم؛ لم يرد حقل عملة مستقل لهذا التجميع.</p>
         <table><thead><tr><th>رمز الصنف</th><th>الصنف</th><th>الكمية</th><th>قيمة المبيعات الرقمية</th><th>آخر شراء</th></tr></thead><tbody>
@@ -191,8 +190,12 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
           {document.topProducts.length === 0 ? <tr><td colSpan={5}>لا توجد أصناف قابلة للترتيب.</td></tr> : null}
         </tbody></table>
       </section>
+  );
+}
 
-      <section className="customer-360-print-section">
+function RecommendationsSection({ document }: { document: Customer360PrintDocument }) {
+  return (
+<section className="customer-360-print-section">
         <h2>إشارات المتابعة التشغيلية</h2>
         {document.recommendations.length === 0 ? <p>لا توجد توصيات ضمن قواعد التنبيه الحالية.</p> : <table>
           <thead><tr><th>الأولوية</th><th>التوصية</th><th>الدليل</th><th>الإجراء</th></tr></thead>
@@ -208,6 +211,39 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
           </tr>)}</tbody>
         </table>}
       </section>
+  );
+}
+
+export function Customer360PrintSheet({ document }: { document: Customer360PrintDocument }) {
+  const generatedAt = new Intl.DateTimeFormat("ar-YE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(document.generatedAt));
+  return (
+    <article className="customer-360-print-sheet" data-testid="customer-360-print-document" dir="rtl" lang="ar">
+      <header className="customer-360-print-header">
+        <div>
+          <h1>متجر الأغبري | Aghbari Commerce</h1>
+          <p>ملف العميل 360 — تقرير موظفين</p>
+          <strong>{document.customer.businessName}</strong>
+          <p>رمز العميل: {document.customer.customerCode} · الشريحة: {tierLabels[document.customer.tier] ?? document.customer.tier} · الحالة: {statusLabels[document.customer.status] ?? document.customer.status}</p>
+        </div>
+        <div className="customer-360-print-generated">
+          <strong>وقت استخراج التقرير</strong>
+          <span>{generatedAt}</span>
+        </div>
+      </header>
+
+            <OrderSummarySection document={document} />
+
+            <FinanceByCurrencySection document={document} />
+
+      <RecentOrdersSection document={document} />
+
+            <RecentInvoicesSection document={document} />
+
+            <RecentPaymentsSection document={document} />
+
+            <TopProductsSection document={document} />
+
+            <RecommendationsSection document={document} />
 
       <footer className="customer-360-print-footer">
         المصدر: ملخص Customer 360 الخادمي للمؤسسة الحالية. مجاميع الطلبات والدفتر المالي كاملة؛ صفوف تفاصيل الطلبات والفواتير والدفعات محدودة بأحدث 20 سجلًا. لا يتضمن هذا المخرج معرّفات داخلية أو بيانات اتصال العميل.

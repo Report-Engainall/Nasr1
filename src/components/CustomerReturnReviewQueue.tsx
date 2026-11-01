@@ -72,6 +72,71 @@ function readReviewRows(value: unknown): ReturnReviewRow[] {
   });
 }
 
+function ReturnReviewCard({
+  row,
+  note,
+  busy,
+  onNoteChange,
+  onDecide,
+}: {
+  row: ReturnReviewRow;
+  note: string;
+  busy: boolean;
+  onNoteChange: (id: string, value: string) => void;
+  onDecide: (row: ReturnReviewRow, decision: ReviewDecision) => void;
+}) {
+  const reasonIsValid = note.trim().length >= 5;
+  return (
+    <article key={row.id} style={{ display: "grid", gap: 10, padding: 14, border: "1px solid #e1e9ea", borderRadius: 11 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 16 }}>{row.request_number}</h3>
+          <p style={muted}>الطلب {row.order_number} · العميل {row.customer_name} ({row.customer_code})</p>
+        </div>
+        <span style={{ background: "#fff4df", color: "#805413", borderRadius: 20, padding: "4px 9px", fontSize: 12, fontWeight: 800 }}>
+          {row.status === "submitted" ? "مرسل للمراجعة" : "قيد المراجعة"}
+        </span>
+      </div>
+      <p style={{ ...muted, marginTop: -3 }}>السبب: {reasonLabels[row.reason] ?? row.reason} · {new Date(row.created_at).toLocaleString("ar-YE")}</p>
+      <ReturnReviewItems items={row.items} />
+      {row.notes && <p style={{ ...muted, borderInlineStart: "3px solid #cbdadd", paddingInlineStart: 10 }}>ملاحظة العميل: {row.notes}</p>}
+      <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 750 }}>
+        مبرر القرار (مطلوب)
+        <textarea
+          rows={2}
+          maxLength={1000}
+          minLength={5}
+          aria-label={"مبرر قرار " + row.request_number}
+          value={note}
+          onChange={(event) => onNoteChange(row.id, event.target.value)}
+          style={{ ...field, resize: "vertical" }}
+          disabled={busy}
+        />
+      </label>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" style={good} disabled={busy || !reasonIsValid} onClick={() => onDecide(row, "approved")}>
+          <CheckCircle2 size={16} /> قبول وتحويل للفحص
+        </button>
+        <button type="button" style={bad} disabled={busy || !reasonIsValid} onClick={() => onDecide(row, "rejected")}>
+          <XCircle size={16} /> رفض مع السبب
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function ReturnReviewItems({ items }: { items: ReturnLine[] }) {
+  return (
+    <ul style={{ margin: 0, paddingInlineStart: 24 }}>
+      {items.map((item, index) => (
+        <li key={(item.item_code ?? item.product_name) + "-" + index} style={{ fontSize: 13 }}>
+          {item.product_name} — الرمز {item.item_code ?? "غير مسجل"} — {item.requested_quantity.toLocaleString("ar-YE")} {item.unit ?? ""}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: string) => void }) {
   const [rows, setRows] = useState<ReturnReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,40 +215,14 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
       {!loading && !error && rows.length === 0 && <p style={muted}>لا توجد طلبات مرتجع بانتظار القرار.</p>}
 
       {rows.map((row) => (
-        <article key={row.id} style={{ display: "grid", gap: 10, padding: 14, border: "1px solid #e1e9ea", borderRadius: 11 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16 }}>{row.request_number}</h3>
-              <p style={muted}>الطلب {row.order_number} · العميل {row.customer_name} ({row.customer_code})</p>
-            </div>
-            <span style={{ background: "#fff4df", color: "#805413", borderRadius: 20, padding: "4px 9px", fontSize: 12, fontWeight: 800 }}>
-              {row.status === "submitted" ? "مرسل للمراجعة" : "قيد المراجعة"}
-            </span>
-          </div>
-          <p style={{ ...muted, marginTop: -3 }}>السبب: {reasonLabels[row.reason] ?? row.reason} · {new Date(row.created_at).toLocaleString("ar-YE")}</p>
-          <ul style={{ margin: 0, paddingInlineStart: 24 }}>
-            {row.items.map((item,index) => <li key={(item.item_code ?? item.product_name) + "-" + index} style={{ fontSize: 13 }}>{item.product_name} — الرمز {item.item_code ?? "غير مسجل"} — {item.requested_quantity.toLocaleString("ar-YE")} {item.unit ?? ""}</li>)}
-          </ul>
-          {row.notes && <p style={{ ...muted, borderInlineStart: "3px solid #cbdadd", paddingInlineStart: 10 }}>ملاحظة العميل: {row.notes}</p>}
-          <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 750 }}>
-            مبرر القرار (مطلوب)
-            <textarea
-              rows={2} maxLength={1000} minLength={5}
-              aria-label={"مبرر قرار " + row.request_number}
-              value={notes[row.id] ?? ""}
-              onChange={(event) => setNotes((current) => ({ ...current, [row.id]: event.target.value }))}
-              style={{ ...field, resize: "vertical" }} disabled={busyId === row.id}
-            />
-          </label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" style={good} disabled={busyId !== null || (notes[row.id] ?? "").trim().length < 5} onClick={() => void decide(row,"approved")}>
-              <CheckCircle2 size={16} /> قبول وتحويل للفحص
-            </button>
-            <button type="button" style={bad} disabled={busyId !== null || (notes[row.id] ?? "").trim().length < 5} onClick={() => void decide(row,"rejected")}>
-              <XCircle size={16} /> رفض مع السبب
-            </button>
-          </div>
-        </article>
+        <ReturnReviewCard
+          key={row.id}
+          row={row}
+          note={notes[row.id] ?? ""}
+          busy={busyId === row.id}
+          onNoteChange={(id, value) => setNotes((current) => ({ ...current, [id]: value }))}
+          onDecide={decide}
+        />
       ))}
     </section>
   );

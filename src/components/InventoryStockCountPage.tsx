@@ -7,6 +7,57 @@ import { useAuth } from '@/lib/auth';
 import { projectStockCountPrintDocument } from '@/lib/stock-count-print';
 const q = (v: number | null | undefined) => v == null || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(Number(v));
 const idempotencyKey = () => 'stock-count-' + crypto.randomUUID().replace(/-/g, '');
+function StockCountLineRow({
+  line,
+  draft,
+  busy,
+  saving,
+  savingAny,
+  onDraftChange,
+  onSave,
+}: {
+  line: InventoryStockCountLine;
+  draft: string;
+  busy: boolean;
+  saving: boolean;
+  savingAny: boolean;
+  onDraftChange: (productId: string, value: string) => void;
+  onSave: (line: InventoryStockCountLine) => void;
+}) {
+  const parsed = draft.trim() === "" ? null : Number(draft);
+  const delta = parsed === null || !Number.isFinite(parsed) ? line.variance : parsed - line.expected_quantity;
+  const formattedDelta = delta == null || !Number.isFinite(delta) ? "—" : (delta > 0 ? "+" : "") + q(delta);
+  const saveLabel = saving ? "جار الحفظ…" : line.counted_quantity === null ? "حفظ العد" : "تحديث العد";
+
+  return (
+    <tr>
+      <td>{line.product_code}</td>
+      <td><strong>{line.product_name}</strong></td>
+      <td>{line.unit ?? "—"}</td>
+      <td>{q(line.expected_quantity)}</td>
+      <td>{q(line.expected_reserved_quantity)}</td>
+      <td>
+        <input
+          type="number"
+          min="0"
+          max="999999999999.999"
+          step="0.001"
+          value={draft}
+          aria-label={"الكمية المعدودة " + line.product_name}
+          onChange={(event) => onDraftChange(line.product_id, event.target.value)}
+          disabled={busy}
+        />
+      </td>
+      <td>{formattedDelta}</td>
+      <td className="stock-count-no-print">
+        <button className="btn outline" onClick={() => onSave(line)} disabled={busy || savingAny}>
+          {saveLabel}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export function InventoryStockCountPage() {
   const { user } = useAuth();
   const canFinalize = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
@@ -181,12 +232,18 @@ export function InventoryStockCountPage() {
       <div className="report-grid"><article className="report-metric"><span>أصناف اللقطة</span><strong>{q(session.total_lines)}</strong></article><article className="report-metric"><span>تم حفظ عدها</span><strong>{q(counted)} / {q(lines.length)}</strong></article><article className="report-metric"><span>صافي الفروقات المسجلة</span><strong>{q(netVariance)}</strong></article></div>
       <p className="text-muted">رصيد اللقطة يمثل كمية النظام عند البداية. إذا تغيرت الأرصدة أو الحجوزات بعد اللقطة، سيرفض الخادم الإقفال بدل الكتابة فوق حركة أحدث.</p>
       <div style={{ overflowX: 'auto' }}><table><thead><tr><th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>رصيد اللقطة</th><th>محجوز</th><th>العد الفعلي</th><th>الفرق</th><th className="stock-count-no-print">حفظ</th></tr></thead><tbody>
-        {lines.map((line) => {
-          const draft = drafts[line.product_id] ?? (line.counted_quantity === null ? '' : String(line.counted_quantity));
-          const parsed = draft.trim() === '' ? null : Number(draft);
-          const delta = parsed === null || !Number.isFinite(parsed) ? line.variance : parsed - line.expected_quantity;
-          return <tr key={line.product_id}><td>{line.product_code}</td><td><strong>{line.product_name}</strong></td><td>{line.unit ?? '—'}</td><td>{q(line.expected_quantity)}</td><td>{q(line.expected_reserved_quantity)}</td><td><input type="number" min="0" max="999999999999.999" step="0.001" value={draft} aria-label={'الكمية المعدودة ' + line.product_name} onChange={(e) => setDrafts((cur) => ({ ...cur, [line.product_id]: e.target.value }))} disabled={busy} /></td><td>{delta == null || !Number.isFinite(delta) ? '—' : (delta > 0 ? '+' : '') + q(delta)}</td><td className="stock-count-no-print"><button className="btn outline" onClick={() => void save(line)} disabled={busy || savingLine !== null}>{savingLine === line.product_id ? 'جار الحفظ…' : line.counted_quantity === null ? 'حفظ العد' : 'تحديث العد'}</button></td></tr>;
-        })}
+        {lines.map((line) => (
+          <StockCountLineRow
+            key={line.product_id}
+            line={line}
+            draft={drafts[line.product_id] ?? (line.counted_quantity === null ? "" : String(line.counted_quantity))}
+            busy={busy}
+            saving={savingLine === line.product_id}
+            savingAny={savingLine !== null}
+            onDraftChange={(productId, value) => setDrafts((current) => ({ ...current, [productId]: value }))}
+            onSave={(row) => void save(row)}
+          />
+        ))}
       </tbody></table></div>
       {!lines.length && <p className="text-muted">لا توجد أصناف في لقطة الجرد؛ لا تُستخدم بيانات تجريبية.</p>}
       <div className="toolbar-actions stock-count-no-print" style={{ marginTop: 16 }}><button className="btn primary" onClick={() => void finalize()} disabled={busy || !canFinalize || !lines.length || counted !== lines.length}><ShieldCheck size={16} /> {canFinalize ? 'اعتماد الجرد وتطبيق الفروقات' : 'بانتظار اعتماد المدير'}</button>{!canFinalize && <span className="text-muted">يمكنك إدخال العد؛ الإقفال النهائي محصور بالمدير أو مدير النظام.</span>}</div>
