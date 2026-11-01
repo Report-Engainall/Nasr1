@@ -10,7 +10,7 @@
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, relative, resolve, sep } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
 const MAX_CONTROL_FLOW_DEPTH = 5;
