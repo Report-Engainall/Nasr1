@@ -44,6 +44,42 @@ function makeSession(id: string, displayName: string, current: boolean) {
   };
 }
 
+type DeviceSession = ReturnType<typeof makeSession>;
+
+function createSingleSessionRpc(
+  readSessions: () => DeviceSession[],
+  writeSessions: (next: DeviceSession[]) => void,
+) {
+  return async (name: string, args?: Record<string, unknown>) => {
+    switch (name) {
+      case "list_organization_sessions":
+        return { data: readSessions(), error: null };
+      case "revoke_organization_session": {
+        const sessionId = args?.p_session_id;
+        if (typeof sessionId !== "string") {
+          return { data: null, error: { message: "session not found" } };
+        }
+        const currentSessions = readSessions();
+        const selectedSession = currentSessions.find((row) => row.session_id === sessionId);
+        if (!selectedSession) {
+          return { data: null, error: { message: "session not found" } };
+        }
+        writeSessions(currentSessions.filter((row) => row.session_id !== sessionId));
+        return {
+          data: {
+            session_id: sessionId,
+            revoked: true,
+            revoked_at: "2026-10-23T10:16:00.000Z",
+          },
+          error: null,
+        };
+      }
+      default:
+        return { data: null, error: { message: "unexpected RPC" } };
+    }
+  };
+}
+
 describe('central device and session management', () => {
   let root: Root | undefined;
   let host: HTMLDivElement | undefined;
@@ -65,18 +101,10 @@ describe('central device and session management', () => {
     mocks.getSession.mockResolvedValue({ data: { session: authSession }, error: null });
     mocks.signOut.mockResolvedValue({ error: null });
     mocks.useAuth.mockReturnValue({ user: { profileId: 'admin-profile', roles: ['admin'] } });
-    mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
-      if (name === 'list_organization_sessions') return { data: sessions, error: null };
-      if (name === 'revoke_organization_session') {
-        const id = args?.p_session_id;
-        if (typeof id !== 'string' || !sessions.some((row) => row.session_id === id)) {
-          return { data: null, error: { message: 'session not found' } };
-        }
-        sessions = sessions.filter((row) => row.session_id !== id);
-        return { data: { session_id: id, revoked: true, revoked_at: '2026-10-23T10:16:00.000Z' }, error: null };
-      }
-      return { data: null, error: { message: 'unexpected RPC' } };
-    });
+    mocks.rpc.mockImplementation(createSingleSessionRpc(
+      () => sessions,
+      (nextSessions) => { sessions = nextSessions; },
+    ));
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
