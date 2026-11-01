@@ -66,7 +66,7 @@ async function defaultFinanceRpcImplementation(name: string) {
     return { data: FINANCE_DATA, error: null };
   }
   if (name === "record_customer_payment") {
-    return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
+    return AMBIGUOUS_PAYMENT_SUCCESS;
   }
   if (name === "fetch_staff_receivables_aging") {
     return {
@@ -284,9 +284,9 @@ describe("StaffFinancePage payment amount guard", () => {
       if (name === "record_customer_payment") {
         paymentAttempts += 1;
         if (paymentAttempts === 1) {
-          return { data: null, error: { message: "network response was lost" } };
+          return AMBIGUOUS_PAYMENT_FAILURE;
         }
-        return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
+        return AMBIGUOUS_PAYMENT_SUCCESS;
       }
       return defaultImplementation(name, ...args);
     });
