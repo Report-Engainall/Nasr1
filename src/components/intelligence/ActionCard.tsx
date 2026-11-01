@@ -103,8 +103,7 @@ export function ActionCard({
  onContinue,
  onOpenEvidence,
 }:ActionCardProps) {
- const stateView=ActionCardStateView({state,errorMessage,onRetry});
- if(stateView)return stateView;
+ if(state!=="ready")return <ActionCardStateView state={state} errorMessage={errorMessage} onRetry={onRetry}/>;
  if(!decision)return <div role="status" dir="rtl" className="rounded-xl border p-4 text-sm">لا توجد بطاقة قرار لعرضها.</div>;
 
  return (
