@@ -234,6 +234,13 @@ function clickButton(host: HTMLElement, selector: string, index = 0) {
   act(() => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 
+function rejectCustomerPricingRpc(name: string) {
+  if (name === "preview_customer_order_pricing") {
+    return { data: null, error: { message: "pricing unavailable" } };
+  }
+  return { data: null, error: null };
+}
+
 describe("customer price visibility UI acceptance", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -393,12 +400,7 @@ describe("customer price visibility UI acceptance", () => {
     expect(malformed.host.textContent).not.toContain(formatServerAmount(2468));
     await unmount(malformed);
 
-    mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "preview_customer_order_pricing") {
-        return { data: null, error: { message: "pricing unavailable" } };
-      }
-      return { data: null, error: null };
-    });
+    mocks.rpc.mockImplementation(rejectCustomerPricingRpc);
     const failed = await mountAt("/cart");
     await flushEffects();
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");

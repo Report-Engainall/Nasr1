@@ -74,6 +74,19 @@ function makeQuery(table: string) {
   return query;
 }
 
+const CUSTOMER_PRINT_ADDRESS = {
+  label: "عنوان العميل",
+  recipient_name: "مستلم الطلب",
+  phone: "777000111",
+  address_line1: "شارع التجارة",
+  address_line2: null,
+  city: "صنعاء",
+  region: "الأمانة",
+  postal_code: null,
+  country: "اليمن",
+  delivery_instructions: "الاتصال قبل الوصول",
+};
+
 describe("customer order detail real route acceptance", () => {
   let root: Root | undefined;
   let host: HTMLDivElement | undefined;
@@ -172,12 +185,7 @@ describe("customer order detail real route acceptance", () => {
         customer_adjustment_note: "تم تعديل الكمية.",
         customer_payment_requested_at: "2026-10-31T09:10:00.000Z",
         customer_confirmed_at: "2026-10-31T09:00:00.000Z", payment_request_status: "requested",
-        delivery_address_snapshot: {
-          label: "عنوان العميل", recipient_name: "مستلم الطلب", phone: "777000111",
-          address_line1: "شارع التجارة", address_line2: null, city: "صنعاء",
-          region: "الأمانة", postal_code: null, country: "اليمن",
-          delivery_instructions: "الاتصال قبل الوصول",
-        },
+        delivery_address_snapshot: CUSTOMER_PRINT_ADDRESS,
       }], error: null },
       order_items: { data: [{
         id: "PRIVATE-LINE-ID", product_id: "PRIVATE-PRODUCT-ID", item_code: "000041",

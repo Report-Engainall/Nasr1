@@ -58,6 +58,23 @@ async function responseBody(response: Response): Promise<unknown> {
   return value;
 }
 
+function createBatchExecutionRpc(events: string[]): Rpc {
+  return async (
+    procedure: Parameters<Rpc>[0],
+    parameters: Parameters<Rpc>[1],
+  ) => {
+    if (procedure === "claim_outbox_events") {
+      return { data: events.map((id) => ({ id })), error: null };
+    }
+    if (procedure !== "process_outbox_event") return { data: null, error: null };
+
+    const id = parameters.p_event_id;
+    if (id === "processed-event") return { data: { status: "processed" }, error: null };
+    if (id === "retry-event") return { data: { status: "retry" }, error: null };
+    return { data: { status: "dead_letter" }, error: null };
+  };
+}
+
 describe("outbox worker HTTP boundary", () => {
   it("rejects non-POST methods before reading credentials or claiming work", async () => {
     const harness = createHarness();
@@ -119,24 +136,7 @@ describe("outbox worker HTTP boundary", () => {
 describe("outbox worker batch execution", () => {
   it("uses the default batch size and preserves sequential terminal outcome counts", async () => {
     const events = ["processed-event", "retry-event", "dead-event"];
-    const harness = createHarness({
-      rpc: async (procedure, parameters) => {
-        if (procedure === "claim_outbox_events") {
-          return {
-            data: events.map((id) => ({ id })),
-            error: null,
-          };
-        }
-        if (procedure === "process_outbox_event") {
-          const id = parameters.p_event_id;
-          const status = id === "processed-event"
-            ? "processed"
-            : id === "retry-event" ? "retry" : "dead_letter";
-          return { data: { status }, error: null };
-        }
-        return { data: null, error: null };
-      },
-    });
+    const harness = createHarness({ rpc: createBatchExecutionRpc(events) });
 
     const response = await harness.handler(authorizedRequest(""));
     expect(response.status).toBe(200);

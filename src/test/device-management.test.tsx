@@ -55,6 +55,19 @@ describe('central device and session management', () => {
     user: { email: 'admin@example.test' },
   };
 
+  async function resolveDeviceManagementRpc(name: string, args?: Record<string, unknown>) {
+    if (name === 'list_organization_sessions') return { data: sessions, error: null };
+    if (name !== 'revoke_organization_session') {
+      return { data: null, error: { message: 'unexpected RPC' } };
+    }
+    const id = args?.p_session_id;
+    if (typeof id !== 'string' || !sessions.some((row) => row.session_id === id)) {
+      return { data: null, error: { message: 'session not found' } };
+    }
+    sessions = sessions.filter((row) => row.session_id !== id);
+    return { data: { session_id: id, revoked: true, revoked_at: '2026-10-23T10:16:00.000Z' }, error: null };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -65,18 +78,7 @@ describe('central device and session management', () => {
     mocks.getSession.mockResolvedValue({ data: { session: authSession }, error: null });
     mocks.signOut.mockResolvedValue({ error: null });
     mocks.useAuth.mockReturnValue({ user: { profileId: 'admin-profile', roles: ['admin'] } });
-    mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
-      if (name === 'list_organization_sessions') return { data: sessions, error: null };
-      if (name === 'revoke_organization_session') {
-        const id = args?.p_session_id;
-        if (typeof id !== 'string' || !sessions.some((row) => row.session_id === id)) {
-          return { data: null, error: { message: 'session not found' } };
-        }
-        sessions = sessions.filter((row) => row.session_id !== id);
-        return { data: { session_id: id, revoked: true, revoked_at: '2026-10-23T10:16:00.000Z' }, error: null };
-      }
-      return { data: null, error: { message: 'unexpected RPC' } };
-    });
+    mocks.rpc.mockImplementation(resolveDeviceManagementRpc);
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);

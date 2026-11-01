@@ -128,6 +128,11 @@ function clickButton(host: HTMLElement, selector: string, index: number) {
   });
 }
 
+function resolveOfflineCheckoutValidationRpc(name: string) {
+  if (name === "validate_checkout_cart") return { data: null, error: { message: "offline" } };
+  return { data: null, error: null };
+}
+
 describe("customer storefront saved discovery", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -357,10 +362,7 @@ describe("customer storefront saved discovery", () => {
       window.localStorage.setItem("aghbari:cart:v2:customer:customer-b", JSON.stringify([
         { product_id: "product-2", quantity: 1, line_total: 1200 },
       ]));
-      mocks.rpc.mockImplementation(async (name: string) => {
-        if (name === "validate_checkout_cart") return { data: null, error: { message: "offline" } };
-        return { data: null, error: null };
-      });
+      mocks.rpc.mockImplementation(resolveOfflineCheckoutValidationRpc);
 
       const cart = await mountAt("/cart");
       expect(cart.host.textContent).toContain("أنت غير متصل حاليًا");

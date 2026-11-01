@@ -21,28 +21,24 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
+function resolveUseFetchResult(fetcher: unknown) {
+  if (fetcher === mocks.fetchDashboardStats) {
+    return {
+      data: { totalSales: 0, orderCount: 0, lowStockCount: 0 },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+  }
+  if (fetcher === mocks.fetchProducts || fetcher === mocks.fetchOrders) {
+    return { data: [], loading: false, error: null, refetch: vi.fn() };
+  }
+  return { data: [], loading: false, error: null, refetch: vi.fn() };
+}
+
 vi.mock("@/lib/useFetch", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/useFetch")>();
-  return {
-    ...actual,
-    useFetch: (fetcher: unknown) => {
-      if (fetcher === mocks.fetchDashboardStats) {
-        return {
-          data: { totalSales: 0, orderCount: 0, lowStockCount: 0 },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-        };
-      }
-      if (fetcher === mocks.fetchProducts) {
-        return { data: [], loading: false, error: null, refetch: vi.fn() };
-      }
-      if (fetcher === mocks.fetchOrders) {
-        return { data: [], loading: false, error: null, refetch: vi.fn() };
-      }
-      return { data: [], loading: false, error: null, refetch: vi.fn() };
-    },
-  };
+  return { ...actual, useFetch: resolveUseFetchResult };
 });
 
 vi.mock("@/lib/auth", async (importOriginal) => {
