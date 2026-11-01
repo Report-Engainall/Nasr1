@@ -26,7 +26,9 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 def git_blob_sha1(data):
-    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
+    # Git object identity compatibility only; this is not used for a security signature.
+    # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data, usedforsecurity=False).hexdigest()
 
 def sensitive(name):
     p = PurePosixPath(name)
@@ -132,12 +134,14 @@ def download(spec):
         SOURCE_REPO, SOURCE_COMMIT,
         "incoming-archives/nasr1-bolt-recovery-2026-10-17", name
     )
+    if not url.startswith("https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/"):
+        raise ValueError("archive URL must use the pinned GitHub raw repository")
     last = ""
     for attempt in range(1, 4):
         print("DOWNLOAD_ATTEMPT archive={} attempt={} url={}".format(name, attempt, url), flush=True)
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Nasr1-Bolt-Reconciliation/1.0"})
-            with urllib.request.urlopen(req, timeout=45) as response:
+            # URL is built only from fixed repository, commit, and archive constants above.\n            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected\n            with urllib.request.urlopen(req, timeout=45) as response:
                 data = read_bounded_response(response, size)
                 print("DOWNLOAD_RESPONSE archive={} status={} bytes={} content_type={}".format(
                     name, response.status, len(data), response.headers.get("Content-Type", "")), flush=True)
