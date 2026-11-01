@@ -394,6 +394,110 @@ describe('commerce completion utilities', () => {
       .toThrow('قاعدة enum');
   });
 
+  it('bounds input length before running safe import patterns', () => {
+    const raw = validateCsvRow(['a'.repeat(4097)], ['name'], 2);
+    const result = applyImportProfileRules(raw, [], [
+      { field: 'name', rule: 'safe_pattern', value: '^a+
+    expect(normalizeArabicSearchText('إِبْرَاهِيمـ ى')).toBe('ابراهيم ي');
+    expect(normalizeArabicSearchText('آلـرُزّ')).toBe('الرز');
+  });
+
+  it('supports Arabic name prefixes and one-character fuzzy matching', () => {
+    const product = { name: 'أرز بسمتي فاخر', item_code: '000125', barcode: '6281234567890' };
+    expect(matchesArabicCatalogSearch(product, 'ارز بسم')).toBe(true);
+    expect(matchesArabicCatalogSearch({ name: 'Sugar white', item_code: 'SUG-001' }, 'sugr white')).toBe(true);
+    expect(matchesArabicCatalogSearch({ name: 'Sugar white', item_code: 'SUG-001' }, 'sugrrrr white')).toBe(false);
+  });
+
+  it('matches SKU and barcode exactly or by prefix without fuzzy identifier matches', () => {
+    const product = { name: 'Rice', item_code: '000125', barcode: '6281234567890' };
+    expect(matchesArabicCatalogSearch(product, '000125')).toBe(true);
+    expect(matchesArabicCatalogSearch(product, '0001')).toBe(true);
+    expect(matchesArabicCatalogSearch(product, '628123')).toBe(true);
+    expect(matchesArabicCatalogSearch(product, '000126')).toBe(false);
+    expect(matchesArabicCatalogSearch(product, '')).toBe(true);
+  });
+
+  it('keeps customer assistant order and invoice summaries free of monetary fields', () => {
+    const order = {
+      order_number: 'AG-1042',
+      status: 'pending',
+      created_at: '2026-10-09T10:30:00Z',
+      total_amount: '987654.32',
+    };
+    const orderText = summarizeCustomerOrderStatuses([order], (date) => date.slice(0, 10));
+    expect(orderText).toContain('AG-1042 — بانتظار المراجعة — 2026-10-09');
+    expect(orderText).not.toContain('987654.32');
+    expect(orderText).not.toMatch(/إجمالي|ريال|ر\.ي/);
+
+    const invoice = {
+      invoice_number: 'INV-73',
+      status: 'unpaid',
+      issued_at: '2026-10-08T08:00:00Z',
+      total_amount: '123456.78',
+      subtotal: '120000',
+    };
+    const invoiceText = summarizeCustomerInvoiceStatuses([invoice], (date) => date.slice(0, 10));
+    expect(invoiceText).toContain('INV-73 — مستحقة — 2026-10-08');
+    expect(invoiceText).toContain('كشف الحساب');
+    expect(invoiceText).not.toContain('123456.78');
+    expect(invoiceText).not.toContain('120000');
+    expect(invoiceText).not.toMatch(/إجمالي الفواتير|المتبقي المستحق|ريال|ر\.ي/);
+  });
+
+  it('classifies common Arabic questions to evidence-backed actions', () => {
+    expect(classifyAssistantIntent('أين فاتورتي؟')).toBe('invoice_help');
+    expect(classifyAssistantIntent('ما حالة طلبي؟')).toBe('order_status');
+    expect(classifyAssistantIntent('هل يوجد مخزون من السكر؟')).toBe('catalog_search');
+    expect(classifyAssistantIntent('كيف أستخدمه بدون اتصال؟')).toBe('offline_help');
+  });
+  it('uses full-ledger payment and posted-credit aggregates without double-counting bounded payment details', () => {
+    const invoice = {
+      id: 'invoice-credit-1', total_amount: '500.00', currency: 'YER', status: 'issued',
+      paid_amount: '100.00', credit_memo_amount: '125.00', outstanding_amount: '275.00',
+    };
+    const payments = [{ invoice_id: 'invoice-credit-1', amount: '100.00' }];
+    expect(summarizeInvoiceAmounts(invoice, payments)).toEqual({
+      valid: true, currency: 'YER', total: 500, paid: 100, credited: 125, outstanding: 275,
+    });
+    expect(summarizeAccount([invoice], payments)).toEqual({
+      valid: true, currencies: [{ currency: 'YER', invoiced: 500, paid: 100, credited: 125, outstanding: 275 }],
+    });
+  });
+
+  it('uses the server authoritative full-ledger currency summary instead of summing truncated detail rows', () => {
+    expect(summarizeAccount(
+      [{ id: 'latest-only', total_amount: '500.00', currency: 'YER', paid_amount: '100.00', credit_memo_amount: '25.00', outstanding_amount: '375.00' }],
+      [{ invoice_id: 'latest-only', amount: '100.00' }],
+      [{ currency: 'YER', invoiced: '1500.00', paid: '200.00', credited: '125.00', outstanding: '1175.00',
+        overdue_invoice_count: 1, overdue_outstanding: '200.00',
+        unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: '0.00' }],
+    )).toEqual({
+      valid: true,
+      currencies: [{ currency: 'YER', invoiced: 1500, paid: 200, credited: 125, outstanding: 1175 }],
+    });
+    expect(summarizeAccount([], [], [{ currency: 'YER', invoiced: 'bad', paid: '0.00', credited: '0.00', outstanding: '0.00',
+      overdue_invoice_count: 0, overdue_outstanding: '0.00', unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: '0.00' }]))
+      .toEqual({ valid: false, currencies: [] });
+  });
+
+  it('validates statement credit details, rejects duplicate source rows, and flags detail truncation', () => {
+    const credit = { id: 'credit-1', invoice_id: 'invoice-1', invoice_number: 'INV-0001',
+      memo_number: 'CRM-0001', currency: 'YER', total_amount: '125.00', posted_at: '2026-10-22T10:00:00Z' };
+    expect(parseCustomerStatementCreditMemos([credit])).toEqual([credit]);
+    expect(() => parseCustomerStatementCreditMemos([credit, credit])).toThrow(/بيانات مالية غير صالحة/);
+    expect(() => parseCustomerStatementCreditMemos([{ ...credit, total_amount: '-1.00' }])).toThrow(/بيانات مالية غير صالحة/);
+    expect(() => parseCustomerStatementCreditMemos({ credits: [credit] })).toThrow(/قائمة الإشعارات/);
+    expect(isCustomerStatementPossiblyPartial(0, 0, 500)).toBe(true);
+  });
+
+});
+ },
+    ]);
+    expect(result.status).toBe('rejected');
+    expect(result.errors).toContain('قاعدة التحقق safe_pattern فشلت للحقل name');
+  });
+
   it('normalizes Arabic diacritics, tatweel, alef forms and alif maqsura', () => {
     expect(normalizeArabicSearchText('إِبْرَاهِيمـ ى')).toBe('ابراهيم ي');
     expect(normalizeArabicSearchText('آلـرُزّ')).toBe('الرز');
