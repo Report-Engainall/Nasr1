@@ -135,8 +135,8 @@ jobs:
             process.stderr.write = originalStderr;
           }
 
-          const infoRecords = stdout.trim().split(/\\r?\\n/).map((line) => JSON.parse(line));
-          const errorRecords = stderr.trim().split(/\\r?\\n/).map((line) => JSON.parse(line));
+          const infoRecords = stdout.trim().split(/\r?\n/).map((line) => JSON.parse(line));
+          const errorRecords = stderr.trim().split(/\r?\n/).map((line) => JSON.parse(line));
           assert.ok(infoRecords.length >= 2, "expected independent INFO JSONL records");
           assert.equal(errorRecords.length, 2, "expected one JSONL record per logError call");
           assert.ok(infoRecords.every((record) => record.level === "INFO"));
@@ -168,8 +168,8 @@ jobs:
             "fixture-query-oauth-code",
             "fixture-fragment-token",
           ]) assert.equal(output.includes(secret), false, "logger leaked " + secret);
-          assert.match(error.errors[1].message, /\[REDACTED\]/);
-          assert.match(error.errors[1].stack, /\[REDACTED\]/);
+          assert.match(sensitiveError.message, /\[REDACTED\]/);
+          assert.match(sensitiveError.stack, /\[REDACTED\]/);
           assert.match(output, /access_token=\[REDACTED\]/);
           assert.match(output, /refresh_token=\[REDACTED\]/);
           assert.match(output, /client_secret=\[REDACTED\]/);
