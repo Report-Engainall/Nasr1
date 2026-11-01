@@ -498,7 +498,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
-  function addToCart(product: ProductWithInventory) {
+  function addToCart(product: ProductWithInventory, requestedQuantity?: number) {
     const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
       ? Number(product.min_order_quantity) : 1;
     const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
@@ -506,10 +506,19 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     const available = typeof product.inventory?.quantity_available === 'number' && Number.isFinite(product.inventory.quantity_available)
       ? Math.max(0, Math.floor(product.inventory.quantity_available))
       : null;
+    const explicitQuantityValid = requestedQuantity === undefined || (
+      Number.isSafeInteger(requestedQuantity) &&
+      requestedQuantity >= minimum &&
+      (requestedQuantity - minimum) % multiple === 0
+    );
+    if (!explicitQuantityValid) {
+      setCartActionNotice(`الكمية المطلوبة يجب أن تبدأ من الحد الأدنى (${minimum}) وتزيد بمضاعف (${multiple}) ${product.unit}.`);
+      return;
+    }
     const currentQuantity = cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
-    const nextQuantity = nextOrderQuantity(currentQuantity, minimum, multiple);
+    const nextQuantity = requestedQuantity ?? nextOrderQuantity(currentQuantity, minimum, multiple);
     if (available !== null && nextQuantity > available) {
-      setCartActionNotice(`لا يمكن إضافة «${product.name}»: الكمية التالية (${nextQuantity}) تتجاوز المتاح (${available} ${product.unit}).`);
+      setCartActionNotice(`لا يمكن إضافة «${product.name}»: الكمية المطلوبة (${nextQuantity}) تتجاوز المتاح (${available} ${product.unit}).`);
       return;
     }
 
@@ -517,7 +526,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       const latestCurrentQuantity = existing?.quantity ?? 0;
-      const latestNextQuantity = nextOrderQuantity(latestCurrentQuantity, minimum, multiple);
+      const latestNextQuantity = requestedQuantity ?? nextOrderQuantity(latestCurrentQuantity, minimum, multiple);
       // Re-check inside the state update so rapid repeated clicks cannot overshoot stock.
       if (available !== null && latestNextQuantity > available) return prev;
       if (existing) {
@@ -525,7 +534,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           ? { ...item, quantity: latestNextQuantity }
           : item);
       }
-      return [...prev, { product, quantity: minimum }];
+      return [...prev, { product, quantity: latestNextQuantity }];
     });
   }
   function updateQty(productId: string, delta: number) {
@@ -807,7 +816,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         {savedListNotice && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>{savedListNotice}</div>}
         {user?.profileId && wishlistSyncState === 'pending' && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>بعض تغييرات المفضلة لم تصل إلى الخادم بعد؛ حُفظت في هذا الجهاز وستُعاد مزامنتها عند عودة الاتصال أو استقرار الجلسة.</div>}
         {view === 'product' && (selectedProduct
-          ? <ProductDetail product={selectedProduct} priceVisibilityPolicy={settings?.show_price_on_cards} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} onBack={() => void navigate({ to: '/' })} onAdd={() => addToCart(selectedProduct)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
+          ? <ProductDetail product={selectedProduct} priceVisibilityPolicy={settings?.show_price_on_cards} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} initialQuantity={cart.find((item) => item.product.id === selectedProduct.id)?.quantity ?? null} onBack={() => void navigate({ to: '/' })} onAdd={(quantity) => addToCart(selectedProduct, quantity)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
@@ -981,6 +990,7 @@ export function ProductDetail({
   priceVisibilityPolicy,
   inWishlist,
   inCompare,
+  initialQuantity,
   onBack,
   onAdd,
   onWishlist,
@@ -990,19 +1000,42 @@ export function ProductDetail({
   priceVisibilityPolicy: unknown;
   inWishlist: boolean;
   inCompare: boolean;
+  initialQuantity: number | null;
   onBack: () => void;
-  onAdd: () => void;
+  onAdd: (quantity: number) => void;
   onWishlist: () => void;
   onCompare: () => void;
 }) {
   const rawAvailableQuantity = product.inventory?.quantity_available;
   const quantityKnown = typeof rawAvailableQuantity === 'number' &&
     Number.isFinite(rawAvailableQuantity) && rawAvailableQuantity >= 0;
-  const quantity = quantityKnown ? Math.floor(rawAvailableQuantity) : 0;
+  const availableQuantity = quantityKnown ? Math.floor(rawAvailableQuantity) : 0;
   const minimumOrderQuantity = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
     ? Number(product.min_order_quantity) : 1;
-  const belowMinimum = quantityKnown && quantity > 0 && quantity < minimumOrderQuantity;
+  const quantityMultiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+    ? Number(product.order_quantity_multiple) : 1;
+  const belowMinimum = quantityKnown && availableQuantity > 0 && availableQuantity < minimumOrderQuantity;
+  const [requestedQuantity, setRequestedQuantity] = useState(minimumOrderQuantity);
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
+  const requestedQuantityValid = Number.isSafeInteger(requestedQuantity) &&
+    requestedQuantity >= minimumOrderQuantity &&
+    (requestedQuantity - minimumOrderQuantity) % quantityMultiple === 0 &&
+    requestedQuantity <= availableQuantity;
+
+  useEffect(() => {
+    const startingQuantity = initialQuantity ?? minimumOrderQuantity;
+    const cappedQuantity = quantityKnown ? Math.min(availableQuantity, startingQuantity) : minimumOrderQuantity;
+    const steps = Math.max(0, Math.floor((cappedQuantity - minimumOrderQuantity) / quantityMultiple));
+    setRequestedQuantity(minimumOrderQuantity + steps * quantityMultiple);
+  }, [product.id, initialQuantity, minimumOrderQuantity, quantityMultiple, quantityKnown, availableQuantity]);
+
+  function normalizeRequestedQuantity(value: string) {
+    const parsed = Number.parseInt(value, 10);
+    const safeValue = Number.isFinite(parsed) ? parsed : minimumOrderQuantity;
+    const capped = Math.min(availableQuantity, Math.max(minimumOrderQuantity, safeValue));
+    const steps = Math.floor((capped - minimumOrderQuantity) / quantityMultiple);
+    setRequestedQuantity(minimumOrderQuantity + Math.max(0, steps) * quantityMultiple);
+  }
 
   return (
     <section className="sf-product-detail">
@@ -1026,17 +1059,51 @@ export function ProductDetail({
             className="sf-detail-price"
             unitLabel={`لكل ${product.unit}`}
           />
-          <div className={`sf-detail-stock ${quantityKnown && quantity > 0 && !belowMinimum ? 'available' : 'unavailable'}`} role="status" aria-live="polite">
+          <div className={`sf-detail-stock ${quantityKnown && availableQuantity > 0 && !belowMinimum ? 'available' : 'unavailable'}`} role="status" aria-live="polite">
             {!quantityKnown
               ? 'تعذر التحقق من الكمية المتاحة لهذا المنتج. أعد تحميل تفاصيل المنتج قبل الإضافة.'
-              : quantity <= 0
+              : availableQuantity <= 0
                 ? 'هذا المنتج غير متوفر حالياً'
                 : belowMinimum
-                  ? `المتوفر (${formatNumber(quantity)} ${product.unit}) أقل من الحد الأدنى للطلب (${formatNumber(minimumOrderQuantity)} ${product.unit})`
-                  : `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}`}
+                  ? `المتوفر (${formatNumber(availableQuantity)} ${product.unit}) أقل من الحد الأدنى للطلب (${formatNumber(minimumOrderQuantity)} ${product.unit})`
+                  : `متوفر حالياً: ${formatNumber(availableQuantity)} ${product.unit}`}
           </div>
+          {quantityKnown && availableQuantity > 0 && !belowMinimum ? (
+            <div className="sf-detail-quantity" role="group" aria-label="اختيار كمية الطلب" style={{ display: 'grid', gap: 7, maxWidth: 300, marginBottom: 16 }}>
+              <label htmlFor="sf-product-requested-quantity" style={{ fontSize: 13, fontWeight: 700 }}>الكمية المطلوبة ({product.unit})</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  className="sf-btn-secondary"
+                  aria-label="تقليل كمية الطلب"
+                  disabled={requestedQuantity <= minimumOrderQuantity}
+                  onClick={() => setRequestedQuantity((value) => Math.max(minimumOrderQuantity, value - quantityMultiple))}
+                ><Minus size={16} /></button>
+                <input
+                  id="sf-product-requested-quantity"
+                  type="number"
+                  inputMode="numeric"
+                  min={minimumOrderQuantity}
+                  max={availableQuantity}
+                  step={quantityMultiple}
+                  value={requestedQuantity}
+                  aria-label="كمية الطلب"
+                  onChange={(event) => normalizeRequestedQuantity(event.currentTarget.value)}
+                  style={{ width: 100, minHeight: 40, textAlign: 'center', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, padding: 6 }}
+                />
+                <button
+                  type="button"
+                  className="sf-btn-secondary"
+                  aria-label="زيادة كمية الطلب"
+                  disabled={requestedQuantity + quantityMultiple > availableQuantity}
+                  onClick={() => setRequestedQuantity((value) => Math.min(availableQuantity, value + quantityMultiple))}
+                ><Plus size={16} /></button>
+              </div>
+              <small className="text-muted">الحد الأدنى {formatNumber(minimumOrderQuantity)}، والزيادة بمضاعف {formatNumber(quantityMultiple)}، والمتاح {formatNumber(availableQuantity)}.</small>
+            </div>
+          ) : null}
           <div className="sf-detail-actions">
-            <button type="button" className="sf-btn-primary" disabled={!quantityKnown || quantity < minimumOrderQuantity} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
+            <button type="button" className="sf-btn-primary" disabled={!requestedQuantityValid || !quantityKnown || belowMinimum} onClick={() => onAdd(requestedQuantity)}><ShoppingCart size={17} /> إضافة إلى السلة</button>
             <button type="button" className={`sf-icon-action ${inWishlist ? 'active' : ''}`} aria-pressed={inWishlist} onClick={onWishlist}>
               <Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}
             </button>
