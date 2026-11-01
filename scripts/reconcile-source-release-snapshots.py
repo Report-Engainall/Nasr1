@@ -315,15 +315,8 @@ def inspect_snapshot_members(
     return len(infos), total, selected_count, integrity_status, status, selected_total
 
 
-def audit_snapshot(
-    spec: dict[str, object],
-    temp_root: Path,
-    selected_total: int,
-    members: list[dict[str, object]],
-    errors: list[str],
-) -> tuple[dict[str, object], dict[str, dict[str, object]], int]:
-    url = str(spec.get("url") or f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}")
-    row: dict[str, object] = {
+def build_snapshot_audit_row(spec: dict[str, object], url: str) -> dict[str, object]:
+    return {
         "snapshot_id": spec["id"],
         "tag": spec["tag"],
         "tag_commit": spec["tag_commit"],
@@ -341,38 +334,66 @@ def audit_snapshot(
         "status": "",
         "exact_error": "",
     }
+
+
+def record_snapshot_download(spec: dict[str, object], data: bytes, row: dict[str, object]) -> None:
+    row["actual_bytes"] = len(data)
+    row["actual_sha256"] = sha256(data)
+    row["download_status"] = "DOWNLOADED"
+    print(
+        f"SNAPSHOT_BYTES id={spec['id']} actual_bytes={len(data)} sha256={row['actual_sha256']}",
+        flush=True,
+    )
+    if len(data) != spec["bytes"]:
+        raise ValueError(f"asset size mismatch:{len(data)}!={spec['bytes']}")
+    if row["actual_sha256"] != spec["sha256"]:
+        raise ValueError("asset SHA-256 mismatch")
+
+
+def apply_snapshot_inspection(row: dict[str, object], inspection: tuple) -> None:
+    member_count, uncompressed_bytes, selected_count, integrity_status, status, _ = inspection
+    row["member_count"] = member_count
+    row["uncompressed_bytes"] = uncompressed_bytes
+    row["integrity_status"] = integrity_status
+    row["status"] = status
+    row["selected_source_extract_count"] = selected_count
+
+
+def record_snapshot_audit_failure(
+    spec: dict[str, object], url: str, error: Exception,
+    row: dict[str, object], errors: list[str],
+) -> None:
+    logging.warning("Snapshot archive validation failed for %s: %s", spec["id"], error, exc_info=True)
+    detail = f"{type(error).__name__}: {error}"
+    errors.append(f"{spec['id']}: {detail}")
+    row["status"] = "DOWNLOAD_OR_INTEGRITY_FAILED"
+    row["exact_error"] = detail
+    print(f"SNAPSHOT_ERROR id={spec['id']} url={url} error={detail}", flush=True)
+
+
+def audit_snapshot(
+    spec: dict[str, object],
+    temp_root: Path,
+    selected_total: int,
+    members: list[dict[str, object]],
+    errors: list[str],
+) -> tuple[dict[str, object], dict[str, dict[str, object]], int]:
+    url = str(spec.get("url") or f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}")
+    row = build_snapshot_audit_row(spec, url)
     by_path: dict[str, dict[str, object]] = {}
     try:
         data, final_url = download(spec)
         row["source_url"] = final_url
-        row["actual_bytes"] = len(data)
-        row["actual_sha256"] = sha256(data)
-        row["download_status"] = "DOWNLOADED"
-        print(f"SNAPSHOT_BYTES id={spec['id']} actual_bytes={len(data)} sha256={row['actual_sha256']}", flush=True)
-        if len(data) != spec["bytes"]:
-            raise ValueError(f"asset size mismatch:{len(data)}!={spec['bytes']}")
-        if row["actual_sha256"] != spec["sha256"]:
-            raise ValueError("asset SHA-256 mismatch")
-
+        record_snapshot_download(spec, data, row)
         snapshot_root = temp_root / str(spec["id"])
         with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
-            member_count, uncompressed_bytes, selected_count, integrity_status, status, selected_total = (
-                inspect_snapshot_members(
-                    archive, spec, snapshot_root, selected_total, by_path, members, errors
-                )
+            inspection = inspect_snapshot_members(
+                archive, spec, snapshot_root, selected_total, by_path, members, errors
             )
-        row["member_count"] = member_count
-        row["uncompressed_bytes"] = uncompressed_bytes
-        row["integrity_status"] = integrity_status
-        row["status"] = status
-        row["selected_source_extract_count"] = selected_count
+        apply_snapshot_inspection(row, inspection)
+        selected_total = inspection[5]
     except Exception as error:
-        logging.warning("Snapshot archive validation failed for %s: %s", spec["id"], error, exc_info=True)
-        detail = f"{type(error).__name__}: {error}"
-        errors.append(f"{spec['id']}: {detail}")
-        row["status"] = "DOWNLOAD_OR_INTEGRITY_FAILED"
-        row["exact_error"] = detail
-        print(f"SNAPSHOT_ERROR id={spec['id']} url={url} error={detail}", flush=True)
+        record_snapshot_audit_failure(spec, url, error, row, errors)
     row["selected_source_extract_count"] = row["selected_source_extract_count"] or 0
     return row, by_path, selected_total
 
@@ -512,6 +533,19 @@ def self_test() -> int:
             assert len(infos) == 1 and total == len(payload)
             digest, size = stream_member(archive, infos[0], None, Path(directory))
             assert digest == sha256(payload) and size == len(payload)
+    sample_bytes = archive_buffer.getvalue()
+    sample_spec = {
+        "id": "self-test",
+        "tag": "self-test",
+        "tag_commit": "abc123",
+        "name": "sample.zip",
+        "bytes": len(sample_bytes),
+        "sha256": sha256(sample_bytes),
+    }
+    audit_row = build_snapshot_audit_row(sample_spec, "https://example.invalid/sample.zip")
+    record_snapshot_download(sample_spec, sample_bytes, audit_row)
+    assert audit_row["download_status"] == "DOWNLOADED"
+    assert audit_row["actual_bytes"] == sample_spec["bytes"]
     print("SOURCE_RELEASE_SELF_TEST PASS: path safety, ZIP header limits, bounded member read and SHA-256", flush=True)
     return 0
 

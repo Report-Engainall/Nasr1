@@ -235,6 +235,15 @@ def self_test():
     with zipfile.ZipFile(io.BytesIO(b.getvalue())) as z:
         assert len(validate_zip(z)) == 1
         assert z.read("project/src/ok.ts") == b"export const ok = true;\n"
+    row = build_archive_row(ARCHIVES[0], "https://example.invalid/archive.zip")
+    assert row["archive_id"] == ARCHIVES[0][0]
+    failed_rows, errors = [], []
+    record_archive_download_failure(
+        ARCHIVES[0][1], "https://example.invalid/archive.zip", "offline",
+        row, failed_rows, errors,
+    )
+    assert failed_rows == [row] and row["status"] == "DOWNLOAD_FAILED"
+    assert "offline" in errors[0]
     print("SELF_TEST PASS: SHA-256, Git blob SHA-1, CRC/decompression, path traversal rejection", flush=True)
 
 
@@ -254,18 +263,9 @@ def collect_archive_members(infos, archive_id, archive_name, target_dir, member_
     return file_map, member_count
 
 
-def process_archive(
-    spec,
-    temp,
-    archive_rows,
-    member_rows,
-    errors,
-    content_by_archive,
-    review_text_by_archive,
-):
+def build_archive_row(spec, url):
     archive_id, name, expected_size, expected_blob = spec
-    data, url, download_error = download(spec)
-    row = {
+    return {
         "archive_id": archive_id,
         "observed_name": name,
         "reported_bytes": expected_size,
@@ -276,14 +276,18 @@ def process_archive(
         "extraction_directory": "",
         "notes": "",
     }
-    if data is None:
-        row["status"] = "DOWNLOAD_FAILED"
-        row["notes"] = "URL={}; exact_error={}; retries=3".format(url, download_error)
-        row["exact_error"] = download_error
-        archive_rows.append(row)
-        errors.append(name + " download failed: " + download_error)
-        return
 
+
+def record_archive_download_failure(name, url, download_error, row, archive_rows, errors):
+    row["status"] = "DOWNLOAD_FAILED"
+    row["notes"] = "URL={}; exact_error={}; retries=3".format(url, download_error)
+    row["exact_error"] = download_error
+    archive_rows.append(row)
+    errors.append(name + " download failed: " + download_error)
+
+
+def record_archive_download_metadata(spec, data, row, errors):
+    _, name, expected_size, expected_blob = spec
     actual_size = len(data)
     actual_hash = sha256(data)
     actual_blob = git_blob_sha1(data)
@@ -299,7 +303,50 @@ def process_archive(
         errors.append("{} size mismatch: {} != {}".format(name, actual_size, expected_size))
     if actual_blob != expected_blob:
         errors.append("{} Git blob SHA-1 mismatch: {} != {}".format(name, actual_blob, expected_blob))
+    return actual_size, actual_hash, actual_blob
 
+
+def record_archive_validation_success(row, name, infos, actual_size, actual_hash, actual_blob, member_count):
+    row["status"] = "DOWNLOADED_SHA256_CRC_AND_SAFE_EXTRACTION_PASS"
+    row["extraction_directory"] = "Temporary runner directory outside app; deleted at job end"
+    row["notes"] = (
+        "actual_bytes={}; sha256={}; actual_git_blob_sha1={}; members={}; "
+        "CRC/decompression PASS"
+    ).format(actual_size, actual_hash, actual_blob, member_count)
+    row["actual_bytes"] = actual_size
+    row["actual_blob_sha1"] = actual_blob
+    row["members"] = member_count
+    print(
+        "ZIP_VALIDATION_PASS name={} members={} total_uncompressed_bytes={}".format(
+            name, member_count, sum(info.file_size for info in infos)
+        ),
+        flush=True,
+    )
+
+
+def record_archive_validation_failure(name, error, row, errors):
+    logging.warning(
+        "Archive validation or safe extraction failed for %s: %s",
+        name,
+        error,
+        exc_info=True,
+    )
+    row["status"] = "INTEGRITY_OR_SAFE_EXTRACTION_FAILED"
+    row["exact_error"] = "{}: {}".format(type(error).__name__, error)
+    row["notes"] = row["exact_error"]
+    errors.append(name + " validation failed: " + row["exact_error"])
+    print(
+        "ZIP_VALIDATION_ERROR name={} error={}".format(name, row["exact_error"]),
+        flush=True,
+    )
+
+
+def validate_and_extract_archive(
+    spec, data, temp, row, member_rows, errors,
+    content_by_archive, review_text_by_archive,
+    actual_size, actual_hash, actual_blob,
+):
+    archive_id, name, _, _ = spec
     target_dir = temp / archive_id
     try:
         with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
@@ -315,36 +362,29 @@ def process_archive(
                 review_text_by_archive[archive_id],
             )
             content_by_archive[archive_id] = file_map
-            row["status"] = "DOWNLOADED_SHA256_CRC_AND_SAFE_EXTRACTION_PASS"
-            row["extraction_directory"] = "Temporary runner directory outside app; deleted at job end"
-            row["notes"] = (
-                "actual_bytes={}; sha256={}; actual_git_blob_sha1={}; members={}; "
-                "CRC/decompression PASS"
-            ).format(actual_size, actual_hash, actual_blob, member_count)
-            row["actual_bytes"] = actual_size
-            row["actual_blob_sha1"] = actual_blob
-            row["members"] = member_count
-            print(
-                "ZIP_VALIDATION_PASS name={} members={} total_uncompressed_bytes={}".format(
-                    name, member_count, sum(info.file_size for info in infos)
-                ),
-                flush=True,
+            record_archive_validation_success(
+                row, name, infos, actual_size, actual_hash, actual_blob, member_count
             )
     except Exception as error:
-        logging.warning(
-            "Archive validation or safe extraction failed for %s: %s",
-            name,
-            error,
-            exc_info=True,
-        )
-        row["status"] = "INTEGRITY_OR_SAFE_EXTRACTION_FAILED"
-        row["exact_error"] = "{}: {}".format(type(error).__name__, error)
-        row["notes"] = row["exact_error"]
-        errors.append(name + " validation failed: " + row["exact_error"])
-        print(
-            "ZIP_VALIDATION_ERROR name={} error={}".format(name, row["exact_error"]),
-            flush=True,
-        )
+        record_archive_validation_failure(name, error, row, errors)
+
+
+def process_archive(
+    spec, temp, archive_rows, member_rows, errors,
+    content_by_archive, review_text_by_archive,
+):
+    _, name, _, _ = spec
+    data, url, download_error = download(spec)
+    row = build_archive_row(spec, url)
+    if data is None:
+        record_archive_download_failure(name, url, download_error, row, archive_rows, errors)
+        return
+    actual_size, actual_hash, actual_blob = record_archive_download_metadata(spec, data, row, errors)
+    validate_and_extract_archive(
+        spec, data, temp, row, member_rows, errors,
+        content_by_archive, review_text_by_archive,
+        actual_size, actual_hash, actual_blob,
+    )
     archive_rows.append(row)
 
 
