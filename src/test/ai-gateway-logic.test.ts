@@ -53,6 +53,39 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
     });
   });
 
+  it("rejects payment cards, IBANs and provider credentials before any provider can receive them", () => {
+    expect(sanitizeAiQuestion("رقم البطاقة 4111111111111111")).toEqual({
+      ok: false, reason: "payment_card_rejected",
+    });
+    expect(sanitizeAiQuestion("حساب التحويل GB82 WEST 1234 5698 7654 3210 98")).toEqual({
+      ok: false, reason: "bank_account_or_iban_rejected",
+    });
+    expect(sanitizeAiQuestion("Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345")).toEqual({
+      ok: false, reason: "credential_or_secret_rejected",
+    });
+    expect(sanitizeAiQuestion("API_KEY=sk-proj-123456789012345678901234567890")).toEqual({
+      ok: false, reason: "credential_or_secret_rejected",
+    });
+    expect(sanitizeAiQuestion("SUPABASE_TOKEN=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.signaturepart123456")).toEqual({
+      ok: false, reason: "credential_or_secret_rejected",
+    });
+  });
+
+  it("blocks explicit personal or customer financial amounts while allowing general guidance without private values", () => {
+    expect(sanitizeAiQuestion("رصيد العميل ١٢٣٤٥ ريال يمني")).toEqual({
+      ok: false, reason: "sensitive_financial_value_rejected",
+    });
+    expect(sanitizeAiQuestion("Invoice total 175.50 USD")).toEqual({
+      ok: false, reason: "sensitive_financial_value_rejected",
+    });
+    expect(sanitizeAiQuestion("كيف أحسب هامش الربح؟")).toEqual({
+      ok: true, question: "كيف أحسب هامش الربح؟",
+    });
+    expect(sanitizeAiQuestion("ما الفرق بين الرصيد والفاتورة؟")).toEqual({
+      ok: true, question: "ما الفرق بين الرصيد والفاتورة؟",
+    });
+  });
+
   it("enforces length and non-empty request limits", () => {
     expect(sanitizeAiQuestion("  ")).toEqual({ ok: false, reason: "question_required" });
     expect(sanitizeAiQuestion("x".repeat(1201))).toEqual({ ok: false, reason: "question_too_long" });
