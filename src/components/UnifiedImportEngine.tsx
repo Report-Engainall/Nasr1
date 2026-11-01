@@ -52,6 +52,30 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function describeReconciledImportStatus(
+  reconciled: Awaited<ReturnType<typeof failImportJobSafely>>,
+): string {
+  const snapshotText = reconciled.snapshotId ? " • Snapshot " + reconciled.snapshotId : "";
+  if (reconciled.status === "completed" || reconciled.status === "completed_with_warnings") {
+    return "أكد الخادم أن الدفعة انتهت بالفعل بالحالة " + reconciled.status + snapshotText + ". لم تُعد العملية ولم تُكرر آثارها.";
+  }
+  return "أكد الخادم الحالة النهائية " + reconciled.status + " لهذه الدفعة. لم تتم إعادة اعتمادها تلقائيًا.";
+}
+
+function formatOptionalRowCount(value: number | null): string {
+  return value === null ? "غير متاح" : formatNumber(value);
+}
+
+function describeRetryableImportStatus(
+  reconciled: Awaited<ReturnType<typeof failImportJobSafely>>,
+): string {
+  return "حُفظ الفشل كحالة قابلة للاستئناف، وصالح الخادم عدد الصفوف المحفوظة: " +
+    formatOptionalRowCount(reconciled.processedRows) +
+    "، والمرفوض: " +
+    formatOptionalRowCount(reconciled.failedRows) +
+    ". استخدم الملف الأصلي نفسه للاستئناف.";
+}
+
 export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice: (message: string) => void; refreshVersion?: number }) {
   const { user } = useAuth();
   const canRollbackImport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
@@ -509,21 +533,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
             // Keep the server's terminal result; never mark it failed or create another snapshot.
             setErrorMessage("");
             const snapshotText = reconciled.snapshotId ? " • Snapshot " + reconciled.snapshotId : "";
-            setStatusMessage(
-              reconciled.status === "completed" || reconciled.status === "completed_with_warnings"
-                ? "أكد الخادم أن الدفعة انتهت بالفعل بالحالة " + reconciled.status + snapshotText + ". لم تُعد العملية ولم تُكرر آثارها."
-                : "أكد الخادم الحالة النهائية " + reconciled.status + " لهذه الدفعة. لم تتم إعادة اعتمادها تلقائيًا.",
-            );
+            setStatusMessage(describeReconciledImportStatus(reconciled));
             onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
           } else {
             setErrorMessage(message);
-            setStatusMessage(
-              "حُفظ الفشل كحالة قابلة للاستئناف، وصالح الخادم عدد الصفوف المحفوظة: " +
-              (reconciled.processedRows === null ? "غير متاح" : formatNumber(reconciled.processedRows)) +
-              "، والمرفوض: " +
-              (reconciled.failedRows === null ? "غير متاح" : formatNumber(reconciled.failedRows)) +
-              ". استخدم الملف الأصلي نفسه للاستئناف.",
-            );
+            setStatusMessage(describeRetryableImportStatus(reconciled));
           }
         } catch (reconcileError) {
           setErrorMessage(message);
