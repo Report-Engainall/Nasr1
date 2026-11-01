@@ -2,7 +2,7 @@
 
 - Current main/code SHA: `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc`.
 - PR #400 merged at `453afeebfc76f7c685792a7885115ce4ccabb7f3`: Core 41342335810 PASS; Gitleaks 41342335816 PASS; P1 TS/AST/Vitest 41342335851 PASS; archive/persistence tests 41342335822 PASS; source snapshot audit 41342335817 PASS.
-- PR #402 merged at `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` from tested head `0b0391597a2a70302204e0105355adf96feb62db`. P1 TS 41343175864 PASS; Gitleaks 41343175952 PASS; branch cleanup 41343175904 PASS. Core 41343175987 and P2 Playwright/local Supabase 41343175851 were IN_PROGRESS at last poll; hosted tenant E2E SKIPPED.
+- PR #402 merged at `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` from tested head `0b0391597a2a70302204e0105355adf96feb62db`. P1 TS 41343175864 PASS; Gitleaks 41343175952 PASS; branch cleanup 41343175904 PASS; Core 41343175987 PASS; P2 Playwright/local Supabase 41343175851 PASS; public UI and authenticated E2E infrastructure PASS; hosted tenant E2E SKIPPED.
 - PR #402 updates the two existing P3 TS0003 finding rows for `quick-order-quantity-controls.test.tsx` and `storefront-saved-products.test.ts`; both still require fresh CodeInspector confirmation.
 - P1: 7 structural records IMPLEMENTED_PENDING_FRESH_SCAN; 18 fixture records triaged. P2: 116 rows not closed, disposition as BASELINE. P3: 98 IMPLEMENTED_PENDING_FRESH_SCAN; no historical finding is CLOSED.
 - User's 118-row CodeInspector summary is from 17:38:11 UTC, predates #396–#402, lacks scan SHA and raw finding rows.
