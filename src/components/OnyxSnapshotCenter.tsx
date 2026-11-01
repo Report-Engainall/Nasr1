@@ -219,12 +219,12 @@ function OnyxAnalyticsPrint({ selected, analytics, rows }: {
 
 function OnyxAnalyticsPrintTables({ analytics, metrics, rows }: {
   analytics: OnyxSnapshotAnalytics;
-  metrics: SnapshotMetrics;
+  metrics: SnapshotMetrics | undefined;
   rows: OnyxSnapshotRow[];
 }) {
   return (
     <>
-      <p>الصفوف: {amountText(metrics.row_count, 0)} | صالحة: {amountText(metrics.valid_rows, 0)} | مرفوضة: {amountText(metrics.rejected_rows, 0)} | DQS: {amountText(metrics.dqs, 0)}/100</p>
+      <p>الصفوف: {amountText(metrics?.row_count, 0)} | صالحة: {amountText(metrics?.valid_rows, 0)} | مرفوضة: {amountText(metrics?.rejected_rows, 0)} | DQS: {amountText(metrics?.dqs, 0)}/100</p>
       <p>التنبؤ: {analytics.forecast_status} — {analytics.forecast_reason}</p>
       <table><thead><tr><th>رمز الصنف</th><th>الاسم</th><th>الكمية</th><th>قيمة المصدر</th></tr></thead><tbody>{analytics.top_items.map((item, index) => <tr key={item.item_code + ":" + index}><td>{item.item_code}</td><td>{item.name || "غير مسجل"}</td><td>{amountText(item.quantity)}</td><td>{amountText(item.revenue, 2)}</td></tr>)}</tbody></table>
       <table><thead><tr><th>الصف</th><th>رمز</th><th>الاسم</th><th>الكمية المصدرية</th><th>الحالة</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{row.row_number}</td><td>{valueFromRow(row, ["item_code", "sku", "product_code"])}</td><td>{valueFromRow(row, ["name", "item_name", "product_name", "description"])}</td><td>{valueFromRow(row, ["quantity", "qty", "on_hand"])}</td><td>{qualityText(row.status)}</td></tr>)}</tbody></table>
