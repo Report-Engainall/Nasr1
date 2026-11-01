@@ -14,4 +14,7 @@ describe('getOrderStatusBadgeClass', () => {
   ])('maps %s to its existing presentation class', (status, expectedClass) => {
     expect(getOrderStatusBadgeClass(status)).toBe(expectedClass)
   })
+  it('uses the safe fallback for unrecognized server status text', () => {
+    expect(getOrderStatusBadgeClass('<img src=x onerror=alert(1)>')).toBe('badge-info')
+  })
 })
