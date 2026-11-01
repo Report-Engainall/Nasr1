@@ -141,7 +141,9 @@ def download(spec):
         print("DOWNLOAD_ATTEMPT archive={} attempt={} url={}".format(name, attempt, url), flush=True)
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Nasr1-Bolt-Reconciliation/1.0"})
-            # URL is built only from fixed repository, commit, and archive constants above.\n            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected\n            with urllib.request.urlopen(req, timeout=45) as response:
+            # URL is built only from fixed repository, commit, and archive constants above.
+            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            with urllib.request.urlopen(req, timeout=45) as response:
                 data = read_bounded_response(response, size)
                 print("DOWNLOAD_RESPONSE archive={} status={} bytes={} content_type={}".format(
                     name, response.status, len(data), response.headers.get("Content-Type", "")), flush=True)
