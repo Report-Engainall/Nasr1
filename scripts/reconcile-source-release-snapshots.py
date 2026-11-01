@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import stat
+import struct
 import tempfile
 import time
 import urllib.request
@@ -125,6 +126,7 @@ def stream_member(
     digest = hashlib.sha256()
     count = 0
     handle = None
+    created = False
     if destination is not None:
         root = extraction_root.resolve()
         target = destination.resolve()
@@ -132,6 +134,7 @@ def stream_member(
             raise ValueError("resolved extraction target escapes temporary root: " + info.filename)
         destination.parent.mkdir(parents=True, exist_ok=True)
         handle = destination.open("xb")
+        created = True
     try:
         with archive.open(info, "r") as source:
             while chunk := source.read(1024 * 1024):
@@ -139,11 +142,18 @@ def stream_member(
                 digest.update(chunk)
                 if handle is not None:
                     handle.write(chunk)
-    finally:
+        if count != info.file_size:
+            raise ValueError(f"member size mismatch: {info.filename}:{count}!={info.file_size}")
+    except BaseException:
         if handle is not None:
             handle.close()
-    if count != info.file_size:
-        raise ValueError(f"member size mismatch: {info.filename}:{count}!={info.file_size}")
+        if created and destination is not None:
+            # Remove only the partial artifact created by this invocation.
+            destination.unlink(missing_ok=True)
+        raise
+    else:
+        if handle is not None:
+            handle.close()
     return digest.hexdigest(), count
 
 
@@ -528,11 +538,52 @@ def self_test() -> int:
     with zipfile.ZipFile(archive_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("project/src/ok.ts", payload)
     with tempfile.TemporaryDirectory(prefix="nasr1-source-self-test-") as directory:
+        root = Path(directory)
         with zipfile.ZipFile(io.BytesIO(archive_buffer.getvalue())) as archive:
             infos, total = inspect_headers(archive)
             assert len(infos) == 1 and total == len(payload)
-            digest, size = stream_member(archive, infos[0], None, Path(directory))
+            destination = root / "restored/project/src/main.ts"
+            digest, size = stream_member(archive, infos[0], destination, root)
             assert digest == sha256(payload) and size == len(payload)
+            assert destination.read_bytes() == payload
+
+            try:
+                stream_member(archive, infos[0], destination, root)
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("snapshot restore overwrote an existing source file")
+            assert destination.read_bytes() == payload
+
+            blocked_parent = root / "blocked-parent"
+            blocked_parent.write_text("preserve blocker", encoding="utf-8")
+            try:
+                stream_member(archive, infos[0], blocked_parent / "file.ts", root)
+            except OSError:
+                pass
+            else:
+                raise AssertionError("snapshot restore accepted a non-directory destination")
+            assert blocked_parent.read_text(encoding="utf-8") == "preserve blocker"
+
+        stored = io.BytesIO()
+        with zipfile.ZipFile(stored, "w", compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr("project/corrupt.ts", b"CRC sentinel")
+        corrupted = bytearray(stored.getvalue())
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
+            corrupt_info = archive.getinfo("project/corrupt.ts")
+            name_size, extra_size = struct.unpack_from("<HH", corrupted, corrupt_info.header_offset + 26)
+            data_offset = corrupt_info.header_offset + 30 + name_size + extra_size
+        corrupted[data_offset] ^= 0x01
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
+            corrupt_info = archive.getinfo("project/corrupt.ts")
+            partial = root / "corrupt-output.ts"
+            try:
+                stream_member(archive, corrupt_info, partial, root)
+            except zipfile.BadZipFile:
+                pass
+            else:
+                raise AssertionError("corrupt member CRC was accepted")
+            assert not partial.exists(), "incomplete restored member was left behind"
     sample_bytes = archive_buffer.getvalue()
     sample_spec = {
         "id": "self-test",
