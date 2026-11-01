@@ -3092,9 +3092,21 @@ async function main() {
         "from pg_catalog.pg_stat_activity " +
         "where application_name in ('ci-po-receive-a','ci-po-receive-b')",
       );
-      bothReceiptWritersWaiting = receiptActivitySnapshot.filter((row) =>
-        row.state === "active" && row.wait_event_type === "Lock"
-      ).length === 2;
+      const warehouseLockWaiter = receiptActivitySnapshot.find((row) =>
+        row.application_name === "ci-po-receive-a"
+      );
+      const purchaseOrderLockWaiter = receiptActivitySnapshot.find((row) =>
+        row.application_name === "ci-po-receive-b"
+      );
+      // A's RPC must be blocked by the held warehouse advisory lock. B must
+      // independently be queued on the purchase-order row transaction lock.
+      // Do not require state='active': PostgreSQL may report the second backend
+      // as idle while its transaction is waiting on the conflicting row lock.
+      bothReceiptWritersWaiting =
+        warehouseLockWaiter?.wait_event_type === "Lock" &&
+        warehouseLockWaiter.wait_event === "advisory" &&
+        purchaseOrderLockWaiter?.wait_event_type === "Lock" &&
+        purchaseOrderLockWaiter.wait_event === "transactionid";
       if (bothReceiptWritersWaiting) break;
       await new Promise((resolve) => setTimeout(resolve,25));
     }
@@ -3102,7 +3114,11 @@ async function main() {
       await receiptRaceGate.unsafe("rollback");
       receiptGateOpen = false;
       const outcomes = await Promise.allSettled(receiptAttemptPromises);
-      assert.fail("purchase receipt lock contention was not observed for both RPC calls: " + JSON.stringify({
+      assert.fail("purchase receipt concurrency did not observe both expected PostgreSQL locks: " + JSON.stringify({
+        expected: {
+          warehouseAdvisoryLock: "ci-po-receive-a",
+          purchaseOrderRowLock: "ci-po-receive-b",
+        },
         activity:receiptActivitySnapshot,
         outcomes:outcomes.map((outcome) => outcome.status === "fulfilled"
           ? {ok:true}
