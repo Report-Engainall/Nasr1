@@ -747,6 +747,37 @@ export function ProductModal({
     setImagePreview(null);
   }
 
+  async function persistProductImageChanges(savedId: string): Promise<boolean> {
+    if (imageFile) {
+      try {
+        const webp = await toWebp(imageFile);
+        await uploadProductImage(savedId, webp, product?.image_url);
+        return true;
+      } catch (imageCause) {
+        if (imageCause instanceof ProductImageCleanupError && imageCause.imageLinked) {
+          onSaved('تم ربط الصورة الجديدة، لكن تعذر تنظيف الصورة السابقة من التخزين.');
+          return false;
+        }
+        const detail = imageCause instanceof Error ? imageCause.message : 'خطأ غير معروف أثناء رفع الصورة.';
+        onSaved('تم حفظ بيانات المنتج، لكن لم تُربط الصورة: ' + detail);
+        return false;
+      }
+    }
+
+    if (!product || !removeImageRequested) return true;
+    try {
+      await removeProductImage(savedId, product.image_url ?? null);
+      return true;
+    } catch (imageCause) {
+      if (imageCause instanceof ProductImageCleanupError && !imageCause.imageLinked) {
+        onSaved('أُزيلت الصورة من سجل المنتج، لكن تعذر تنظيف ملفها من التخزين.');
+      } else {
+        onSaved('تم حفظ بيانات المنتج، لكن تعذر تأكيد إزالة الصورة. حدّث القائمة قبل تكرار العملية.');
+      }
+      return false;
+    }
+  }
+
   async function save() {
     if (saveInFlight.current || saving) return;
     if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; }
@@ -765,31 +796,7 @@ export function ProductModal({
       const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, is_featured: isFeatured, sort_order: sortOrderValue, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
       const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
       productSaved = true;
-      if (imageFile) {
-        try {
-          const webp = await toWebp(imageFile);
-          await uploadProductImage(saved.id, webp, product?.image_url);
-        } catch (imageCause) {
-          if (imageCause instanceof ProductImageCleanupError && imageCause.imageLinked) {
-            onSaved('تم ربط الصورة الجديدة، لكن تعذر تنظيف الصورة السابقة من التخزين.');
-            return;
-          }
-          const detail = imageCause instanceof Error ? imageCause.message : 'خطأ غير معروف أثناء رفع الصورة.';
-          onSaved('تم حفظ بيانات المنتج، لكن لم تُربط الصورة: ' + detail);
-          return;
-        }
-      } else if (product && removeImageRequested) {
-        try {
-          await removeProductImage(saved.id, product.image_url ?? null);
-        } catch (imageCause) {
-          if (imageCause instanceof ProductImageCleanupError && !imageCause.imageLinked) {
-            onSaved('أُزيلت الصورة من سجل المنتج، لكن تعذر تنظيف ملفها من التخزين.');
-          } else {
-            onSaved('تم حفظ بيانات المنتج، لكن تعذر تأكيد إزالة الصورة. حدّث القائمة قبل تكرار العملية.');
-          }
-          return;
-        }
-      }
+      if (!(await persistProductImageChanges(saved.id))) return;
       onSaved();
     } catch (cause) {
       if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
