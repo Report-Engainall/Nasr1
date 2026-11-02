@@ -44,9 +44,23 @@ async function setIdentity(connection, actor, sessionId, applicationName) {
 }
 
 async function receiptRpc(connection, allocations, paymentMethod, idempotencyKey, reference, notes) {
+  const payload = JSON.stringify(allocations);
+  const shape = await connection.unsafe(
+    "select pg_catalog.jsonb_typeof($1::jsonb) as kind, " +
+    "case when pg_catalog.jsonb_typeof($1::jsonb)='array' then pg_catalog.jsonb_array_length($1::jsonb) else -1 end as item_count",
+    [payload],
+  );
+  const kind = shape[0]?.kind;
+  const itemCount = Number(shape[0]?.item_count);
+  process.stdout.write("CUSTOMER_PAYMENT_RECEIPT_RPC_INPUT " + JSON.stringify({
+    kind, itemCount, method: paymentMethod, idempotencyKeyPresent: Boolean(idempotencyKey),
+    applicationName: connection.options?.connection?.application_name ?? null,
+  }) + "\\n");
+  assert.equal(kind, "array", "receipt RPC must receive a JSON array");
+  assert.ok(itemCount >= 2 && itemCount <= 50, "receipt RPC must receive 2..50 allocation rows");
   const rows = await connection.unsafe(
     "select public.record_customer_payment_allocation($1::jsonb,$2::text,$3::uuid,$4::text,$5::text) as result",
-    [JSON.stringify(allocations), paymentMethod, idempotencyKey, reference, notes],
+    [payload, paymentMethod, idempotencyKey, reference, notes],
   );
   return rows[0]?.result;
 }
