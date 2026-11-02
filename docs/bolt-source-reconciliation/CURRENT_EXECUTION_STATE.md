@@ -447,3 +447,30 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - DELIVERY_STATUS: IMPLEMENTED=YES; MERGED_TO_MAIN=YES; UNIT_TESTED=PASS; POSTGRESQL_17=PASS; BUILD=PASS; P2_LOCAL_BROWSER=PASS; HOSTED_CUSTOMER_E2E=SKIPPED_EXTERNAL.
 - DLV-001 remains OPEN: this verified shared hook regression does not complete the full live requirement-to-test mapping. Other DLV roll-ups remain at their independently evidenced statuses.
 - NEXT_ACTION: continue the existing canonical unresolved-work pointer NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001; do not redo this request-generation fix unless a new regression appears.
+
+
+## 2026-11-02 — Customer invoice PDF projection allowlist hardening
+
+- EXECUTION_START_MAIN_SHA: `ff0c968a53d2c4f6b496e23d9c56207cffea57bd`.
+- CODE_ACCEPTANCE_SHA: `d91c0566092f95ead112cf83fe46699ca9299b38`, committed directly to `main` using a non-force expected-SHA ref update. No feature branch or PR was created.
+- ROOT_CAUSE: `parseCustomerInvoicePdfPayload` rejected a hidden `tier_label` but accepted arbitrary invoice and line fields when `financial_details_visible=false`. The current SQL RPC already omitted financial fields, but a regressed or malformed projection could still pass hidden subtotal/tax/total or line unit-price fields to the PDF builder.
+- IMPLEMENTATION: `src/lib/customer-invoice-pdf-contract.ts` now applies explicit allowlists to the top-level RPC envelope, invoice, line and customer projections; rejects unexpected keys such as cost, margin, internal notes and tenant metadata; rejects invoice `subtotal/tax_amount/total_amount` and line `unit_price/line_total` while financial visibility is false; and keeps the existing tier-label visibility guard. The existing SQL projection and authorization logic were not changed.
+- REGRESSION_TESTS: `src/test/customer-invoice-pdf-contract.test.ts` now covers each hidden invoice/line amount, authorized visible financial fields, unexpected cost/margin/internal fields, hidden tier data, foreign-tenant keys, malformed rows and malformed envelope metadata.
+- EXACT_SHA_CI:
+  - [Aghbari Commerce checks 41479784504](https://github.com/Report-Engainall/Nasr1/actions/runs/41479784504): SUCCESS on exact code SHA `d91c0566092f95ead112cf83fe46699ca9299b38`. Unit tests, focused TypeScript, full isolated PostgreSQL 17 migrations and acceptance, RPC inventory, finance/inventory/import and concurrency checks, backup/restore, lint, build, production-preview/dev smoke and browser price-visibility checks all completed successfully.
+  - [P2 Playwright Critical Paths 41479784538](https://github.com/Report-Engainall/Nasr1/actions/runs/41479784538): SUCCESS on the same SHA. Public UI smoke and local Supabase/Chromium acceptance passed for order persistence, cross-tenant denial, lost-response checkout replay, return/credit memo, Onyx XLSX export, finance/task printing, customer-manager authorization, financial privacy/audit, and device-session management. The separate hosted customer/order/tenant E2E job was SKIPPED by its external-auth gate and is not counted as PASS.
+  - [P1 Targeted TypeScript Assurance 41479784461](https://github.com/Report-Engainall/Nasr1/actions/runs/41479784461): SUCCESS.
+  - [P1 Secret Scan 41479784423](https://github.com/Report-Engainall/Nasr1/actions/runs/41479784423): SUCCESS.
+  - [Free Static Analysis 41479784430](https://github.com/Report-Engainall/Nasr1/actions/runs/41479784430): SUCCESS (Semgrep, TypeScript AST proxy and both CodeQL jobs).
+  - [One-main-branch cleanup 41479784772](https://github.com/Report-Engainall/Nasr1/actions/runs/41479784772): SUCCESS.
+- CHANGED_CODE_FILES: `src/lib/customer-invoice-pdf-contract.ts`; `src/test/customer-invoice-pdf-contract.test.ts`.
+- OPEN_PRS: #407 remains open and mergeable but is scanner-only; #351 remains open and non-mergeable. Neither is part of this product change.
+- DELIVERY_STATUS: PDF boundary hardening IMPLEMENTED=YES; MERGED_TO_MAIN=YES; UNIT_TESTED=PASS; POSTGRESQL_17=PASS; BUILD=PASS; LOCAL_SUPABASE_PLAYWRIGHT=PASS; HOSTED_CUSTOMER_TENANT_E2E=SKIPPED_EXTERNAL. DLV-005 remains PARTIAL and no DLV roll-up is closed. Production deployment/hosted workflows remain unproven.
+- ACCOUNTING_RECONCILIATION: The main-tree database acceptance script already contains `FIN-LEDGER-STAFF-DRAFT-DENIAL-001` for `create_general_journal_draft` (SQLSTATE 42501 and unchanged journal/line/audit snapshots); Core passed this test on the exact SHA. Do not recreate it. DLV-008 still lacks an integrated multi-invoice allocation model and approved FX source/rounding policy; no rate or financial posting rule is to be invented.
+
+## نقطة الاستئناف الحالية
+
+- `CURRENT_MAIN_CODE_SHA=d91c0566092f95ead112cf83fe46699ca9299b38`.
+- `NEXT_TASK_ID=DLV-008-SAME-CURRENCY-MULTI-INVOICE-ALLOCATION-001`.
+- NEXT_ACTION: design and implement payment-header/allocation semantics atomically across invoice locks, idempotency, tenant/customer/currency constraints, audit and statement/PDF/export aggregates; add PostgreSQL concurrency and negative-case tests before wiring the finance UI. Keep FX conversion out until a trusted rate source and approved rounding policy are supplied.
+- EXTERNAL_BLOCKERS: hosted customer/order/tenant E2E credentials; production deployment and production backup/restore authorization; live Onyx target receipt/sandbox; official WhatsApp Business API account/credentials; any live external AI provider quota confirmation.
