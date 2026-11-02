@@ -44,25 +44,25 @@ async function setIdentity(connection, actor, sessionId, applicationName) {
 }
 
 async function receiptRpc(connection, allocations, paymentMethod, idempotencyKey, reference, notes) {
-  // postgres.js serializes plain objects as JSON values; a JSON.stringify() string
-  // becomes a JSON scalar, not a JSON array. Carry the list in a typed JSON object
-  // and extract its allocations member server-side for both shape validation and RPC.
-  const payload = { allocations };
+  // Send JSON as UTF-8 bytea so postgres.js cannot reinterpret the payload as a JSON scalar.
+  // PostgreSQL decodes and validates the actual JSON array before invoking the RPC.
+  const payload = Buffer.from(JSON.stringify(allocations), "utf8");
+  const jsonValue = "pg_catalog.convert_from($1::bytea,'UTF8')::jsonb";
   const shape = await connection.unsafe(
-    "select pg_catalog.jsonb_typeof(($1::jsonb)->'allocations') as kind, " +
-    "case when pg_catalog.jsonb_typeof(($1::jsonb)->'allocations')='array' " +
-    "then pg_catalog.jsonb_array_length(($1::jsonb)->'allocations') else -1 end as item_count",
+    "select pg_catalog.jsonb_typeof(" + jsonValue + ") as kind, " +
+    "case when pg_catalog.jsonb_typeof(" + jsonValue + ")='array' " +
+    "then pg_catalog.jsonb_array_length(" + jsonValue + ") else -1 end as item_count",
     [payload],
   );
   const kind = shape[0]?.kind;
   const itemCount = Number(shape[0]?.item_count);
   process.stdout.write("CUSTOMER_PAYMENT_RECEIPT_RPC_INPUT " + JSON.stringify({
     kind, itemCount, method: paymentMethod, idempotencyKeyPresent: Boolean(idempotencyKey),
-  }) + "\\n");
+  }) + String.fromCharCode(10));
   assert.equal(kind, "array", "receipt RPC must receive a JSON array");
   assert.ok(itemCount >= 2 && itemCount <= 50, "receipt RPC must receive 2..50 allocation rows");
   const rows = await connection.unsafe(
-    "select public.record_customer_payment_allocation(($1::jsonb)->'allocations',$2::text,$3::uuid,$4::text,$5::text) as result",
+    "select public.record_customer_payment_allocation(" + jsonValue + ",$2::text,$3::uuid,$4::text,$5::text) as result",
     [payload, paymentMethod, idempotencyKey, reference, notes],
   );
   return rows[0]?.result;
