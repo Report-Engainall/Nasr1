@@ -39,7 +39,7 @@ describe("customer return review XLSX report",()=>{
   for(const role of ["admin","manager"])expect(()=>buildCustomerReturnReviewWorkbookXlsx(input({roles:[role]}))).not.toThrow();
  });
  it("rejects more than 50 requests, duplicate request identities and closed statuses",()=>{
-  expect(()=>buildCustomerReturnReviewWorkbookXlsx(input({rows:Array.from({length:51},(_,i)=>request({id:"id-"+i,request_number:"RET-"+i}))}))).toThrow(/حتى 50/);
+  expect(()=>buildCustomerReturnReviewWorkbookXlsx(input({rows:Array.from({length:51},(_,i)=>request({id:"id-"+i,request_number:"RET-"+i}))}))).toThrow("قائمة المراجعة يجب أن تحتوي");
   expect(()=>buildCustomerReturnReviewWorkbookXlsx(input({rows:[request(),request()]}))).toThrow(/تكرر/);
   expect(()=>buildCustomerReturnReviewWorkbookXlsx(input({rows:[request({status:"approved" as never})]}))).toThrow(/خرج من قائمة المراجعة/);
  });
