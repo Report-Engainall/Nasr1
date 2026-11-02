@@ -581,3 +581,195 @@ export function renderCreditMemoDocument(doc: Document, payload: PrintableCredit
 export function readPrintableCreditMemo(value: unknown): PrintableCreditMemo {
   return readPrintableReturnCreditMemo(value);
 }
+
+
+// Multi-invoice receipts are printed from a fresh, finance-authorized server snapshot.
+export interface FinancePrintReceiptOption {
+  id: string;
+  receipt_number: string;
+  customer_code: string | null;
+  customer_name: string;
+  currency: string;
+  total_amount: Money;
+  allocation_count: number;
+  paid_at: string;
+  payment_method: string;
+  reference: string | null;
+}
+export interface FinancePrintReceiptOptions {
+  organization_name: string;
+  receipts: FinancePrintReceiptOption[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+export interface CustomerPaymentReceiptPrintPayload {
+  receipt: {
+    id: string;
+    receipt_number: string;
+    currency: string;
+    total_amount: Money;
+    allocation_count: number;
+    payment_method: "cash" | "transfer" | "card" | "credit_adjustment" | "other";
+    reference: string | null;
+    paid_at: string;
+  };
+  customer: FinancePrintCustomer;
+  allocations: Array<{
+    invoice_number: string;
+    invoice_issued_at: string;
+    currency: string;
+    amount: Money;
+  }>;
+}
+
+function positiveReceiptNumber(value: unknown, name: string): string {
+  const raw = requiredText(value, name);
+  if (!/^[1-9]\\d{0,17}$/.test(raw)) throw new Error("رقم سند القبض غير صالح.");
+  return raw;
+}
+function receiptAllocationCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 2 || value > 50) {
+    throw new Error("عدد تخصيصات سند القبض خارج الحدود المسموحة.");
+  }
+  return value;
+}
+
+export function readCustomerPaymentReceiptPrintOptions(value: unknown): FinancePrintReceiptOptions {
+  if (!isRecord(value) || !Array.isArray(value.receipts)) {
+    throw new Error("أعاد الخادم قائمة سندات القبض غير مكتملة.");
+  }
+  const receipts = value.receipts.map((raw): FinancePrintReceiptOption => {
+    if (!isRecord(raw)) throw new Error("عنصر سند القبض في القائمة غير صالح.");
+    const currency = readCurrency(raw.currency);
+    return {
+      id: assertUUID(requiredText(raw.id, "receipt.id"), "receipt.id"),
+      receipt_number: positiveReceiptNumber(raw.receipt_number, "receipt.receipt_number"),
+      customer_code: nullableText(raw.customer_code),
+      customer_name: printableMemoCustomerLabel(raw.customer_name, raw.customer_code),
+      currency,
+      total_amount: normalizedMoney(raw.total_amount, "receipt.total_amount"),
+      allocation_count: receiptAllocationCount(raw.allocation_count),
+      paid_at: isoDate(raw.paid_at, "receipt.paid_at"),
+      payment_method: requiredText(raw.payment_method, "receipt.payment_method"),
+      reference: nullableText(raw.reference),
+    };
+  });
+  if (receipts.some((row) => moneyCents(row.total_amount) <= 0n)) {
+    throw new Error("قائمة سندات القبض تحتوي مبلغًا غير موجب.");
+  }
+  const total = nonNegativeCount(value.total, "receipt_options.total");
+  const limit = itemCount(value.limit, "receipt_options.limit");
+  const offset = nonNegativeCount(value.offset, "receipt_options.offset");
+  const has_more = readBoolean(value.has_more, "receipt_options.has_more");
+  if (receipts.length > limit || offset > total || offset + receipts.length > total ||
+      (has_more && receipts.length === 0) ||
+      new Set(receipts.map((row) => row.id)).size !== receipts.length) {
+    throw new Error("صفحة سندات القبض لا تطابق العدد أو حدود الترقيم التي أعلنها الخادم.");
+  }
+  return {
+    organization_name: requiredText(value.organization_name, "receipt_options.organization_name"),
+    receipts,
+    total,
+    limit,
+    offset,
+    has_more,
+  };
+}
+
+export function readCustomerPaymentReceiptPrintPayload(value: unknown): CustomerPaymentReceiptPrintPayload {
+  if (!isRecord(value) || !isRecord(value.receipt) || !Array.isArray(value.allocations)) {
+    throw new Error("بيانات سند القبض للطباعة غير مكتملة.");
+  }
+  const raw = value.receipt;
+  const currency = readCurrency(raw.currency);
+  const total_amount = normalizedMoney(raw.total_amount, "receipt.total_amount");
+  if (moneyCents(total_amount) <= 0n) throw new Error("إجمالي سند القبض يجب أن يكون موجبًا.");
+  const paymentMethod = requiredText(raw.payment_method, "receipt.payment_method");
+  if (!["cash", "transfer", "card", "credit_adjustment", "other"].includes(paymentMethod)) {
+    throw new Error("طريقة الدفع في سند القبض غير مدعومة للطباعة.");
+  }
+  const allocation_count = receiptAllocationCount(raw.allocation_count);
+  if (value.allocations.length !== allocation_count) {
+    throw new Error("عدد تخصيصات السند لا يطابق العدد المثبت في رأس السند.");
+  }
+  const allocations = value.allocations.map((item): CustomerPaymentReceiptPrintPayload["allocations"][number] => {
+    if (!isRecord(item)) throw new Error("تفصيل تخصيص فاتورة في السند غير صالح.");
+    const allocationCurrency = readCurrency(item.currency);
+    const amount = normalizedMoney(item.amount, "allocation.amount");
+    if (allocationCurrency !== currency || moneyCents(amount) <= 0n) {
+      throw new Error("عملة أو قيمة أحد تخصيصات السند لا تطابق رأس السند.");
+    }
+    return {
+      invoice_number: requiredText(item.invoice_number, "allocation.invoice_number"),
+      invoice_issued_at: isoDate(item.invoice_issued_at, "allocation.invoice_issued_at"),
+      currency: allocationCurrency,
+      amount,
+    };
+  });
+  if (new Set(allocations.map((item) => item.invoice_number)).size !== allocations.length) {
+    throw new Error("السند يحتوي فاتورة مكررة؛ تم منع الطباعة.");
+  }
+  const allocatedCents = allocations.reduce((sum, item) => sum + moneyCents(item.amount), 0n);
+  if (allocatedCents !== moneyCents(total_amount)) {
+    throw new Error("مجموع تخصيصات الفواتير لا يطابق إجمالي سند القبض؛ تم منع الطباعة.");
+  }
+  const customer = readCustomer(value.customer);
+  assertUUID(customer.id, "customer.id");
+  return {
+    receipt: {
+      id: assertUUID(requiredText(raw.id, "receipt.id"), "receipt.id"),
+      receipt_number: positiveReceiptNumber(raw.receipt_number, "receipt.receipt_number"),
+      currency,
+      total_amount,
+      allocation_count,
+      payment_method: paymentMethod as CustomerPaymentReceiptPrintPayload["receipt"]["payment_method"],
+      reference: nullableText(raw.reference),
+      paid_at: isoDate(raw.paid_at, "receipt.paid_at"),
+    },
+    customer,
+    allocations,
+  };
+}
+
+export function renderCustomerPaymentReceiptDocument(
+  doc: Document,
+  payload: CustomerPaymentReceiptPrintPayload,
+  organizationName: string,
+): void {
+  const issuerName = requiredText(organizationName, "organization_name");
+  const receiptNumber = "SND-" + payload.receipt.receipt_number.padStart(6, "0");
+  const methods: Record<CustomerPaymentReceiptPrintPayload["receipt"]["payment_method"], string> = {
+    cash: "نقدًا",
+    transfer: "تحويل",
+    card: "بطاقة",
+    credit_adjustment: "تسوية دائنة",
+    other: "أخرى",
+  };
+  const main = addBase(doc, "سند قبض العميل " + receiptNumber);
+  addMeta(doc, main, [
+    ["المؤسسة المستلمة", issuerName],
+    ["العميل", customerLabel(payload.customer)],
+    ["رقم العميل", payload.customer.customer_code || "غير مسجل"],
+    ["رقم سند القبض", receiptNumber],
+    ["تاريخ القبض", fmtDateTime(payload.receipt.paid_at)],
+    ["طريقة الدفع", methods[payload.receipt.payment_method]],
+    ["المرجع", payload.receipt.reference || "—"],
+    ["العملة", payload.receipt.currency],
+  ]);
+  addTable(doc, main, "توزيع مبلغ السند على الفواتير", [
+    "الفاتورة", "تاريخ الفاتورة", "العملة", "المبلغ المخصص",
+  ], payload.allocations.map((item) => [
+    item.invoice_number,
+    fmtDate(item.invoice_issued_at),
+    item.currency,
+    fmtMoney(item.amount, item.currency),
+  ]));
+  const totals = el(doc, "section", undefined, "totals");
+  totals.append(el(doc, "p", "عدد الفواتير: " + payload.receipt.allocation_count.toLocaleString("ar-YE")));
+  totals.append(el(doc, "p", "إجمالي سند القبض: " + fmtMoney(payload.receipt.total_amount, payload.receipt.currency), "grand"));
+  main.appendChild(totals);
+  addNote(doc, main,
+    "هذا سند قبض واحد موزع على الفواتير الموضحة. يحتفظ النظام بتخصيص مستقل لكل فاتورة، ولا تنشئ الطباعة أي حركة مالية جديدة أو تغيّر الأرصدة.");
+}

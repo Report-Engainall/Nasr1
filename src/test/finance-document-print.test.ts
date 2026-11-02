@@ -8,6 +8,9 @@ import {
   renderCreditMemoDocument,
   renderStaffInvoiceDocument,
   renderStaffStatementDocument,
+  readCustomerPaymentReceiptPrintOptions,
+  readCustomerPaymentReceiptPrintPayload,
+  renderCustomerPaymentReceiptDocument,
 } from "@/lib/finance-document-print";
 
 const customerId = "11111111-1111-4111-8111-111111111111";
@@ -55,6 +58,52 @@ function statementFixture() {
     truncated: { invoices: false, payments: false, credits: false },
     full_statement: true,
     record_counts: { invoices: 1, payments: 1, credits: 1, total: 3 },
+  };
+}
+
+function customerPaymentReceiptFixture() {
+  return {
+    organization_id: "FOREIGN-RECEIPT-ORG-SENTINEL",
+    private_notes: "PRIVATE-RECEIPT-NOTES-SENTINEL",
+    receipt: {
+      id: "88888888-8888-4888-8888-888888888888",
+      receipt_number: "14",
+      currency: "YER",
+      total_amount: "0.60",
+      allocation_count: 2,
+      payment_method: "transfer",
+      reference: "BANK-RECEIPT-14",
+      paid_at: "2026-10-20T05:00:00.000Z",
+      idempotency_key: "PRIVATE-RECEIPT-IDEMPOTENCY-SENTINEL",
+      notes: "PRIVATE-RECEIPT-NOTES-SENTINEL",
+    },
+    customer: {
+      id: customerId,
+      customer_code: "000125",
+      business_name: "عميل سند القبض",
+      contact_name: null,
+      organization_id: "FOREIGN-CUSTOMER-ORG-SENTINEL",
+      internal_margin: "PRIVATE-CUSTOMER-MARGIN-SENTINEL",
+    },
+    allocations: [
+      {
+        invoice_id: invoiceId,
+        invoice_number: "INV-0009",
+        invoice_issued_at: "2026-10-19T00:00:00.000Z",
+        currency: "YER",
+        amount: "0.25",
+        organization_id: "FOREIGN-ALLOCATION-ORG-SENTINEL",
+        cost_price: "PRIVATE-ALLOCATION-COST-SENTINEL",
+      },
+      {
+        invoice_id: "99999999-9999-4999-8999-999999999999",
+        invoice_number: "INV-0010",
+        invoice_issued_at: "2026-10-20T00:00:00.000Z",
+        currency: "YER",
+        amount: "0.35",
+        purchase_price: "PRIVATE-ALLOCATION-PURCHASE-SENTINEL",
+      },
+    ],
   };
 }
 
@@ -503,5 +552,92 @@ describe("finance document print contracts", () => {
     })).toThrow(/لا تطابق أعداد السجلات الكاملة/);
   });
 
+
+  it("validates and prints a saved multi-invoice receipt from its reconciled allowlist", () => {
+    const fixture = customerPaymentReceiptFixture();
+    const parsed = readCustomerPaymentReceiptPrintPayload(fixture);
+    expect(parsed.receipt.receipt_number).toBe("14");
+    expect(parsed.receipt.total_amount).toBe("0.60");
+    expect(parsed.allocations.map((row) => row.invoice_number)).toEqual(["INV-0009", "INV-0010"]);
+    expect(parsed.allocations.reduce((sum, row) => sum + Number(row.amount), 0)).toBeCloseTo(0.6);
+
+    const serialized = JSON.stringify(parsed);
+    for (const secret of [
+      "FOREIGN-RECEIPT-ORG-SENTINEL",
+      "PRIVATE-RECEIPT-NOTES-SENTINEL",
+      "PRIVATE-RECEIPT-IDEMPOTENCY-SENTINEL",
+      "FOREIGN-CUSTOMER-ORG-SENTINEL",
+      "PRIVATE-CUSTOMER-MARGIN-SENTINEL",
+      "FOREIGN-ALLOCATION-ORG-SENTINEL",
+      "PRIVATE-ALLOCATION-COST-SENTINEL",
+      "PRIVATE-ALLOCATION-PURCHASE-SENTINEL",
+    ]) expect(serialized).not.toContain(secret);
+
+    const doc = document.implementation.createHTMLDocument("");
+    renderCustomerPaymentReceiptDocument(doc, parsed, "مؤسسة الاختبار");
+    expect(doc.body.textContent).toContain("SND-000014");
+    expect(doc.body.textContent).toContain("INV-0009");
+    expect(doc.body.textContent).toContain("INV-0010");
+    expect(doc.body.textContent).toContain("BANK-RECEIPT-14");
+    expect(doc.body.textContent).toContain("0.60");
+    expect(doc.body.textContent).toContain("تحويل");
+    expect(doc.documentElement.dir).toBe("rtl");
+    expect(doc.querySelector("script, img")).toBeNull();
+    expect(doc.body.textContent).not.toContain("PRIVATE-RECEIPT-NOTES-SENTINEL");
+    expect(doc.body.textContent).not.toContain("PRIVATE-RECEIPT-IDEMPOTENCY-SENTINEL");
+    expect(doc.documentElement.outerHTML).not.toContain(customerId);
+  });
+
+  it("fails closed when receipt allocations do not reconcile by count, currency, uniqueness or total", () => {
+    const fixture = customerPaymentReceiptFixture();
+    expect(() => readCustomerPaymentReceiptPrintPayload({
+      ...fixture,
+      allocations: fixture.allocations.slice(0, 1),
+    })).toThrow(/عدد تخصيصات/);
+    expect(() => readCustomerPaymentReceiptPrintPayload({
+      ...fixture,
+      allocations: fixture.allocations.map((row, index) => index === 1 ? { ...row, currency: "USD" } : row),
+    })).toThrow(/عملة أو قيمة/);
+    expect(() => readCustomerPaymentReceiptPrintPayload({
+      ...fixture,
+      allocations: fixture.allocations.map((row, index) => index === 1 ? { ...row, invoice_number: "INV-0009" } : row),
+    })).toThrow(/فاتورة مكررة/);
+    expect(() => readCustomerPaymentReceiptPrintPayload({
+      ...fixture,
+      allocations: fixture.allocations.map((row, index) => index === 1 ? { ...row, amount: "0.34" } : row),
+    })).toThrow(/مجموع تخصيصات/);
+    expect(() => readCustomerPaymentReceiptPrintPayload({
+      ...fixture,
+      receipt: { ...fixture.receipt, payment_method: "unapproved-method" },
+    })).toThrow(/طريقة الدفع/);
+  });
+
+  it("validates the paged saved-receipt selector without retaining note or tenant internals", () => {
+    const parsed = readCustomerPaymentReceiptPrintOptions({
+      organization_name: "مؤسسة الاختبار",
+      receipts: [{
+        id: "88888888-8888-4888-8888-888888888888",
+        receipt_number: "14",
+        customer_code: "000125",
+        customer_name: "عميل سند القبض",
+        currency: "YER",
+        total_amount: "0.60",
+        allocation_count: 2,
+        paid_at: "2026-10-20T05:00:00.000Z",
+        payment_method: "transfer",
+        reference: "BANK-RECEIPT-14",
+        notes: "PRIVATE-RECEIPT-NOTES-SENTINEL",
+        organization_id: "FOREIGN-RECEIPT-ORG-SENTINEL",
+      }],
+      total: 1,
+      limit: 100,
+      offset: 0,
+      has_more: false,
+    });
+    expect(parsed.receipts[0].receipt_number).toBe("14");
+    expect(parsed.receipts[0].customer_code).toBe("000125");
+    expect(JSON.stringify(parsed)).not.toContain("PRIVATE-RECEIPT-NOTES-SENTINEL");
+    expect(JSON.stringify(parsed)).not.toContain("FOREIGN-RECEIPT-ORG-SENTINEL");
+  });
 
 });

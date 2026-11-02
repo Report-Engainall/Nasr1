@@ -171,6 +171,7 @@ async function main() {
   assert.equal(receiptRows[0].customer_id, invoiceA.customer_id);
   assert.equal(receiptRows[0].total_amount, "0.60");
   assert.equal(receiptRows[0].allocation_count, 2);
+  assert.ok(Number(receiptRows[0].receipt_number) > 0, "saved receipt must receive a human-readable serial number");
   assert.equal(receiptRows[0].created_by, actor.profile_id);
 
   const childRows = await db.unsafe(
@@ -209,6 +210,48 @@ async function main() {
   assert.equal(JSON.stringify(receiptAudit[0].new_value).includes(idempotencyKey), false);
   assert.equal(JSON.stringify(receiptAudit[0].new_value).includes("private receipt note"), false);
 
+
+  // Finance-only print selectors and snapshots re-read the persisted receipt instead of trusting the submit response.
+  await setIdentity(db, actor, sessionId);
+  const printOptions = (await db.unsafe(
+    "select public.get_customer_payment_receipt_print_options($1::integer,$2::integer) as result",
+    [100, 0],
+  ))[0].result;
+  assert.equal(printOptions.organization_name.length > 0, true);
+  const printOption = printOptions.receipts.find(row => row.id === firstReceipt.receipt_id);
+  assert.ok(printOption, "saved receipt must be discoverable from the finance receipt register");
+  assert.equal(printOption.receipt_number, String(receiptRows[0].receipt_number));
+  assert.equal(printOption.allocation_count, 2);
+  assert.equal(printOption.total_amount, "0.60");
+  assert.equal("notes" in printOption, false);
+  assert.equal("organization_id" in printOption, false);
+
+  const printSnapshot = (await db.unsafe(
+    "select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result",
+    [firstReceipt.receipt_id],
+  ))[0].result;
+  assert.equal(printSnapshot.receipt.receipt_number, String(receiptRows[0].receipt_number));
+  assert.equal(printSnapshot.receipt.total_amount, "0.60");
+  assert.equal(printSnapshot.receipt.allocation_count, 2);
+  assert.equal(printSnapshot.allocations.length, 2);
+  assert.deepEqual(
+    printSnapshot.allocations.map(row => row.invoice_number).sort(),
+    [invoiceA.invoice_number, invoiceB.invoice_number].sort(),
+  );
+  assert.equal(
+    printSnapshot.allocations.reduce((sum, row) => sum + amountToCents(row.amount), 0n),
+    amountToCents(printSnapshot.receipt.total_amount),
+  );
+  const printableSnapshotText = JSON.stringify(printSnapshot);
+  for (const forbidden of [
+    "private receipt note",
+    idempotencyKey,
+    "organization_id",
+    "notes",
+    "receipt_id",
+  ]) assert.equal(printableSnapshotText.includes(forbidden), false, "print snapshot must omit " + forbidden);
+  await db.unsafe("reset role");
+
   // Customers receive only the approved account-statement projection, never the
   // receipt header's internal notes, references or raw receipt metadata.
   await db.unsafe("reset role");
@@ -239,6 +282,16 @@ async function main() {
     "select id from public.customer_payment_receipts where id=$1::uuid",
     [firstReceipt.receipt_id],
   )).length, 0, "customers cannot query receipt headers or internal notes directly");
+  await expectSqlState(
+    "customer cannot list finance-only saved receipt print options",
+    () => db.unsafe("select public.get_customer_payment_receipt_print_options(100,0) as result"),
+    "42501",
+  );
+  await expectSqlState(
+    "customer cannot read finance-only receipt print snapshots",
+    () => db.unsafe("select public.get_staff_customer_payment_receipt_print_data($1::uuid) as result", [firstReceipt.receipt_id]),
+    "42501",
+  );
   await expectSqlState(
     "customer cannot call the finance-only multi-invoice receipt RPC",
     () => receiptRpc(db, allocations, "transfer", randomUUID(), reference, null),

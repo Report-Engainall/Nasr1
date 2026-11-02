@@ -42,6 +42,7 @@ import {
 } from "@/lib/commerce-utils";
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
+import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
@@ -2890,6 +2891,7 @@ export function StaffFinancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [latestReceiptId, setLatestReceiptId] = useState<string | null>(null);
   const [agingReport, setAgingReport] = useState<ReceivablesAgingReport | null>(null);
   const [agingOffset, setAgingOffset] = useState(0);
   const [agingLoading, setAgingLoading] = useState(false);
@@ -3133,6 +3135,7 @@ export function StaffFinancePage() {
           setError("تعذر تأكيد سند القبض: " + reason + ". أعد المحاولة بالقيم نفسها.");
           return;
         }
+        setLatestReceiptId(receipt.receipt_id as string);
       } else {
         const result = await supabase.rpc("record_customer_payment", {
           p_invoice_id: invoice.id,
@@ -3196,6 +3199,7 @@ export function StaffFinancePage() {
         <p style={quiet}>تسجيل دفعة فعلية من خلال أمر خادمي يتحقق من المتبقي داخل معاملة واحدة.</p>
       </header>
       <FinanceDocumentPrintActions />
+      <CustomerPaymentReceiptPrintActions latestReceiptId={latestReceiptId} />
       {message && (
         <div role="status" style={card}>
           {message}
