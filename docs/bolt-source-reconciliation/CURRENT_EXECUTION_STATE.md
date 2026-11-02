@@ -508,3 +508,20 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - `NEXT_TASK_ID=DLV-008-SAME-CURRENCY-MULTI-INVOICE-ALLOCATION-001`.
 - NEXT_ACTION: design and implement payment-header/allocation semantics atomically across invoice locks, idempotency, tenant/customer/currency constraints, audit and statement/PDF/export aggregates; add PostgreSQL concurrency and negative-case tests before wiring the finance UI. Keep FX conversion out until a trusted rate source and approved rounding policy are supplied.
 - EXTERNAL_BLOCKERS: hosted customer/order/tenant E2E credentials; production deployment and production backup/restore authorization; live Onyx target receipt/sandbox; official WhatsApp Business API account/credentials; any live external AI provider quota confirmation.
+
+## نتيجة NASR1-BOLT-RECOVERY-ARCHIVE-RECONCILIATION-001
+
+- Source: Report-Engainall/report-insight-engine@b1ca62ec277ff9f55c8e850e0470d61d81aaa138.
+- Before_Failure.zip: 1,003,172 bytes; Git blob SHA-1 7c35f3ecde19dc5596fd22053be61924ef3d5318; SHA-256 d59b3084a0b51e26646cf08ffc9239d2ee440298e9799f079827a4939d31b365; 359 members; CRC/decompression/safe extraction PASS.
+- Restored_Current.zip: 997,589 bytes; Git blob SHA-1 f01684a56e093a33a173b0965d1d7239c48f0936; SHA-256 9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214; 358 members; CRC/decompression/safe extraction PASS.
+- Pair comparison: 340 identical, 18 changed, 1 before-only. Member inventory 717 rows. Archive content was not executed; no archived SQL applied.
+- Evidence: ARCHIVE_MANIFEST.csv, ARCHIVE_MEMBERS.csv, ARCHIVE_PAIR_DIFF.csv, READY_TO_REUSE_FILE_AUDIT.csv, SOURCE_INTEGRATION_LEDGER.csv.
+- READY_TO_REUSE path/blob audit: 4 exact, 2 differing target contents, 63 target paths missing. This does NOT mean every donor feature is absent; semantic review of all 69 rows remains incomplete.
+- The legacy audit screen was adapted to active route /admin/audit with actual columns, same-tenant admin/manager SELECT RLS, no direct authenticated DML, search and filtered printing. Code SHA bb08320b690203f7f9b1ce65287e389e847c2dea passed Actions run 39154450426.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS on that exact code SHA. BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN. Production migrations=NOT RUN; Onyx vendor round-trip=NOT RUN.
+
+## نقطة الاستئناف الوحيدة
+
+- next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001
+- Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
+- Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
