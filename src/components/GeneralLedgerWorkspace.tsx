@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X } from "lucide-react";
+import { BookOpenCheck, Plus, RefreshCw, Printer, FileSpreadsheet, Send, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type JournalDraftLine, type LedgerAccountType } from "@/lib/general-ledger";
@@ -11,6 +11,7 @@ import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintAc
 import { GeneralJournalReversalAction } from "@/components/GeneralJournalReversalAction";
 import { GeneralLedgerPrintSheet } from "@/components/GeneralLedgerPrintSheet";
 import { projectFinancialStatementsPrintDocument, projectGeneralJournalPrintDocument, type GeneralLedgerPrintDocument } from "@/lib/general-journal-print";
+import { downloadFinancialStatementsWorkbookXlsx } from "@/lib/financial-statements-xlsx";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
@@ -218,6 +219,21 @@ export function GeneralLedgerWorkspace() {
     }
     setPrintError("");
     queuePrintDocument(projected);
+  }
+
+  function exportFinancialStatementsXlsx() {
+    const projected = projectFinancialStatementsPrintDocument(statements);
+    if (!projected) {
+      setPrintError("تعذر تصدير Excel؛ بيانات القوائم أو مجاميع الحسابات لا تطابق عقد التصدير الآمن.");
+      return;
+    }
+    try {
+      downloadFinancialStatementsWorkbookXlsx(projected);
+      setPrintError("");
+      setNotice("تم تجهيز ملف Excel للقوائم الكاملة من قيود الأستاذ المرحلة. يتضمن الملخص وقائمة الدخل والمركز المالي وحدود المصدر.");
+    } catch (cause) {
+      setPrintError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel للقوائم المالية.");
+    }
   }
 
   const refresh = useCallback(async () => {
@@ -438,6 +454,7 @@ export function GeneralLedgerWorkspace() {
           <div><h3 style={{ margin: 0 }}>قائمة الدخل والمركز المالي</h3><p style={muted}>تجميع من القيود المرحلة في الأستاذ؛ مستقل عن عدد القيود المعروضة في الصفحة.</p></div>
           <div className="no-print" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <button type="button" style={button} onClick={printFinancialStatements} disabled={statementsLoading || !statements}><Printer size={14} /> طباعة القوائم المالية</button>
+            <button type="button" style={button} onClick={exportFinancialStatementsXlsx} disabled={statementsLoading || !statements}><FileSpreadsheet size={14} /> تصدير Excel الكامل</button>
             <button type="button" style={button} onClick={() => void refreshStatements()} disabled={statementsLoading}><RefreshCw size={14} /> تحديث القوائم</button>
           </div>
         </div>
