@@ -82,11 +82,15 @@ def replace_region(text: str, start: str, end: str, replacement: str) -> str:
     return text.rstrip() + "\n\n" + replacement.rstrip() + "\n"
 
 
-def run_self_test() -> int:
+
+def _self_test_replace_region_contract() -> None:
     assert replace_region("a\nB\nold\nE\nz", "B", "E", "B\nnew") == "a\nB\nnew\n\nE\nz"
     assert replace_region(
         "canonical checkpoint", "legacy resume", "evidence boundary", "archive result"
     ) == "canonical checkpoint\n\narchive result\n"
+
+
+def _self_test_ledger_row_contract() -> None:
     sample = {
         "status": ARCHIVE_SUCCESS,
         "sha256": "digest",
@@ -104,62 +108,77 @@ def run_self_test() -> int:
     assert "identical=2" in ledger_row["reason"]
     assert "self-test" in ledger_row["test_command"]
 
+
+def _self_test_csv_input_rejection(temp_root: Path) -> None:
+    try:
+        read_csv(temp_root / "missing.csv")
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("missing evidence input was accepted")
+
+    corrupt_input = temp_root / "corrupt.csv"
+    corrupt_input.write_bytes(b"\xff\xff")
+    try:
+        read_csv(corrupt_input)
+    except UnicodeDecodeError:
+        pass
+    else:
+        raise AssertionError("invalid UTF-8 evidence input was accepted")
+
+
+def _self_test_atomic_csv_publication(temp_root: Path) -> None:
+    evidence_file = temp_root / "evidence.csv"
+    evidence_file.write_text("historical evidence must survive\n", encoding="utf-8")
+    original_replace = os.replace
+
+    def deny_atomic_publish(source, target):
+        raise PermissionError("synthetic destination permission denial")
+
+    try:
+        os.replace = deny_atomic_publish
+        try:
+            write_csv(evidence_file, ["archive_id"], [{"archive_id": "new"}])
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("failed atomic publication was reported as success")
+    finally:
+        os.replace = original_replace
+
+    assert evidence_file.read_text(encoding="utf-8") == "historical evidence must survive\n"
+    assert not list(temp_root.glob(".evidence.csv.*.tmp")), "failed publication left a temporary file"
+
+    write_csv(evidence_file, ["archive_id"], [{"archive_id": "restored"}])
+    fields, restored_rows = read_csv(evidence_file)
+    assert fields == ["archive_id"] and restored_rows == [{"archive_id": "restored"}]
+
+
+def _self_test_read_only_directory(temp_root: Path) -> None:
+    if not hasattr(os, "geteuid") or os.geteuid() == 0:
+        return
+    read_only = temp_root / "read-only"
+    read_only.mkdir()
+    read_only.chmod(0o500)
+    try:
+        try:
+            write_csv(read_only / "denied.csv", ["id"], [{"id": "blocked"}])
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("read-only output directory accepted a write")
+    finally:
+        read_only.chmod(0o700)
+
+
+def run_self_test() -> int:
+    _self_test_replace_region_contract()
+    _self_test_ledger_row_contract()
     with tempfile.TemporaryDirectory(prefix="nasr1-persist-self-test-") as directory:
         temp_root = Path(directory)
-        try:
-            read_csv(temp_root / "missing.csv")
-        except FileNotFoundError:
-            pass
-        else:
-            raise AssertionError("missing evidence input was accepted")
-
-        corrupt_input = temp_root / "corrupt.csv"
-        corrupt_input.write_bytes(b"\xff\xff")
-        try:
-            read_csv(corrupt_input)
-        except UnicodeDecodeError:
-            pass
-        else:
-            raise AssertionError("invalid UTF-8 evidence input was accepted")
-
-        evidence_file = temp_root / "evidence.csv"
-        evidence_file.write_text("historical evidence must survive\n", encoding="utf-8")
-        original_replace = os.replace
-
-        def deny_atomic_publish(source, target):
-            raise PermissionError("synthetic destination permission denial")
-
-        try:
-            os.replace = deny_atomic_publish
-            try:
-                write_csv(evidence_file, ["archive_id"], [{"archive_id": "new"}])
-            except PermissionError:
-                pass
-            else:
-                raise AssertionError("failed atomic publication was reported as success")
-        finally:
-            os.replace = original_replace
-
-        assert evidence_file.read_text(encoding="utf-8") == "historical evidence must survive\n"
-        assert not list(temp_root.glob(".evidence.csv.*.tmp")), "failed publication left a temporary file"
-
-        write_csv(evidence_file, ["archive_id"], [{"archive_id": "restored"}])
-        fields, restored_rows = read_csv(evidence_file)
-        assert fields == ["archive_id"] and restored_rows == [{"archive_id": "restored"}]
-
-        if hasattr(os, "geteuid") and os.geteuid() != 0:
-            read_only = temp_root / "read-only"
-            read_only.mkdir()
-            read_only.chmod(0o500)
-            try:
-                try:
-                    write_csv(read_only / "denied.csv", ["id"], [{"id": "blocked"}])
-                except PermissionError:
-                    pass
-                else:
-                    raise AssertionError("read-only output directory accepted a write")
-            finally:
-                read_only.chmod(0o700)
+        _self_test_csv_input_rejection(temp_root)
+        _self_test_atomic_csv_publication(temp_root)
+        _self_test_read_only_directory(temp_root)
 
     print("PERSISTENCE_SELF_TEST PASS: missing/corrupt input, atomic write failure, historical-file preservation and successful restore")
     return 0

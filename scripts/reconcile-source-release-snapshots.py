@@ -539,7 +539,8 @@ def persist_audit_outputs(
     safe_print("SOURCE_RELEASE_AUDIT_DIRECTORY=" + str(OUT), flush=True)
 
 
-def self_test() -> int:
+
+def _self_test_safe_member_names() -> None:
     assert safe_name("project/src/main.ts").as_posix() == "project/src/main.ts"
     unsafe_names = ("../escape", "/etc/passwd", "C:/secret", "project/../../escape", "project\\\\file", "")
     for candidate in unsafe_names:
@@ -549,68 +550,76 @@ def self_test() -> int:
             continue
         raise AssertionError("unsafe member accepted: " + repr(candidate))
 
-    payload = b"export const ok = true;\\n"
+
+def _self_test_archive_fixture() -> tuple[bytes, bytes]:
+    payload = b"export const ok = true;\n"
     archive_buffer = io.BytesIO()
     with zipfile.ZipFile(archive_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("project/src/ok.ts", payload)
-    with tempfile.TemporaryDirectory(prefix="nasr1-source-self-test-") as directory:
-        root = Path(directory)
-        with zipfile.ZipFile(io.BytesIO(archive_buffer.getvalue())) as archive:
-            infos, total = inspect_headers(archive)
-            assert len(infos) == 1 and total == len(payload)
-            destination = root / "restored/project/src/main.ts"
-            digest, size = stream_member(archive, infos[0], destination, root)
-            assert digest == sha256(payload) and size == len(payload)
-            assert destination.read_bytes() == payload
+    return payload, archive_buffer.getvalue()
 
-            try:
-                stream_member(archive, infos[0], destination, root)
-            except FileExistsError:
-                pass
-            else:
-                raise AssertionError("snapshot restore overwrote an existing source file")
-            assert destination.read_bytes() == payload
 
-            blocked_parent = root / "blocked-parent"
-            blocked_parent.write_text("preserve blocker", encoding="utf-8")
-            try:
-                stream_member(archive, infos[0], blocked_parent / "file.ts", root)
-            except OSError:
-                pass
-            else:
-                raise AssertionError("snapshot restore accepted a non-directory destination")
-            assert blocked_parent.read_text(encoding="utf-8") == "preserve blocker"
+def _self_test_restore_member(root: Path, archive_bytes: bytes, payload: bytes) -> None:
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        infos, total = inspect_headers(archive)
+        assert len(infos) == 1 and total == len(payload)
+        destination = root / "restored/project/src/main.ts"
+        digest, size = stream_member(archive, infos[0], destination, root)
+        assert digest == sha256(payload) and size == len(payload)
+        assert destination.read_bytes() == payload
 
-        stored = io.BytesIO()
-        with zipfile.ZipFile(stored, "w", compression=zipfile.ZIP_STORED) as archive:
-            archive.writestr("project/corrupt.ts", b"CRC sentinel")
-        corrupted = bytearray(stored.getvalue())
-        with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
-            corrupt_info = archive.getinfo("project/corrupt.ts")
-            name_size, extra_size = struct.unpack_from("<HH", corrupted, corrupt_info.header_offset + 26)
-            data_offset = corrupt_info.header_offset + 30 + name_size + extra_size
-        corrupted[data_offset] ^= 0x01
-        with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
-            corrupt_info = archive.getinfo("project/corrupt.ts")
-            partial = root / "corrupt-output.ts"
-            try:
-                stream_member(archive, corrupt_info, partial, root)
-            except zipfile.BadZipFile:
-                pass
-            else:
-                raise AssertionError("corrupt member CRC was accepted")
-            assert not partial.exists(), "incomplete restored member was left behind"
-    sample_bytes = archive_buffer.getvalue()
+        try:
+            stream_member(archive, infos[0], destination, root)
+        except FileExistsError:
+            pass
+        else:
+            raise AssertionError("snapshot restore overwrote an existing source file")
+        assert destination.read_bytes() == payload
+
+        blocked_parent = root / "blocked-parent"
+        blocked_parent.write_text("preserve blocker", encoding="utf-8")
+        try:
+            stream_member(archive, infos[0], blocked_parent / "file.ts", root)
+        except OSError:
+            pass
+        else:
+            raise AssertionError("snapshot restore accepted a non-directory destination")
+        assert blocked_parent.read_text(encoding="utf-8") == "preserve blocker"
+
+
+def _self_test_corrupt_member_cleanup(root: Path) -> None:
+    stored = io.BytesIO()
+    with zipfile.ZipFile(stored, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("project/corrupt.ts", b"CRC sentinel")
+    corrupted = bytearray(stored.getvalue())
+    with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
+        corrupt_info = archive.getinfo("project/corrupt.ts")
+        name_size, extra_size = struct.unpack_from("<HH", corrupted, corrupt_info.header_offset + 26)
+        data_offset = corrupt_info.header_offset + 30 + name_size + extra_size
+    corrupted[data_offset] ^= 0x01
+    with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
+        corrupt_info = archive.getinfo("project/corrupt.ts")
+        partial = root / "corrupt-output.ts"
+        try:
+            stream_member(archive, corrupt_info, partial, root)
+        except zipfile.BadZipFile:
+            pass
+        else:
+            raise AssertionError("corrupt member CRC was accepted")
+        assert not partial.exists(), "incomplete restored member was left behind"
+
+
+def _self_test_download_and_error_redaction(archive_bytes: bytes) -> None:
     sample_spec = {
         "id": "self-test",
         "tag": "self-test",
         "tag_commit": "abc123",
         "name": "sample.zip",
-        "bytes": len(sample_bytes),
-        "sha256": sha256(sample_bytes),
+        "bytes": len(archive_bytes),
+        "sha256": sha256(archive_bytes),
     }
     audit_row = build_snapshot_audit_row(sample_spec, "https://example.invalid/sample.zip")
-    record_snapshot_download(sample_spec, sample_bytes, audit_row)
+    record_snapshot_download(sample_spec, archive_bytes, audit_row)
     assert audit_row["download_status"] == "DOWNLOADED"
     assert audit_row["actual_bytes"] == sample_spec["bytes"]
     summary = build_snapshot_audit_summary([], [], [], [], [])
@@ -637,6 +646,15 @@ def self_test() -> int:
     assert "[REDACTED]" in str(failure_row["source_url"])
     assert "[REDACTED]" in str(failure_row["exact_error"])
 
+
+def self_test() -> int:
+    _self_test_safe_member_names()
+    payload, archive_bytes = _self_test_archive_fixture()
+    with tempfile.TemporaryDirectory(prefix="nasr1-source-self-test-") as directory:
+        root = Path(directory)
+        _self_test_restore_member(root, archive_bytes, payload)
+        _self_test_corrupt_member_cleanup(root)
+    _self_test_download_and_error_redaction(archive_bytes)
     safe_print("SOURCE_RELEASE_SELF_TEST PASS: path safety, atomic partial-file cleanup, no-overwrite restore, CRC checks, URL/error redaction and SHA-256", flush=True)
     return 0
 
