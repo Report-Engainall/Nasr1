@@ -101,15 +101,15 @@ async function main() {
   const reference = "CI-MULTI-INVOICE-RECEIPT-" + randomUUID();
 
   await setIdentity(db, actor, sessionId);
-  const first = await receiptRpc(db, allocations, "transfer", idempotencyKey, reference, "private receipt note");
-  assert.equal(first.replayed, false);
-  assert.equal(first.allocation_count, 2);
-  assert.equal(first.currency, invoiceA.currency);
-  assert.equal(first.total_amount, "0.60");
-  assert.match(first.receipt_id, /^[0-9a-f-]{36}$/i);
+  const firstReceipt = await receiptRpc(db, allocations, "transfer", idempotencyKey, reference, "private receipt note");
+  assert.equal(firstReceipt.replayed, false);
+  assert.equal(firstReceipt.allocation_count, 2);
+  assert.equal(firstReceipt.currency, invoiceA.currency);
+  assert.equal(firstReceipt.total_amount, "0.60");
+  assert.match(firstReceipt.receipt_id, /^[0-9a-f-]{36}$/i);
 
   const replay = await receiptRpc(db, [...allocations].reverse(), "transfer", idempotencyKey, reference, "private receipt note");
-  assert.equal(replay.receipt_id, first.receipt_id, "reordered same-key lines must replay the same receipt");
+  assert.equal(replay.receipt_id, firstReceipt.receipt_id, "reordered same-key lines must replay the same receipt");
   assert.equal(replay.replayed, true);
   assert.equal(replay.total_amount, "0.60");
 
@@ -148,7 +148,7 @@ async function main() {
     "select id::text as id,organization_id::text as organization_id,customer_id::text as customer_id," +
     "currency,total_amount::text as total_amount,allocation_count,created_by::text as created_by " +
     "from public.customer_payment_receipts where organization_id=$1::uuid and id=$2::uuid",
-    [actor.organization_id, first.receipt_id],
+    [actor.organization_id, firstReceipt.receipt_id],
   );
   assert.equal(receiptRows.length, 1);
   assert.equal(receiptRows[0].customer_id, invoiceA.customer_id);
@@ -160,7 +160,7 @@ async function main() {
     "select id::text as id,invoice_id::text as invoice_id,receipt_id::text as receipt_id," +
     "amount::text as amount,idempotency_key::text as idempotency_key " +
     "from public.customer_payments where organization_id=$1::uuid and receipt_id=$2::uuid order by invoice_id",
-    [actor.organization_id, first.receipt_id],
+    [actor.organization_id, firstReceipt.receipt_id],
   );
   assert.equal(childRows.length, 2, "the receipt must create one existing-ledger payment row per invoice");
   assert.deepEqual(childRows.map(row=>row.invoice_id), [invoiceA.invoice_id,invoiceB.invoice_id].sort());
@@ -172,14 +172,14 @@ async function main() {
     "select entity_id::text as entity_id from public.audit_logs " +
     "where organization_id=$1::uuid and action='customer_payment.recorded' and entity_type='customer_payment' " +
     "and entity_id in (select id from public.customer_payments where receipt_id=$2::uuid)",
-    [actor.organization_id, first.receipt_id],
+    [actor.organization_id, firstReceipt.receipt_id],
   );
   assert.equal(childAudit.length, 2, "each invoice allocation must retain the existing payment audit");
   const receiptAudit = await db.unsafe(
     "select actor_id::text as actor_id,new_value from public.audit_logs " +
     "where organization_id=$1::uuid and action='customer_payment_receipt.recorded' " +
     "and entity_type='customer_payment_receipt' and entity_id=$2::uuid",
-    [actor.organization_id, first.receipt_id],
+    [actor.organization_id, firstReceipt.receipt_id],
   );
   assert.equal(receiptAudit.length, 1, "one receipt-level audit must be persisted");
   assert.equal(receiptAudit[0].actor_id, actor.profile_id);
@@ -198,7 +198,7 @@ async function main() {
   await setIdentity(db, actor, sessionId);
   assert.equal((await db.unsafe(
     "select id::text as id from public.customer_payment_receipts where id=$1::uuid",
-    [first.receipt_id],
+    [firstReceipt.receipt_id],
   )).length, 1);
   const foreignVisible = await db.unsafe(
     "select count(*)::integer as count from public.customer_payment_receipts where organization_id<>$1::uuid",
