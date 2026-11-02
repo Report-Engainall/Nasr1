@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Banknote, ChevronLeft, ChevronRight, Printer, RefreshCw, ShieldCheck } from "lucide-react";
+import { Banknote, ChevronLeft, ChevronRight, FileSpreadsheet, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatDateShort } from "@/lib/format";
 import { validateCashExpenseInput, type CashExpenseDraft } from "@/lib/cash-expense-input";
+import { downloadCashExpenseWorkbookXlsx } from "@/lib/cash-expense-xlsx";
 
 type ExpenseStatus = "posted" | "void";
 type ExpenseItem = {
@@ -13,7 +14,7 @@ type ExpenseItem = {
   description: string;
   amount: string;
   currency: string;
-  payment_method: string;
+  payment_method: "cash" | "transfer" | "card" | "other";
   reference: string | null;
   expense_date: string;
   status: ExpenseStatus;
@@ -68,11 +69,15 @@ function CashExpenseHeader({
   loading,
   hasPayload,
   onPrint,
+  onExport,
+  canExport,
   onRefresh,
 }: {
   loading: boolean;
   hasPayload: boolean;
+  canExport: boolean;
   onPrint: () => void;
+  onExport: () => void;
   onRefresh: () => void;
 }) {
   return (
@@ -84,6 +89,9 @@ function CashExpenseHeader({
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={onPrint} disabled={!hasPayload || loading}>
           <Printer size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> طباعة الصفحة المعروضة
+        </button>
+        <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={onExport} disabled={!canExport || loading}>
+          <FileSpreadsheet size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> تصدير Excel للصفحة الحالية
         </button>
         <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={onRefresh} disabled={loading}>
           <RefreshCw size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> تحديث
@@ -457,6 +465,27 @@ export function CashExpenseLedger() {
     window.print();
   }
 
+  function exportCurrentPage() {
+    if (!payload) return;
+    try {
+      const downloaded = downloadCashExpenseWorkbookXlsx({
+        payload,
+        filters,
+        roles: user?.roles ?? [],
+      });
+      if (!downloaded) throw new Error("هذا المتصفح لا يدعم تنزيل ملفات Excel.");
+      setError("");
+      setNotice(
+        "تم تصدير تفاصيل الصفحة " + (Math.floor(payload.offset / payload.limit) + 1) +
+        " (" + payload.items.length + " سجل). ملخص العملات يشمل " + payload.total_count +
+        " سجلًا مطابقًا للفلاتر؛ بقية تفاصيل الصفحات غير مضمنة في هذا الملف.",
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel للمصروفات.");
+      setNotice("");
+    }
+  }
+
   if (!canManageFinance) {
     return <section style={cardStyle} role="alert"><h2 style={{ margin: 0 }}>صلاحية المحاسبة مطلوبة</h2><p style={muted}>هذا السجل متاح للمحاسب وفريق الإدارة المخوّل فقط.</p></section>;
   }
@@ -466,7 +495,9 @@ export function CashExpenseLedger() {
       <CashExpenseHeader
         loading={loading}
         hasPayload={Boolean(payload)}
+        canExport={Boolean(payload && payload.items.length > 0)}
         onPrint={printCurrentPage}
+        onExport={exportCurrentPage}
         onRefresh={() => void load()}
       />
       <CashExpenseFeedback notice={notice} error={error} />
