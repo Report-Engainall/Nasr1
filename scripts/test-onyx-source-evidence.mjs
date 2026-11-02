@@ -117,7 +117,7 @@ async function readExportDenialState(organizationId, actorProfileId, requestKey,
   const audits = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs " +
       "where organization_id=$1::uuid and action='onyx_export.prepared' " +
-      "and entity_type='order' and entity_id=$2::text",
+      "and entity_type='order' and entity_id=$2::uuid",
     [organizationId, orderId],
   );
   return { requestCount: Number(requests[0].count), auditCount: Number(audits[0].count) };
