@@ -337,11 +337,22 @@ async function main() {
       [exportOrder,productExact,codeExact,productDuplicate,codeDuplicate,productMiss,codeMiss],
     );
     const foreignExportSnapshotId = uuid();
+    const foreignExportJobId = uuid();
+    const foreignExportHash = "d".repeat(64);
+    const foreignExportFileName = "foreign-export-" + suffix + ".csv";
+    await insertImportJob({
+      id: foreignExportJobId,
+      organizationId: foreignOrganizationId,
+      fileHash: foreignExportHash,
+      createdBy: foreignManagerProfileId,
+      name: foreignExportFileName,
+    });
     await insertSnapshot({
       id: foreignExportSnapshotId,
       organizationId: foreignOrganizationId,
-      fileHash: "d".repeat(64),
-      fileName: "foreign-export-" + suffix + ".csv",
+      importJobId: foreignExportJobId,
+      fileHash: foreignExportHash,
+      fileName: foreignExportFileName,
       createdBy: foreignManagerProfileId,
     });
 
