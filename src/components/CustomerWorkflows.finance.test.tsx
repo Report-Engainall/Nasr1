@@ -162,7 +162,9 @@ async function submitPayment(amount: string) {
   }
 
   await act(async () => {
-    setNativeValue(invoiceSelect, INVOICE_ID);
+    if (invoiceSelect.value !== INVOICE_ID) {
+      setNativeValue(invoiceSelect, INVOICE_ID);
+    }
     setNativeValue(amountInput, amount);
     form.requestSubmit();
     await Promise.resolve();
