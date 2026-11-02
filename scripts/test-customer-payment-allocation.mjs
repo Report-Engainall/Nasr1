@@ -388,9 +388,15 @@ async function main() {
     [actor.organization_id, overpayKey],
   ))[0].count, 0);
 
-  // Distinct sessions must overlap behind the same invoice lock; one creates and
-  // one replays the same receipt request key.
+  // Distinct authenticated sessions must overlap behind the same invoice lock;
+  // one creates the receipt and the other replays the same request key.
   const concurrentKey = randomUUID();
+  const secondSessionId = randomUUID();
+  await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+    "values($1,$2,now(),now(),now(),null,'CI second multi-invoice receipt session','127.0.0.1'::inet)",
+    [secondSessionId, actor.auth_user_id],
+  );
   const gate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const first = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const second = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -400,7 +406,7 @@ async function main() {
   try {
     await Promise.all([
       setIdentity(first, actor, sessionId, "ci-receipt-allocation-a"),
-      setIdentity(second, actor, sessionId, "ci-receipt-allocation-b"),
+      setIdentity(second, actor, secondSessionId, "ci-receipt-allocation-b"),
     ]);
     await gate.unsafe("begin");
     gateOpen = true;
