@@ -137,6 +137,20 @@ async function renderFinancePage() {
   });
 }
 
+async function selectPrimaryInvoiceForReceipt() {
+  const invoiceSelect = Array.from(container.querySelectorAll("select")).find((select) =>
+    Array.from(select.options).some((option) => option.value === INVOICE_ID),
+  );
+  const form = invoiceSelect?.closest("form");
+  const amountInput = form?.querySelector<HTMLInputElement>('input[type="number"]');
+  if (!invoiceSelect || !amountInput) throw new Error("Primary invoice controls did not render");
+  await act(async () => {
+    setNativeValue(invoiceSelect, INVOICE_ID);
+    setNativeValue(amountInput, "20.00");
+    await Promise.resolve();
+  });
+}
+
 async function submitPayment(amount: string) {
   const invoiceSelect = Array.from(container.querySelectorAll("select")).find((select) =>
     Array.from(select.options).some((option) => option.value === INVOICE_ID),
@@ -437,10 +451,12 @@ describe("StaffFinancePage payment amount guard", () => {
     });
 
     await renderFinancePage();
+    await selectPrimaryInvoiceForReceipt();
     const splitToggle = Array.from(container.querySelectorAll('input[type="checkbox"]')).find((input) =>
       input.closest("label")?.textContent?.includes("توزيع سند قبض واحد"),
     ) as HTMLInputElement | undefined;
     expect(splitToggle).toBeTruthy();
+    expect(splitToggle?.disabled).toBe(false);
 
     await act(async () => {
       splitToggle?.click();
@@ -512,13 +528,12 @@ describe("StaffFinancePage payment amount guard", () => {
     });
 
     await renderFinancePage();
+    await selectPrimaryInvoiceForReceipt();
     const splitToggle = Array.from(container.querySelectorAll('input[type="checkbox"]')).find((input) =>
       input.closest("label")?.textContent?.includes("توزيع سند قبض واحد"),
     ) as HTMLInputElement | undefined;
-    await act(async () => {
-      splitToggle?.click();
-      await Promise.resolve();
-    });
+    expect(splitToggle).toBeTruthy();
+    expect(splitToggle?.disabled).toBe(true);
     expect(container.querySelector('input[aria-label="تخصيص على الفاتورة INV-OTHER-CUSTOMER"]')).toBeNull();
     expect(container.querySelector('input[aria-label="تخصيص على الفاتورة INV-USD"]')).toBeNull();
   });
