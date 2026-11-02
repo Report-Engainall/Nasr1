@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { FileSpreadsheet } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { downloadCustomerReturnReviewWorkbookXlsx } from "@/lib/customer-return-review-xlsx";
 import { CheckCircle2, ClipboardCheck, RefreshCw, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -143,6 +146,22 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
   const [error, setError] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const canExport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
+
+  function exportCurrentQueue() {
+    if (!canExport || rows.length === 0) return;
+    try {
+      const downloaded = downloadCustomerReturnReviewWorkbookXlsx({ rows, roles: user?.roles ?? [] });
+      if (!downloaded) throw new Error("هذا المتصفح لا يدعم تنزيل ملفات Excel.");
+      setError("");
+      onNotice("تم تصدير " + rows.length + " طلب مراجعة من القائمة الحالية. الملف يتضمن تفاصيل الأصناف، ولا يمثل السجل التاريخي الكامل.");
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "تعذر إنشاء ملف مراجعة المرتجعات.";
+      setError(message);
+      onNotice(message);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,9 +224,14 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
             القرار يتطلب مبررًا مدققًا. الموافقة تنشئ مهمة استلام وفحص؛ لا تسجل ردًا ماليًا أو حركة مخزون قبل الاستلام الفعلي.
           </p>
         </div>
-        <button type="button" style={button} onClick={() => void load()} disabled={loading || busyId !== null}>
-          <RefreshCw size={15} /> تحديث
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {canExport && <button type="button" style={button} onClick={exportCurrentQueue} disabled={loading || busyId !== null || rows.length === 0}>
+            <FileSpreadsheet size={15} /> تصدير قائمة المراجعة الحالية
+          </button>}
+          <button type="button" style={button} onClick={() => void load()} disabled={loading || busyId !== null}>
+            <RefreshCw size={15} /> تحديث
+          </button>
+        </div>
       </header>
 
       {loading && <p role="status" style={muted}>جارٍ تحميل الطلبات المفتوحة...</p>}
@@ -227,3 +251,4 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
     </section>
   );
 }
+
