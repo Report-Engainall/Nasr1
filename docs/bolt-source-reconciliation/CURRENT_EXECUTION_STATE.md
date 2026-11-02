@@ -428,3 +428,22 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
+
+## 2026-11-02 — shared data-fetch latest-request isolation
+
+- EXECUTION_START_MAIN_SHA: 33b555faecbee3f9ec2515eec33e961617cc5c0c.
+- CODE_ACCEPTANCE_SHA: a44a6fd21aff5a5e921bb14c8bcd1802c33b4b2a (parent is the recorded start SHA; fast-forwarded directly to main).
+- ROOT_CAUSE: useFetch allowed overlapping asynchronous calls to commit out of order. A stale success could overwrite newer data; a stale rejection could overwrite the current error state; and an older finally block could clear loading while a newer request remained active.
+- IMPLEMENTATION: src/lib/useFetch.ts now assigns a monotonically increasing request generation. Only the current generation can update data/error/loading. Dependency-effect cleanup invalidates in-flight work on dependency changes and unmount.
+- REGRESSION_TESTS: src/test/useFetch-race.test.tsx — (1) stale response resolves before the current response and cannot modify data/loading, (2) stale rejection after current success cannot replace success or create an error.
+- EXACT_SHA_CI:
+  - Aghbari Commerce checks run 41466910936: SUCCESS on a44a6fd21aff5a5e921bb14c8bcd1802c33b4b2a. Unit tests, focused TypeScript, complete isolated PostgreSQL 17 migration/workflow checks, exact-head RPC inventory, targeted concurrency tests, backup/restore, lint, build, production-preview smoke, development smoke and browser price-visibility acceptance all succeeded.
+  - P2 Playwright Critical Paths run 41466910834: SUCCESS on the same SHA. Public UI smoke and local Supabase order persistence/tenant-isolation browser acceptance succeeded. Hosted customer/order/tenant E2E job was SKIPPED by its external-auth infrastructure gate; it is not counted as PASS.
+  - P1 Targeted TypeScript Assurance run 41466911047: SUCCESS.
+  - P1 Secret Scan run 41466910883: SUCCESS.
+  - Free Static Analysis run 41466910887: SUCCESS (Semgrep and both CodeQL jobs).
+  - One-main-branch cleanup run 41466910831: SUCCESS.
+- CHANGED_FILES: src/lib/useFetch.ts; src/test/useFetch-race.test.tsx.
+- DELIVERY_STATUS: IMPLEMENTED=YES; MERGED_TO_MAIN=YES; UNIT_TESTED=PASS; POSTGRESQL_17=PASS; BUILD=PASS; P2_LOCAL_BROWSER=PASS; HOSTED_CUSTOMER_E2E=SKIPPED_EXTERNAL.
+- DLV-001 remains OPEN: this verified shared hook regression does not complete the full live requirement-to-test mapping. Other DLV roll-ups remain at their independently evidenced statuses.
+- NEXT_ACTION: continue the existing canonical unresolved-work pointer NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001; do not redo this request-generation fix unless a new regression appears.
