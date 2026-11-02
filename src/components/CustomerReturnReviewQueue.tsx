@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { FileSpreadsheet } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, FileSpreadsheet, RefreshCw, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { downloadCustomerReturnReviewWorkbookXlsx } from "@/lib/customer-return-review-xlsx";
-import { CheckCircle2, ClipboardCheck, RefreshCw, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type ReviewDecision = "approved" | "rejected";
+type ReturnReason = "damaged" | "wrong_item" | "missing_item" | "quality" | "other";
 type ReturnLine = { item_code: string | null; product_name: string; unit: string | null; requested_quantity: number };
 type ReturnReviewRow = {
   id: string; request_number: string; status: "submitted" | "under_review";
-  reason: string; notes: string | null; created_at: string; order_id: string;
+  reason: ReturnReason; notes: string | null; created_at: string; order_id: string;
   order_number: string; customer_name: string; customer_code: string; items: ReturnLine[];
 };
 
@@ -48,6 +48,8 @@ function readReviewRows(value: unknown): ReturnReviewRow[] {
     if (!isRecord(entry) || !Array.isArray(entry.items)) throw new Error("سجل مراجعة مرتجع غير صالح.");
     const status = requiredString(entry.status, "status");
     if (status !== "submitted" && status !== "under_review") throw new Error("تتضمن قائمة المراجعة حالة غير متوقعة.");
+    const reason = requiredString(entry.reason, "reason");
+    if (!Object.prototype.hasOwnProperty.call(reasonLabels, reason)) throw new Error("تتضمن قائمة المراجعة سبب مرتجع غير معتمد.");
     const items = entry.items.map((line): ReturnLine => {
       if (!isRecord(line)) throw new Error("تفاصيل صنف المرتجع غير صالحة.");
       const quantity = Number(line.requested_quantity);
@@ -63,7 +65,7 @@ function readReviewRows(value: unknown): ReturnReviewRow[] {
       id: requiredString(entry.id, "id"),
       request_number: requiredString(entry.request_number, "request_number"),
       status,
-      reason: requiredString(entry.reason, "reason"),
+      reason: reason as ReturnReason,
       notes: typeof entry.notes === "string" ? entry.notes : null,
       created_at: requiredString(entry.created_at, "created_at"),
       order_id: requiredString(entry.order_id, "order_id"),
