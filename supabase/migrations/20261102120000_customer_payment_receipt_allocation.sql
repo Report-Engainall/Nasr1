@@ -60,15 +60,7 @@ CREATE POLICY customer_payment_receipts_scoped_read
          AND p.auth_user_id=auth.uid()
          AND p.is_active=true
     )
-    AND (
-      public.can_manage_finance()
-      OR customer_id IN (
-        SELECT c.id
-          FROM public.customers c
-         WHERE c.profile_id=public.current_profile_id()
-           AND c.organization_id=customer_payment_receipts.organization_id
-      )
-    )
+    AND public.can_manage_finance()
   );
 
 CREATE OR REPLACE FUNCTION public.record_customer_payment_allocation(

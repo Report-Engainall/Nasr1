@@ -188,7 +188,44 @@ async function main() {
   assert.equal(JSON.stringify(receiptAudit[0].new_value).includes(idempotencyKey), false);
   assert.equal(JSON.stringify(receiptAudit[0].new_value).includes("private receipt note"), false);
 
-  // RLS exposes only this accountant's own tenant header, and direct writes stay denied.
+  // Customers receive only the approved account-statement projection, never the
+  // receipt header's internal notes, references or raw receipt metadata.
+  await db.unsafe("reset role");
+  const customerActorRows = await db.unsafe(
+    "select p.auth_user_id::text as auth_user_id,p.email,p.id::text as profile_id,p.organization_id::text as organization_id " +
+    "from public.customers c join public.profiles p on p.id=c.profile_id and p.organization_id=c.organization_id " +
+    "where c.id=$1::uuid and c.organization_id=$2::uuid and p.is_active=true limit 1",
+    [invoiceA.customer_id, actor.organization_id],
+  );
+  assert.equal(customerActorRows.length, 1, "receipt owner must have an active customer profile");
+  const customerActor = customerActorRows[0];
+  const customerSessionId = randomUUID();
+  await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+    "values($1,$2,now(),now(),now(),null,'CI customer receipt privacy','127.0.0.1'::inet)",
+    [customerSessionId, customerActor.auth_user_id],
+  );
+  await setIdentity(db, customerActor, customerSessionId);
+  const customerStatement = (await db.unsafe(
+    "select public.get_customer_account_statement() as result",
+  ))[0].result;
+  const statementPaymentIds = new Set(customerStatement.payments.map((row) => row.id));
+  assert.ok(childRows.every((row) => statementPaymentIds.has(row.id)),
+    "customer statement must include each saved invoice allocation");
+  assert.ok(customerStatement.payments.every((row) => !("receipt_id" in row) && !("notes" in row)),
+    "customer statement returns the bounded payment projection, not receipt internals");
+  assert.equal((await db.unsafe(
+    "select id from public.customer_payment_receipts where id=$1::uuid",
+    [firstReceipt.receipt_id],
+  )).length, 0, "customers cannot query receipt headers or internal notes directly");
+  await expectSqlState(
+    "customer cannot call the finance-only multi-invoice receipt RPC",
+    () => receiptRpc(db, allocations, "transfer", randomUUID(), reference, null),
+    "42501",
+  );
+  await db.unsafe("reset role");
+
+  // RLS exposes receipt headers only to finance users; direct writes stay denied.
   const privileges = (await db.unsafe(
     "select has_table_privilege('authenticated','public.customer_payment_receipts','SELECT') as can_select," +
     "has_table_privilege('authenticated','public.customer_payment_receipts','INSERT') as can_insert",
@@ -265,6 +302,43 @@ async function main() {
     await db.unsafe("rollback").catch(()=>{});
     throw error;
   }
+
+  // A second customer in the same tenant cannot be included in this customer receipt.
+  await db.unsafe("reset role");
+  const secondCustomerRows = await db.unsafe(
+    "select id::text as id from public.customers where organization_id=$1::uuid and customer_code='CI-CUST-02' limit 1",
+    [actor.organization_id],
+  );
+  assert.equal(secondCustomerRows.length, 1, "isolated fixture must include a second customer in the same tenant");
+  const otherCustomerOrderId = (await db.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,created_by) " +
+    "values($1::uuid,$2::uuid,$3,'approved',100.00,1,$4::uuid) returning id::text as id",
+    [actor.organization_id, secondCustomerRows[0].id, "CI-MULTI-ALLOC-CUSTOMER-" + randomUUID(), actor.profile_id],
+  ))[0].id;
+  const otherCustomerInvoiceId = (await db.unsafe(
+    "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) " +
+    "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',now(),now()+interval '30 days',$5,100.00,0.00,100.00) returning id::text as id",
+    [actor.organization_id, secondCustomerRows[0].id, otherCustomerOrderId, "CI-MULTI-ALLOC-CUSTOMER-INVOICE-" + randomUUID(), invoiceA.currency],
+  ))[0].id;
+  const customerMismatchKey = randomUUID();
+  await setIdentity(db, actor, sessionId);
+  await expectSqlState(
+    "receipt mixing two different customers within one tenant",
+    () => receiptRpc(db, [
+      { invoice_id: invoiceA.invoice_id, amount: "0.10" },
+      { invoice_id: otherCustomerInvoiceId, amount: "0.10" },
+    ], "transfer", customerMismatchKey, reference, null),
+    "22023",
+  );
+  await db.unsafe("reset role");
+  assert.equal((await db.unsafe(
+    "select count(*)::integer as count from public.customer_payment_receipts where organization_id=$1::uuid and idempotency_key=$2::uuid",
+    [actor.organization_id, customerMismatchKey],
+  ))[0].count, 0);
+  assert.equal((await db.unsafe(
+    "select count(*)::integer as count from public.customer_payments where organization_id=$1::uuid and idempotency_key=$2::uuid",
+    [actor.organization_id, customerMismatchKey],
+  ))[0].count, 0);
 
   // An over-limit line denies the entire receipt, not just the single offending line.
   const balanceRows = await db.unsafe(
