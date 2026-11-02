@@ -83,6 +83,14 @@ function AsyncExportJobActions({ job, busy, onDownload, onRetry, onCancel }: Asy
   );
 }
 
+function AsyncExportJobActionCell({ job, busy, onDownload, onRetry, onCancel }: AsyncExportJobRowProps) {
+  return (
+    <td className="px-4 py-3">
+      <AsyncExportJobActions job={job} busy={busy} onDownload={onDownload} onRetry={onRetry} onCancel={onCancel} />
+    </td>
+  );
+}
+
 function AsyncExportJobRow({ job, busy, onDownload, onRetry, onCancel }: AsyncExportJobRowProps) {
   return (
     <tr>
@@ -94,9 +102,7 @@ function AsyncExportJobRow({ job, busy, onDownload, onRetry, onCancel }: AsyncEx
       <td className="px-4 py-3 tabular-nums">{size(job.byte_size)}</td>
       <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{time(job.created_at)}</td>
       <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{time(job.expires_at)}</td>
-      <td className="px-4 py-3">
-        <AsyncExportJobActions job={job} busy={busy} onDownload={onDownload} onRetry={onRetry} onCancel={onCancel} />
-      </td>
+      <AsyncExportJobActionCell job={job} busy={busy} onDownload={onDownload} onRetry={onRetry} onCancel={onCancel} />
     </tr>
   );
 }

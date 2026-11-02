@@ -288,13 +288,18 @@ async function deleteProductImageObject(productId: string, objectPath: string): 
   }
 }
 
+const PRODUCT_IMAGE_PRODUCT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidProductImageProductId(value: unknown): value is string {
+  return typeof value === "string" && PRODUCT_IMAGE_PRODUCT_ID_PATTERN.test(value);
+}
+
 export async function uploadProductImage(
   productId: string,
   image: Blob,
   previousImageUrl?: string | null,
 ): Promise<string> {
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (typeof productId !== "string" || !uuidPattern.test(productId)) {
+  if (!isValidProductImageProductId(productId)) {
     throw new Error("معرّف المنتج غير صالح؛ لم تُرفع الصورة.");
   }
   if (!(image instanceof Blob) || image.type !== "image/webp" || image.size < 1 || image.size > PRODUCT_IMAGE_MAX_BYTES) {
@@ -356,8 +361,7 @@ export async function removeProductImage(
   productId: string,
   currentImageUrl?: string | null,
 ): Promise<void> {
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (typeof productId !== "string" || !uuidPattern.test(productId)) {
+  if (!isValidProductImageProductId(productId)) {
     throw new Error("معرّف المنتج غير صالح؛ لم تُزل الصورة.");
   }
   const scope = await getCurrentTenantScope();

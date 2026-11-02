@@ -28,6 +28,19 @@ const dateText = (value: string) => {
 type TransferWarehouse = Awaited<ReturnType<typeof fetchActiveInventoryWarehouses>>[number];
 type TransferProduct = Awaited<ReturnType<typeof fetchInventoryTransferProducts>>[number];
 
+function renderTransferWarehouseOptions(warehouses: TransferWarehouse[]) {
+  return warehouses.map((warehouse) => (
+    <option key={warehouse.id} value={warehouse.id}>
+      {warehouse.name}{warehouse.code ? " — " + warehouse.code : ""}
+    </option>
+  ));
+}
+
+function renderDestinationWarehouseOptions(warehouses: TransferWarehouse[], sourceWarehouseId: string) {
+  const eligibleWarehouses = warehouses.filter((warehouse) => warehouse.id !== sourceWarehouseId);
+  return renderTransferWarehouseOptions(eligibleWarehouses);
+}
+
 function TransferPageHeading() {
   return (
     <header className="heading">
@@ -65,13 +78,13 @@ function TransferWarehouseFields({
       <label>مستودع المصدر
         <select aria-label="المستودع المصدر" value={sourceWarehouseId} onChange={(event) => onSourceChange(event.target.value)} disabled={submitting}>
           <option value="">اختر المستودع المصدر</option>
-          {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}{warehouse.code ? " — " + warehouse.code : ""}</option>)}
+          {renderTransferWarehouseOptions(warehouses)}
         </select>
       </label>
       <label>مستودع الوجهة
         <select aria-label="المستودع الوجهة" value={destinationWarehouseId} onChange={(event) => onDestinationChange(event.target.value)} disabled={submitting}>
           <option value="">اختر المستودع الوجهة</option>
-          {warehouses.filter((warehouse) => warehouse.id !== sourceWarehouseId).map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}{warehouse.code ? " — " + warehouse.code : ""}</option>)}
+          {renderDestinationWarehouseOptions(warehouses, sourceWarehouseId)}
         </select>
       </label>
       <label>سبب التحويل

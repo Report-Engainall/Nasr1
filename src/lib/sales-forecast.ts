@@ -13,6 +13,10 @@ export type SalesForecastPoint = {
  * mutating the source data. Returns null for invalid or unsafe calculations.
  * The supported range is an explicit UI guard, not a claim about likely outcomes.
  */
+function isValidForecastDay(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export function calculateWhatIfSales(expectedTotal: number, changePercent: number): number | null {
   if (
     !Number.isFinite(expectedTotal) ||
@@ -162,7 +166,7 @@ export function buildSalesForecast(points: readonly SalesForecastPoint[]): Sales
       return unavailable('invalid_data', normalized.length);
     }
     const day = date.toISOString().slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    if (!isValidForecastDay(day)) {
       return unavailable('invalid_data', normalized.length);
     }
     days.push({ day, expectedSales: baselineCents / 100 });

@@ -186,8 +186,14 @@ function parseOnyxExternalIdExample(example: unknown): OnyxExternalIdExample {
   };
 }
 
+const ONYX_SNAPSHOT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidOnyxSnapshotId(value: string): boolean {
+  return ONYX_SNAPSHOT_ID_PATTERN.test(value);
+}
+
 export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promise<OnyxSnapshotSourceEvidence> {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(snapshotId)) {
+  if (!isValidOnyxSnapshotId(snapshotId)) {
     throw new Error("معرّف لقطة أونكس غير صالح.");
   }
   const { data, error } = await supabase.rpc("get_onyx_snapshot_source_evidence", { p_snapshot_id: snapshotId });

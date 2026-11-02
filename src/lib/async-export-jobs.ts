@@ -18,9 +18,11 @@ export type AsyncExportJobState = {
   expires_at: string | null;
 };
 
+const ASYNC_EXPORT_JOB_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function uuid(value: unknown): value is string {
-  return typeof value === "string"
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if (typeof value !== "string") return false;
+  return ASYNC_EXPORT_JOB_UUID_PATTERN.test(value);
 }
 
 function readRequestedJobId(data: unknown): string | null {

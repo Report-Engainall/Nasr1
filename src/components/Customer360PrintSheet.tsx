@@ -144,17 +144,29 @@ function FinanceByCurrencySection({ document }: { document: Customer360PrintDocu
   );
 }
 
+function RecentInvoicePrintRow({ row, index }: {
+  row: Customer360PrintDocument["recentInvoices"][number];
+  index: number;
+}) {
+  return (
+    <tr>
+      <td>{row.invoiceNumber}</td><td>{date(row.issuedAt)}</td><td>{date(row.dueAt)}</td>
+      <td>{invoiceStatus(row.status)}</td><td>{row.currency}</td>
+      <td>{money(row.totalAmount, row.currency)}</td><td>{money(row.paidAmount, row.currency)}</td>
+      <td>{money(row.creditMemoAmount, row.currency)}</td><td>{money(row.outstandingAmount, row.currency)}</td>
+    </tr>
+  );
+}
+
 function RecentInvoicesSection({ document }: { document: Customer360PrintDocument }) {
   return (
 <section className="customer-360-print-section">
         <h2>آخر الفواتير ({formatNumber(document.recentInvoices.length)} معروضة)</h2>
         <p className="customer-360-print-note">التفاصيل أدناه لأحدث 20 فاتورة فقط؛ إجماليات الدفتر المالي أعلاه كاملة ومفصولة حسب العملة.</p>
         <table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>العملة</th><th>الإجمالي</th><th>المسدّد</th><th>الدائن</th><th>المتبقي</th></tr></thead><tbody>
-          {document.recentInvoices.map((row, index) => <tr key={row.invoiceNumber + "-" + index}>
-            <td>{row.invoiceNumber}</td><td>{date(row.issuedAt)}</td><td>{date(row.dueAt)}</td><td>{invoiceStatus(row.status)}</td><td>{row.currency}</td>
-            <td>{money(row.totalAmount, row.currency)}</td><td>{money(row.paidAmount, row.currency)}</td>
-            <td>{money(row.creditMemoAmount, row.currency)}</td><td>{money(row.outstandingAmount, row.currency)}</td>
-          </tr>)}
+          {document.recentInvoices.map((row, index) => (
+            <RecentInvoicePrintRow key={row.invoiceNumber + "-" + index} row={row} index={index} />
+          ))}
           {document.recentInvoices.length === 0 ? <tr><td colSpan={9}>لا توجد فواتير حديثة.</td></tr> : null}
         </tbody></table>
       </section>

@@ -119,6 +119,17 @@ function ReceivablesCurrencySection({ rows }: { rows: ReceivablesCurrency[] }) {
   );
 }
 
+function AssetAccountRow({ account }: { account: LedgerAccount }) {
+  return (
+    <tr>
+      <td><strong>{account.name}</strong><small style={{ display: "block" }}>{account.code}</small></td>
+      <td>{formatLedgerMoney(account.debit_total)}</td>
+      <td>{formatLedgerMoney(account.credit_total)}</td>
+      <td>{formatLedgerBalance(account.debit_total, account.credit_total)}</td>
+    </tr>
+  );
+}
+
 function AssetAccountsSection({ accounts }: { accounts: LedgerAccount[] }) {
   return (
             <section>
@@ -127,14 +138,7 @@ function AssetAccountsSection({ accounts }: { accounts: LedgerAccount[] }) {
                 <div style={{ overflowX: "auto" }}>
                   <table>
                     <thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد الطبيعي</th></tr></thead>
-                    <tbody>{accounts.map((account) => (
-                      <tr key={account.id}>
-                        <td><strong>{account.name}</strong><small style={{ display: "block" }}>{account.code}</small></td>
-                        <td>{formatLedgerMoney(account.debit_total)}</td>
-                        <td>{formatLedgerMoney(account.credit_total)}</td>
-                        <td>{formatLedgerBalance(account.debit_total, account.credit_total)}</td>
-                      </tr>
-                    ))}</tbody>
+                    <tbody>{accounts.map((account) => <AssetAccountRow key={account.id} account={account} />)}</tbody>
                   </table>
                 </div>
               )}

@@ -99,6 +99,14 @@ type TaskCreateFormProps = {
 
 
 
+function renderTaskAssigneeOptions(assignees: OperationalTaskAssignee[]) {
+  return assignees.map((assignee) => (
+    <option key={assignee.profile_id} value={assignee.profile_id}>
+      {assignee.full_name}{assignee.email ? ' — ' + assignee.email : ''}
+    </option>
+  ));
+}
+
 function TaskCreateFields({ allowedRoles, newRole, onRoleChange, eligibleAssignees, assignedTo, assigneesLoading, assigneesError, onAssigneeChange, priority, onPriorityChange, dueAt, onDueAtChange }: Pick<TaskCreateFormProps, 'allowedRoles' | 'newRole' | 'onRoleChange' | 'eligibleAssignees' | 'assignedTo' | 'assigneesLoading' | 'assigneesError' | 'onAssigneeChange' | 'priority' | 'onPriorityChange' | 'dueAt' | 'onDueAtChange'>) {
   return (
     <div className="task-create-grid">
@@ -108,7 +116,7 @@ function TaskCreateFields({ allowedRoles, newRole, onRoleChange, eligibleAssigne
       <label>الموظف المسؤول
         <select value={assignedTo} onChange={(event) => onAssigneeChange(event.target.value)} disabled={assigneesLoading || Boolean(assigneesError)}>
           <option value="">تبقى في قائمة الدور حتى يستلمها موظف</option>
-          {eligibleAssignees.map((assignee) => <option key={assignee.profile_id} value={assignee.profile_id}>{assignee.full_name}{assignee.email ? ' — ' + assignee.email : ''}</option>)}
+          {renderTaskAssigneeOptions(eligibleAssignees)}
         </select>
         {assigneesLoading && <small>جارٍ تحميل موظفي المؤسسة المصرح لهم…</small>}
         {assigneesError && <small role="status">{assigneesError} يمكنك حفظ المهمة غير مسندة؛ يتحقق الخادم من أي إسناد لاحق.</small>}

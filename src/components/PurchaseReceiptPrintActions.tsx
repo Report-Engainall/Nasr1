@@ -15,6 +15,14 @@ function escapeHtml(value: string): string {
   })[character] ?? character);
 }
 
+function SavedReceiptMeta({ receivedAt, itemCount }: { receivedAt: string; itemCount: number }) {
+  return (
+    <div style={{ color: "var(--muted-foreground)", fontSize: 12 }}>
+      {formatDate(receivedAt)} · {itemCount} بنود مستلمة
+    </div>
+  );
+}
+
 function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isFinite(date.getTime())
@@ -164,7 +172,7 @@ export function PurchaseReceiptPrintActions({ purchaseOrderId }: { purchaseOrder
         <article key={receipt.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
           <div>
             <strong>{receipt.receipt_number}</strong>
-            <div style={{ color: "var(--muted-foreground)", fontSize: 12 }}>{formatDate(receipt.received_at)} · {receipt.item_count} بنود مستلمة</div>
+            <SavedReceiptMeta receivedAt={receipt.received_at} itemCount={receipt.item_count} />
           </div>
           <button type="button" className="btn outline" onClick={() => void printSavedReceipt(receipt.id)} disabled={busyReceiptId !== null}>
             <Printer size={15} /> {busyReceiptId === receipt.id ? "جار تجهيز الإيصال…" : "طباعة الإيصال"}

@@ -37,6 +37,26 @@ type DuplicatePrompt = {
   duplicate: DuplicateResult;
 };
 
+function unsupportedImportFormatDetails(extension: string): {
+  errorSummary: { code: string; message: string; manual_mapping_required: true; no_raw_file_retained: true };
+  statusMessage: string;
+} {
+  const isPdf = extension === "pdf";
+  return {
+    errorSummary: {
+      code: isPdf ? "PDF_TABLE_EXTRACTION_REQUIRED" : "LEGACY_XLS_PARSER_UNAVAILABLE",
+      message: isPdf
+        ? "لم يتوفر مستخرج جدولي موثوق في هذه النسخة. لم يتم تخمين بيانات PDF أو توليد صفوف وهمية؛ يلزم استخراج/تعيين يدوي قبل الاعتماد."
+        : "صيغة XLS الثنائية القديمة غير مدعومة مباشرة. حُفظت الميتاداتا والبصمة فقط؛ احفظ الملف بصيغة XLSX أو CSV ثم أعد الاستيراد.",
+      manual_mapping_required: true,
+      no_raw_file_retained: true,
+    },
+    statusMessage: isPdf
+      ? "سُجل ملف PDF كمسودة تعيين يدوي دون افتراض أنه جدولي."
+      : "سُجل ملف XLS القديم كمسودة؛ احفظ نسخة XLSX أو CSV لإتمام الاستيراد.",
+  };
+}
+
 const STAGES: Array<{ id: Stage; label: string }> = [
   { id: "reading", label: "قراءة الملف" },
   { id: "detecting", label: "كشف النوع والبصمة" },
@@ -242,23 +262,14 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
 
       const extension = file.name.split(".").pop()?.toLocaleLowerCase("en") ?? "";
       if (extension !== "csv" && extension !== "xlsx") {
-        const isPdf = extension === "pdf";
+        const unsupported = unsupportedImportFormatDetails(extension);
         await updateImportJob(job.id, {
           status: "manual_mapping_required",
           data_quality_score: 0,
-          error_summary: {
-            code: isPdf ? "PDF_TABLE_EXTRACTION_REQUIRED" : "LEGACY_XLS_PARSER_UNAVAILABLE",
-            message: isPdf
-              ? "لم يتوفر مستخرج جدولي موثوق في هذه النسخة. لم يتم تخمين بيانات PDF أو توليد صفوف وهمية؛ يلزم استخراج/تعيين يدوي قبل الاعتماد."
-              : "صيغة XLS الثنائية القديمة غير مدعومة مباشرة. حُفظت الميتاداتا والبصمة فقط؛ احفظ الملف بصيغة XLSX أو CSV ثم أعد الاستيراد.",
-            manual_mapping_required: true,
-            no_raw_file_retained: true,
-          },
+          error_summary: unsupported.errorSummary,
         });
         setStage(null);
-        setStatusMessage(isPdf
-          ? "سُجل ملف PDF كمسودة تعيين يدوي دون افتراض أنه جدولي."
-          : "سُجل ملف XLS القديم كمسودة؛ احفظ نسخة XLSX أو CSV لإتمام الاستيراد.");
+        setStatusMessage(unsupported.statusMessage);
         await refetch();
         return;
       }

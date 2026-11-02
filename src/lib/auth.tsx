@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY' ||
           event === 'MFA_CHALLENGE_VERIFIED'
         ) {
-          setTimeout(() => { void refresh(); }, 0);
+          setTimeout(refresh, 0);
         }
         if (event === 'SIGNED_OUT') setUser(null);
       });

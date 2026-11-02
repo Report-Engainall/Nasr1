@@ -395,16 +395,20 @@ function CustomerReturnHistoryCard({
       <p style={muted}>
         السبب: {reasonLabels[request.reason]} · التاريخ: {new Date(request.created_at).toLocaleString("ar-YE")}
       </p>
-      <ul style={{ margin: 0, paddingInlineStart: 22 }}>
-        {request.items.map((item) => (
-          <CustomerReturnHistoryLine key={item.order_item_id} item={item} />
-        ))}
-      </ul>
+      <CustomerReturnHistoryItems items={request.items} />
       {request.notes ? <p style={muted}>تفاصيل العميل: {request.notes}</p> : null}
       {request.review_note ? (
         <p style={{ ...muted, color: "#3e5e61" }}>ملاحظة القرار: {request.review_note}</p>
       ) : null}
     </article>
+  );
+}
+
+function CustomerReturnHistoryItems({ items }: { items: CustomerReturnSummary["requests"][number]["items"] }) {
+  return (
+    <ul style={{ margin: 0, paddingInlineStart: 22 }}>
+      {items.map((item) => <CustomerReturnHistoryLine key={item.order_item_id} item={item} />)}
+    </ul>
   );
 }
 

@@ -23,6 +23,15 @@ function closePrintWindow(target: Window | null): void {
   if (target && !target.closed) target.close();
 }
 
+function CustomerPaymentReceiptNotice({ message }: { message: string }) {
+  if (!message) return null;
+  return (
+    <p role="status" style={{ color: "#17684d", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+      <ShieldCheck size={15} />{message}
+    </p>
+  );
+}
+
 export function CustomerPaymentReceiptPrintActions({ latestReceiptId = null }: Props) {
   const [options, setOptions] = useState<FinancePrintReceiptOptions>(emptyOptions);
   const [offset, setOffset] = useState(0);
@@ -156,7 +165,7 @@ export function CustomerPaymentReceiptPrintActions({ latestReceiptId = null }: P
       ) : null}
       {loading && <p role="status" style={{ color: "var(--muted-foreground, #66757b)", fontSize: 12 }}>جارٍ تحميل سندات القبض المسموح بها…</p>}
       {error && <p role="alert" style={{ color: "#a32929", background: "#fff1f1", borderRadius: 8, padding: 10, fontSize: 12 }}>{error}</p>}
-      {notice && <p role="status" style={{ color: "#17684d", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}><ShieldCheck size={15} />{notice}</p>}
+      <CustomerPaymentReceiptNotice message={notice} />
       {!loading && !error && options.receipts.length === 0 && <p style={{ color: "var(--muted-foreground, #66757b)", fontSize: 12 }}>لا توجد سندات قبض متعددة الفواتير ضمن المؤسسة الحالية.</p>}
       <div className="no-print">
         <button type="button" onClick={() => void printReceipt()} disabled={loading || busy || !selected}

@@ -20,6 +20,17 @@ function discountLabel(promotion: Promotion): string {
     : formatNumber(promotion.discount_value) + '% (قيمة مسجلة)';
 }
 
+function PromotionDescriptionField({ value, onChange }: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label>وصف الحملة
+      <textarea aria-label="وصف الحملة" rows={3} maxLength={600} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
 type PromotionCardProps = {
   promotion: Promotion;
   saving: boolean;
@@ -216,7 +227,7 @@ export function PromotionManager({ onNotice }: { onNotice: (message: string) => 
         <label>قيمة الحملة<input aria-label="قيمة الحملة" required type="number" min="0.01" max={discountType === 'percentage' ? 100 : 99999999.99} step="0.01" value={form.discount_value || ''} onChange={(event) => update('discount_value', event.target.value === '' ? 0 : Number(event.target.value))} /></label>
         <label>بداية النشر<input aria-label="بداية النشر" required type="date" value={form.start_date} onChange={(event) => update('start_date', event.target.value)} /></label>
         <label>نهاية النشر<input aria-label="نهاية النشر" required type="date" min={form.start_date || undefined} value={form.end_date} onChange={(event) => update('end_date', event.target.value)} /></label>
-        <label>وصف الحملة<textarea aria-label="وصف الحملة" rows={3} maxLength={600} value={form.description ?? ''} onChange={(event) => update('description', event.target.value)} /></label>
+        <PromotionDescriptionField value={form.description ?? ''} onChange={(value) => update('description', value)} />
         <label>الأصناف المشمولة<select aria-label="الأصناف المشمولة" multiple size={5} value={form.product_ids} disabled={productsLoading} onChange={(event) => updateSelectedIds('product_ids', event.currentTarget.options)}>{(products ?? []).filter((product: ProductWithInventory) => product.is_active).map((product) => <option key={product.id} value={product.id}>{product.name} — {product.item_code}</option>)}</select><small>اتركه فارغًا إذا كانت الحملة غير مقصورة على أصناف محددة.</small></label>
         <label>التصنيفات المشمولة<select aria-label="التصنيفات المشمولة" multiple size={5} value={form.category_ids} disabled={categoriesLoading} onChange={(event) => updateSelectedIds('category_ids', event.currentTarget.options)}>{(categories ?? []).filter((category: Category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small>اتركه فارغًا إذا كانت الحملة غير مقصورة على تصنيفات محددة.</small></label>
         <label className="promotion-active-toggle"><input type="checkbox" checked={form.is_active} onChange={(event) => update('is_active', event.target.checked)} /> نشطة (تظهر للمتجر إذا دخلت فترة النشر)</label>

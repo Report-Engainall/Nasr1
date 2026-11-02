@@ -129,6 +129,21 @@ function ReturnWorkflowPanel({
   return <div role="tabpanel" />;
 }
 
+function ReturnOperationsNotice({ notice, onDismiss }: {
+  notice: string;
+  onDismiss: () => void;
+}) {
+  if (!notice) return null;
+  return (
+    <div role="status" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: 10, marginBottom: 12, borderRadius: 9, background: "#edf6f1", color: "#145c4a" }}>
+      <span>{notice}</span>
+      <button type="button" aria-label="إغلاق التنبيه" onClick={onDismiss} style={{ ...tabStyle, padding: "3px 7px" }}>
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
 export function CustomerReturnOperationsDrawer({ workflow }: { workflow: Workflow }) {
   const { user, ready } = useAuth();
   const [open, setOpen] = useState(false);
@@ -208,14 +223,7 @@ export function CustomerReturnOperationsDrawer({ workflow }: { workflow: Workflo
               }}
             />
 
-            {notice && (
-              <div role="status" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: 10, marginBottom: 12, borderRadius: 9, background: "#edf6f1", color: "#145c4a" }}>
-                <span>{notice}</span>
-                <button type="button" aria-label="إغلاق التنبيه" onClick={() => setNotice("")} style={{ ...tabStyle, padding: "3px 7px" }}>
-                  <X size={14} />
-                </button>
-              </div>
-            )}
+            <ReturnOperationsNotice notice={notice} onDismiss={() => setNotice("")} />
 
             <ReturnWorkflowPanel workflow={workflow} activeTab={activeTab} onNotice={setNotice} />
           </section>

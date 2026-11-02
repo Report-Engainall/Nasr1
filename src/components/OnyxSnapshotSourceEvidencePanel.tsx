@@ -42,14 +42,24 @@ function OnyxSourceMetadata({ evidence }: { evidence: OnyxSnapshotSourceEvidence
   );
 }
 
+function OnyxExternalIdExamples({ examples }: {
+  examples: OnyxSnapshotSourceEvidence["source_identity"]["external_id_examples"];
+}) {
+  return (
+    <ol style={{ display: "grid", gap: 8, paddingInlineStart: 22, margin: 0 }}>
+      {examples.map((row) => <OnyxExternalIdRow key={row.row_number} row={row} />)}
+    </ol>
+  );
+}
+
 function OnyxExternalIdsEvidence({ evidence }: { evidence: OnyxSnapshotSourceEvidence["source_identity"] }) {
   const examples = evidence.external_id_examples;
   return (
     <section aria-label="عينات معرّفات المصدر الخارجية" style={{ marginTop: 10, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>قيم المعرّفات الخارجية المحفوظة في صفوف المصدر</h3>
-      {examples.length === 0 ? <p style={{ margin: 0 }}>لم تُحفظ قيم معرّفات خارجية مع صفوف هذه اللقطة.</p> : <ol style={{ display: "grid", gap: 8, paddingInlineStart: 22, margin: 0 }}>
-        {examples.map((row) => <OnyxExternalIdRow key={row.row_number} row={row} />)}
-      </ol>}
+      {examples.length === 0
+        ? <p style={{ margin: 0 }}>لم تُحفظ قيم معرّفات خارجية مع صفوف هذه اللقطة.</p>
+        : <OnyxExternalIdExamples examples={examples} />}
       {evidence.external_id_examples_truncated && <p role="note" style={{ margin: "8px 0 0" }}>تُعرض أول 20 صفًا فقط؛ توجد صفوف إضافية بها معرّفات خارجية.</p>}
     </section>
   );

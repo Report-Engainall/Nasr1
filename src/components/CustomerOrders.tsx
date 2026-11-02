@@ -27,6 +27,29 @@ type CustomerOrderLine = Pick<OrderItem, 'id' | 'product_id' | 'item_code' | 'pr
   requested_quantity?: number;
   approved_quantity?: number;
 };
+
+const CUSTOMER_REORDER_PRODUCT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function buildCustomerReorderTemplateLines(items: CustomerOrderLine[]): Array<{ product_id: string; quantity: number }> {
+  if (items.length < 1 || items.length > 100) {
+    throw new Error('لا يمكن حفظ قالب فارغ أو يحتوي على أكثر من 100 صنف.');
+  }
+  const lines = items.map((item) => {
+    if (typeof item.product_id !== 'string' || !CUSTOMER_REORDER_PRODUCT_ID_PATTERN.test(item.product_id)) {
+      throw new Error('لا يمكن حفظ القالب لأن أحد الأصناف لم يعد مرتبطًا بمنتج صالح.');
+    }
+    const quantity = Number(item.approved_quantity ?? item.quantity);
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10000) {
+      throw new Error('توجد كمية غير صالحة في الطلب؛ لم يُحفظ القالب.');
+    }
+    return { product_id: item.product_id, quantity };
+  });
+  const uniqueProductIds = new Set(lines.map((line) => line.product_id.toLowerCase()));
+  if (uniqueProductIds.size !== lines.length) {
+    throw new Error('يتضمن الطلب صنفًا مكررًا؛ لم يُحفظ القالب لتجنب تكرار الكميات.');
+  }
+  return lines;
+}
 import { Login } from '@/components/Login';
 import { CustomerReturnRequest } from '@/components/CustomerReturnRequest';
 
@@ -366,26 +389,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
     setTemplateSaving(true);
     setTemplateFeedback(null);
     try {
-      if (items.length < 1 || items.length > 100) {
-        throw new Error('لا يمكن حفظ قالب فارغ أو يحتوي على أكثر من 100 صنف.');
-      }
-
-      const productIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const lines = items.map((item) => {
-        if (typeof item.product_id !== 'string' || !productIdPattern.test(item.product_id)) {
-          throw new Error('لا يمكن حفظ القالب لأن أحد الأصناف لم يعد مرتبطًا بمنتج صالح.');
-        }
-        const quantity = Number(item.approved_quantity ?? item.quantity);
-        if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10000) {
-          throw new Error('توجد كمية غير صالحة في الطلب؛ لم يُحفظ القالب.');
-        }
-        return { product_id: item.product_id, quantity };
-      });
-
-      const productIds = new Set(lines.map((line) => line.product_id.toLowerCase()));
-      if (productIds.size !== lines.length) {
-        throw new Error('يتضمن الطلب صنفًا مكررًا؛ لم يُحفظ القالب لتجنب تكرار الكميات.');
-      }
+      const lines = buildCustomerReorderTemplateLines(items);
 
       const templateName = ('إعادة طلب ' + String(order.order_number ?? '').trim()).slice(0, 100);
       if (templateName.trim().length < 2) {

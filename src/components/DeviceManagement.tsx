@@ -99,9 +99,11 @@ function parseOrganizationSession(value: unknown): OrganizationSession | null {
   };
 }
 
+const DEVICE_SESSION_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isUuid(value: unknown): value is string {
-  return typeof value === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if (typeof value !== 'string') return false;
+  return DEVICE_SESSION_UUID_PATTERN.test(value);
 }
 
 function hasUniqueRevokedSessionIds(

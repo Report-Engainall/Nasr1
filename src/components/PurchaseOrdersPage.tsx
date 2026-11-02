@@ -37,6 +37,12 @@ const moneyText = (value: number | null): string => value === null ? 'غير م�
 
 type PurchaseOrderFilter = "all" | PurchaseOrder["status"];
 
+function purchaseOrderProductOptions(products: ProductWithInventory[]) {
+  return products.map((product) => (
+    <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>
+  ));
+}
+
 function PurchaseOrderDraftLineRow({ line, index, products, busy, onProductChange, onQuantityChange, onUnitCostChange, onRemove }: {
   line: DraftLine; index: number; products: ProductWithInventory[]; busy: boolean;
   onProductChange: (value: string) => void; onQuantityChange: (value: string) => void;
@@ -47,7 +53,7 @@ function PurchaseOrderDraftLineRow({ line, index, products, busy, onProductChang
       <label className="po-field wide">الصنف
         <select value={line.productId} onChange={(event) => onProductChange(event.target.value)} disabled={busy}>
           <option value="">اختر صنفًا</option>
-          {products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>)}
+          {purchaseOrderProductOptions(products)}
         </select>
       </label>
       <label className="po-field">الكمية المطلوبة

@@ -26,6 +26,22 @@ const statusLabels: Record<OnyxReconciliationCommand["status"], string> = {
 };
 
 
+function renderOnyxWarehouseOptions(warehouses: OnyxReconciliationWarehouse[]) {
+  return warehouses.map((warehouse) => (
+    <option key={warehouse.id} value={warehouse.id}>
+      {warehouse.name}{warehouse.code ? " — " + warehouse.code : ""}
+    </option>
+  ));
+}
+
+function renderOnyxCommandOptions(commands: OnyxReconciliationCommand[]) {
+  return commands.map((item) => (
+    <option key={item.command_id} value={item.command_id}>
+      {statusLabels[item.status]} — {item.warehouse_name || item.warehouse_code || item.warehouse_id.slice(0, 8)} — {item.source_row_count} صفًا — {new Date(item.created_at).toLocaleString("ar-YE")}
+    </option>
+  ));
+}
+
 function OnyxCommandSummary({ command }: { command: OnyxReconciliationCommand }) {
   return (
     <div className="onyx-command-summary" role="status">
@@ -214,11 +230,7 @@ export function OnyxInventoryReconciliationActions({ snapshotId }: { snapshotId:
               المخزن المستهدف
               <select value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} disabled={busy !== "" || warehouses.length === 0}>
                 {warehouses.length === 0 && <option value="">لا توجد مخازن نشطة متاحة</option>}
-                {warehouses.map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}{warehouse.code ? " — " + warehouse.code : ""}
-                  </option>
-                ))}
+                {renderOnyxWarehouseOptions(warehouses)}
               </select>
             </label>
             <label>
@@ -236,11 +248,7 @@ export function OnyxInventoryReconciliationActions({ snapshotId }: { snapshotId:
               <label>
                 أوامر المصالحة المحفوظة لهذه اللقطة
                 <select value={activeCommand?.command_id ?? ""} onChange={(event) => selectCommand(event.target.value)} disabled={busy !== ""}>
-                  {commands.map((item) => (
-                    <option key={item.command_id} value={item.command_id}>
-                      {statusLabels[item.status]} — {item.warehouse_name || item.warehouse_code || item.warehouse_id.slice(0, 8)} — {item.source_row_count} صفًا — {new Date(item.created_at).toLocaleString("ar-YE")}
-                    </option>
-                  ))}
+                  {renderOnyxCommandOptions(commands)}
                 </select>
               </label>
               {activeCommand && <OnyxCommandSummary command={activeCommand} />}

@@ -188,6 +188,13 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
  }
  if(!ready)return <section style={panel}><p role="status" style={muted}>جارٍ التحقق من صلاحية المالية...</p></section>;
  if(!canUseFinance)return <section style={panel}><h3 style={{margin:0}}>ربط فواتير العملاء والتحصيلات</h3><p style={muted}>هذه الوظيفة للمحاسب والمسؤول والمدير المخوّلين فقط.</p></section>;
+ function changeSourceTab(nextTab: SourceTab) {
+   setTab(nextTab);
+   setPage(0);
+   setError("");
+   setNotice("");
+  }
+
  const showInvoiceEmpty = !loading && tab === "invoice" && invoices.length === 0;
  const showInvoiceRows = !loading && tab === "invoice" && invoices.length > 0;
  const showPaymentEmpty = !loading && tab === "payment" && payments.length === 0;
@@ -199,8 +206,8 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
    <button type="button" style={button} onClick={()=>void refreshInbox()} disabled={loading||Boolean(busyId)}><RefreshCw size={14}/> تحديث</button>
   </header>
   <div className="no-print" style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-   <button type="button" style={tab==="invoice"?primary:button} aria-pressed={tab==="invoice"} onClick={()=>{setTab("invoice");setPage(0);setError("");setNotice("");}}><FileText size={14}/> فواتير العملاء</button>
-   <button type="button" style={tab==="payment"?primary:button} aria-pressed={tab==="payment"} onClick={()=>{setTab("payment");setPage(0);setError("");setNotice("");}}><Wallet size={14}/> التحصيلات المسجلة</button>
+   <button type="button" style={tab==="invoice"?primary:button} aria-pressed={tab==="invoice"} onClick={()=>changeSourceTab("invoice")}><FileText size={14}/> فواتير العملاء</button>
+   <button type="button" style={tab==="payment"?primary:button} aria-pressed={tab==="payment"} onClick={()=>changeSourceTab("payment")}><Wallet size={14}/> التحصيلات المسجلة</button>
    <label>حالة القيد<select aria-label="حالة قيد المصدر" style={{...field,minWidth:180}} value={status} onChange={e=>{setPage(0);setStatus(e.target.value as StatusFilter);}}>{FILTERS.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select></label>
    <span style={{...muted,alignSelf:"center"}}>النتائج: {totalCount}</span>
   </div>

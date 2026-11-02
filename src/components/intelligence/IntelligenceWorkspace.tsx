@@ -80,6 +80,18 @@ type DecisionTransitionHandler = (
   options?: DecisionTransitionOptions,
 ) => void;
 
+function DecisionOutcomeHistory({ events }: { events: DecisionOutcomeView["history"] }) {
+  return (
+    <>
+      {events.map((event) => (
+        <span key={event.id} className="me-3">
+          {event.version}. {event.type} · {event.actorRole} · {formatDay(event.at.slice(0, 10))}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function DecisionOutcomeCard({
   outcome,
   measurementMetrics,
@@ -137,7 +149,7 @@ function DecisionOutcomeCard({
       />
       {outcome.state === "EXECUTED" && !proof ? <p className="mt-2 text-xs text-muted-foreground">القياس محجوب: لا توجد حزمة إثبات كاملة للعملة والفترة المطابقتين تماماً.</p> : null}
       <footer className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-        {outcome.history.map((event) => <span key={event.id} className="me-3">{event.version}. {event.type} · {event.actorRole} · {formatDay(event.at.slice(0, 10))}</span>)}
+        <DecisionOutcomeHistory events={outcome.history} />
       </footer>
     </article>
   );

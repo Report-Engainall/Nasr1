@@ -90,6 +90,22 @@ function printReadyWindow(target: Window | null): void {
   if (target && !target.closed) target.print();
 }
 
+function FinanceDocumentKindSelect({ kind, loading, busy, onChange }: {
+  kind: DocumentKind;
+  loading: boolean;
+  busy: boolean;
+  onChange: (kind: DocumentKind) => void;
+}) {
+  return (
+    <select aria-label="نوع المستند المالي" style={field} value={kind}
+      onChange={(event) => onChange(event.target.value as DocumentKind)} disabled={loading || busy}>
+      <option value="invoice">فاتورة عميل</option>
+      <option value="statement">كشف حساب عميل</option>
+      <option value="credit_memo">إشعار دائن للمرتجعات</option>
+    </select>
+  );
+}
+
 export function FinanceDocumentPrintActions() {
   const [options, setOptions] = useState<FinancePrintOptions>(emptyOptions);
   const [kind, setKind] = useState<DocumentKind>("invoice");
@@ -209,11 +225,11 @@ export function FinanceDocumentPrintActions() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
         <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
           نوع المستند
-          <select aria-label="نوع المستند المالي" style={field} value={kind} onChange={(event) => { setKind(event.target.value as DocumentKind); setSourceId(""); setPageOffset(0); }} disabled={loading || busy}>
-            <option value="invoice">فاتورة عميل</option>
-            <option value="statement">كشف حساب عميل</option>
-            <option value="credit_memo">إشعار دائن للمرتجعات</option>
-          </select>
+          <FinanceDocumentKindSelect kind={kind} loading={loading} busy={busy} onChange={(nextKind) => {
+            setKind(nextKind);
+            setSourceId("");
+            setPageOffset(0);
+          }} />
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
           المصدر

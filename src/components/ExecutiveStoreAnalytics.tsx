@@ -148,6 +148,16 @@ function ExecutiveSalesTrendSection({
   );
 }
 
+function ExecutiveTopProductRow({ product }: { product: TopProductRow }) {
+  return (
+    <tr>
+      <td><strong>{product.product_name}</strong><small style={{ display: "block" }}>{product.item_code || "دون رمز صنف"}</small></td>
+      <td>{formatNumber(product.quantity)}</td>
+      <td>{formatCurrency(product.sales)}</td>
+    </tr>
+  );
+}
+
 function ExecutiveTopProductsTable({ products }: { products: TopProductRow[] }) {
   if (products.length === 0) return <Empty text="لا توجد بنود طلبات قابلة للترتيب." />;
   return (
@@ -156,11 +166,7 @@ function ExecutiveTopProductsTable({ products }: { products: TopProductRow[] }) 
         <thead><tr><th>الصنف</th><th>الكمية</th><th>المبيعات</th></tr></thead>
         <tbody>
           {products.map((product) => (
-            <tr key={product.item_code + ":" + product.product_name}>
-              <td><strong>{product.product_name}</strong><small style={{ display: "block" }}>{product.item_code || "دون رمز صنف"}</small></td>
-              <td>{formatNumber(product.quantity)}</td>
-              <td>{formatCurrency(product.sales)}</td>
-            </tr>
+            <ExecutiveTopProductRow key={product.item_code + ":" + product.product_name} product={product} />
           ))}
         </tbody>
       </table>

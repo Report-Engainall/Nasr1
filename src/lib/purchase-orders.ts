@@ -5,9 +5,11 @@ export type PurchaseOrderStatus = 'draft' | 'submitted' | 'partially_received' |
  * version/variant bits. Validate the canonical UUID shape only; tenant ownership
  * and resource existence are enforced by the server-side purchase-order RPC.
  */
+const PURCHASE_ORDER_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function isPurchaseOrderUuid(value: unknown): value is string {
-  return typeof value === 'string'
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if (typeof value !== 'string') return false;
+  return PURCHASE_ORDER_UUID_PATTERN.test(value);
 }
 
 export type PurchaseOrderItem = {

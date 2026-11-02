@@ -32,18 +32,24 @@ function GeneralLedgerPrintHeader({
   );
 }
 
+type JournalPrintLine = Extract<GeneralLedgerPrintDocument, { kind: "journal" }>["lines"][number];
+
+function JournalPrintLineRow({ line }: { line: JournalPrintLine }) {
+  return (
+    <tr>
+      <td>{line.lineNumber}</td><td>{line.accountCode}</td><td>{line.accountName}</td><td>{line.memo ?? "—"}</td>
+      <td>{formatLedgerMoney(line.debit)}</td><td>{formatLedgerMoney(line.credit)}</td>
+    </tr>
+  );
+}
+
 function JournalPrintBody({ document }: { document: Extract<GeneralLedgerPrintDocument, { kind: "journal" }> }) {
   return (
           <section className="general-ledger-print-section">
             <h3>تفاصيل القيد المزدوج</h3>
             <table>
               <thead><tr><th>#</th><th>رمز الحساب</th><th>الحساب</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead>
-              <tbody>{document.lines.map((line) => (
-                <tr key={line.lineNumber}>
-                  <td>{line.lineNumber}</td><td>{line.accountCode}</td><td>{line.accountName}</td><td>{line.memo ?? "—"}</td>
-                  <td>{formatLedgerMoney(line.debit)}</td><td>{formatLedgerMoney(line.credit)}</td>
-                </tr>
-              ))}</tbody>
+              <tbody>{document.lines.map((line) => <JournalPrintLineRow key={line.lineNumber} line={line} />)}</tbody>
               <tfoot><tr><th colSpan={4}>الإجمالي المتوازن</th><th>{formatLedgerMoney(document.debitTotal)}</th><th>{formatLedgerMoney(document.creditTotal)}</th></tr></tfoot>
             </table>
             <p className="general-ledger-print-note">

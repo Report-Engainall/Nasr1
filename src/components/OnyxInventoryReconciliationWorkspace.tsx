@@ -127,6 +127,27 @@ function ReconciliationSnapshotMetadata({ snapshot }: { snapshot: OnyxSnapshotSu
   );
 }
 
+function ReconciliationWorkspaceContent({ loading, snapshots, selectedSnapshotId, selectedSnapshot, error, onClose, onSelect, onRefresh }: {
+  loading: boolean;
+  snapshots: OnyxSnapshotSummary[];
+  selectedSnapshotId: string;
+  selectedSnapshot: OnyxSnapshotSummary | null;
+  error: string;
+  onClose: () => void;
+  onSelect: (id: string) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <>
+      <ReconciliationWorkspaceHeader onClose={onClose} />
+      <ReconciliationSnapshotPicker snapshots={snapshots} selectedSnapshotId={selectedSnapshotId} loading={loading} onSelect={onSelect} onRefresh={onRefresh} />
+      <ReconciliationWorkspaceStatus loading={loading} error={error} snapshotCount={snapshots.length} onRetry={onRefresh} />
+      {selectedSnapshot && <ReconciliationSnapshotMetadata snapshot={selectedSnapshot} />}
+      {selectedSnapshot && <OnyxInventoryReconciliationActions key={selectedSnapshot.id} snapshotId={selectedSnapshot.id} />}
+    </>
+  );
+}
+
 function ReconciliationWorkspaceDialog({ loading, snapshots, selectedSnapshotId, selectedSnapshot, error, onClose, onSelect, onRefresh }: {
   loading: boolean;
   snapshots: OnyxSnapshotSummary[];
@@ -140,11 +161,16 @@ function ReconciliationWorkspaceDialog({ loading, snapshots, selectedSnapshotId,
   return (
     <div style={overlayStyle} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="onyx-reconciliation-workspace-title" style={dialogStyle} dir="rtl">
-        <ReconciliationWorkspaceHeader onClose={onClose} />
-        <ReconciliationSnapshotPicker snapshots={snapshots} selectedSnapshotId={selectedSnapshotId} loading={loading} onSelect={onSelect} onRefresh={onRefresh} />
-        <ReconciliationWorkspaceStatus loading={loading} error={error} snapshotCount={snapshots.length} onRetry={onRefresh} />
-        {selectedSnapshot && <ReconciliationSnapshotMetadata snapshot={selectedSnapshot} />}
-        {selectedSnapshot && <OnyxInventoryReconciliationActions key={selectedSnapshot.id} snapshotId={selectedSnapshot.id} />}
+        <ReconciliationWorkspaceContent
+          loading={loading}
+          snapshots={snapshots}
+          selectedSnapshotId={selectedSnapshotId}
+          selectedSnapshot={selectedSnapshot}
+          error={error}
+          onClose={onClose}
+          onSelect={onSelect}
+          onRefresh={onRefresh}
+        />
       </section>
     </div>
   );

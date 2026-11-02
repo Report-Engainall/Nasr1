@@ -32,6 +32,10 @@ function useChart() {
   return context;
 }
 
+function ChartLegendColorSwatch({ color }: { color: string | undefined }) {
+  return <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />;
+}
+
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
@@ -357,12 +361,7 @@ const ChartLegendContent = React.forwardRef<
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />
               ) : (
-                <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{
-                    backgroundColor: item.color,
-                  }}
-                />
+                <ChartLegendColorSwatch color={item.color} />
               )}
               {itemConfig?.label}
             </div>

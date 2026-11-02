@@ -21,11 +21,17 @@ function meets(value:number,op:DecisionOperator,threshold:number):boolean {
  switch(op){case "GTE":return value>=threshold;case "GT":return value>threshold;case "LTE":return value<=threshold;case "LT":return value<threshold;case "EQ":return value===threshold}
 }
 const withheld=(rule:DecisionRule,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:rule.id,metricKey:rule.metricKey,reason,evidenceStatus:status,explanation});
+function isImpactFormulaValid(formula: ImpactFormula): boolean {
+ if (!formula.id.trim() || !formula.version.trim() || !formula.resultUnit.trim() || formula.metricKeys.length === 0) return false;
+ if (formula.operation === "IDENTITY" && formula.metricKeys.length !== 1) return false;
+ if (formula.operation === "PRODUCT" && formula.metricKeys.length !== 2) return false;
+ if (formula.operation === "SUM" && formula.metricKeys.length < 2) return false;
+ return true;
+}
+
 function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapshot[]>,anchor:MetricSnapshot):{impact:DecisionImpact|null;status:DecisionImpactStatus;reason:string|null} {
  if(!formula)return {impact:null,status:"NOT_CONFIGURED",reason:"NO_APPROVED_IMPACT_FORMULA"};
- if(!formula.id.trim()||!formula.version.trim()||!formula.resultUnit.trim()||!formula.metricKeys.length||
-  (formula.operation==="IDENTITY"&&formula.metricKeys.length!==1)||(formula.operation==="PRODUCT"&&formula.metricKeys.length!==2)||
-  (formula.operation==="SUM"&&formula.metricKeys.length<2))return {impact:null,status:"WITHHELD",reason:"INVALID_IMPACT_FORMULA"};
+ if (!isImpactFormulaValid(formula)) return {impact:null,status:"WITHHELD",reason:"INVALID_IMPACT_FORMULA"};
  const sources:MetricSnapshot[]=[];
  for(const key of formula.metricKeys){const rows=index.get(key)??[];if(rows.length!==1)return {impact:null,status:"WITHHELD",reason:"IMPACT_SOURCE_MISSING"};
   const m=rows[0];if(m.status!=="VERIFIED"||m.completeness!=="COMPLETE"||m.quality!=="ACCEPTABLE"||m.value===null||!m.lineage.evidenceIds.length)

@@ -58,6 +58,14 @@ function StockCountLineRow({
   );
 }
 
+function renderStockCountWarehouseOptions(warehouses: ActiveInventoryWarehouse[]) {
+  return warehouses.map((warehouse) => (
+    <option key={warehouse.id} value={warehouse.id}>
+      {warehouse.name}{warehouse.code ? ' · ' + warehouse.code : ''}
+    </option>
+  ));
+}
+
 export function InventoryStockCountPage() {
   const { user } = useAuth();
   const canFinalize = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
@@ -211,7 +219,7 @@ export function InventoryStockCountPage() {
     <header className="heading"><div className="heading-icon"><ClipboardCheck size={24} /></div><div><span>الأصناف والمخزون</span><h1>الجرد الفعلي</h1><p>لقطة محفوظة، عدّ لكل صنف، واعتماد إداري للفروقات دون الكتابة فوق حركة مخزون أحدث.</p></div></header>
     <section className="panel">
       <div className="form-grid" style={{ alignItems: 'end' }}>
-        <label>المستودع النشط<select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} disabled={loading || busy || Boolean(session)}><option value="">اختر المستودع</option>{warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' · ' + w.code : ''}</option>)}</select></label>
+        <label>المستودع النشط<select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} disabled={loading || busy || Boolean(session)}><option value="">اختر المستودع</option>{renderStockCountWarehouseOptions(warehouses)}</select></label>
         {!session && <label>ملاحظات بداية الجرد (اختياري)<input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="سبب الجرد أو رقم محضر العد" disabled={busy || !warehouseId} /></label>}
         <div className="toolbar-actions stock-count-no-print">
           <button className="btn outline" onClick={() => setRefreshKey((v) => v + 1)} disabled={loading || busy}><RefreshCw size={16} /> تحديث</button>

@@ -249,6 +249,26 @@ function AdminWorkspaceAccess({
   );
 }
 
+function AdminSidebarNavigation({ items, view, firstMobileNavItemRef, navigationBlocked, onNavigate }: {
+  items: (typeof nav)[number][];
+  view: View;
+  firstMobileNavItemRef: React.Ref<HTMLButtonElement>;
+  navigationBlocked: boolean;
+  onNavigate: (id: View) => void;
+}) {
+  return (
+    <nav aria-label="التنقل الإداري">
+      {items.map(({ id, label, icon: Icon }, index) => (
+        <button type="button" ref={index === 0 ? firstMobileNavItemRef : undefined} key={id}
+          className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined}
+          aria-disabled={navigationBlocked || undefined} onClick={() => onNavigate(id)}>
+          <Icon size={18} /><span>{label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const { user, ready, signOut } = useAuth();
   const canOperateAdmin = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
@@ -432,7 +452,13 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       <aside id="admin-sidebar" aria-label="القائمة الإدارية" className={`sidebar ${mobileNav ? 'open' : ''}`}>
         <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
         <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
-        <nav aria-label="التنقل الإداري">{visibleNav.map(({ id, label, icon: Icon }, index) => <button type="button" ref={index === 0 ? firstMobileNavItemRef : undefined} key={id} className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} aria-disabled={navigationBlocked || undefined} onClick={() => runAdminCommand(id)}><Icon size={18} /><span>{label}</span></button>)}</nav>
+        <AdminSidebarNavigation
+              items={visibleNav}
+              view={view}
+              firstMobileNavItemRef={firstMobileNavItemRef}
+              navigationBlocked={navigationBlocked}
+              onNavigate={runAdminCommand}
+            />
         <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure"><span /> النظام متصل وآمن</div></div>
       </aside>
       <main className="main">

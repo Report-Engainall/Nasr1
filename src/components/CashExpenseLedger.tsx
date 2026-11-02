@@ -102,6 +102,17 @@ function CashExpenseFeedback({ notice, error }: { notice: string; error: string 
   );
 }
 
+function CashExpenseCategoryField({ value, onChange }: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label>التصنيف
+      <input style={inputStyle} value={value} onChange={(event) => onChange(event.target.value)} minLength={2} maxLength={80} placeholder="مثال: إيجار أو نقل" required />
+    </label>
+  );
+}
+
 function CashExpenseEntryForm({
   draft,
   saving,
@@ -117,9 +128,7 @@ function CashExpenseEntryForm({
     <form onSubmit={onSubmit} style={cardStyle}>
       <h3 style={{ margin: 0, fontSize: 17 }}>تسجيل مصروف جديد</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
-        <label>التصنيف
-          <input style={inputStyle} value={draft.category} onChange={(event) => onDraftChange("category", event.target.value)} minLength={2} maxLength={80} placeholder="مثال: إيجار أو نقل" required />
-        </label>
+        <CashExpenseCategoryField value={draft.category} onChange={(value) => onDraftChange("category", value)} />
         <label>المبلغ
           <input style={inputStyle} dir="ltr" inputMode="decimal" value={draft.amount} onChange={(event) => onDraftChange("amount", event.target.value)} placeholder="0.00" maxLength={24} required />
         </label>

@@ -39,6 +39,53 @@ function selectForType(accounts: ReturnCreditAccount[], type: ReturnCreditAccoun
 
 type PrintableReturnCreditMemo = ReturnType<typeof readPrintableReturnCreditMemo>;
 
+type PrintableReturnCreditMemoData = NonNullable<PrintableReturnCreditMemo>;
+type PrintableReturnCreditMemoLine = PrintableReturnCreditMemoData["lines"][number];
+
+function buildReturnCreditMemoLineRow(
+  doc: Document,
+  line: PrintableReturnCreditMemoLine,
+  invoiceCurrency: string,
+  memoCurrency: string,
+  quantity: (value: number) => string,
+): HTMLTableRowElement {
+  const row = doc.createElement("tr");
+  const nameCell = doc.createElement("td");
+  const title = doc.createElement("strong");
+  title.textContent = line.description;
+  nameCell.appendChild(title);
+  const detail = doc.createElement("p");
+  detail.textContent = (line.item_code ? "الرمز: " + line.item_code : "بدون رمز") +
+    (line.unit ? " · الوحدة: " + line.unit : "");
+  nameCell.appendChild(detail);
+  row.appendChild(nameCell);
+  const values = [
+    quantity(line.returned_quantity),
+    quantity(line.invoice_quantity),
+    money(line.invoice_line_total, invoiceCurrency),
+    money(line.credited_subtotal, memoCurrency),
+  ];
+  for (const value of values) {
+    const cell = doc.createElement("td");
+    cell.textContent = value;
+    row.appendChild(cell);
+  }
+  return row;
+}
+
+function appendReturnCreditMemoLineRows(
+  doc: Document,
+  body: HTMLTableSectionElement,
+  payload: PrintableReturnCreditMemoData,
+  quantity: (value: number) => string,
+): void {
+  for (const line of payload.lines) {
+    body.appendChild(buildReturnCreditMemoLineRow(
+      doc, line, payload.invoice.currency, payload.memo.currency, quantity,
+    ));
+  }
+}
+
 function renderReturnCreditMemoDocument(doc: Document, payload: PrintableReturnCreditMemo): void {
       doc.title = payload.memo.memo_number;
       doc.documentElement.lang = "ar";
@@ -89,15 +136,7 @@ function renderReturnCreditMemoDocument(doc: Document, payload: PrintableReturnC
       thead.appendChild(hr);table.appendChild(thead);
       const tbody=doc.createElement("tbody");
       const quantity=(n:number)=>new Intl.NumberFormat("ar-YE",{maximumFractionDigits:3}).format(n);
-      for(const line of payload.lines){
-        const tr=doc.createElement("tr"),name=doc.createElement("td"),strong=doc.createElement("strong");
-        strong.textContent=line.description;name.appendChild(strong);
-        const detail=doc.createElement("p");detail.textContent=(line.item_code?"الرمز: "+line.item_code:"بدون رمز")+(line.unit?" · الوحدة: "+line.unit:"");name.appendChild(detail);tr.appendChild(name);
-        for(const val of [quantity(line.returned_quantity),quantity(line.invoice_quantity),money(line.invoice_line_total,payload.invoice.currency),money(line.credited_subtotal,payload.memo.currency)]){
-          const td=doc.createElement("td");td.textContent=val;tr.appendChild(td);
-        }
-        tbody.appendChild(tr);
-      }
+      appendReturnCreditMemoLineRows(doc, tbody, payload, quantity);
       table.appendChild(tbody);main.appendChild(table);
       const totals=doc.createElement("section");totals.className="totals";
       for(const [label,amount] of [["المجموع قبل الضريبة",payload.memo.subtotal_amount],["الضريبة",payload.memo.tax_amount]] as Array<[string,number]>){

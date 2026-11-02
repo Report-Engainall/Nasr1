@@ -309,11 +309,15 @@ function validateImportTransformationRule(
 
 const SAFE_IMPORT_PATTERN_CACHE = new Map<string, RegExp>();
 const MAX_SAFE_IMPORT_PATTERN_INPUT_LENGTH = 2048;
+const UNSAFE_IMPORT_PATTERN = /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|\([^)]*\|[^)]*\)[+*{]|(?:\.\*){2,}/;
+
+function isUnsafeImportPattern(pattern: string): boolean {
+  return UNSAFE_IMPORT_PATTERN.test(pattern);
+}
 
 function compileSafeImportPattern(pattern: unknown, field: string): RegExp {
   // Keep user-configurable expressions bounded and reject common exponential-backtracking forms.
-  if (typeof pattern !== 'string' || pattern.length > 120 ||
-    /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|\([^)]*\|[^)]*\)[+*{]|(?:\.\*){2,}/.test(pattern)) {
+  if (typeof pattern !== 'string' || pattern.length > 120 || isUnsafeImportPattern(pattern)) {
     throw new Error('نمط التحقق غير آمن أو طويل؛ استخدم نمطًا بسيطًا محدودًا.');
   }
 

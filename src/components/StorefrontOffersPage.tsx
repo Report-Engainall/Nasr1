@@ -77,6 +77,10 @@ function promotionProducts(promotion: StorePromotion, products: StoreProduct[]):
   });
 }
 
+function OfferIncludedProductItem({ product }: { product: StoreProduct }) {
+  return <li>{product.name} · {product.item_code}</li>;
+}
+
 function OfferIncludedProducts({
   targetProducts,
   hasExplicitScope,
@@ -92,7 +96,7 @@ function OfferIncludedProducts({
         </span>
         <ul>
           {targetProducts.slice(0, 5).map((product) => (
-            <li key={product.id}>{product.name} · {product.item_code}</li>
+            <OfferIncludedProductItem key={product.id} product={product} />
           ))}
         </ul>
         {targetProducts.length > 5 ? (

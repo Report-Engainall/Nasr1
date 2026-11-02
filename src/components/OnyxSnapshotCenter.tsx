@@ -116,6 +116,15 @@ function OnyxReconciliationResult({ reconciliation }: { reconciliation: Reconcil
   );
 }
 
+function OnyxTopItemRow({ item }: { item: OnyxSnapshotAnalytics["top_items"][number] }) {
+  return (
+    <tr>
+      <td>{item.item_code}</td><td>{item.name || "غير مسجل"}</td>
+      <td>{amountText(item.quantity)}</td><td>{amountText(item.revenue, 2)}</td>
+    </tr>
+  );
+}
+
 function OnyxTopItemsPanel({ items }: { items: OnyxSnapshotAnalytics["top_items"] }) {
   return (
     <section className="panel">
@@ -123,7 +132,7 @@ function OnyxTopItemsPanel({ items }: { items: OnyxSnapshotAnalytics["top_items"
       {items.length === 0 ? <p>لا توجد أصناف كافية لعرض ترتيب.</p> : (
         <div className="onyx-table-wrap"><table>
           <thead><tr><th>رمز الصنف</th><th>الاسم</th><th>الكمية</th><th>قيمة المصدر</th></tr></thead>
-          <tbody>{items.map((item, index) => <tr key={item.item_code + ":" + index}><td>{item.item_code}</td><td>{item.name || "غير مسجل"}</td><td>{amountText(item.quantity)}</td><td>{amountText(item.revenue, 2)}</td></tr>)}</tbody>
+          <tbody>{items.map((item, index) => <OnyxTopItemRow key={item.item_code + ":" + index} item={item} />)}</tbody>
         </table></div>
       )}
     </section>

@@ -125,18 +125,25 @@ function ReturnReceiptRequestCard({request,drafts,notes,busy,disabled,onDraftCha
   </article>;
 }
 
+function ReturnReceiptHistoryDetails({ receipt }: { receipt: CustomerReturnReceiptHistoryEntry }) {
+  return (
+    <div>
+      <strong>{receipt.receipt_number}</strong>
+      <p style={muted}>طلب المرتجع {receipt.request_number} · الطلب الأصلي {receipt.order_number}</p>
+      <p style={muted}>العميل {receipt.customer_name} · المخزن {receipt.warehouse_name}</p>
+      <p style={muted}>{new Date(receipt.received_at).toLocaleString("ar-YE")} · {receipt.received_line_count} بند</p>
+      <p style={muted}>المستلم {receipt.received_quantity.toLocaleString("ar-YE")} · الصالح {receipt.restockable_quantity.toLocaleString("ar-YE")} · التالف {receipt.defective_quantity.toLocaleString("ar-YE")}</p>
+    </div>
+  );
+}
+
 function ReturnReceiptHistoryCard({receipt,busy,disabled,onPrepare}:{
   receipt:CustomerReturnReceiptHistoryEntry; busy:boolean; disabled:boolean;
   onPrepare:(receipt:CustomerReturnReceiptHistoryEntry)=>void;
 }) {
   return <article style={{display:"grid",gap:6,padding:12,border:"1px solid #e1e9ea",borderRadius:9}}>
     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-      <div><strong>{receipt.receipt_number}</strong>
-        <p style={muted}>طلب المرتجع {receipt.request_number} · الطلب الأصلي {receipt.order_number}</p>
-        <p style={muted}>العميل {receipt.customer_name} · المخزن {receipt.warehouse_name}</p>
-        <p style={muted}>{new Date(receipt.received_at).toLocaleString("ar-YE")} · {receipt.received_line_count} بند</p>
-        <p style={muted}>المستلم {receipt.received_quantity.toLocaleString("ar-YE")} · الصالح {receipt.restockable_quantity.toLocaleString("ar-YE")} · التالف {receipt.defective_quantity.toLocaleString("ar-YE")}</p>
-      </div>
+      <ReturnReceiptHistoryDetails receipt={receipt} />
       <button type="button" style={button} disabled={disabled} aria-label={"إعادة تجهيز الإيصال للطباعة "+receipt.receipt_number} onClick={()=>onPrepare(receipt)}>
         <Printer size={14}/> {busy?"جار تحميل النسخة...":"إعادة تجهيز للطباعة"}
       </button>

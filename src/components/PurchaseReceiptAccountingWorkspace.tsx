@@ -81,6 +81,12 @@ function PurchaseReceiptJournalState({ receipt }: { receipt: ReceiptOption }) {
   return null;
 }
 
+function renderPurchaseReceiptAccountOptions(accounts: AccountOption[]) {
+  return accounts.map((account) => (
+    <option key={account.id} value={account.id}>{account.code} — {account.name}</option>
+  ));
+}
+
 function PurchaseReceiptAccountSelectors({ receipt, assetAccounts, payableAccounts, inventoryAccountId, payableAccountId, disabled, onInventoryChange, onPayableChange }: {
   receipt: ReceiptOption; assetAccounts: AccountOption[]; payableAccounts: AccountOption[];
   inventoryAccountId: string; payableAccountId: string; disabled: boolean;
@@ -90,12 +96,12 @@ function PurchaseReceiptAccountSelectors({ receipt, assetAccounts, payableAccoun
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
       <label style={{ display: "grid", gap: 5 }}>حساب المخزون (مدين)
         <select aria-label={"حساب المخزون " + receipt.receipt_number} value={inventoryAccountId} onChange={(event) => onInventoryChange(event.target.value)} disabled={disabled}>
-          <option value="">اختر حساب أصل</option>{assetAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}
+          <option value="">اختر حساب أصل</option>{renderPurchaseReceiptAccountOptions(assetAccounts)}
         </select>
       </label>
       <label style={{ display: "grid", gap: 5 }}>حساب المورد (دائن)
         <select aria-label={"حساب المورد " + receipt.receipt_number} value={payableAccountId} onChange={(event) => onPayableChange(event.target.value)} disabled={disabled}>
-          <option value="">اختر حساب التزام</option>{payableAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}
+          <option value="">اختر حساب التزام</option>{renderPurchaseReceiptAccountOptions(payableAccounts)}
         </select>
       </label>
     </div>

@@ -44,6 +44,24 @@ function nextOrderQuantity(currentQuantity: number, minimum: number, multiple: n
     ? currentQuantity + multiple
     : minimum + (Math.floor((currentQuantity - minimum) / multiple) + 1) * multiple;
 }
+
+function mergeProductIntoCart(
+  previous: CartItem[],
+  product: ProductWithInventory,
+  requestedQuantity: number | undefined,
+  minimum: number,
+  multiple: number,
+  available: number | null,
+): CartItem[] {
+  const existing = previous.find((item) => item.product.id === product.id);
+  const latestCurrentQuantity = existing?.quantity ?? 0;
+  const latestNextQuantity = requestedQuantity ?? nextOrderQuantity(latestCurrentQuantity, minimum, multiple);
+  if (available !== null && latestNextQuantity > available) return previous;
+  if (!existing) return [...previous, { product, quantity: latestNextQuantity }];
+  return previous.map((item) => item.product.id === product.id
+    ? { ...item, quantity: latestNextQuantity }
+    : item);
+}
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout' | 'confirm';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
 
@@ -535,19 +553,8 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     }
 
     setCartActionNotice(null);
-    setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      const latestCurrentQuantity = existing?.quantity ?? 0;
-      const latestNextQuantity = requestedQuantity ?? nextOrderQuantity(latestCurrentQuantity, minimum, multiple);
-      // Re-check inside the state update so rapid repeated clicks cannot overshoot stock.
-      if (available !== null && latestNextQuantity > available) return prev;
-      if (existing) {
-        return prev.map((item) => item.product.id === product.id
-          ? { ...item, quantity: latestNextQuantity }
-          : item);
-      }
-      return [...prev, { product, quantity: latestNextQuantity }];
-    });
+    // Re-check stock inside the state update so rapid repeated clicks cannot overshoot it.
+    setCart((previous) => mergeProductIntoCart(previous, product, requestedQuantity, minimum, multiple, available));
   }
   function updateQty(productId: string, delta: number) {
     const existingItem = cart.find((item) => item.product.id === productId);

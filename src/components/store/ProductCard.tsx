@@ -12,16 +12,21 @@ interface Props {
   showPrice: boolean;
 }
 
+function ProductImageContent({ product }: { product: Product }) {
+  if (product.image_url) {
+    return <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-light)' }}>
+      <Package size={48} />
+    </div>
+  );
+}
+
 function ProductImageLink({ product, out }: { product: Product; out: boolean }) {
   return (
     <Link to={'/product/' + product.id} style={{ display: 'block', aspectRatio: '1', background: 'var(--color-bg-alt)', position: 'relative', overflow: 'hidden' }}>
-      {product.image_url ? (
-        <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-light)' }}>
-          <Package size={48} />
-        </div>
-      )}
+      <ProductImageContent product={product} />
       {product.is_featured ? (
         <span className="badge badge-accent" style={{ position: 'absolute', top: '8px', right: '8px' }}>مميز</span>
       ) : null}

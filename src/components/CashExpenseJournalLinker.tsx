@@ -223,9 +223,7 @@ function CashExpenseJournalAccountSelectors({
             onChange={(event) => onExpenseChange(event.target.value)}
           >
             <option value="">اختر حساب المصروف</option>
-            {expenseAccounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.code} — {account.name}</option>
-            ))}
+            <CashExpenseAccountOptions accounts={expenseAccounts} />
           </select>
         </label>
         <label>
@@ -238,9 +236,7 @@ function CashExpenseJournalAccountSelectors({
             onChange={(event) => onSettlementChange(event.target.value)}
           >
             <option value="">اختر حساب النقدية/البنك</option>
-            {settlementAccounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.code} — {account.name}</option>
-            ))}
+            <CashExpenseAccountOptions accounts={settlementAccounts} />
           </select>
         </label>
         <button
@@ -400,6 +396,16 @@ function CashExpenseJournalPagination({
       <span style={muted}>صفحة {page + 1} · يعرض 50 مصروفًا في الصفحة</span>
       <button type="button" style={button} disabled={!hasMore || loading || busy} onClick={onNext}>التالي</button>
     </footer>
+  );
+}
+
+function CashExpenseAccountOptions({ accounts }: { accounts: LedgerAccountOption[] }) {
+  return (
+    <>
+      {accounts.map((account) => (
+        <option key={account.id} value={account.id}>{account.code} — {account.name}</option>
+      ))}
+    </>
   );
 }
 
