@@ -106,8 +106,8 @@ describe("cash expense XLSX report", () => {
     expect(details).toContain("<v>5</v>");
   });
   it("allows only finance roles to export", () => {
-    expect(() => buildCashExpenseWorkbookXlsx(input({ roles: ["staff"] }))).toThrow(/المحاسب والمدير/);
-    expect(() => buildCashExpenseWorkbookXlsx(input({ roles: ["customer"] }))).toThrow(/المحاسب والمدير/);
+    expect(() => buildCashExpenseWorkbookXlsx(input({ roles: ["staff"] }))).toThrow("تصدير سجل المصروفات متاح");
+    expect(() => buildCashExpenseWorkbookXlsx(input({ roles: ["customer"] }))).toThrow("تصدير سجل المصروفات متاح");
     for (const role of ["accountant", "manager", "admin"]) {
       expect(() => buildCashExpenseWorkbookXlsx(input({ roles: [role] }))).not.toThrow();
     }
