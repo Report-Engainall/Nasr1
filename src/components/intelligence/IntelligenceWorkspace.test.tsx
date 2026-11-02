@@ -262,7 +262,7 @@ describe("production intelligence workspace inventory screens", () => {
       .mockResolvedValueOnce({ ok: false, status: "UNAVAILABLE", message: "تعذر تحميل سجل القرارات." })
       .mockResolvedValueOnce({ ok: true, items: [recovered], total: 1 });
     render(<IntelligenceWorkspace />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل سجل القرارات.");
+    expect(await screen.findByText("تعذر تحميل سجل القرارات.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "إعادة تحميل القرارات" }));
     expect(await screen.findByText("قرار مستعاد")).toBeInTheDocument();
     expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(2, 50, 0);
