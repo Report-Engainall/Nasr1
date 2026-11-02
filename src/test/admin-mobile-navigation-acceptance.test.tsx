@@ -155,6 +155,31 @@ describe("admin mobile navigation runtime acceptance", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("does not let descendant hover transitions block drawer focus", async () => {
+    render(<AdminApp initialView="settings" />);
+
+    const trigger = screen.getByRole("button", { name: "فتح القائمة الإدارية" });
+    const sidebar = screen.getByRole("complementary", { name: "القائمة الإدارية" });
+    const firstItem = screen.getByRole("navigation", { name: "التنقل الإداري" }).querySelector("button");
+    expect(firstItem).not.toBeNull();
+
+    let descendantMotionWasRequested = false;
+    Object.defineProperty(sidebar, "getAnimations", {
+      configurable: true,
+      value: (options?: { subtree?: boolean }) => {
+        if (options?.subtree) {
+          descendantMotionWasRequested = true;
+          return [{ playState: "running" } as Animation];
+        }
+        return [];
+      },
+    });
+
+    fireEvent.click(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(firstItem));
+    expect(descendantMotionWasRequested).toBe(false);
+  });
+
   it("waits for the mobile drawer transition to finish before focusing its first action", async () => {
     render(<AdminApp initialView="settings" />);
 

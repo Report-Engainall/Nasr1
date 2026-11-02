@@ -345,8 +345,11 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       const isVisible = sidebarStyle.display !== 'none' &&
         sidebarStyle.visibility !== 'hidden' &&
         Number(sidebarStyle.opacity || '1') > 0;
+      // Wait only for the drawer's own clip-path transition. Descendant controls
+      // have independent hover transitions; waiting on subtree animations can
+      // leave focus stranded whenever a nav item is hovered as the drawer opens.
       const hasActiveMotion = typeof sidebar.getAnimations === 'function' &&
-        sidebar.getAnimations({ subtree: true }).some(
+        sidebar.getAnimations().some(
           (animation) => animation.playState === 'running' || animation.playState === 'pending',
         );
 
