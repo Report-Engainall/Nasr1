@@ -163,7 +163,7 @@ async function main() {
   await db.unsafe("reset role");
   const receiptRows = await db.unsafe(
     "select id::text as id,organization_id::text as organization_id,customer_id::text as customer_id," +
-    "currency,total_amount::text as total_amount,allocation_count,created_by::text as created_by " +
+    "currency,total_amount::text as total_amount,allocation_count,receipt_number::text as receipt_number,created_by::text as created_by " +
     "from public.customer_payment_receipts where organization_id=$1::uuid and id=$2::uuid",
     [actor.organization_id, firstReceipt.receipt_id],
   );

@@ -626,7 +626,7 @@ export interface CustomerPaymentReceiptPrintPayload {
 
 function positiveReceiptNumber(value: unknown, name: string): string {
   const raw = requiredText(value, name);
-  if (!/^[1-9]\\d{0,17}$/.test(raw)) throw new Error("رقم سند القبض غير صالح.");
+  if (!/^[1-9]\d{0,17}$/.test(raw)) throw new Error("رقم سند القبض غير صالح.");
   return raw;
 }
 function receiptAllocationCount(value: unknown): number {

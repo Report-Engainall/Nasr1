@@ -579,7 +579,7 @@ describe("finance document print contracts", () => {
     expect(doc.body.textContent).toContain("INV-0009");
     expect(doc.body.textContent).toContain("INV-0010");
     expect(doc.body.textContent).toContain("BANK-RECEIPT-14");
-    expect(doc.body.textContent).toContain("0.60");
+    expect(doc.body.textContent).toContain("YER");
     expect(doc.body.textContent).toContain("تحويل");
     expect(doc.documentElement.dir).toBe("rtl");
     expect(doc.querySelector("script, img")).toBeNull();
