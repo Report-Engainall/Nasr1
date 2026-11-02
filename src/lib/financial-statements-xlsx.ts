@@ -259,15 +259,15 @@ export function downloadFinancialStatementsWorkbookXlsx(
   statementDocument: FinancialStatementsPrintDocument,
   generatedAt = new Date().toISOString(),
 ): void {
-  if (typeof statementDocument === "undefined" || typeof URL.createObjectURL !== "function") return;
+  if (typeof window === "undefined" || typeof document === "undefined" || typeof URL.createObjectURL !== "function") return;
   const bytes = buildFinancialStatementsWorkbookXlsx(statementDocument, generatedAt);
-  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officestatementDocument.spreadsheetml.sheet" });
+  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
-  const anchor = statementDocument.createElement("a");
+  const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = "aghbari-financial-statements-" + statementDocument.periodFrom + "-" + statementDocument.periodTo + ".xlsx";
   anchor.hidden = true;
-  statementDocument.body.appendChild(anchor);
+  document.body.appendChild(anchor);
   try {
     anchor.click();
   } finally {

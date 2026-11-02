@@ -78,7 +78,7 @@ describe("general ledger financial statements XLSX export", () => {
     const files = unzipStore(buildFinancialStatementsWorkbookXlsx(sample()));
     const combined = [...files.entries()].filter(([path]) => path.endsWith(".xml")).map(([, body]) => body).join("\n");
     expect(combined).toContain("&quot;https://invalid.test&quot;");
-    expect(combined).not.toMatch(/<f(?:\\s|>)/);
+    expect(combined).not.toMatch(/<f(?:\s|>)/);
     for (const value of ["private-account-id", "organization-private-id", "profile-private-id", "source-reference-private"]) {
       expect(combined).not.toContain(value);
     }
