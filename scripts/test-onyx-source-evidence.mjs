@@ -90,6 +90,39 @@ async function insertImportJob({ id, organizationId, fileHash, createdBy, name }
   );
 }
 
+async function expectSqlStateFailure(label, action, sqlState) {
+  const savepoint = "onyx_evidence_sqlstate_" + suffix;
+  await db.unsafe("savepoint " + savepoint);
+  let caught;
+  try {
+    await action();
+  } catch (error) {
+    caught = error;
+  }
+  if (!caught) {
+    await db.unsafe("release savepoint " + savepoint);
+    assert.fail(label + " should fail");
+  }
+  await db.unsafe("rollback to savepoint " + savepoint);
+  await db.unsafe("release savepoint " + savepoint);
+  assert.equal(caught.code, sqlState, label + " must fail with SQLSTATE " + sqlState);
+}
+
+async function readExportDenialState(organizationId, actorProfileId, requestKey, orderId) {
+  const requests = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_order_export_requests " +
+      "where organization_id=$1::uuid and actor_profile_id=$2::uuid and request_key=$3::uuid",
+    [organizationId, actorProfileId, requestKey],
+  );
+  const audits = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and action='onyx_export.prepared' " +
+      "and entity_type='order' and entity_id=$2::text",
+    [organizationId, orderId],
+  );
+  return { requestCount: Number(requests[0].count), auditCount: Number(audits[0].count) };
+}
+
 async function main() {
   const organizationId = uuid();
   const foreignOrganizationId = uuid();
@@ -303,6 +336,69 @@ async function main() {
       "values($1::uuid,$2::uuid,$3::text,'Exact','piece',1,10,10),($1::uuid,$4::uuid,$5::text,'Duplicate','piece',1,10,10),($1::uuid,$6::uuid,$7::text,'Missing','piece',1,10,10)",
       [exportOrder,productExact,codeExact,productDuplicate,codeDuplicate,productMiss,codeMiss],
     );
+    const foreignExportSnapshotId = uuid();
+    await insertSnapshot({
+      id: foreignExportSnapshotId,
+      organizationId: foreignOrganizationId,
+      fileHash: "d".repeat(64),
+      fileName: "foreign-export-" + suffix + ".csv",
+      createdBy: foreignManagerProfileId,
+    });
+
+    // A same-tenant profile without an operational staff role cannot prepare an export.
+    // The function must fail before claiming the idempotency key or writing an audit row.
+    const nonStaffExportKey = uuid();
+    await setIdentity(customerAuthId, "onyx-evidence-customer-" + suffix + "@example.test");
+    await expectSqlStateFailure(
+      "non-staff customer cannot prepare an Onyx order export",
+      () => db.unsafe(
+        "select public.record_onyx_order_export($1::uuid,3,$2::uuid,$3::uuid)",
+        [exportOrder, matchedSnapshotId, nonStaffExportKey],
+      ),
+      "42501",
+    );
+    await db.unsafe("reset role");
+    assert.deepEqual(
+      await readExportDenialState(organizationId, customerProfileId, nonStaffExportKey, exportOrder),
+      { requestCount: 0, auditCount: 0 },
+      "non-staff export denial must leave request and audit state unchanged",
+    );
+
+    // A manager from another organization cannot use a valid order ID from this tenant.
+    const foreignManagerExportKey = uuid();
+    await setIdentity(foreignManagerAuthId, "onyx-evidence-foreign-" + suffix + "@example.test");
+    await expectSqlStateFailure(
+      "foreign-tenant manager cannot prepare another organization's order export",
+      () => db.unsafe(
+        "select public.record_onyx_order_export($1::uuid,3,$2::uuid,$3::uuid)",
+        [exportOrder, matchedSnapshotId, foreignManagerExportKey],
+      ),
+      "P0002",
+    );
+    await db.unsafe("reset role");
+    assert.deepEqual(
+      await readExportDenialState(foreignOrganizationId, foreignManagerProfileId, foreignManagerExportKey, exportOrder),
+      { requestCount: 0, auditCount: 0 },
+      "foreign-tenant export denial must leave request and audit state unchanged",
+    );
+
+    // A valid same-tenant manager cannot attach a ready snapshot owned by another tenant.
+    const foreignSnapshotExportKey = uuid();
+    await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
+    await expectSqlStateFailure(
+      "same-tenant manager cannot attach a foreign organization's Onyx snapshot",
+      () => db.unsafe(
+        "select public.record_onyx_order_export($1::uuid,3,$2::uuid,$3::uuid)",
+        [exportOrder, foreignExportSnapshotId, foreignSnapshotExportKey],
+      ),
+      "42501",
+    );
+    await db.unsafe("reset role");
+    assert.deepEqual(
+      await readExportDenialState(organizationId, managerProfileId, foreignSnapshotExportKey, exportOrder),
+      { requestCount: 0, auditCount: 0 },
+      "foreign snapshot denial must leave request and audit state unchanged",
+    );
 
     await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
     const exportRequestKey = uuid();
@@ -342,6 +438,31 @@ async function main() {
     assert.equal(noSourceTrace.source_trace_status,"snapshot_not_selected");
     assert.equal(noSourceTrace.item_counts.snapshot_not_selected,3);
     assert.equal(asJson(noSourceRows[0].new_value).live_sync_triggered,false);
+
+    // Browser-authenticated users must not be able to manufacture live provider success evidence.
+    // This direct execution attempt is rejected by the database ACL before any attempt row exists.
+    const deniedProviderRequestHash = (
+      uuid().replaceAll("-", "") + uuid().replaceAll("-", "")
+    ).slice(0, 64);
+    await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
+    await expectSqlStateFailure(
+      "authenticated manager cannot write a live Onyx provider attempt",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt(" +
+          "$1::text,$2::text,$3::uuid,$4::uuid,null::uuid,null::uuid,$5::text," +
+          "null::integer,null::text,null::text,null::text,null::text)",
+        ["inventory_pull", "started", organizationId, matchedSnapshotId, deniedProviderRequestHash],
+      ),
+      "42501",
+    );
+    await db.unsafe("reset role");
+    const deniedProviderRows = await db.unsafe(
+      "select count(*)::integer as count from public.onyx_live_sync_attempts " +
+        "where organization_id=$1::uuid and request_sha256=$2::text",
+      [organizationId, deniedProviderRequestHash],
+    );
+    assert.equal(Number(deniedProviderRows[0].count), 0,
+      "browser-role provider evidence denial must not create an Onyx sync attempt");
 
     // Successful provider evidence must be generated through the service-only attempt state machine.
     const access = await db.unsafe(
