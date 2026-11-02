@@ -70,7 +70,8 @@ describe("general ledger financial statements XLSX export", () => {
     expect(income).toContain("<v>50000</v>");
     expect(balance).toContain("1000");
     expect(balance).toContain("<v>90000</v>");
-    expect(notes).toContain("لم تُنشأ أرصدة افتتاحية");
+    expect(summary).toContain("لم تُنشأ أرصدة افتتاحية أو قيود تاريخية افتراضية.");
+    expect(notes).toContain("لم تُنفذ قيود إقفال افتراضية.");
     expect(files.size).toBe(10);
   });
 
