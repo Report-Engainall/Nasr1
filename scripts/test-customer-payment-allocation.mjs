@@ -438,8 +438,13 @@ async function main() {
     assert.equal(firstResult.ok,true,"first concurrent request must create a receipt");
     assert.equal(secondResult.ok,true,"same-key concurrent request must replay");
     assert.equal(firstResult.result.receipt_id,secondResult.result.receipt_id);
-    assert.equal(firstResult.result.replayed,false);
-    assert.equal(secondResult.result.replayed,true);
+    assert.notEqual(firstResult.result.replayed,secondResult.result.replayed,
+      "exactly one concurrent caller must create the receipt and the other must replay it");
+    assert.deepEqual(
+      [firstResult.result.replayed,secondResult.result.replayed].sort(),
+      [false,true],
+      "concurrent same-key receipt calls must produce one created result and one replay result",
+    );
 
     const concurrentHeaders=await db.unsafe(
       "select id::text as id from public.customer_payment_receipts where organization_id=$1::uuid and idempotency_key=$2::uuid",
