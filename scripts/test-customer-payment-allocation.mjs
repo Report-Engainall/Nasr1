@@ -181,7 +181,11 @@ async function main() {
   );
   assert.equal(childRows.length, 2, "the receipt must create one existing-ledger payment row per invoice");
   assert.deepEqual(childRows.map(row=>row.invoice_id), [invoiceA.invoice_id,invoiceB.invoice_id].sort());
-  assert.deepEqual(childRows.map(row=>row.amount), ["0.25","0.35"]);
+  const childAmountsByInvoice = new Map(childRows.map(row => [row.invoice_id, row.amount]));
+  assert.equal(childAmountsByInvoice.get(invoiceA.invoice_id), "0.25",
+    "invoice A receives its exact requested allocation irrespective of UUID sort order");
+  assert.equal(childAmountsByInvoice.get(invoiceB.invoice_id), "0.35",
+    "invoice B receives its exact requested allocation irrespective of UUID sort order");
   assert.ok(childRows.every(row=>row.idempotency_key), "child rows must retain the existing idempotency metadata");
   assert.equal(childRows.reduce((sum,row)=>sum+amountToCents(row.amount),0n), amountToCents(receiptRows[0].total_amount));
 
