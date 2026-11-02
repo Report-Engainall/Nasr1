@@ -6949,6 +6949,9 @@ async function main() {
   const inventoryReceiptItemId=randomUUID();
   const inventorySaleOrderId=randomUUID();
   const inventorySaleOrderItemId=randomUUID();
+  const inventoryUnmatchedSaleOrderId=randomUUID();
+  const inventoryUnmatchedSaleOrderItemId=randomUUID();
+  const inventoryUnmatchedSaleMovementId=randomUUID();
   const inventoryPurchaseMovementId=randomUUID();
   const inventorySaleMovementId=randomUUID();
   const inventoryForeignProductId=randomUUID();
@@ -6990,11 +6993,11 @@ async function main() {
     [inventoryProductId,inventoryWarehouseId],
   );
   await db.unsafe(
-    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by,created_at) values($1,$2,$3,$4,'delivered',30,30,$5,now()-interval '50 days')",
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by,created_at,updated_at) values($1,$2,$3,$4,'shipped',30,30,$5,now()-interval '200 days',now()-interval '50 days')",
     [inventorySaleOrderId,intelOrganizationId,intelCustomerId,"CI-INV-SALE-"+randomUUID().slice(0,8),intelProfileId],
   );
   await db.unsafe(
-    "insert into public.order_items(id,order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,unit_price_snapshot,discount_snapshot,line_total,created_at) values($1,$2,$3,$4,'CI Inventory Test Product','EA',30,1,0,30,now()-interval '50 days')",
+    "insert into public.order_items(id,order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,unit_price_snapshot,discount_snapshot,line_total,created_at) values($1,$2,$3,$4,'CI Inventory Test Product','EA',30,1,0,30,now()-interval '200 days')",
     [inventorySaleOrderItemId,inventorySaleOrderId,inventoryProductId,inventoryItemCode],
   );
   await db.unsafe(
@@ -7042,7 +7045,64 @@ async function main() {
   const inventoryReplenishment=inventoryAggregate.replenishmentProducts[0];
   assert.equal(Number(inventoryReplenishment.availableToPromise.value),5);
   assert.equal(Number(inventoryReplenishment.reorderPoint.value),20);
-  assert.equal(Number(inventoryReplenishment.soldQuantityWindow.value),30);
+  assert.equal(Number(inventoryReplenishment.soldQuantityWindow.value),30,
+    "a 200-day-old order shipped 50 days ago must count in the current 92-day sales window");
+  assert.equal(inventoryReplenishment.soldQuantityWindow.status,"VERIFIED");
+  assert.equal(inventoryAggregate.evidenceRecords.find((e) => e.id==="sales-window:"+inventoryProductId).status,"VERIFIED");
+
+  // A shipped order without a matching sale movement must suppress sales velocity.
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by,created_at,updated_at) " +
+    "values($1,$2,$3,$4,'shipped',7,7,$5,now()-interval '10 days',$6::timestamptz)",
+    [inventoryUnmatchedSaleOrderId,intelOrganizationId,intelCustomerId,"CI-INV-UNMATCHED-"+randomUUID().slice(0,8),
+      intelProfileId,new Date(Date.parse(inventoryAsOf.as_of)-1000).toISOString()],
+  );
+  await db.unsafe(
+    "insert into public.order_items(id,order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,unit_price_snapshot,discount_snapshot,line_total,created_at) " +
+    "values($1,$2,$3,$4,'CI Inventory Test Product','EA',7,1,0,7,now()-interval '10 days')",
+    [inventoryUnmatchedSaleOrderItemId,inventoryUnmatchedSaleOrderId,inventoryProductId,inventoryItemCode],
+  );
+  await db.unsafe("set role authenticated");
+  const missingSaleAggregate=(await db.unsafe(
+    "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz) as result",
+    [inventoryAsOf.from_day,inventoryAsOf.to_day,inventoryAsOf.as_of],
+  ))[0].result;
+  const missingSaleMetric=missingSaleAggregate.replenishmentProducts[0].soldQuantityWindow;
+  assert.equal(missingSaleMetric.status,"NEEDS_REVIEW");
+  assert.equal(missingSaleMetric.value,null,
+    "a shipped order missing its sale movement must never be counted as a verified zero or an incomplete total");
+  assert.equal(missingSaleAggregate.evidenceRecords.find((e) => e.id==="sales-window:"+inventoryProductId).status,"NEEDS_REVIEW");
+
+  // A movement whose quantity does not reconcile to the order line also withholds the metric.
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into public.inventory_movements(id,product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,created_at) " +
+    "values($1,$2,$3,'sale',-6,0,'order',$4,'mismatched CI shipment quantity',$5,now()-interval '5 days')",
+    [inventoryUnmatchedSaleMovementId,inventoryProductId,inventoryWarehouseId,inventoryUnmatchedSaleOrderId,intelProfileId],
+  );
+  await db.unsafe("set role authenticated");
+  const mismatchedSaleAggregate=(await db.unsafe(
+    "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz) as result",
+    [inventoryAsOf.from_day,inventoryAsOf.to_day,inventoryAsOf.as_of],
+  ))[0].result;
+  assert.equal(mismatchedSaleAggregate.replenishmentProducts[0].soldQuantityWindow.status,"NEEDS_REVIEW");
+  assert.equal(mismatchedSaleAggregate.replenishmentProducts[0].soldQuantityWindow.value,null,
+    "a sale movement that does not reconcile exactly to order line quantity must be withheld");
+
+  // Once the immutable movement is reconciled to the order quantity, sales velocity is verified again.
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.inventory_movements set quantity=-7 where id=$1",
+    [inventoryUnmatchedSaleMovementId],
+  );
+  await db.unsafe("set role authenticated");
+  const reconciledSaleAggregate=(await db.unsafe(
+    "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz) as result",
+    [inventoryAsOf.from_day,inventoryAsOf.to_day,inventoryAsOf.as_of],
+  ))[0].result;
+  assert.equal(Number(reconciledSaleAggregate.replenishmentProducts[0].soldQuantityWindow.value),37);
+  assert.equal(reconciledSaleAggregate.replenishmentProducts[0].soldQuantityWindow.status,"VERIFIED");
   assert.equal(Number(inventoryReplenishment.supplierLeadTimeDays.value),10);
   assert.equal(inventoryReplenishment.supplierLeadTimeDays.period,null);
   assert.equal(inventoryAggregate.evidenceRecords.some((e) => e.id==="purchase-receipt-item:"+inventoryReceiptItemId),true);
@@ -7071,8 +7131,8 @@ async function main() {
     "a balance snapshot updated after asOf must be withheld, not backdated");
   assert.equal(historicalDead.availableQuantity.value,null);
   assert.equal(historicalReplenishment.availableToPromise.status,"UNAVAILABLE");
-  assert.equal(Number(historicalReplenishment.soldQuantityWindow.value),0,
-    "an order whose status changed after asOf must not count as historically fulfilled sales");
+  assert.equal(Number(historicalReplenishment.soldQuantityWindow.value),7,
+    "the shipment whose order row changed after asOf is withheld while the other reconciled shipment remains in-period");
   const inventoryAuditAfter=(await db.unsafe(
     "select count(*)::integer as count from public.audit_logs where organization_id=$1",
     [intelOrganizationId],
