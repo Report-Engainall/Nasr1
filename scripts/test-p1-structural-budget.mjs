@@ -32,6 +32,14 @@ const TARGET_FILES = [
 const MAX_CRITICAL_PATH_FUNCTION_LINES = 80;
 const MAX_CONTROL_FLOW_DEPTH = 5;
 
+function writeStdout(...values) {
+  process.stdout.write(`${values.join(" ")}\n`);
+}
+
+function writeStderr(...values) {
+  process.stderr.write(`${values.join(" ")}\n`);
+}
+
 const CONTROL_FLOW_KINDS = new Set([
   ts.SyntaxKind.IfStatement,
   ts.SyntaxKind.SwitchStatement,
@@ -136,7 +144,7 @@ for (const relativePath of TARGET_FILES) {
   try {
     source = readFileSync(absolutePath, "utf8");
   } catch (error) {
-    console.error(`FAIL missing target file: ${relativePath}: ${error.message}`);
+    writeStderr(`FAIL missing target file: ${relativePath}: ${error.message}`);
     failures += 1;
     continue;
   }
@@ -154,7 +162,7 @@ for (const relativePath of TARGET_FILES) {
     for (const diagnostic of sourceFile.parseDiagnostics) {
       const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
       const line = diagnostic.start === undefined ? "?" : lineOf(sourceFile, diagnostic.start);
-      console.error(`FAIL parse ${relativePath}:${line}: ${message}`);
+      writeStderr(`FAIL parse ${relativePath}:${line}: ${message}`);
       failures += 1;
     }
     continue;
@@ -183,7 +191,7 @@ for (const relativePath of TARGET_FILES) {
   };
   summaries.push(summary);
 
-  console.log(
+  writeStdout(
     `[P1 AST structural proxy] ${relativePath}: functions=${summary.functions}, ` +
       `maxFunctionLines=${summary.maxFunctionLines} (${summary.longestFunction}@${summary.longestFunctionLine}), ` +
       `maxControlFlowDepth=${summary.maxControlFlowDepth} (${summary.deepestFunction}@${summary.deepestFunctionLine}:${summary.deepestPointLine})`,
@@ -191,14 +199,14 @@ for (const relativePath of TARGET_FILES) {
 
   if (relativePath === "e2e/critical-path.spec.ts" &&
       summary.maxFunctionLines > MAX_CRITICAL_PATH_FUNCTION_LINES) {
-    console.error(
+    writeStderr(
       `FAIL TS0002 proxy: critical-path function block ${summary.maxFunctionLines} > ${MAX_CRITICAL_PATH_FUNCTION_LINES} lines`,
     );
     failures += 1;
   }
 
   if (summary.maxControlFlowDepth > MAX_CONTROL_FLOW_DEPTH) {
-    console.error(
+    writeStderr(
       `FAIL TS0003 proxy: ${relativePath} control-flow depth ${summary.maxControlFlowDepth} > ${MAX_CONTROL_FLOW_DEPTH}`,
     );
     failures += 1;
@@ -206,17 +214,17 @@ for (const relativePath of TARGET_FILES) {
 }
 
 if (summaries.length !== TARGET_FILES.length) {
-  console.error(
+  writeStderr(
     `FAIL: expected ${TARGET_FILES.length} P1 source files, parsed ${summaries.length}`,
   );
   failures += 1;
 }
 
 if (failures > 0) {
-  console.error(`P1 AST structural proxy: FAIL (${failures} issue(s)).`);
+  writeStderr(`P1 AST structural proxy: FAIL (${failures} issue(s)).`);
   process.exitCode = 1;
 } else {
-  console.log(
+  writeStdout(
     "P1 AST structural proxy: PASS. This is supplemental TypeScript AST evidence only; " +
       "official CodeInspector verification remains separate.",
   );

@@ -14,6 +14,14 @@ import { relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
 const MAX_CONTROL_FLOW_DEPTH = 5;
+
+function writeStdout(...values) {
+  process.stdout.write(`${values.join(" ")}\n`);
+}
+
+function writeStderr(...values) {
+  process.stderr.write(`${values.join(" ")}\n`);
+}
 const INCLUDED_ROOTS = ["src/", "supabase/", "e2e/", "scripts/"];
 const EXCLUDED_PATH_PARTS = [
   "node_modules/",
@@ -235,11 +243,11 @@ const markdown = [
 ].join("\n");
 writeFileSync(markdownPath, markdown, "utf8");
 
-console.log(JSON.stringify(report.totals, null, 2));
-console.log(`JSON: ${relative(process.cwd(), jsonPath)}`);
-console.log(`Markdown: ${relative(process.cwd(), markdownPath)}`);
+writeStdout(JSON.stringify(report.totals, null, 2));
+writeStdout(`JSON: ${relative(process.cwd(), jsonPath)}`);
+writeStdout(`Markdown: ${relative(process.cwd(), markdownPath)}`);
 
 if (parseErrors.length > 0) {
-  console.error("Structural proxy could not parse/read every tracked file.");
+  writeStderr("Structural proxy could not parse/read every tracked file.");
   process.exitCode = 1;
 }
