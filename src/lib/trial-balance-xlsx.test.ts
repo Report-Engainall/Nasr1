@@ -5,8 +5,8 @@ import type { TrialBalanceAccount, TrialBalancePeriod, TrialBalanceSummary } fro
 const period: TrialBalancePeriod = { from: "2026-01-01", to: "2026-12-31" };
 const summary: TrialBalanceSummary = {
   posted_entry_count: 8,
-  debit_total: "1,100.00",
-  credit_total: "1,100.00",
+  debit_total: "1100.00",
+  credit_total: "1100.00",
 };
 const accounts: TrialBalanceAccount[] = [
   { code: "1000", name: "الصندوق", account_type: "asset", is_active: true, debit_total: "900.00", credit_total: "0.00" },
@@ -76,7 +76,7 @@ describe("general ledger trial balance XLSX export", () => {
   it("rejects a mismatch between complete account details and the posted-ledger summary", () => {
     expect(() => buildTrialBalanceWorkbookXlsx(accounts, {
       ...summary,
-      debit_total: "1,099.99",
+      debit_total: "1099.99",
     }, period)).toThrow(/مجموع تفاصيل الحسابات/);
   });
 
@@ -105,10 +105,10 @@ describe("general ledger trial balance XLSX export", () => {
   });
 
   it("rejects invalid period, duplicate codes, and non-ISO dates", () => {
-    expect(() => buildTrialBalanceWorkbookXlsx(accounts, summary, { from: "2026-13-01", to: null })).toThrow(/الفترة غير صالحة/);
+    expect(() => buildTrialBalanceWorkbookXlsx(accounts, summary, { from: "2026-13-01", to: null })).toThrow(/نطاق الفترة غير صالح/);
     expect(() => buildTrialBalanceWorkbookXlsx([accounts[0], accounts[0]], {
       posted_entry_count: 1,
-      debit_total: "1,800.00",
+      debit_total: "1800.00",
       credit_total: "0.00",
     }, period)).toThrow(/رمز الحساب .* مكرر/);
   });
