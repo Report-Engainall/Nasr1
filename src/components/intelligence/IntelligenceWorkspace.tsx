@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { BrainCircuit, CalendarClock, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
@@ -37,6 +37,7 @@ import {
 } from "@/components/intelligence";
 
 type Horizon = 7 | 30 | 90;
+const DECISION_PAGE_SIZE = 50;
 const formatDay = (value: string) => new Date(value + "T00:00:00.000Z").toLocaleDateString("ar-YE", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 const formatMoney = (value: number, currency: string) => new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 2 }).format(value) + " " + currency;
 const stateLabels: Record<DecisionOutcomeView["state"], string> = {
@@ -214,6 +215,9 @@ function DecisionOutcomeActions({
 function DecisionCyclePanel({
   outcomeResult,
   outcomesLoading,
+  outcomeOffset,
+  onPageChange,
+  onRetry,
   outcomeReasons,
   outcomeBusyId,
   measurementMetrics,
@@ -223,6 +227,9 @@ function DecisionCyclePanel({
 }: {
   outcomeResult: DecisionOutcomeListResult | null;
   outcomesLoading: boolean;
+  outcomeOffset: number;
+  onPageChange: (offset: number) => void;
+  onRetry: () => void;
   outcomeReasons: Record<string, string>;
   outcomeBusyId: string | null;
   measurementMetrics: CashflowMeasurementProof[];
@@ -243,7 +250,14 @@ function DecisionCyclePanel({
       </div>
       <p className="report-note">كل انتقال يحفظ بإصدار متوقع ومفتاح منع تكرار وسجل تدقيق ذري. لا يتغير وضع القرار محلياً قبل استجابة الخادم.</p>
       {outcomesLoading ? <p role="status" className="text-sm">جارٍ تحميل القرارات...</p> : null}
-      {showError && outcomeResult && !outcomeResult.ok ? <div role="alert" className="rounded-lg border p-3 text-sm">{outcomeResult.message}</div> : null}
+      {showError && outcomeResult && !outcomeResult.ok ? (
+        <div role="alert" className="rounded-lg border p-3 text-sm">
+          <p>{outcomeResult.message}</p>
+          <button type="button" className="btn secondary mt-2" onClick={onRetry} disabled={outcomeBusyId !== null}>
+            إعادة تحميل القرارات
+          </button>
+        </div>
+      ) : null}
       {showEmpty ? <p role="status" className="text-sm">لا توجد قرارات محفوظة لهذه المؤسسة.</p> : null}
       {showItems ? (
         <div className="space-y-3">
@@ -262,6 +276,23 @@ function DecisionCyclePanel({
           ))}
         </div>
       ) : null}
+      {!outcomesLoading && outcomeResult?.ok && outcomeResult.total > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+          <span role="status" aria-live="polite" className="text-xs text-muted-foreground">
+            {outcomes.length > 0
+              ? `عرض ${outcomeOffset + 1}–${Math.min(outcomeOffset + outcomes.length, outcomeResult.total)} من ${outcomeResult.total}`
+              : "لا توجد سجلات في هذه الصفحة"}
+          </span>
+          <nav className="flex items-center gap-2" aria-label="صفحات دورة القرارات">
+            <button type="button" className="btn secondary" aria-label="السابق"
+              onClick={() => onPageChange(Math.max(0, outcomeOffset - DECISION_PAGE_SIZE))}
+              disabled={outcomeOffset === 0 || outcomeBusyId !== null}>السابق</button>
+            <button type="button" className="btn secondary" aria-label="التالي"
+              onClick={() => onPageChange(outcomeOffset + DECISION_PAGE_SIZE)}
+              disabled={outcomeOffset + DECISION_PAGE_SIZE >= outcomeResult.total || outcomeBusyId !== null}>التالي</button>
+          </nav>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -275,6 +306,9 @@ export function IntelligenceWorkspace() {
   const [loading, setLoading] = useState(true);
   const [outcomeResult, setOutcomeResult] = useState<DecisionOutcomeListResult | null>(null);
   const [outcomesLoading, setOutcomesLoading] = useState(true);
+  const [outcomeOffset, setOutcomeOffset] = useState(0);
+  const outcomeRequestGeneration = useRef(0);
+  const outcomesMounted = useRef(false);
   const [outcomeBusyId, setOutcomeBusyId] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
   const [outcomeReasons, setOutcomeReasons] = useState<Record<string, string>>({});
@@ -283,6 +317,14 @@ export function IntelligenceWorkspace() {
   const [proposalReason, setProposalReason] = useState("");
   const [inventoryResult, setInventoryResult] = useState<InventoryIntelligenceResult | null>(null);
   const [inventoryLoading, setInventoryLoading] = useState(true);
+
+  useEffect(() => {
+    outcomesMounted.current = true;
+    return () => {
+      outcomesMounted.current = false;
+      outcomeRequestGeneration.current += 1;
+    };
+  }, []);
 
   const loadCashflow = useCallback(async (active: () => boolean) => {
     if (!canManage) {
@@ -323,16 +365,28 @@ export function IntelligenceWorkspace() {
   }, [canManage]);
 
   const loadOutcomes = useCallback(async () => {
+    const requestGeneration = ++outcomeRequestGeneration.current;
+    if (!outcomesMounted.current) return;
     if (!canManage) {
       setOutcomeResult({ ok: false, status: "DENIED", message: "إدارة القرارات متاحة للمدير ومدير المؤسسة المالية فقط." });
       setOutcomesLoading(false);
       return;
     }
     setOutcomesLoading(true);
-    const response = await fetchDecisionOutcomes(50, 0);
+    const response = await fetchDecisionOutcomes(DECISION_PAGE_SIZE, outcomeOffset);
+    if (!outcomesMounted.current || requestGeneration !== outcomeRequestGeneration.current) return;
+    if (response.ok && outcomeOffset > 0 && outcomeOffset >= response.total) {
+      const lastValidOffset = response.total === 0
+        ? 0
+        : Math.floor((response.total - 1) / DECISION_PAGE_SIZE) * DECISION_PAGE_SIZE;
+      if (lastValidOffset !== outcomeOffset) {
+        setOutcomeOffset(lastValidOffset);
+        return;
+      }
+    }
     setOutcomeResult(response);
     setOutcomesLoading(false);
-  }, [canManage]);
+  }, [canManage, outcomeOffset]);
 
   useEffect(() => {
     let mounted = true;
@@ -566,7 +620,8 @@ export function IntelligenceWorkspace() {
     }
     setProposalReason("");
     setOutcomeMessage(created.duplicate ? "هذا المقترح محفوظ مسبقاً؛ تم استرجاع نسخته الحالية." : "تم حفظ المقترح وسجل حدثه على الخادم.");
-    await loadOutcomes();
+    if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
+    else await loadOutcomes();
   };
 
   const persistEvidenceBackedAction = async (decision: DecisionCandidate, proof: CashflowMeasurementProof) => {
@@ -589,7 +644,8 @@ export function IntelligenceWorkspace() {
     setOutcomeMessage(created.duplicate
       ? "هذا الإجراء محفوظ مسبقاً؛ تم استرجاع نسخته الحالية."
       : "تم حفظ الإجراء المقترح وسجل حدثه على الخادم.");
-    await loadOutcomes();
+    if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
+    else await loadOutcomes();
   };
 
   const runTransition = async (
@@ -737,6 +793,9 @@ export function IntelligenceWorkspace() {
                     <DecisionCyclePanel
             outcomeResult={outcomeResult}
             outcomesLoading={outcomesLoading}
+            outcomeOffset={outcomeOffset}
+            onPageChange={setOutcomeOffset}
+            onRetry={() => void loadOutcomes()}
             outcomeReasons={outcomeReasons}
             outcomeBusyId={outcomeBusyId}
             measurementMetrics={data?.measurementMetrics ?? []}
