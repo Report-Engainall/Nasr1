@@ -353,7 +353,7 @@ async function handleWorkerRequest(request: Request): Promise<Response> {
   if (!url || !anonKey || !serviceKey) return reply({ error: "worker_not_configured" }, 503);
 
   const authorization = request.headers.get("authorization") ?? "";
-  const token = /^Bearer\\s+(.+)$/i.exec(authorization)?.[1] ?? "";
+  const token = /^Bearer\s+(.+)$/i.exec(authorization)?.[1] ?? "";
   const expectedSecret = runtime!.env.get("ASYNC_EXPORT_WORKER_SECRET") ?? "";
   const suppliedSecret = request.headers.get("x-async-export-worker-secret") ?? "";
   const secretMode = Boolean(expectedSecret && constantTimeEqual(suppliedSecret, expectedSecret));
@@ -377,5 +377,5 @@ async function handleWorkerRequest(request: Request): Promise<Response> {
   return respondToClaimedJobs(admin, modeResult.mode, claim.jobs);
 }
 
-if (!runtime) throw new Error("async export worker requires Supabase Edge Runtime.");
-runtime.serve(handleWorkerRequest);
+
+runtime!.serve(handleWorkerRequest);

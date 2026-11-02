@@ -19,7 +19,7 @@ async function cancelReaderQuietly(reader: ReadableStreamDefaultReader<Uint8Arra
 }
 
 function declaresOversizeBody(contentLength: string | null, maxBytes: number): boolean {
-  if (contentLength === null || !/^\\d+$/.test(contentLength.trim())) return false;
+  if (contentLength === null || !/^\d+$/.test(contentLength.trim())) return false;
   const declaredBytes = Number(contentLength.trim());
   return Number.isSafeInteger(declaredBytes) && declaredBytes > maxBytes;
 }

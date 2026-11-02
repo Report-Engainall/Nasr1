@@ -51,6 +51,60 @@ function isOrdersArtifactPath(value: string, jobId: string): boolean {
  * The Edge Runtime wrapper injects its environment and Supabase clients so the
  * HTTP boundary can be acceptance-tested without production credentials.
  */
+type JobIdReadResult = { jobId: string } | { response: Response };
+
+async function readRequestedJobId(request: Request): Promise<JobIdReadResult> {
+  const bodyRead = await readBoundedTextBody(
+    request.body,
+    2048,
+    request.headers.get("content-length"),
+  );
+  if (!bodyRead.ok) {
+    const error = bodyRead.reason === "too_large"
+      ? "request_too_large"
+      : bodyRead.reason === "invalid_utf8" ? "invalid_json" : "invalid_request";
+    const status = bodyRead.reason === "too_large" ? 413 : 400;
+    return { response: reply({ error }, status) };
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyRead.text);
+  } catch {
+    return { response: reply({ error: "invalid_json" }, 400) };
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { response: reply({ error: "invalid_request" }, 400) };
+  }
+
+  const value = body as Record<string, unknown>;
+  if (Object.keys(value).some((key) => key !== "job_id") || !isUuid(value.job_id)) {
+    return { response: reply({ error: "invalid_request" }, 400) };
+  }
+  return { jobId: value.job_id };
+}
+
+type AsyncExportDownloadJob = {
+  job_id: string;
+  artifact_path: string;
+  content_type: "text/csv";
+  file_name: string;
+  expires_at: string;
+};
+
+function isValidDownloadJob(value: unknown, jobId: string): value is AsyncExportDownloadJob {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const job = value as Record<string, unknown>;
+  return job.job_id === jobId
+    && typeof job.artifact_path === "string"
+    && isOrdersArtifactPath(job.artifact_path, jobId)
+    && job.content_type === "text/csv"
+    && typeof job.file_name === "string"
+    && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(job.file_name)
+    && typeof job.expires_at === "string";
+}
+
 export function createAsyncExportDownloadHandler(deps: AsyncExportDownloadDependencies) {
   return async (request: Request): Promise<Response> => {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
