@@ -2856,7 +2856,7 @@ export function StaffQuotesPage() {
 
 function parseExactMoneyCents(value: unknown): bigint | null {
   const raw = String(value ?? "").trim();
-  if (!raw || raw.length > 16 || !/^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$/.test(raw)) return null;
+  if (!raw || raw.length > 16 || !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(raw)) return null;
   const [whole, fraction = ""] = raw.split(".");
   if (whole.length > 13) return null;
   const cents = BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2));
