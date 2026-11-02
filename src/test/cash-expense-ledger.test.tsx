@@ -54,7 +54,7 @@ describe("CashExpenseLedger XLSX action", () => {
   });
   it("exports the current server page with the active finance role and filters", async () => {
     render(<CashExpenseLedger />);
-    await screen.findByText("نقل شحنة فعلية");
+    await screen.findAllByText("نقل شحنة فعلية");
     fireEvent.click(screen.getByRole("button", { name: /تصدير Excel للصفحة الحالية/ }));
     await waitFor(() => expect(mocks.download).toHaveBeenCalledTimes(1));
     expect(mocks.download).toHaveBeenCalledWith(expect.objectContaining({
@@ -80,9 +80,9 @@ describe("CashExpenseLedger XLSX action", () => {
   it("surfaces workbook validation and browser download errors instead of claiming success", async () => {
     mocks.download.mockImplementation(() => { throw new Error("تعذر التحقق من نطاق التصدير."); });
     render(<CashExpenseLedger />);
-    await screen.findByText("نقل شحنة فعلية");
+    await screen.findAllByText("نقل شحنة فعلية");
     fireEvent.click(screen.getByRole("button", { name: /تصدير Excel للصفحة الحالية/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("تعذر التحقق من نطاق التصدير.");
-    expect(screen.queryByRole("status")).not.toHaveTextContent("تم تصدير");
+    expect(screen.queryByText(/تم تصدير تفاصيل الصفحة/)).not.toBeInTheDocument();
   });
 });
