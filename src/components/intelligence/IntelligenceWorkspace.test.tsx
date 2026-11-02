@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "@/lib/intelligence/types";
+import type { DecisionOutcomeView } from "@/lib/intelligence/decision-outcome-client";
 import type { InventoryIntelligenceData } from "@/lib/intelligence/inventory-intelligence-client";
 
 const mocks = vi.hoisted(() => ({
@@ -150,6 +151,29 @@ function cashflowFixture() {
   };
 }
 
+function decisionOutcomeFixture(id: string, expectedOutcome: string): DecisionOutcomeView {
+  return {
+    id,
+    candidateId: "cashflow.expected_collections:YER:2026-10-31:2026-11-30",
+    ruleId: "cashflow.collection.followup",
+    ruleVersion: "1.0.0",
+    state: "PROPOSED",
+    version: 1,
+    ownerProfileId: null,
+    ownerLabel: "مدير المالية",
+    expectedOutcome,
+    reason: null,
+    createdAt: asOf,
+    updatedAt: asOf,
+    approvedAt: null,
+    assignedAt: null,
+    executedAt: null,
+    measuredOutcome: null,
+    eventCount: 1,
+    history: [{ id: id + "-event", type: "PROPOSED", version: 1, at: asOf, actorRole: "admin", reason: null }],
+  };
+}
+
 function inventoryFixture(): InventoryIntelligenceData {
   const evidenceRecords = [
     evidence("movement-window:p1", "inventory.movement_history"),
@@ -208,6 +232,41 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
   });
   afterEach(() => cleanup());
+
+  it("paginates the saved decision register with the server-provided total", async () => {
+    const first = decisionOutcomeFixture("00000000-0000-4000-8000-000000000001", "قرار الصفحة الأولى");
+    const second = decisionOutcomeFixture("00000000-0000-4000-8000-000000000002", "قرار الصفحة الثانية");
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: [first], total: 51 })
+      .mockResolvedValueOnce({ ok: true, items: [second], total: 51 })
+      .mockResolvedValueOnce({ ok: true, items: [first], total: 51 });
+    render(<IntelligenceWorkspace />);
+    expect(await screen.findByText("قرار الصفحة الأولى")).toBeInTheDocument();
+    expect(screen.getByText("عرض 1–1 من 51")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "السابق" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
+    expect(await screen.findByText("قرار الصفحة الثانية")).toBeInTheDocument();
+    expect(screen.queryByText("قرار الصفحة الأولى")).not.toBeInTheDocument();
+    expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(2, 50, 50);
+    expect(screen.getByText("عرض 51–51 من 51")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "التالي" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "السابق" }));
+    expect(await screen.findByText("قرار الصفحة الأولى")).toBeInTheDocument();
+    expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(3, 50, 0);
+    expect(screen.queryByText("قرار الصفحة الثانية")).not.toBeInTheDocument();
+  });
+
+  it("offers a retry action when loading the decision register fails", async () => {
+    const recovered = decisionOutcomeFixture("00000000-0000-4000-8000-000000000003", "قرار مستعاد");
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: false, status: "UNAVAILABLE", message: "تعذر تحميل سجل القرارات." })
+      .mockResolvedValueOnce({ ok: true, items: [recovered], total: 1 });
+    render(<IntelligenceWorkspace />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل سجل القرارات.");
+    fireEvent.click(screen.getByRole("button", { name: "إعادة تحميل القرارات" }));
+    expect(await screen.findByText("قرار مستعاد")).toBeInTheDocument();
+    expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(2, 50, 0);
+  });
 
   it("renders movement classification and a verified replenishment quantity from server evidence", async () => {
     render(<IntelligenceWorkspace />);
