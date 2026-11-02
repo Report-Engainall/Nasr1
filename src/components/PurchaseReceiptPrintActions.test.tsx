@@ -51,7 +51,7 @@ describe("purchase receipt print actions", () => {
     await waitFor(() => expect(mocks.print).toHaveBeenCalledWith(receiptId));
     await waitFor(() => expect(popup.print).toHaveBeenCalledTimes(1));
     expect(popup.document.write).toHaveBeenCalledWith(expect.stringContaining("PR-20261102-000001"));
-    expect(popup.document.write).toHaveBeenCalledWith(expect.stringContaining("لا تُنشئ الطباعة"));
+    expect(popup.document.write).toHaveBeenCalledWith(expect.stringContaining("لا تنشئ الطباعة إيصالًا جديدًا أو حركة مخزون أو قيدًا محاسبيًا."));
     expect(popup.print).toHaveBeenCalledTimes(1);
   });
 
