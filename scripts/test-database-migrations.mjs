@@ -7,6 +7,7 @@ import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.m
 import { runSessionManagementAcceptance } from "./test-session-management.mjs";
 import { runGeneralLedgerReversalAcceptance } from "./test-general-ledger-reversal.mjs";
 import { runCustomerCompanyInvitationRaceAcceptance } from "./test-customer-company-invitation-race.mjs";
+import { runCustomerCartMemberRevocationAcceptance } from "./test-customer-cart-member-revocation.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for isolated database migration tests.");
@@ -5001,8 +5002,17 @@ async function main() {
   await db.unsafe("set role authenticated");
   const memberList=await db.unsafe("select public.list_customer_company_members() as result");
   assert.ok(memberList[0].result.members.some(row=>row.profile_id===invitedProfileId&&row.status==="active"));
-  const revoked=await db.unsafe("select public.revoke_customer_company_member($1::uuid) as result",[invitedProfileId]);
-  assert.equal(revoked[0].result,true,"company owner can revoke its active member");
+  await runCustomerCartMemberRevocationAcceptance({
+    connectionString,
+    organizationId,
+    customerId: customerOneId,
+    productId,
+    ownerAuthUserId: authUserId,
+    ownerEmail: "ci-customer-one@example.test",
+    memberProfileId: invitedProfileId,
+    memberAuthUserId: invitedAuthUserId,
+    memberEmail: "ci-invited-buyer@example.test",
+  });
   await db.unsafe("reset role");
   await setIdentity(invitedAuthUserId,"ci-invited-buyer@example.test");
   await db.unsafe("set role authenticated");
