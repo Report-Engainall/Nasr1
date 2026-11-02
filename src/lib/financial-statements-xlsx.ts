@@ -256,18 +256,18 @@ export function buildFinancialStatementsWorkbookXlsx(
 }
 
 export function downloadFinancialStatementsWorkbookXlsx(
-  document: FinancialStatementsPrintDocument,
+  statementDocument: FinancialStatementsPrintDocument,
   generatedAt = new Date().toISOString(),
 ): void {
-  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return;
-  const bytes = buildFinancialStatementsWorkbookXlsx(document, generatedAt);
-  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  if (typeof statementDocument === "undefined" || typeof URL.createObjectURL !== "function") return;
+  const bytes = buildFinancialStatementsWorkbookXlsx(statementDocument, generatedAt);
+  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officestatementDocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
+  const anchor = statementDocument.createElement("a");
   anchor.href = url;
-  anchor.download = "aghbari-financial-statements-" + document.periodFrom + "-" + document.periodTo + ".xlsx";
+  anchor.download = "aghbari-financial-statements-" + statementDocument.periodFrom + "-" + statementDocument.periodTo + ".xlsx";
   anchor.hidden = true;
-  document.body.appendChild(anchor);
+  statementDocument.body.appendChild(anchor);
   try {
     anchor.click();
   } finally {
