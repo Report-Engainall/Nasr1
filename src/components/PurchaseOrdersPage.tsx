@@ -13,6 +13,7 @@ import type { ProductWithInventory, Supplier } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
+import { PurchaseReceiptPrintActions } from '@/components/PurchaseReceiptPrintActions';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
 import {
   projectPurchaseOrderPrintDocument,
@@ -204,7 +205,10 @@ function PurchaseOrderDetailPanel({ order, busy, cancelReason, receiveDrafts, re
       </div>
       <PurchaseOrderReceiveForm order={order} busy={busy} receiveDrafts={receiveDrafts} receiptNotes={receiptNotes} onQuantityChange={onReceiveQuantityChange} onNotesChange={onReceiptNotesChange} />
       <PurchaseOrderStatusMessage order={order} />
-      <div className="no-print"><PurchaseReceiptAccountingWorkspace purchaseOrderId={order.id} /></div>
+      <div className="no-print">
+        <PurchaseReceiptAccountingWorkspace purchaseOrderId={order.id} />
+        <PurchaseReceiptPrintActions purchaseOrderId={order.id} key={order.id + ":" + order.updated_at} />
+      </div>
     </section>
   );
 }

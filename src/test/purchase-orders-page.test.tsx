@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
+const receiptPrintMocks=vi.hoisted(()=>({history:vi.fn(),print:vi.fn()}));
+vi.mock('@/lib/purchase-receipt-print',()=>({
+  fetchPurchaseReceiptPrintHistory:receiptPrintMocks.history,
+  fetchPurchaseReceiptPrintDocument:receiptPrintMocks.print,
+}));
 const exportMocks=vi.hoisted(()=>({download:vi.fn()}));
 vi.mock('@/lib/purchase-orders-xlsx',()=>({downloadPurchaseOrdersWorkbookXlsx:exportMocks.download}));
 
@@ -34,6 +39,8 @@ describe('purchase orders page',()=>{
     mocks.canManage=true;
     exportMocks.download.mockReset().mockReturnValue(true);
     accountingMocks.rpc.mockReset().mockResolvedValue({data:{accounts:[],receipts:[]},error:null});
+    receiptPrintMocks.history.mockReset().mockResolvedValue({receipts:[],total_count:0,limit:20,offset:0,has_more:false});
+    receiptPrintMocks.print.mockReset();
     mocks.fetchPurchaseOrders.mockReset().mockResolvedValue([draft]);
     mocks.fetchSuppliers.mockReset().mockResolvedValue([{id:'supplier-1',name:'مورد موثوق',supplier_code:'SUP-01',status:'active'}]);
     mocks.fetchProducts.mockReset().mockResolvedValue([{id:'product-1',name:'سكر',item_code:'0000125',unit:'كرتون',status:'active'}]);
