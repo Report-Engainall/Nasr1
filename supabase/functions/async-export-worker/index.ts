@@ -201,89 +201,181 @@ async function processJob(admin: ReturnType<typeof createClient>, job: Job): Pro
   }
 }
 
-if (runtime) runtime.serve(async (request) => {
+type WorkerMode =
+  | { kind: "secret"; batchSize: number }
+  | { kind: "user"; jobId: string };
+
+type WorkerPayloadResult =
+  | { ok: true; input: Record<string, unknown> }
+  | { ok: false; response: Response };
+
+type WorkerModeResult =
+  | { ok: true; mode: WorkerMode }
+  | { ok: false; response: Response };
+
+type ClaimedJobsResult =
+  | { ok: true; jobs: Job[] }
+  | { ok: false; response: Response };
+
+function requestBodyFailure(reason: "too_large" | "unreadable" | "invalid_utf8"): Response {
+  const status = reason === "too_large" ? 413 : 400;
+  const error = reason === "too_large"
+    ? "request_too_large"
+    : reason === "invalid_utf8" ? "invalid_json" : "invalid_request";
+  return reply({ error }, status);
+}
+
+function parseWorkerPayload(bodyText: string): WorkerPayloadResult {
+  if (!bodyText.trim()) return { ok: true, input: {} };
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(bodyText) as unknown;
+  } catch {
+    return { ok: false, response: reply({ error: "invalid_json" }, 400) };
+  }
+
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, response: reply({ error: "invalid_request" }, 400) };
+  }
+  return { ok: true, input: payload as Record<string, unknown> };
+}
+
+function resolveWorkerMode(
+  input: Record<string, unknown>,
+  secretMode: boolean,
+  token: string,
+): WorkerModeResult {
+  if (secretMode) {
+    if (!token) return { ok: false, response: reply({ error: "unauthorized" }, 401) };
+    if (Object.keys(input).some((key) => key !== "batch_size")) {
+      return { ok: false, response: reply({ error: "invalid_request" }, 400) };
+    }
+
+    const batchSize = input.batch_size === undefined ? 1 : input.batch_size;
+    if (!Number.isInteger(batchSize) || Number(batchSize) < 1 || Number(batchSize) > 5) {
+      return { ok: false, response: reply({ error: "batch_size_must_be_between_1_and_5" }, 400) };
+    }
+    return { ok: true, mode: { kind: "secret", batchSize: Number(batchSize) } };
+  }
+
+  if (!token || !isUuid(input.job_id) || Object.keys(input).some((key) => key !== "job_id")) {
+    return { ok: false, response: reply({ error: "unauthorized" }, 401) };
+  }
+  return { ok: true, mode: { kind: "user", jobId: input.job_id } };
+}
+
+async function claimSecretJobs(
+  admin: ReturnType<typeof createClient>,
+  workerId: string,
+  batchSize: number,
+): Promise<ClaimedJobsResult> {
+  const { data, error } = await admin.rpc("claim_async_export_jobs", {
+    p_worker: workerId,
+    p_limit: batchSize,
+    p_lease_seconds: 300,
+    p_job_id: null,
+  });
+  if (error) {
+    console.error("async export claim failed", { code: error.code ?? "unknown" });
+    return { ok: false, response: reply({ error: "claim_failed" }, 500) };
+  }
+  return { ok: true, jobs: (data ?? []) as Job[] };
+}
+
+async function claimRequesterJob(
+  url: string,
+  anonKey: string,
+  token: string,
+  jobId: string,
+): Promise<ClaimedJobsResult> {
+  const userClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: "Bearer " + token } },
+  });
+  const { data: userResult, error: userError } = await userClient.auth.getUser(token);
+  if (userError || !userResult.user) {
+    return { ok: false, response: reply({ error: "unauthorized" }, 401) };
+  }
+
+  const { data, error } = await userClient.rpc("claim_my_async_export_job", {
+    p_job_id: jobId,
+    p_worker: "requester:" + userResult.user.id + ":" + crypto.randomUUID(),
+  });
+  if (error) {
+    console.error("async export request claim failed", { code: error.code ?? "unknown" });
+    return { ok: false, response: reply({ error: "claim_failed" }, 409) };
+  }
+
+  const jobs = (data ?? []) as Job[];
+  if (!jobs.length) return { ok: false, response: reply({ error: "job_not_claimable" }, 409) };
+  return { ok: true, jobs };
+}
+
+async function claimJobs(
+  admin: ReturnType<typeof createClient>,
+  url: string,
+  anonKey: string,
+  token: string,
+  workerId: string,
+  mode: WorkerMode,
+): Promise<ClaimedJobsResult> {
+  if (mode.kind === "secret") return claimSecretJobs(admin, workerId, mode.batchSize);
+  return claimRequesterJob(url, anonKey, token, mode.jobId);
+}
+
+async function respondToClaimedJobs(
+  admin: ReturnType<typeof createClient>,
+  mode: WorkerMode,
+  jobs: Job[],
+): Promise<Response> {
+  await cleanExpired(admin);
+  if (!jobs.length) return reply({ accepted: true, claimed: 0 }, 202);
+
+  const work = Promise.all(jobs.map((job) => processJob(admin, job)));
+  const edge = (globalThis as unknown as { EdgeRuntime?: EdgeBackground }).EdgeRuntime;
+  if (mode.kind === "user" && edge?.waitUntil) {
+    edge.waitUntil(work);
+    return reply({ accepted: true, claimed: jobs.length, job_id: jobs[0].id }, 202);
+  }
+
+  await work;
+  return reply({ accepted: true, claimed: jobs.length, job_id: jobs[0]?.id ?? null }, 202);
+}
+
+async function handleWorkerRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405);
 
-  const url = runtime.env.get("SUPABASE_URL");
-  const anonKey = runtime.env.get("SUPABASE_ANON_KEY");
-  const serviceKey = runtime.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const url = runtime!.env.get("SUPABASE_URL");
+  const anonKey = runtime!.env.get("SUPABASE_ANON_KEY");
+  const serviceKey = runtime!.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !anonKey || !serviceKey) return reply({ error: "worker_not_configured" }, 503);
 
   const authorization = request.headers.get("authorization") ?? "";
-  const token = /^Bearer\s+(.+)$/i.exec(authorization)?.[1] ?? "";
-  const expectedSecret = runtime.env.get("ASYNC_EXPORT_WORKER_SECRET") ?? "";
+  const token = /^Bearer\\s+(.+)$/i.exec(authorization)?.[1] ?? "";
+  const expectedSecret = runtime!.env.get("ASYNC_EXPORT_WORKER_SECRET") ?? "";
   const suppliedSecret = request.headers.get("x-async-export-worker-secret") ?? "";
   const secretMode = Boolean(expectedSecret && constantTimeEqual(suppliedSecret, expectedSecret));
 
   const bodyRead = await readBoundedTextBody(request.body, 4096, request.headers.get("content-length"));
-  if (!bodyRead.ok) {
-    if (bodyRead.reason === "too_large") return reply({ error: "request_too_large" }, 413);
-    return reply({ error: bodyRead.reason === "invalid_utf8" ? "invalid_json" : "invalid_request" }, 400);
-  }
-  const bodyText = bodyRead.text;
-  let payload: unknown = {};
-  if (bodyText.trim()) {
-    try { payload = JSON.parse(bodyText) as unknown; } catch { return reply({ error: "invalid_json" }, 400); }
-  }
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return reply({ error: "invalid_request" }, 400);
-  const input = payload as Record<string, unknown>;
-  const userMode = !secretMode;
-  if (secretMode) {
-    if (!token) return reply({ error: "unauthorized" }, 401);
-    const allowedKeys = Object.keys(input);
-    if (allowedKeys.some((key) => key !== "batch_size")) return reply({ error: "invalid_request" }, 400);
-  } else {
-    if (!token || !isUuid(input.job_id) || Object.keys(input).some((key) => key !== "job_id")) {
-      return reply({ error: "unauthorized" }, 401);
-    }
-  }
+  if (!bodyRead.ok) return requestBodyFailure(bodyRead.reason);
+
+  const payload = parseWorkerPayload(bodyRead.text);
+  if (!payload.ok) return payload.response;
+
+  const modeResult = resolveWorkerMode(payload.input, secretMode, token);
+  if (!modeResult.ok) return modeResult.response;
 
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const workerId = "async-export:" + crypto.randomUUID();
-  let jobs: Job[] = [];
+  const claim = await claimJobs(admin, url, anonKey, token, workerId, modeResult.mode);
+  if (!claim.ok) return claim.response;
 
-  if (secretMode) {
-    const batchSize = input.batch_size === undefined ? 1 : input.batch_size;
-    if (!Number.isInteger(batchSize) || Number(batchSize) < 1 || Number(batchSize) > 5) {
-      return reply({ error: "batch_size_must_be_between_1_and_5" }, 400);
-    }
-    const { data, error } = await admin.rpc("claim_async_export_jobs", {
-      p_worker: workerId, p_limit: Number(batchSize), p_lease_seconds: 300, p_job_id: null,
-    });
-    if (error) {
-      console.error("async export claim failed", { code: error.code ?? "unknown" });
-      return reply({ error: "claim_failed" }, 500);
-    }
-    jobs = (data ?? []) as Job[];
-  } else {
-    const userClient = createClient(url, anonKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      global: { headers: { Authorization: "Bearer " + token } },
-    });
-    const { data: userResult, error: userError } = await userClient.auth.getUser(token);
-    if (userError || !userResult.user) return reply({ error: "unauthorized" }, 401);
-    const { data, error } = await userClient.rpc("claim_my_async_export_job", {
-      p_job_id: input.job_id as string, p_worker: "requester:" + userResult.user.id + ":" + crypto.randomUUID(),
-    });
-    if (error) {
-      console.error("async export request claim failed", { code: error.code ?? "unknown" });
-      return reply({ error: "claim_failed" }, 409);
-    }
-    jobs = (data ?? []) as Job[];
-    if (!jobs.length) return reply({ error: "job_not_claimable" }, 409);
-  }
+  return respondToClaimedJobs(admin, modeResult.mode, claim.jobs);
+}
 
-  await cleanExpired(admin);
-  if (!jobs.length) return reply({ accepted: true, claimed: 0 }, 202);
-  const work = Promise.all(jobs.map((job) => processJob(admin, job)));
-  const edge = (globalThis as unknown as { EdgeRuntime?: EdgeBackground }).EdgeRuntime;
-  if (userMode && edge?.waitUntil) {
-    edge.waitUntil(work);
-    return reply({ accepted: true, claimed: jobs.length, job_id: jobs[0].id }, 202);
-  }
-  await work;
-  return reply({ accepted: true, claimed: jobs.length, job_id: jobs[0]?.id ?? null }, 202);
-});
+if (!runtime) throw new Error("async export worker requires Supabase Edge Runtime.");
+runtime.serve(handleWorkerRequest);

@@ -65,25 +65,9 @@ export function createAsyncExportDownloadHandler(deps: AsyncExportDownloadDepend
     const token = /^Bearer\s+(.+)$/i.exec(authorization)?.[1];
     if (!token) return reply({ error: "unauthorized" }, 401);
 
-    const bodyRead = await readBoundedTextBody(
-      request.body,
-      2048,
-      request.headers.get("content-length"),
-    );
-    if (!bodyRead.ok) {
-      if (bodyRead.reason === "too_large") return reply({ error: "request_too_large" }, 413);
-      return reply({ error: bodyRead.reason === "invalid_utf8" ? "invalid_json" : "invalid_request" }, 400);
-    }
-
-    let body: unknown;
-    try { body = JSON.parse(bodyRead.text); }
-    catch { return reply({ error: "invalid_json" }, 400); }
-    if (!body || typeof body !== "object" || Array.isArray(body)
-        || Object.keys(body).some((key) => key !== "job_id")
-        || !isUuid((body as Record<string, unknown>).job_id)) {
-      return reply({ error: "invalid_request" }, 400);
-    }
-    const jobId = (body as Record<string, unknown>).job_id as string;
+    const requestJob = await readRequestedJobId(request);
+    if ("response" in requestJob) return requestJob.response;
+    const jobId = requestJob.jobId;
 
     try {
       const user = deps.createUserClient(url, anonKey, token);
@@ -91,19 +75,10 @@ export function createAsyncExportDownloadHandler(deps: AsyncExportDownloadDepend
       if (authError || !authData.user) return reply({ error: "unauthorized" }, 401);
 
       const { data: jobData, error: jobError } = await user.getMyAsyncExportDownload(jobId);
-      if (jobError || !jobData || typeof jobData !== "object" || Array.isArray(jobData)) {
+      if (jobError || !isValidDownloadJob(jobData, jobId)) {
         return reply({ error: "export_not_ready_or_expired" }, 404);
       }
-      const job = jobData as Record<string, unknown>;
-      if (job.job_id !== jobId
-          || typeof job.artifact_path !== "string"
-          || !isOrdersArtifactPath(job.artifact_path, jobId)
-          || job.content_type !== "text/csv"
-          || typeof job.file_name !== "string"
-          || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(job.file_name)
-          || typeof job.expires_at !== "string") {
-        return reply({ error: "export_not_ready_or_expired" }, 404);
-      }
+      const job = jobData;
 
       const signingStartedMs = (deps.now ?? Date.now)();
       const jobExpiryMs = Date.parse(job.expires_at);

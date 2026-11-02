@@ -61,28 +61,47 @@ function uuid(value: unknown): value is string {
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+async function cancelUploadBodyQuietly(body: ReadableStream<Uint8Array> | null): Promise<void> {
+  try {
+    await body?.cancel();
+  } catch {
+    // Preserve the bounded-size rejection.
+  }
+}
+
+async function cancelUploadReaderQuietly(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+  try {
+    await reader.cancel();
+  } catch {
+    // Preserve the bounded read result.
+  }
+}
+
 async function readBoundedBytes(request: Request, limit: number): Promise<Uint8Array | null> {
   const header = request.headers.get("content-length");
   const contentLength = Number(header ?? "");
   if (header !== null && Number.isFinite(contentLength) && contentLength > limit) {
-    try { await request.body?.cancel(); } catch { /* retain the bounded-size rejection */ }
+    await cancelUploadBodyQuietly(request.body);
     return null;
   }
   if (!request.body) return new Uint8Array();
+
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+
   try {
     while (true) {
       const result = await reader.read();
       if (result.done) break;
       total += result.value.byteLength;
       if (total > limit) {
-        try { await reader.cancel(); } catch { /* keep the size rejection bounded */ }
+        await cancelUploadReaderQuietly(reader);
         return null;
       }
       chunks.push(result.value);
     }
+
     const merged = new Uint8Array(total);
     let offset = 0;
     for (const chunk of chunks) {
@@ -91,11 +110,129 @@ async function readBoundedBytes(request: Request, limit: number): Promise<Uint8A
     }
     return merged;
   } catch {
-    try { await reader.cancel(); } catch { /* keep the read failure bounded */ }
+    await cancelUploadReaderQuietly(reader);
     return null;
   } finally {
     reader.releaseLock();
   }
+}
+
+type ProductImageCommand =
+  | { action: "delete"; productId: string; objectPath: string }
+  | { action: "upload"; productId: string; bytes: Uint8Array };
+
+type ProductImageCommandResult =
+  | { ok: true; command: ProductImageCommand }
+  | { ok: false; response: Response };
+
+function commandFailure(error: string, status: number): ProductImageCommandResult {
+  return { ok: false, response: reply({ error }, status) };
+}
+
+async function parseDeleteCommand(request: Request): Promise<ProductImageCommandResult> {
+  const bodyRead = await readBoundedTextBody(
+    request.body,
+    2048,
+    request.headers.get("content-length"),
+  );
+  if (!bodyRead.ok) {
+    const error = bodyRead.reason === "too_large"
+      ? "request_too_large"
+      : bodyRead.reason === "invalid_utf8" ? "invalid_utf8" : "invalid_request_body";
+    const status = bodyRead.reason === "too_large" ? 413 : 400;
+    return commandFailure(error, status);
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyRead.text);
+  } catch {
+    return commandFailure("invalid_json", 400);
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return commandFailure("invalid_request", 400);
+  }
+
+  const value = body as Record<string, unknown>;
+  if (value.action !== "delete") return commandFailure("invalid_action", 400);
+
+  return {
+    ok: true,
+    command: {
+      action: "delete",
+      productId: typeof value.product_id === "string" ? value.product_id : "",
+      objectPath: typeof value.object_path === "string" ? value.object_path : "",
+    },
+  };
+}
+
+async function parseUploadCommand(
+  request: Request,
+  admin: AdminClient,
+  organizationId: string,
+): Promise<ProductImageCommandResult> {
+  const productId = request.headers.get("x-product-id") ?? "";
+  if (!uuid(productId) || !isSafeProductImageRequest(productId, organizationId)) {
+    return commandFailure("invalid_product", 400);
+  }
+
+  const { data: product, error: productError } = await admin.productExists(productId, organizationId);
+  if (productError || !product) return commandFailure("product_not_in_organization", 404);
+
+  const bytes = await readBoundedBytes(request, PRODUCT_IMAGE_MAX_BYTES);
+  if (!bytes) return commandFailure("invalid_image_size", 413);
+  if (bytes.byteLength < 1) return commandFailure("invalid_image", 400);
+  if (!isWebpPayload(bytes)) return commandFailure("webp_signature_required", 415);
+
+  return { ok: true, command: { action: "upload", productId, bytes } };
+}
+
+async function parseProductImageCommand(
+  request: Request,
+  admin: AdminClient,
+  organizationId: string,
+): Promise<ProductImageCommandResult> {
+  const contentType = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (contentType === "application/json") return parseDeleteCommand(request);
+  if (contentType !== "image/webp") return commandFailure("webp_required", 415);
+  return parseUploadCommand(request, admin, organizationId);
+}
+
+async function executeDeleteCommand(
+  admin: AdminClient,
+  organizationId: string,
+  command: Extract<ProductImageCommand, { action: "delete" }>,
+): Promise<Response> {
+  if (!uuid(command.productId)) return reply({ error: "invalid_product" }, 400);
+
+  const { data: product, error: productError } = await admin.productExists(command.productId, organizationId);
+  if (productError || !product) return reply({ error: "product_not_in_organization" }, 404);
+  if (!isValidProductImageObjectPath(command.objectPath, organizationId, command.productId)) {
+    return reply({ error: "invalid_object_path" }, 400);
+  }
+
+  const { error } = await admin.storage.remove([command.objectPath]);
+  if (error) return reply({ error: "image_cleanup_failed" }, 502);
+  return reply({ deleted: true });
+}
+
+async function executeUploadCommand(
+  admin: AdminClient,
+  organizationId: string,
+  command: Extract<ProductImageCommand, { action: "upload" }>,
+  randomUUID: () => string,
+): Promise<Response> {
+  const objectPath = organizationId + "/" + command.productId + "/" + randomUUID() + ".webp";
+  const { error } = await admin.storage.upload(objectPath, command.bytes, {
+    contentType: "image/webp",
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (error) return reply({ error: "image_upload_failed" }, 502);
+
+  const publicUrl = admin.storage.getPublicUrl(objectPath).data.publicUrl;
+  return reply({ public_url: publicUrl, object_path: objectPath });
 }
 
 /**
@@ -111,7 +248,7 @@ export function createProductImageUploadHandler(deps: ProductImageUploadDependen
     const anonKey = deps.getEnv("SUPABASE_ANON_KEY");
     const serviceKey = deps.getEnv("SUPABASE_SERVICE_ROLE_KEY");
     const authorization = request.headers.get("authorization") ?? "";
-    const token = /^Bearer\s+(.+)$/i.exec(authorization)?.[1];
+    const token = /^Bearer\\s+(.+)$/i.exec(authorization)?.[1];
     if (!url || !anonKey || !serviceKey) return reply({ error: "image_service_not_configured" }, 503);
     if (!token) return reply({ error: "unauthorized" }, 401);
 
@@ -131,73 +268,19 @@ export function createProductImageUploadHandler(deps: ProductImageUploadDependen
         return reply({ error: "product_image_permission_required" }, 403);
       }
 
-      const contentType = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-      let productId = "";
-      let action: "upload" | "delete" = "upload";
-      let objectPath = "";
-      let bytes: Uint8Array | undefined;
+      const parsed = await parseProductImageCommand(request, admin, profile.organization_id);
+      if (!parsed.ok) return parsed.response;
 
-      if (contentType === "application/json") {
-        const bodyRead = await readBoundedTextBody(
-          request.body,
-          2048,
-          request.headers.get("content-length"),
-        );
-        if (!bodyRead.ok) {
-          if (bodyRead.reason === "too_large") return reply({ error: "request_too_large" }, 413);
-          if (bodyRead.reason === "invalid_utf8") return reply({ error: "invalid_utf8" }, 400);
-          return reply({ error: "invalid_request_body" }, 400);
-        }
-
-        let body: unknown;
-        try { body = JSON.parse(bodyRead.text); }
-        catch { return reply({ error: "invalid_json" }, 400); }
-        if (!body || typeof body !== "object" || Array.isArray(body)) {
-          return reply({ error: "invalid_request" }, 400);
-        }
-        const value = body as Record<string, unknown>;
-        if (value.action !== "delete") return reply({ error: "invalid_action" }, 400);
-        action = "delete";
-        productId = typeof value.product_id === "string" ? value.product_id : "";
-        objectPath = typeof value.object_path === "string" ? value.object_path : "";
-      } else {
-        if (contentType !== "image/webp") return reply({ error: "webp_required" }, 415);
-        productId = request.headers.get("x-product-id") ?? "";
-        if (!uuid(productId) || !isSafeProductImageRequest(productId, profile.organization_id)) {
-          return reply({ error: "invalid_product" }, 400);
-        }
-        const { data: product, error: productError } = await admin.productExists(productId, profile.organization_id);
-        if (productError || !product) return reply({ error: "product_not_in_organization" }, 404);
-
-        const boundedBytes = await readBoundedBytes(request, PRODUCT_IMAGE_MAX_BYTES);
-        if (!boundedBytes) return reply({ error: "invalid_image_size" }, 413);
-        if (boundedBytes.byteLength < 1) return reply({ error: "invalid_image" }, 400);
-        bytes = boundedBytes;
-        if (!isWebpPayload(bytes)) return reply({ error: "webp_signature_required" }, 415);
+      if (parsed.command.action === "delete") {
+        return executeDeleteCommand(admin, profile.organization_id, parsed.command);
       }
 
-      if (!uuid(productId)) return reply({ error: "invalid_product" }, 400);
-      if (action === "delete") {
-        const { data: product, error: productError } = await admin.productExists(productId, profile.organization_id);
-        if (productError || !product) return reply({ error: "product_not_in_organization" }, 404);
-        if (!isValidProductImageObjectPath(objectPath, profile.organization_id, productId)) {
-          return reply({ error: "invalid_object_path" }, 400);
-        }
-        const { error } = await admin.storage.remove([objectPath]);
-        if (error) return reply({ error: "image_cleanup_failed" }, 502);
-        return reply({ deleted: true });
-      }
-
-      const uniqueId = (deps.randomUUID ?? (() => crypto.randomUUID()))();
-      objectPath = profile.organization_id + "/" + productId + "/" + uniqueId + ".webp";
-      const { error: uploadError } = await admin.storage.upload(objectPath, bytes!, {
-        contentType: "image/webp",
-        cacheControl: "31536000",
-        upsert: false,
-      });
-      if (uploadError) return reply({ error: "image_upload_failed" }, 502);
-      const publicUrl = admin.storage.getPublicUrl(objectPath).data.publicUrl;
-      return reply({ public_url: publicUrl, object_path: objectPath });
+      return executeUploadCommand(
+        admin,
+        profile.organization_id,
+        parsed.command,
+        deps.randomUUID ?? (() => crypto.randomUUID()),
+      );
     } catch {
       // Do not leak provider/service-role details through unhandled Edge exceptions.
       return reply({ error: "image_service_unavailable" }, 503);
