@@ -137,6 +137,48 @@ async function main() {
 
   const first = await makeReceipt(manager, 100.25);
   await setIdentity(manager.auth_user_id, manager.email);
+
+  const receiptHistory = await rpcJson(
+    "select public.fetch_purchase_order_receipt_history($1::uuid,$2::integer,$3::integer) as result",
+    [first.purchaseOrderId, 20, 0],
+  );
+  assert.equal(receiptHistory.total_count, 1);
+  assert.equal(receiptHistory.limit, 20);
+  assert.equal(receiptHistory.offset, 0);
+  assert.equal(receiptHistory.has_more, false);
+  const historyRow = receiptHistory.receipts.find((row) => row.id === first.receiptId);
+  assert.ok(historyRow);
+  assert.equal(historyRow.receipt_number, first.receiptNumber);
+  assert.equal(historyRow.item_count, 1);
+  assert.equal("organization_id" in historyRow, false);
+
+  const printableReceipt = await rpcJson(
+    "select public.get_purchase_receipt_print_data($1::uuid) as result",
+    [first.receiptId],
+  );
+  assert.equal(printableReceipt.receipt_number, first.receiptNumber);
+  assert.ok(printableReceipt.purchase_order_number.length > 0);
+  assert.ok(printableReceipt.supplier_name.length > 0);
+  assert.ok(printableReceipt.warehouse_name.length > 0);
+  assert.equal(printableReceipt.currency, "YER");
+  assert.equal(printableReceipt.costs_complete, true);
+  assert.equal(Number(printableReceipt.received_cost), 100.25);
+  assert.equal(printableReceipt.items.length, 1);
+  assert.equal(Number(printableReceipt.items[0].quantity_received), 1);
+  assert.equal(Number(printableReceipt.items[0].unit_cost), 100.25);
+  assert.equal(Number(printableReceipt.items[0].line_total), 100.25);
+  for (const forbidden of ["id", "organization_id", "purchase_order_id", "warehouse_id", "supplier_id", "created_by", "notes"]) {
+    assert.equal(forbidden in printableReceipt, false, "print snapshot omits internal field " + forbidden);
+  }
+  for (const forbidden of ["id", "organization_id", "purchase_order_item_id", "receipt_id", "created_by"]) {
+    assert.equal(forbidden in printableReceipt.items[0], false, "print item omits internal field " + forbidden);
+  }
+  await expectFailure(
+    "manager cannot print a receipt outside the active organization",
+    () => rpcJson("select public.get_purchase_receipt_print_data($1::uuid) as result", [randomUUID()]),
+    /not available in this organization/i,
+  );
+
   const prepared = await callPrepare(first.receiptId, inventoryAccount.id, payableAccount.id);
   assert.equal(prepared.receipt_id, first.receiptId);
   assert.equal(prepared.receipt_number, first.receiptNumber);
@@ -177,6 +219,12 @@ async function main() {
   await expectFailure("ordinary customer cannot inspect finance purchase receipt queue",
     () => db.unsafe("select public.fetch_purchase_receipt_accounting_queue($1::uuid,$2::integer)", [first.purchaseOrderId, 50]),
     /finance permission required/i);
+  await expectFailure("ordinary customer cannot list purchase receipt print history",
+    () => rpcJson("select public.fetch_purchase_order_receipt_history($1::uuid,$2::integer,$3::integer) as result", [first.purchaseOrderId, 20, 0]),
+    /admin or manager role required/i);
+  await expectFailure("ordinary customer cannot fetch a purchase receipt print document",
+    () => rpcJson("select public.get_purchase_receipt_print_data($1::uuid) as result", [first.receiptId]),
+    /admin or manager role required/i);
 
   await setIdentity(manager.auth_user_id, manager.email);
   await expectFailure("authenticated staff cannot directly insert source-posting rows",
@@ -206,6 +254,15 @@ async function main() {
 
   const incomplete = await makeReceipt(manager, null);
   await setIdentity(manager.auth_user_id, manager.email);
+  const incompletePrint = await rpcJson(
+    "select public.get_purchase_receipt_print_data($1::uuid) as result",
+    [incomplete.receiptId],
+  );
+  assert.equal(incompletePrint.costs_complete, false);
+  assert.equal(incompletePrint.received_cost, null);
+  assert.equal(incompletePrint.items.length, 1);
+  assert.equal(incompletePrint.items[0].unit_cost, null);
+  assert.equal(incompletePrint.items[0].line_total, null);
   await expectFailure("receipt with unknown source cost cannot create a journal",
     () => callPrepare(incomplete.receiptId, inventoryAccount.id, payableAccount.id),
     /no positive source-backed received cost/i);

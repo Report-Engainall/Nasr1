@@ -33,6 +33,16 @@ describe("purchase receipt history and print authorization migration", () => {
     expect(migration).not.toMatch(/GRANT SELECT[^;]*purchase_receipt_items/i);
   });
 
+  it("selects the receipt row separately from scalar print references", () => {
+    const start = migration.indexOf("CREATE OR REPLACE FUNCTION public.get_purchase_receipt_print_data");
+    const source = migration.slice(start, migration.indexOf("$function$;", start) + 11);
+    expect(source).toMatch(/SELECT r\.\*\s+INTO v_receipt/i);
+    expect(source).toMatch(/SELECT po\.purchase_order_number,\s*s\.name,\s*w\.name,\s*o\.currency\s+INTO v_purchase_order_number,\s*v_supplier_name,\s*v_warehouse_name,\s*v_currency/i);
+    expect(source).toMatch(/po\.id = v_receipt\.purchase_order_id/);
+    expect(source).toMatch(/w\.id = v_receipt\.warehouse_id/);
+    expect(source).not.toMatch(/SELECT\s+r\s*,\s*po\.purchase_order_number[\s\S]{0,220}INTO\s+v_receipt\s*,/i);
+  });
+
   it("revokes public and anonymous execution while granting only authenticated RPC access", () => {
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.fetch_purchase_order_receipt_history\(uuid, integer, integer\)\s+FROM PUBLIC, anon/i);
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.fetch_purchase_order_receipt_history\(uuid, integer, integer\)\s+TO authenticated/i);

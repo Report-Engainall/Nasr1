@@ -43,17 +43,13 @@ describe("purchase receipt print actions", () => {
       focus: vi.fn(), print: vi.fn(), close: vi.fn(),
     } as unknown as Window;
     vi.spyOn(window, "open").mockReturnValue(popup);
-    vi.spyOn(window, "setTimeout").mockImplementation(((callback: TimerHandler) => {
-      if (typeof callback === "function") callback();
-      return 1;
-    }) as typeof window.setTimeout);
-
     render(<PurchaseReceiptPrintActions purchaseOrderId="22222222-2222-4222-8222-222222222222" />);
     expect(await screen.findByText("PR-20261102-000001")).toBeInTheDocument();
     expect(mocks.history).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222", { limit: 20, offset: 0 });
 
     fireEvent.click(screen.getByRole("button", { name: /طباعة الإيصال/ }));
     await waitFor(() => expect(mocks.print).toHaveBeenCalledWith(receiptId));
+    await waitFor(() => expect(popup.print).toHaveBeenCalledTimes(1));
     expect(popup.document.write).toHaveBeenCalledWith(expect.stringContaining("PR-20261102-000001"));
     expect(popup.document.write).toHaveBeenCalledWith(expect.stringContaining("لا تُنشئ الطباعة"));
     expect(popup.print).toHaveBeenCalledTimes(1);

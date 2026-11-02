@@ -130,23 +130,35 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'purchase receipt ID is required';
   END IF;
 
-  SELECT r, po.purchase_order_number, s.name, w.name, o.currency
-    INTO v_receipt, v_purchase_order_number, v_supplier_name, v_warehouse_name, v_currency
+  SELECT r.*
+    INTO v_receipt
   FROM public.purchase_receipts r
-  JOIN public.purchase_orders po
-    ON po.id = r.purchase_order_id AND po.organization_id = r.organization_id
-  JOIN public.suppliers s
-    ON s.id = po.supplier_id AND s.organization_id = po.organization_id
-  JOIN public.warehouses w
-    ON w.id = r.warehouse_id AND w.organization_id = r.organization_id
-  JOIN public.organizations o
-    ON o.id = r.organization_id
   WHERE r.id = p_receipt_id
     AND r.organization_id = v_org;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'purchase receipt is not available in this organization';
+  END IF;
+
+  SELECT po.purchase_order_number, s.name, w.name, o.currency
+    INTO v_purchase_order_number, v_supplier_name, v_warehouse_name, v_currency
+  FROM public.purchase_orders po
+  JOIN public.suppliers s
+    ON s.id = po.supplier_id
+   AND s.organization_id = po.organization_id
+  JOIN public.warehouses w
+    ON w.id = v_receipt.warehouse_id
+   AND w.organization_id = v_org
+  JOIN public.organizations o
+    ON o.id = v_org
+   AND o.is_active = true
+  WHERE po.id = v_receipt.purchase_order_id
+    AND po.organization_id = v_org;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002',
+      MESSAGE = 'purchase receipt references are unavailable for printing';
   END IF;
 
   SELECT
