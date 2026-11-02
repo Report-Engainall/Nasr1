@@ -1,3 +1,58 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-03 — CASH EXPENSE XLSX PAGE EXPORT
+
+This checkpoint supersedes the November 2 finance checkpoint for the current execution pointer. Older checkpoints remain historical evidence and must not be treated as the latest tested code.
+
+- REPOSITORY: `Report-Engainall/Nasr1`; only accepted source of truth: `main`.
+- TESTED_CODE_SHA: `3f33dba1d1879fc1426a2428e331b496c6241dae`.
+- DOCUMENTATION_MATRIX_COMMIT: `819d218665ab2b345e78368b2c5f3a8ec0e18339` (acceptance-only update after the tested code; no runtime source changed after TESTED_CODE_SHA).
+- BRANCHES: `main` only. OPEN_PULL_REQUESTS: 0.
+- LAST_COMPLETED_TASK_ID: `DLV-011-CASH-EXPENSE-PAGE-XLSX-001`.
+
+## Completed deliverable — Cash Expense Ledger XLSX export
+
+- `src/lib/cash-expense-xlsx.ts` builds a two-sheet XLSX workbook from the already loaded server-authorized cash-expense RPC payload:
+  - `ملخص المصروفات`: full filtered currency summary returned by the server, with as-of timestamp, active filters, total matching count, page metadata and explicit disclosure of the detail boundary.
+  - `تفاصيل الصفحة`: only the currently loaded page. The workbook and UI explicitly state that unrequested detail pages are not included; no claim is made that this is a full all-pages detail export.
+- The workbook is limited to `admin`, `manager`, and `accountant` roles. Ordinary staff and customer roles do not see the finance screen/export action, and the export builder independently rejects them.
+- Exported detail fields are explicitly allowlisted: expense number, date, category, description, amount, currency, payment method, reference, status and void reason. Database IDs, profile/actor IDs, timestamps used only for storage, tenant identifiers and other technical metadata are excluded.
+- Currency boundaries are preserved; monetary values are parsed to exact cents with `BigInt` before becoming Excel numeric cells. Unsafe Excel precision is rejected. Formula-looking text remains escaped inline text; no formula cells are emitted.
+- Pagination consistency is checked against server `total_count`, `limit`, `offset`, `has_more`, and loaded item count. Currency-summary counts must reconcile to the total filtered population. Inconsistent/partial metadata stops the export rather than generating a misleading workbook.
+- UI integration: `src/components/CashExpenseLedger.tsx` adds “تصدير Excel للصفحة الحالية” beside the existing page print action; it uses the current RPC payload, filters and authenticated roles, and displays the exact export boundary.
+
+## Exact-SHA acceptance
+
+All runtime checks below refer to code SHA `3f33dba1d1879fc1426a2428e331b496c6241dae`:
+
+- Core [41536726684 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726684):
+  - Vitest: **269/269 files passed; 1,775/1,775 tests passed**.
+  - New export coverage: `src/lib/cash-expense-xlsx.test.ts` (7 tests) and `src/test/cash-expense-ledger.test.tsx` (3 tests).
+  - PostgreSQL 17 migrations and core acceptance, Lint, Build, preview smoke (4173), dev-server smoke (5173), Chromium price-visibility acceptance, isolated backup/restore all passed.
+- P2 [41536726705 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726705):
+  - Local Supabase/PostgreSQL 17 + authenticated Chromium passed order persistence and cross-tenant denial, checkout replay after lost response, return/receipt/credit memo, audited Onyx order XLSX, finance/task print, customer-manager financial privacy/audit, and central device-session immediate revocation.
+  - Cash-expense source posting/idempotency/void-post concurrency and purchase receipt accounting acceptance passed.
+  - Public Storefront browser smoke passed.
+- Free Static Analysis [41536726879 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726879): TypeScript AST structural proxy, CodeQL Python, CodeQL JavaScript/TypeScript and Semgrep all passed.
+- P1 Targeted TypeScript [41536726840 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726840).
+- Secret Scan [41536726768 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726768).
+- One-main-branch cleanup [41536726709 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726709).
+
+## Boundaries and remaining work
+
+- P2 hosted authenticated customer/order/tenant job was **SKIPPED**, not PASS, by the external-auth credential gate. The successful local Supabase/Chromium run does not prove hosted production authentication or cross-tenant behavior on the live service.
+- DLV-011 remains **PARTIAL**. The new cash-expense XLSX leaf is closed with exact-SHA evidence; this does not close the remaining role/template pairs for the entire print/export family.
+- API-OPS remains **PARTIAL**. The Onyx export and provider-evidence denial tests were added to `scripts/test-onyx-source-evidence.mjs` and passed in the exact-SHA Core/PostgreSQL 17 suite at `580214e168d2434816bd73650295dda03156742a`; the full semantic coverage of all callable RPC/Edge boundaries is not complete.
+- External/production evidence remains unproven: live Onyx target-version import/round-trip and provider receipts, official WhatsApp delivery receipts, live external AI provider operation, hosted customer/tenant journeys, production deployment/rollback/backup/restore, and owner sign-off.
+- RELEASE DECISION: **NO-GO** for a production-complete release until the remaining applicable DLV requirements and external/production gates are evidenced. Do not infer an overall completion percentage from merged leaves or CI success.
+
+## Acceptance matrix and next action
+
+- Updated matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+- Matrix now records **147 unique leaf acceptance IDs**, **18 DLV roll-up groups**, and **0 duplicate IDs**. The new row is `DLV-011-CASH-EXPENSE-PAGE-XLSX-001`. DLV-011 parent remains PARTIAL; DLV-ROLLUP-001 remains NO-GO.
+- NEXT_ACTION: select the next genuinely uncovered DLV-011 role/template pair from the matrix, inspect the real UI-to-server DTO/RPC path and existing print/export engine, and implement only a missing pair. Preserve all existing projections, role guards and tests; require exact-SHA Core and P2 before counting the leaf complete.
+- UPDATED_AT: 2026-11-03.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-02 — FINANCE RECEIPT REGISTER AND FULL LEDGER STATEMENTS XLSX
 
 This checkpoint supersedes the older November 1 checkpoint below. Older checkpoints are retained as historical evidence only and must not be treated as the current execution pointer.
