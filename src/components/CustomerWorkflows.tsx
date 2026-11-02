@@ -2854,6 +2854,19 @@ export function StaffQuotesPage() {
   );
 }
 
+function parseExactMoneyCents(value: unknown): bigint | null {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.length > 16 || !/^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$/.test(raw)) return null;
+  const [whole, fraction = ""] = raw.split(".");
+  if (whole.length > 13) return null;
+  const cents = BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2));
+  return cents <= 999999999999999n ? cents : null;
+}
+
+function formatExactMoneyCents(value: bigint): string {
+  return (value / 100n).toString() + "." + (value % 100n).toString().padStart(2, "0");
+}
+
 export function StaffFinancePage() {
   const { user } = useAuth();
   const canManageFinance = Boolean(
@@ -2868,6 +2881,9 @@ export function StaffFinancePage() {
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
+  const [splitReceipt, setSplitReceipt] = useState(false);
+  const [allocationInvoiceIds, setAllocationInvoiceIds] = useState<string[]>([]);
+  const [allocationAmounts, setAllocationAmounts] = useState<Record<string, string>>({});
   // Keep a separate key for each unresolved request so changing form values cannot orphan an ambiguous retry.
   const paymentRequestKeysRef = useRef<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
@@ -2995,42 +3011,95 @@ export function StaffFinancePage() {
   };
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const i = invoices.find((x) => x.id === invoiceId);
-    if (!i) {
+    const invoice = invoices.find((item) => item.id === invoiceId);
+    if (!invoice) {
       setError("اختر فاتورة صحيحة قبل تسجيل الدفعة.");
       return;
     }
-    let n: number;
+
     try {
-      n = validateCustomerPaymentInput(amount, method, reference, notes);
+      validateCustomerPaymentInput(amount, method, reference, notes);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "بيانات الدفعة غير صالحة.");
       return;
     }
-    const remaining = outstanding(i);
-    if (remaining === null) {
-      setError("تعذر التحقق من المتبقي من دفتر العميل الكامل؛ أعد تحميل البيانات قبل تسجيل الدفعة.");
-      return;
-    }
-    if (n > remaining) {
-      setError("المبلغ يتجاوز المتبقي على الفاتورة بعد احتساب الإشعارات الدائنة المرحّلة.");
-      return;
-    }
+
     const normalizedMethod = method.trim().toLowerCase();
     const normalizedReference = reference.trim() || null;
     const normalizedNotes = notes.trim() || null;
-    const requestFingerprint = JSON.stringify({
-      invoiceId: i.id,
-      amount: n,
-      paymentMethod: normalizedMethod,
-      reference: normalizedReference,
-      notes: normalizedNotes,
-    });
+    let allocations: { invoice_id: string; amount: string }[] | null = null;
+
+    if (splitReceipt) {
+      const selectedIds = [invoice.id, ...allocationInvoiceIds];
+      if (selectedIds.length < 2 || selectedIds.length > 50 || new Set(selectedIds).size !== selectedIds.length) {
+        setError("اختر فاتورتين على الأقل وبحد أقصى 50 فاتورة دون تكرار.");
+        return;
+      }
+
+      const candidateInvoices = selectedIds.map((id) => invoices.find((item) => item.id === id));
+      if (candidateInvoices.some((item) => !item)) {
+        setError("إحدى الفواتير المحددة لم تعد ضمن صفحة البيانات المحمّلة؛ حدّث الفواتير ثم أعد التحديد.");
+        return;
+      }
+
+      const normalized: { invoice_id: string; amount: string }[] = [];
+      for (const selected of candidateInvoices) {
+        if (!selected || selected.status === "void" ||
+            selected.customer_id !== invoice.customer_id ||
+            selected.currency !== invoice.currency) {
+          setError("يجب أن تكون كل الفواتير نشطة وللعميل نفسه وبالعملة نفسها. لا ينفّذ النظام تحويل عملات.");
+          return;
+        }
+
+        const rawAmount = selected.id === invoice.id ? amount : allocationAmounts[selected.id] ?? "";
+        const cents = parseExactMoneyCents(rawAmount);
+        const remaining = parseExactMoneyCents(selected.outstanding_amount);
+        if (cents === null || cents <= 0n) {
+          setError("أدخل مبلغ تخصيص موجبًا وصحيحًا حتى منزلتين عشريتين لكل فاتورة.");
+          return;
+        }
+        if (remaining === null) {
+          setError("تعذر التحقق من المتبقي من دفتر العميل الكامل لإحدى الفواتير؛ حدّث البيانات قبل التسجيل.");
+          return;
+        }
+        if (cents > remaining) {
+          setError("مبلغ التخصيص يتجاوز المتبقي في الفاتورة " + selected.invoice_number + ".");
+          return;
+        }
+        normalized.push({ invoice_id: selected.id, amount: formatExactMoneyCents(cents) });
+      }
+      allocations = normalized.sort((a, b) => a.invoice_id.localeCompare(b.invoice_id));
+    } else {
+      const remaining = parseExactMoneyCents(invoice.outstanding_amount);
+      const requested = parseExactMoneyCents(amount);
+      if (remaining === null) {
+        setError("تعذر التحقق من المتبقي من دفتر العميل الكامل؛ أعد تحميل البيانات قبل تسجيل الدفعة.");
+        return;
+      }
+      if (requested === null || requested > remaining) {
+        setError("المبلغ يتجاوز المتبقي على الفاتورة بعد احتساب الإشعارات الدائنة المرحّلة.");
+        return;
+      }
+    }
+
+    const requestFingerprint = allocations
+      ? JSON.stringify({
+          allocations,
+          paymentMethod: normalizedMethod,
+          reference: normalizedReference,
+          notes: normalizedNotes,
+        })
+      : JSON.stringify({
+          invoiceId: invoice.id,
+          amount: Number(amount),
+          paymentMethod: normalizedMethod,
+          reference: normalizedReference,
+          notes: normalizedNotes,
+        });
     const pendingRequests = paymentRequestKeysRef.current;
     let idempotencyKey = pendingRequests.get(requestFingerprint);
     if (!idempotencyKey) {
       idempotencyKey = globalThis.crypto.randomUUID();
-      // Store synchronously before awaiting the network so rapid duplicate submits share one key.
       pendingRequests.set(requestFingerprint, idempotencyKey);
     }
 
@@ -3038,43 +3107,77 @@ export function StaffFinancePage() {
     setError("");
     setMessage("");
     try {
-      const r = await supabase.rpc("record_customer_payment", {
-        p_invoice_id: i.id,
-        p_amount: n,
-        p_payment_method: normalizedMethod,
-        p_idempotency_key: idempotencyKey,
-        p_reference: normalizedReference,
-        p_notes: normalizedNotes,
-      });
-      const acknowledgedPaymentId = typeof r.data === "string" ? r.data.trim() : "";
-      const hasValidPaymentId =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          acknowledgedPaymentId,
+      if (allocations) {
+        const result = await supabase.rpc("record_customer_payment_allocation", {
+          p_allocations: allocations,
+          p_payment_method: normalizedMethod,
+          p_idempotency_key: idempotencyKey,
+          p_reference: normalizedReference,
+          p_notes: normalizedNotes,
+        });
+        const receipt = result.data as Record<string, unknown> | null;
+        const expectedTotal = allocations.reduce(
+          (sum, item) => sum + (parseExactMoneyCents(item.amount) ?? 0n),
+          0n,
         );
-      if (r.error || !hasValidPaymentId) {
-        // A transport failure or malformed acknowledgement is ambiguous: retain the key so
-        // retrying the same payload replays instead of potentially collecting twice.
-        const reason = r.error?.message ?? "استجابة الخادم لم تتضمن معرف دفعة صالحًا";
-        setError("تعذر تسجيل الدفعة: " + reason + ". أعد المحاولة بالقيم نفسها.");
-        return;
+        const acknowledgedTotal = receipt ? parseExactMoneyCents(receipt.total_amount) : null;
+        const validReceiptId = typeof receipt?.receipt_id === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(receipt.receipt_id);
+        const validReceipt = validReceiptId &&
+          receipt?.currency === invoice.currency &&
+          receipt?.allocation_count === allocations.length &&
+          typeof receipt?.replayed === "boolean" &&
+          acknowledgedTotal === expectedTotal;
+        if (result.error || !validReceipt) {
+          const reason = result.error?.message ?? "استجابة الخادم لسند القبض غير مكتملة أو غير متطابقة";
+          setError("تعذر تأكيد سند القبض: " + reason + ". أعد المحاولة بالقيم نفسها.");
+          return;
+        }
+      } else {
+        const result = await supabase.rpc("record_customer_payment", {
+          p_invoice_id: invoice.id,
+          p_amount: Number(amount),
+          p_payment_method: normalizedMethod,
+          p_idempotency_key: idempotencyKey,
+          p_reference: normalizedReference,
+          p_notes: normalizedNotes,
+        });
+        const acknowledgedPaymentId = typeof result.data === "string" ? result.data.trim() : "";
+        const hasValidPaymentId =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            acknowledgedPaymentId,
+          );
+        if (result.error || !hasValidPaymentId) {
+          const reason = result.error?.message ?? "استجابة الخادم لم تتضمن معرف دفعة صالحًا";
+          setError("تعذر تسجيل الدفعة: " + reason + ". أعد المحاولة بالقيم نفسها.");
+          return;
+        }
       }
-      // Only a well-formed UUID payment identifier is an acknowledgement; clear this completed request.
+
       if (paymentRequestKeysRef.current.get(requestFingerprint) === idempotencyKey) {
         paymentRequestKeysRef.current.delete(requestFingerprint);
       }
-      setMessage("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
+      setMessage(allocations
+        ? "تم تسجيل سند القبض وتوزيعه على " + allocations.length + " فواتير مع تحديث أرصدتها."
+        : "تم تسجيل الدفعة وتحديث حالة الفاتورة.");
       setInvoiceId("");
       setAmount("");
       setReference("");
       setNotes("");
+      setSplitReceipt(false);
+      setAllocationInvoiceIds([]);
+      setAllocationAmounts({});
       try {
         await Promise.all([load(), loadAging(0)]);
       } catch {
         setError("تم تسجيل الدفعة، لكن تعذر تحديث العرض المالي. أعد تحميل البيانات.");
       }
     } catch {
-      // Network rejection is ambiguous: retain the key until the exact payload succeeds or changes.
-      setError("تعذر تأكيد نتيجة الدفعة. أعد المحاولة بالقيم نفسها؛ سيُستخدم مفتاح الطلب نفسه.");
+      setError(
+        allocations
+          ? "تعذر تأكيد نتيجة سند القبض. أعد المحاولة بالقيم نفسها؛ سيُستخدم مفتاح الطلب نفسه."
+          : "تعذر تأكيد نتيجة الدفعة. أعد المحاولة بالقيم نفسها؛ سيُستخدم مفتاح الطلب نفسه.",
+      );
     } finally {
       setBusy(false);
     }
@@ -3113,7 +3216,12 @@ export function StaffFinancePage() {
           <select
             style={{ ...field, marginTop: 6 }}
             value={invoiceId}
-            onChange={(e) => setInvoiceId(e.target.value)}
+            onChange={(e) => {
+              setInvoiceId(e.target.value);
+              setSplitReceipt(false);
+              setAllocationInvoiceIds([]);
+              setAllocationAmounts({});
+            }}
             required
           >
             <option value="">اختر فاتورة</option>
@@ -3140,6 +3248,100 @@ export function StaffFinancePage() {
             required
           />
         </label>
+        <label style={{ gridColumn: "1/-1", display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={splitReceipt}
+            disabled={busy || !invoiceId || invoices.every((item) =>
+              item.id === invoiceId || item.customer_id !== invoices.find((row) => row.id === invoiceId)?.customer_id ||
+              item.currency !== invoices.find((row) => row.id === invoiceId)?.currency ||
+              item.status === "void" || (parseExactMoneyCents(item.outstanding_amount) ?? 0n) <= 0n
+            )}
+            onChange={(event) => {
+              setSplitReceipt(event.target.checked);
+              setAllocationInvoiceIds([]);
+              setAllocationAmounts({});
+            }}
+          />
+          توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها
+        </label>
+        {splitReceipt && (() => {
+          const primaryInvoice = invoices.find((item) => item.id === invoiceId);
+          const candidates = primaryInvoice
+            ? invoices.filter((item) =>
+                item.id !== primaryInvoice.id &&
+                item.customer_id === primaryInvoice.customer_id &&
+                item.currency === primaryInvoice.currency &&
+                item.status !== "void" &&
+                (parseExactMoneyCents(item.outstanding_amount) ?? 0n) > 0n
+              )
+            : [];
+          return (
+            <section
+              aria-label="توزيع سند القبض على الفواتير"
+              style={{ gridColumn: "1/-1", border: "1px solid #d6dfe4", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}
+            >
+              <p style={quiet}>
+                المبلغ الأول أعلاه يُخصص للفاتورة الأساسية. اختر الفواتير الإضافية وحدد الجزء المخصص لكل منها.
+                لا يجري النظام تحويلًا بين العملات.
+              </p>
+              {candidates.length === 0 ? (
+                <p role="status" style={quiet}>لا توجد فواتير إضافية متاحة للعميل والعملة المحددين ضمن البيانات المحمّلة.</p>
+              ) : candidates.map((candidate) => {
+                const selected = allocationInvoiceIds.includes(candidate.id);
+                return (
+                  <div key={candidate.id} style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) minmax(150px,220px)", gap: 10, alignItems: "center" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        aria-label={"تخصيص على الفاتورة " + candidate.invoice_number}
+                        checked={selected}
+                        disabled={busy}
+                        onChange={(event) => {
+                          setAllocationInvoiceIds((current) => event.target.checked
+                            ? [...current, candidate.id]
+                            : current.filter((id) => id !== candidate.id));
+                          if (!event.target.checked) {
+                            setAllocationAmounts((current) => {
+                              const next = { ...current };
+                              delete next[candidate.id];
+                              return next;
+                            });
+                          }
+                        }}
+                      />
+                      <span>
+                        <strong>{candidate.invoice_number}</strong>
+                        <small style={{ display: "block", color: "var(--muted-foreground, #66757b)" }}>
+                          متبقٍ {formatCurrency(outstanding(candidate) ?? 0)} {candidate.currency}
+                        </small>
+                      </span>
+                    </label>
+                    {selected && (
+                      <label>
+                        مبلغ التخصيص
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          maxLength={16}
+                          aria-label={"مبلغ التخصيص على الفاتورة " + candidate.invoice_number}
+                          style={{ ...field, marginTop: 5 }}
+                          placeholder="0.00"
+                          value={allocationAmounts[candidate.id] ?? ""}
+                          disabled={busy}
+                          onChange={(event) => setAllocationAmounts((current) => ({
+                            ...current,
+                            [candidate.id]: event.target.value,
+                          }))}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          );
+        })()}
         <label>
           طريقة الدفع
           <select
@@ -3173,7 +3375,7 @@ export function StaffFinancePage() {
         </label>
         <button style={primary} disabled={busy || loading} type="submit">
           <Banknote size={16} />
-          {busy ? "جارٍ تسجيل الدفعة..." : "تسجيل الدفعة"}
+          {busy ? "جارٍ تسجيل الدفعة..." : splitReceipt ? "تسجيل سند القبض وتوزيعه" : "تسجيل الدفعة"}
         </button>
       </form>
       {loading ? (

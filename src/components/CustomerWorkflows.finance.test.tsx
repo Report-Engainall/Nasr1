@@ -398,4 +398,129 @@ describe("StaffFinancePage payment amount guard", () => {
       p_notes: null,
     });
   });
+
+  it("records one same-currency receipt across two invoices and reuses its idempotency key after an ambiguous response", async () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn().mockReturnValue("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"),
+    });
+    const secondInvoice = {
+      ...FINANCE_DATA.invoices[0],
+      id: "44444444-4444-4444-8444-444444444444",
+      invoice_number: "INV-2026-002",
+      total_amount: "200.00",
+      paid_amount: "100.00",
+      credit_memo_amount: "0.00",
+      outstanding_amount: "100.00",
+    };
+    const defaultImplementation = rpcMock.getMockImplementation();
+    if (!defaultImplementation) throw new Error("Finance RPC test mock is not configured");
+    let attempts = 0;
+    rpcMock.mockImplementation(async (name: string, ...args: unknown[]) => {
+      if (name === "fetch_staff_finance_invoice_page") {
+        return { data: { ...FINANCE_DATA, invoices: [...FINANCE_DATA.invoices, secondInvoice], total_invoices: 2 }, error: null };
+      }
+      if (name === "record_customer_payment_allocation") {
+        attempts += 1;
+        if (attempts === 1) return { data: null, error: { message: "receipt response was lost" } };
+        return {
+          data: {
+            receipt_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+            total_amount: "35.25",
+            currency: "YER",
+            allocation_count: 2,
+            replayed: true,
+          },
+          error: null,
+        };
+      }
+      return defaultImplementation(name, ...args);
+    });
+
+    await renderFinancePage();
+    const splitToggle = Array.from(container.querySelectorAll('input[type="checkbox"]')).find((input) =>
+      input.closest("label")?.textContent?.includes("توزيع سند قبض واحد"),
+    ) as HTMLInputElement | undefined;
+    expect(splitToggle).toBeTruthy();
+
+    await act(async () => {
+      splitToggle?.click();
+      await Promise.resolve();
+    });
+    const invoiceToggle = container.querySelector<HTMLInputElement>(
+      'input[aria-label="تخصيص على الفاتورة INV-2026-002"]',
+    );
+    expect(invoiceToggle).toBeTruthy();
+    await act(async () => {
+      invoiceToggle?.click();
+      await Promise.resolve();
+    });
+    const allocationInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="مبلغ التخصيص على الفاتورة INV-2026-002"]',
+    );
+    expect(allocationInput).toBeTruthy();
+    await act(async () => {
+      setNativeValue(allocationInput as HTMLInputElement, "15.25");
+    });
+
+    await submitPayment("20.00");
+    expect(container.textContent).toContain("أعد المحاولة بالقيم نفسها");
+    await submitPayment("20.00");
+
+    const calls = rpcMock.mock.calls.filter(([name]) => name === "record_customer_payment_allocation");
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1]).toEqual({
+      p_allocations: [
+        { invoice_id: INVOICE_ID, amount: "20.00" },
+        { invoice_id: secondInvoice.id, amount: "15.25" },
+      ],
+      p_payment_method: "cash",
+      p_idempotency_key: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      p_reference: null,
+      p_notes: null,
+    });
+    expect(calls[1][1].p_idempotency_key).toBe(calls[0][1].p_idempotency_key);
+    expect(container.textContent).toContain("تم تسجيل سند القبض وتوزيعه على 2 فواتير");
+  });
+
+  it("does not offer cross-customer or cross-currency invoices for one receipt", async () => {
+    const foreignCustomerInvoice = {
+      ...FINANCE_DATA.invoices[0],
+      id: "55555555-5555-4555-8555-555555555555",
+      invoice_number: "INV-OTHER-CUSTOMER",
+      customer_id: "66666666-6666-4666-8666-666666666666",
+    };
+    const foreignCurrencyInvoice = {
+      ...FINANCE_DATA.invoices[0],
+      id: "77777777-7777-4777-8777-777777777777",
+      invoice_number: "INV-USD",
+      currency: "USD",
+    };
+    const defaultImplementation = rpcMock.getMockImplementation();
+    if (!defaultImplementation) throw new Error("Finance RPC test mock is not configured");
+    rpcMock.mockImplementation(async (name: string, ...args: unknown[]) => {
+      if (name === "fetch_staff_finance_invoice_page") {
+        return {
+          data: {
+            ...FINANCE_DATA,
+            invoices: [...FINANCE_DATA.invoices, foreignCustomerInvoice, foreignCurrencyInvoice],
+            total_invoices: 3,
+          },
+          error: null,
+        };
+      }
+      return defaultImplementation(name, ...args);
+    });
+
+    await renderFinancePage();
+    const splitToggle = Array.from(container.querySelectorAll('input[type="checkbox"]')).find((input) =>
+      input.closest("label")?.textContent?.includes("توزيع سند قبض واحد"),
+    ) as HTMLInputElement | undefined;
+    await act(async () => {
+      splitToggle?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('input[aria-label="تخصيص على الفاتورة INV-OTHER-CUSTOMER"]')).toBeNull();
+    expect(container.querySelector('input[aria-label="تخصيص على الفاتورة INV-USD"]')).toBeNull();
+  });
+
 });
