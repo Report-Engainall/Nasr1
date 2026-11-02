@@ -1,3 +1,37 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-02 — FINANCE RECEIPT REGISTER AND FULL LEDGER STATEMENTS XLSX
+
+This checkpoint supersedes the older November 1 checkpoint below. Older checkpoints are retained as historical evidence only and must not be treated as the current execution pointer.
+
+- REPOSITORY: `Report-Engainall/Nasr1`; source of truth: `main`; no alternate repository or feature branch used.
+- TESTED_CODE_SHA: `6c73065cc8a2d9c6ff29ff491b7ed91444016b80`.
+- DELIVERY_METHOD: changes were committed directly to `main` with expected-SHA fast-forward ref updates; no PR was created for this batch.
+- OPEN_PULL_REQUESTS_AT_CHECKPOINT: 0 (search restricted to this repository and `is:open`).
+- COMPLETED_DELIVERABLE_1 — multi-invoice customer receipt recovery and print:
+  - `supabase/migrations/20261102183100_customer_payment_receipt_print.sql` adds a tenant-unique sequential receipt number, a paginated finance-authorized register, and an allowlisted receipt print snapshot.
+  - The snapshot is derived again from the active organization and server records at print time; it reconciles 2–50 allocations, invoice uniqueness, same customer, same currency, positive amounts, exact allocation count and exact total before returning printable data.
+  - `src/components/CustomerPaymentReceiptPrintActions.tsx` exposes the saved register, page navigation, most-recent receipt selection and browser print/PDF. Printing does not create a new payment or change balances.
+  - `src/components/CustomerWorkflows.tsx` retains the server-acknowledged receipt ID and mounts the register. `src/lib/finance-document-print.ts` provides the allowlist parser and receipt rendering; unit and PostgreSQL acceptance cover reconciliation and role denials.
+- COMPLETED_DELIVERABLE_2 — full-period General Ledger financial statements XLSX:
+  - `src/lib/financial-statements-xlsx.ts` builds a four-sheet workbook: summary, income statement, balance sheet and methodology/limits.
+  - `src/components/GeneralLedgerWorkspace.tsx` exposes “تصدير Excel الكامل” next to the existing print and refresh actions.
+  - Export uses the already projected server-authorized statement DTO, not the visible 50-row journal page. Amounts are reconciled with exact BigInt cents; exact cents are included for audit, unsafe Excel precision is rejected, formulas are emitted only as escaped inline text, and real imbalance remains visible rather than being silently zeroed.
+  - The workbook explicitly describes the source boundary: posted-ledger facts only, unlinked commercial rows excluded, no invented opening balances or artificial closing entries.
+- EXACT-SHA ACCEPTANCE — all evidence below was produced for `6c73065cc8a2d9c6ff29ff491b7ed91444016b80`:
+  - Core [41506444711 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41506444711): 263 test files and 1,745 tests passed (including all four new XLSX tests); all migrations and PostgreSQL 17 acceptance passed; cash-expense posting/concurrency, journal reversal idempotency, purchase receipt accounting, invitations, addresses, tenant-scoped analytics, quotes, stock-count audit, export/import lifecycle, inventory-import snapshot, favorites, isolated backup/restore, Lint, Build, preview smoke, dev-server smoke and Chromium price visibility passed.
+  - P2 [41506444756 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41506444756): local Supabase/PostgreSQL 17 and authenticated Chromium passed order persistence, cross-tenant denial, lost-response Checkout replay, return/credit memo, audited Onyx XLSX, finance/task printing, customer-manager financial privacy/audit and immediate device-session revocation.
+  - P1 Targeted TypeScript [41506444633 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41506444633).
+  - Secret Scan [41506444685 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41506444685).
+  - Free Static Analysis [41506444642 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41506444642).
+  - One-main-branch cleanup [41506444781 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41506444781).
+- SKIPPED_NOT_PASS: P2's externally hosted customer/order/tenant job was SKIPPED by the external-auth credential gate. The local Supabase/Chromium job passed; this does not prove hosted authentication against the production service.
+- DLV-008 REMAINS PARTIAL: same-currency multi-invoice allocations and printable saved receipt are implemented and exact-SHA tested. Cross-currency settlement still fails closed without side effects. Do not invent an FX rate, rate source, rounding policy, or cash-disbursement rule; those require an authoritative source and approved business policy.
+- DLV-011 REMAINS PARTIAL: the financial-statements workbook leaf is delivered, not the complete DLV-011 family of print/export templates and role-specific acceptance.
+- RELEASE BOUNDARY: hosted tenant E2E, live Onyx target import, official WhatsApp delivery receipts, live external AI-provider operation, production deploy/rollback/restore and owner sign-off remain unproven.
+- NEXT_ACTION: continue from the updated acceptance matrix, choose the next uncovered production function, inspect its actual UI-to-RPC-to-database behavior, implement it directly on `main`, and require exact-SHA Core/P2 before counting it delivered. Do not repeat receipt allocation or financial-statements XLSX.
+- UPDATED_AT: 2026-11-02.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-01 — CODEINSPECTOR QUALITY HARDENING
 
 - REPOSITORY: `Report-Engainall/Nasr1`; integration branch: `main`; no feature branch or PR created.
