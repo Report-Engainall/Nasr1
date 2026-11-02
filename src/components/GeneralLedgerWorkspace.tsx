@@ -12,6 +12,7 @@ import { GeneralJournalReversalAction } from "@/components/GeneralJournalReversa
 import { GeneralLedgerPrintSheet } from "@/components/GeneralLedgerPrintSheet";
 import { projectFinancialStatementsPrintDocument, projectGeneralJournalPrintDocument, type GeneralLedgerPrintDocument } from "@/lib/general-journal-print";
 import { downloadFinancialStatementsWorkbookXlsx } from "@/lib/financial-statements-xlsx";
+import { downloadTrialBalanceWorkbookXlsx } from "@/lib/trial-balance-xlsx";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
@@ -68,10 +69,15 @@ function roleLabel(role: string): string {
 }
 
 
-function TrialBalancePanel({ payload, loading }: { payload: LedgerPayload | null; loading: boolean }) {
+function TrialBalancePanel({ payload, loading, onExport }: { payload: LedgerPayload | null; loading: boolean; onExport: () => void }) {
   return (
     <section style={card}>
-      <h3 style={{ margin: 0 }}>ميزان المراجعة للفترة المحددة</h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0 }}>ميزان المراجعة للفترة المحددة</h3>
+        <button className="no-print" type="button" style={button} onClick={onExport} disabled={loading || !payload}>
+          <FileSpreadsheet size={14} /> تصدير ميزان المراجعة Excel
+        </button>
+      </div>
       {loading ? <p role="status" style={muted}>جارٍ تحميل الملخص...</p> : <TrialBalanceContent payload={payload} />}
     </section>
   );
@@ -233,6 +239,23 @@ export function GeneralLedgerWorkspace() {
       setNotice("تم تجهيز ملف Excel للقوائم الكاملة من قيود الأستاذ المرحلة. يتضمن الملخص وقائمة الدخل والمركز المالي وحدود المصدر.");
     } catch (cause) {
       setPrintError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel للقوائم المالية.");
+    }
+  }
+
+  function exportTrialBalanceXlsx() {
+    if (!payload) {
+      setPrintError("لا توجد بيانات محمّلة لميزان المراجعة.");
+      return;
+    }
+    try {
+      downloadTrialBalanceWorkbookXlsx(payload.accounts, payload.summary, {
+        from: filters.from || null,
+        to: filters.to || null,
+      });
+      setPrintError("");
+      setNotice("تم تجهيز ملف ميزان المراجعة الكامل من أرصدة جميع حسابات المؤسسة والقيود المرحلة ضمن الفترة المحددة.");
+    } catch (cause) {
+      setPrintError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لميزان المراجعة.");
     }
   }
 
@@ -447,7 +470,7 @@ export function GeneralLedgerWorkspace() {
         </form>
       )}
 
-      <TrialBalancePanel payload={payload} loading={loading} />
+      <TrialBalancePanel payload={payload} loading={loading} onExport={exportTrialBalanceXlsx} />
 
       <section style={card} aria-label="القوائم المالية المبسطة">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
