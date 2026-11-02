@@ -406,7 +406,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
       if (
         rpcError
         || typeof templateId !== 'string'
-        || !productIdPattern.test(templateId)
+        || !CUSTOMER_REORDER_PRODUCT_ID_PATTERN.test(templateId)
       ) {
         throw new Error('تعذر حفظ قالب إعادة الطلب. تحقق من صلاحيات الحساب وتوفر أصناف الطلب، ثم حاول مجددًا.');
       }
