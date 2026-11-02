@@ -157,7 +157,7 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
       const downloaded = downloadCustomerReturnReviewWorkbookXlsx({ rows, roles: user?.roles ?? [] });
       if (!downloaded) throw new Error("هذا المتصفح لا يدعم تنزيل ملفات Excel.");
       setError("");
-      onNotice("تم تصدير " + rows.length + " طلب مراجعة من القائمة الحالية. الملف يتضمن تفاصيل الأصناف، ولا يمثل السجل التاريخي الكامل.");
+      onNotice("تم تصدير " + rows.length + " طلب مراجعة من القائمة الحالية (حتى 50 طلباً أعادها الخادم). الملف يتضمن تفاصيل الأصناف، ولا يمثل السجل التاريخي الكامل.");
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "تعذر إنشاء ملف مراجعة المرتجعات.";
       setError(message);
