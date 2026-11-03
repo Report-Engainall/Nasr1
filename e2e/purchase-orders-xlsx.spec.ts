@@ -227,7 +227,8 @@ test("purchase manager creates, exports and physically receives a tenant-scoped 
         await expect(printPage.locator("body")).toContainText("التكاليف المصدرية غير مكتملة؛ لم تُعرض أي قيمة مالية.");
         await expect(printPage.locator("body")).toContainText("إعادة طباعة لسجل محفوظ.");
         const html = await printPage.content();
-        expect(html).toContain('<html lang="ar" dir="rtl">');
+        await expect(printPage.locator("html")).toHaveAttribute("lang", "ar");
+        await expect(printPage.locator("html")).toHaveAttribute("dir", "rtl");
         expect(html).toContain("@page { size: A4 portrait; margin: 12mm; }");
         expect(html).not.toContain("تكلفة الوحدة");
         expect(html).not.toContain("إجمالي البند");
