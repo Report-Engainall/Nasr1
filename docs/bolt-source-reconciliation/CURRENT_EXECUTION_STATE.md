@@ -4,7 +4,7 @@ This checkpoint supersedes the earlier November 3 customer-return XLSX checkpoin
 
 - REPOSITORY: `Report-Engainall/Nasr1`; only source of truth: `main`.
 - TESTED_CODE_SHA: `a6cd76ff50e3cb37c4c1c6eea6b2f34c85486d46`.
-- DOCUMENTATION_MATRIX_COMMIT: pending — points to the acceptance-matrix/checkpoint commit immediately preceding the pointer-only commit.
+- DOCUMENTATION_MATRIX_COMMIT: 28e568c124bb7e343dee5ca3f824a8a5b4b56970 (acceptance matrix + live checkpoint commit; runtime code SHA remains a6cd76ff50e3cb37c4c1c6eea6b2f34c85486d46).
 - DELIVERY_METHOD: direct-to-`main` fast-forward with expected-SHA lease. The latest runtime change fixes a Playwright native-confirmation deadlock; it does not change product runtime source.
 - BRANCHES: `main` only. OPEN_PULL_REQUESTS: 0. GitHub branch metadata reports `protected=false`; do not assume branch protection is enabled.
 - LAST_COMPLETED_TASK_ID: `DLV-011-STOCK-COUNT-XLSX-001`.
