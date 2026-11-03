@@ -1,3 +1,45 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-03 — DLV-011 PURCHASE RECEIPT + TRIAL BALANCE EXACT-SHA ACCEPTANCE
+
+This is the newest execution pointer. It supersedes earlier role/template checkpoints only for the next-task pointer; all historic evidence remains bounded to its recorded code SHA and environment. The production database NO-GO checkpoint below remains active.
+
+- REPOSITORY: `Report-Engainall/Nasr1`; sole source of truth: `main`.
+- TESTED_RUNTIME_CODE_SHA: `821135ab4c59c890435b8988347b72bf76d69272`.
+- MAIN_AT_TEST: `821135ab4c59c890435b8988347b72bf76d69272`; documentation update is a separate direct-to-main commit and changes only the three central execution documents.
+- BRANCHES: `main` only. OPEN_PULL_REQUESTS: 0. No feature branch or pull request was created.
+- LAST_COMPLETED_TASK_IDS: `DLV-011-PURCHASE-RECEIPT-PRINT-001`; `DLV-011-TRIAL-BALANCE-XLSX-001`.
+- DLV-011 status: **PARTIAL**. Six accepted leaves now recorded; the four previously accepted financial statements, cash expense, return-review queue and stock-count XLSX leaves are preserved unchanged.
+- RELEASE: **NO-GO**. The hosted customer/order/tenant P2 job was SKIPPED, not PASS. Production database backup/restore, authoritative Aghbari commercial tenant identity and live migration/Edge Function/RPC reconciliation remain unverified. No production data, schema, storage, function or credentials were changed.
+
+## Accepted on the exact runtime SHA
+
+- Core run [41698495869 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41698495869): **271/271 test files; 1,784/1,784 unit tests passed**, PostgreSQL 17 repository migration/database acceptance, isolated backup/restore, Lint, Build, preview/dev smoke and focused browser price-visibility acceptance.
+- P2 run [41698496169 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41698496169): local Supabase/PostgreSQL 17 + Chromium. The test workflow authenticated its fixture users, used an isolated E2E tenant, applied repository migrations locally, then stopped Supabase and removed the local app successfully.
+- P2 completed browser/database scopes: order persistence and cross-tenant denial; stock-count XLSX; purchase-order XLSX plus one posted receipt and saved receipt print; replay after lost checkout response; return request/review/warehouse receipt and credit memo; audited Onyx 27-column order XLSX; finance documents and operational-task print; full trial-balance XLSX manager/accountant/customer authorization; customer-manager financial privacy/audit; device-session authorization and immediate revocation.
+- Purchase receipt browser proof: `e2e/purchase-orders-xlsx.spec.ts` **1 passed** (3.5s; P2 job step 1 passed in 4.1s). The test created one physical test receipt; proved the persisted receipt was selected, `window.print()` invoked, Arabic `lang`/RTL and A4 portrait, PO/supplier/warehouse/item/quantity parity, incomplete source costs and internal metadata withheld, two repeated print documents identical, and one saved receipt remaining after reprint/refresh. This is isolated browser acceptance, not a production stock-movement audit.
+- Trial-balance export browser proof: `e2e/finance-task-print.spec.ts` **3 passed (24.7s)**. The authorized manager and accountant paths each downloaded and parsed the actual workbook; summary, full details and methodology/limits worksheets, all accounts matching the live UI, and formula/internal-ID/tenant/cost exclusion were asserted. An ordinary customer was denied the finance page/export.
+- P2 authenticated local artifact: [13262877122](https://github.com/Report-Engainall/Nasr1/actions/runs/41698496169/artifacts/13262877122), SHA-256 `502116ed4a6d02b86653991e4a744d7269f5c70a335083738b762f8b558a3715`. Public no-write smoke artifact: [13263056374](https://github.com/Report-Engainall/Nasr1/actions/runs/41698496169/artifacts/13263056374).
+- Free Static Analysis [41698495873 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41698495873); P1 TypeScript [41698496139 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41698496139); Secret Scan [41698495795 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41698495795); main-only cleanup [41698495840 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41698495840); Vercel status SUCCESS on the same SHA.
+- Hosted customer/order/tenant run item: **SKIPPED** because hosted-auth fixtures are not configured; local test users are not a substitute for hosted tenant proof.
+
+## Files and test-only changes for the accepted leaves
+
+- `e2e/purchase-orders-xlsx.spec.ts`: persisted purchase receipt browser print/reprint proof; Arabic quantity rendered using actual `ar-YE` formatting; browser print invocation and identical repeated output.
+- `src/components/PurchaseReceiptPrintActions.test.tsx`: unit regression for the Arabic localized fractional quantity.
+- `src/lib/trial-balance-xlsx.ts` and `src/components/GeneralLedgerWorkspace.tsx`: existing workbook builder and UI reused; no parallel export engine added.
+- `e2e/finance-task-print.spec.ts`: actual manager/accountant workbook download and stored OOXML member assertions, plus customer denial.
+- No production migration, SQL DDL/DML, Supabase deployment, Storage change, Vercel configuration change or credential mutation was made by this batch.
+
+## Next action — continue immediately
+
+- NEXT_ACTION_ID: `DLV-011-CUSTOMER-MULTI-INVOICE-RECEIPT-PRINT-001`.
+- Inspect the existing `CustomerPaymentReceiptPrintActions`, `record_customer_payment_allocation`, `get_customer_payment_receipt_print_options` and `get_staff_customer_payment_receipt_print_data` contracts. Do not recreate the receipt table/RPC or print component; they already exist and have unit/SQL acceptance coverage.
+- First inspect the isolated P2 seed for two open invoices with identical customer and currency. If absent, extend only the local P2 seed fixtures to create two realistic test invoices under the E2E tenant, keeping fixture data out of production and using valid source order/invoice relationships.
+- In authenticated local Supabase/Chromium, use the real finance UI to allocate one payment across both invoices; assert one receipt with two exact allocation rows, correct total/currency and refreshed invoice balances; print the saved receipt twice from the receipt register; verify the saved receipt and child-payment counts do not increase; inspect Arabic RTL/A4 and the exact allocation/invoice lines; exclude notes, references, IDs, idempotency keys and tenant/actor metadata; assert an ordinary customer cannot enumerate or print the staff receipt snapshot.
+- Add a stable leaf to the existing canonical matrix only after the test is exact-SHA PASS. Preserve the production backup/restore and tenant identity gate; no production write or deployment before those gates.
+- DLV-011 remains PARTIAL and the global release remains NO-GO.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-03 — PRODUCTION DATABASE SCHEMA DRIFT / BACKUP GATE
 
 This checkpoint supersedes the previous live execution pointer for the production-database workstream. Earlier acceptance checkpoints remain valid only for their recorded code SHAs and isolated test environments; they are not production database acceptance.
