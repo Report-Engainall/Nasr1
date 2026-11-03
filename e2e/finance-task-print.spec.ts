@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 
 function requiredEnv(name: string): string {
@@ -22,6 +23,95 @@ async function signIn(page: Page, email: string, password: string) {
       return false;
     }
   }))).toBe(true);
+}
+
+/** Read one stored OOXML ZIP member from the actual browser download. */
+function readStoredZipEntry(input: Uint8Array, targetPath: string): string {
+  const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
+  const decoder = new TextDecoder();
+  let offset = 0;
+  while (offset + 30 <= input.byteLength && view.getUint32(offset, true) === 0x04034b50) {
+    const method = view.getUint16(offset + 8, true);
+    const size = view.getUint32(offset + 18, true);
+    const nameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + nameLength + extraLength;
+    const name = decoder.decode(input.subarray(nameStart, nameStart + nameLength));
+    if (contentStart + size > input.byteLength) throw new Error("Truncated XLSX entry: " + name);
+    if (name === targetPath) {
+      if (method !== 0) throw new Error("Unexpected compression method for XLSX entry " + name + ": " + method);
+      return decoder.decode(input.subarray(contentStart, contentStart + size));
+    }
+    offset = contentStart + size;
+  }
+  throw new Error("Missing or unreadable XLSX ZIP entry: " + targetPath);
+}
+
+async function assertTrialBalanceDownload(page: Page, role: "manager" | "accountant"): Promise<void> {
+  const exportButton = page.getByRole("button", { name: "تصدير ميزان المراجعة Excel", exact: true });
+  const panel = exportButton.locator("xpath=ancestor::section[1]");
+  await expect(exportButton).toBeEnabled({ timeout: 30_000 });
+  const rows = panel.locator("table tbody tr");
+  await expect(rows.first()).toBeVisible({ timeout: 30_000 });
+  const visibleAccounts = await rows.evaluateAll((elements) => elements.map((row) => {
+    const cells = Array.from(row.querySelectorAll("td"));
+    return [cells[0]?.textContent?.trim() ?? "", cells[1]?.textContent?.trim() ?? ""];
+  }));
+  expect(visibleAccounts.length, "The authorized ledger view must contain the tenant's account set.").toBeGreaterThan(0);
+  expect(visibleAccounts.every(([code, name]) => code.length > 0 && name.length > 0)).toBe(true);
+
+  const downloadPromise = page.waitForEvent("download");
+  await exportButton.click();
+  const download = await downloadPromise;
+  expect(await download.failure()).toBeNull();
+  expect(download.suggestedFilename()).toBe("aghbari-trial-balance-all-all.xlsx");
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  const bytes = new Uint8Array(await readFile(downloadPath!));
+  expect(Array.from(bytes.slice(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
+
+  const workbookXml = readStoredZipEntry(bytes, "xl/workbook.xml");
+  const summaryXml = readStoredZipEntry(bytes, "xl/worksheets/sheet1.xml");
+  const detailsXml = readStoredZipEntry(bytes, "xl/worksheets/sheet2.xml");
+  const methodXml = readStoredZipEntry(bytes, "xl/worksheets/sheet3.xml");
+  expect(workbookXml).toContain('sheet name="الملخص"');
+  expect(workbookXml).toContain('sheet name="ميزان المراجعة"');
+  expect(workbookXml).toContain('sheet name="المنهجية والحدود"');
+  expect(summaryXml).toContain("كل الفترات حتى تاريخ اليوم حسب المصدر");
+  expect(summaryXml).toContain("غير محدد");
+  for (const label of ["الحسابات المصدرة", "القيود المرحلة الداخلة في الميزان", "إجمالي المدين", "إجمالي الدائن", "حالة الميزان"]) {
+    expect(summaryXml).toContain(label);
+  }
+  for (const [code, name] of visibleAccounts) {
+    expect(detailsXml).toContain(code);
+    expect(detailsXml).toContain(name);
+  }
+  expect((detailsXml.match(/<row\\b/g) ?? []).length).toBe(visibleAccounts.length + 2);
+  expect(methodXml).toContain("لا يعتمد على ترقيم صفحة القيود");
+  expect(methodXml).toContain("صف واحد لكل حساب");
+  const allXml = [workbookXml, summaryXml, detailsXml, methodXml].join("\\n");
+  expect(allXml).not.toMatch(/<f(?:\\s|>)/i);
+  expect(allXml).not.toMatch(/(?:organization_id|tenant_id|account_id|user_id|created_by|source_reference|journal_entry_id|cost_price|profit_margin)/i);
+  expect(allXml).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+
+  await test.info().attach("trial-balance-xlsx-" + role + "-browser-proof.json", {
+    body: JSON.stringify({
+      result: "BROWSER_PROVEN",
+      sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+      role,
+      downloadedFile: download.suggestedFilename(),
+      worksheets: ["الملخص", "ميزان المراجعة", "المنهجية والحدود"],
+      visibleAccountCount: visibleAccounts.length,
+      allVisibleAccountsIncluded: true,
+      accountRowCountMatchesLivePanel: true,
+      sourceWindow: "all periods from the tenant-scoped posted-ledger aggregate",
+      independentOfJournalPagination: true,
+      noInternalIdsCostsOrFormulaCells: true,
+      noProductionWrites: true
+    }, null, 2),
+    contentType: "application/json"
+  });
 }
 
 async function printPopup(page: Page, printButton: Locator, expectedText: string[]) {
@@ -284,6 +374,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
+    await assertTrialBalanceDownload(manager, "manager");
 
     // The general-ledger panel exposes its own selectors with the same accessible names.
     // Scope this acceptance to the dedicated finance-document print panel's first controls.
@@ -482,6 +574,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await accountant.goto("/admin/finance");
     await expect(accountant.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
     await expect(accountant.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
+    await expect(accountant.getByRole("heading", { name: "ميزان المراجعة للفترة المحددة" })).toBeVisible({ timeout: 30_000 });
+    await assertTrialBalanceDownload(accountant, "accountant");
 
     const accountantKind = accountant.getByLabel("نوع المستند المالي").first();
     const accountantSource = accountant.getByLabel("مصدر المستند المالي").first();
@@ -679,3 +773,17 @@ test("general journal voucher and full financial statements print in authorized 
     await accountantContext.close();
   }
 });
+
+test("ordinary customer cannot access the tenant trial balance XLSX export", async ({ browser }) => {
+  const customerContext = await browser.newContext();
+  const customer = await customerContext.newPage();
+  try {
+    await signIn(customer, requiredEnv("E2E_EMAIL"), requiredEnv("E2E_PASSWORD"));
+    await customer.goto("/admin/finance");
+    await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة" })).toBeVisible({ timeout: 20_000 });
+    await expect(customer.getByRole("button", { name: "تصدير ميزان المراجعة Excel", exact: true })).toHaveCount(0);
+  } finally {
+    await customerContext.close();
+  }
+});
+

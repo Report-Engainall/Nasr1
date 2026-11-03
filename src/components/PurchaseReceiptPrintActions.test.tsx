@@ -25,7 +25,7 @@ const printDocument = {
   received_cost: null,
   items: [{
     item_code: "0000125", product_name: "<script>alert(1)</script>",
-    unit: "كرتون", quantity_received: "2.000", unit_cost: null, line_total: null,
+    unit: "كرتون", quantity_received: "2.125", unit_cost: null, line_total: null,
   }],
 };
 
@@ -62,6 +62,7 @@ describe("purchase receipt print actions", () => {
     expect(html).toContain("لم تُعرض أي قيمة مالية");
     expect(html).not.toContain("تكلفة الوحدة");
     expect(html).toContain("A4 portrait");
+    expect(html).toContain("٢٫١٢٥");
   });
 
   it("reports an empty receipt history rather than inventing receipt rows", async () => {

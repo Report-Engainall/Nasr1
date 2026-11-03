@@ -76,6 +76,9 @@ test("purchase manager creates, exports and physically receives a tenant-scoped 
   const runId = process.env.GITHUB_RUN_ID?.trim() || "local";
   const internalNote = '=HYPERLINK("https://evil.invalid","P2 purchase note ' + runId + '")';
   const managerContext = await browser.newContext();
+  await managerContext.addInitScript(() => {
+    window.print = () => { document.documentElement.dataset.e2ePrintInvoked = "true"; };
+  });
   const manager = await managerContext.newPage();
   const browserErrors: string[] = [];
   let purchaseOrderNumber: string | null = null;
@@ -211,6 +214,7 @@ test("purchase manager creates, exports and physically receives a tenant-scoped 
         const popupPromise = manager.waitForEvent("popup");
         await printButton.click();
         const printPage = await popupPromise;
+        await expect.poll(() => printPage.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true", { timeout: 10_000 });
         await expect(printPage.locator("h1")).toContainText(receiptNumber);
         await expect(printPage.locator("body")).toContainText("إيصال استلام مشتريات");
         await expect(printPage.locator("body")).toContainText(purchaseOrderNumber!);
@@ -235,6 +239,7 @@ test("purchase manager creates, exports and physically receives a tenant-scoped 
           expect(html).not.toContain(internalKey);
         }
         if (attempt === 1) firstPrintHtml = html;
+        else expect(html).toBe(firstPrintHtml);
         await printPage.close();
         await expect(receiptRecord).toHaveCount(1);
       }
