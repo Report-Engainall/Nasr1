@@ -28,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      BACKUP_DIR: ${{ runner.temp }}/nasr1-production-db-backup
-      RESTORE_DIR: ${{ runner.temp }}/nasr1-production-db-restore
+      BACKUP_DIR: /tmp/nasr1-production-db-backup
+      RESTORE_DIR: /tmp/nasr1-production-db-restore
 
     steps:
       - name: Checkout selected main commit
@@ -209,8 +209,8 @@ jobs:
         with:
           name: nasr1-production-db-backup-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/nasr1-production-db-backup/nasr1-production-db-backup.tar.gz.gpg
-            ${{ runner.temp }}/nasr1-production-db-backup/nasr1-production-db-backup.tar.gz.gpg.sha256
+            /tmp/nasr1-production-db-backup/nasr1-production-db-backup.tar.gz.gpg
+            /tmp/nasr1-production-db-backup/nasr1-production-db-backup.tar.gz.gpg.sha256
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
