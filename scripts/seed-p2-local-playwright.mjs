@@ -170,7 +170,7 @@ async function main() {
     }
 
     const product = await tx.unsafe(
-      "select id from public.products where id=$1::uuid and organization_id=$2::uuid and status='active'",
+      "select id,item_code,name,unit from public.products where id=$1::uuid and organization_id=$2::uuid and status='active'",
       [productId, organizationId],
     );
     if (product.length !== 1) {
@@ -178,7 +178,7 @@ async function main() {
     }
 
     const warehouses = await tx.unsafe(
-      "select id from public.warehouses where organization_id=$1::uuid and is_active=true " +
+      "select id,name,code from public.warehouses where organization_id=$1::uuid and is_active=true " +
       "order by (id=$2::uuid) desc,id limit 1",
       [organizationId, preferredWarehouseId],
     );
@@ -191,6 +191,20 @@ async function main() {
       "on conflict(product_id,warehouse_id) do update set quantity_on_hand=100,quantity_reserved=0,reorder_point=0",
       [productId, warehouses[0].id],
     );
+
+    // A tenant-scoped supplier fixture is required by the actual purchase-order RPC.
+    // The order itself is deliberately created by the manager through the browser UI.
+    const purchaseSupplierCode = "P2PO" + suffix.toUpperCase();
+    const purchaseSupplierName = "P2 Local E2E Purchase Supplier " + suffix.toUpperCase();
+    const purchaseSupplierRows = await tx.unsafe(
+      "insert into public.suppliers(organization_id,supplier_code,name,status) " +
+      "values($1::uuid,$2::text,$3::text,'active') " +
+      "on conflict(organization_id,supplier_code) do update set name=excluded.name,status='active' returning id",
+      [organizationId, purchaseSupplierCode, purchaseSupplierName],
+    );
+    if (purchaseSupplierRows.length !== 1) {
+      throw new Error("The isolated purchase-order XLSX acceptance requires one active tenant-local supplier.");
+    }
 
     await tx.unsafe(
       "insert into public.admin_settings(organization_id,key,value,category) values " +
@@ -285,6 +299,16 @@ async function main() {
     "E2E_RETURN_ITEM_NAME=" + returnItemName,
     "E2E_RETURN_RECEIVABLE_ACCOUNT_ID=" + returnReceivableAccountId,
     "E2E_RETURN_REVENUE_ACCOUNT_ID=" + returnRevenueAccountId,
+    "E2E_PURCHASE_SUPPLIER_ID=" + purchaseSupplierRows[0].id,
+    "E2E_PURCHASE_SUPPLIER_NAME=" + purchaseSupplierName,
+    "E2E_PURCHASE_SUPPLIER_CODE=" + purchaseSupplierCode,
+    "E2E_PURCHASE_WAREHOUSE_ID=" + warehouses[0].id,
+    "E2E_PURCHASE_WAREHOUSE_NAME=" + warehouses[0].name,
+    "E2E_PURCHASE_PRODUCT_ID=" + product[0].id,
+    "E2E_PURCHASE_PRODUCT_NAME=" + product[0].name,
+    "E2E_PURCHASE_ITEM_CODE=" + product[0].item_code,
+    "E2E_PURCHASE_ORGANIZATION_ID=" + organizationId,
+    "E2E_PURCHASE_MANAGER_PROFILE_ID=" + managerProfileId,
     "E2E_SUPABASE_URL=" + apiUrl,
     "E2E_SUPABASE_PUBLISHABLE_KEY=" + publishableKey,
     "E2E_ALLOW_TEST_WRITES=YES_I_CONFIRM_NON_PRODUCTION",
