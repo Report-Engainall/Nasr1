@@ -89,6 +89,7 @@ describe("admin suppliers live screen acceptance", () => {
       name: "مورد آخر",
       supplier_code: "SUP-00002",
       contact_name: "جهة ثانية",
+      address: "الحديدة - شارع آخر",
       status: "inactive",
     };
     state([supplier, inactiveSupplier]);
