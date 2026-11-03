@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test, expect, type Page } from "@playwright/test";
 
 test.describe.configure({ retries: 0 });
@@ -28,6 +29,30 @@ async function signIn(page: Page, email: string, password: string) {
     }),
   );
   expect(hasSupabaseSession, "Sign-in must persist a real local Supabase session before the return workflow starts.").toBe(true);
+}
+
+
+/** Read one stored OOXML ZIP member so the browser artifact is tested, not only the workbook builder. */
+function readStoredZipEntry(input: Uint8Array, targetPath: string): string {
+  const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
+  const decoder = new TextDecoder();
+  let offset = 0;
+  while (offset + 30 <= input.byteLength && view.getUint32(offset, true) === 0x04034b50) {
+    const method = view.getUint16(offset + 8, true);
+    const size = view.getUint32(offset + 18, true);
+    const nameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + nameLength + extraLength;
+    const name = decoder.decode(input.subarray(nameStart, nameStart + nameLength));
+    if (contentStart + size > input.byteLength) throw new Error("Truncated XLSX entry: " + name);
+    if (name === targetPath) {
+      if (method !== 0) throw new Error("Unexpected compression method for XLSX entry " + name + ": " + method);
+      return decoder.decode(input.subarray(contentStart, contentStart + size));
+    }
+    offset = contentStart + size;
+  }
+  throw new Error("Missing or unreadable XLSX ZIP entry: " + targetPath);
 }
 
 test("customer return request -> manager approval -> warehouse receipt -> post and reverse source-linked credit memo", async ({ browser }) => {
@@ -82,6 +107,54 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       const reviewSection = dialog.locator('section[aria-labelledby="return-review-heading"]');
       const row = reviewSection.locator("article").filter({ hasText: orderNumber });
       await expect(row).toBeVisible();
+
+      await test.step("manager downloads and verifies the real current-queue XLSX", async () => {
+        const exportButton = reviewSection.getByRole("button", { name: "تصدير قائمة المراجعة الحالية", exact: true });
+        await expect(exportButton).toBeEnabled();
+        const downloadPromise = staff.waitForEvent("download");
+        await exportButton.click();
+        const download = await downloadPromise;
+        expect(await download.failure()).toBeNull();
+        expect(download.suggestedFilename()).toMatch(/^aghbari-customer-return-review-\d{4}-\d{2}-\d{2}\.xlsx$/);
+        const downloadPath = await download.path();
+        expect(downloadPath).not.toBeNull();
+        const workbookBytes = new Uint8Array(await readFile(downloadPath!));
+        expect([...workbookBytes.slice(0, 4)]).toEqual([0x50, 0x4b, 0x03, 0x04]);
+
+        const workbookXml = readStoredZipEntry(workbookBytes, "xl/workbook.xml");
+        const summaryXml = readStoredZipEntry(workbookBytes, "xl/worksheets/sheet1.xml");
+        const detailsXml = readStoredZipEntry(workbookBytes, "xl/worksheets/sheet2.xml");
+        expect(workbookXml).toContain("طلبات المراجعة");
+        expect(workbookXml).toContain("أصناف المرتجعات");
+        expect(summaryXml).toContain(orderNumber);
+        expect(summaryXml).toContain("حتى 50 طلباً");
+        expect(summaryXml).toContain("ليست سجلاً تاريخياً كاملاً");
+        expect(detailsXml).toContain(itemName);
+        const exportedXml = summaryXml + "\n" + detailsXml;
+        expect(exportedXml).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+        expect(exportedXml).not.toMatch(/<f(?:\s|>)/i);
+        expect(exportedXml).not.toContain(orderId);
+        expect(exportedXml).not.toContain("order_id");
+        expect(exportedXml).not.toContain("organization_id");
+        completedStages.push("manager_return_review_xlsx_downloaded_and_parsed");
+
+        await test.info().attach("customer-return-review-xlsx-proof.json", {
+          body: JSON.stringify({
+            result: "BROWSER_PROVEN",
+            sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+            filename: download.suggestedFilename(),
+            workbookSheets: ["طلبات المراجعة", "أصناف المرتجعات"],
+            orderNumber,
+            itemName,
+            maxReturnedRequests: 50,
+            scope: "current open manager queue only",
+            internalUuidOrTenantIdPresent: false,
+            formulaCellsPresent: false
+          }, null, 2),
+          contentType: "application/json"
+        });
+      });
+
       await row.locator('textarea[aria-label^="مبرر قرار "]').fill("Playwright evidence: inspect and approve the return.");
       await row.getByRole("button", { name: "قبول وتحويل للفحص" }).click();
       await expect(dialog.getByText(/تمت الموافقة على/)).toBeVisible();
