@@ -12,6 +12,7 @@ on:
       - "supabase/**"
       - "e2e/**"
       - "scripts/test-*.mjs"
+      - "scripts/seed-p2-local-playwright.mjs"
       - "playwright.config.ts"
       - "package.json"
       - "bun.lock"
