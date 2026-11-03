@@ -896,6 +896,7 @@ export function Suppliers({ onNotice }: { onNotice: (m: string) => void }) {
         supplier.contact_name,
         supplier.phone,
         supplier.email,
+        supplier.address,
       ].filter(Boolean).join(' ').toLocaleLowerCase('ar');
       const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
       const matchesStatus = statusFilter === 'all' || supplier.status === statusFilter;
@@ -936,7 +937,7 @@ export function Suppliers({ onNotice }: { onNotice: (m: string) => void }) {
         </p>
         {data.length === 0 ? <Empty text="لا يوجد موردون مسجلون حتى الآن." /> :
           visibleSuppliers.length === 0 ? <Empty text="لا توجد نتائج مطابقة لمعايير البحث أو التصفية." /> :
-          <TableWrap><table><thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>البريد</th><th>الحالة</th></tr></thead><tbody>{visibleSuppliers.map((s: Supplier) => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.supplier_code ?? '—'}</small></td><td>{s.contact_name ?? '—'}</td><td>{s.phone ?? '—'}</td><td>{s.email ?? '—'}</td><td><span className={`badge ${s.status === 'active' ? 'success' : 'warning'}`}>{s.status}</span></td></tr>)}</tbody></table></TableWrap>}
+          <TableWrap><table><thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>البريد</th><th>العنوان</th><th>الحالة</th></tr></thead><tbody>{visibleSuppliers.map((s: Supplier) => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.supplier_code ?? '—'}</small></td><td>{s.contact_name ?? '—'}</td><td>{s.phone ?? '—'}</td><td>{s.email ?? '—'}</td><td>{s.address ?? '—'}</td><td><span className={`badge ${s.status === 'active' ? 'success' : 'warning'}`}>{s.status}</span></td></tr>)}</tbody></table></TableWrap>}
       </>
     }
     {modal && <SupplierModal onClose={() => setModal(false)} onSaved={() => { setModal(false); void refetch(); onNotice('تمت إضافة المورد'); }} />}
@@ -946,12 +947,20 @@ function SupplierModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   async function save() {
     const cleanName = name.trim();
+    const cleanEmail = email.trim();
+    const cleanAddress = address.trim();
     if (!cleanName) { setError('اسم المورد مطلوب'); return; }
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('البريد الإلكتروني غير صالح');
+      return;
+    }
     if (saving) return;
     setSaving(true);
     setError('');
@@ -960,6 +969,8 @@ function SupplierModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         name: cleanName,
         contact_name: contact.trim() || null,
         phone: phone.trim() || null,
+        email: cleanEmail || null,
+        address: cleanAddress || null,
         supplier_code: `SUP-${Date.now().toString().slice(-5)}`,
         status: 'active',
       });
@@ -974,8 +985,10 @@ function SupplierModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   return <Modal title="إضافة مورد" onClose={onClose}>
     <Field label="اسم المورد"><input value={name} onChange={(e) => setName(e.target.value)} disabled={saving} required /></Field>
     <div className="form-grid">
-      <Field label="جهة الاتصال"><input value={contact} onChange={(e) => setContact(e.target.value)} disabled={saving} /></Field>
-      <Field label="الهاتف"><input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={saving} /></Field>
+      <Field label="جهة الاتصال"><input value={contact} onChange={(e) => setContact(e.target.value)} disabled={saving} maxLength={200} /></Field>
+      <Field label="الهاتف"><input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={saving} maxLength={40} /></Field>
+      <Field label="البريد الإلكتروني"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={saving} maxLength={254} /></Field>
+      <Field label="العنوان"><input value={address} onChange={(e) => setAddress(e.target.value)} disabled={saving} maxLength={500} /></Field>
     </div>
     {error && <div className="form-error" role="alert">{error}</div>}
     <div className="modal-actions">

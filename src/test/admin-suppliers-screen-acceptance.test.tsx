@@ -29,6 +29,7 @@ const supplier: Supplier = {
   contact_name: "مسؤول المبيعات",
   phone: "+967700000000",
   email: "supplier@example.test",
+  address: "صنعاء - حدة",
   status: "active",
 };
 
@@ -77,6 +78,8 @@ describe("admin suppliers live screen acceptance", () => {
     expect(screen.getByText("مورد الاختبار")).toBeInTheDocument();
     expect(screen.getByText("SUP-00001")).toBeInTheDocument();
     expect(screen.getByText("مسؤول المبيعات")).toBeInTheDocument();
+    expect(screen.getByText("supplier@example.test")).toBeInTheDocument();
+    expect(screen.getByText("صنعاء - حدة")).toBeInTheDocument();
   });
 
   it("filters the supplier list by search fields and active state", () => {
@@ -97,6 +100,10 @@ describe("admin suppliers live screen acceptance", () => {
     expect(screen.queryByText("مورد آخر")).not.toBeInTheDocument();
     expect(screen.getByText("عرض 1 من 2 مورد")).toBeInTheDocument();
 
+    fireEvent.change(search, { target: { value: "صنعاء - حدة" } });
+    expect(screen.getByText("مورد الاختبار")).toBeInTheDocument();
+    expect(screen.queryByText("مورد آخر")).not.toBeInTheDocument();
+
     fireEvent.change(search, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "غير نشط" }));
     expect(screen.getByText("مورد آخر")).toBeInTheDocument();
@@ -113,6 +120,8 @@ describe("admin suppliers live screen acceptance", () => {
     fireEvent.change(screen.getByLabelText("اسم المورد"), { target: { value: "  مورد جديد  " } });
     fireEvent.change(screen.getByLabelText("جهة الاتصال"), { target: { value: "  مسؤول  " } });
     fireEvent.change(screen.getByLabelText("الهاتف"), { target: { value: "  +967700000000  " } });
+    fireEvent.change(screen.getByLabelText("البريد الإلكتروني"), { target: { value: "  new@supplier.test  " } });
+    fireEvent.change(screen.getByLabelText("العنوان"), { target: { value: "  صنعاء - شارع حدة  " } });
     const save = screen.getByRole("button", { name: "حفظ" });
     fireEvent.click(save);
     await waitFor(() => expect(mocks.createSupplier).toHaveBeenCalledTimes(1));
@@ -120,6 +129,8 @@ describe("admin suppliers live screen acceptance", () => {
       name: "مورد جديد",
       contact_name: "مسؤول",
       phone: "+967700000000",
+      email: "new@supplier.test",
+      address: "صنعاء - شارع حدة",
       status: "active",
     }));
     expect(screen.getByRole("button", { name: "جارٍ الحفظ..." })).toBeDisabled();
@@ -130,6 +141,13 @@ describe("admin suppliers live screen acceptance", () => {
 
     state([]);
     fireEvent.click(screen.getByRole("button", { name: "إضافة مورد" }));
+    fireEvent.change(screen.getByLabelText("اسم المورد"), { target: { value: "مورد بريد غير صالح" } });
+    fireEvent.change(screen.getByLabelText("البريد الإلكتروني"), { target: { value: "عنوان غير صالح" } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("البريد الإلكتروني غير صالح");
+    expect(mocks.createSupplier).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText("البريد الإلكتروني"), { target: { value: "" } });
     fireEvent.change(screen.getByLabelText("اسم المورد"), { target: { value: "مورد فاشل" } });
     mocks.createSupplier.mockRejectedValueOnce(new Error("database temporarily unavailable"));
     fireEvent.click(screen.getByRole("button", { name: "حفظ" }));
