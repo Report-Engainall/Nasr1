@@ -89,7 +89,7 @@ test("purchase manager creates a tenant-scoped draft and downloads the filtered 
       await expect(manager.getByRole("heading", { name: "مسودة أمر شراء جديدة" })).toBeVisible();
       await manager.getByLabel("المورد").selectOption(supplierId);
       await manager.getByLabel("المخزن المستلم").selectOption(warehouseId);
-      await manager.getByLabel("الصنف").selectOption(productId);
+      await manager.locator(".po-lines").getByLabel("الصنف").selectOption(productId);
       await manager.getByLabel("الكمية المطلوبة").fill("2.125");
       // Unknown supplier cost is intentional: it must stay NULL/blank, never zero.
       await manager.getByLabel("تكلفة الوحدة (اختياري)").fill("");
