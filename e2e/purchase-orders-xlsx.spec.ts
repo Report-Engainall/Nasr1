@@ -95,7 +95,7 @@ test("purchase manager creates a tenant-scoped draft and downloads the filtered 
       await manager.getByLabel("تكلفة الوحدة (اختياري)").fill("");
       await manager.getByLabel("ملاحظات داخلية للشراء/المخزن").fill(internalNote);
       await manager.getByRole("button", { name: "حفظ مسودة أمر الشراء", exact: true }).click();
-      await expect(manager.getByRole("status")).toContainText("حُفظت مسودة أمر الشراء", { timeout: 20_000 });
+      await expect(manager.locator(".po-notice")).toContainText("حُفظت مسودة أمر الشراء", { timeout: 20_000 });
     });
 
     await test.step("manager downloads and parses the actual three-sheet purchase XLSX", async () => {
