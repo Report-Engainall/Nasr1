@@ -1,54 +1,54 @@
-# LIVE EXECUTION CHECKPOINT — 2026-11-03 — CASH EXPENSE XLSX PAGE EXPORT
+# LIVE EXECUTION CHECKPOINT — 2026-11-03 — CUSTOMER RETURN REVIEW XLSX BROWSER ACCEPTANCE
 
-This checkpoint supersedes the November 2 finance checkpoint for the current execution pointer. Older checkpoints remain historical evidence and must not be treated as the latest tested code.
+This checkpoint supersedes the earlier November 3 cash-expense XLSX checkpoint for the live execution pointer. Earlier checkpoints remain historical evidence only.
 
-- REPOSITORY: `Report-Engainall/Nasr1`; only accepted source of truth: `main`.
-- TESTED_CODE_SHA: `3f33dba1d1879fc1426a2428e331b496c6241dae`.
-- DOCUMENTATION_MATRIX_COMMIT: `819d218665ab2b345e78368b2c5f3a8ec0e18339` (acceptance-only update after the tested code; no runtime source changed after TESTED_CODE_SHA).
-- BRANCHES: `main` only. OPEN_PULL_REQUESTS: 0.
-- LAST_COMPLETED_TASK_ID: `DLV-011-CASH-EXPENSE-PAGE-XLSX-001`.
+- REPOSITORY: `Report-Engainall/Nasr1`; only source of truth: `main`.
+- TESTED_CODE_SHA: `f3581fce464324b4b842b21962abc29fba62499f`.
+- DOCUMENTATION_MATRIX_COMMIT: pending — this field will point to the acceptance-docs commit created immediately before the final pointer-only documentation commit.
+- DELIVERY_METHOD: direct-to-`main` fast-forward with expected-SHA lease; docs update does not change runtime source.
+- BRANCHES: `main` only. OPEN_PULL_REQUESTS: 0. GitHub branch metadata reports `protected=false`; do not assume required branch protection is enabled.
+- LAST_COMPLETED_TASK_ID: `DLV-011-RETURN-REVIEW-QUEUE-XLSX-001`.
 
-## Completed deliverable — Cash Expense Ledger XLSX export
+## Completed deliverable — Customer Return Review Queue XLSX
 
-- `src/lib/cash-expense-xlsx.ts` builds a two-sheet XLSX workbook from the already loaded server-authorized cash-expense RPC payload:
-  - `ملخص المصروفات`: full filtered currency summary returned by the server, with as-of timestamp, active filters, total matching count, page metadata and explicit disclosure of the detail boundary.
-  - `تفاصيل الصفحة`: only the currently loaded page. The workbook and UI explicitly state that unrequested detail pages are not included; no claim is made that this is a full all-pages detail export.
-- The workbook is limited to `admin`, `manager`, and `accountant` roles. Ordinary staff and customer roles do not see the finance screen/export action, and the export builder independently rejects them.
-- Exported detail fields are explicitly allowlisted: expense number, date, category, description, amount, currency, payment method, reference, status and void reason. Database IDs, profile/actor IDs, timestamps used only for storage, tenant identifiers and other technical metadata are excluded.
-- Currency boundaries are preserved; monetary values are parsed to exact cents with `BigInt` before becoming Excel numeric cells. Unsafe Excel precision is rejected. Formula-looking text remains escaped inline text; no formula cells are emitted.
-- Pagination consistency is checked against server `total_count`, `limit`, `offset`, `has_more`, and loaded item count. Currency-summary counts must reconcile to the total filtered population. Inconsistent/partial metadata stops the export rather than generating a misleading workbook.
-- UI integration: `src/components/CashExpenseLedger.tsx` adds “تصدير Excel للصفحة الحالية” beside the existing page print action; it uses the current RPC payload, filters and authenticated roles, and displays the exact export boundary.
+- `src/lib/customer-return-review-xlsx.ts` creates a genuine two-sheet OOXML workbook from the manager's already-loaded server-authorized current review queue:
+  - `طلبات المراجعة`: request/order/customer summary, state/reason/time/item count and an explicit limit/scope disclosure.
+  - `أصناف المرتجعات`: row-level product/item code/unit/requested quantity detail.
+- Export is allowed by the UI and workbook builder only for `admin` and `manager`. The source RPC `list_customer_return_review_queue` is `SECURITY DEFINER` but requires an authenticated user, current organization and `operational_tasks_can_manage()`; it queries only the current organization and open `submitted/under_review` requests.
+- The UI requests at most 50 rows; the workbook independently validates the same upper limit, rejects duplicate request identifiers, invalid status/reason/date/quantity and malformed item lists.
+- Workbook output omits customer free-text notes and technical request/order/tenant UUIDs. Text is emitted as escaped inline strings, not formula cells. The report explicitly says it is a snapshot of the current open queue (up to 50 requests), not a full historical returns ledger.
+- Added a real Chromium browser acceptance to `e2e/customer-return-workflow.spec.ts`: manager signs in, downloads the XLSX, checks download success and filename, parses workbook/summary/detail ZIP members, validates both Arabic sheet names and seeded order/item data, and rejects UUIDs, internal IDs and formula cells in the downloaded artifact.
 
 ## Exact-SHA acceptance
 
-All runtime checks below refer to code SHA `3f33dba1d1879fc1426a2428e331b496c6241dae`:
+All checks below refer to runtime code SHA `f3581fce464324b4b842b21962abc29fba62499f`; the later documentation-only commit does not alter runtime code.
 
-- Core [41536726684 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726684):
-  - Vitest: **269/269 files passed; 1,775/1,775 tests passed**.
-  - New export coverage: `src/lib/cash-expense-xlsx.test.ts` (7 tests) and `src/test/cash-expense-ledger.test.tsx` (3 tests).
-  - PostgreSQL 17 migrations and core acceptance, Lint, Build, preview smoke (4173), dev-server smoke (5173), Chromium price-visibility acceptance, isolated backup/restore all passed.
-- P2 [41536726705 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726705):
-  - Local Supabase/PostgreSQL 17 + authenticated Chromium passed order persistence and cross-tenant denial, checkout replay after lost response, return/receipt/credit memo, audited Onyx order XLSX, finance/task print, customer-manager financial privacy/audit, and central device-session immediate revocation.
-  - Cash-expense source posting/idempotency/void-post concurrency and purchase receipt accounting acceptance passed.
-  - Public Storefront browser smoke passed.
-- Free Static Analysis [41536726879 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726879): TypeScript AST structural proxy, CodeQL Python, CodeQL JavaScript/TypeScript and Semgrep all passed.
-- P1 Targeted TypeScript [41536726840 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726840).
-- Secret Scan [41536726768 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726768).
-- One-main-branch cleanup [41536726709 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41536726709).
+- Core [41556218266 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41556218266):
+  - Vitest: **271/271 test files passed; 1,784/1,784 tests passed**.
+  - PostgreSQL 17 migrations/core acceptance and exact-head RPC/function inventory passed.
+  - Focused Outbox TypeScript check, Lint, Build, production preview smoke (4173), dev-server smoke (5173), Chromium price-visibility acceptance and isolated PostgreSQL 17 backup/restore passed.
+- P2 [41556218310 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41556218310):
+  - Local Supabase/PostgreSQL 17 + authenticated Chromium passed order persistence/cross-tenant denial, checkout replay after lost response, customer return/manager review/warehouse receipt/credit memo, audited Onyx order XLSX, finance/task print, customer-manager financial privacy/audit and central device-session immediate revocation.
+  - The customer-return Playwright test passed with the new manager XLSX download-and-parse assertions. Local evidence artifact: [13194632688](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/13194632688/zip), SHA-256 `e029aa4d16ab96af9343759ba4a74a81b3b187df3cefb50832a869d55f9a24d1`.
+  - Public Storefront browser smoke passed. The distinct hosted customer/order/tenant job was **SKIPPED**, not PASS.
+- Free Static Analysis [41556218260 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41556218260): TypeScript AST structural proxy, Semgrep, CodeQL JavaScript/TypeScript and CodeQL Python passed.
+- P1 Targeted TypeScript [41556218251 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41556218251).
+- Secret Scan [41556218501 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41556218501).
+- One-main-branch cleanup [41556218659 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41556218659).
 
 ## Boundaries and remaining work
 
-- P2 hosted authenticated customer/order/tenant job was **SKIPPED**, not PASS, by the external-auth credential gate. The successful local Supabase/Chromium run does not prove hosted production authentication or cross-tenant behavior on the live service.
-- DLV-011 remains **PARTIAL**. The new cash-expense XLSX leaf is closed with exact-SHA evidence; this does not close the remaining role/template pairs for the entire print/export family.
-- API-OPS remains **PARTIAL**. The Onyx export and provider-evidence denial tests were added to `scripts/test-onyx-source-evidence.mjs` and passed in the exact-SHA Core/PostgreSQL 17 suite at `580214e168d2434816bd73650295dda03156742a`; the full semantic coverage of all callable RPC/Edge boundaries is not complete.
-- External/production evidence remains unproven: live Onyx target-version import/round-trip and provider receipts, official WhatsApp delivery receipts, live external AI provider operation, hosted customer/tenant journeys, production deployment/rollback/backup/restore, and owner sign-off.
-- RELEASE DECISION: **NO-GO** for a production-complete release until the remaining applicable DLV requirements and external/production gates are evidenced. Do not infer an overall completion percentage from merged leaves or CI success.
+- This closes only the new return-review XLSX leaf. `DLV-011` remains **PARTIAL** because other role/template pairs and full print/export acceptance remain open. The workbook is current queue only and capped at 50; it is not a historical return export.
+- The hosted authenticated customer/order/tenant E2E remains **SKIPPED** by the external-auth credential gate. Local Supabase/Chromium evidence is not hosted or production evidence.
+- Other external/production gates remain unproven: live Onyx Pro target-version import/round-trip, official WhatsApp Business delivery receipts, live AI provider operation, production deployment/migration/rollback/backup/restore and owner sign-off.
+- DLV-001..DLV-018 roll-ups remain unclosed as a release group; the acceptance matrix remains NO-GO. Do not infer an overall completion percentage.
+- RELEASE DECISION: **NO-GO** for full production release until every applicable requirement, hosted/external dependency and production operation has evidence and owner approval.
 
 ## Acceptance matrix and next action
 
 - Updated matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
-- Matrix now records **147 unique leaf acceptance IDs**, **18 DLV roll-up groups**, and **0 duplicate IDs**. The new row is `DLV-011-CASH-EXPENSE-PAGE-XLSX-001`. DLV-011 parent remains PARTIAL; DLV-ROLLUP-001 remains NO-GO.
-- NEXT_ACTION: select the next genuinely uncovered DLV-011 role/template pair from the matrix, inspect the real UI-to-server DTO/RPC path and existing print/export engine, and implement only a missing pair. Preserve all existing projections, role guards and tests; require exact-SHA Core and P2 before counting the leaf complete.
+- Matrix cardinality: **148 unique populated acceptance IDs**, **18 DLV roll-up groups**, **0 duplicate IDs**. Added `DLV-011-RETURN-REVIEW-QUEUE-XLSX-001`. DLV-011 parent remains PARTIAL; `DLV-ROLLUP-001` remains NO-GO.
+- NEXT_ACTION: select the next genuinely uncovered DLV-011 role/template pair from the current matrix; inspect its actual UI-to-server DTO/RPC and existing print/export path; change only missing behavior. Preserve completed leaves, enforce role allowlists/tenant scope/Arabic RTL/A4/pagination/data reconciliation/no-leakage, and require exact-SHA Core/P2 evidence before closing a new leaf.
 - UPDATED_AT: 2026-11-03.
 
 ---
