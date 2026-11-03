@@ -4,7 +4,7 @@ This checkpoint supersedes the earlier November 3 cash-expense XLSX checkpoint f
 
 - REPOSITORY: `Report-Engainall/Nasr1`; only source of truth: `main`.
 - TESTED_CODE_SHA: `f3581fce464324b4b842b21962abc29fba62499f`.
-- DOCUMENTATION_MATRIX_COMMIT: pending — this field will point to the acceptance-docs commit created immediately before the final pointer-only documentation commit.
+- DOCUMENTATION_MATRIX_COMMIT: 5373496b3f9d5499ac378efb0ea67d93f8b9b9aa (acceptance matrix + live checkpoint commit; runtime code SHA remains f3581fce464324b4b842b21962abc29fba62499f).
 - DELIVERY_METHOD: direct-to-`main` fast-forward with expected-SHA lease; docs update does not change runtime source.
 - BRANCHES: `main` only. OPEN_PULL_REQUESTS: 0. GitHub branch metadata reports `protected=false`; do not assume required branch protection is enabled.
 - LAST_COMPLETED_TASK_ID: `DLV-011-RETURN-REVIEW-QUEUE-XLSX-001`.
