@@ -798,7 +798,9 @@ function parseDisplayedMoney(value: string): number {
 }
 
 async function expectInvoicePaidAndOutstanding(page: Page, invoiceNumber: string, paid: number, outstanding: number): Promise<void> {
-  const row = page.locator("table tbody tr").filter({ hasText: invoiceNumber });
+  const agingSection = page.locator("section.receivables-aging-report");
+  await expect(agingSection).toBeVisible({ timeout: 30_000 });
+  const row = agingSection.locator("table tbody tr").filter({ hasText: invoiceNumber });
   await expect(row).toHaveCount(1, { timeout: 30_000 });
   const table = row.locator("xpath=ancestor::table[1]");
   const headers = await table.locator("thead th").allTextContents();
@@ -830,8 +832,8 @@ test("manager records one receipt across two same-currency customer invoices and
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible({ timeout: 30_000 });
 
-    const paymentForm = manager.locator("form").filter({ has: manager.getByLabel("الفاتورة", { exact: true }) });
-    const primaryInvoice = paymentForm.getByLabel("الفاتورة", { exact: true });
+    const primaryInvoice = manager.getByLabel("الفاتورة", { exact: true });
+    const paymentForm = primaryInvoice.locator("xpath=ancestor::form[1]");
     const invoiceAOption = primaryInvoice.locator("option").filter({ hasText: invoiceANumber });
     const invoiceBOption = primaryInvoice.locator("option").filter({ hasText: invoiceBNumber });
     await expect(invoiceAOption).toHaveCount(1, { timeout: 30_000 });

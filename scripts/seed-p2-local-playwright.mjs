@@ -289,7 +289,7 @@ async function main() {
       );
       const invoiceItemRows = await tx.unsafe(
         "insert into public.customer_invoice_items(organization_id,invoice_id,order_item_id,product_id,item_code,description,unit,quantity,unit_price,discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total) " +
-        "select $1::uuid,$2::uuid,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot,oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot,oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.order_id=$3::uuid",
+        "select $1::uuid,$2::uuid,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot,oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot,oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.order_id=$3::uuid returning invoice_id",
         [organizationId, fixture.invoiceId, fixture.orderId],
       );
       if (orderRows.length !== 1 || orderItemRows.length !== 1 || invoiceRows.length !== 1 || invoiceItemRows.length !== 1) {
