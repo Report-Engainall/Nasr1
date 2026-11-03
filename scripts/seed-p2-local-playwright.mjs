@@ -48,6 +48,11 @@ const returnOrderId = randomUUID();
 const returnOrderNumber = "P2-RET-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
 const returnInvoiceNumber = "INV-" + returnOrderNumber;
 const returnItemName = "P2 Playwright Return Item";
+let purchaseSupplierId = "";
+let purchaseSupplierCode = "";
+let purchaseSupplierName = "";
+let purchaseWarehouse = null;
+let purchaseProduct = null;
 
 const db = postgres(connectionString, { max: 2, prepare: false, idle_timeout: 5 });
 
@@ -176,6 +181,7 @@ async function main() {
     if (product.length !== 1) {
       throw new Error("The canonical local test product is missing or inactive; refusing to fabricate catalog/pricing records.");
     }
+    purchaseProduct = product[0];
 
     const warehouses = await tx.unsafe(
       "select id,name,code from public.warehouses where organization_id=$1::uuid and is_active=true " +
@@ -185,6 +191,7 @@ async function main() {
     if (warehouses.length !== 1) {
       throw new Error("The canonical storefront organization needs an active warehouse for the local E2E test.");
     }
+    purchaseWarehouse = warehouses[0];
     await tx.unsafe(
       "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
       "values($1::uuid,$2::uuid,100,0,0) " +
@@ -194,8 +201,8 @@ async function main() {
 
     // A tenant-scoped supplier fixture is required by the actual purchase-order RPC.
     // The order itself is deliberately created by the manager through the browser UI.
-    const purchaseSupplierCode = "P2PO" + suffix.toUpperCase();
-    const purchaseSupplierName = "P2 Local E2E Purchase Supplier " + suffix.toUpperCase();
+    purchaseSupplierCode = "P2PO" + suffix.toUpperCase();
+    purchaseSupplierName = "P2 Local E2E Purchase Supplier " + suffix.toUpperCase();
     const purchaseSupplierRows = await tx.unsafe(
       "insert into public.suppliers(organization_id,supplier_code,name,status) " +
       "values($1::uuid,$2::text,$3::text,'active') " +
@@ -205,6 +212,7 @@ async function main() {
     if (purchaseSupplierRows.length !== 1) {
       throw new Error("The isolated purchase-order XLSX acceptance requires one active tenant-local supplier.");
     }
+    purchaseSupplierId = purchaseSupplierRows[0].id;
 
     await tx.unsafe(
       "insert into public.admin_settings(organization_id,key,value,category) values " +
@@ -299,14 +307,14 @@ async function main() {
     "E2E_RETURN_ITEM_NAME=" + returnItemName,
     "E2E_RETURN_RECEIVABLE_ACCOUNT_ID=" + returnReceivableAccountId,
     "E2E_RETURN_REVENUE_ACCOUNT_ID=" + returnRevenueAccountId,
-    "E2E_PURCHASE_SUPPLIER_ID=" + purchaseSupplierRows[0].id,
+    "E2E_PURCHASE_SUPPLIER_ID=" + purchaseSupplierId,
     "E2E_PURCHASE_SUPPLIER_NAME=" + purchaseSupplierName,
     "E2E_PURCHASE_SUPPLIER_CODE=" + purchaseSupplierCode,
-    "E2E_PURCHASE_WAREHOUSE_ID=" + warehouses[0].id,
-    "E2E_PURCHASE_WAREHOUSE_NAME=" + warehouses[0].name,
-    "E2E_PURCHASE_PRODUCT_ID=" + product[0].id,
-    "E2E_PURCHASE_PRODUCT_NAME=" + product[0].name,
-    "E2E_PURCHASE_ITEM_CODE=" + product[0].item_code,
+    "E2E_PURCHASE_WAREHOUSE_ID=" + purchaseWarehouse.id,
+    "E2E_PURCHASE_WAREHOUSE_NAME=" + purchaseWarehouse.name,
+    "E2E_PURCHASE_PRODUCT_ID=" + purchaseProduct.id,
+    "E2E_PURCHASE_PRODUCT_NAME=" + purchaseProduct.name,
+    "E2E_PURCHASE_ITEM_CODE=" + purchaseProduct.item_code,
     "E2E_PURCHASE_ORGANIZATION_ID=" + organizationId,
     "E2E_PURCHASE_MANAGER_PROFILE_ID=" + managerProfileId,
     "E2E_SUPABASE_URL=" + apiUrl,
