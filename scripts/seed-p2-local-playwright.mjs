@@ -48,6 +48,14 @@ const returnOrderId = randomUUID();
 const returnOrderNumber = "P2-RET-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
 const returnInvoiceNumber = "INV-" + returnOrderNumber;
 const returnItemName = "P2 Playwright Return Item";
+const multiReceiptSuffix = runKey.replaceAll("-", "").slice(-12).toUpperCase();
+const multiReceiptInvoiceANumber = "P2-MR-A-" + multiReceiptSuffix;
+const multiReceiptInvoiceBNumber = "P2-MR-B-" + multiReceiptSuffix;
+const multiReceiptOrderAId = randomUUID();
+const multiReceiptOrderBId = randomUUID();
+const multiReceiptInvoiceAId = randomUUID();
+const multiReceiptInvoiceBId = randomUUID();
+
 let purchaseSupplierId = "";
 let purchaseSupplierCode = "";
 let purchaseSupplierName = "";
@@ -257,8 +265,38 @@ async function main() {
       "select $1::uuid,$2::uuid,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot," +
       "oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot," +
       "oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.id=$3::uuid",
+
       [organizationId, returnInvoiceRows[0].id, returnOrderItemRows[0].id],
     );
+
+    // Local-only, source-linked invoices for a real same-customer/same-currency receipt test.
+    const multiReceiptFixtures = [
+      { orderId: multiReceiptOrderAId, invoiceId: multiReceiptInvoiceAId, orderNumber: "P2-MR-ORDER-A-" + multiReceiptSuffix, invoiceNumber: multiReceiptInvoiceANumber, itemCode: "P2-MR-A-001", itemName: "P2 Multi Invoice Allocation A", amount: 100 },
+      { orderId: multiReceiptOrderBId, invoiceId: multiReceiptInvoiceBId, orderNumber: "P2-MR-ORDER-B-" + multiReceiptSuffix, invoiceNumber: multiReceiptInvoiceBNumber, itemCode: "P2-MR-B-001", itemName: "P2 Multi Invoice Allocation B", amount: 200 },
+    ];
+    for (const fixture of multiReceiptFixtures) {
+      const orderRows = await tx.unsafe(
+        "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) values($1::uuid,$2::uuid,$3::uuid,$4,'delivered',$5,1,'Isolated P2 multi-invoice receipt acceptance',$6::uuid) returning id",
+        [fixture.orderId, organizationId, returnCustomerId, fixture.orderNumber, fixture.amount, profileAId],
+      );
+      const orderItemRows = await tx.unsafe(
+        "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) values($1::uuid,$2::uuid,$3,$4,'piece',1,1,1,$5,0,$5) returning id",
+        [fixture.orderId, productId, fixture.itemCode, fixture.itemName, fixture.amount],
+      );
+      const invoiceRows = await tx.unsafe(
+        "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'issued',pg_catalog.now(),'YER',$6,0,$6) returning id",
+        [fixture.invoiceId, organizationId, returnCustomerId, fixture.orderId, fixture.invoiceNumber, fixture.amount],
+      );
+      const invoiceItemRows = await tx.unsafe(
+        "insert into public.customer_invoice_items(organization_id,invoice_id,order_item_id,product_id,item_code,description,unit,quantity,unit_price,discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total) " +
+        "select $1::uuid,$2::uuid,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot,oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot,oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.order_id=$3::uuid",
+        [organizationId, fixture.invoiceId, fixture.orderId],
+      );
+      if (orderRows.length !== 1 || orderItemRows.length !== 1 || invoiceRows.length !== 1 || invoiceItemRows.length !== 1) {
+        throw new Error("The isolated multi-invoice receipt seed is incomplete.");
+      }
+    }
+
     const receivableRows = await tx.unsafe(
       "insert into public.accounting_accounts(organization_id,code,name,account_type,is_active) " +
       "values($1::uuid,$2,'P2 local E2E return receivables','asset',true) returning id",
@@ -304,6 +342,9 @@ async function main() {
     "E2E_EXPIRED_COMPANY_INVITATION_ID=" + expiredInvitationId,
     "E2E_RETURN_ORDER_ID=" + returnOrderId,
     "E2E_RETURN_ORDER_NUMBER=" + returnOrderNumber,
+    "E2E_MULTI_RECEIPT_INVOICE_A_NUMBER=" + multiReceiptInvoiceANumber,
+    "E2E_MULTI_RECEIPT_INVOICE_B_NUMBER=" + multiReceiptInvoiceBNumber,
+    "E2E_MULTI_RECEIPT_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_RETURN_ITEM_NAME=" + returnItemName,
     "E2E_RETURN_RECEIVABLE_ACCOUNT_ID=" + returnReceivableAccountId,
     "E2E_RETURN_REVENUE_ACCOUNT_ID=" + returnRevenueAccountId,
@@ -327,7 +368,7 @@ async function main() {
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
     " confirmedUsers=6 accountantSeeded=true customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
-    " catalogProduct=" + productId + " stock=100 localOnly=true\n",
+    " multiInvoiceReceiptInvoices=2 localOnly=true catalogProduct=" + productId + " stock=100 localOnly=true\n",
   );
 }
 

@@ -786,4 +786,189 @@ test("ordinary customer cannot access the tenant trial balance XLSX export", asy
     await customerContext.close();
   }
 });
+function parseDisplayedMoney(value: string): number {
+  const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+  const normalized = value
+    .replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)))
+    .replace(/[٬,]/g, "")
+    .replace(/٫/g, ".")
+    .replace(/[^0-9.]/g, "");
+  const match = normalized.match(/[0-9]+(?:\.[0-9]+)?/);
+  return match ? Number(match[0]) : Number.NaN;
+}
+
+async function expectInvoicePaidAndOutstanding(page: Page, invoiceNumber: string, paid: number, outstanding: number): Promise<void> {
+  const row = page.locator("table tbody tr").filter({ hasText: invoiceNumber });
+  await expect(row).toHaveCount(1, { timeout: 30_000 });
+  const table = row.locator("xpath=ancestor::table[1]");
+  const headers = await table.locator("thead th").allTextContents();
+  const paidIndex = headers.findIndex((header) => /مدفوع|المسدد|المسددة/.test(header));
+  const outstandingIndex = headers.findIndex((header) => /المتبقي|رصيد متبق/.test(header));
+  expect(paidIndex, "The invoice table must expose the paid amount column.").toBeGreaterThan(-1);
+  expect(outstandingIndex, "The invoice table must expose the outstanding amount column.").toBeGreaterThan(-1);
+  await expect.poll(async () => {
+    const cells = await row.locator("td").allTextContents();
+    return [parseDisplayedMoney(cells[paidIndex] ?? ""), parseDisplayedMoney(cells[outstandingIndex] ?? "")];
+  }).toEqual([paid, outstanding]);
+}
+
+
+test("manager records one receipt across two same-currency customer invoices and safely reprints the saved allocation", async ({ browser }) => {
+  test.setTimeout(6 * 60 * 1000);
+  const invoiceANumber = requiredEnv("E2E_MULTI_RECEIPT_INVOICE_A_NUMBER");
+  const invoiceBNumber = requiredEnv("E2E_MULTI_RECEIPT_INVOICE_B_NUMBER");
+  const customerName = requiredEnv("E2E_MULTI_RECEIPT_CUSTOMER_NAME");
+  const managerContext = await browser.newContext();
+  await managerContext.addInitScript(() => {
+    window.print = () => { document.documentElement.dataset.e2ePrintInvoked = "true"; };
+    window.close = () => {};
+  });
+  const manager = await managerContext.newPage();
+  let receiptNumber = "";
+  try {
+    await signIn(manager, requiredEnv("E2E_MANAGER_EMAIL"), requiredEnv("E2E_MANAGER_PASSWORD"));
+    await manager.goto("/admin/finance");
+    await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible({ timeout: 30_000 });
+
+    const paymentForm = manager.locator("form").filter({ has: manager.getByLabel("الفاتورة", { exact: true }) });
+    const primaryInvoice = paymentForm.getByLabel("الفاتورة", { exact: true });
+    const invoiceAOption = primaryInvoice.locator("option").filter({ hasText: invoiceANumber });
+    const invoiceBOption = primaryInvoice.locator("option").filter({ hasText: invoiceBNumber });
+    await expect(invoiceAOption).toHaveCount(1, { timeout: 30_000 });
+    await expect(invoiceBOption).toHaveCount(1, { timeout: 30_000 });
+    const invoiceAId = await invoiceAOption.getAttribute("value");
+    const invoiceBId = await invoiceBOption.getAttribute("value");
+    expect(invoiceAId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(invoiceBId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(invoiceAId).not.toBe(invoiceBId);
+
+    await primaryInvoice.selectOption(invoiceAId!);
+    await paymentForm.getByLabel("المبلغ", { exact: true }).fill("25.00");
+    await paymentForm.getByLabel("توزيع سند قبض واحد على عدة فواتير للعميل نفسه وبالعملة نفسها", { exact: true }).check();
+    const invoiceBAllocation = paymentForm.getByRole("checkbox", { name: "تخصيص على الفاتورة " + invoiceBNumber, exact: true });
+    await expect(invoiceBAllocation).toBeVisible();
+    await invoiceBAllocation.check();
+    await paymentForm.getByLabel("مبلغ التخصيص على الفاتورة " + invoiceBNumber, { exact: true }).fill("35.00");
+    const privateNote = "PRIVATE-P2-MULTI-RECEIPT-" + Date.now().toString(36).toUpperCase();
+    await paymentForm.locator("textarea").first().fill(privateNote);
+    await paymentForm.getByRole("button", { name: "تسجيل سند القبض وتوزيعه", exact: true }).click();
+    await expect(manager.getByText("تم تسجيل سند القبض وتوزيعه على 2 فواتير مع تحديث أرصدتها.", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
+    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
+
+    const receiptSection = manager.locator('section[aria-labelledby="customer-payment-receipt-print-heading"]');
+    await expect(receiptSection.getByRole("heading", { name: "سجل سندات القبض متعددة الفواتير" })).toBeVisible();
+    const receiptSelect = receiptSection.getByLabel("سند القبض متعدد الفواتير", { exact: true });
+    const savedReceiptOptions = receiptSelect.locator("option").filter({ hasText: /SND-\d{6}/ });
+    await expect(savedReceiptOptions).toHaveCount(1, { timeout: 30_000 });
+    const receiptLabel = await savedReceiptOptions.first().innerText();
+    const receiptNumberMatch = receiptLabel.match(/SND-\d{6}/);
+    expect(receiptNumberMatch).not.toBeNull();
+    receiptNumber = receiptNumberMatch![0];
+    const receiptId = await receiptSelect.inputValue();
+    expect(receiptId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+
+    async function printSavedReceipt(): Promise<string> {
+      const popupPromise = manager.waitForEvent("popup");
+      await receiptSection.getByRole("button", { name: "طباعة سند القبض / حفظ PDF", exact: true }).click();
+      const printPage = await popupPromise;
+      await expect(printPage.locator("html")).toHaveAttribute("lang", "ar");
+      await expect(printPage.locator("html")).toHaveAttribute("dir", "rtl");
+      await expect(printPage.locator("h1")).toContainText(receiptNumber);
+      await expect(printPage.locator("body")).toContainText(customerName);
+      await expect(printPage.locator("body")).toContainText(invoiceANumber);
+      await expect(printPage.locator("body")).toContainText(invoiceBNumber);
+      await expect(printPage.locator("body")).toContainText("YER");
+      await expect(printPage.locator("body")).toContainText("عدد الفواتير");
+      await expect(printPage.locator("body")).toContainText("إجمالي سند القبض");
+      await expect(printPage.locator("body")).toContainText("٢");
+      await expect(printPage.locator("body")).toContainText(new Intl.NumberFormat("ar-YE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(25) + " YER");
+      await expect(printPage.locator("body")).toContainText(new Intl.NumberFormat("ar-YE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(35) + " YER");
+      await expect(printPage.locator("body")).toContainText(new Intl.NumberFormat("ar-YE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(60) + " YER");
+      await expect(printPage.locator("body")).toContainText("لا تنشئ الطباعة أي حركة مالية جديدة أو تغيّر الأرصدة");
+      await expect.poll(() => printPage.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true", { timeout: 10_000 });
+      const styles = await printPage.locator("style").allTextContents();
+      expect(styles.join(" ")).toContain("A4");
+      const html = await printPage.locator("html").evaluate((element) => element.outerHTML);
+      expect(html).not.toContain(privateNote);
+      for (const internalKey of ["organization_id", "receipt_id", "customer_id", "invoice_id", "created_by", "actor_id", "idempotency_key", "private_note", "payment_id"]) {
+        expect(html).not.toContain(internalKey);
+      }
+      for (const internalId of [receiptId, invoiceAId!, invoiceBId!]) {
+        expect(html).not.toContain(internalId);
+      }
+      expect(html).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+      const pdf = await printPage.pdf({ format: "A4", printBackground: true });
+      expect(pdf.byteLength).toBeGreaterThan(1_000);
+      expect(new TextDecoder().decode(pdf.slice(0, 8))).toContain("%PDF-");
+      await printPage.close();
+      return html;
+    }
+
+    const firstPrint = await printSavedReceipt();
+    const secondPrint = await printSavedReceipt();
+    expect(secondPrint).toBe(firstPrint);
+    await receiptSection.getByRole("button", { name: "تحديث السجل", exact: true }).click();
+    await expect(savedReceiptOptions).toHaveCount(1, { timeout: 30_000 });
+    await expect(receiptSelect).toHaveValue(receiptId);
+    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
+    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
+    await manager.reload();
+    await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible({ timeout: 30_000 });
+    await expect(manager.locator('section[aria-labelledby="customer-payment-receipt-print-heading"]').getByLabel("سند القبض متعدد الفواتير")).toBeVisible();
+    await expect(manager.locator('section[aria-labelledby="customer-payment-receipt-print-heading"]').locator("option").filter({ hasText: /SND-\d{6}/ })).toHaveCount(1);
+    await expectInvoicePaidAndOutstanding(manager, invoiceANumber, 25, 75);
+    await expectInvoicePaidAndOutstanding(manager, invoiceBNumber, 35, 165);
+    await test.info().attach("customer-multi-invoice-receipt-browser-proof.json", {
+      body: JSON.stringify({
+        result: "BROWSER_PROVEN",
+        sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+        role: "manager",
+        isolatedLocalOnly: true,
+        customer: customerName,
+        invoices: [
+          { number: invoiceANumber, currency: "YER", paid: "25.00", outstanding: "75.00" },
+          { number: invoiceBNumber, currency: "YER", paid: "35.00", outstanding: "165.00" }
+        ],
+        receiptNumber,
+        allocationCount: 2,
+        receiptTotal: "60.00 YER",
+        savedReceiptCountAfterTwoReprintsAndReload: 1,
+        invoiceBalancesUnchangedAfterReprints: true,
+        repeatedPrintOutputIdentical: true,
+        printInvoked: true,
+        arabicRtlA4: true,
+        privateNotesAndInternalIdsExcluded: true,
+        printingCreatesNoFinancialMovement: true,
+        noProductionWrites: true
+      }, null, 2),
+      contentType: "application/json",
+    });
+  } finally {
+    await managerContext.close();
+  }
+
+  const customerContext = await browser.newContext();
+  const customer = await customerContext.newPage();
+  try {
+    await signIn(customer, requiredEnv("E2E_EMAIL"), requiredEnv("E2E_PASSWORD"));
+    await customer.goto("/admin/finance");
+    await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة" })).toBeVisible({ timeout: 20_000 });
+    await expect(customer.getByRole("button", { name: "طباعة سند القبض / حفظ PDF", exact: true })).toHaveCount(0);
+    await test.info().attach("customer-multi-invoice-receipt-customer-denial.json", {
+      body: JSON.stringify({
+        result: "BROWSER_PROVEN",
+        sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+        role: "ordinary-customer",
+        financeRouteDenied: true,
+        receiptPrintControlAbsent: true,
+        isolatedLocalOnly: true,
+        noProductionWrites: true
+      }, null, 2),
+      contentType: "application/json",
+    });
+  } finally {
+    await customerContext.close();
+  }
+});
 
