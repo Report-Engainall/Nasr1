@@ -87,11 +87,11 @@ async function assertTrialBalanceDownload(page: Page, role: "manager" | "account
     expect(detailsXml).toContain(code);
     expect(detailsXml).toContain(name);
   }
-  expect((detailsXml.match(/<row\\b/g) ?? []).length).toBe(visibleAccounts.length + 2);
+  expect((detailsXml.match(/<row\b/g) ?? []).length).toBe(visibleAccounts.length + 2);
   expect(methodXml).toContain("لا يعتمد على ترقيم صفحة القيود");
   expect(methodXml).toContain("صف واحد لكل حساب");
-  const allXml = [workbookXml, summaryXml, detailsXml, methodXml].join("\\n");
-  expect(allXml).not.toMatch(/<f(?:\\s|>)/i);
+  const allXml = [workbookXml, summaryXml, detailsXml, methodXml].join("\n");
+  expect(allXml).not.toMatch(/<f(?:\s|>)/i);
   expect(allXml).not.toMatch(/(?:organization_id|tenant_id|account_id|user_id|created_by|source_reference|journal_entry_id|cost_price|profit_margin)/i);
   expect(allXml).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
 
