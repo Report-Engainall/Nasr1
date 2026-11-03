@@ -1670,3 +1670,18 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Open PRs: #407 scanner-only and mergeable; #351 non-mergeable. Neither was merged or used as product evidence.
 - DLV-005 remains PARTIAL pending hosted authenticated customer/tier/session and cross-tenant acceptance. DLV-008 remains PARTIAL: FX needs authoritative rates and approved rounding; multi-source payment allocation requires a complete transactional model. No FX rate or production accounting outcome was fabricated.
 - Next: DLV-008 same-currency multi-invoice allocation model, with idempotency, tenant/currency guards, deterministic invoice locking, audit and reconciled statements/documents. Keep production release NO-GO pending hosted and external acceptance.
+
+
+## 2026-11-03 — Production runtime integration drift audit (read-only)
+
+- Main at audit start: `98e6cd3e1cf5fd59b86957a41b816369aa10a67b`; runtime tree SHA remains `8badc2765650c8f85fb094d8d81fc44ca8178453` (intervening commit was docs-only).
+- Read-only connected Supabase audit confirms 133 production migrations vs 182 current repository migration files; the production project has no verified Aghbari commercial tenant.
+- Production Edge Functions: `outbox-worker` v1 and `customer-invitations` v3 only. Current source also contains `ai-gateway`, `async-export-download`, `async-export-worker`, and `product-image-upload`, all absent from production deployment inventory.
+- The live outbox worker uses a legacy bearer secret/RPC contract. Current `main` uses the newer bounded-body worker secret and lease/process/failure RPC contract. The live source was inspected; no secret values were read.
+- Product image production contract is private `product-media` / 5 MiB; current source migrations expect public `product-images` / 8 MiB with all Storage writes moved to the absent `product-image-upload` Edge Function.
+- Read-only `pg_proc` inspection found 14 missing current runtime RPC names spanning AI gateway, async export, outbox and public storefront/catalog/pricing. `export_jobs` exists but the current RPC contract does not.
+- Security advisor shows 62 authenticated-executable SECURITY DEFINER functions, zero anon-executable, all with fixed search_path. 60 have visible auth/role/tenant markers; the two without markers are overload wrappers delegating to guarded overloads. This is not a full semantic audit and no bulk revoke was applied. Leaked-password protection is disabled and Supabase documents it as Pro-only; 149 unused-index findings are informational.
+- CI: Core `41573098194` SUCCESS on exact main `98e6cd3`; P2 local Supabase/Chromium `41568300061` SUCCESS on runtime-equivalent SHA `8badc276`; hosted customer/order/tenant test SKIPPED. Core's isolated backup/restore PASS does not establish production backup/restore.
+- No production database, Storage, Edge Function, Vercel, tenant or secret mutation occurred. Release remains NO-GO. Do not deploy missing Edge Functions or apply migrations until controlled backup/restore, migration lineage, required schema/RPCs, secret names and real tenant identity are reconciled.
+- Next action unchanged: `PROD-DB-BACKUP-RESTORE-RECONCILIATION-001`; use an existing no-cost controlled PG17 path if available, with no paid Supabase branch and no secrets in chat/GitHub.
+
