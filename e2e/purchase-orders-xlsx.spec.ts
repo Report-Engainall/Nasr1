@@ -58,7 +58,7 @@ function storedRows(xml: string): Array<{ number: string; xml: string }> {
     .map((match) => ({ number: match[1], xml: match[2] }));
 }
 
-test("purchase manager creates a tenant-scoped draft and downloads the filtered three-sheet XLSX", async ({ browser }) => {
+test("purchase manager creates, exports and physically receives a tenant-scoped order, then safely reprints its saved receipt", async ({ browser }) => {
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
   const customerEmail = requiredEnv("E2E_EMAIL");
@@ -78,6 +78,7 @@ test("purchase manager creates a tenant-scoped draft and downloads the filtered 
   const managerContext = await browser.newContext();
   const manager = await managerContext.newPage();
   const browserErrors: string[] = [];
+  let purchaseOrderNumber: string | null = null;
   manager.on("pageerror", (error) => browserErrors.push(error.message));
 
   try {
@@ -103,7 +104,7 @@ test("purchase manager creates a tenant-scoped draft and downloads the filtered 
       await expect(latestCard).toBeVisible();
       await expect(latestCard).toContainText(supplierName);
       const cardText = await latestCard.innerText();
-      const purchaseOrderNumber = cardText.match(/PO-\d{8}-\d{6}/)?.[0];
+      purchaseOrderNumber = cardText.match(/PO-\d{8}-\d{6}/)?.[0] ?? null;
       expect(purchaseOrderNumber, "The newly created purchase-order number must be visible in the server-loaded order list.").toBeTruthy();
       await latestCard.click();
       await expect(manager.getByRole("heading", { name: purchaseOrderNumber! })).toBeVisible();
@@ -178,6 +179,92 @@ test("purchase manager creates a tenant-scoped draft and downloads the filtered 
         }, null, 2),
         contentType: "application/json"
       });
+    });
+
+    await test.step("manager posts one physical receipt and reprints its saved A4 document without new writes", async () => {
+      expect(purchaseOrderNumber).toBeTruthy();
+      await manager.getByRole("button", { name: "اعتماد أمر الشراء للتوريد", exact: true }).click();
+      await expect(manager.getByRole("button", { name: "ترحيل إيصال الاستلام", exact: true })).toBeVisible({ timeout: 20_000 });
+      await manager.getByLabel("كمية الاستلام " + productName).fill("2.125");
+
+      // Accept the native confirmation while the click is waiting for the dialog.
+      const confirmation = manager.waitForEvent("dialog").then(async (dialog) => {
+        expect(dialog.type()).toBe("confirm");
+        await dialog.accept();
+      });
+      await manager.getByRole("button", { name: "ترحيل إيصال الاستلام", exact: true }).click();
+      await confirmation;
+
+      await expect(manager.getByText(/تم استلام الكميات المطلوبة كاملة/)).toBeVisible({ timeout: 20_000 });
+      const history = manager.locator('section[aria-label="سجل إيصالات الاستلام"]');
+      const receiptNumberText = history.getByText(/PR-\d{8}-\d{6}/);
+      await expect(receiptNumberText).toBeVisible({ timeout: 20_000 });
+      const receiptNumber = (await receiptNumberText.first().innerText()).trim();
+      expect(receiptNumber).toMatch(/^PR-\d{8}-\d{6}$/);
+      const receiptRecord = history.locator("article").filter({ hasText: receiptNumber });
+      await expect(receiptRecord).toHaveCount(1);
+
+      let firstPrintHtml = "";
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const printButton = receiptRecord.getByRole("button", { name: "طباعة الإيصال", exact: true });
+        await expect(printButton).toBeEnabled();
+        const popupPromise = manager.waitForEvent("popup");
+        await printButton.click();
+        const printPage = await popupPromise;
+        await expect(printPage.locator("h1")).toContainText(receiptNumber);
+        await expect(printPage.locator("body")).toContainText("إيصال استلام مشتريات");
+        await expect(printPage.locator("body")).toContainText(purchaseOrderNumber!);
+        await expect(printPage.locator("body")).toContainText(supplierName);
+        await expect(printPage.locator("body")).toContainText(warehouseName);
+        await expect(printPage.locator("body")).toContainText(itemCode);
+        await expect(printPage.locator("body")).toContainText(productName);
+        await expect(printPage.locator("body")).toContainText("2.125");
+        await expect(printPage.locator("body")).toContainText("التكاليف المصدرية غير مكتملة؛ لم تُعرض أي قيمة مالية.");
+        await expect(printPage.locator("body")).toContainText("إعادة طباعة لسجل محفوظ.");
+        const html = await printPage.content();
+        expect(html).toContain('<html lang="ar" dir="rtl">');
+        expect(html).toContain("@page { size: A4 portrait; margin: 12mm; }");
+        expect(html).not.toContain("تكلفة الوحدة");
+        expect(html).not.toContain("إجمالي البند");
+        expect(html).not.toContain(internalNote);
+        for (const internalValue of [organizationId, supplierId, warehouseId, productId, managerProfileId]) {
+          expect(html).not.toContain(internalValue);
+        }
+        for (const internalKey of ["organization_id", "supplier_id", "warehouse_id", "product_id", "created_by", "actor_id", "idempotency_key"]) {
+          expect(html).not.toContain(internalKey);
+        }
+        if (attempt === 1) firstPrintHtml = html;
+        await printPage.close();
+        await expect(receiptRecord).toHaveCount(1);
+      }
+
+      await history.getByRole("button", { name: "تحديث السجل", exact: true }).click();
+      await expect(history.getByText(receiptNumber)).toBeVisible();
+      await expect(history.locator("article").filter({ hasText: receiptNumber })).toHaveCount(1);
+      await expect(manager.getByText(/تم استلام الكميات المطلوبة كاملة/)).toBeVisible();
+
+      await test.info().attach("purchase-receipt-print-browser-proof.json", {
+        body: JSON.stringify({
+          result: "BROWSER_PROVEN",
+          sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+          purchaseOrderNumber,
+          receiptNumber,
+          supplierCode,
+          warehouseName,
+          itemCode,
+          itemName: productName,
+          receivedQuantity: 2.125,
+          printPage: "Arabic RTL, A4 portrait",
+          incompleteSourceCostsWithheld: true,
+          internalIdsAndActorMetadataPresent: false,
+          savedReceiptCountAfterTwoReprints: 1,
+          reprintsCreateNoReceiptOrInventoryMovement: true,
+          productionWrites: false
+        }, null, 2),
+        contentType: "application/json"
+      });
+      expect(firstPrintHtml).not.toContain(internalNote);
+      expect(browserErrors, "The real receipt and saved-print path must not throw uncaught browser errors.").toEqual([]);
     });
   } finally {
     await managerContext.close();
