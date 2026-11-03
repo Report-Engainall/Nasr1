@@ -189,7 +189,7 @@ test("purchase manager creates a tenant-scoped draft and downloads the filtered 
     await test.step("ordinary customer cannot open purchasing or see its XLSX control", async () => {
       await signIn(customer, customerEmail, customerPassword);
       await customer.goto("/admin/purchase-orders");
-      await expect(customer.getByRole("heading", { name: "صلاحية إدارة المشتريات مطلوبة" })).toBeVisible();
+      await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة" })).toBeVisible();
       await expect(customer.getByRole("button", { name: "تصدير نتائج Excel", exact: true })).toHaveCount(0);
     });
   } finally {
