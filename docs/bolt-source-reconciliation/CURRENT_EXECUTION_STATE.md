@@ -1,3 +1,42 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-03 — PRODUCTION DATABASE SCHEMA DRIFT / BACKUP GATE
+
+This checkpoint supersedes the previous live execution pointer for the production-database workstream. Earlier acceptance checkpoints remain valid only for their recorded code SHAs and isolated test environments; they are not production database acceptance.
+
+- REPOSITORY: `Report-Engainall/Nasr1`; source of truth: `main`.
+- CODE_SHA_AT_CAPTURE: `8badc2765650c8f85fb094d8d81fc44ca8178453`.
+- DOCUMENTATION_UPDATE_ONLY: YES. The change that records this checkpoint does not alter application code, migrations, database objects, production data, Storage, Vercel or credentials.
+- SUPABASE_PROJECT: `mrcyqezbhpncuvaehwgf` (`aghbari-commerce`).
+- PROJECT_STATUS: `ACTIVE_HEALTHY`; PostgreSQL `17.6.1.166`; region `ap-southeast-1`.
+- PRODUCTION_MIGRATIONS: 133 recorded; latest version `20260925040254` (`harden_client_ui_settings_admin_boundary`).
+- REPOSITORY_MIGRATIONS: 182 SQL files under `supabase/migrations` on the captured `main` head; newest file reported in the production audit: `20261102193000_purchase_receipt_print_history.sql`.
+- PRODUCTION_TENANT_IDENTITY_QUERY: two active organizations returned: `E2E Tenant A` (`a0000000-0000-4000-8000-000000000001`) and `E2E Tenant B` (`b0000000-0000-4000-8000-000000000002`). Two active warehouses returned: `E2E Warehouse A` (`a0000000-0000-4000-8000-000000000111`) and `E2E Warehouse B` (`b0000000-0000-4000-8000-000000000222`). No verified commercial Aghbari organization identity was established by this query.
+- SOURCE_MIGRATION_CONFLICT: `20261015110000_public_storefront_tenant_scope.sql` seeds organization `a0000000-0000-0000-0000-000000000001` and prefers warehouse `d0000000-0000-0000-0000-000000000001`; these do not match the active E2E IDs returned by the production query. It also references tenant/auth/admin/catalog structures that must be reconciled against the restored production schema. Do not apply this file unchanged to production.
+- STOREFRONT: production report records missing publication config and catalog/context/search/pricing RPC dependencies; the public catalog remains NO-GO until the complete contract is restored and tested.
+- BACKUP_GATE: no production dump or isolated restore was performed in this execution. The only registered Desktop Commander device, `PC01`, was OFFLINE at the time of verification (last seen 148 hours earlier). Therefore no claim is made that production backup, restore, or migration reconciliation has passed.
+- PRODUCTION_MUTATIONS: NONE. No SQL DDL/DML, migration application, data edits, Storage policy/bucket changes, Edge Function deployment, Vercel configuration change or tenant binding was performed in this checkpoint.
+- RELEASE_DECISION: **NO-GO**.
+
+## Required next actions — strict order
+
+1. Restore a controlled, authorized execution device or isolated environment with PostgreSQL 17, Supabase CLI, `pg_dump` and `psql`; enter connection credentials only in that environment, never in chat or GitHub files.
+2. Produce and securely retain role, schema and data dumps; separately inventory Auth, Storage metadata/policies/objects, extensions, triggers, Edge Function deployments/configuration and secret names (never secret values).
+3. Restore the full backup into an isolated PostgreSQL 17/Supabase environment and reconcile object counts and critical constraints against production before any schema work.
+4. Identify the real Aghbari commercial organization and intended warehouse from an authoritative business/admin source. E2E tenants are not acceptable as an automatic default.
+5. Classify the migration lineage and schema preconditions against the restored database. Treat the original baseline and the current 182-file chain as non-replayable until proven otherwise; do not blindly run `supabase db push` against production.
+6. Prepare forward-only compatibility migrations for tenant identity, profiles/roles, products/media, inventory, customer tier pricing and catalog RPC dependencies. Test anon/authenticated grants, tenant isolation, role boundaries and zero leakage of cost/margin/other-tier pricing on the isolated restore.
+7. Only after backup restoration, migration rehearsal, rollback rehearsal and acceptance pass, prepare a production change window and an explicit, ordered apply plan.
+8. Continue external Supabase organization-transfer checks only after backup/restore and source/target ownership, membership, quota and integration prerequisites are established.
+
+## Evidence boundary
+
+The project metadata, migration count/tail and organization/warehouse identities above were read from the connected Supabase project during this checkpoint. The migration-file count and source SQL were read from GitHub `main`. The detailed table-column and missing-RPC findings remain tied to the separately supplied read-only production audit; this checkpoint does not upgrade them into a migration or release PASS.
+
+- NEXT_ACTION_ID: `PROD-DB-BACKUP-RESTORE-RECONCILIATION-001`.
+- NEXT_ACTION: obtain a connected controlled PostgreSQL 17 execution environment and create/restore the production backup; do not choose a tenant or apply migrations before those preconditions are met.
+- UPDATED_AT: 2026-11-03.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-03 — WAREHOUSE STOCK-COUNT XLSX BROWSER ACCEPTANCE
 
 This checkpoint supersedes the earlier November 3 customer-return XLSX checkpoint for the live execution pointer. Earlier checkpoints remain historical evidence only.
