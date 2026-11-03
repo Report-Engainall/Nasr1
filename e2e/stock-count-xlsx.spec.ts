@@ -143,12 +143,16 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
 
     await test.step("manager cancels the test snapshot without applying inventory movements", async () => {
       await manager.getByLabel("سبب إلغاء الجلسة").fill("إلغاء جلسة اختبار تصدير الجرد؛ لم يتم اعتماد أي فرق.");
-      const dialogPromise = manager.waitForEvent("dialog");
+      const dialogPromise = manager.waitForEvent("dialog").then(async (dialog) => {
+        expect(dialog.type()).toBe("confirm");
+        expect(dialog.message()).toContain("إلغاء الجلسة دون تطبيق أي فرق");
+        const message = dialog.message();
+        // Accept while the click is waiting for the native confirmation dialog to close.
+        await dialog.accept();
+        return message;
+      });
       await manager.getByRole("button", { name: "إلغاء الجلسة دون تعديل الرصيد", exact: true }).click();
-      const dialog = await dialogPromise;
-      expect(dialog.type()).toBe("confirm");
-      expect(dialog.message()).toContain("إلغاء الجلسة دون تطبيق أي فرق");
-      await dialog.accept();
+      await dialogPromise;
       await expect(manager.getByRole("status")).toContainText("أُلغيت الجلسة وسُجل السبب في التدقيق.", { timeout: 20_000 });
       await expect(manager.getByRole("heading", { name: "لا توجد جلسة جرد مفتوحة" })).toBeVisible();
     });
