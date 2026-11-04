@@ -52,3 +52,13 @@ Preserve all existing customer/admin screens, route tree, components, styling, b
 
 ## Audit boundary
 This audit verified commit ancestry and exact blob equality for the four return-review files above, and inspected relevant archive-only files and Lovable references. It did not claim a byte-for-byte comparison of every archive entry, nor run a new build, browser preview, database migration or deployment.
+
+## User-supplied auth session race patch — already integrated
+- Exact uploaded file name: `auth-session-refresh-race.patch`.
+- ChatGPT inspection path: `/mnt/data/auth-session-refresh-race.patch`.
+- SHA-256: `28ba873d4f31ca547851003434d623154ff4564f3c234eb0a22f70c0097926fd`.
+- This patch is already represented in canonical main and must not be reapplied:
+  - `src/lib/auth.tsx` contains generation-based protection for asynchronous profile refreshes, invalidates old reads at auth boundaries, and refreshes on `INITIAL_SESSION`.
+  - `src/test/auth-session-cache-boundary.test.tsx` covers stale profile reads after account switch, logout, and `INITIAL_SESSION`.
+- Exact current blob SHAs observed: `src/lib/auth.tsx` = `d74f550290b14dab2ff143e91c30d93244aa51f9`; `src/test/auth-session-cache-boundary.test.tsx` = `00f441686218294de70550f4348cbd6c18743a3e`.
+- Status: `ALREADY_INTEGRATED_IN_MAIN`. Keep these semantics and regression tests when adapting authentication to Bolt; do not delete or replace the protection.
