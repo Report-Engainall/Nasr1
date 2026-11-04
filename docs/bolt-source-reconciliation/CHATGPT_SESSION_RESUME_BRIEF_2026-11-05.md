@@ -1,96 +1,91 @@
-# ChatGPT Session Resume Brief — Aghbari Commerce — 2026-11-05
+# CHATGPT SESSION RESUME — AGHBARI COMMERCE — 2026-11-05
 
-Paste this message into a new ChatGPT session to resume without repeating the history.
+انسخ الرسالة كاملة عند بدء أي جلسة ChatGPT جديدة. هذه هي ذاكرة الاستئناف التنفيذية؛ لا تطلب من المستخدم إعادة شرح التاريخ.
 
-## Role and operating rules
+## 1) دورك وطريقة العمل
+أنت المسؤول التنفيذي عن مواصلة مشروع متجر الأغبري، لا محلل يكرر الخطط. ابدأ من المستودع والوثائق الحالية، واتخذ الخطوة العملية التالية مباشرة. المستخدم يرفض الدوران والتلخيص المتكرر والفحوصات التي لا تضيف إنجازًا جديدًا. في كل انطلاقة أنجز تغييرات حقيقية متعددة ومترابطة كلما أمكن، ولا تستهلك الجلسة في إعادة اكتشاف ما هو موثق.
 
-Act as the implementation lead for **متجر الأغبري | Aghbari Commerce**. Continue execution, not generic analysis. Do not ask the user to restate known facts. Before any work, fetch the live `main` SHA and inspect the single current execution checkpoint. Use only the canonical repository and `main`; do not create feature branches or alternate repositories. Do not claim PASS without exact-SHA evidence. Record every verified batch in the existing checkpoint, canonical acceptance matrix and execution log.
+## 2) المشروع ومصدر الحقيقة
+- المنتج: متجر الأغبري | Aghbari Commerce.
+- المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
+- الفرع الوحيد: `main`.
+- قبل التعديل، احصل على HEAD الحالي مباشرة من GitHub؛ لا تعتمد SHA قديمًا في هذه الرسالة إذا تقدم المستودع.
+- نقطة كود التطبيق التي فُحصت عند بدء مصالحة الأرشيف: `a15b4751920c0678fbe8edb7c9a6b545206cf8b2`. التزامات التوثيق اللاحقة لا تعني اختبار التطبيق على SHA أحدث.
+- اقرأ أعلى `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` أولًا؛ تعليمات `EXECUTION OVERRIDE — 2026-11-05` هي أولوية الاستئناف الحالية، وتسبق مؤشرات NEXT_ACTION القديمة حتى إغلاق BOLT-RUNTIME-001.
 
-## Canonical project
+## 3) قرار المالك النهائي — لا Lovable ولا حذف للمنجز
+المستخدم لا يريد أي اعتماد تشغيلي أو برمجي على Lovable أو Lovable Cloud أو حسابه أو إعداداته أو Telemetry أو preview/session bridge الخاص به.
+الهدف هو تشغيل نفس التطبيق الموجود في بيئة Bolt، مستفيدًا من قاعدة البيانات والمصادقة والتخزين ووظائف الخادم التي يتيحها Bolt في مساحة العمل. Bolt هو من يربط التطبيق بقاعدة البيانات المتاحة لديه وينفذ التشغيل وPreview والاختبارات داخل بيئته.
 
-- Repository: `https://github.com/Report-Engainall/Nasr1`
-- Branch: `main` only.
-- Last verified main SHA before the two documentation-only handoff records: `a15b4751920c0678fbe8edb7c9a6b545206cf8b2`.
-- Bolt archive supplied by the user: `project-bolt-github-8ccbjvhg (2).zip`, captured 2026-11-04; 1,119 files; no `.git` metadata.
-- Archive checkpoint tested code SHA: `3f33dba1d1879fc1426a2428e331b496c6241dae`.
-- GitHub comparison from archive checkpoint to then-current main returned `ahead_by=46`, `behind_by=0`; archive checkpoint is an ancestor of main.
+هذا ليس مشروعًا جديدًا ولا إعادة بناء ولا إعادة تصميم. احتفظ وطوّر كل ما سبق بناؤه:
+- جميع واجهات العميل ولوحة الإدارة وجميع الشاشات والمسارات والمكونات والأنماط والهوية وRTL والترجمات.
+- جميع الوظائف وسير العمل وقواعد الأعمال والطلبات والمنتجات والتسعير والمخزون والمشتريات والمحاسبة والتحصيل والمرتجعات.
+- جميع محركات Onyx والاستيراد/التصدير والتقارير وCustomer 360 والذكاء الاصطناعي والمهام والقرارات والسيولة والتنبؤات والذكاء والتحليلات وPWA.
+- جميع ملفات SQL/migrations وRPC وEdge Functions والاختبارات والمستندات والأصول.
+- لا تحذف ميزة أو اختبارًا أو محركًا أو شاشة لمجرد تسهيل النقل. لا تختزل النطاق ولا تنشئ بدائل شكلية. غيّر محولات البيئة والاتصال فقط بقدر الحاجة، مع الحفاظ على السلوك والعقود والأمان.
 
-## Completed archive reconciliation — do not repeat
+## 4) الأرشيف المرسل من المستخدم — مساره واسمه الدقيق
+- الاسم كما رفعه المستخدم: `project-bolt-github-8ccbjvhg (2).zip`.
+- مساره المحلي في حاوية ChatGPT السابقة: `/mnt/data/project-bolt-github-8ccbjvhg (2).zip`.
+- SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`.
+- الحجم نحو 6.5 MiB، ويحتوي 1,119 ملفًا، والجذر الداخلي `project/`، ولا يحتوي بيانات Git metadata.
+- تنبيه: مسار `/mnt/data/...` خاص بحاوية ChatGPT السابقة وليس مسارًا يستطيع Bolt الوصول إليه. إذا احتاج Bolt إلى فحص الأرشيف في حسابه الجديد، يجب أن يرفعه المستخدم كمرفق إلى Bolt؛ لكن نتيجة المصالحة والأدلة المهمة محفوظة في GitHub ولا ينبغي إعادة الفحص دون سبب.
+- SHA نقطة الأرشيف: `3f33dba1d1879fc1426a2428e331b496c6241dae`. مقارنة GitHub وقت الفحص مع `a15b4751920c0678fbe8edb7c9a6b545206cf8b2` أعطت 46 commits ahead و0 behind لصالح main؛ الأرشيف سلف تاريخي لـ main وليس إصدارًا أحدث.
+- ميزة Excel لقائمة مراجعة المرتجعات وملفاتها الأربعة متطابقة في main، فلا تعِد دمجها. main يحتوي أعمالًا أحدث من الأرشيف، منها اختبارات E2E لشراء/جرد وWorkflow النسخ الاحتياطي والاستعادة.
+- الأرشيف يحتوي `.env` بقيم حساسة؛ يمنع نسخها أو إظهارها أو رفعها إلى Git. لا تستبدل `bun.lock` بـ `package-lock.json` القديم، ولا ترفع `tsconfig.tsbuildinfo`، ولا تنسخ `supabase/config.toml` القديم فوق الحالي.
+- تقرير المصالحة: `docs/bolt-source-reconciliation/BOLT_ARCHIVE_RECONCILIATION_2026-11-05.md`.
 
-Read this repository record first:
-`docs/bolt-source-reconciliation/BOLT_ARCHIVE_RECONCILIATION_2026-11-05.md`
+## 5) Patch المصادقة المرفوع منفصلًا
+- الملف: `auth-session-refresh-race.patch`.
+- SHA-256: `28ba873d4f31ca547851003434d623154ff4564f3c234eb0a22f70c0097926fd`.
+- التغيير موجود بالفعل في `src/lib/auth.tsx` والاختبارات موجودة في `src/test/auth-session-cache-boundary.test.tsx`؛ يمنع إعادة تطبيقه.
+- عند نقل المصادقة إلى Bolt، حافظ على ضمانات generation guard ومنع profile قديم من استبدال هوية أحدث بعد تبديل الحساب أو logout، والتعامل مع `INITIAL_SESSION`.
 
-The important Bolt-created customer return-review Excel feature is already present in current `main` byte-for-byte. Exact matching file blobs:
+## 6) الوثائق التي جرى إكمالها داخل المستودع
+- المواصفة الأصلية `docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md`: تمت إضافة §24 لنقل التشغيل إلى Bolt دون إعادة بناء المنتج.
+- الملحق القائم `docs/bolt-source-reconciliation/UPDATED_SPEC_ADDENDUM.md`: تمت إضافة §7 لمصالحة أرشيف Bolt ومسار الملف وSHA وPatch القرار المعماري.
+- المواصفة الاستراتيجية لمحركات التاجر `docs/canonical/AGHBARI_COMMERCE_UNIFIED_MERCHANT_INTELLIGENCE_AND_EXECUTION_MASTER_AR_2026-10-17.txt`: تمت إضافة §64، مع الاحتفاظ بالأقسام 1–63 كاملة.
+- مصفوفة القبول الوحيدة `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`: أضيف الصف `BOLT-RUNTIME-001`؛ لا تنشئ مصفوفة ثانية.
+- أعلى `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`: يحتوي Override صريحًا لحفظ المنتج ونقل التشغيل إلى Bolt.
+- `docs/bolt-source-reconciliation/EXECUTION_LOG.md`: يسجل نتائج المصالحة وتوضيح المالك.
+- هذه الوثيقة: مرجع الاستئناف لك في ChatGPT.
 
-- `src/lib/customer-return-review-xlsx.ts` — `aff96f9c1b4c503d42af0c7d0922a18f7e412e7d`
-- `src/lib/customer-return-review-xlsx.test.ts` — `1d21f7d4466fb0d3106d8bc9fd5908ccc6c5fb52`
-- `src/components/CustomerReturnReviewQueue.tsx` — `d6e0a82d9de87aa36fc0afd41ae6f87a9ba42815`
-- `src/test/customer-return-review-queue.test.tsx` — `3c8e57a31781900f68ba9b4e7ffd7e4f1ecb2218`
+## 7) محركات الذكاء والميزات المتقدمة — لا تنسَ شيئًا منها
+كل ما في المواصفة الأصلية وأقسامها 1–24، والملحق 23 للذكاء المجاني وFree-Quota Router والخصوصية وCash/Liquidity Command Center وAction Cards وEvidence Passport وWhat-if Lab وAI Ops/Fallback وSystem Health/Error Center وRBAC Matrix، وكل ما في وثيقة التاجر الذكي §§1–64 يظل جزءًا من النطاق.
+تشمل المحركات المحاسبة المزدوجة، الخزينة والسيولة، الذمم والائتمان، المشتريات والموردين، WMS والمخزون، تكلفة المنتج والربحية، التجارة B2B، CRM والاحتفاظ، Workflow والموافقات، BI، AI Gateway والذكاء المجاني، Decision/Action/Outcome، Task Intelligence، Growth Radar، Business Health/Working Capital/Dead Stock، Decision Memory/Learning Loop، Shift/Day Close، Bottleneck/Cycle Time، Policy/What-if، Data Reliability/Evidence Passport، Natural Language Assistant، System Health/Error Center، RBAC Capability Matrix، Integration/Reconciliation، PWA/Offline، Backup/Recovery.
+لا تضف محركًا موازيًا؛ طوّر المحرك الموجود. لا تعد الميزة مكتملة لمجرد وجود عنوان أو شاشة.
 
-Do not re-add or recreate these files. Current `main` also includes later acceptance work absent from the old archive, including the production backup/restore workflow and purchase-order/stock-count XLSX E2E tests. Never overwrite newer `main` files with the old archive versions.
+## 8) BOLT-RUNTIME-001 — العمل الحالي المحدد
+المطلوب ليس فحصًا مطولًا أو تجربة مهاجرات من ChatGPT؛ المطلوب تحضير المنتج والوثائق كي ينفذ Bolt الربط في بيئته.
+على Bolt عند استيراد أحدث NASR1:
+1. يحافظ على كل محتويات main ولا يستورد ZIP القديم فوقها.
+2. يستبدل `@lovable.dev/vite-tanstack-config` في `vite.config.ts` بإعداد مدعوم في Bolt، مع المحافظة على TanStack routes/loaders/server behavior.
+3. يستبدل Lovable error telemetry بآلية أخطاء محايدة/متاحة في Bolt ويحافظ على التشخيص الآمن.
+4. يستبدل Lovable preview/session storage bridge في ملفات Supabase integration بآلية Bolt auth/session الرسمية.
+5. يزيل رسائل `Connect Supabase in Lovable Cloud` ومتغيرات البيئة المرتبطة بإعداد Lovable، ويجعل الاتصال يستخدم موارد Bolt المتاحة فعليًا. لا يستخدم مفاتيح وهمية.
+6. يربط قاعدة Bolt والمصادقة والتخزين ووظائف الخادم المتاحة بواجهات التطبيق الحالية.
+7. يحافظ على عقود قاعدة البيانات وRPC والمعاملات وRLS-equivalent tenant isolation وRBAC وخصوصية الأسعار وaudit وidempotency وسلامة المحاسبة والمخزون.
+8. لا يحول العمليات الحساسة إلى browser CRUD ولا يحذف migrations أو business logic.
+9. يقوم Bolt نفسه بتشغيل Preview وربط DB وتنفيذ اختبارات البيئة والواجهات على SHA واحد. لا تطلب من ChatGPT تكرار نفس الفحوص خارج Bolt.
+10. لا يدّعي نقل بيانات العملاء/الطلبات/الأرصدة/المستخدمين القديمة إلا إذا توفرت نسخة بيانات وتمت استعادتها ومطابقتها.
+11. لا يفعّل تكلفة أو خطة مدفوعة أو auto-billing دون موافقة صريحة.
+12. بعد ثبوت تشغيل التطبيق ببيئة Bolt، يواصل أول متطلب مفتوح فعلًا في checkpoint والمصفوفة، ولا يعود لبداية DLV/REF.
 
-The archive-only `.env` contains environment values and must never be committed or printed. `index.html`, `package-lock.json`, `tsconfig.tsbuildinfo` and the older `supabase/config.toml` are not safe to copy blindly. Canonical repository uses `bun.lock`.
+## 9) دور ChatGPT في كل جلسة لاحقة
+- تحقق من live main SHA واقرأ هذا المرجع وCURRENT_EXECUTION_STATE؛ لا تطلب من المستخدم شرح التاريخ مرة أخرى.
+- نفّذ كل ما تستطيع من توثيق أو مصالحة مصدرية أو تعديل ملفات المصدر عبر الأدوات المتاحة، مع تغييرات فعلية مفيدة في كل انطلاقة.
+- لا تقضِ الجلسة في اختبارات بناء/Preview/قاعدة بيانات لا تملك بيئة Bolt لها؛ Bolt مسؤول عن ذلك. سجّل أن الاختبار ينتظر Bolt ولا تدّع PASS.
+- لا تكرر مراجعة الأرشيف أو Patch المصادقة أو ملفات Excel المتطابقة.
+- لا تنفذ نقل قاعدة البيانات من خارج مساحة Bolt ولا تخترع مورد اتصال. جهّز المطابقة والعقود والتوجيه، واترك الربط الفعلي وبيانات البيئة لـ Bolt.
+- لا تحذف عملًا سابقًا. إذا ظهر تعارض، حافظ على النسختين حتى توثيق القرار، ولا تعمل overwrite.
+- أي تعديل يجب تسجيله في checkpoint والمصفوفة الوحيدة وسجل التنفيذ ببصمات SHA وأسماء الملفات.
 
-## User's non-negotiable architecture decision
+## 10) رسالة الإغلاق عند أي انقطاع
+اكتب داخل checkpoint: live main SHA، آخر code SHA، الملفات المتغيرة، ما اكتمل بدليل، ما ينتظر Bolt، العوائق الحقيقية، وNEXT_ACTION_ID واحد محدد. لا تكتب PASS أو Complete بلا دليل.
 
-The user does not want **anything operationally dependent on Lovable**. Do not ask for Lovable account access, Lovable Cloud setup, Lovable credentials, Lovable preview storage, or Lovable integrations.
-
-Target: use **Bolt Cloud's built-in database and its native authentication, storage and server functions** within the existing imported project. Bolt's official docs say every project can have a built-in database with authentication, file storage, server functions, logs and security audit. Verify actual capabilities in the project's Bolt workspace before writing adapters.
-
-This is a backend migration only, not a new app build. Preserve completely:
-
-- Customer storefront and every existing screen.
-- Admin dashboard and every existing screen.
-- Route tree, components, UI, CSS, design and RTL behavior.
-- Business rules, tests, all original SQL migrations and acceptance evidence.
-- Product pricing privacy, tenant isolation, role/permission boundaries, inventory and accounting invariants, idempotency and audit history.
-
-Replace only Lovable-specific runtime/build/backend integration and the database/service adapter as required. Do not rewrite the UI or recreate the product. Do not drop SQL/RPC/Edge behavior just because Bolt uses a different integration surface.
-
-## Lovable dependencies identified in canonical source — remove safely, not blindly
-
-- `vite.config.ts` imports `@lovable.dev/vite-tanstack-config`.
-- `package.json` includes `@lovable.dev/vite-tanstack-config`.
-- `src/lib/lovable-error-reporting.ts` forwards errors to Lovable editor telemetry; `src/routes/__root.tsx` imports it.
-- `src/integrations/supabase/client.ts`, `client.server.ts`, `auth-middleware.ts`, `previewAuthStorage.ts` have Lovable-specific bootstrapping/preview auth behavior.
-- `src/lib/auth.tsx` and `src/test/auth-bootstrap.test.tsx` show the obsolete “Connect Supabase in Lovable Cloud” message.
-
-Replace the Vite/TanStack setup with a supported non-Lovable configuration; replace error telemetry with a neutral/Bolt-compatible implementation; remove Lovable preview session brokering; redesign auth initialization for Bolt's native auth. Update messages and affected tests. Keep `@supabase/supabase-js` only if Bolt's actual generated database integration requires it; do not assume SDK compatibility without proof.
-
-## Safe backend migration order
-
-1. Import/continue the latest canonical `main` in the new Bolt account; verify SHA and package manager.
-2. Inspect Bolt built-in database capabilities for SQL/Postgres features, authentication, session lifecycle, storage, server functions, transactional operations, RLS/policies, logs and secrets.
-3. Build a complete inventory mapping each existing table, migration, RPC, trigger, RLS policy, Edge Function, auth flow and storage bucket to its Bolt-native target.
-4. Create a reversible target schema from the existing migrations in the new Bolt database; do not delete original migrations.
-5. Preserve backend transaction boundaries, tenant scoping, role checks, pricing privacy, idempotency, accounting and inventory invariants.
-6. Port one vertical slice at a time (auth/session, catalog/customer read, admin catalog write, cart/checkout, inventory, finance, imports/exports, async functions/storage). Keep UI untouched except for the adapter integration.
-7. Test every migrated slice against real Bolt Database reads/writes and unauthorized requests before moving on.
-8. Migrate old records only if a verified export/backup exists. A schema migration does not migrate customers, orders, balances, auth users or storage objects. Never claim data migration without restore verification.
-9. Remove old provider code only after the Bolt-native replacement passes; verify there are no remaining Lovable runtime/build references.
-10. Re-run only tests affected by changed backend paths; bind every result to the exact code SHA.
-
-No external Supabase connection or Lovable service is permitted as a substitute. Do not use “Connect Supabase” in Bolt; the required target is its built-in database. Do not overwrite an existing database connection or create a competing project without checking the project's state and preserving data.
-
-## Current project execution pointer
-
-The last inspected `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` checkpoint (2026-11-03) recorded:
-
-- Exact tested runtime code SHA: `821135ab4c59c890435b8988347b72bf76d69272`.
-- Core: 271/271 test files and 1,784/1,784 unit tests passed on that SHA.
-- P2 local Supabase/PostgreSQL 17 + Chromium passed the listed authenticated local acceptance scopes on that SHA.
-- Hosted customer/order/tenant P2 was SKIPPED, not PASS.
-- Release status: NO-GO; production database backup/restore and live/hosted gates remain unverified.
-- Historical next action ID: `DLV-011-CUSTOMER-MULTI-INVOICE-RECEIPT-PRINT-001`.
-
-This next-action pointer may have been superseded. Always fetch the latest `CURRENT_EXECUTION_STATE.md` from the live `main` first and use its current next action. Do not transfer old test passes to a newer SHA.
-
-## Required behavior on every resume
-
-- Start by reporting the live `main` SHA and the active `NEXT_ACTION_ID` from the checkpoint.
-- Read the archive reconciliation note; do not repeat archive comparison.
-- Work on one coherent implementation batch, make the actual code change, test affected paths, and verify the result.
-- Update `CURRENT_EXECUTION_STATE.md`, `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` and `EXECUTION_LOG.md` only with evidence-backed status.
-- Do not spend tokens on repeated summaries, plans, redundant builds, or old successful tests.
-- Do not claim completion while a required gate is SKIPPED, UNKNOWN, PARTIAL or untested.
-- If session time runs out, leave a precise next-action pointer with current SHA, changed files, tests run/results and blockers.
+## الحالة عند إعداد هذا المرجع
+- تمت إضافة المواصفات والملحقات والصف المركزي BOLT-RUNTIME-001 إلى NASR1.
+- تمت مصالحة الأرشيف وإثبات أن أهم إضافة Bolt المحددة موجودة بالفعل في main.
+- تم التحقق من أن auth-session-refresh-race.patch موجود بالفعل في main.
+- لم يتم تغيير source code للتطبيق في دفعة التوثيق هذه، ولم ينفذ ChatGPT اختبار Bolt أو Preview أو DB. التنفيذ البيئي الفعلي على Bolt ما زال مطلوبًا.
+- NEXT_ACTION_ID: `BOLT-RUNTIME-001`.
