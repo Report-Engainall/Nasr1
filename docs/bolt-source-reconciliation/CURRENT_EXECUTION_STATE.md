@@ -1,3 +1,86 @@
+# EXECUTION OVERRIDE — 2026-11-05 — KEEP ALL WORK; MOVE ONLY THE RUNTIME TO BOLT
+
+This is the highest-priority continuation instruction. It supersedes older NEXT_ACTION pointers only for the Bolt-runtime portability workstream. It does NOT supersede, delete, downgrade or close any earlier product requirements, acceptance records or completed features.
+
+## Owner decision — non-negotiable
+- Product: Aghbari Commerce / متجر الأغبري. Canonical repository: `Report-Engainall/Nasr1`; `main` only.
+- Preserve every existing completed or partial part of the product: customer storefront, admin console, every route/screen/component/style, RTL and translations, workflows, business rules, tests, SQL migrations, RPC contracts, Edge functions, Onyx, accounting, AI engines, task/decision intelligence, PWA, reports, integrations and documentation.
+- Delete NOTHING merely to simplify migration. Do not rebuild, redesign, downscope, replace working engines or create duplicate screens/engines. Continue developing the existing product.
+- The ONLY strategic environment change is to remove all operational/build dependence on Lovable and run the existing product inside the user's Bolt environment, using the database/auth/storage/server-function resources Bolt makes available there.
+- The user does not want any Lovable account, Lovable Cloud, Lovable preview broker, Lovable telemetry, Lovable build wrapper, or other operational service. Do not ask for access or credentials to Lovable.
+- The user expects Bolt itself to bind the existing application to the database resources available inside Bolt, then run Preview and perform its own environment tests. Do not waste the user's remaining Bolt credits on repeated planning or ChatGPT-side speculative tests. The code and contracts must be prepared so Bolt can perform that work directly.
+- No paid service, paid plan, automatic billing or auto-recharge may be enabled without explicit owner approval. Do not invent Bolt feature support; use the actual database/auth/storage/server functions available in the target Bolt workspace.
+
+## Verified source archive and prior work
+- Exact archive filename: `project-bolt-github-8ccbjvhg (2).zip`.
+- Exact prior ChatGPT container path: `/mnt/data/project-bolt-github-8ccbjvhg (2).zip`.
+- Archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`.
+- Size: approximately 6.5 MiB; 1,119 files; root directory inside archive: `project/`; archive contains no `.git` metadata.
+- Archive checkpoint SHA: `3f33dba1d1879fc1426a2428e331b496c6241dae`.
+- Comparison against the code mainline at audit time `a15b4751920c0678fbe8edb7c9a6b545206cf8b2` gave 46 commits ahead / 0 behind. Therefore the archive checkpoint is an ancestor of that mainline, not a newer code branch.
+- The full archive path above is local to the prior ChatGPT container and is not directly readable by Bolt. If the target Bolt workspace must inspect the archive, attach `project-bolt-github-8ccbjvhg (2).zip` to Bolt directly. Do not tell Bolt it can fetch the previous ChatGPT local path.
+- Reconciliation record: `docs/bolt-source-reconciliation/BOLT_ARCHIVE_RECONCILIATION_2026-11-05.md`.
+- The customer return-review XLSX feature and its 4 source/test files from the Bolt archive match canonical main exactly by Git blob SHA. Do not add them again.
+- Later current-main work absent from the archive (including purchase-order and stock-count XLSX E2E and production backup/restore workflow) must be preserved. Never overwrite current main with the older ZIP.
+- The archive `.env` contains values/secrets and MUST NOT be committed, pasted or exposed. Do not replace `bun.lock` with the archive npm lockfile, do not import generated `tsconfig.tsbuildinfo`, and do not blindly overwrite current `supabase/config.toml`.
+
+## Supplied patch
+- `auth-session-refresh-race.patch`, SHA-256 `28ba873d4f31ca547851003434d623154ff4564f3c234eb0a22f70c0097926fd`, is already integrated in `src/lib/auth.tsx` and `src/test/auth-session-cache-boundary.test.tsx`.
+- Preserve its generation-guard/session-boundary behavior when adapting auth. Do not reapply the patch or delete its regression tests.
+
+## Documentation already extended — preserve all sections
+- Original master spec: `docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md`, now includes §24 for Bolt-native runtime portability without product rebuild.
+- Existing addendum: `docs/bolt-source-reconciliation/UPDATED_SPEC_ADDENDUM.md`, now includes exact archive and patch provenance plus the no-Lovable runtime migration decision.
+- Supplemental smart merchant-engine specification: `docs/canonical/AGHBARI_COMMERCE_UNIFIED_MERCHANT_INTELLIGENCE_AND_EXECUTION_MASTER_AR_2026-10-17.txt`, now includes §64. Its prior §§1–63 are retained, not replaced.
+- Sole canonical acceptance matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, includes `BOLT-RUNTIME-001`.
+- Session resume instructions: `docs/bolt-source-reconciliation/CHATGPT_SESSION_RESUME_BRIEF_2026-11-05.md`.
+- This file is the current execution checkpoint; execution history is in `EXECUTION_LOG.md`.
+
+## Lovable references to replace (do not blindly delete)
+- `vite.config.ts`: `@lovable.dev/vite-tanstack-config` wrapper; replace with Bolt-supported Vite/TanStack build/SSR/preview configuration while preserving the same routing and server behavior.
+- `package.json`: Lovable-specific config package. Remove only after a replacement exists and Bolt can build/run it.
+- `src/lib/lovable-error-reporting.ts` and its root import: replace telemetry callback with neutral/Bolt-compatible diagnostics; retain safe runtime error reporting without secrets or PII.
+- `src/integrations/supabase/client.ts`, `client.server.ts`, `auth-middleware.ts`, `previewAuthStorage.ts`: inspect and replace Lovable-specific preview/session bridging with Bolt's actual session/auth mechanism.
+- `src/lib/auth.tsx` and `src/test/auth-bootstrap.test.tsx`: remove obsolete messages that instruct users to connect Lovable Cloud; preserve the sign-in/session/profile logic and security behavior while adapting to Bolt auth.
+- Search runtime/build code for `lovable`, `lovable.dev`, `Lovable Cloud`, and `__lovable`. Distinguish live runtime dependency from historical documentation. Do not delete historical provenance merely because it names Lovable; target zero operational dependency.
+
+## Backend migration — what changes and what must not change
+- Use Bolt's built-in database and native auth/storage/server functions available in the actual target workspace. The user expects Bolt to bind the project to its available DB resource and run tests there.
+- Keep all UI and business workflows. Replace the backend/runtime adapters and connection mechanism only as necessary.
+- Preserve all current SQL migration files as the historical/schema source. Map every table, relation, index, constraint, trigger, SQL function/RPC, RLS policy, storage bucket, Edge Function, auth flow and queue contract to the corresponding Bolt implementation.
+- Do not do blind global string replacement for `supabase.from`, `rpc`, `auth`, `storage`, or `functions.invoke`; each operation has distinct transactional/security semantics.
+- Do not replace server-side RPC/transactions with browser CRUD. Preserve atomicity, tenant isolation, role authorization, pricing privacy, audit, retry/idempotency and financial/inventory invariants.
+- If Bolt cannot reproduce an exact PostgreSQL feature, implement a proven equivalent with server-side authorization and no-side-effect denial; if no safe equivalent exists, record the exact blocker instead of weakening security.
+- Creating a new schema does NOT transfer old auth users, customers, orders, balances, stock, financial history or storage objects. Only claim continuity after a verified export/backup has been restored and reconciled.
+
+## Smart engines — all remain in scope
+- Preserve original spec §§1–24, approved AI section 23 and the supplemental smart-merchant specification §§1–64.
+- Retain/extend existing engines: double-entry accounting, treasury/liquidity, receivables/credit, procurement/suppliers, WMS/inventory, cost/profitability/pricing, B2B commerce, CRM/retention, workflow/approvals, BI, AI Gateway/free-quota routing/privacy/fallback, decisions/actions/outcomes, daily task intelligence, growth radar, business health/working capital/dead stock, decision memory/learning loop, shift/day close, bottleneck/cycle time, policy/what-if simulator, data reliability/evidence passport, natural-language assistant, health/error center, RBAC capability matrix, integrations/reconciliation, PWA/offline and backup/recovery.
+- Do not start by adding more smart features or duplicate engines during environment portability. First ensure the existing product and engines keep working in Bolt; then resume unclosed feature requirements from the canonical matrix.
+
+## Immediate work batch for Bolt — substantial real delivery, no loop
+1. Import latest canonical `main` into the new Bolt workspace. Fetch the live SHA; preserve all newer mainline work. The archive is an additional source reference only, not a replacement project.
+2. Inspect the actual Bolt database/auth/storage/server-function controls once. Do not repeatedly revisit setup or write multi-page plans. Map the existing backend and start implementation.
+3. Remove the Lovable build/SSR/preview/error-reporting coupling and configure the existing application to run under Bolt. Preserve the current route tree, SSR/loaders and all screens.
+4. Connect the existing app to the available Bolt database/auth/storage/server functions. Reuse the complete schema/business logic and migrations; map all backend contracts rather than creating a minimal substitute.
+5. Replace the obsolete Lovable setup message with actionable Bolt-native initialization/error states. No fake environment keys or silent fallback to demo/localStorage.
+6. Keep the existing app and engines intact. Deliver one coherent large batch, use Bolt Preview and Bolt's own environment to validate it, and continue to the next batch without waiting for the user between safe steps.
+7. Update the checkpoint/matrix/log with actual changed files and outcomes. Bolt owns runtime, integration and acceptance testing; ChatGPT should not spend time repeating those same tests outside Bolt.
+
+## ChatGPT continuation rules
+- At a new ChatGPT session, fetch live main and read this checkpoint; do not ask the user to repeat the archive name, target repo, no-Lovable decision or preservation rules.
+- Do not re-run archive reconciliation, repeat the auth patch, or repeat already integrated feature work.
+- Do not consume the user's time with long status messages, alternative paths already rejected, or circular tests. Make the next concrete doc/source operation immediately.
+- The user expressly prioritizes serious multi-item progress per launch. A response must contain actual changes or a precise blocker, not a plan alone.
+- Do not claim source code has been ported or app has run in Bolt until Bolt actually does it. Be honest about work performed by ChatGPT vs work pending in Bolt.
+- On any session handoff, record: live main SHA, code SHA, changed paths, accepted test results (Bolt exact SHA only), unresolved blockers and one concrete NEXT_ACTION_ID.
+
+## Current status of this override
+- Scope and documentation have been prepared and stored in the canonical repository.
+- No application source code was changed in the documentation-preparation batch.
+- No Bolt runtime build, Bolt Preview, Bolt DB operation or environment test was run by ChatGPT.
+- `BOLT-RUNTIME-001` is SPECIFIED / NOT VERIFIED. The implementation and Bolt-side testing are the next real work.
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-03 — DLV-011 PURCHASE RECEIPT + TRIAL BALANCE EXACT-SHA ACCEPTANCE
 
 This is the newest execution pointer. It supersedes earlier role/template checkpoints only for the next-task pointer; all historic evidence remains bounded to its recorded code SHA and environment. The production database NO-GO checkpoint below remains active.
