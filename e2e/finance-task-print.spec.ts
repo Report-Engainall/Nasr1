@@ -832,9 +832,9 @@ test("manager records one receipt across two same-currency customer invoices and
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible({ timeout: 30_000 });
 
-    const paymentSubmit = manager.getByRole("button", { name: "تسجيل الدفعة", exact: true });
-    await expect(paymentSubmit).toHaveCount(1);
-    const paymentForm = paymentSubmit.locator("xpath=ancestor::form[1]");
+    // Anchor to the stable required invoice control, not the submit button:
+    // its accessible name changes when split-receipt mode is enabled.
+    const paymentForm = manager.locator("form:has(select[required])");
     await expect(paymentForm).toHaveCount(1);
     const paymentSelects = paymentForm.locator("select");
     await expect(paymentSelects).toHaveCount(2);
