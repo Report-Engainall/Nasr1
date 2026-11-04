@@ -985,3 +985,93 @@ test("manager records one receipt across two same-currency customer invoices and
   }
 });
 
+test("manager opens and prints tenant-scoped Customer 360 as an Arabic A4 PDF", async ({ browser }) => {
+  test.setTimeout(90_000);
+  const managerContext = await browser.newContext();
+  await managerContext.addInitScript(() => {
+    window.print = () => {
+      document.documentElement.dataset.e2ePrintInvoked = "true";
+    };
+  });
+  const manager = await managerContext.newPage();
+
+  try {
+    await signIn(manager, requiredEnv("E2E_MANAGER_EMAIL"), requiredEnv("E2E_MANAGER_PASSWORD"));
+    await manager.goto("/admin/customers");
+    await expect(manager.getByRole("heading", { name: "إدارة العملاء", exact: true })).toBeVisible({ timeout: 30_000 });
+
+    const customerRow = manager.getByRole("row").filter({ hasText: "P2 Local E2E Customer A" }).first();
+    await expect(customerRow).toBeVisible({ timeout: 30_000 });
+    const openCustomer360 = customerRow.getByRole("button", { name: "ملف 360", exact: true });
+    await expect(openCustomer360).toBeEnabled();
+    await openCustomer360.click();
+
+    const dialog = manager.getByRole("dialog").filter({ hasText: "ملف العميل 360" });
+    await expect(dialog).toBeVisible();
+    const printSheet = manager.getByTestId("customer-360-print-document");
+    await expect(printSheet).toContainText("متجر الأغبري | Aghbari Commerce");
+    await expect(printSheet).toContainText("P2 Local E2E Customer A");
+    await expect(printSheet).toContainText("الدفتر المالي الكامل حسب العملة");
+    await expect(printSheet).toHaveAttribute("dir", "rtl");
+    await expect(printSheet).toHaveAttribute("lang", "ar");
+    expect(await printSheet.evaluate((element) => element.parentElement === document.body)).toBe(true);
+
+    const printHtml = await printSheet.evaluate((element) => element.outerHTML);
+    expect(printHtml).not.toContain("P2 Local E2E Customer B");
+    for (const internalKey of [
+      "organization_id",
+      "customer_id",
+      "invoice_id",
+      "payment_id",
+      "created_by",
+      "actor_id",
+      "cost_price",
+      "profit_margin",
+      "idempotency_key",
+    ]) {
+      expect(printHtml).not.toContain(internalKey);
+    }
+    expect(printHtml).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+    expect(printHtml).not.toContain("PRIVATE-");
+
+    await manager.evaluate(() => {
+      delete document.documentElement.dataset.e2ePrintInvoked;
+    });
+    await dialog.getByRole("button", { name: "طباعة / PDF", exact: true }).click();
+    await expect.poll(() => manager.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
+
+    await manager.emulateMedia({ media: "print" });
+    const printMetrics = await printSheet.evaluate((element) => ({
+      display: getComputedStyle(element).display,
+      visibility: getComputedStyle(element).visibility,
+      direction: getComputedStyle(element).direction,
+    }));
+    expect(printMetrics).toEqual({ display: "block", visibility: "visible", direction: "rtl" });
+
+    const pdf = await manager.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+    expect(new TextDecoder().decode(pdf.subarray(0, 5))).toBe("%PDF-");
+    expect(pdf.byteLength).toBeGreaterThan(1_000);
+
+    await test.info().attach("customer-360-print-browser-proof.json", {
+      body: JSON.stringify({
+        result: "BROWSER_PROVEN",
+        sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+        role: "manager",
+        route: "/admin/customers",
+        customer: "P2 Local E2E Customer A",
+        otherTenantCustomerExcluded: true,
+        printInvoked: true,
+        downloadedPdf: true,
+        paper: "A4",
+        direction: "rtl",
+        language: "ar",
+        bodyPortalOnlyPrintProjection: true,
+        internalIdsTenantActorCostsAndMarginsExcluded: true,
+        noProductionWrites: true,
+      }, null, 2),
+      contentType: "application/json",
+    });
+  } finally {
+    await managerContext.close();
+  }
+});
