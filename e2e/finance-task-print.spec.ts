@@ -836,8 +836,10 @@ test("manager records one receipt across two same-currency customer invoices and
     await expect(paymentSubmit).toHaveCount(1);
     const paymentForm = paymentSubmit.locator("xpath=ancestor::form[1]");
     await expect(paymentForm).toHaveCount(1);
-    const primaryInvoice = paymentForm.getByLabel("الفاتورة", { exact: true });
-    await expect(primaryInvoice).toHaveCount(1);
+    const paymentSelects = paymentForm.locator("select");
+    await expect(paymentSelects).toHaveCount(2);
+    const primaryInvoice = paymentSelects.first();
+    await expect(primaryInvoice).toHaveAttribute("required", "");
     const invoiceAOption = primaryInvoice.locator("option").filter({ hasText: invoiceANumber });
     const invoiceBOption = primaryInvoice.locator("option").filter({ hasText: invoiceBNumber });
     await expect(invoiceAOption).toHaveCount(1, { timeout: 30_000 });
