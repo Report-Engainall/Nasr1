@@ -135,3 +135,10 @@
 - `docs/bolt-source-reconciliation/CHATGPT_SESSION_RESUME_BRIEF_2026-11-05.md`
 - `docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md`
 - `docs/canonical/AGHBARI_COMMERCE_UNIFIED_MERCHANT_INTELLIGENCE_AND_EXECUTION_MASTER_AR_2026-10-17.txt`
+
+## 7.8 Exact archive artifact identity
+- Original archive: `project-bolt-github-8ccbjvhg (2).zip`.
+- Exact inspected local path: `/mnt/data/project-bolt-github-8ccbjvhg (2).zip`.
+- Archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`.
+- Inspected size: approximately 6.5 MiB; archive contains 1,119 files and an extracted root named `project/`.
+- The path above belongs to the prior ChatGPT container and is not a URL or path that Bolt can access. If Bolt must inspect the archive itself, attach the ZIP directly in Bolt. Do not ask Bolt to retrieve it from this ChatGPT path. The reconciliation findings and exact file-level proofs already live in this repository.
