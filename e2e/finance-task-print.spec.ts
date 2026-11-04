@@ -832,8 +832,12 @@ test("manager records one receipt across two same-currency customer invoices and
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible({ timeout: 30_000 });
 
-    const primaryInvoice = manager.getByLabel("الفاتورة", { exact: true });
-    const paymentForm = primaryInvoice.locator("xpath=ancestor::form[1]");
+    const paymentAmount = manager.getByLabel("المبلغ", { exact: true });
+    await expect(paymentAmount).toHaveCount(1);
+    const paymentForm = paymentAmount.locator("xpath=ancestor::form[1]");
+    await expect(paymentForm).toHaveCount(1);
+    const primaryInvoice = paymentForm.getByLabel("الفاتورة", { exact: true });
+    await expect(primaryInvoice).toHaveCount(1);
     const invoiceAOption = primaryInvoice.locator("option").filter({ hasText: invoiceANumber });
     const invoiceBOption = primaryInvoice.locator("option").filter({ hasText: invoiceBNumber });
     await expect(invoiceAOption).toHaveCount(1, { timeout: 30_000 });
