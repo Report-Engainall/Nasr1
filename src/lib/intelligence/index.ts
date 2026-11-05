@@ -16,3 +16,4 @@ export * from "./rbac-contract";
 export * from "./growth-opportunities";
 export * from "./business-health-map";
 export * from "./customer-retention-client";
+export * from "./decision-memory";
