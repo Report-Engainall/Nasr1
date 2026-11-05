@@ -29,11 +29,9 @@ BEGIN
     title=EXCLUDED.title,
     description=EXCLUDED.description,
     task_type=EXCLUDED.task_type,
-    priority=EXCLUDED.priority,
     task_role=EXCLUDED.task_role,
     source_entity_type=EXCLUDED.source_entity_type,
     source_entity_id=EXCLUDED.source_entity_id,
-    due_at=EXCLUDED.due_at,
     task_payload=EXCLUDED.task_payload
       || CASE WHEN public.ai_tasks.task_payload ? 'manager_cancellation'
         THEN jsonb_build_object('manager_cancellation',public.ai_tasks.task_payload->'manager_cancellation')
