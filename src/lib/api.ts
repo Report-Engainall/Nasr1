@@ -1267,7 +1267,7 @@ export async function fetchNotifications(): Promise<Notification[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
   const data = await readWithRetry(() => supabase
     .from('notifications')
-    .select('id,organization_id,profile_id,title,body,type,is_read,created_at')
+    .select('id,organization_id,profile_id,title,body,type,is_read,created_at,entity_type,entity_id')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false })
     .limit(30));
