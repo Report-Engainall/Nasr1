@@ -1,3 +1,34 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-021 — CUSTOMER SERVICE DESK SLA REPORT PRINT/XLSX
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Only P1 and P3 are active implementers. P1 owns product-facing workspaces, route/UI integration and operational document outputs. P3 owns intelligence engines and intelligence persistence/DTOs.
+- Customer case management and customer-facing portal already exist. BODY-021 does not recreate them; it adds an internal report output to the existing organization-wide service desk.
+
+## Delivered on main — BODY-021
+
+1. Added `src/lib/customer-service-desk-print.ts` as a validated report projection from the exact `CustomerServiceDeskCase[]`, full-organization summary, active filters and `hasMore` state already returned/held by the authorized work-queue flow.
+2. Added `src/lib/customer-service-desk-xlsx.ts`, a three-sheet OOXML workbook: report scope, organization-wide open-case SLA metrics, and loaded case rows. All text is emitted as literal text; no formula execution is derived from user-entered case content.
+3. Added `src/components/CustomerServiceDeskPrintSheet.tsx`, an Arabic RTL A4 landscape document using the same projection.
+4. Added manager/admin-only `تصدير Excel` and `طباعة / PDF` actions in `src/components/CustomerServiceDesk.tsx`, with a scoped print lifecycle. Existing same-tenant staff queue, manager assignment/escalation controls, cursor paging and task links remain the source of truth.
+5. The report separates full-organization open-case metrics from filtered case details already loaded in the browser. If `hasMore=true`, it explicitly warns that additional queue pages are not included. It omits case descriptions, conversation messages, internal notes, financial fields, UUIDs, task/profile IDs and tenant IDs. Overdue flags are computed at report generation time from the current SLA deadlines and the case's active status.
+
+## Existing portal correction
+
+- `src/components/CustomerServicePortal.tsx`, `src/lib/customer-service-portal.ts` and `src/routes/service-cases.tsx` already provide customer-company case visibility, conversations, customer replies and eligible case creation through server RPCs. The matrix now records this as implemented; do not rebuild it.
+
+## Source boundary / acceptance
+
+- Reuses the existing tenant-scoped keyset query `get_customer_service_work_queue` and does not add a database migration, direct table read, or parallel task queue.
+- Exact feature commits: projection `23c01b2eeffa58947a5626b49719da28ee8bb274`; XLSX `d10cacb45457ddcbbb32fc04392992169897ed12`; print sheet `2cfe3ec1221a9246c95af8bef7de69639f39d46e`; UI actions `14ebc5d2adf6b6bf50d112a0685fb6def331246f`; A4 CSS `65ece83ce2b475278b3212959e1edd7e1487951e`.
+- Exact final blobs: projection `0c3aa08e9f1c823906899765c139ffee3adeb919`; XLSX `c40ef71217f4dbf836edbf654476614924a7070b`; print sheet `260197a88d85e8c2709ea891f37d69461e0b70b9`; desk UI `b3ff569785b9a91d42e04d5a0d5f093d660aef80`; print CSS `3a508602767cb3f9e89849bde44a367e73d1a428`.
+- Acceptance state: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/CI/browser/E2E/database application/Bolt runtime/Preview/Vercel operation occurred; no PASS or production acceptance is claimed. No Vercel credits or paid providers were used. GitHub commits are the delivery record; notification receipt depends on repository watch settings.
+
+## Next P1 body cursor
+
+Continue with the next untouched mandatory non-intelligence product requirement; do not rebuild the customer service portal, work queue/SLA engine, supplier payment/statement outputs, prior accepted templates or P3 intelligence engines.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-020 — SUPPLIER PAYMENT VOUCHER PRINT/PDF
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
