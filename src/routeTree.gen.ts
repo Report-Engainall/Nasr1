@@ -59,6 +59,7 @@ import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin_.purchas
 import { Route as AdminInventoryTransfersRouteImport } from './routes/admin_.inventory-transfers'
 import { Route as AdminIntelligenceRouteImport } from './routes/admin_.intelligence'
 import { Route as AdminTasksRouteImport } from './routes/admin_.tasks'
+import { Route as AdminServiceDeskRouteImport } from './routes/admin_.service-desk'
 import { Route as ApiStatementPdfRouteImport } from './routes/api.statement-pdf'
 import { Route as CompanyAcceptInvitationRouteImport } from './routes/company.accept-invitation'
 import { Route as CompanyContactsRouteImport } from './routes/company.contacts'
@@ -277,6 +278,11 @@ const AdminTasksRoute = AdminTasksRouteImport.update({
   path: '/admin/tasks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminServiceDeskRoute = AdminServiceDeskRouteImport.update({
+  id: '/admin_/service-desk',
+  path: '/admin/service-desk',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStatementPdfRoute = ApiStatementPdfRouteImport.update({
   id: '/api/statement-pdf',
   path: '/api/statement-pdf',
@@ -419,6 +425,7 @@ export interface FileRoutesByFullPath {
   '/admin/inventory-transfers': typeof AdminInventoryTransfersRoute
   '/admin/intelligence': typeof AdminIntelligenceRoute
   '/admin/tasks': typeof AdminTasksRoute
+  '/admin/service-desk': typeof AdminServiceDeskRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
   '/company/contacts': typeof CompanyContactsRoute
@@ -545,6 +552,7 @@ export interface FileRoutesById {
   '/admin_/inventory-transfers': typeof AdminInventoryTransfersRoute
   '/admin_/intelligence': typeof AdminIntelligenceRoute
   '/admin_/tasks': typeof AdminTasksRoute
+  '/admin_/service-desk': typeof AdminServiceDeskRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
   '/company/contacts': typeof CompanyContactsRoute
@@ -788,6 +796,7 @@ export interface RootRouteChildren {
   AdminInventoryTransfersRoute: typeof AdminInventoryTransfersRoute
   AdminIntelligenceRoute: typeof AdminIntelligenceRoute
   AdminTasksRoute: typeof AdminTasksRoute
+  AdminServiceDeskRoute: typeof AdminServiceDeskRoute
   ApiStatementPdfRoute: typeof ApiStatementPdfRoute
   CompanyAcceptInvitationRoute: typeof CompanyAcceptInvitationRoute
   CompanyContactsRoute: typeof CompanyContactsRoute
@@ -1099,6 +1108,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTasksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/service-desk': {
+      id: '/admin_/service-desk'
+      path: '/admin/service-desk'
+      fullPath: '/admin/service-desk'
+      preLoaderRoute: typeof AdminServiceDeskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/statement-pdf': {
       id: '/api/statement-pdf'
       path: '/api/statement-pdf'
@@ -1301,6 +1317,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminInventoryTransfersRoute: AdminInventoryTransfersRoute,
   AdminIntelligenceRoute: AdminIntelligenceRoute,
   AdminTasksRoute: AdminTasksRoute,
+  AdminServiceDeskRoute: AdminServiceDeskRoute,
   ApiStatementPdfRoute: ApiStatementPdfRoute,
   CompanyAcceptInvitationRoute: CompanyAcceptInvitationRoute,
   CompanyContactsRoute: CompanyContactsRoute,
