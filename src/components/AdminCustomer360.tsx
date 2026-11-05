@@ -370,7 +370,6 @@ function Customer360RetentionInsights({ customerId }: { customerId: string }) {
   useEffect(() => { void reload(); }, [reload]);
 
   const customer = report?.customers.find(item => item.customerRef === customerId) ?? null;
-  const verified = report?.status === 'VERIFIED' && customer?.status === 'VERIFIED';
   const activity = customer?.activity ?? 'UNKNOWN';
   const followUpGuidance: Record<keyof typeof retentionActivityLabels, string> = {
     ACTIVE: 'العميل نشط ضمن فترة القياس. استمر في المتابعة حسب سجل التواصل واحتياج العميل.',
