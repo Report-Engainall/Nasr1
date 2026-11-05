@@ -5,6 +5,10 @@ import {
   fetchSupplierInvoiceWorkspace,
   recordSupplierInvoice,
   reviewSupplierInvoiceVariance,
+  fetchSupplierInvoiceEvidence,
+  uploadSupplierInvoiceEvidence,
+  createSupplierInvoiceEvidenceSignedUrl,
+  type SupplierInvoiceEvidence,
   type SupplierInvoiceRecord,
   type SupplierInvoiceReceivableLine,
   type SupplierInvoiceWorkspace,
@@ -100,9 +104,73 @@ export function SupplierInvoiceWorkspace({ mode }: { mode: WorkspaceMode }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const submissionKey = useRef<InvoiceKey | null>(null);
+  const [evidenceRows, setEvidenceRows] = useState<SupplierInvoiceEvidence[]>([]);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceBusy, setEvidenceBusy] = useState(false);
+  const [evidenceError, setEvidenceError] = useState("");
+  const [evidenceLinks, setEvidenceLinks] = useState<Record<string, string>>({});
+  const [evidenceLinkBusy, setEvidenceLinkBusy] = useState<string | null>(null);
+
+  const refreshEvidence = useCallback(async (invoiceId: string | null) => {
+    if (!canUseFinance || !invoiceId) {
+      setEvidenceRows([]);
+      setEvidenceError("");
+      return;
+    }
+    setEvidenceLoading(true);
+    setEvidenceError("");
+    try {
+      setEvidenceRows(await fetchSupplierInvoiceEvidence(invoiceId));
+    } catch (cause) {
+      setEvidenceError(cause instanceof Error ? cause.message : "تعذر تحميل مرفقات الفاتورة.");
+    } finally {
+      setEvidenceLoading(false);
+    }
+  }, [canUseFinance]);
+  useEffect(() => {
+    setEvidenceLinks({});
+    void refreshEvidence(selectedInvoiceId);
+  }, [selectedInvoiceId, refreshEvidence]);
+
 
   const load = useCallback(async (requestedOffset = offset, requestedOrderId?: string | null) => {
-    if (!canUseFinance) { setLoading(false); return null; }
+    async function addInvoiceEvidence(file: File) {
+    if (!selectedInvoice || evidenceBusy) return;
+    setEvidenceBusy(true);
+    setEvidenceError("");
+    setError("");
+    setNotice("");
+    try {
+      const saved = await uploadSupplierInvoiceEvidence({ invoiceId: selectedInvoice.id, file });
+      const refreshed = await fetchSupplierInvoiceEvidence(selectedInvoice.id);
+      if (!refreshed.some((item) => item.id === saved.id && item.contentSha256 === saved.contentSha256)) {
+        throw new Error("رُفع الملف لكن لم يظهر سجل مرفقه في قراءة الخادم اللاحقة.");
+      }
+      setEvidenceRows(refreshed);
+      setEvidenceLinks({});
+      setNotice("حُفظ مستند الدليل في تخزين خاص وربط بالفاتورة مع بصمة SHA-256. سجل المرفق غير قابل للاستبدال أو الحذف من الواجهة.");
+    } catch (cause) {
+      setEvidenceError(cause instanceof Error ? cause.message : "تعذر رفع مستند الفاتورة.");
+    } finally {
+      setEvidenceBusy(false);
+    }
+  }
+
+  async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
+    if (evidenceLinkBusy) return;
+    setEvidenceLinkBusy(evidence.id);
+    setEvidenceError("");
+    try {
+      const url = await createSupplierInvoiceEvidenceSignedUrl(evidence.storagePath);
+      setEvidenceLinks((current) => ({ ...current, [evidence.id]: url }));
+    } catch (cause) {
+      setEvidenceError(cause instanceof Error ? cause.message : "تعذر فتح رابط مستند الفاتورة.");
+    } finally {
+      setEvidenceLinkBusy(null);
+    }
+  }
+
+  if (!canUseFinance) { setLoading(false); return null; }
     setLoading(true);
     setError("");
     try {
@@ -429,6 +497,33 @@ export function SupplierInvoiceWorkspace({ mode }: { mode: WorkspaceMode }) {
             <div><p style={mutedStyle}>فرق المطابقة</p><strong>{moneyText(selectedInvoice.merchandiseVarianceAmount, selectedInvoice.currency)}</strong></div>
           </div>
           {selectedInvoice.taxAccountingStatus === "pending" && Number(selectedInvoice.taxAmount) > 0 && <p role="status" style={{ ...mutedStyle, color: "#854d0e" }}>الضريبة مسجلة كدليل فقط وتنتظر المعالجة المحاسبية؛ لم يُنشأ لها قيد أو حساب تلقائي.</p>}
+          <section style={{ ...cardStyle, background: "var(--muted, #f8fafb)" }}>
+            <div>
+              <h4 style={{ margin: 0 }}>مستندات الإثبات المرفقة</h4>
+              <p style={mutedStyle}>ملفات خاصة بالمؤسسة والفاتورة، مع بصمة SHA-256 وسجل رافع المرفق. PDF أو JPG أو PNG أو WEBP حتى 10 ميغابايت للملف، بحد 25 مرفقًا. لا توجد روابط عامة ولا استبدال للمرفق بعد حفظه.</p>
+            </div>
+            <label style={{ display: "grid", gap: 5, maxWidth: 520 }}>
+              إضافة صورة أو نسخة PDF من فاتورة المورد أو مستنداتها
+              <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" disabled={evidenceBusy}
+                onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void addInvoiceEvidence(file); }} />
+            </label>
+            {evidenceBusy && <p role="status" style={mutedStyle}>جار رفع المستند وربطه بسجل الفاتورة...</p>}
+            {evidenceLoading ? <p role="status" style={mutedStyle}>جار تحميل أدلة الفاتورة...</p> :
+              evidenceRows.length === 0 ? <p style={mutedStyle}>لا توجد مرفقات مسجلة لهذه الفاتورة.</p> :
+                <div style={{ display: "grid", gap: 7 }}>
+                  {evidenceRows.map((item) => <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 9, flexWrap: "wrap", borderTop: "1px solid var(--border, #d6dfe4)", paddingTop: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <strong>{item.fileName}</strong>
+                      <p style={mutedStyle}>{item.mimeType} · {(item.byteSize / 1024).toFixed(0)} KB · {new Date(item.createdAt).toLocaleString("ar-YE")}</p>
+                      <p style={mutedStyle}>SHA-256: {item.contentSha256.slice(0, 20)}… · الرافع: {item.uploadedByProfileId}</p>
+                    </div>
+                    {evidenceLinks[item.id]
+                      ? <a href={evidenceLinks[item.id]} target="_blank" rel="noreferrer">فتح الرابط المؤقت</a>
+                      : <button className="btn secondary" type="button" disabled={evidenceLinkBusy !== null} onClick={() => void prepareEvidenceLink(item)}>{evidenceLinkBusy === item.id ? "جار تجهيز الرابط..." : "إنشاء رابط خاص لمدة 5 دقائق"}</button>}
+                  </div>)}
+                </div>}
+            {evidenceError && <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>{evidenceError}</p>}
+          </section>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
               <thead><tr style={{ textAlign: "right" }}><th style={{ padding: 8 }}>الصنف / الإيصال</th><th>كمية الفاتورة</th><th>سعر الأمر</th><th>سعر الاستلام</th><th>سعر الفاتورة</th><th>القيمة المصدرية</th><th>القيمة الفعلية</th><th>مطابقة</th></tr></thead>
