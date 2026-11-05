@@ -3,6 +3,7 @@ import type { CustomerRetentionReport } from "./customer-retention";
 import type { DeadStockClass, DeadStockReport } from "./dead-stock";
 import type { EvidencePeriod, EvidenceStatus } from "./types";
 import type { LiquidityPosition, LiquiditySnapshot } from "./liquidity";
+import type { ReplenishmentRecommendation } from "./replenishment";
 
 export const BUSINESS_HEALTH_MAP_POLICY_VERSION = "1.0.0";
 
