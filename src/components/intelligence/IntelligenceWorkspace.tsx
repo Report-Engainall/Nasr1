@@ -13,6 +13,7 @@ import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult 
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
+import { fetchTaskPerformanceScorecard, type TaskPerformanceScorecardFetchResult } from "@/lib/intelligence/task-performance-scorecard-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { ShiftQueueSourceKey } from "@/lib/intelligence/shift-operations";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
@@ -49,6 +50,7 @@ import {
   ShiftOperationsCenter,
   ProcessBottlenecksPanel,
   SupplierPerformancePanel,
+  TaskPerformanceScorecard,
   NaturalLanguageAssistant,
 } from "@/components/intelligence";
 
@@ -414,6 +416,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [supplierPerformanceLoading, setSupplierPerformanceLoading] = useState(true);
   const [supplierPerformanceRefreshKey, setSupplierPerformanceRefreshKey] = useState(0);
   const supplierPerformanceRequestGeneration = useRef(0);
+  const [taskPerformanceResponse, setTaskPerformanceResponse] = useState<TaskPerformanceScorecardFetchResult | null>(null);
+  const [taskPerformanceLoading, setTaskPerformanceLoading] = useState(true);
+  const [taskPerformanceRefreshKey, setTaskPerformanceRefreshKey] = useState(0);
+  const taskPerformanceRequestGeneration = useRef(0);
 
   useEffect(() => {
     outcomesMounted.current = true;
@@ -555,6 +561,45 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       supplierPerformanceRequestGeneration.current += 1;
     };
   }, [canManage, processFrom, processTo, supplierPerformanceRefreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    const generation = ++taskPerformanceRequestGeneration.current;
+    if (!canManage) {
+      setTaskPerformanceResponse({
+        ok: false,
+        status: "DENIED",
+        message: "تتطلب قراءة بطاقة أداء المهام صلاحية المدير أو مدير المؤسسة.",
+      });
+      setTaskPerformanceLoading(false);
+      return () => { mounted = false; };
+    }
+    setTaskPerformanceLoading(true);
+    void fetchTaskPerformanceScorecard()
+      .then((response) => {
+        if (mounted && generation === taskPerformanceRequestGeneration.current) {
+          setTaskPerformanceResponse(response);
+        }
+      })
+      .catch(() => {
+        if (mounted && generation === taskPerformanceRequestGeneration.current) {
+          setTaskPerformanceResponse({
+            ok: false,
+            status: "ERROR",
+            message: "تعذر تحميل بطاقة أداء المهام من قاعدة البيانات.",
+          });
+        }
+      })
+      .finally(() => {
+        if (mounted && generation === taskPerformanceRequestGeneration.current) {
+          setTaskPerformanceLoading(false);
+        }
+      });
+    return () => {
+      mounted = false;
+      taskPerformanceRequestGeneration.current += 1;
+    };
+  }, [canManage, taskPerformanceRefreshKey]);
 
   const runShiftMutation = async (
     scope: string,
@@ -1110,7 +1155,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 setRefreshKey((value) => value + 1);
                 setShiftRefreshKey((value) => value + 1);
                 setProcessRefreshKey((value) => value + 1);
-              }} disabled={loading || outcomesLoading || inventoryLoading || shiftLoading || processLoading}>
+                setSupplierPerformanceRefreshKey((value) => value + 1);
+                setTaskPerformanceRefreshKey((value) => value + 1);
+              }} disabled={loading || outcomesLoading || inventoryLoading || shiftLoading || processLoading || supplierPerformanceLoading || taskPerformanceLoading}>
                 <RefreshCw size={16} /> تحديث
               </button>
             </div>
@@ -1288,6 +1335,37 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 onOpenPurchaseOrder={onOpenPurchaseOrder}
               />
             </div>
+          </section>
+
+          <section className="panel space-y-3" aria-label="مؤشرات أداء المهام">
+            <header className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2>مؤشرات أداء المهام</h2>
+                <p className="report-note">ملخص الخادم للمهام المرئية ضمن أدوار الحساب فقط. تُعرض حدود اكتمال سجل إعادة الفتح والمؤشرات غير المتاحة صراحةً؛ لا توجد مقارنة بين الموظفين.</p>
+              </div>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => setTaskPerformanceRefreshKey((value) => value + 1)}
+                disabled={taskPerformanceLoading}
+              >
+                <RefreshCw size={15} /> تحديث المؤشرات
+              </button>
+            </header>
+            <TaskPerformanceScorecard
+              scorecard={taskPerformanceResponse?.ok ? taskPerformanceResponse.scorecard : null}
+              state={taskPerformanceLoading
+                ? "loading"
+                : taskPerformanceResponse?.ok
+                  ? "ready"
+                  : taskPerformanceResponse?.status === "UNAVAILABLE"
+                    ? "unavailable"
+                    : "error"}
+              errorMessage={taskPerformanceResponse && !taskPerformanceResponse.ok
+                ? taskPerformanceResponse.message
+                : "تعذر تحميل بطاقة أداء المهام من قاعدة البيانات."}
+              onRetry={() => setTaskPerformanceRefreshKey((value) => value + 1)}
+            />
           </section>
 
           <CommercePolicyGovernancePanel />
