@@ -32,7 +32,7 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry, c
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold">توصيات إعادة التوريد</h3>
-          <span className="text-xs text-muted-foreground">يُخصم الوارد المؤكد من أوامر الشراء قبل التوصية؛ لا يُنشأ شراء دون اختيار ومراجعة يدوية.</span>
+          <span className="text-xs text-muted-foreground">يُخصم الوارد المؤكد من أوامر الشراء قبل التوصية؛ لا ينشئ هذا العرض أمر شراء تلقائيًا.</span>
         </div>
         {canManagePurchases ? (
           <div className="flex flex-wrap items-center gap-2">
