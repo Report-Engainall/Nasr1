@@ -42,7 +42,7 @@ function toLocalDateTime(value: string | null): string {
   if (!Number.isFinite(date.getTime())) return "";
   const pad = (part: number) => String(part).padStart(2, "0");
   return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
-    "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
+    "T" + pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds());
 }
 
 function fromLocalDateTime(value: string): string {
@@ -210,12 +210,12 @@ function CustomerServiceCaseCard({
             </label>
             <label>
               <span>آخر موعد للاستجابة الأولى</span>
-              <input type="datetime-local" value={responseDueAt} disabled={saving || !activeCase}
+              <input type="datetime-local" step={1} value={responseDueAt} disabled={saving || !activeCase}
                 onChange={event => setResponseDueAt(event.target.value)} />
             </label>
             <label>
               <span>آخر موعد للحل</span>
-              <input type="datetime-local" value={resolutionDueAt} disabled={saving || !activeCase}
+              <input type="datetime-local" step={1} value={resolutionDueAt} disabled={saving || !activeCase}
                 onChange={event => setResolutionDueAt(event.target.value)} />
             </label>
           </div>
