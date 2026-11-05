@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileCheck2, RefreshCw, Scale, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { SupplierCreditNoteDocumentActions } from "@/components/SupplierCreditNoteDocumentActions";
 import {
   fetchSupplierCreditNoteWorkspace,
   prepareSupplierCreditNoteJournalDraft,
@@ -201,9 +202,12 @@ function CreditNoteReturnCard({ item, accounts, busy, onBusyChange, onRefresh }:
             إيصال المصدر {item.sourceReceiptNumber} · أمر الشراء {item.purchaseOrderNumber} · تاريخ الترحيل {dateText(item.postedAt)}
           </span>
         </div>
-        <span style={{ fontSize: 12, fontWeight: 700, border: "1px solid var(--border, #dce4e8)", borderRadius: 99, padding: "4px 9px" }}>
-          {statusLabel(item.creditNoteStatus)}
-        </span>
+        <div style={{ display: "grid", gap: 7, justifyItems: "end" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, border: "1px solid var(--border, #dce4e8)", borderRadius: 99, padding: "4px 9px" }}>
+            {statusLabel(item.creditNoteStatus)}
+          </span>
+          <SupplierCreditNoteDocumentActions supplierCreditNote={item} />
+        </div>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8 }}>
