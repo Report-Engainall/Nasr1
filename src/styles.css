@@ -619,3 +619,11 @@
   .customer-quote-print-sheet thead { display: table-header-group; }
   .customer-quote-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
 }
+
+
+/* Manager task reassignment controls — only open tasks expose this audited action. */
+.task-card-assignment{display:grid;gap:6px;min-width:190px;max-width:240px;color:var(--foreground);font-size:12px;font-weight:700}
+.task-card-assignment select{width:100%;min-width:0;padding:8px 9px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit;font-weight:500}
+.task-card-assignment button{justify-self:start}
+.task-card-assignment small{color:var(--muted-foreground);font-weight:500;line-height:1.5}
+@media(max-width:860px){.task-card-assignment{width:100%;max-width:none;min-width:0}.task-card-actions{align-items:stretch}}
