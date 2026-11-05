@@ -3,7 +3,6 @@ import type { CustomerRetentionReport } from "./customer-retention";
 import type { DeadStockClass, DeadStockReport } from "./dead-stock";
 import type { EvidencePeriod, EvidenceStatus } from "./types";
 import type { LiquidityPosition, LiquiditySnapshot } from "./liquidity";
-import type { ReplenishmentRecommendation } from "./replenishment";
 
 export const BUSINESS_HEALTH_MAP_POLICY_VERSION = "1.0.0";
 
@@ -389,11 +388,42 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
         ...(stock.note.includes("تعارض") ? ["STOCK_EXPOSURE_SOURCE_CONFLICT"] : [])]),
     };
   });
-  const cashflow = input.cashflow?.asOf === input.asOf ? input.cashflow.points.filter(point =>
-    point.asOf === input.asOf && HORIZONS.includes(point.horizonDays)
-  ) : [];
-  const cashflowStatus = input.cashflow ? input.cashflow.asOf === input.asOf ? rollup(cashflow.map(point => point.status)) : "NEEDS_REVIEW" : "UNAVAILABLE";
-  if (input.cashflow && input.cashflow.asOf !== input.asOf) warnings.push("CASHFLOW_AS_OF_MISMATCH");
+  const cashflow: CashflowForecastPoint[] = [];
+  const cashflowWarnings: string[] = [];
+  const seenCashflowPoints = new Set<string>();
+  if (input.cashflow && input.cashflow.asOf === input.asOf) {
+    for (const point of input.cashflow.points) {
+      const key = point.currency + ":" + point.horizonDays;
+      if (seenCashflowPoints.has(key) || !/^[A-Z]{3}$/.test(point.currency) || !HORIZONS.includes(point.horizonDays)) {
+        cashflowWarnings.push("CASHFLOW_POINT_DUPLICATE_OR_INVALID:" + key);
+        continue;
+      }
+      seenCashflowPoints.add(key);
+      const evidenceIds = unique(point.evidenceIds);
+      const verified = point.status === "VERIFIED" && point.scheduleComplete && point.asOf === input.asOf &&
+        validPeriod(point.period) && evidenceIds.length > 0 && unique(point.formulaVersions).length > 0 &&
+        finite(point.openingBalance) !== null && finite(point.knownInflows) !== null &&
+        finite(point.knownOutflows) !== null && finite(point.projectedBalance) !== null;
+      cashflow.push({
+        ...point,
+        openingBalance: verified ? finite(point.openingBalance) : null,
+        knownInflows: verified ? finite(point.knownInflows) : null,
+        knownOutflows: verified ? finite(point.knownOutflows) : null,
+        projectedBalance: verified ? finite(point.projectedBalance) : null,
+        status: verified ? "VERIFIED" : point.status === "UNVERIFIED" ? "UNVERIFIED" :
+          point.status === "UNAVAILABLE" ? "UNAVAILABLE" : "NEEDS_REVIEW",
+        scheduleComplete: verified,
+        evidenceIds: verified ? evidenceIds : [],
+        formulaVersions: verified ? unique(point.formulaVersions) : [],
+        warnings: [...point.warnings, ...(verified ? [] : ["CASHFLOW_POINT_NOT_COMPLETE_OR_VERIFIED"])],
+      });
+    }
+  } else if (input.cashflow) {
+    cashflowWarnings.push("CASHFLOW_AS_OF_MISMATCH");
+  }
+  const cashflowStatus = !input.cashflow ? "UNAVAILABLE" :
+    input.cashflow.asOf !== input.asOf ? "NEEDS_REVIEW" : rollup(cashflow.map(point => point.status));
+  warnings.push(...cashflowWarnings);
   const stock = buildStock(input.deadStock, input.asOf, input.period);
   const replenishment = buildReplenishment(input.replenishment, input.asOf, input.period);
   const customer = buildCustomerFocus(input.retention, input.asOf, input.period);
