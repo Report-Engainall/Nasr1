@@ -1,3 +1,47 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — SUPPLIER ACCOUNT ACTIVITY STATEMENT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Main head before this checkpoint write: `9eba58c1e01874ae11b75ada475773822c8344d8`.
+- Completed action: `BODY-COMPLETION-ON-MAIN-016`, continuing from supplier credit-note matching `BODY-COMPLETION-ON-MAIN-015`. The statement reuses the existing posted receipt/credit-note journals and source links; it does not create a parallel supplier ledger or payment record.
+- Source and documentation changes were committed sequentially to official `main`. No branch, PR, tests/build/scan cycle or Vercel operation was used.
+
+## Product functionality delivered
+
+### Source-linked supplier account activity
+- Added `supabase/migrations/20261105234000_supplier_account_activity_statement.sql` with finance-authorized `fetch_supplier_account_activity()`.
+- The statement derives supplier activity only from POSTED purchase-receipt journals linked through `purchase_receipt_accounting_postings` and POSTED supplier-credit-note journals linked through `purchase_supplier_credit_note_accounting_drafts`, their credit-note records, returns, receipts, purchase orders and suppliers.
+- A receipt activity row is included only when the journal references that exact receipt and the complete original journal contains exactly two balanced lines with the expected inventory/payable source amount and saved payable account.
+- A credit-note activity row is included only when the original source receipt journal and the posted credit-note journal remain valid, the payable-account debit equals the actual supplier credit-note amount, and both journals have no reversal record.
+- Draft, void, reversed, foreign-tenant, unmapped and unlinked liability entries are excluded. Data is grouped by supplier and currency; different currencies are never added together.
+- The read RPC returns bounded detail pagination, per-supplier/per-currency debit and credit totals, net credit movement, activity count and last activity date. It explicitly reports that settlement is not included.
+- No cash payment, bank transfer, supplier invoice due date or payment allocation is inferred. The UI labels the result as ledger movement rather than a final payable balance.
+
+### Typed client and General Ledger interface
+- Added `src/lib/supplier-account-activity.ts` with strict UUID/date/currency/amount/row parsing and bounded RPC pagination.
+- Added `src/components/SupplierAccountActivityWorkspace.tsx`: Arabic RTL statement, date filtering, per-currency totals, per-supplier summaries, detailed source-linked movements and pagination.
+- Mounted the statement in the existing `src/components/GeneralLedgerWorkspace.tsx` alongside supplier credit-note matching, cash-expense journal handoff and customer-payment journal workflows. The existing General Ledger remains the only journal.
+
+## Main delivery records
+- Statement migration: `68307e40708b36386d4b22ef8147e9f42233d586`.
+- Full balanced-source-line validation: `add6e4162a6eac24d088725ba57c5a8a864c9b0f`.
+- Typed client: `2bba5e24c5797ca1b47eade78a79c6fb6497ec23`.
+- UI: `8483fbd13dd266d3c658010fe0df3f3b371e4046`; server-offset pagination cap: `b73ec7504137b75b2c5bcd68c87997f75dbbfd0f`.
+- General Ledger mount: `90e99e44b71bc1a584c357f369aa40f70e14471a`.
+- Acceptance matrix leaf `DLV-008-SUPPLIER-ACCOUNT-ACTIVITY-001): `9eba58c1e01874ae11b75ada475773822c8344d8`, state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery and acceptance boundary
+- Source files and the acceptance row are committed to official GitHub `main`.
+- The migration is source-only; it has not been applied to local, hosted, production or Bolt databases. No database was connected or modified.
+- No tests, build, lint, typecheck, CI, browser/E2E, Bolt Preview or production verification were run in this batch, in line with the requested product-body priority. No PASS or runtime acceptance is claimed.
+- No Vercel build, preview or deployment occurred; no Vercel free credits were used. No paid service or dependency was added.
+- GitHub commits provide the delivery record. Actual push/inbox notification delivery depends on repository watch settings; no notification receipt is claimed.
+
+## Next product action
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-017`.
+- Build the real supplier payment/settlement lifecycle: reuse the existing treasury/cash/bank transaction source if one exists, or add a tenant-scoped source-backed payment document linked to the supplier and a verified cash/bank account; support partial allocation against posted supplier activity, idempotent capture/replay, reconciliation evidence and atomic double-entry draft handoff. Show payment and remaining payable only from actual saved instrument/transaction and allocation records. Do not infer a payment from a credit note or net journal movement.
+
+---
+
 # PARALLEL P3 DELIVERY CHECKPOINT — 2026-11-05 — BODY-COMPLETION-ON-MAIN-017
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
