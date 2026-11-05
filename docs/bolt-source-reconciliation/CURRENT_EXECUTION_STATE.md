@@ -1,3 +1,48 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — RECEIPT-LINKED SUPPLIER RETURNS
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Main head before this checkpoint write: `6e62815fd07e64f83ff0753b1261c0917e131e9d`.
+- Completed action: `BODY-COMPLETION-ON-MAIN-014`, building on the replenishment-to-draft and supplier-offer comparison workflows in `BODY-COMPLETION-ON-MAIN-013`. All changes were committed sequentially to official `main`; no branch, PR, secondary repository or Vercel operation was used.
+
+## Product functionality delivered
+
+### Receipt-linked supplier-return lifecycle
+- Added `supabase/migrations/20261105232000_supplier_return_processing.sql` with tenant-scoped `purchase_supplier_returns` and `purchase_supplier_return_items`, RLS, direct authenticated/anon table privileges revoked, service-role grants, restricted sequence access and a composite tenant/header foreign key.
+- The read RPC `fetch_purchase_supplier_returns()` derives the active organization and manager/admin role from the session. It lists persisted source receipts and returnable receipt lines with received, already-posted-returned and remaining quantities, source unit and source unit cost; it also returns a bounded history of return documents.
+- `create_purchase_supplier_return()` locks the source receipt and source items, verifies that each line belongs to the original receipt, rejects duplicate or invalid item quantities and prevents a return above the remaining source quantity. It creates a same-tenant idempotent draft and audit event only; it does not move stock.
+- Supplier, purchase order, warehouse and currency are derived from the source receipt/order and organization. Cost is copied only from `purchase_receipt_items.unit_cost`; missing cost leaves total cost NULL. No FX, zero cost, standard cost or supplier-credit evidence is fabricated.
+- `post_purchase_supplier_return()` locks the return, source receipt and source lines, revalidates remaining quantities, locks the current inventory balance, and requires enough `quantity_available` (on-hand less reserved). It atomically decrements on-hand, updates last movement time, appends a negative `supplier_return` movement, marks the document posted and writes audit evidence. Any failed line rolls back the whole posting; a replay returns the same posted document without a second movement.
+- Successful posting creates exactly one source-linked follow-up task: purchasing/cost review when source costs are incomplete, or accountant supplier-credit-note review when source cost and currency exist. No journal, credit memo, payment, supplier message or FX conversion is posted.
+
+### Typed client and purchasing interface
+- Added `src/lib/supplier-returns.ts` with strict UUID/date/currency/status/quantity parsing and typed fetch/create/post RPC clients.
+- Added `src/components/SupplierReturnWorkspace.tsx` and mounted it in the existing `src/components/PurchaseOrdersPage.tsx` adjacent to supplier quote comparison.
+- Managers can select a source receipt, review per-line received/already-returned/remaining quantities and source cost, record reason/notes, save a draft, then explicitly confirm stock posting.
+- The UI distinguishes a draft from a posted stock movement. It explains that draft returns do not reserve source quantity and the server rechecks under receipt locks at posting.
+- The client retains the same idempotency key for a retry of the same payload after an ambiguous response.
+
+## Main delivery and acceptance records
+- Migration: `489f5dfa626b8e3c8e1c19f6171e91e39407237e`; tenant linkage and total-cost precision hardening: `8cc7dddc8df35c8d49e3b78589d91861ab4f3c93`.
+- Typed client: `3acf7a0b94c02b98e66562822137b4deece37adb`.
+- UI: `d51c101d7468a76685a87c17fca530ea3fa25b2b`; Purchase Orders mount: `9c7110fc11c0909566e16981f86016e4c4743e3d`; retry-safe idempotency key: `acdd1d7e20abc9e56c89c20122efa2eae21398a2`.
+- Acceptance matrix: `470759ed71d7cfd893601b0e9c784872186386fe`, reconciled at `9806b374b4fe7bda1d3c834bbe24d85d59fc240e`.
+- Requirement registry: `cd3e4295027ea0dcaee1d4cd952dffefe2d9e569`, acceptance mapping at `2991f07f517b879fa19184ca98ad6f12399738d5`.
+- Execution report: `6e62815fd07e64f83ff0753b1261c0917e131e9d`.
+- Acceptance leaf `DLV-007-SUPPLIER-RETURN-001` remains `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery and acceptance boundary
+- Source and documentation are committed to official GitHub `main`.
+- The supplier-return migration has not been applied to local, hosted, production or Bolt databases. No database was connected or modified.
+- No tests, build, lint, typecheck, CI, browser/E2E, Bolt Preview or production checks were run for this batch. No PASS or runtime acceptance is claimed.
+- No Vercel build, preview, deployment or free-credit use occurred. No paid service or dependency was added.
+- GitHub commits are the source delivery and notification surface; actual push/inbox notification delivery depends on repository watch/notification settings and is not claimed without a receipt.
+
+## Next product action
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-015`.
+- Build accountant-controlled supplier credit-note matching for POSTED supplier returns: record the supplier's credit-note number/date/actual amount/currency from the supplier document, match it to the same supplier and posted return, enforce currency consistency and an explicit amount-variance approval policy, persist immutable review/audit history, and provide a controlled accounting-draft handoff only where the original receipt's source journal and approved account mapping are proven. Do not auto-post GL, infer tax/FX or manufacture supplier-credit evidence.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — REPLENISHMENT PURCHASE DRAFT + SUPPLIER QUOTE COMPARISON
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
