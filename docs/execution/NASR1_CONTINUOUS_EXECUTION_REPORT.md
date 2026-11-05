@@ -1,3 +1,53 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-05 — RECEIPT-LINKED SUPPLIER RETURNS
+
+- Completed action: `BODY-COMPLETION-ON-MAIN-014`.
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Builds on `BODY-COMPLETION-ON-MAIN-013` (evidence-backed replenishment drafts and supplier quote comparison). No existing PO, receipt, inventory movement, supplier quote, or GL lifecycle was rebuilt.
+
+## Product functionality delivered
+
+### Supplier-return source and remaining-quantity controls
+- Added `supabase/migrations/20261105232000_supplier_return_processing.sql`.
+- Added tenant-scoped `purchase_supplier_returns` and `purchase_supplier_return_items` tables, RLS enabled, browser table privileges revoked, service-role-only direct table writes, sequence privilege restrictions and tenant-consistent item/header foreign-key linkage.
+- `fetch_purchase_supplier_returns()` returns the latest source receipts with per-line quantities originally received, already returned through POSTED returns, currently remaining, unit and source unit cost. Draft returns are not presented as posted returns or stock changes.
+- `create_purchase_supplier_return()` requires an active same-tenant admin/manager and derives supplier, purchase order, warehouse and base currency from the original receipt. Every selected item must belong to that receipt. Each line must be positive, no more than three decimals and no greater than the remaining quantity after prior posted returns.
+- Draft creation is idempotent using an organization-scoped advisory lock and payload fingerprint. It writes immutable source snapshots and audit evidence only; it does not modify stock or GL.
+- Costs are copied only from the saved purchase-receipt item. If one or more source costs are missing, the return total remains NULL; no zero, replacement cost, FX or supplier credit is fabricated.
+
+### Atomic physical supplier-return posting
+- `post_purchase_supplier_return()` locks the draft, original receipt and source receipt item rows, then revalidates aggregate returnable quantity before changing stock.
+- It locks the existing balance row and requires `quantity_available` (on-hand less reserved) to cover each return line. Reserved or unavailable stock is not decremented. A failed line rolls back the entire transaction.
+- For each line, the function decrements `quantity_on_hand`, updates last movement time and appends a negative `supplier_return` row to the existing `inventory_movements` ledger, linked to the supplier-return document and actor.
+- Successful posting marks the document POSTED and records an audit event. A same-document replay returns the original result and does not add another movement.
+- Posting opens one source-linked task: purchasing must resolve missing source cost, or the accountant must match a supplier credit note against the recorded source amount/currency. No journal, credit memo, payment, supplier message or FX conversion is automatically created.
+
+### Typed client and connected purchasing screen
+- Added `src/lib/supplier-returns.ts` with strict receipt, line, return, UUID, date, currency and quantity parsing; RPC wrappers cover queue, draft creation and posting.
+- Added `src/components/SupplierReturnWorkspace.tsx`; mounted it inside the existing `src/components/PurchaseOrdersPage.tsx` with the supplier quote comparison workspace.
+- The manager screen selects an original receipt, displays received/already-returned/remaining quantities and source cost, records reason and notes, saves a draft, and requires explicit confirmation before stock posting.
+- The UI explains that draft returns do not reserve the quantity; the server rechecks under source receipt locks at posting. The client retains the same idempotency key across a retry of the same payload after an ambiguous response.
+
+## Source and record commits
+- Supplier return migration: `489f5dfa626b8e3c8e1c19f6171e91e39407237e`; tenant linkage/total precision hardening: `8cc7dddc8df35c8d49e3b78589d91861ab4f3c93`.
+- Typed client: `3acf7a0b94c02b98e66562822137b4deece37adb`.
+- Supplier return UI: `d51c101d7468a76685a87c17fca530ea3fa25b2b`; Purchase Orders integration: `9c7110fc11c0909566e16981f86016e4c4743e3d`; retry-safe client idempotency: `acdd1d7e20abc9e56c89c20122efa2eae21398a2`.
+- Acceptance matrix: `470759ed71d7cfd893601b0e9c784872186386fe` initially added the leaf; `9806b374b4fe7bda1d3c834bbe24d85d59fc240e` reconciled final evidence.
+- Canonical registry: `cd3e4295027ea0dcaee1d4cd952dffefe2d9e569` added the requirement; `2991f07f517b879fa19184ca98ad6f12399738d5` mapped the acceptance leaf.
+- New acceptance leaf: `DLV-007-SUPPLIER-RETURN-001`, status `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery and acceptance boundary
+- Source code and records are committed to official GitHub `main`.
+- The supplier-return migration has not been applied to local, hosted, production or Bolt databases. No database was connected or modified.
+- No tests, build, lint, typecheck, CI, browser/E2E, Bolt Preview or production check was run in this implementation batch. No PASS or runtime acceptance is claimed.
+- No Vercel build, preview, deployment or free-credit use occurred. No paid service or dependency was added.
+- GitHub commits are the source delivery and notification surface. Actual push/inbox notification delivery depends on repository watch/notification settings; no delivery receipt is claimed.
+
+## Next product action
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-015`.
+- Add accountant-controlled supplier credit-note matching for POSTED supplier returns: record the supplier's credit-note number/date/actual amount/currency from the source document; match it to the supplier and return; reject unsupported currency or a credit amount outside the documented comparison policy; persist review/audit status; and provide a controlled draft-accounting handoff only when the original receipt's journal/account mapping is proven. Do not auto-post GL, assume tax/FX or manufacture supplier credit evidence.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-05 — REPLENISHMENT DRAFT HANDOFF + SUPPLIER QUOTE COMPARISON
 
 - Completed action: `BODY-COMPLETION-ON-MAIN-013`.
