@@ -183,10 +183,10 @@ export async function fetchCustomerRetentionReport(periodDays: 30 | 60 | 90 | 18
     };
   });
 
-  const salesByCurrency: CustomerRetentionSaleRecord[] = rawSales.map((value, index) => {
-    const row = object(value, "سجل المبيعات " + (index + 1));
-    throw new Error("أعاد الخادم سجلات مبيعات غير مدعومة في تقرير الاحتفاظ رقم " + (index + 1) + ".");
-  });
+  if (rawSales.length !== 0) {
+    throw new Error("أعاد الخادم بيانات مبيعات مالية خارج نطاق تقرير نشاط العملاء.");
+  }
+  const salesByCurrency: CustomerRetentionSaleRecord[] = [];
 
   const evidenceRecords = rawEvidence.map(value => evidence(value, asOf));
   const rawId = root.id;
