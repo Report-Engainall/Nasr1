@@ -57,3 +57,11 @@ P1 owns route mounting, tenant-safe request orchestration and interactions. Cons
 - Displays confirmed signal, current/baseline value, sample size, source amount only as historical evidence, period, as-of, formula versions and evidence IDs. Withheld signals remain visible by reason code.
 - The component never shows customer PII, estimated profit, conversion probability or unsupported revenue. Opening a record is presentation navigation only. It does not create tasks or perform business writes.
 - P1 must bind `onOpenRecord` to the existing authorized source routes; missing routes stay unavailable rather than navigating to a fabricated destination.
+
+## BusinessHealthMap
+- Import: `import { BusinessHealthMap } from "@/components/intelligence";`
+- Props: `result?: BusinessHealthMapResult | null`, `state?: "loading" | "empty" | "error" | "unavailable" | "ready"`, `onRetry?: () => void`.
+- Composes existing liquidity, scheduled cashflow, dead-stock, replenishment and customer-retention outputs; does not rebuild source facts.
+- Displays currency panels and 7/30/90-day windows separately. Expected collections and due obligations are marked as already included in net liquidity. Stock exposure is non-cash and never deducted from net liquidity. Matching liquidity/dead-stock exposure is represented once using matching value and shared evidence; conflicting sources are withheld.
+- Shows replenishment quantities per product/UOM without cross-product summation. CCC/DSO/DPO/product/supplier concentration are NOT_CALCULABLE with explicit missing inputs. Capital-at-risk grand total remains withheld.
+- Does not create tasks, purchases, stock, accounting, pricing or communication mutations. P1 may mount the component in the existing intelligence dashboard; no new route is needed.

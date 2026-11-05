@@ -39,3 +39,15 @@ P3 consumes only these evidence-backed signal metrics; P2 must derive them from 
 - Optional source amounts are displayed only as historical source values. They are not expected profit, conversion probability, lost revenue or cash impact. No implicit margin, FX, conversion rate or causal explanation is permitted.
 - P3 owns the deterministic policy in `src/lib/intelligence/growth-opportunities.ts`; the versioned policy thresholds are: 3 total quotes, 5 unavailable searches across at least 3 distinct searchers, 3 prior orders and 30% decline, 2 repeat orders, and 5 transactions per product period with a 20% trend threshold.
 - The engine creates suggestions only. P1 may mount `GrowthOpportunityRadar` and open the same source record. P2 remains the sole authority for tenant scoping and any persisted follow-up task. No customer communication, price change, purchase, stock adjustment or finance mutation is executed by this engine.
+
+## Business Health Map — canonical merchant-intelligence specification section 51
+
+P3 composes existing verified engines; it does not re-query operational tables or recalculate source metrics:
+- Liquidity by currency: preserve source status on net liquidity, expected collections, overdue receivables and due obligations. Collections are already included in the liquidity net formula; due obligations are already deducted. Display explanatory components only; never sum them again.
+- Stagnant inventory exposure: reconcile `LiquidityPosition.stagnantStockExposure` with `DeadStockReport.totalsByCurrency` for the same currency, exact as-of and period. Matching values require both equal amount and shared evidence IDs; represent them once. Conflicts or unproven overlap are withheld. Stagnant stock is non-cash and never deducted from net liquidity.
+- Cashflow: show 7/30/90-day windows separately per currency. These horizons overlap and are not separate capital buckets. Only complete, verified schedule points can show a projected balance.
+- Replenishment: show verified positive quantity recommendations by product and original UOM; do not sum quantities across SKUs or convert them to money. No purchase action is performed.
+- Customer concentration: show top-five sales concentration only where the full-population customer-retention aggregate is VERIFIED. Product/supplier concentration is NOT_CALCULABLE until complete same-currency source populations exist.
+- Cash conversion cycle, DSO and DPO are NOT_CALCULABLE unless aligned average-balance and period-flow denominators are present. Do not infer from overdue receivables or due obligations alone.
+- The capital-at-risk grand total remains withheld because inventory, receivables, expected collections, scheduled flows and payable obligations may overlap.
+- P3 implementation: `src/lib/intelligence/business-health-map.ts`; reusable presentation component: `src/components/intelligence/BusinessHealthMap.tsx`. The component is presentation-only; P1 owns route mounting, and P2 remains the tenant/data authority.

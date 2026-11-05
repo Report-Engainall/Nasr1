@@ -12,3 +12,5 @@ export { ReplenishmentCard } from "./ReplenishmentCard";
 export type { ReplenishmentCardProps } from "./ReplenishmentCard";
 export { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
 export type { GrowthOpportunityRadarProps } from "./GrowthOpportunityRadar";
+export { BusinessHealthMap } from "./BusinessHealthMap";
+export type { BusinessHealthMapProps } from "./BusinessHealthMap";
