@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-022 — DEVICE SESSION KEYSET PAGINATION
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Only two active implementer roles: P1 and P3. P1 owns UI/workspaces and product interfaces; P3 owns intelligence engines, evidence lineage and intelligence persistence/DTOs.
+- BODY-022 closes the product-side truncation at 200 active organization sessions. It replaces the non-paginated query contract with a stable server keyset cursor and exposes page continuation in the existing DeviceManagement screen. Existing security roles and revocation workflows are preserved.
+
+## Delivered on main — BODY-022
+
+1. Added `supabase/migrations/20261105280000_device_session_keyset_pagination.sql`: replaces `list_organization_sessions(integer)` with an admin-only same-tenant SECURITY DEFINER function accepting page size plus the composite cursor `(last_activity_at, created_at, session_id)`. Sort and cursor comparison use the same descending tuple; session response rows retain the existing shape; all three cursor fields must be null or all supplied. Page size is bounded to 201 to support a 200-row display plus one sentinel.
+2. Updated `src/components/DeviceManagement.tsx`: first page requests 201, displays 200, and keeps the sentinel only as proof that more records exist. A load-more action sends the last visible row's exact cursor and appends unique session rows. Refresh starts from page one; a failed continuation keeps already-loaded pages and leaves the same cursor available for retry.
+3. Updated `src/test/device-management-session-cap.test.tsx` to describe the sentinel, exact continuation cursor and final-page behavior.
+4. Updated `scripts/test-session-management.mjs` with SQL-level cursor continuation acceptance, ordering/no-repeat expectations and the new maximum of 201. The scripts/tests are source specifications only; they were not executed.
+5. Existing exact-target revocation, same-account sibling protection, self-scoped bulk sign-out and tenant/admin authorization were not rebuilt or weakened.
+
+## Source boundaries
+
+- Migration commit: `7445b418997c6d49b7dd9c529df7df42a804be01`.
+- UI commit/blob: `f782f04ccb009d107169ff05a87812ed47f288d3` / `48d7186cdf276fa348bd5481a30cfb3b3ecfde93`.
+- Focused UI acceptance-source commit/blob: `8870c82533b13ea93b0e7ddf9ebfcf80e25b3077` / `2405539128699ffcda7c3f69815581158abc5fff`.
+- PostgreSQL acceptance-source commit/blob: `ad744b92ef058a3cff9bb1f4ba5c494d748613f0` / `8d37f9d5daecda5bc4eecaf4396a116c4efc62d1`.
+- Acceptance state: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. The migration has not been applied to a database; no tests/build/lint/CI/browser/E2E were run. Bolt New must sync main, apply the migration and validate the cursor against its Auth sessions table before the new list is considered runtime complete.
+- No Vercel credits, preview deployment, paid API provider or external notification service was used.
+
+## Next P1 body cursor
+
+Continue with the next untouched mandatory non-intelligence product capability. Do not rebuild session identity, individual or bulk revocation, existing offline catalog scope/cart safeguards, customer service, supplier documents or P3 intelligence engines.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-021 — CUSTOMER SERVICE DESK SLA REPORT PRINT/XLSX
 
 ## P1 PRODUCT DELIVERY — 2026-11-05 — BODY-COMPLETION-ON-MAIN-022 — SUPPLIER RETURN A4 / XLSX
