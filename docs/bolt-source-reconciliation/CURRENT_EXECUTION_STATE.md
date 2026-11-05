@@ -1,3 +1,33 @@
+# ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-05
+
+- Repository: `Report-Engainall/Nasr1`; source branch: `main` only.
+- Last product-code SHA before this checkpoint update: `6d8e45a0e153e5e035a95ebfec3cdbbba483978d`.
+- **Only two implementation roles are active: P1 and P3.** P1 (this execution) owns product UI/workspaces, route navigation, typed client/UI integration, operational document projection, print and XLSX. P3 owns intelligent engines, evidence lineage, tenant-scoped intelligence persistence, snapshot capture/correction and source read DTOs. No new P2 implementer/task is to be created or assigned. This override supersedes historical P1/P2/P3 ownership text below wherever it conflicts.
+- P1 completed the supplier invoice accounting handoff, standard General Ledger integration and Arabic A4/XLSX reconciliation outputs at the product-code SHA above. P1 also mounted BusinessHealthMap and GrowthOpportunityRadar and connected GrowthOpportunityRadar's source navigation to existing authorized screens.
+- P3 delivered the Section 52 decision-memory engine, UI, immutable storage migration, capture/correction RPC and embedded `memorySnapshot` read DTO; P3 owns the next intelligence section after Bolt-side acceptance of Section 52. P1 must not recreate P3 intelligence logic.
+- Supplier invoice capture/three-way match, supplier payment/settlement, source evidence attachments, Business Health Map and Growth Opportunity Radar were existing product capabilities and were reused rather than rebuilt.
+- No tests, build, lint, CI, CodeInspector, browser, E2E, database migration application, Bolt runtime, Preview, Vercel or production operation was run in this product-body phase. No PASS or runtime/production acceptance is claimed. Migrations are source-only until Bolt New sync/apply.
+- No Vercel credits or paid providers were used. GitHub commits are the delivery record; push/email notification receipt is not claimed because it depends on repository watch settings.
+
+## Current sequential product cursor
+
+- `BODY-COMPLETION-ON-MAIN-018` — supplier invoice accounting reconciliation and accounting voucher print/XLSX — **IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING**.
+- Accounting source: `supabase/migrations/20261105260000_supplier_invoice_accounting_handoff.sql`.
+- Typed client: `src/lib/supplier-invoices.ts` (`fetchSupplierInvoiceAccountingStatus`, `prepareSupplierInvoiceAccountingDraft`).
+- UI mount: `src/components/SupplierInvoiceWorkspace.tsx`, `src/components/GeneralLedgerWorkspace.tsx`.
+- Print projection/sheet: `src/lib/supplier-invoice-accounting-print.ts`, `src/components/SupplierInvoiceAccountingPrintSheet.tsx`, scoped CSS in `src/styles.css`.
+- Excel: `src/lib/supplier-invoice-accounting-xlsx.ts`; same source projection, three worksheets, exact-cent validation, decimal amounts as text, and no executable business-data formulas.
+- P1 next action: select the next untouched mandatory product capability from the canonical specification and matrix; do not recreate any of the listed delivered supplier-finance/intelligence capabilities.
+- P3 next action: after Bolt applies and accepts the Section 52 decision-memory migration/DTO, advance to the next canonical intelligence section. Do not duplicate Sections 50–52.
+
+## Bolt handoff boundary
+
+- Sync `Report-Engainall/Nasr1` from `main` into Bolt New.
+- Bolt New owns DB connection, migration application, environment-specific integration and end-to-end runtime/acceptance. The source repository does not claim that those operations have happened.
+- Preserve one source of truth: official GitHub `main`; no branch/PR workflow for this continuation.
+
+---
+
 # P3 SOURCE DELIVERY — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
 
 - Current main integration head: `0fb407c784f0c7e4ffa1b097b2b81c07319f8368`; P3 code commit: `6c91b244e14036e07b5a88bc066c77ef3b241e59`. The later P1 commit touched only `SupplierInvoiceWorkspace.tsx`.
