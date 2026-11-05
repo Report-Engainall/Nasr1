@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarClock, CreditCard, Download, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
+import { CalendarClock, CreditCard, Download, MessageSquare, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
 import { Button, Empty, ErrorBox, Loading, Modal, TableWrap } from '@/components/AdminPages';
-import { fetchStaffCustomer360Summary } from '@/lib/api';
+import { fetchCustomerInteractions, fetchStaffCustomer360Summary, recordCustomerInteraction } from '@/lib/api';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
-import type { Customer } from '@/lib/types';
+import type { Customer, CustomerInteraction, CustomerInteractionType } from '@/lib/types';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { formatCustomer360Money } from '@/lib/customer-360';
 import { downloadStaffCustomer360WorkbookXlsx } from '@/lib/customer-360-xlsx';
@@ -345,6 +345,140 @@ function Customer360LoadedView({
   );
 }
 
+const interactionTypeLabels: Record<CustomerInteractionType, string> = {
+  call: 'اتصال هاتفي',
+  visit: 'زيارة',
+  whatsapp: 'واتساب',
+  email: 'بريد إلكتروني',
+  meeting: 'اجتماع',
+  note: 'ملاحظة داخلية',
+  other: 'أخرى',
+};
+
+function customerInteractionDate(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString('ar-YE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'تاريخ غير صالح في السجل';
+}
+
+function Customer360Interactions({ customerId }: { customerId: string }) {
+  const [items, setItems] = useState<CustomerInteraction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [interactionType, setInteractionType] = useState<CustomerInteractionType>('call');
+  const [subject, setSubject] = useState('');
+  const [details, setDetails] = useState('');
+  const [nextFollowUpAt, setNextFollowUpAt] = useState('');
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const rows = await fetchCustomerInteractions(customerId, 50);
+      setItems(rows);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحميل سجل تواصل العميل.');
+    } finally {
+      setLoading(false);
+    }
+  }, [customerId]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  async function submitInteraction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!subject.trim() || !details.trim()) return;
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      await recordCustomerInteraction({
+        customerId,
+        interactionType,
+        subject,
+        details,
+        nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt).toISOString() : null,
+      });
+      setSubject('');
+      setDetails('');
+      setNextFollowUpAt('');
+      setNotice('حُفظ التواصل في سجل العميل مع هوية الموظف وسجل التدقيق.');
+      await reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر حفظ تواصل العميل.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="panel customer-360-interactions">
+      <div className="customer-360-interactions-heading">
+        <div>
+          <h3><MessageSquare size={18} /> سجل التواصل والمتابعة</h3>
+          <p className="report-note">سجل تشغيلي مؤرخ لا ينشئ طلبًا أو فاتورة أو دفعة ولا يغيّر رصيد العميل.</p>
+        </div>
+        <Button variant="secondary" onClick={() => { void reload(); }} disabled={loading || saving}>
+          <RefreshCw size={15} /> تحديث السجل
+        </Button>
+      </div>
+
+      <form className="customer-360-interaction-form" onSubmit={(event) => { void submitInteraction(event); }}>
+        <label>
+          <span>نوع التواصل</span>
+          <select value={interactionType} disabled={saving} onChange={(event) => setInteractionType(event.target.value as CustomerInteractionType)}>
+            {Object.entries(interactionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>موضوع المتابعة</span>
+          <input value={subject} maxLength={200} required disabled={saving} onChange={(event) => setSubject(event.target.value)} placeholder="مثال: متابعة عرض السعر أو موعد التسليم" />
+        </label>
+        <label className="customer-360-interaction-details">
+          <span>ملخص التواصل والنتيجة</span>
+          <textarea value={details} maxLength={4000} rows={3} required disabled={saving} onChange={(event) => setDetails(event.target.value)} placeholder="اكتب ما تم التواصل بشأنه والاتفاق أو الإجراء التالي" />
+        </label>
+        <label>
+          <span>موعد المتابعة القادمة (اختياري)</span>
+          <input type="datetime-local" value={nextFollowUpAt} disabled={saving} onChange={(event) => setNextFollowUpAt(event.target.value)} />
+        </label>
+        <div className="customer-360-interaction-submit">
+          <Button type="submit" disabled={saving || !subject.trim() || !details.trim()}>
+            {saving ? 'جارٍ حفظ التواصل…' : 'حفظ في سجل العميل'}
+          </Button>
+        </div>
+      </form>
+
+      {notice && <p className="customer-360-interaction-notice" role="status">{notice}</p>}
+      {error && <ErrorBox message={error} />}
+      {loading ? <Loading /> : items.length === 0 ? (
+        <Empty text="لا يوجد سجل تواصل مسجل لهذا العميل؛ أضف أول متابعة من النموذج أعلاه." />
+      ) : (
+        <div className="customer-360-interaction-list">
+          {items.map((item) => (
+            <article className="customer-360-interaction-item" key={item.id}>
+              <div className="customer-360-interaction-meta">
+                <strong>{item.subject}</strong>
+                <span>{interactionTypeLabels[item.interaction_type]}</span>
+                <time>{customerInteractionDate(item.interaction_at)}</time>
+              </div>
+              <p>{item.details}</p>
+              <div className="customer-360-interaction-footer">
+                <small>سُجل بواسطة: {item.recorded_by_name} · {formatDateShort(item.created_at)}</small>
+                {item.next_follow_up_at && <small>المتابعة القادمة: {customerInteractionDate(item.next_follow_up_at)}</small>}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      <p className="report-note">يعرض السجل أحدث {formatNumber(items.length)} تواصل من أصل غير محدود؛ تُحفظ كل الإدخالات في قاعدة البيانات ولا تُحذف من هذه الشاشة.</p>
+    </section>
+  );
+}
+
 export function AdminCustomer360({ customer, onClose }: { customer: Customer; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -443,10 +577,13 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         onPrint={printCustomer360}
       />
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : summary ? (
-        <Customer360LoadedView
-          summary={summary}
-          overdueInvoiceCount={overdueInvoiceCount}
-        />
+        <>
+          <Customer360LoadedView
+            summary={summary}
+            overdueInvoiceCount={overdueInvoiceCount}
+          />
+          <Customer360Interactions customerId={summary.customer.id} />
+        </>
       ) : null}   </div>
     {printDocument && typeof document !== 'undefined' ? createPortal(<Customer360PrintSheet document={printDocument} />, document.body) : null}
   </Modal>;
