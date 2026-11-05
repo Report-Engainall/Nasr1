@@ -1308,3 +1308,126 @@
     font-size: 7pt;
   }
 }
+
+
+.customer-service-desk-print-sheet { display: none; page: aghbariCustomerServiceDesk; }
+@page aghbariCustomerServiceDesk { size: A4 landscape; margin: 9mm; }
+@media print {
+  body[data-print-mode="customer-service-desk-report"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body[data-print-mode="customer-service-desk-report"] > :not(.customer-service-desk-print-sheet) {
+    display: none !important;
+  }
+  body[data-print-mode="customer-service-desk-report"] * { visibility: hidden !important; }
+  body[data-print-mode="customer-service-desk-report"] .customer-service-desk-print-sheet,
+  body[data-print-mode="customer-service-desk-report"] .customer-service-desk-print-sheet * {
+    visibility: visible !important;
+  }
+  body[data-print-mode="customer-service-desk-report"] .customer-service-desk-print-sheet {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: rtl !important;
+    text-align: right !important;
+    color: #17221c !important;
+    background: #fff !important;
+    font-family: "Noto Sans Arabic", Arial, sans-serif !important;
+    font-size: 7.5pt !important;
+    line-height: 1.45 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .customer-service-desk-print-header {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding-bottom: 7px;
+    border-bottom: 2px solid #174a37;
+  }
+  .customer-service-desk-print-sheet h1 {
+    margin: 0 0 4px;
+    color: #174a37 !important;
+    font-size: 14pt;
+  }
+  .customer-service-desk-print-sheet h2 {
+    margin: 2px 0 5px;
+    color: #174a37 !important;
+    font-size: 10pt;
+  }
+  .customer-service-desk-print-sheet h3 {
+    margin: 0 0 5px;
+    color: #174a37 !important;
+    font-size: 8pt;
+  }
+  .customer-service-desk-print-sheet p { margin: 2px 0 5px; }
+  .customer-service-desk-print-scope {
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    font-size: 6.5pt;
+  }
+  .customer-service-desk-print-scope strong { color: #9a3412 !important; }
+  .customer-service-desk-print-metrics {
+    margin-top: 7px;
+    break-inside: avoid;
+  }
+  .customer-service-desk-print-metrics > div {
+    display: grid;
+    grid-template-columns: repeat(6,minmax(0,1fr));
+    gap: 5px;
+  }
+  .customer-service-desk-print-metrics article {
+    display: grid;
+    gap: 3px;
+    padding: 5px;
+    border: 1px solid #cbd5cf;
+  }
+  .customer-service-desk-print-metrics article span { font-size: 6pt; color: #526057 !important; }
+  .customer-service-desk-print-metrics article strong { font-size: 11pt; color: #174a37 !important; }
+  .customer-service-desk-print-cases {
+    margin-top: 8px;
+  }
+  .customer-service-desk-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+    font-size: 6.2pt;
+  }
+  .customer-service-desk-print-sheet thead { display: table-header-group; }
+  .customer-service-desk-print-sheet th,
+  .customer-service-desk-print-sheet td {
+    padding: 3px 4px;
+    border: 1px solid #cbd5cf;
+    text-align: right;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  .customer-service-desk-print-sheet th {
+    color: #174a37 !important;
+    background: #edf4ef !important;
+    font-weight: 800;
+  }
+  .customer-service-desk-print-sheet tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .customer-service-desk-print-sheet small {
+    display: block;
+    color: #526057 !important;
+    font-size: 5.7pt;
+  }
+  .customer-service-desk-print-footer {
+    margin-top: 7px;
+    padding-top: 5px;
+    border-top: 1px solid #cbd5cf;
+    color: #526057 !important;
+    font-size: 6pt;
+  }
+}
