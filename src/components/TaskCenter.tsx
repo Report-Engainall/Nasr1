@@ -3,7 +3,7 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Clock3, Filter,
   ListTodo, Play, Plus, Printer, RefreshCw, Search, UserCheck, X,
 } from 'lucide-react';
-import { assignOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
+import { assignOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateOperationalTaskDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
@@ -37,6 +37,13 @@ function dateText(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? 'تاريخ غير صالح' :
     date.toLocaleString('ar-YE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
+function dateTimeInputValue(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
 function isLate(task: Pick<OperationalTask, 'due_at' | 'status'>): boolean {
   return Boolean(task.due_at && new Date(task.due_at).getTime() < Date.now() && !['completed','cancelled'].includes(task.status));
 }
@@ -214,6 +221,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [assigneesLoading, setAssigneesLoading] = useState(false);
   const [assigneesError, setAssigneesError] = useState('');
   const [assigneeDrafts, setAssigneeDrafts] = useState<Record<string, string>>({});
+  const [taskDetailDrafts, setTaskDetailDrafts] = useState<Record<string, { priority: OperationalTask['priority']; dueAt: string }>>({});
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -386,6 +394,37 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     } finally { setBusy(false); }
   }
 
+  function taskDetailsDraft(task: OperationalTask) {
+    return taskDetailDrafts[task.id] ?? {
+      priority: task.priority,
+      dueAt: dateTimeInputValue(task.due_at),
+    };
+  }
+
+  async function saveTaskDetails(task: OperationalTask) {
+    const draft = taskDetailsDraft(task);
+    const nextDueAt = draft.dueAt ? new Date(draft.dueAt).toISOString() : null;
+    const sameDueAt = nextDueAt === null
+      ? task.due_at === null
+      : task.due_at !== null && Date.parse(nextDueAt) === Date.parse(task.due_at);
+    if (draft.priority === task.priority && sameDueAt) return;
+
+    setBusy(true); setError('');
+    try {
+      await updateOperationalTaskDetails(task.id, draft.priority, nextDueAt);
+      setTaskDetailDrafts((current) => {
+        const next = { ...current };
+        delete next[task.id];
+        return next;
+      });
+      await loadTasks();
+      onNotice('تم تحديث أولوية المهمة وموعد استحقاقها وتسجيل التغيير.');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'تعذر تحديث تفاصيل المهمة.';
+      setError(message); onNotice(message);
+    } finally { setBusy(false); }
+  }
+
   async function refreshFromSources() {
     setBusy(true); setError('');
     try {
@@ -520,6 +559,49 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
           </div>
         </div>
         <div className="task-card-actions">
+          {canManage && !['completed','cancelled'].includes(task.status) && (() => {
+            const draft = taskDetailsDraft(task);
+            const nextDueAt = draft.dueAt ? new Date(draft.dueAt).toISOString() : null;
+            const sameDueAt = nextDueAt === null
+              ? task.due_at === null
+              : task.due_at !== null && Date.parse(nextDueAt) === Date.parse(task.due_at);
+            const unchanged = draft.priority === task.priority && sameDueAt;
+            return (
+              <div className="task-card-detail-editor">
+                <label>
+                  <span>الأولوية</span>
+                  <select
+                    aria-label={'أولوية المهمة: ' + task.title}
+                    value={draft.priority}
+                    disabled={busy}
+                    onChange={(event) => setTaskDetailDrafts((current) => ({
+                      ...current,
+                      [task.id]: { ...taskDetailsDraft(task), priority: event.target.value as OperationalTask['priority'] },
+                    }))}
+                  >
+                    <option value="low">منخفضة</option>
+                    <option value="medium">متوسطة</option>
+                    <option value="high">مرتفعة</option>
+                    <option value="critical">حرجة</option>
+                  </select>
+                </label>
+                <label>
+                  <span>موعد الاستحقاق</span>
+                  <input
+                    type="datetime-local"
+                    aria-label={'موعد استحقاق المهمة: ' + task.title}
+                    value={draft.dueAt}
+                    disabled={busy}
+                    onChange={(event) => setTaskDetailDrafts((current) => ({
+                      ...current,
+                      [task.id]: { ...taskDetailsDraft(task), dueAt: event.target.value },
+                    }))}
+                  />
+                </label>
+                <button type="button" className="btn secondary" disabled={busy || unchanged} onClick={() => void saveTaskDetails(task)}>حفظ التفاصيل</button>
+              </div>
+            );
+          })()}
           {canManage && !['completed','cancelled'].includes(task.status) && (
             <label className="task-card-assignment">
               <span>تعديل إسناد المهمة</span>
