@@ -1,6 +1,9 @@
 ## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Exact product code cursor: `f2c10b37031cba3551e0f0acef5d868afb3a756e` (main at the end of this delivery; documentation-only cursor updates may follow).
+- Final P3 module blobs: engine `8f673ed4f7ec265212ddd1326d8a87d64bd44c50`; component `b4289972ab6ae0293a69bad7cc982f642ea1efdf`.
+- Implementation commits: `41818a21892e0f22d648fa39077a16d88140d9e6`, `b57d4f2bcfa255a0a58179c36111f11fbb748999`, `cd14325a0a5080377d1d0fb1fc5faac6f75db571`, `f3ebadecc248acbc91f0a867c7928285cb1d3cd2`, `df4ff2200ac946108bacd7b8ffc0f9193dfdbbe3`, `f2c10b37031cba3551e0f0acef5d868afb3a756e`.
 - Canonical reference: section 52 — دفتر ذاكرة القرارات التجارية والتعلّم من نتائجها.
 - P3 product paths:
   - `src/lib/intelligence/decision-memory.ts`
@@ -23,8 +26,10 @@
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Base SHA: `4f2ebcee064f399b53c15f2ed919a8395e939bd7`.
-- Product engine/component delivery SHA: `d32a833490a79b5bbc60f866ba258d18ad1e7107`.
+- Initial engine/component delivery SHA: `d32a833490a79b5bbc60f866ba258d18ad1e7107`.
 - Evidence hardening SHA: `f924e0cc2288866a99ae2faad68b069f64335e41`.
+- Final code cursor after preserving independent source periods and exposing them in the UI: `f2c10b37031cba3551e0f0acef5d868afb3a756e`.
+- Final module blobs: engine `755a3a75595d12e2a3d2fa2ccf2975a228800c19`; component `f52738ce674b7fc8c07d9481f7f350efaf81744d`.
 - Canonical reference: section 51 — خريطة صحة العمل ورأس المال المحجوز.
 - P3-owned paths:
   - `src/lib/intelligence/business-health-map.ts`
@@ -39,7 +44,7 @@
 - Operational attention cards are read-only and source-linked. Replenishment quantities are displayed per product/UOM and not summed across different SKUs or translated into money.
 - Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - Verification boundary: tests/build/lint/typecheck/CI/browser/E2E/database/Preview/production NOT RUN in this product-body batch; no PASS claimed. No Vercel action/credit, no paid provider/dependency, no production/live integration.
-- P1 handoff: mount `BusinessHealthMap` in the existing intelligence surface after the current supplier-finance UI task; use its exported props and preserve unavailable/partial states.
+- P1 integration: `BusinessHealthMap` is mounted in the existing `IntelligenceWorkspace`; its card values retain and display each source's own as-of and period. No new route is required.
 - P2 handoff: provide current same-tenant engine result payloads for liquidity, cashflow, dead stock, replenishment and customer retention with exact as-of/period/lineage; no new independent ledger or summary write is requested.
 - Next P3 body: section 52 — دفتر ذاكرة القرارات التجارية والتعلم منها. Reuse the existing decision-outcome lifecycle and learning-loop; add versioned evidence snapshots and comparable measured outcomes without automatic rule changes.
 - This parallel P3 task does not alter sequential BODY-COMPLETION-ON-MAIN-018 supplier-finance UI ownership.
@@ -50,7 +55,8 @@
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Base code SHA: `52ef0b3f92ea5cd063b78eca16a95e92dc8d7a11`.
-- Product code SHA after delivery and evidence hardening: `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+- Initial product code SHA after evidence hardening: `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+- Final integrated P3 code cursor: `f2c10b37031cba3551e0f0acef5d868afb3a756e`; final module blobs: engine `c5ba2e2af3906c60bfff34ac8b6daad20fb1f98d`; component `dbb2b92c60c78e6009886d59320d65ffb1561c4b`.
 - Task: `REF-GROWTH-OPPORTUNITY-RADAR-001`, aligned to section 50 (رادار فرص النمو المربحة) of the canonical merchant-intelligence specification.
 - P3-owned implementation:
   - `src/lib/intelligence/growth-opportunities.ts`
