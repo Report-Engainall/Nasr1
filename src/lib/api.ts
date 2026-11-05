@@ -1087,7 +1087,7 @@ export async function fetchOperationalTaskAssignees(): Promise<OperationalTaskAs
 export async function updateOperationalTasksDetails(
   taskIds: string[],
   priority: 'low' | 'medium' | 'high' | 'critical',
-  dueAt: string | null,
+  dueAt: string,
 ): Promise<{ processed_count: number; changed_count: number }> {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (taskIds.length < 1 || taskIds.length > 100 || taskIds.some((id) => !uuidPattern.test(id)) ||
@@ -1097,7 +1097,7 @@ export async function updateOperationalTasksDetails(
   if (!['low','medium','high','critical'].includes(priority)) {
     throw new Error('أولوية المهمة غير صالحة.');
   }
-  if (dueAt !== null && !Number.isFinite(Date.parse(dueAt))) {
+  if (!Number.isFinite(Date.parse(dueAt))) {
     throw new Error('موعد الاستحقاق غير صالح.');
   }
   const { data, error } = await supabase.rpc('update_operational_tasks_details', {
