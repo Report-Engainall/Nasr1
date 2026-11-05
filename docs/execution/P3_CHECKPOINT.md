@@ -1,3 +1,22 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (SUPPLIER PERFORMANCE INTENTS)
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent SHA: `9092c7558428c4e882cc7c3c423b40976c15d042`. This delivery extends the committed customer-retention assistant and does not edit P1-owned workspace/routes.
+- Added deterministic Arabic supplier-performance and delivery-adherence intents on the existing `fetch_supplier_performance_snapshot` client/RPC. The reader uses a bounded 30/60/90/180/365-day UTC window (90 days by default) and page size 200; periods beyond the explicit supported set and free-form dates are rejected.
+- The existing RPC is SECURITY DEFINER with empty search_path, derives the active organization on the server, requires `purchase_orders_can_manage()` (admin/manager), and reads real purchase orders, item receipt state, physical receipts and awarded quote delivery terms. It excludes prices/balances and performs no writes.
+- The assistant returns aggregate-only counts and a pooled on-time percentage only at a total promised-delivery sample size of at least 3. It withholds all aggregates when the returned supplier population is partial, and does not create an unsupported cross-supplier mean lead-time by averaging supplier-level averages. Individual suppliers and purchase orders are not exposed in this assistant result.
+- Changed paths:
+  - `src/lib/intelligence/natural-language-assistant.ts`
+  - `src/lib/intelligence/natural-language-assistant-client.ts`
+  - `src/components/intelligence/NaturalLanguageAssistant.tsx`
+  - `docs/execution/P3_CHECKPOINT.md`
+- P1 handoff remains: mount `NaturalLanguageAssistant` once in the existing `IntelligenceWorkspace`; admin/manager access is re-enforced by the RPC for supplier performance, while customer-retention remains staff-authorized by its own RPC. Preserve existing authorized invoice/PO navigation callbacks.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/E2E/RPC/Bolt/Preview/provider/Vercel/production operation was run, per the active execution instruction. Supplier-performance migration application remains a separate runtime acceptance dependency.
+- Cost/safety: no paid service/provider/dependency, no API quota use, no secrets, no customer finance/pricing data, no supplier prices/balances, no external communication, and no financial/inventory mutation.
+- Next: P1 mounts the assistant; P3 continues only with another pre-existing read RPC whose source coverage and authorization can be established without parallel repositories or client SQL.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (CUSTOMER RETENTION INTENTS)
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

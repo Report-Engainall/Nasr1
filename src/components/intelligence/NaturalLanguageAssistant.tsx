@@ -6,6 +6,9 @@ const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
 function count(value:number|null):string{return value===null?"غير متاح":qty.format(value);}
 function percent(value:number|null):string{return value===null?"غير متاح":rate.format(value)+"%";}
+function supplierTitle(intent:"SUPPLIER_PERFORMANCE_OVERVIEW"|"SUPPLIER_DELIVERY_ADHERENCE"):string {
+ return intent==="SUPPLIER_DELIVERY_ADHERENCE"?"الالتزام بمواعيد التوريد":"ملخص أداء الموردين";
+}
 function retentionTitle(intent:"CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK"):string {
  if(intent==="CUSTOMER_DORMANCY_RISK")return "مخاطر فتور وخمول العملاء";
  if(intent==="CUSTOMER_REPEAT_PURCHASE")return "تكرار الشراء";
@@ -37,7 +40,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ضمن نافذة معتمدة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين ضمن نافذة معتمدة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -69,6 +72,24 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     {invoice.reviewReason?<p className="mt-1 text-xs">سبب المراجعة: {invoice.reviewReason}</p>:null}
     {onOpenSupplierInvoice?<button type="button" onClick={()=>onOpenSupplierInvoice(invoice.invoiceId)} className="mt-2 rounded-lg border px-3 py-1.5 text-xs">فتح الفاتورة</button>:null}
    </article>)}
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="SUPPLIER_PERFORMANCE"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2"><strong>{supplierTitle(response.result.intent)}</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="READY"?"تغطية كاملة":response.result.state==="PARTIAL"?"تغطية جزئية":"لا توجد سجلات"}</span></div>
+    <p className="mt-2 font-medium">{response.result.answer}</p>
+    <p className="mt-2 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · كما في {response.result.asOf} · نافذة UTC: {response.result.period.from} — {response.result.period.to} · الموردون: {count(response.result.returnedSupplierCount)} من {count(response.result.totalSupplierCount)}</p>
+   </div>
+   {response.result.completePopulation&&response.result.state!=="EMPTY"?<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">أوامر الشراء</p><strong className="text-lg">{count(response.result.aggregate.purchaseOrderCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">أوامر مكتملة</p><strong className="text-lg">{count(response.result.aggregate.completedOrderCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">أوامر مفتوحة</p><strong className="text-lg">{count(response.result.aggregate.openOrderCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">سطور استلام متبقية</p><strong className="text-lg">{count(response.result.aggregate.backlogLineCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">عينات زمن التوريد</p><strong className="text-lg">{count(response.result.aggregate.leadTimeSampleCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">معدل الالتزام بالموعود</p><strong className="text-lg">{percent(response.result.aggregate.onTimePercent)}</strong></article>
+   </div>:null}
+   {response.result.withheldReasons.length?<div role="status" className="rounded-lg border p-3 text-xs"><strong>قيود القياس</strong><ul className="mt-1 list-disc space-y-1 ps-5">{response.result.withheldReasons.map(reason=><li key={reason}>{reason}</li>)}</ul></div>:null}
+   <p className="text-xs text-muted-foreground">المؤشرات تشغيلية فقط؛ لا تعرض أسعار الموردين أو أرصدتهم، ولا تنشئ أوامر شراء. لا يُحسب متوسط زمن التوريد من متوسطات الموردين المنفصلة.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="CUSTOMER_RETENTION"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">

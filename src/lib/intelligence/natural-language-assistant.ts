@@ -1,10 +1,12 @@
 import type { SupplierInvoiceMatchStatus, SupplierInvoiceRecord } from "@/lib/supplier-invoices";
 import type { CustomerRetentionReport } from "./customer-retention";
+import type { SupplierPerformanceResult } from "./supplier-performance";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate";
+export type SupplierPerformanceIntent="SUPPLIER_PERFORMANCE_OVERVIEW"|"SUPPLIER_DELIVERY_ADHERENCE";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -19,6 +21,24 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   status:"CLARIFICATION",normalizedQuestion,explanation:"اكتب سؤالاً واضحاً لا يتجاوز 400 حرف.",
   clarification:"ما السجلات التي تريد الاستعلام عنها؟"
  };
+ const supplierPerformanceQuestion=/(اداء المورد|مؤشرات المورد|زمن التوريد|مهله التوريد|التزام المورد|الالتزام بمواعيد التوريد)/.test(normalizedQuestion);
+ if(supplierPerformanceQuestion){
+  const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90|180|365)\s*(?:يوما?|ايام)/);
+  const monthPeriod=/اخر شهر/.test(normalizedQuestion)?30:
+   /اخر 3 اشهر/.test(normalizedQuestion)?90:/اخر 6 اشهر/.test(normalizedQuestion)?180:
+   /اخر سنه/.test(normalizedQuestion)?365:null;
+  const periodDays=(dayMatch?Number(dayMatch[1]):monthPeriod??90) as 30|60|90|180|365;
+  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر|من تاريخ|بين تاريخ|الفتره|الربع)/.test(normalizedQuestion)||/20\d{2}-\d{2}-\d{2}/.test(normalizedQuestion);
+  const hasSupportedPeriod=Boolean(dayMatch||monthPeriod!==null);
+  if(hasTimeConstraint&&!hasSupportedPeriod)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"تحليل الموردين يدعم نوافذ محددة فقط حتى 365 يوماً في هذا المساعد؛ لا يطبق نطاقات تقويمية أو تواريخ حرة."
+  };
+  const intent:SupplierPerformanceIntent=/(التزام|الالتزام بمواعيد التوريد|موعد)/.test(normalizedQuestion)
+   ?"SUPPLIER_DELIVERY_ADHERENCE":"SUPPLIER_PERFORMANCE_OVERVIEW";
+  return {status:"READY",intent,normalizedQuestion,sourceRpc:"fetch_supplier_performance_snapshot",periodDays,
+   filterDescription:"مؤشرات المشتريات الفعلية للموردين في نافذة UTC بطول "+periodDays+" يوماً؛ لا تشمل أسعاراً أو أرصدة أو درجات جودة غير مثبتة."};
+ }
  const retentionQuestion=/(احتفاظ|استبقاء|تكرار الشراء|شراء متكرر|متكرر|نشاط العملاء|نشطون|الخمول|خاملون|معرضون للخمول|معرضين للخمول|معرض للخمول|فتور)/.test(normalizedQuestion);
  if(retentionQuestion){
   const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90|180|365)\s*(?:يوما?|ايام)/);
@@ -26,7 +46,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    /اخر 3 اشهر/.test(normalizedQuestion)?90:/اخر 6 اشهر/.test(normalizedQuestion)?180:
    /اخر سنه/.test(normalizedQuestion)?365:null;
   const periodDays=(dayMatch?Number(dayMatch[1]):monthPeriod??90) as 30|60|90|180|365;
-  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر)/.test(normalizedQuestion);
+  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر|من تاريخ|بين تاريخ|الفتره|الربع)/.test(normalizedQuestion)||/20\d{2}-\d{2}-\d{2}/.test(normalizedQuestion);
   const hasSupportedPeriod=Boolean(dayMatch||monthPeriod!==null);
   if(hasTimeConstraint&&!hasSupportedPeriod)return {
    status:"UNSUPPORTED",normalizedQuestion,
@@ -113,7 +133,16 @@ export interface NaturalLanguageCustomerRetentionResult {
  activity:{active30Days:number|null;cooling31To60Days:number|null;atRisk61To90Days:number|null;inactiveOver90Days:number|null;noOrderDate:number|null};
  warnings:string[];
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult;
+export interface NaturalLanguageSupplierPerformanceResult {
+ kind:"SUPPLIER_PERFORMANCE";state:"READY"|"PARTIAL"|"EMPTY";intent:SupplierPerformanceIntent;
+ answer:string;sourceRpc:"fetch_supplier_performance_snapshot";asOf:string;period:{from:string;to:string};
+ totalSupplierCount:number;returnedSupplierCount:number;completePopulation:boolean;
+ aggregate:{purchaseOrderCount:number|null;completedOrderCount:number|null;openOrderCount:number|null;
+  inconsistentReceivedCount:number|null;backlogLineCount:number|null;leadTimeSampleCount:number|null;
+  suppliersWithReliableLeadTime:number|null;promisedDeliverySampleCount:number|null;onTimeCount:number|null;onTimePercent:number|null};
+ withheldReasons:string[];
+}
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -229,5 +258,45 @@ export function resolveCustomerRetentionIntent(
    atRisk61To90Days:report.activity.atRisk61To90Days,inactiveOver90Days:report.activity.inactiveOver90Days,
    noOrderDate:report.activity.noOrderDate},
   warnings:[...report.warnings],
+ };
+}
+
+
+/** Projects only full-population supplier aggregates; supplier and order identities are not returned. */
+export function resolveSupplierPerformanceIntent(
+ intent:SupplierPerformanceIntent,result:SupplierPerformanceResult,
+):NaturalLanguageSupplierPerformanceResult {
+ const complete=result.completePopulation&&result.state!=="PARTIAL";
+ const suppliers=result.suppliers;
+ const sum=(key:"purchaseOrderCount"|"completedOrderCount"|"openOrderCount"|"inconsistentReceivedCount"|"backlogLineCount"|"leadTimeSampleCount"|"promisedDeliverySampleCount"|"onTimeCount")=>
+  suppliers.reduce((total,supplier)=>total+supplier[key],0);
+ const promisedSamples=sum("promisedDeliverySampleCount"),onTimeCount=sum("onTimeCount");
+ const aggregate=complete?{
+  purchaseOrderCount:sum("purchaseOrderCount"),completedOrderCount:sum("completedOrderCount"),
+  openOrderCount:sum("openOrderCount"),inconsistentReceivedCount:sum("inconsistentReceivedCount"),
+  backlogLineCount:sum("backlogLineCount"),leadTimeSampleCount:sum("leadTimeSampleCount"),
+  suppliersWithReliableLeadTime:suppliers.filter(supplier=>supplier.leadTimeSampleCount>=3).length,
+  promisedDeliverySampleCount:promisedSamples,onTimeCount,
+  onTimePercent:promisedSamples>=3?Math.round(onTimeCount/promisedSamples*1000)/10:null,
+ }:{
+  purchaseOrderCount:null,completedOrderCount:null,openOrderCount:null,inconsistentReceivedCount:null,
+  backlogLineCount:null,leadTimeSampleCount:null,suppliersWithReliableLeadTime:null,
+  promisedDeliverySampleCount:null,onTimeCount:null,onTimePercent:null,
+ };
+ let answer:string;
+ if(!complete){
+  answer="مجموعة الموردين في هذه النافذة جزئية: أُعيد "+result.returnedSupplierCount+" من أصل "+result.totalSupplierCount+" مورداً. حُجبت المجاميع والنسب حتى لا تُعرض عينة الموردين كأنها كامل مجتمع المشتريات.";
+ }else if(result.state==="EMPTY"){
+  answer="لا توجد أوامر شراء مؤهلة ضمن نافذة "+result.period.from+" إلى "+result.period.to+".";
+ }else if(intent==="SUPPLIER_DELIVERY_ADHERENCE"){
+  answer="في نافذة "+result.period.from+" إلى "+result.period.to+" توجد "+promisedSamples+" مشاهدة مكتملة مرتبطة بمدة توريد موعودة؛ معدل الالتزام الكلي "+(aggregate.onTimePercent===null?"غير متاح لعدم بلوغ 3 مشاهدات":aggregate.onTimePercent.toFixed(1)+"%")+".";
+ }else{
+  answer="في نافذة "+result.period.from+" إلى "+result.period.to+" شمل التحليل "+aggregate.purchaseOrderCount+" أمر شراء عبر "+result.totalSupplierCount+" مورداً؛ المكتمل "+aggregate.completedOrderCount+"، والمفتوح "+aggregate.openOrderCount+"، وسطـور الاستلام المتبقية "+aggregate.backlogLineCount+". الموردون ذوو 3 عينات زمن توريد على الأقل: "+aggregate.suppliersWithReliableLeadTime+".";
+ }
+ return {
+  kind:"SUPPLIER_PERFORMANCE",state:complete?result.state:"PARTIAL",intent,answer,
+  sourceRpc:"fetch_supplier_performance_snapshot",asOf:result.asOf,period:{from:result.period.from,to:result.period.to},
+  totalSupplierCount:result.totalSupplierCount,returnedSupplierCount:result.returnedSupplierCount,completePopulation:complete,
+  aggregate,withheldReasons:[...result.withheldReasons],
  };
 }

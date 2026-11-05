@@ -1,8 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import { fetchSupplierInvoiceWorkspace } from "@/lib/supplier-invoices";
 import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
+import { fetchSupplierPerformance } from "./supplier-performance-client";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -19,6 +20,15 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="fetch_supplier_performance_snapshot"){
+   const to=new Date().toISOString().slice(0,10);
+   const fromDate=new Date(to+"T00:00:00.000Z");
+   fromDate.setUTCDate(fromDate.getUTCDate()-((plan.periodDays??90)-1));
+   const supplier=await fetchSupplierPerformance({from:fromDate.toISOString().slice(0,10),to,limit:200});
+   if(!supplier.ok)return {status:supplier.status,message:supplier.message};
+   return {status:"RESULT",plan,result:resolveSupplierPerformanceIntent(
+    plan.intent as SupplierPerformanceIntent,supplier.result)};
+  }
   if(plan.sourceRpc==="get_customer_retention_aggregate"){
    const retention=await fetchCustomerRetentionAggregate(plan.periodDays??90,new Date().toISOString());
    if(!retention.ok)return {status:retention.status,message:retention.message};
