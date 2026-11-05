@@ -1,3 +1,14 @@
+# HANDOFF PROMPT ACTIVATION NOTICE — OWNER ORDER — 2026-11-05
+
+**This file is a future Bolt handoff runbook. It is NOT an instruction to open Bolt or import the repository now.** Do not execute any steps below until the NASR1 product-body readiness gate is reached and the owner explicitly starts the Bolt handoff phase.
+
+Until then, the active work stays on Report-Engainall/Nasr1 main: complete the greatest practical amount of existing screens, workflows, business engines, data contracts, SQL/RPC-backed behavior, and source-level acceptance work that does not require Bolt-provisioned resources. Preserve all existing work. The Lovable build/editor/telemetry detachment is already complete and must not be repeated. Do not sign in to Bolt, create a workspace, import/sync, provision its database, or run Preview during the body-completion phase.
+
+Activation condition: every remaining product/source item that can be implemented and accepted without the actual Bolt environment has been completed or has a precise, evidence-backed blocker. Do not invent a percentage or claim readiness without the matrix and source evidence.
+
+When activated later, execute this handoff against the then-current latest main only. Bolt is responsible for provisioning and mapping its built-in database, auth, storage and server functions, preserving all existing migration/RPC/tenant/RBAC/privacy/audit/idempotency/transaction contracts, then running Bolt Preview and the full E2E/security/commerce acceptance on one exact SHA. Historical ZIP is reference only; no external Supabase connection, Lovable service, paid upgrade or billing change.
+
+---
 # أمر تنفيذ موحد وحاسم داخل Bolt — متجر الأغبري Aghbari Commerce
 **تاريخ الإصدار:** 5 نوفمبر 2026  
 **الهدف:** تحويل نسخة NASR1 الحالية إلى تطبيق تجاري يعمل فعليًا داخل Bolt Database وBolt Preview، مع إنجاز ما لا يقل عن 90% من متطلبات المنتج قبل اعتبار العمل جاهزًا للإطلاق.
