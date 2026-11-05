@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 ALTER TABLE public.notifications
+  ADD COLUMN IF NOT EXISTS id uuid DEFAULT gen_random_uuid(),
   ADD COLUMN IF NOT EXISTS organization_id uuid,
   ADD COLUMN IF NOT EXISTS profile_id uuid,
   ADD COLUMN IF NOT EXISTS title text,
@@ -19,6 +20,15 @@ ALTER TABLE public.notifications
   ADD COLUMN IF NOT EXISTS type text DEFAULT 'info',
   ADD COLUMN IF NOT EXISTS is_read boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
+UPDATE public.notifications
+SET id=gen_random_uuid()
+WHERE id IS NULL;
+ALTER TABLE public.notifications
+  ALTER COLUMN id SET DEFAULT gen_random_uuid(),
+  ALTER COLUMN id SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_id_uidx
+  ON public.notifications(id);
 
 CREATE INDEX IF NOT EXISTS notifications_profile_unread_created_idx
   ON public.notifications(organization_id,profile_id,is_read,created_at DESC);
