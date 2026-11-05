@@ -84,7 +84,8 @@ describe('Auth bootstrap resilience', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(host.textContent).toContain('اتصال قاعدة البيانات غير مهيأ');
+    expect(host.textContent).toContain('إعداد قاعدة البيانات والمصادقة غير مكتمل');
+    expect(host.textContent).not.toMatch(/lovable/i);
     expect(host.textContent).not.toContain('حدث خطأ غير متوقع. حاول مرة أخرى أو عد للرئيسية.');
   });
 
@@ -99,6 +100,7 @@ describe('Auth bootstrap resilience', () => {
 
     expect(host.textContent).toContain('auth-ready');
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('قاعدة البيانات المدمجة في Bolt');
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('SUPABASE_URL');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('قاعدة البيانات المدمجة في Bolt');
+    expect(host.querySelector('[role="alert"]')?.textContent).not.toMatch(/lovable/i);
   });
 });
