@@ -1771,3 +1771,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Assertions cover exact 25.00 + 35.00 = 60.00 YER allocations, persisted receipt, Arabic RTL/A4, identical repeat print, no sensitive IDs/private note, unchanged balances/no duplicate financial movement, and ordinary-customer denial. This is isolated test data; no production write.
 - Added matrix leaf DLV-011-CUSTOMER-MULTI-INVOICE-RECEIPT-PRINT-001 as accepted on that exact SHA and updated DLV-011 from six to seven accepted leaves. DLV-011 remains PARTIAL; other pairs and hosted/production evidence remain open.
 - No application code was changed in this acceptance reconciliation. Do not reimplement or repeat the passing test absent a relevant regression.
+
+## 2026-11-05 — P3 archive extraction and durable reference handoff
+
+- Archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; nested ZIP SHA-256: `0a71e066357d59e60e33e7f63d8afa3c645d48dc3a29c69ed64decb9ab131a20`.
+- Outer ZIP: 1,119 files / 17,656,042 bytes uncompressed; nested ZIP: 790 files / 9,158,183 bytes uncompressed.
+- Archive checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is ancestor of the reviewed main line (73 commits ahead / 0 behind at comparison).
+- 69/69 provenance source/staged blobs verified; 69/69 repository/path pairs linked to the existing `SOURCE_INTEGRATION_LEDGER.csv`.
+- Published under `نماذج/2026-11-05-project-bolt-archive/`: Arabic report, 69-file decision CSV and special-file disposition CSV. Updated shared models README.
+- No bulk runtime merge: async CSV helper exact-matches current target; image helper is superseded; direct-write category page and privileged role/password migrations excluded; banner image Storage lifecycle remains a partial gap.
+- Docs/reference-only. No source code, migrations, secrets, DB or production changes. App build/unit/PG17/Playwright/Bolt Preview NOT RUN.
+- Next action remains `BODY-COMPLETION-ON-MAIN-001`; do not re-extract the ZIP.
+
