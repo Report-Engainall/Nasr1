@@ -203,9 +203,7 @@ function AdminWorkspaceContent({
                     ? "stock-count"
                     : sourceKey === "DELIVERIES"
                       ? "orders"
-                      : sourceKey === "HANDOVER"
-                        ? "tasks"
-                        : "operations";
+                      : "operations";
           const labels: Partial<Record<View, string>> = {
             finance: "الفواتير والتحصيل",
             "purchase-orders": "أوامر الشراء والاستلام",
