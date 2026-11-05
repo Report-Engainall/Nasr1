@@ -65,3 +65,13 @@ P1 owns route mounting, tenant-safe request orchestration and interactions. Cons
 - Displays currency panels and 7/30/90-day windows separately. Expected collections and due obligations are marked as already included in net liquidity. Stock exposure is non-cash and never deducted from net liquidity. Matching liquidity/dead-stock exposure is represented once using matching value and shared evidence; conflicting sources are withheld.
 - Shows replenishment quantities per product/UOM without cross-product summation. CCC/DSO/DPO/product/supplier concentration are NOT_CALCULABLE with explicit missing inputs. Capital-at-risk grand total remains withheld.
 - Does not create tasks, purchases, stock, accounting, pricing or communication mutations. P1 may mount the component in the existing intelligence dashboard; no new route is needed.
+
+
+## ShiftOperationsCenter
+- Import: `import { ShiftOperationsCenter } from "@/components/intelligence";`
+- Props: `result?: ShiftOperationsCenterResult | null`, `state?: "loading" | "empty" | "error" | "unavailable" | "ready"`, `onRetry?: () => void`, and `onOpenItem?: (sourceKey, sourceRef) => void`.
+- P1 mounts it in the existing operations/shift experience; do not create another task, ledger, cashbox or inventory workflow. Use the actual P2 `fetch_operational_shift_workspace` DTO only; no client fixtures or synthetic counts.
+- The component shows opening readiness, operational close completeness and financial-close eligibility separately; shows unresolved tasks/orders/invoices/receipts/payments/movements/deliveries/stock variances/reminders; and exposes the previous-shift handover evidence.
+- Cash opening and closing counts are separated by currency. A financial `ELIGIBLE` state means only that source evidence is ready for a separately authorized review; the component never closes the day, posts a journal or changes stock/tasks.
+- `onOpenItem` must resolve to an already-authorized source route. Keep unavailable/loading/error states and withheld counts/amounts when source coverage is incomplete.
+- P2 persistence and read DTO are prerequisites for operational activation; until delivered, show the explicit unavailable state rather than mock data.
