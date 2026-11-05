@@ -323,7 +323,9 @@ export function buildDecisionMemoryBook(input: {
             if(!snapshot.lessonsReviewed) missingFields.push("LESSONS_REVIEWED");
             else lessons=(snapshot.lessons??[]).filter(value=>typeof value==="string"&&value.trim().length>0);
           } else if(actualMetric){warnings.push("ACTUAL_METRIC_PRESENT_BEFORE_MEASURED_STATE");actualMetric=null;}
-          if(actualMetric&&outcome.measuredOutcome&&
+          if(actualMetric&&outcome.state==="MEASURED"&&!outcome.measuredOutcome){
+            warnings.push("DECISION_OUTCOME_MEASUREMENT_SUMMARY_MISSING");actualMetric=null;missingFields.push("ACTUAL_METRIC");
+          } else if(actualMetric&&outcome.measuredOutcome&&
             (Math.abs(actualMetric.value-outcome.measuredOutcome.value)>0.005||
              actualMetric.currency!==outcome.measuredOutcome.currency||actualMetric.asOf!==outcome.measuredOutcome.asOf)){
             warnings.push("DECISION_OUTCOME_MEASUREMENT_CONFLICT");actualMetric=null;missingFields.push("ACTUAL_METRIC");
