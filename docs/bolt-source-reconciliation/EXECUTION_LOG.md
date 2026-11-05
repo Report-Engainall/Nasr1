@@ -1,3 +1,14 @@
+## 2026-11-06 — P3 Supplier Performance Intelligence — REF-SUPPLIER-PERFORMANCE-INTELLIGENCE-001
+
+- Parent main SHA: 08c8e58c19898be2432869ca069bc7353eda1ef1; P3 feature commit: 31f10763d54a6e0b212185e057f4ef262bd23254; unit-safe correction: e2279f090c30858d129aa666ea236bc1c053a49a; final component contract commit: d8da9100e1bbd8ac2694f4a11658da6613b2d3f8.
+- Files: migration supabase/migrations/20261106040000_intelligence_supplier_performance.sql; engine src/lib/intelligence/supplier-performance.ts; client src/lib/intelligence/supplier-performance-client.ts; component src/components/intelligence/SupplierPerformancePanel.tsx; intelligence barrel exports.
+- Built a read-only operational model with active-organization/admin-manager authorization, UTC submitted-date window, max 730-day range and max 200 suppliers. Uses actual PO, PO-line, receipt and awarded-quote delivery terms only.
+- Completion requires received PO status, all line quantities received and final receipt timestamp >= submission. On-time status requires linked awarded quote delivery_days. The UI withholds unsupported metrics and small-sample statistics (n<3), reports pending item-line counts rather than mixing product/UOM quantities, excludes financial values and makes no quality/defect claim.
+- Added a component callback contract for P1 to open a PO only through its existing authorized route. P1 workspace/routes were not changed.
+- Code status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Migration remains source-only until Bolt applies it. No tests, build, lint, typecheck, CI, browser/E2E, DB application, Bolt runtime, Preview, Vercel or provider calls were run. No PASS or production acceptance is claimed.
+- No paid services, Vercel credits, new dependencies, secrets, live supplier communications, financial writes or stock writes.
+
+---
 ## 2026-11-06 — P3 Commerce Policy Governance and What-if Simulation — REF-SECTION-55-COMMERCE-POLICY-GOVERNANCE-001
 
 - Exact code commit on main: `0d42d66ac8073450db58618c88c38fc2af01454b`; parent `483deeeae9797911e2e4f2ca91e50ec5c7325cf9`.

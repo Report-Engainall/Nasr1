@@ -75,3 +75,12 @@ P1 owns route mounting, tenant-safe request orchestration and interactions. Cons
 - Cash opening and closing counts are separated by currency. A financial `ELIGIBLE` state means only that source evidence is ready for a separately authorized review; the component never closes the day, posts a journal or changes stock/tasks.
 - `onOpenItem` must resolve to an already-authorized source route. Keep unavailable/loading/error states and withheld counts/amounts when source coverage is incomplete.
 - P2 persistence and read DTO are prerequisites for operational activation; until delivered, show the explicit unavailable state rather than mock data.
+
+## SupplierPerformancePanel
+- Import: import { SupplierPerformancePanel } from @/components/intelligence.
+- P3 engine/client: fetchSupplierPerformance({ from, to, limit? }) from src/lib/intelligence/supplier-performance-client; pass its result to the panel and reflect loading/error/unavailable in state. Use the existing IntelligenceWorkspace and its date controls; do not create a second AI route/workspace.
+- Props: result: SupplierPerformanceResult | null; state?: loading | error | unavailable | ready; onRetry?: () => void; onOpenPurchaseOrder?: (purchaseOrderId: string) => void.
+- P1 owns the authorized existing purchase-order destination and supplies onOpenPurchaseOrder; the panel never guesses a route or bypasses route permission. Keep the existing admin/manager gate from the server read contract.
+- The view shows order/completion/open counts, lead time from submission to last full receipt, median/P90, promised-date adherence only from an awarded quote, pending line counts, sample evidence and withheld reasons. It never adds line quantities across products/UOMs or exposes supplier prices/payables/payments.
+- Mean/median/P90 and on-time percentage must remain hidden for fewer than 3 corresponding observations. No sample means unavailable, not zero. Partial supplier populations remain visibly partial.
+- No fake data, new source workflow, order mutation, quote award, task creation or supplier communication is allowed.

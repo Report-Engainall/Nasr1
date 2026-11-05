@@ -1,3 +1,20 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SUPPLIER-PERFORMANCE-INTELLIGENCE-001
+
+- Repository: Report-Engainall/Nasr1; branch main.
+- P3 feature commit: 31f10763d54a6e0b212185e057f4ef262bd23254; unit-safe correction: e2279f090c30858d129aa666ea236bc1c053a49a; final component navigation/API commit: d8da9100e1bbd8ac2694f4a11658da6613b2d3f8. Final P3 code cursor: d8da9100e1bbd8ac2694f4a11658da6613b2d3f8 (parent e2279f090c30858d129aa666ea236bc1c053a49a).
+- Built a read-only supplier performance engine from actual same-tenant purchasing sources. It measures elapsed days from PO submission to the last physical receipt only when the PO status is received, every PO line quantity is fully received, and the receipt timestamp is not earlier than submission.
+- On-time delivery is calculated only for a completed PO linked to an awarded supplier quote that explicitly records delivery_days. Without that promised term, adherence is NULL/withheld, never assumed. No supplier quality, defect or generic supplier score is invented.
+- Workload display uses counts of open POs and pending item lines. It never sums heterogeneous products or different units of measure into one supplier quantity. Lead-time and on-time percentages are displayed only at sample size 3 or greater; source counts remain visible.
+- SQL function fetch_supplier_performance_snapshot(date,date,integer) is tenant-bound to current_organization_id(), requires the existing admin/manager purchase-management gate, limits the requested period to 730 days and page size to 200 suppliers, and exposes only aggregate operational data plus the five latest PO evidence rows. Direct browser-table grants and all write operations remain untouched.
+- Changed paths: supabase/migrations/20261106040000_intelligence_supplier_performance.sql; src/lib/intelligence/supplier-performance.ts; src/lib/intelligence/supplier-performance-client.ts; src/components/intelligence/SupplierPerformancePanel.tsx; src/lib/intelligence/index.ts; src/components/intelligence/index.ts.
+- Final blobs: migration 74d0f506d31cca32e281f00765efe349fd099ae9; engine a0e7b6e4d57981719dd9254a00f37e36e9b792b2; client becd246623c416d51312c8f449bb599a95fe9fa7; component bd9c21c3aed5e441a314b4d1691f7b036d6de012; engine barrel ff4be31f388bf212fcbdd7916e146f5357a261af; component barrel 961039301295c2a37a8f71a4cc4834d07a3d0eb4.
+- P1 integration contract is published. P1 must mount SupplierPerformancePanel in the existing intelligence workspace, own the period controls and retry state, and pass only an authorized existing PO route through onOpenPurchaseOrder. No P1 route/workspace/component was edited by P3.
+- Existing P1 workspace now mounts ShiftOperationsCenter, ProcessBottlenecksPanel and CommercePolicyGovernancePanel in the existing IntelligenceWorkspace.tsx; source inspection at main 08c8e58c19898be2432869ca069bc7353eda1 shows those mounts. Their migration/runtime acceptance is still pending.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. The migration is source-only and has not been applied to Bolt/Supabase. Per the active order, no build, typecheck, lint, tests, CI, browser/E2E, migration execution, provider call, Bolt runtime, Preview, Vercel or production check was run. No PASS or production readiness is claimed.
+- No paid provider, dependency, Vercel credit, secret, live supplier communication, financial mutation or stock mutation was used.
+- Exact next action: P1 mounts this component with the manager/admin gate and date-range/retry state; after Bolt sync/apply, perform connected acceptance of same-tenant scope, authorization, full-receipt lead-time rules, awarded-quote promise rules and partial-population behavior.
+
+---
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-55-COMMERCE-POLICY-GOVERNANCE-001
 
 - Repository `Report-Engainall/Nasr1`, branch `main`.

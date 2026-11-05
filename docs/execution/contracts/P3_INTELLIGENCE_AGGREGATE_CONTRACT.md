@@ -132,3 +132,14 @@ Add `fetch_operational_shift_workspace(p_business_date, p_shift_id)` as a financ
 - Opening readiness, operational close completeness and financial-close eligibility are separate states. `ELIGIBLE` only means source evidence is ready for a separate authorized review; it does not mean the day or journal has been closed.
 - P3 performs no task assignment, cash count, variance approval, journal posting, stock movement, customer contact or closeout mutation.
 - State stays `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until P2 source persistence/read DTO and P1 authorized route mount are delivered.
+
+## REF-SUPPLIER-PERFORMANCE-INTELLIGENCE-001 — Supplier operations intelligence
+
+- P3 owns the deterministic engine, DTO parser, tenant-scoped read RPC and source migration. RPC: public.fetch_supplier_performance_snapshot(p_from date,p_to date,p_limit integer DEFAULT 100).
+- Authenticated active-organization context is derived server-side. The existing purchase_orders_can_manage() policy gate is required (admin/manager); client input cannot select tenant, actor or role. Direct browser table grants are unchanged. Result window is limited to 730 days between dates and page size 1–200 suppliers.
+- Only submitted, partially received and received purchase orders in the requested UTC submission-date window are eligible. Drafts and cancellations are excluded. Source lineage is purchase_orders, purchase_order_items, purchase_receipts and the awarded purchase_supplier_quotes delivery term linked to the PO.
+- A lead-time sample exists only if PO status is received, every purchase-order line is fully received, a final physical receipt exists and its timestamp is not earlier than PO submission. Lead days are submission to last receipt, not submission to first receipt.
+- Promised-date adherence exists only when the PO has an awarded quote with non-null delivery_days; otherwise the observation is withheld. UI hides averages/percentiles and adherence percentages below 3 samples. This is operational delivery analysis, not a supplier quality/defect score or causal ranking.
+- Open workload is reported as open order count and pending source-line count. Do not sum quantities across products or UOMs. Financial prices, liabilities, payments and balances are excluded. RPC is read-only and has no mutations or external provider.
+- Response is a limited supplier list with explicit total/returned count and complete-population flag; each supplier carries five most recent PO summaries for traceability. Incomplete populations remain explicitly PARTIAL.
+- Migration status: source-only; Bolt/Supabase application and exact-SHA runtime acceptance remain pending.
