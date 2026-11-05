@@ -627,3 +627,11 @@
 .task-card-assignment button{justify-self:start}
 .task-card-assignment small{color:var(--muted-foreground);font-weight:500;line-height:1.5}
 @media(max-width:860px){.task-card-assignment{width:100%;max-width:none;min-width:0}.task-card-actions{align-items:stretch}}
+
+
+/* Manager editing of task urgency and due date. */
+.task-card-detail-editor{display:grid;gap:7px;min-width:190px;max-width:240px;padding-inline-end:10px;border-inline-end:1px solid var(--border)}
+.task-card-detail-editor label{display:grid;gap:4px;color:var(--muted-foreground);font-size:11px;font-weight:700}
+.task-card-detail-editor select,.task-card-detail-editor input{width:100%;min-width:0;padding:7px 8px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit;font-weight:500}
+.task-card-detail-editor button{justify-self:start}
+@media(max-width:860px){.task-card-detail-editor{width:100%;max-width:none;min-width:0;padding:0 0 10px;border-inline-end:0;border-bottom:1px solid var(--border)}}
