@@ -164,17 +164,61 @@ function AdminWorkspaceContent({
     case "reports":
       return <Reports />;
     case "intelligence":
-      return <IntelligenceWorkspace onOpenRecord={(kind, subjectRef) => {
-        const destination = kind === "QUOTE_UNCONVERTED"
-          ? "quotes"
-          : kind === "CUSTOMER_ACTIVITY_DECLINE" || kind === "REPEAT_PURCHASE"
-            ? "customers"
-            : "products";
-        const destinationLabel = destination === "quotes" ? "عروض الأسعار"
-          : destination === "customers" ? "العملاء" : "المنتجات";
-        onNavigate(destination);
-        onNotice("تم فتح شاشة " + destinationLabel + " لمراجعة السجل المرتبط. مرجع السجل: " + subjectRef);
-      }} />;
+      return <IntelligenceWorkspace
+        onOpenRecord={(kind, subjectRef) => {
+          const destination = kind === "QUOTE_UNCONVERTED"
+            ? "quotes"
+            : kind === "CUSTOMER_ACTIVITY_DECLINE" || kind === "REPEAT_PURCHASE"
+              ? "customers"
+              : "products";
+          const destinationLabel = destination === "quotes" ? "عروض الأسعار"
+            : destination === "customers" ? "العملاء" : "المنتجات";
+          onNavigate(destination);
+          onNotice("تم فتح شاشة " + destinationLabel + " لمراجعة السجل المرتبط. مرجع السجل: " + subjectRef);
+        }}
+        onOpenShiftItem={(sourceKey, sourceRef) => {
+          if (sourceKey === "ORDERS") {
+            if (navigationBlocked) {
+              onNotice("احفظ مراجعة الطلب الحالية قبل فتح طلب آخر.");
+              return;
+            }
+            onOrderDetailChange(sourceRef);
+            onNavigate("orders");
+            onNotice("تم فتح تفاصيل الطلب المرتبط بالوردية.");
+            return;
+          }
+          if (sourceKey === "TASKS") {
+            setNotificationTaskId(sourceRef);
+            onNavigate("tasks");
+            return;
+          }
+          const destination: View =
+            sourceKey === "INVOICES" || sourceKey === "PAYMENTS" || sourceKey === "CASH"
+              ? "finance"
+              : sourceKey === "RECEIPTS"
+                ? "purchase-orders"
+                : sourceKey === "MOVEMENTS"
+                  ? "inventory-transfers"
+                  : sourceKey === "INVENTORY"
+                    ? "stock-count"
+                    : sourceKey === "DELIVERIES"
+                      ? "orders"
+                      : sourceKey === "HANDOVER"
+                        ? "tasks"
+                        : "operations";
+          const labels: Partial<Record<View, string>> = {
+            finance: "الفواتير والتحصيل",
+            "purchase-orders": "أوامر الشراء والاستلام",
+            "inventory-transfers": "سجل تحويلات المخزون",
+            "stock-count": "الجرد الفعلي",
+            orders: "الطلبات والتوصيل",
+            tasks: "المهام التشغيلية",
+            operations: "العمليات والتنبيهات",
+          };
+          onNavigate(destination);
+          onNotice("تم فتح شاشة " + (labels[destination] ?? "العمليات") + " لمراجعة مرجع الوردية: " + sourceRef);
+        }}
+      />;
     case "ai":
       return <AiCenter onNotice={onNotice} />;
     case "notifications":
