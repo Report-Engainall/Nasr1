@@ -3,7 +3,7 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Clock3, Filter,
   ListTodo, Play, Plus, Printer, RefreshCw, Search, UserCheck, X,
 } from 'lucide-react';
-import { assignOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateOperationalTaskDetails } from '@/lib/api';
+import { assignOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
@@ -222,6 +222,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [assigneesError, setAssigneesError] = useState('');
   const [assigneeDrafts, setAssigneeDrafts] = useState<Record<string, string>>({});
   const [taskDetailDrafts, setTaskDetailDrafts] = useState<Record<string, { priority: OperationalTask['priority']; dueAt: string }>>({});
+  const [manualTaskDrafts, setManualTaskDrafts] = useState<Record<string, { title: string; description: string }>>({});
+  const [editingManualTaskId, setEditingManualTaskId] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -425,6 +427,37 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     } finally { setBusy(false); }
   }
 
+  function beginManualTaskEdit(task: OperationalTask) {
+    setManualTaskDrafts((current) => ({
+      ...current,
+      [task.id]: { title: task.title, description: task.description ?? '' },
+    }));
+    setEditingManualTaskId(task.id);
+  }
+
+  function cancelManualTaskEdit(taskId: string) {
+    setManualTaskDrafts((current) => {
+      const next = { ...current };
+      delete next[taskId];
+      return next;
+    });
+    setEditingManualTaskId((current) => current === taskId ? null : current);
+  }
+
+  async function saveManualTaskEdit(task: OperationalTask) {
+    const draft = manualTaskDrafts[task.id] ?? { title: task.title, description: task.description ?? '' };
+    setBusy(true); setError('');
+    try {
+      await updateManualOperationalTask(task.id, draft.title, draft.description);
+      cancelManualTaskEdit(task.id);
+      await loadTasks();
+      onNotice('تم حفظ نص المهمة اليدوية وتسجيل التغيير في سجل التدقيق.');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'تعذر تحديث نص المهمة اليدوية.';
+      setError(message); onNotice(message);
+    } finally { setBusy(false); }
+  }
+
   async function refreshFromSources() {
     setBusy(true); setError('');
     try {
@@ -548,7 +581,53 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
             <span className={'task-status-badge '+task.status}>{statusLabels[task.status]??task.status}</span>
             <span className={'task-priority-badge '+task.priority}>{priorityLabels[task.priority]??task.priority}</span>
             {late&&<span className="task-late-badge"><AlertTriangle size={13}/> متأخرة</span>}</div>
-          <h2>{task.title}</h2><p>{task.description??'لا توجد تفاصيل إضافية مسجلة.'}</p>
+          {editingManualTaskId === task.id ? (
+            <div className="task-card-text-editor">
+              <label>
+                <span>عنوان المهمة اليدوية</span>
+                <input
+                  aria-label={'عنوان المهمة المعدّل: ' + task.title}
+                  maxLength={240}
+                  value={manualTaskDrafts[task.id]?.title ?? task.title}
+                  disabled={busy}
+                  onChange={(event) => setManualTaskDrafts((current) => ({
+                    ...current,
+                    [task.id]: { title: event.target.value, description: current[task.id]?.description ?? task.description ?? '' },
+                  }))}
+                />
+              </label>
+              <label>
+                <span>تفاصيل المهمة</span>
+                <textarea
+                  aria-label={'تفاصيل المهمة المعدّلة: ' + task.title}
+                  rows={3}
+                  maxLength={2000}
+                  value={manualTaskDrafts[task.id]?.description ?? task.description ?? ''}
+                  disabled={busy}
+                  onChange={(event) => setManualTaskDrafts((current) => ({
+                    ...current,
+                    [task.id]: { title: current[task.id]?.title ?? task.title, description: event.target.value },
+                  }))}
+                />
+              </label>
+              <div className="task-card-text-actions">
+                <button type="button" className="btn primary" disabled={busy || !(manualTaskDrafts[task.id]?.title ?? task.title).trim()} onClick={() => void saveManualTaskEdit(task)}>حفظ النص</button>
+                <button type="button" className="btn secondary" disabled={busy} onClick={() => cancelManualTaskEdit(task.id)}>إلغاء تعديل النص</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2>{task.title}</h2><p>{task.description??'لا توجد تفاصيل إضافية مسجلة.'}</p>
+              {canManage && task.task_type === 'manual_operational_task' && !task.source_entity_type && !task.source_entity_id && !['completed','cancelled'].includes(task.status) && (
+                <button
+                  type="button"
+                  className="btn ghost"
+                  disabled={busy || (editingManualTaskId !== null && editingManualTaskId !== task.id)}
+                  onClick={() => beginManualTaskEdit(task)}
+                >تعديل نص المهمة</button>
+              )}
+            </>
+          )}
           <div className="task-card-metadata">
             <span><CalendarClock size={14}/> الموعد: {dateText(task.due_at)}</span>
             <span><UserCheck size={14}/> المسؤول: {assigned}</span>
