@@ -49,8 +49,8 @@ BEGIN
       account.id AS payable_account_id,
       account.code AS payable_account_code,
       account.name AS payable_account_name,
-      line.debit::numeric(18,2) AS debit,
-      line.credit::numeric(18,2) AS credit
+      source_lines.payable_debit AS debit,
+      source_lines.payable_credit AS credit
     FROM public.purchase_receipt_accounting_postings posting
     JOIN public.purchase_receipts r
       ON r.id=posting.receipt_id AND r.organization_id=posting.organization_id
@@ -60,10 +60,20 @@ BEGIN
       ON s.id=po.supplier_id AND s.organization_id=po.organization_id
     JOIN public.accounting_journal_entries e
       ON e.id=posting.journal_entry_id AND e.organization_id=posting.organization_id
-    JOIN public.accounting_journal_lines line
-      ON line.organization_id=e.organization_id AND line.journal_entry_id=e.id
-     AND line.account_id=posting.payable_account_id
-     AND line.debit=0 AND line.credit=posting.source_amount
+    JOIN LATERAL (
+      SELECT
+        pg_catalog.count(*)::integer AS line_count,
+        COALESCE(pg_catalog.sum(source_line.debit),0)::numeric(18,2) AS debit_total,
+        COALESCE(pg_catalog.sum(source_line.credit),0)::numeric(18,2) AS credit_total,
+        COALESCE(pg_catalog.sum(source_line.debit) FILTER (WHERE source_line.account_id=posting.payable_account_id),0)::numeric(18,2) AS payable_debit,
+        COALESCE(pg_catalog.sum(source_line.credit) FILTER (WHERE source_line.account_id=posting.payable_account_id),0)::numeric(18,2) AS payable_credit
+      FROM public.accounting_journal_lines source_line
+      WHERE source_line.organization_id=e.organization_id AND source_line.journal_entry_id=e.id
+    ) source_lines ON source_lines.line_count=2
+      AND source_lines.debit_total=posting.source_amount
+      AND source_lines.credit_total=posting.source_amount
+      AND source_lines.payable_debit=0
+      AND source_lines.payable_credit=posting.source_amount
     JOIN public.accounting_accounts account
       ON account.id=posting.payable_account_id AND account.organization_id=posting.organization_id
      AND account.is_active AND account.account_type='liability'
@@ -95,8 +105,8 @@ BEGIN
       account.id AS payable_account_id,
       account.code AS payable_account_code,
       account.name AS payable_account_name,
-      line.debit::numeric(18,2) AS debit,
-      line.credit::numeric(18,2) AS credit
+      note_lines.payable_debit AS debit,
+      note_lines.payable_credit AS credit
     FROM public.purchase_supplier_credit_note_accounting_drafts draft
     JOIN public.purchase_supplier_credit_notes note
       ON note.id=draft.credit_note_id AND note.organization_id=draft.organization_id
@@ -119,10 +129,20 @@ BEGIN
       ON e.id=draft.journal_entry_id AND e.organization_id=draft.organization_id
      AND e.status='posted' AND e.source_type='purchase_supplier_credit_note'
      AND e.source_reference=note.supplier_credit_note_number
-    JOIN public.accounting_journal_lines line
-      ON line.organization_id=e.organization_id AND line.journal_entry_id=e.id
-     AND line.account_id=draft.payable_account_id
-     AND line.debit=draft.actual_amount AND line.credit=0
+    JOIN LATERAL (
+      SELECT
+        pg_catalog.count(*)::integer AS line_count,
+        COALESCE(pg_catalog.sum(note_line.debit),0)::numeric(18,2) AS debit_total,
+        COALESCE(pg_catalog.sum(note_line.credit),0)::numeric(18,2) AS credit_total,
+        COALESCE(pg_catalog.sum(note_line.debit) FILTER (WHERE note_line.account_id=draft.payable_account_id),0)::numeric(18,2) AS payable_debit,
+        COALESCE(pg_catalog.sum(note_line.credit) FILTER (WHERE note_line.account_id=draft.payable_account_id),0)::numeric(18,2) AS payable_credit
+      FROM public.accounting_journal_lines note_line
+      WHERE note_line.organization_id=e.organization_id AND note_line.journal_entry_id=e.id
+    ) note_lines ON note_lines.line_count BETWEEN 2 AND 3
+      AND note_lines.debit_total=draft.actual_amount
+      AND note_lines.credit_total=draft.actual_amount
+      AND note_lines.payable_debit=draft.actual_amount
+      AND note_lines.payable_credit=0
     JOIN public.accounting_accounts account
       ON account.id=draft.payable_account_id AND account.organization_id=draft.organization_id
      AND account.is_active AND account.account_type='liability'
