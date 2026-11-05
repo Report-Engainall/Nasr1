@@ -1084,6 +1084,35 @@ export async function fetchOperationalTaskAssignees(): Promise<OperationalTaskAs
   });
 }
 
+export async function assignOperationalTasks(taskIds: string[], assignedTo: string | null): Promise<{
+  processed_count: number;
+  changed_count: number;
+}> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (taskIds.length < 1 || taskIds.length > 100 || taskIds.some((id) => !uuidPattern.test(id)) ||
+      new Set(taskIds).size !== taskIds.length) {
+    throw new Error('اختر من مهمة واحدة إلى 100 مهمة دون تكرار.');
+  }
+  if (assignedTo !== null && !uuidPattern.test(assignedTo)) {
+    throw new Error('معرّف الموظف غير صالح.');
+  }
+  const { data, error } = await supabase.rpc('assign_operational_tasks', {
+    p_task_ids: taskIds,
+    p_assigned_to: assignedTo,
+  });
+  if (error) throw new Error(error.message || 'تعذر تنفيذ إعادة الإسناد الجماعي.');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('أعاد الخادم نتيجة إسناد جماعي غير صالحة.');
+  }
+  const result = data as Record<string, unknown>;
+  if (typeof result.processed_count !== 'number' || typeof result.changed_count !== 'number' ||
+      result.processed_count !== taskIds.length || result.changed_count < 0 ||
+      result.changed_count > result.processed_count) {
+    throw new Error('نتيجة الإسناد الجماعي غير مكتملة.');
+  }
+  return { processed_count: result.processed_count, changed_count: result.changed_count };
+}
+
 export async function assignOperationalTask(taskId: string, assignedTo: string | null): Promise<void> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
     throw new Error('معرّف المهمة غير صالح.');
