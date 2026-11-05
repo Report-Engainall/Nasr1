@@ -51,6 +51,23 @@ describe('role-scoped operational task printing', () => {
   });
 
 
+  it('prints selected task IDs only and still enforces the allowed-role boundary', () => {
+    const staffRoles: OperationalTaskRole[] = ['sales','warehouse','purchasing','operations'];
+    const printable = filterTasksForPrint(
+      tasks,
+      'selected',
+      staffRoles,
+      tasks,
+      new Set(['sales-1','accounting-1','warehouse-1','unknown-task']),
+    );
+    expect(printable.map((task) => task.id)).toEqual(['sales-1','warehouse-1']);
+  });
+
+  it('returns no selected rows when the selected set is empty or IDs are stale', () => {
+    expect(filterTasksForPrint(tasks, 'selected', ['sales'], tasks, new Set())).toEqual([]);
+    expect(filterTasksForPrint(tasks, 'selected', ['sales'], tasks, new Set(['removed-task']))).toEqual([]);
+  });
+
   it('projects only approved task fields into the printable document row', () => {
     const unsafe = {
       id: 'task-print-1',
