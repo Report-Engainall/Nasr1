@@ -115,10 +115,15 @@ type Raw=Record<string,unknown>;
 function asObject(value:unknown):Raw|null{return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Raw:null;}
 function nonEmpty(value:unknown):value is string{return typeof value==="string"&&value.trim().length>0;}
 function validDateOrNull(value:unknown):value is string|null{return value===null||(typeof value==="string"&&Number.isFinite(Date.parse(value)));}
-function parseOpenPurchaseOrder(value:unknown):NaturalLanguagePurchaseOrder|null {
+type PurchaseOrderSourceStatus="draft"|"submitted"|"partially_received"|"received"|"cancelled";
+interface ParsedPurchaseOrderSource {
+ id:string;number:string;supplierName:string;warehouseName:string;status:PurchaseOrderSourceStatus;
+ submittedAt:string|null;updatedAt:string;itemCount:number;pendingLineCount:number;
+}
+function parsePurchaseOrderSource(value:unknown):ParsedPurchaseOrderSource|null {
  const row=asObject(value);if(!row)return null;
  if(!nonEmpty(row.id)||!nonEmpty(row.purchase_order_number)||!nonEmpty(row.supplier_name)||
-  !nonEmpty(row.warehouse_name)||!(row.status==="submitted"||row.status==="partially_received")||
+  !nonEmpty(row.warehouse_name)||!["draft","submitted","partially_received","received","cancelled"].includes(String(row.status))||
   !validDateOrNull(row.submitted_at)||!nonEmpty(row.updated_at)||!Number.isFinite(Date.parse(row.updated_at))||
   !Array.isArray(row.items))return null;
  let pendingLineCount=0;
@@ -132,12 +137,15 @@ function parseOpenPurchaseOrder(value:unknown):NaturalLanguagePurchaseOrder|null
   if(remaining>0)pendingLineCount+=1;
  }
  return {id:row.id,number:row.purchase_order_number,supplierName:row.supplier_name,warehouseName:row.warehouse_name,
-  status:row.status,submittedAt:row.submitted_at as string|null,updatedAt:row.updated_at,itemCount:row.items.length,pendingLineCount};
+  status:row.status as PurchaseOrderSourceStatus,submittedAt:row.submitted_at as string|null,
+  updatedAt:row.updated_at,itemCount:row.items.length,pendingLineCount};
 }
 export function resolvePurchaseOrderIntent(intent:PurchaseOrderIntent,rawOrders:unknown):NaturalLanguagePurchaseOrderResult|null {
  if(!Array.isArray(rawOrders)||rawOrders.length>500)return null;
- const all=rawOrders.map(parseOpenPurchaseOrder);if(all.some(x=>x===null))return null;
- const orders=all as NaturalLanguagePurchaseOrder[];
+ const parsed=rawOrders.map(parsePurchaseOrderSource);if(parsed.some(x=>x===null))return null;
+ const all=parsed as ParsedPurchaseOrderSource[];
+ const orders=all.filter(order=>order.status==="submitted"||order.status==="partially_received")
+  .map(order=>({...order,status:order.status as "submitted"|"partially_received"}));
  const counts={submitted:orders.filter(x=>x.status==="submitted").length,
   partially_received:orders.filter(x=>x.status==="partially_received").length};
  const matching=orders.filter(order=>{
@@ -145,7 +153,7 @@ export function resolvePurchaseOrderIntent(intent:PurchaseOrderIntent,rawOrders:
   if(intent==="PURCHASE_ORDERS_PARTIAL_RECEIPT")return order.status==="partially_received";
   return order.status==="submitted"||order.status==="partially_received";
  });
- const completePopulation=orders.length<500;
+ const completePopulation=rawOrders.length<500;
  const state=matching.length===0?(completePopulation?"EMPTY":"PARTIAL"):(completePopulation?"READY":"PARTIAL");
  const labels:Record<PurchaseOrderIntent,string>={PURCHASE_ORDERS_OPEN:"المفتوحة",
   PURCHASE_ORDERS_AWAITING_RECEIPT:"التي تنتظر الاستلام",PURCHASE_ORDERS_PARTIAL_RECEIPT:"المستلمة جزئياً"};
