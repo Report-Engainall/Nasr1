@@ -1,7 +1,7 @@
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-58-TASK-INTELLIGENCE-REPORTS-001
 
 - Repository: Report-Engainall/Nasr1; branch: main.
-- Feature code SHA: be811c369bfc5a7628956944dc884f1bb19a8301; source code batch ancestry: 5d76726bd538f20e8737c4807d70b3d023b1fb9a → fca479c5b33cc492107501f86144b6e934434d1d → fa07efc42b968a2945a1c17a394395b96d2af7db → be811c369bfc5a7628956944dc884f1bb19a8301.
+- Feature code SHA: a5084c2ed53f0d097b00f0919678866af57b9c7d; source code batch ancestry: 5d76726bd538f20e8737c4807d70b3d023b1fb9a → fca479c5b33cc492107501f86144b6e934434d1d → fa07efc42b968a2945a1c17a394395b96d2af7db → be811c369bfc5a7628956944dc884f1bb19a8301 → a5084c2ed53f0d097b00f0919678866af57b9c7d.
 - Canonical reference: unified merchant-intelligence specification, Section 58 — Smart Task Reports; reuses task contracts from Sections 45–48 and current ai_tasks / audit_logs sources.
 - Added public.fetch_task_intelligence_report(text,date,date) in supabase/migrations/20261106050000_intelligence_task_reports.sql. It is a STABLE SECURITY DEFINER read-only RPC with empty search_path; derives actor and organization from the authenticated session, filters every task through can_view_operational_task_role(task_role), and grants execute only to authenticated users.
 - Implemented report kinds:
@@ -23,6 +23,7 @@
 - Explicitly unavailable in the current source contract and returned as NULL / labelled unrecorded: waiting on an external party, financial impact, delay reason, management decision required, false alarms, repeated causes and measured improvement outcomes. The report does not infer these values, invent money or compare employees.
 - P1 boundary: no P1-owned workspace, route, commerce component or server API path was changed. P1 still owns mounting the single NaturalLanguageAssistant in its workspace and preserving current permission visibility/navigation callbacks.
 - Runtime boundary: the SQL migration is committed as source only; it has not been applied to Bolt/Supabase. The reports will return the explicit unavailable state until the migration is applied and the connected database refreshes its RPC schema.
+- Final source hardening: the RPC rejects a NULL report kind and explicitly grants report-reader access to the existing operational task manager capability; this does not broaden per-role task visibility because every row is still gated by can_view_operational_task_role.
 - Delivery status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Per the active execution order, no unit tests, typecheck, build, lint, CI, E2E/Playwright, RPC runtime, provider, Bolt, Preview, Vercel or production check was run. No PASS, runtime availability or production readiness is claimed.
 - Cost/safety: no paid provider, dependency or API quota; no secret; no Vercel credit; no financial, inventory, task or approval mutation.
 - Exact next action: after Bolt/Supabase applies migration 20261106050000_intelligence_task_reports.sql, verify the report RPC and role matrix on connected test tenants; P1 mounts the already-exported assistant. Then add missing task workflow fields/events (external wait state, delay reason, false-alarm review, repeated-cause classification and improvement outcome links) only through an approved canonical task workflow contract, not inferred report logic.
