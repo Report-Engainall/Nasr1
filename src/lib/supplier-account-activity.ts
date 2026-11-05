@@ -9,6 +9,10 @@ export interface SupplierAccountActivitySupplier {
   creditTotal: number;
   netCreditMovement: number;
   lastActivityDate: string | null;
+  remainingPayable?: number | null;
+  pendingPaymentAmount?: number | null;
+  availableToAllocate?: number | null;
+  balanceComplete?: boolean;
 }
 export interface SupplierAccountActivityCurrencyTotal {
   currency: string;
@@ -16,13 +20,17 @@ export interface SupplierAccountActivityCurrencyTotal {
   creditTotal: number;
   netCreditMovement: number;
   activityCount: number;
+  remainingPayable?: number | null;
+  pendingPaymentAmount?: number | null;
+  availableToAllocate?: number | null;
+  balanceComplete?: boolean;
 }
 export interface SupplierAccountActivityEntry {
   journalEntryId: string;
   journalEntryNumber: string;
   entryDate: string;
   description: string;
-  sourceType: "purchase_receipt" | "purchase_supplier_credit_note";
+  sourceType: "purchase_receipt" | "purchase_supplier_credit_note" | "purchase_supplier_payment";
   documentReference: string;
   receiptNumber: string;
   purchaseOrderNumber: string;
@@ -44,7 +52,7 @@ export interface SupplierAccountActivityPayload {
   offset: number;
   hasMore: boolean;
   asOfDate: string;
-  settlementIncluded: false;
+  settlementIncluded: true;
 }
 
 type Raw = Record<string, unknown>;
@@ -107,6 +115,10 @@ function parseSupplier(value: unknown): SupplierAccountActivitySupplier {
     creditTotal: amount(row.credit_total, "دائن المورد"),
     netCreditMovement: amount(row.net_credit_movement, "صافي حركة المورد"),
     lastActivityDate: nullableDate(row.last_activity_date, "آخر حركة"),
+    remainingPayable: row.remaining_payable === null ? null : amount(row.remaining_payable, "المستحق المتبقي"),
+    pendingPaymentAmount: row.pending_payment_amount === null ? null : amount(row.pending_payment_amount, "الدفعات المعلقة"),
+    availableToAllocate: row.available_to_allocate === null ? null : amount(row.available_to_allocate, "المتاح للتخصيص"),
+    balanceComplete: row.balance_complete === true,
   };
 }
 function parseCurrencyTotal(value: unknown): SupplierAccountActivityCurrencyTotal {
@@ -117,11 +129,15 @@ function parseCurrencyTotal(value: unknown): SupplierAccountActivityCurrencyTota
     creditTotal: amount(row.credit_total, "إجمالي الدائن"),
     netCreditMovement: amount(row.net_credit_movement, "صافي الحركة"),
     activityCount: count(row.activity_count, "الحركات"),
+    remainingPayable: row.remaining_payable === null ? null : amount(row.remaining_payable, "المستحق المتبقي"),
+    pendingPaymentAmount: row.pending_payment_amount === null ? null : amount(row.pending_payment_amount, "الدفعات المعلقة"),
+    availableToAllocate: row.available_to_allocate === null ? null : amount(row.available_to_allocate, "المتاح للتخصيص"),
+    balanceComplete: row.balance_complete === true,
   };
 }
 function parseEntry(value: unknown): SupplierAccountActivityEntry {
   const row = object(value, "حركة الأستاذ");
-  if (row.source_type !== "purchase_receipt" && row.source_type !== "purchase_supplier_credit_note") {
+  if (row.source_type !== "purchase_receipt" && row.source_type !== "purchase_supplier_credit_note" && row.source_type !== "purchase_supplier_payment") {
     throw new Error("مصدر حركة المورد غير معروف.");
   }
   const debit = amount(row.debit, "المدين");
@@ -136,8 +152,8 @@ function parseEntry(value: unknown): SupplierAccountActivityEntry {
     description: text(row.description, "وصف القيد"),
     sourceType: row.source_type,
     documentReference: text(row.document_reference, "مرجع المستند"),
-    receiptNumber: text(row.receipt_number, "رقم إيصال الاستلام"),
-    purchaseOrderNumber: text(row.purchase_order_number, "أمر الشراء"),
+    receiptNumber: row.receipt_number === "—" && row.source_type === "purchase_supplier_payment" ? "—" : text(row.receipt_number, "رقم إيصال الاستلام"),
+    purchaseOrderNumber: row.purchase_order_number === "—" && row.source_type === "purchase_supplier_payment" ? "—" : text(row.purchase_order_number, "أمر الشراء"),
     supplierId: uuid(row.supplier_id, "المورد"),
     supplierName: text(row.supplier_name, "اسم المورد"),
     currency: currency(row.currency),
@@ -176,7 +192,7 @@ export async function fetchSupplierAccountActivity(input: {
   const limit = count(row.limit, "حد الصفحة");
   const offset = count(row.offset, "إزاحة الصفحة");
   const entryCount = count(row.entry_count, "إجمالي القيود");
-  if (row.has_more !== (entryCount > offset + limit) || row.settlement_included !== false) {
+  if (row.has_more !== (entryCount > offset + limit) || row.settlement_included !== true) {
     throw new Error("حدود الكشف أو نطاق بيانات التسوية غير متطابقة.");
   }
   return {
@@ -188,6 +204,6 @@ export async function fetchSupplierAccountActivity(input: {
     offset,
     hasMore: row.has_more,
     asOfDate: date(row.as_of_date, "تاريخ إعداد الكشف"),
-    settlementIncluded: false,
+    settlementIncluded: true,
   };
 }
