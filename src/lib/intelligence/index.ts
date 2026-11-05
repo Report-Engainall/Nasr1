@@ -13,3 +13,4 @@ export * from "./learning-loop";
 export * from "./free-ai-policy";
 export * from "./system-health";
 export * from "./rbac-contract";
+export * from "./growth-opportunities";

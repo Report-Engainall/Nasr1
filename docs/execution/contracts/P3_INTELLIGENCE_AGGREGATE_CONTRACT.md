@@ -24,3 +24,18 @@ The response must include the server-derived catalog dimensions consumed by `bui
 
 ## Test and delivery proof
 Provide PostgreSQL 17 tests for complete aggregate coverage, partial/missing/stale data, mixed currency/UOM, due dates, empty state, RLS same-tenant role matrix, opaque foreign tenant denial, idempotent replay/conflict, zero side effects on denial, SQLSTATE/redaction, AI quota exhausted/not configured/disabled/429/cooldown, no paid route and no PII/secret egress. P2 records exact code SHA, RPC/service, source tables, request/response sample IDs, role/capability results, no-side-effect evidence, CI URL and exact next command in P2_CHECKPOINT.md. P2 does not push main; P3 integrates.
+
+
+## Growth opportunity radar — section 50 of the unified merchant intelligence specification
+
+P3 consumes only these evidence-backed signal metrics; P2 must derive them from authenticated same-tenant sources and return server-authoritative metric IDs, formula versions, periods, completeness and evidence IDs:
+
+- QUOTE_UNCONVERTED: count of actual open/unconverted quote records and total quote sample for the same period; never infer a lost sale or forecast conversion.
+- PRODUCT_UNAVAILABLE_DEMAND: count of recorded searches for an unavailable product plus distinct searching customer count; missing search telemetry means UNAVAILABLE, not zero.
+- CUSTOMER_ACTIVITY_DECLINE: current and previous order counts for the same opaque customer reference, using adjacent equal-length periods; a comparison is valid only with at least three prior orders. Do not expose customer name, phone or email to the engine.
+- REPEAT_PURCHASE: verified current-period order count for one opaque customer reference; at least two orders. No next-order date is inferred.
+- PRODUCT_PERFORMANCE_CHANGE: current and previous period sales amount or quantity for the same product reference, same currency/UOM and equal-length adjacent periods, with at least five transactions in each period. A zero baseline with positive current activity is NEW_ACTIVITY, not an invented percentage.
+- All source metrics must have status VERIFIED, completeness COMPLETE, quality ACCEPTABLE, source timestamps no later than asOf, unique evidence IDs, formula ID/version and exact period. Null, ambiguous or incomplete inputs are withheld.
+- Optional source amounts are displayed only as historical source values. They are not expected profit, conversion probability, lost revenue or cash impact. No implicit margin, FX, conversion rate or causal explanation is permitted.
+- P3 owns the deterministic policy in `src/lib/intelligence/growth-opportunities.ts`; the versioned policy thresholds are: 3 total quotes, 5 unavailable searches across at least 3 distinct searchers, 3 prior orders and 30% decline, 2 repeat orders, and 5 transactions per product period with a 20% trend threshold.
+- The engine creates suggestions only. P1 may mount `GrowthOpportunityRadar` and open the same source record. P2 remains the sole authority for tenant scoping and any persisted follow-up task. No customer communication, price change, purchase, stock adjustment or finance mutation is executed by this engine.

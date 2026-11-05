@@ -49,3 +49,11 @@ Renders ATP, reorder point, demand, supplier lead-time demand, target and propos
 
 ## Integration and safety
 P1 owns route mounting, tenant-safe request orchestration and interactions. Consume the P2 server DTO only; do not pass browser-supplied tenantId, actor, role or capabilities. Keep currencies separate. Scenario outputs are SIMULATED and never accounting facts. Decision lifecycle actions must call a P2-published command, not mutate local state. Null is unknown, never zero. AI must never receive raw PII or commercial source records.
+
+
+## GrowthOpportunityRadar
+- Import: `import { GrowthOpportunityRadar } from "@/components/intelligence";`
+- Props: `result?: GrowthOpportunityRadarResult | null`, `state?: "loading" | "empty" | "error" | "unavailable" | "ready"`, `onRetry?: () => void`, `onOpenRecord?: (kind, opaqueSubjectRef) => void`.
+- Displays confirmed signal, current/baseline value, sample size, source amount only as historical evidence, period, as-of, formula versions and evidence IDs. Withheld signals remain visible by reason code.
+- The component never shows customer PII, estimated profit, conversion probability or unsupported revenue. Opening a record is presentation navigation only. It does not create tasks or perform business writes.
+- P1 must bind `onOpenRecord` to the existing authorized source routes; missing routes stay unavailable rather than navigating to a fabricated destination.

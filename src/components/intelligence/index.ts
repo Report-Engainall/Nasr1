@@ -10,3 +10,5 @@ export { DeadStockCard } from "./DeadStockCard";
 export type { DeadStockCardProps } from "./DeadStockCard";
 export { ReplenishmentCard } from "./ReplenishmentCard";
 export type { ReplenishmentCardProps } from "./ReplenishmentCard";
+export { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
+export type { GrowthOpportunityRadarProps } from "./GrowthOpportunityRadar";
