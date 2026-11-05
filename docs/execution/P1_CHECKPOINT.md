@@ -16,7 +16,7 @@
 
 - Valid timestamped migration file creation commit: `5e932cee090f33261f2417ba6aeec789328a0e2a`; removal of the invalidly timestamped predecessor commit: `ff852f40a47492e9409d207ac0c76f8ef2359b78`.
 - UI commit/blob: `f782f04ccb009d107169ff05a87812ed47f288d3` / `48d7186cdf276fa348bd5481a30cfb3b3ecfde93`.
-- Focused UI acceptance-source commit/blob: `8870c82533b13ea93b0e7ddf9ebfcf80e25b3077` / `2405539128699ffcda7c3f69815581158abc5fff`.
+- Focused UI acceptance source: pagination assertions commit `8870c82533b13ea93b0e7ddf9ebfcf80e25b3077`; final suite-title/blob update `0940cce583bf826b6ecec51d86aebffe806ee586` / `23d3e81219ee62148f1a9c081f0790eb81faac37`.
 - PostgreSQL acceptance-source commit/blob: `ad744b92ef058a3cff9bb1f4ba5c494d748613f0` / `8d37f9d5daecda5bc4eecaf4396a116c4efc62d1`.
 - Acceptance state: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. The migration has not been applied to a database; no tests/build/lint/CI/browser/E2E were run. Bolt New must sync main, apply the migration and validate the cursor against its Auth sessions table before the new list is considered runtime complete.
 - No Vercel credits, preview deployment, paid API provider or external notification service was used.
