@@ -1,3 +1,16 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PRIVACY-AUDIT-HARDENING-004
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Parent SHA: e9c82157bab6d18e6b05faac0f1f757fc3c8f977.
+- Privacy request authorization now requires the server to verify both the actor's authority and that the target record belongs to the declared subject, even when actor and subject profile IDs are identical.
+- Privacy audit metadata now labels a policy version as verified only when the policy itself is tenant/class/purpose scoped and its source evidence is currently VERIFIED/COMPLETE/ACCEPTABLE.
+- Added payload-free context-use audit metadata. It recomputes the P3 signal decision before returning opaque signal references, withheld counts/reasons and (for external AI only) the exact active consent ID/version. It never includes signal values or customer/financial content.
+- Added focused tests for subject ownership and audit metadata tamper resistance. Tests remain unexecuted.
+- Audit metadata is a contract for server-side persistence; it is not evidence of stored logs. P2/server integration is still required, and the server must re-derive actor/tenant/consent at write time.
+- Exact next action: implement the P2-owned append-only audit writer and P2 retention/consent persistence; P1 mounts the settings and privacy-request UI only after real server adapters exist.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PRIVACY-REQUEST-GOVERNANCE-003
 
 - Repository: Report-Engainall/Nasr1; branch: main.

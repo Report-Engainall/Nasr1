@@ -667,6 +667,7 @@ export type PrivacyDataRequestReason =
   | "ELIGIBLE"
   | "INVALID_REQUEST"
   | "REQUESTER_NOT_AUTHORIZED"
+  | "SUBJECT_OWNERSHIP_NOT_VERIFIED"
   | "RECORD_SCOPE_MISMATCH"
   | "RETENTION_POLICY_NOT_LOADED"
   | "RETENTION_POLICY_NOT_VERIFIED"
@@ -769,9 +770,11 @@ export function resolvePrivacyDataRequest(
     return privacyRequestDecision(input, "REVIEW_REQUIRED", "INVALID_REQUEST");
   }
 
-  if (input.actorAuthorized !== true ||
-      (input.actorProfileId !== input.subjectProfileId && input.subjectOwnershipVerified !== true)) {
+  if (input.actorAuthorized !== true) {
     return privacyRequestDecision(input, "DENIED", "REQUESTER_NOT_AUTHORIZED");
+  }
+  if (input.subjectOwnershipVerified !== true) {
+    return privacyRequestDecision(input, "DENIED", "SUBJECT_OWNERSHIP_NOT_VERIFIED");
   }
   if (input.recordOrganizationId !== input.organizationId) {
     return privacyRequestDecision(input, "DENIED", "RECORD_SCOPE_MISMATCH");
@@ -867,6 +870,14 @@ export function createPrivacyAuditMetadata(
     return null;
   }
   const policyVersion = decision.retentionPolicyVersion;
+  const verifiedPolicy = input.policy !== null &&
+    input.policy.organizationId === input.organizationId &&
+    input.policy.recordClass === input.recordClass &&
+    input.policy.purpose === input.purpose &&
+    validPrivacyRetentionPolicy(input.policy, input);
+  const expectedDecision = resolvePrivacyDataRequest(input);
+  if (expectedDecision.status !== decision.status || expectedDecision.reason !== decision.reason ||
+      expectedDecision.retentionPolicyVersion !== decision.retentionPolicyVersion) return null;
   return {
     eventType: "PRIVACY_DATA_REQUEST",
     requestId: input.requestId,
@@ -881,6 +892,80 @@ export function createPrivacyAuditMetadata(
     decisionReason: decision.reason,
     policyVersion,
     occurredAt: input.asOf,
-    policyVersionSource: policyVersion ? "VERIFIED_SOURCE" : "NOT_AVAILABLE",
+    policyVersionSource: verifiedPolicy && policyVersion ? "VERIFIED_SOURCE" : "NOT_AVAILABLE",
+  };
+}
+
+
+export interface PersonalizationUsageAuditMetadata {
+  eventType: "PERSONALIZATION_CONTEXT_EVALUATED";
+  organizationId: string;
+  profileId: string;
+  actorProfileId: string;
+  purpose: string;
+  destination: "INTERNAL" | "EXTERNAL_AI";
+  provider: string | null;
+  model: string | null;
+  resultStatus: PersonalizationSignalsResult["status"];
+  includedSignalIds: string[];
+  withheldCount: number;
+  withheldReasons: string[];
+  consentId: string | null;
+  consentVersion: string | null;
+  occurredAt: string;
+}
+
+/**
+ * Produces audit metadata only after recomputing the exact P3 decision.
+ * The P2 audit writer must derive actor/tenant identity again on the server.
+ */
+export function createPersonalizationUsageAuditMetadata(
+  input: ResolvePersonalizationSignalsInput & { actorProfileId: string },
+  result: PersonalizationSignalsResult,
+): PersonalizationUsageAuditMetadata | null {
+  if (!isNonEmptyString(input.actorProfileId) ||
+      input.actorProfileId !== input.profileId ||
+      !Number.isFinite(Date.parse(input.asOf))) return null;
+
+  const expected = resolvePersonalizationSignals(input);
+  const sameIds = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((value, index) => value === b[index]);
+  const expectedWithheld = expected.withheld.map(item => item.signalId + ":" + item.reason);
+  const actualWithheld = result.withheld.map(item => item.signalId + ":" + item.reason);
+  if (expected.status !== result.status ||
+      !sameIds(expected.includedSignalIds, result.includedSignalIds) ||
+      !sameIds(expectedWithheld, actualWithheld) ||
+      !sameIds([...expected.withheld].map(item => item.reason).sort(),
+        [...result.withheld].map(item => item.reason).sort())) return null;
+
+  let consentId: string | null = null;
+  let consentVersion: string | null = null;
+  if (input.destination === "EXTERNAL_AI") {
+    const consent = validateExternalPersonalizationConsent(input);
+    if (consent.status !== "ALLOW" || !consent.consent) return null;
+    consentId = consent.consent.id;
+    consentVersion = consent.consent.consentVersion;
+  }
+
+  const signalById = new Map(input.signals.map(signal => [signal.id, signal]));
+  const includedSignalIds = [...result.includedSignalIds];
+  if (includedSignalIds.some(id => !signalById.has(id))) return null;
+
+  return {
+    eventType: "PERSONALIZATION_CONTEXT_EVALUATED",
+    organizationId: input.organizationId,
+    profileId: input.profileId,
+    actorProfileId: input.actorProfileId,
+    purpose: input.purpose,
+    destination: input.destination,
+    provider: input.destination === "EXTERNAL_AI" ? input.provider ?? null : null,
+    model: input.destination === "EXTERNAL_AI" ? input.model ?? null : null,
+    resultStatus: result.status,
+    includedSignalIds,
+    withheldCount: result.withheld.length,
+    withheldReasons: [...new Set(result.withheld.map(item => item.reason))].sort(),
+    consentId,
+    consentVersion,
+    occurredAt: input.asOf,
   };
 }

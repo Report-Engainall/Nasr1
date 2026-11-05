@@ -453,3 +453,71 @@ describe("privacy data request governance", () => {
     expect(createPrivacyAuditMetadata(request, decision)).toBeNull();
   });
 });
+
+
+describe("privacy usage audit and subject ownership", () => {
+  it("requires server-verified record ownership even when requester and subject IDs match", async () => {
+    const { resolvePrivacyDataRequest } = await import("./personalization-governance");
+    expect(resolvePrivacyDataRequest({
+      requestId: "request-ownership",
+      organizationId: "org-a",
+      actorProfileId: "profile-a",
+      subjectProfileId: "profile-a",
+      recordOrganizationId: "org-a",
+      recordRef: "opaque-record-reference",
+      recordClass: "CUSTOMER_PERSONAL_DATA",
+      purpose: "privacy-rights-request",
+      action: "ACCESS",
+      actorAuthorized: true,
+      subjectOwnershipVerified: false,
+      asOf: "2026-11-06T20:00:00.000Z",
+      policy: {
+        organizationId: "org-a", recordClass: "CUSTOMER_PERSONAL_DATA",
+        purpose: "privacy-rights-request", policyVersion: "policy-1",
+        retentionRule: "NOT_REQUIRED", retainUntil: null, legalHold: false,
+        supportsAccess: true, correctionMode: "DIRECT", supportsDeletion: false,
+        evidence: {
+          id: "policy-evidence", status: "VERIFIED", completeness: "COMPLETE",
+          quality: "ACCEPTABLE", sourceTimestamp: "2026-11-06T18:00:00.000Z",
+          asOf: "2026-11-06T19:00:00.000Z",
+        },
+      },
+    })).toMatchObject({ status: "DENIED", reason: "SUBJECT_OWNERSHIP_NOT_VERIFIED" });
+  });
+
+  it("creates a payload-free audit record only for the recomputed personalization decision", async () => {
+    const { createPersonalizationUsageAuditMetadata, resolvePersonalizationSignals } =
+      await import("./personalization-governance");
+    const signals = [
+      {
+        id: "role", organizationId: "org-a", profileId: "profile-a", purpose: "work-dashboard",
+        kind: "WORK_ROLE" as const, verified: true, requiredForPurpose: true, declaredByUser: false,
+      },
+      {
+        id: "secret", organizationId: "org-a", profileId: "profile-a", purpose: "work-dashboard",
+        kind: "FINANCIAL_RECORD" as const, verified: true, requiredForPurpose: true, declaredByUser: false,
+      },
+    ];
+    const request = {
+      preferences: preferences(),
+      organizationId: "org-a", profileId: "profile-a", actorProfileId: "profile-a",
+      purpose: "work-dashboard", destination: "INTERNAL" as const, signals, asOf,
+    };
+    const result = resolvePersonalizationSignals(request);
+    const metadata = createPersonalizationUsageAuditMetadata(request, result);
+    expect(metadata).toMatchObject({
+      eventType: "PERSONALIZATION_CONTEXT_EVALUATED",
+      profileId: "profile-a",
+      includedSignalIds: ["role"],
+      withheldCount: 1,
+    });
+    expect(metadata).not.toHaveProperty("signalValues");
+    expect(metadata).not.toHaveProperty("financialAmount");
+    expect(createPersonalizationUsageAuditMetadata(request, {
+      ...result,
+      includedSignalIds: ["secret"],
+    })).toBeNull();
+    expect(createPersonalizationUsageAuditMetadata({ ...request, actorProfileId: "profile-b" }, result))
+      .toBeNull();
+  });
+});
