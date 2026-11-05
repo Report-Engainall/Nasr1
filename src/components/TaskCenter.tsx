@@ -3,7 +3,7 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Clock3, Filter,
   ListTodo, Play, Plus, Printer, RefreshCw, Search, UserCheck, X,
 } from 'lucide-react';
-import { assignOperationalTask, cancelOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails } from '@/lib/api';
+import { assignOperationalTask, assignOperationalTasks, cancelOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
@@ -226,6 +226,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [editingManualTaskId, setEditingManualTaskId] = useState<string | null>(null);
   const [cancellationDrafts, setCancellationDrafts] = useState<Record<string, string>>({});
   const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
+  const [bulkAssigneeDraft, setBulkAssigneeDraft] = useState('');
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -398,6 +399,29 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     } finally { setBusy(false); }
   }
 
+  async function saveBulkTaskAssignment() {
+    const taskIds = [...selectedTaskIds];
+    if (taskIds.length < 1) return;
+    if (taskIds.length > 100) {
+      setError('تسمح العملية الجماعية بإسناد 100 مهمة كحد أقصى في الدفعة الواحدة.');
+      return;
+    }
+    setBusy(true); setError('');
+    try {
+      const result = await assignOperationalTasks(taskIds, bulkAssigneeDraft || null);
+      setSelectedTaskIds(new Set());
+      setBulkAssigneeDraft('');
+      await loadTasks();
+      onNotice(
+        'تمت مراجعة '+result.processed_count.toLocaleString('ar-YE')+
+        ' مهمة ضمن معاملة واحدة؛ تغيّر إسناد '+result.changed_count.toLocaleString('ar-YE')+' مهمة وسُجلت تغييراتها.'
+      );
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'تعذر إسناد المهام المحددة.';
+      setError(message); onNotice(message);
+    } finally { setBusy(false); }
+  }
+
   function taskDetailsDraft(task: OperationalTask) {
     return taskDetailDrafts[task.id] ?? {
       priority: task.priority,
@@ -521,6 +545,34 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
         <button className="btn secondary" type="button" onClick={selectFilteredTasks} disabled={loading || filtered.length === 0}>
           <ListTodo size={16} /> تحديد النتائج الحالية ({filtered.length.toLocaleString('ar-YE')})
         </button>
+        {canManage && selectedTaskIds.size > 0 && (
+          <div className="task-bulk-assignment">
+            <label>
+              <span>إسناد {selectedTaskIds.size.toLocaleString('ar-YE')} مهمة محددة</span>
+              <select
+                aria-label="الموظف لإسناد المهام المحددة"
+                value={bulkAssigneeDraft}
+                disabled={busy || assigneesLoading || Boolean(assigneesError)}
+                onChange={(event) => setBulkAssigneeDraft(event.target.value)}
+              >
+                <option value="">إعادتها إلى قوائم الأدوار</option>
+                {assignees.map((assignee) => (
+                  <option key={assignee.profile_id} value={assignee.profile_id}>
+                    {assignee.full_name} — {assignee.roles.map((role) => roleLabels[role as OperationalTaskRole] ?? role).join('، ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={busy || loading || assigneesLoading || Boolean(assigneesError) || selectedTaskIds.size > 100}
+              onClick={() => void saveBulkTaskAssignment()}
+            >تنفيذ الإسناد الجماعي</button>
+            {selectedTaskIds.size > 100 && <small role="status">قسّم التحديد إلى دفعات لا تتجاوز 100 مهمة.</small>}
+            {assigneesError && <small role="status">تعذر تحميل الموظفين النشطين؛ لم يُسمح بالإسناد الجماعي.</small>}
+          </div>
+        )}
         <button className="btn secondary" type="button" onClick={clearTaskSelection} disabled={selectedTaskIds.size === 0}>
           إلغاء التحديد ({selectedTaskIds.size.toLocaleString('ar-YE')})
         </button>
