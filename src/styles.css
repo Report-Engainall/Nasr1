@@ -675,3 +675,25 @@
 .task-bulk-details select,.task-bulk-details input{width:100%;min-width:0;padding:8px 9px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit;font-weight:500}
 .task-bulk-details small{flex-basis:100%;color:var(--muted-foreground);font-size:11px}
 @media(max-width:860px){.task-bulk-details{width:100%;align-items:stretch}.task-bulk-details label,.task-bulk-details button{width:100%}}
+
+
+/* Customer 360 — append-only interaction capture and history. */
+.customer-360-interactions{display:grid;gap:12px}
+.customer-360-interactions-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.customer-360-interactions-heading h3{display:flex;align-items:center;gap:8px;margin:0 0 5px}
+.customer-360-interaction-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:13px;border:1px solid var(--border);border-radius:10px;background:var(--background)}
+.customer-360-interaction-form label{display:grid;gap:5px;color:var(--foreground);font-size:12px;font-weight:700}
+.customer-360-interaction-form input,.customer-360-interaction-form select,.customer-360-interaction-form textarea{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-weight:500}
+.customer-360-interaction-form textarea{resize:vertical;line-height:1.65}
+.customer-360-interaction-details{grid-column:1/-1}
+.customer-360-interaction-submit{display:flex;align-items:end}
+.customer-360-interaction-notice{margin:0;color:var(--aghbari-brand,var(--primary));font-size:12px;font-weight:700}
+.customer-360-interaction-list{display:grid;gap:8px}
+.customer-360-interaction-item{display:grid;gap:7px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+.customer-360-interaction-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.customer-360-interaction-meta strong{font-size:13px}
+.customer-360-interaction-meta span{padding:3px 8px;border-radius:999px;background:var(--aghbari-brand-soft,var(--muted));color:var(--aghbari-brand,var(--foreground));font-size:10px;font-weight:700}
+.customer-360-interaction-meta time{margin-inline-start:auto;color:var(--muted-foreground);font-size:11px}
+.customer-360-interaction-item p{margin:0;color:var(--foreground);font-size:12px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
+.customer-360-interaction-footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--muted-foreground);font-size:10px}
+@media(max-width:680px){.customer-360-interaction-form{grid-template-columns:1fr}.customer-360-interaction-details{grid-column:auto}.customer-360-interaction-submit{width:100%}.customer-360-interaction-submit button{width:100%}.customer-360-interaction-meta time{width:100%;margin-inline-start:0}}
