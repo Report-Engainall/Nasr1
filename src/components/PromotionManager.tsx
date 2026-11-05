@@ -215,7 +215,7 @@ export function PromotionManager({ onNotice }: { onNotice: (message: string) => 
           <button type="button" className="btn primary" onClick={beginCreate} disabled={saving || Boolean(togglingId)}><Plus size={16} /> إضافة حملة</button>
         </div>
       </div>
-      <p className="report-note">تنبيه دقة: تُحفظ قيمة الخصم كبيانات حملة، لكنها لا تُخصم تلقائيًا من إجمالي الطلب حتى يربط محرك تسعير الخادم بهذه الحملات. لن نعرض نسبة خصم للعميل على أنها مطبقة قبل ذلك.</p>
+      <p className="report-note">تنبيه دقة: يطبق الخادم حملة واحدة نشطة ومطابقة عند تسعير الطلب وإرساله، ويحفظ خصم الوحدة وبيانات الحملة كلقطة ثابتة على بند الطلب والفاتورة. يختار الخادم أعلى خصم مسموح ويمنع نزول سعر الوحدة عن تكلفة الصنف؛ قيمة الحملة وحدها ليست ضمانًا لسعر نهائي.</p>
     </section>
     {formOpen && <form className="panel promotion-form" onSubmit={(event) => void submit(event)}>
       <div className="panel-head"><div><h2>{form.id ? 'تعديل حملة' : 'إنشاء حملة'}</h2><p className="text-muted">القيم تُراجع أيضًا في الخادم؛ لن تنجح الكتابة إذا كانت منتجات أو تصنيفات من مؤسسة أخرى.</p></div>
