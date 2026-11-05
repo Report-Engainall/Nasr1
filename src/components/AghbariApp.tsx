@@ -120,9 +120,6 @@ function AdminWorkspaceContent({
   onNavigationBlockedChange,
 }: AdminWorkspaceContentProps) {
   const [notificationTaskId, setNotificationTaskId] = useState<string | null>(null);
-  useEffect(() => {
-    if (view === 'tasks' && notificationTaskId) setNotificationTaskId(null);
-  }, [view, notificationTaskId]);
 
   switch (view) {
     case "dashboard":
@@ -189,7 +186,13 @@ function AdminWorkspaceContent({
     case "finance":
       return <StaffFinancePage />;
     case "tasks":
-      return <TaskCenter onNotice={onNotice} initialTaskId={notificationTaskId} />;
+      return (
+        <TaskCenter
+          onNotice={onNotice}
+          initialTaskId={notificationTaskId}
+          onInitialTaskApplied={() => setNotificationTaskId(null)}
+        />
+      );
     case "audit":
       return <AdminAuditLog />;
     case "stock-count":
