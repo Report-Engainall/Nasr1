@@ -621,7 +621,16 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
             <div><p style={mutedStyle}>إجمالي الفاتورة</p><strong>{moneyText(selectedInvoice.invoiceTotalAmount, selectedInvoice.currency)}</strong></div>
             <div><p style={mutedStyle}>فرق المطابقة</p><strong>{moneyText(selectedInvoice.merchandiseVarianceAmount, selectedInvoice.currency)}</strong></div>
           </div>
-          {selectedInvoice.taxAccountingStatus === "pending" && Number(selectedInvoice.taxAmount) > 0 && <p role="status" style={{ ...mutedStyle, color: "#854d0e" }}>الضريبة مسجلة كدليل فقط وتنتظر المعالجة المحاسبية؛ لم يُنشأ لها قيد أو حساب تلقائي.</p>}
+          {selectedInvoice.taxAccountingStatus === "pending" && Number(selectedInvoice.taxAmount) > 0 &&
+            (!accountingStatus || accountingStatus.accountingStatus === "not_prepared" ||
+              accountingStatus.accountingStatus === "journal_void" || accountingStatus.accountingStatus === "journal_reversed") &&
+            <p role="status" style={{ ...mutedStyle, color: "#854d0e" }}>الضريبة موثقة في الفاتورة لكنها لم تُعالج بقيد محاسبي حالي صالح؛ اختر حسابها صراحةً في قسم التسوية أدناه.</p>}
+          {selectedInvoice.taxAccountingStatus === "pending" && Number(selectedInvoice.taxAmount) > 0 &&
+            accountingStatus?.accountingStatus === "journal_draft_created" &&
+            <p role="status" style={{ ...mutedStyle, color: "#854d0e" }}>أُدرجت الضريبة في مسودة قيد التسوية #{accountingStatus.journalEntryNumber ?? "—"}؛ تبقى غير مرحلة حتى اعتماد القيد صراحةً في دفتر الأستاذ.</p>}
+          {selectedInvoice.taxAccountingStatus === "pending" && Number(selectedInvoice.taxAmount) > 0 &&
+            accountingStatus?.accountingStatus === "journal_posted" &&
+            <p role="status" style={{ ...mutedStyle, color: "#166534" }}>أُدرجت الضريبة في قيد التسوية المرحّل #{accountingStatus.journalEntryNumber ?? "—"}.</p>}
           {mode === "review" && (
             <section style={cardStyle} aria-label="تسوية فاتورة المورد المحاسبية">
               <div>
