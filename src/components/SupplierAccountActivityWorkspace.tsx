@@ -179,7 +179,7 @@ export function SupplierAccountActivityWorkspace() {
               <span style={mutedStyle}>صفحة {page + 1}</span>
               <div style={{ display: "flex", gap: 7 }}>
                 <button className="btn secondary" type="button" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading}>السابق</button>
-                <button className="btn secondary" type="button" onClick={() => setPage((current) => current + 1)} disabled={!payload.hasMore || loading}>التالي</button>
+                <button className="btn secondary" type="button" onClick={() => setPage((current) => current + 1)} disabled={!payload.hasMore || loading || page >= 200}>التالي</button>
               </div>
             </div>
           </section>
