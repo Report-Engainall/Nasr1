@@ -1,6 +1,6 @@
--- Extend the canonical atomic catalog command so metadata is persisted on both
--- create and edit; the base catalog function remains responsible for all core
--- product validation, tier pricing and its authorization boundary.
+-- Make the established product metadata command work for both creation and edit.
+-- Core catalog fields still go through save_admin_catalog_product; metadata follows
+-- inside the same PostgreSQL transaction and is written only within the active org.
 CREATE OR REPLACE FUNCTION public.save_admin_product_with_metadata(
   p_product_id uuid,
   p_payload jsonb
@@ -15,7 +15,7 @@ DECLARE
   v_org uuid;
   v_core_payload jsonb;
   v_core_result jsonb;
-  v_product_id uuid;
+  v_saved_product_id uuid;
   v_name_en text;
   v_is_featured boolean;
   v_sort_order integer;
@@ -27,12 +27,9 @@ BEGIN
       MESSAGE='active staff profile required for catalog product save';
   END IF;
 
-  SELECT p.organization_id
-  INTO v_org
+  SELECT p.organization_id INTO v_org
   FROM public.profiles AS p
-  WHERE p.id=v_actor
-    AND p.auth_user_id=auth.uid()
-    AND p.is_active=true
+  WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true
   LIMIT 1;
 
   IF v_org IS NULL THEN
@@ -40,22 +37,22 @@ BEGIN
       MESSAGE='active organization membership required for catalog product save';
   END IF;
 
-  IF p_payload IS NULL OR pg_catalog.jsonb_typeof(p_payload) <> 'object' THEN
+  IF p_payload IS NULL OR jsonb_typeof(p_payload) <> 'object' THEN
     RAISE EXCEPTION USING ERRCODE='22023',
       MESSAGE='catalog product payload must be a JSON object';
   END IF;
 
   IF p_payload ? 'name_en' THEN
-    IF pg_catalog.jsonb_typeof(p_payload->'name_en') NOT IN ('string','null')
-       OR pg_catalog.length(pg_catalog.coalesce(p_payload->>'name_en','')) > 240 THEN
+    IF jsonb_typeof(p_payload->'name_en') NOT IN ('string','null')
+       OR length(coalesce(p_payload->>'name_en','')) > 240 THEN
       RAISE EXCEPTION USING ERRCODE='22023',
         MESSAGE='English product name must be at most 240 characters';
     END IF;
-    v_name_en := pg_catalog.nullif(pg_catalog.btrim(p_payload->>'name_en'),'');
+    v_name_en := nullif(btrim(p_payload->>'name_en'),'');
   END IF;
 
   IF p_payload ? 'is_featured' THEN
-    IF pg_catalog.jsonb_typeof(p_payload->'is_featured') <> 'boolean' THEN
+    IF jsonb_typeof(p_payload->'is_featured') <> 'boolean' THEN
       RAISE EXCEPTION USING ERRCODE='22023',
         MESSAGE='featured product flag must be boolean';
     END IF;
@@ -63,7 +60,7 @@ BEGIN
   END IF;
 
   IF p_payload ? 'sort_order' THEN
-    IF pg_catalog.jsonb_typeof(p_payload->'sort_order') <> 'number'
+    IF jsonb_typeof(p_payload->'sort_order') <> 'number'
        OR (p_payload->>'sort_order') !~ '^(0|[1-9][0-9]{0,5})$' THEN
       RAISE EXCEPTION USING ERRCODE='22023',
         MESSAGE='product display order must be an integer between 0 and 999999';
@@ -71,45 +68,44 @@ BEGIN
     v_sort_order := (p_payload->>'sort_order')::integer;
   END IF;
 
-  -- Keep the established catalog command as the only writer for core fields,
-  -- stock-related metadata and tier prices. Both calls run in this RPC transaction.
+  -- Do not introduce a second product writer: retain the canonical command for
+  -- all existing fields and its authorization/stock/price-tier validation.
   v_core_payload := p_payload - 'name_en' - 'is_featured' - 'sort_order';
-  v_core_result := public.save_admin_catalog_product(p_product_id, v_core_payload);
+  v_core_result := public.save_admin_catalog_product(p_product_id,v_core_payload);
 
-  IF pg_catalog.jsonb_typeof(v_core_result) <> 'object' THEN
+  IF jsonb_typeof(v_core_result) <> 'object' THEN
     RAISE EXCEPTION USING ERRCODE='22023',
       MESSAGE='catalog save returned an invalid result';
   END IF;
 
-  v_product_id := pg_catalog.coalesce(
-    pg_catalog.nullif(v_core_result->>'product_id','')::uuid,
-    pg_catalog.nullif(v_core_result->>'id','')::uuid
+  v_saved_product_id := coalesce(
+    nullif(v_core_result->>'product_id','')::uuid,
+    nullif(v_core_result->>'id','')::uuid,
+    nullif(v_core_result->>'productId','')::uuid
   );
 
-  IF v_product_id IS NULL THEN
-    -- The canonical command has historically returned a compact result. Resolve
-    -- the just-saved row only inside the authenticated organization if it does
-    -- not expose its identifier as a top-level JSON field.
-    SELECT p.id
-    INTO v_product_id
+  IF v_saved_product_id IS NULL AND p_product_id IS NOT NULL THEN
+    v_saved_product_id := p_product_id;
+  END IF;
+
+  IF v_saved_product_id IS NULL THEN
+    SELECT p.id INTO v_saved_product_id
     FROM public.products AS p
     WHERE p.organization_id=v_org
-      AND p.item_code=pg_catalog.nullif(v_core_payload->>'item_code','')
-    ORDER BY p.created_at DESC, p.id DESC
+      AND p.item_code=nullif(v_core_payload->>'item_code','')
+    ORDER BY p.created_at DESC,p.id DESC
     LIMIT 1
     FOR UPDATE;
   END IF;
 
-  IF v_product_id IS NULL THEN
+  IF v_saved_product_id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='P0002',
       MESSAGE='catalog command completed without a resolvable product identifier';
   END IF;
 
-  SELECT pg_catalog.to_jsonb(p)
-  INTO v_before
+  SELECT to_jsonb(p) INTO v_before
   FROM public.products AS p
-  WHERE p.id=v_product_id
-    AND p.organization_id=v_org
+  WHERE p.id=v_saved_product_id AND p.organization_id=v_org
   FOR UPDATE;
 
   IF v_before IS NULL THEN
@@ -119,13 +115,12 @@ BEGIN
 
   UPDATE public.products AS p
   SET
-    name_en = CASE WHEN p_payload ? 'name_en' THEN v_name_en ELSE p.name_en END,
-    is_featured = CASE WHEN p_payload ? 'is_featured' THEN v_is_featured ELSE p.is_featured END,
-    sort_order = CASE WHEN p_payload ? 'sort_order' THEN v_sort_order ELSE p.sort_order END,
-    updated_at = pg_catalog.now()
-  WHERE p.id=v_product_id
-    AND p.organization_id=v_org
-  RETURNING pg_catalog.to_jsonb(p) INTO v_after;
+    name_en=CASE WHEN p_payload ? 'name_en' THEN v_name_en ELSE p.name_en END,
+    is_featured=CASE WHEN p_payload ? 'is_featured' THEN v_is_featured ELSE p.is_featured END,
+    sort_order=CASE WHEN p_payload ? 'sort_order' THEN v_sort_order ELSE p.sort_order END,
+    updated_at=now()
+  WHERE p.id=v_saved_product_id AND p.organization_id=v_org
+  RETURNING to_jsonb(p) INTO v_after;
 
   IF v_after IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='P0002',
@@ -139,13 +134,13 @@ BEGIN
       organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
     )
     VALUES (
-      v_org,v_actor,'catalog.product.metadata_saved','product',v_product_id,
-      pg_catalog.jsonb_build_object(
+      v_org,v_actor,'catalog.product.metadata_saved','product',v_saved_product_id,
+      jsonb_build_object(
         'name_en',v_before->'name_en',
         'is_featured',v_before->'is_featured',
         'sort_order',v_before->'sort_order'
       ),
-      pg_catalog.jsonb_build_object(
+      jsonb_build_object(
         'name_en',v_after->'name_en',
         'is_featured',v_after->'is_featured',
         'sort_order',v_after->'sort_order'
@@ -153,8 +148,8 @@ BEGIN
     );
   END IF;
 
-  RETURN v_core_result || pg_catalog.jsonb_build_object(
-    'product_id',v_product_id,
+  RETURN v_core_result || jsonb_build_object(
+    'product_id',v_saved_product_id,
     'name_en',v_after->'name_en',
     'is_featured',v_after->'is_featured',
     'sort_order',v_after->'sort_order'
