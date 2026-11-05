@@ -1,3 +1,74 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — OPERATIONAL TASK LIFECYCLE PRODUCT BUILD
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Initial main for this work: `294f85c2a4eae8d9a32109684f8166872eacb44d`.
+- Latest application-code cursor: `1206932ea38f25905ec07b29bb7655260730630c`.
+- Matrix/checkpoint update cursor before this document refresh: `8f3349983cbe8f25bae8754163d574a4c1b9492a`.
+- No branch was created. All work was written directly to the official main line.
+
+## Product functionality implemented in this batch
+
+1. **Reassign or unassign one existing open task**
+   - Migration: `supabase/migrations/20261105100000_operational_task_reassignment.sql`.
+   - RPC: `assign_operational_task(uuid,uuid)`.
+   - Manager/admin only; derives actor and organization server-side, locks the task, rejects cross-tenant/closed tasks, validates that the assignee is active in the same organization and has a compatible role, and writes old/new assignment data to `audit_logs`. Returning to the role queue is supported. Exact no-op is not audited.
+
+2. **Change priority and deadline after creation**
+   - Migration: `supabase/migrations/20261105103000_operational_task_details_update.sql`.
+   - RPC: `update_operational_task_details(uuid,text,timestamptz)`.
+   - Manager/admin only; same-tenant row lock, open-task restriction, bounded priority values, idempotent no-op and audit evidence. The manager override is retained in `task_payload.manager_overrides` so a later source refresh does not revert the chosen priority/deadline.
+
+3. **Edit the title and description of a manual task**
+   - Migration: `supabase/migrations/20261105104500_manual_operational_task_edit.sql`.
+   - RPC: `update_manual_operational_task(uuid,text,text)`.
+   - Manager/admin only; validates title/description limits, edits only `manual_operational_task` records with no source entity, and rejects completed/cancelled tasks. Old/new text is audited. System-generated order, invoice, inventory and other source tasks remain read-only through this control.
+
+4. **Cancel an open task with a mandatory reason and explicitly reopen it**
+   - Migration: `supabase/migrations/20261105110000_operational_task_cancel_reason.sql`.
+   - RPC: `cancel_operational_task(uuid,text)`.
+   - Cancellation reason is stored in `resolution_note`, a `manager_cancellation` payload marker and `audit_logs`. The source upsert preserves that marker and cancellation state during later source reconciliation.
+   - Migration: `supabase/migrations/20261105114000_operational_task_reopen_cancel.sql`.
+   - The existing status RPC is replaced so an explicit manager reopen clears the cancellation marker and records that removal in the status audit. The UI exposes Reopen for cancelled and completed tasks.
+
+5. **Atomic bulk reassignment of selected tasks**
+   - Migration: `supabase/migrations/20261105113000_operational_task_bulk_assignment.sql`.
+   - RPC: `assign_operational_tasks(uuid[],uuid)`.
+   - Supports up to 100 distinct open task IDs, same-tenant active compatible assignee validation, deterministic row-lock order, all-or-nothing rollback if any task is missing/closed/incompatible, a per-changed-task audit row, and no-op replay handling. The UI sends selected open tasks only and can return them to their role queues.
+
+6. **Require an execution outcome before task completion**
+   - `src/components/TaskCenter.tsx` now opens an outcome editor before allowing completion. An empty result cannot be submitted; a result of up to 1,000 characters is passed through the existing status RPC into `resolution_note`, which is displayed in task details and the established print projection.
+   - The UI keeps the entered result visible when the RPC fails; the draft closes only after a successful status update and reload.
+
+## Application files changed
+
+- `src/components/TaskCenter.tsx`: manager edit controls, manual-text editor, reasoned cancellation/reopen, selected-task bulk reassignment, and completion outcome capture.
+- `src/lib/api.ts`: validated RPC wrappers for single assignment, bulk assignment, task-detail updates, manual-task text updates and reasoned cancellation. No direct browser write to `ai_tasks` was added.
+- `src/styles.css`: responsive styles for the added controls.
+- `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`: added/updated the task lifecycle, bulk assignment and completion-outcome acceptance leaves.
+
+## Evidence and limits — do not overstate
+
+- The changes above were committed directly to `main`. The last application-code commit is `1206932ea38f25905ec07b29bb7655260730630c`; the matrix update commit is `8f3349983cbe8f25bae8754163d574a4c1b9492a`.
+- No tests, build, lint, local PostgreSQL, Supabase, CI, Preview or Bolt runtime check was run in this implementation batch. The user explicitly prioritized implementing product features over repeated testing. Existing focused UI specs remain in the repository but are not reported as executed or PASS.
+- The new SQL migrations have not been applied to a live or local database. No production data/schema, external credentials, tenant records or storage were changed.
+- DLV-015 task leaves are marked implemented in source but **acceptance pending** until the relevant bounded runtime evidence is requested. No PASS or release readiness is claimed.
+- This batch did not change the Lovable detachment or activate the Bolt handoff. Lovable source/build/preview/telemetry detachment remains in the earlier merged work (`b0a091e0a506da43a9b0d0dd0d1e9b992498ca63`, with CI alignment `45ca19c47a985b2d12d23c846ba068222a4e17ce`). Bolt runtime remains intentionally deferred until practical product-body readiness.
+
+## Bolt archive disposition
+
+- The original ZIP was located in the ChatGPT Library and materialized at `/mnt/data/project-bolt-github-8ccbjvhg (2).zip`.
+- Verified outer SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; the ZIP contains 1,211 entries.
+- The P3 dossier in the repository records 69/69 staged provenance files mapped to the existing integration ledger, the inner CSV helper as an exact target match, the product-image helper as superseded, and legacy privileged migrations as excluded. The recorded archive checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is an ancestor of the reviewed main line.
+- This session did not perform a fresh byte-for-byte comparison of all 1,211 entries against the latest main tree. Do not claim entry-by-entry archive parity and do not copy the historical archive wholesale over newer NASR1 files. No secrets, `.env` files or old generated build output were imported.
+
+## Next action — continue product implementation, not test loops
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-003`.
+- Extend the operational-task workflow with tenant-scoped in-app notifications on task creation/assignment/reassignment and explicit role-queue return. Reuse the existing notifications contract only after inspecting its current schema and read path; notify only the intended profile/role audience, avoid duplicate notifications on no-op replay, and do not create trigger-driven notification spam from source reconciliation.
+- After that, continue with the next genuinely incomplete storefront/customer/commerce feature from the live acceptance matrix. Keep the current rule: implement source/product functionality in batches; do not run broad test suites or Bolt Preview during this phase.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — OPERATIONAL TASK REASSIGNMENT + TASK DETAIL EDITS
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
