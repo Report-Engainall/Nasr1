@@ -766,3 +766,38 @@
 .customer-service-case-history li span,.customer-service-case-history>small{color:var(--muted-foreground);font-size:10px}
 .customer-service-case-history li p{margin:0;font-size:11px;line-height:1.7;white-space:pre-wrap}
 @media(max-width:680px){.customer-service-case-form{grid-template-columns:1fr}.customer-service-case-form-subject,.customer-service-case-form-description,.customer-service-case-form-submit{grid-column:auto}.customer-service-case-update{grid-template-columns:1fr}.customer-service-case-update button{width:100%}}
+
+
+/* Customer service SLA, assignment and escalation */
+.customer-service-case-sla{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.customer-service-case-sla>div{display:grid;gap:4px;padding:10px 11px;border:1px solid var(--border);border-radius:9px;background:var(--background)}
+.customer-service-case-sla span,.customer-service-case-sla small{color:var(--muted-foreground);font-size:10px}
+.customer-service-case-sla strong{font-size:12px;font-variant-numeric:tabular-nums}
+.customer-service-case-sla .is-overdue{border-color:var(--destructive,var(--border));background:color-mix(in srgb,var(--destructive,var(--aghbari-brand)) 7%,var(--background))}
+.customer-service-case-sla .is-overdue small,.customer-service-case-escalation{color:var(--destructive,var(--aghbari-brand));font-weight:800}
+.customer-service-case-manager{display:grid;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--background)}
+.customer-service-case-manager-heading{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.customer-service-case-manager-heading strong{font-size:12px}
+.customer-service-case-manager-heading span{color:var(--muted-foreground);font-size:10px}
+.customer-service-case-manager-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.customer-service-case-manager label,.customer-service-case-escalate label{display:grid;gap:5px;color:var(--foreground);font-size:10px;font-weight:700;min-width:0}
+.customer-service-case-manager input,.customer-service-case-manager select,.customer-service-case-escalate input{width:100%;min-width:0;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-weight:500}
+.customer-service-case-manager-actions{display:flex;justify-content:flex-start}
+.customer-service-case-escalate{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:9px;padding-top:9px;border-top:1px dashed var(--border)}
+.customer-service-case-escalate button{white-space:nowrap}
+.customer-service-sla-settings{padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--background)}
+.customer-service-sla-settings summary{cursor:pointer;color:var(--foreground);font-size:12px;font-weight:800}
+.customer-service-sla-settings>.report-note{margin:7px 0 10px}
+.customer-service-sla-policy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.customer-service-sla-policy-grid form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--card)}
+.customer-service-sla-policy-grid form>strong,.customer-service-sla-policy-grid form>small{grid-column:1/-1}
+.customer-service-sla-policy-grid form>strong{font-size:11px}
+.customer-service-sla-policy-grid label{display:grid;gap:4px;color:var(--muted-foreground);font-size:10px;font-weight:700}
+.customer-service-sla-policy-grid input{width:100%;min-width:0;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--background);color:var(--foreground);font:inherit}
+.customer-service-sla-policy-grid button{grid-column:1/-1}
+.customer-service-sla-policy-grid small{color:var(--muted-foreground);font-size:9px}
+@media(max-width:680px){
+  .customer-service-case-sla,.customer-service-case-manager-grid,.customer-service-sla-policy-grid{grid-template-columns:1fr}
+  .customer-service-case-escalate{grid-template-columns:1fr}
+  .customer-service-case-escalate button{width:100%}
+}
