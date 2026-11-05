@@ -1,30 +1,30 @@
 ## 2026-11-05 — P3 Decision Memory Book — REF-DECISION-MEMORY-BOOK-001
 
-- Canonical reference section 52.
-- P3 implementation: `src/lib/intelligence/decision-memory.ts`, `src/components/intelligence/DecisionMemoryBook.tsx`, P3 exports and mount in `IntelligenceWorkspace.tsx`.
-- Deterministic evidence rules: verified facts only; opinions/hypotheses/assumptions separately labelled; expected/actual comparison requires identical metric, unit, currency/UOM, period and formula ID/version; actual as-of must be later and reconcile to the existing decision lifecycle's measurement summary; zero-baseline percentage withheld. Precedents are page-scoped. Corrections are versioned append-only; no automatic rules/tasks/actions.
-- P2 contract delivered in `P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`: immutable snapshots, append-only corrections, idempotency, same-tenant evidence resolution and full measured metric DTO.
-- Current limitation: P2 read contract does not yet return snapshots or full measurement proof. The mounted book therefore renders existing decisions as PARTIAL/UNVERIFIED until actual P2 data arrives; no fabricated memory.
-- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS claimed. No Vercel spend or paid dependencies.
+- Canonical reference section 52; exact integrated P3 code cursor `f2c10b37031cba3551e0f0acef5d868afb3a756e`.
+- P3 implementation: `src/lib/intelligence/decision-memory.ts` (blob `8f673ed4f7ec265212ddd1326d8a87d64bd44c50`), `src/components/intelligence/DecisionMemoryBook.tsx` (blob `b4289972ab6ae0293a69bad7cc982f642ea1efdf`), P3 barrel exports and mount in `IntelligenceWorkspace.tsx`.
+- Engine separates evidence-backed FACT from OPINION/HYPOTHESIS and explicit assumptions; exposes reviewed-empty states for facts/assumptions/lessons; validates expected/actual metric compatibility and actual-value reconciliation with the existing decision outcome lifecycle. Corrections are versioned append-only; no automatic rules/tasks/actions.
+- P2 contract in `P3_INTELLIGENCE_AGGREGATE_CONTRACT.md` defines immutable snapshots, append-only corrections, idempotency, same-tenant evidence resolution and full measured metric DTO.
+- Current limitation: P2 read DTO still does not return memory snapshots or full measurement proof. The mounted book passes an empty snapshot list and renders existing decision records as PARTIAL/UNVERIFIED; no memory is fabricated.
+- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until P2 delivers the snapshot persistence/read contract. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS claimed. No Vercel spend or paid dependencies.
 
-## 2026-11-05 — P3 Business Health Map — code SHA `f924e0cc2288866a99ae2faad68b069f64335e41`
+## 2026-11-05 — P3 Business Health Map — exact integrated code cursor `f2c10b37031cba3551e0f0acef5d868afb3a756e`
 
 - Task `REF-BUSINESS-HEALTH-MAP-001`, canonical specification section 51.
-- Base `4f2ebcee064f399b53c15f2ed919a8395e939bd7`; feature/component SHA `d32a833490a79b5bbc60f866ba258d18ad1e7107`; fail-closed cashflow evidence hardening SHA `f924e0cc2288866a99ae2faad68b069f64335e41`.
-- Paths: `src/lib/intelligence/business-health-map.ts`, `src/components/intelligence/BusinessHealthMap.tsx`, both P3 barrels, P1/P2 contracts.
-- Product: composition of existing liquidity, cashflow, dead-stock, replenishment and customer-retention engines. No second ledger/query, FX, inferred balances, duplicate capital aggregation or automatic action.
-- Cashflow points are displayed only when schedule completeness, exact as-of, evidence and formula lineage are present. Grand capital total and unavailable CCC/DSO/DPO/product/supplier concentration are withheld with reasons.
-- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS claimed. No Vercel or paid dependencies.
-- P1 must mount the component; P2 must provide authoritative same-tenant source outputs.
+- Initial base `4f2ebcee064f399b53c15f2ed919a8395e939bd7`; feature/component SHA `d32a833490a79b5bbc60f866ba258d18ad1e7107`; fail-closed cashflow hardening `f924e0cc2288866a99ae2faad68b069f64335e41`.
+- Final module blobs: `src/lib/intelligence/business-health-map.ts` `755a3a75595d12e2a3d2fa2ccf2975a228800c19`; `src/components/intelligence/BusinessHealthMap.tsx` `f52738ce674b7fc8c07d9481f7f350efaf81744d`.
+- Product composes existing liquidity, cashflow, dead-stock, replenishment and customer-retention engines. Each source retains/displays its own as-of/period. Cashflow requires complete schedule and evidence; expected collections/due obligations are not double counted; inventory exposure is non-cash; mismatched/overlapping capital sources are withheld; grand total, CCC/DSO/DPO and unsupported product/supplier concentration remain unavailable.
+- The component is mounted in the existing `IntelligenceWorkspace`; no duplicate route/ledger/query, FX or automatic action is created.
+- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` pending complete authoritative P2 source DTO/lineage. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS claimed. No Vercel or paid dependencies.
 
-## 2026-11-05 — P3 Growth Opportunity Radar — code SHA `7736d661746c5c663fa0b55d468b42a93c64fa2c`
+## 2026-11-05 — P3 Growth Opportunity Radar — exact integrated code cursor `f2c10b37031cba3551e0f0acef5d868afb3a756e`
 
-- Task: `REF-GROWTH-OPPORTUNITY-RADAR-001`, canonical merchant-intelligence specification section 50.
-- Base SHA `52ef0b3f92ea5cd063b78eca16a95e92dc8d7a11`; feature commit `40dbab10982faefc64e35901d03eb4de0b4b5df3`; evidence/comparison hardening commit `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
-- Paths: `src/lib/intelligence/growth-opportunities.ts`, `src/components/intelligence/GrowthOpportunityRadar.tsx`, both intelligence barrel exports, `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`, `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
-- Product: five deterministic growth/retention/demand/trend signal classes; source evidence passport validation; unique metric/evidence requirements; minimum samples; period, currency and UOM compatibility; withheld reasons; reusable RTL display component. No provider, model, paid dependency, or side-effectful action.
-- Exact acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN by instruction; no PASS asserted.
-- P2 must supply the five metric families from authenticated same-tenant sources. P1 must mount the component and bind authorized record destinations. The sequential supplier-finance UI work remains separate.
+- Task `REF-GROWTH-OPPORTUNITY-RADAR-001`, canonical merchant-intelligence specification section 50.
+- Base SHA `52ef0b3f92ea5cd063b78eca16a95e92dc8d7a11`; feature commit `40dbab10982faefc64e35901d03eb4de0b4b5df3`; evidence/comparison hardening `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+- Final module blobs: `src/lib/intelligence/growth-opportunities.ts` `c5ba2e2af3906c60bfff34ac8b6daad20fb1f98d`; `src/components/intelligence/GrowthOpportunityRadar.tsx` `dbb2b92c60c78e6009886d59320d65ffb1561c4b`.
+- Product: five deterministic growth/retention/demand/trend signal classes; source evidence passport validation; unique metric/evidence requirements; minimum samples; period/currency/UOM compatibility; withheld reasons. The radar is mounted in the existing intelligence workspace and opens source routes through its authorized callback. No paid provider, lost-profit estimate or automatic action.
+- Current data boundary: existing customer-retention source supplies repeat-purchase/customer-decline signals. Unconverted quote, unavailable-search and product-performance signals remain withheld until P2 source metrics are delivered.
+- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS asserted. Sequential supplier-finance UI remains separate.
+
 
 ## 2026-11-05 — Exact-SHA Core + P2 final acceptance — `45ca19c47a985b2d12d23c846ba068222a4e17ce`
 
