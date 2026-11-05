@@ -1,3 +1,26 @@
+# OWNER EXECUTION ORDER OVERRIDE — 2026-11-05 — BUILD THE PRODUCT BODY BEFORE BOLT HANDOFF
+
+**This override supersedes every older instruction in this file that says to import/sync into Bolt immediately, to make BOLT-RUNTIME-001 the current task, or to stop DLV/product-body implementation until Bolt runtime is verified.** The owner clarified the intended sequence: complete the greatest practical amount of the existing product body on NASR1 first; only then hand the current main source to Bolt for its one-time environment integration and full Preview/E2E validation.
+
+## Current execution phase: PRODUCT BODY ON NASR1/MAIN
+- Work only in Report-Engainall/Nasr1 on main.
+- Continue implementing the existing storefront, customer and admin screens, real workflows, backend/business rules, commerce/finance/inventory engines, Onyx, Customer 360, intelligence, exports/printing, PWA, and all remaining source-level acceptance items in the original matrix.
+- Preserve the current source architecture, SQL migrations, RPC contracts, authorization boundaries, tests and prior work. Do not rebuild, remove, disable, or prematurely replace the existing backend contract with guessed Bolt APIs.
+- Lovable source/build/editor-preview/telemetry detachment is already merged. Do not reopen or repeat it unless a new source-backed Lovable dependency is found.
+- Do not sign in to Bolt, create/import a Bolt project, sync the repository to Bolt, provision Bolt DB, or run Bolt Preview now. Bolt-specific runtime work is deliberately deferred.
+- Do not repeat CI, local database, or Preview tests already accepted on their exact SHA; continue the next genuinely unaccepted source/product acceptance leaf and add focused tests for new code.
+
+## Bolt handoff activation gate
+Activate BOLT-RUNTIME-001 only after the source/product body has reached practical handoff readiness: all remaining feature work that can be implemented and accepted on NASR1 without access to Bolt's own provisioned resources has been implemented or has a precise, evidence-backed blocker. Do not invent a fixed completion percentage or claim that all screens/features are done without matrix evidence.
+
+## Deferred Bolt integration phase
+At the activation gate, import/sync the latest main head into the intended Bolt workspace (never overlay the historical ZIP). Bolt must then use its own built-in database, authentication, storage and server-function resources; map and preserve every existing schema/migration/RPC/transaction/tenant/RBAC/privacy/audit/idempotency contract; run Bolt Preview and full real-browser/E2E/security/commerce acceptance on one exact SHA. No separate external Supabase connection, Lovable service, paid plan, billing change, or weakening of security is allowed. Only after this runtime integration is proven should any remaining environment-dependent matrix work be closed.
+
+- Current baseline at the start of this correction: c63dcb6d23254558ef3965457ca51eb0aac86dca; the documentation corrections that follow are docs-only.
+- CURRENT_NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-001.
+- DEFERRED_NEXT_ACTION_ID: BOLT-RUNTIME-001 (activate only at the handoff gate above).
+
+---
 # FINAL LIVE EXECUTION UPDATE — 2026-11-05 — MAIN `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe` / CODE SHA `45ca19c47a985b2d12d23c846ba068222a4e17ce`
 
 - REPOSITORY: `Report-Engainall/Nasr1`; branch `main` only.
