@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { createPortal } from 'react-dom';
 import { CalendarClock, CreditCard, Download, MessageSquare, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
 import { Button, Empty, ErrorBox, Loading, Modal, TableWrap } from '@/components/AdminPages';
-import { fetchCustomerInteractions, fetchStaffCustomer360Summary, recordCustomerInteraction } from '@/lib/api';
+import { fetchCustomerInteractions, fetchStaffCustomer360Summary, manageCustomerInteractionFollowUp, recordCustomerInteraction } from '@/lib/api';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import type { Customer, CustomerInteraction, CustomerInteractionType } from '@/lib/types';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
@@ -369,6 +369,134 @@ function customerInteractionDate(value: string): string {
     : 'تاريخ غير صالح في السجل';
 }
 
+
+function customerFollowUpDateTimeInput(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function Customer360FollowUpControls({
+  item,
+  onUpdated,
+}: {
+  item: CustomerInteraction;
+  onUpdated: () => Promise<void>;
+}) {
+  const [dueAt, setDueAt] = useState(() => customerFollowUpDateTimeInput(item.follow_up_due_at || item.next_follow_up_at));
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createCustomerInteractionIdempotencyKey());
+
+  useEffect(() => {
+    setDueAt(customerFollowUpDateTimeInput(item.follow_up_due_at || item.next_follow_up_at));
+    setReason('');
+  }, [item.id, item.follow_up_due_at, item.next_follow_up_at]);
+
+  if (!item.next_follow_up_at) return null;
+
+  const statusLabels = {
+    pending: 'مفتوحة',
+    in_progress: 'قيد التنفيذ',
+    completed: 'مكتملة',
+    cancelled: 'ملغاة',
+  } as const;
+  const isOpen = item.follow_up_status === 'pending' || item.follow_up_status === 'in_progress';
+  const currentDueInput = customerFollowUpDateTimeInput(item.follow_up_due_at || item.next_follow_up_at);
+
+  async function submit(action: 'reschedule' | 'cancel') {
+    if (action === 'reschedule' && !dueAt) return;
+    if (action === 'cancel' && !reason.trim()) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await manageCustomerInteractionFollowUp({
+        interactionId: item.id,
+        action,
+        idempotencyKey,
+        newDueAt: action === 'reschedule' ? new Date(dueAt).toISOString() : null,
+        reason: reason.trim() || null,
+      });
+      setNotice(action === 'reschedule' ? 'تم تحديث موعد المهمة مع الاحتفاظ بتاريخ التواصل الأصلي.' : 'أُلغيت مهمة المتابعة وحُفظ السبب في سجل التدقيق.');
+      setReason('');
+      setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+      await onUpdated();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحديث مهمة المتابعة.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="customer-360-follow-up-controls">
+      <div className="customer-360-follow-up-summary">
+        <span>الموعد المسجل: {customerInteractionDate(item.next_follow_up_at)}</span>
+        <span>الموعد الحالي: {item.follow_up_due_at ? customerInteractionDate(item.follow_up_due_at) : 'غير متاح'}</span>
+        <strong>{item.follow_up_status ? statusLabels[item.follow_up_status] : 'مهمة المتابعة غير مرتبطة'}</strong>
+      </div>
+      {item.follow_up_status === 'cancelled' && item.follow_up_cancellation_reason && (
+        <p className="report-note">سبب الإلغاء: {item.follow_up_cancellation_reason}</p>
+      )}
+      {isOpen && item.follow_up_task_id && (
+        <div className="customer-360-follow-up-form">
+          <label>
+            <span>إعادة جدولة المهمة</span>
+            <input
+              type="datetime-local"
+              required
+              value={dueAt}
+              min={customerFollowUpDateTimeInput(new Date().toISOString())}
+              disabled={busy}
+              onChange={(event) => {
+                setDueAt(event.target.value);
+                setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+              }}
+            />
+          </label>
+          <label>
+            <span>سبب التغيير أو الإلغاء</span>
+            <input
+              type="text"
+              maxLength={500}
+              value={reason}
+              disabled={busy}
+              onChange={(event) => {
+                setReason(event.target.value);
+                setIdempotencyKey(createCustomerInteractionIdempotencyKey());
+              }}
+              placeholder="سبب الإلغاء إلزامي؛ وملاحظة تغيير الموعد اختيارية"
+            />
+          </label>
+          <div className="customer-360-follow-up-actions">
+            <Button
+              variant="secondary"
+              disabled={busy || !dueAt || dueAt === currentDueInput}
+              onClick={() => { void submit('reschedule'); }}
+            >
+              {busy ? 'جارٍ الحفظ…' : 'حفظ الموعد الجديد'}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={busy || !reason.trim()}
+              onClick={() => { void submit('cancel'); }}
+            >
+              إلغاء المتابعة
+            </Button>
+          </div>
+        </div>
+      )}
+      {notice && <p className="customer-360-interaction-notice" role="status">{notice}</p>}
+      {error && <ErrorBox message={error} />}
+      {item.follow_up_updated_at && <small className="customer-360-follow-up-updated">آخر تحديث للمهمة: {customerInteractionDate(item.follow_up_updated_at)}</small>}
+    </div>
+  );
+}
+
 function Customer360Interactions({
   customerId,
   onHistoryState,
@@ -489,8 +617,8 @@ function Customer360Interactions({
               <p>{item.details}</p>
               <div className="customer-360-interaction-footer">
                 <small>سُجل بواسطة: {item.recorded_by_name} · {formatDateShort(item.created_at)}</small>
-                {item.next_follow_up_at && <small>المتابعة القادمة: {customerInteractionDate(item.next_follow_up_at)} · مهمة مؤرخة في مركز العمليات</small>}
               </div>
+              <Customer360FollowUpControls item={item} onUpdated={reload} />
             </article>
           ))}
         </div>
