@@ -32,7 +32,7 @@ function urgencyFor(dueAt: string | null, now: number): { band: number; reason: 
   if (remaining <= 7 * DAY_MS) {
     return { band: 2, reason: "موعد الاستحقاق خلال سبعة أيام", dueTime };
   }
-  return { band: 1, reason: "موعد مسجل لاحقًا", dueTime };
+  return { band: 0, reason: "موعد مسجل بعد سبعة أيام", dueTime };
 }
 
 /**
