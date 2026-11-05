@@ -306,3 +306,8 @@ The AI cost cap is zero. Use deterministic logic first, official authorized free
 
 - REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001 — local DQS preview validity now awards points only to explicitly valid rows, matching the authoritative PostgreSQL calculation; date scoring validates actual calendar dates and matches server-supported formats and whitespace/missing behavior. The existing EvidencePassport now shows detailed per-metric calculation and linked-source evidence disclosures while explicitly withholding excluded-row details absent from the DTO.
 - Code SHA: 2da6e8c4f14325961b0d69a0bf5524ba6af40d5c. State: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. No tests/runtime checks were run; existing server DQS thresholds remain authoritative.
+
+## Added delivery — Section 57 Safe Administrative Query Planner — 2026-11-06
+
+- REF-NL-ADMIN-ASSISTANT-057 — added a deterministic Arabic assistant for six allow-listed read intents over existing authorized supplier invoice and purchase-order RPCs. No free-form SQL, mutations or external model. Results are role/tenant guarded by the source RPCs, omit money values and explicitly mark capped result sets partial. Late-order and arbitrary time-window interpretations remain unsupported until a verified due-date/source contract exists.
+- Code SHA: 078ed05ed55ada3deb0136eb67aebe776e9fb5c. Status: PARTIAL_IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. P1 mount pending; no tests/runtime acceptance run.

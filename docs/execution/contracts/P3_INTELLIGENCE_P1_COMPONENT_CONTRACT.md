@@ -92,3 +92,13 @@ P1 owns route mounting, tenant-safe request orchestration and interactions. Cons
 - The disclosure shows formula ID/version, calculatedAt/asOf, period, unit/currency, completeness/quality, recorded transformations and included evidence references. Evidence details include source type/name, record ID/version when available, source timestamp/asOf, period, currency, status, completeness, quality and warnings.
 - Missing evidence IDs are called out. Do not state that excluded records are zero/none: the current source DTO does not expose excluded-record IDs or an independent filter field. Show this limitation explicitly.
 - P3 corrected local DQS scoring/date-validation parity inside src/lib/unified-import.ts. The server remains authoritative for finalized import quality and existing publication thresholds; local preview is not a final persisted snapshot.
+
+## NaturalLanguageAssistant — Section 57 partial P1 component contract
+
+- Import: import { NaturalLanguageAssistant } from @/components/intelligence.
+- Mount only inside the existing IntelligenceWorkspace; do not add a second assistant page, duplicate route or separate provider gateway.
+- Props: onOpenSupplierInvoice?: (invoiceId: string) => void; onOpenPurchaseOrder?: (purchaseOrderId: string) => void. P1 supplies callbacks only to existing routes after the same finance/procurement authorization check used by those routes. Do not invent route paths.
+- Supported intents and source RPCs: supplier invoice price variance (`fetch_purchase_supplier_invoice_workspace`, finance permission); supplier invoice variance pending review; exact price-matched supplier invoices; open purchase orders (`fetch_purchase_orders`, purchase manager/admin permission); submitted orders awaiting receipt; partially received orders.
+- UI must preserve `DENIED`, `UNAVAILABLE`, `ERROR`, `CLARIFICATION`, `UNSUPPORTED`, `EMPTY`, `PARTIAL`, `READY` states. Do not downgrade a source-denied state into empty data or mock answers.
+- The assistant only reports unit-price variance; it must not label tax differences or missing quantities as a price-match result. It omits money values and PO line quantity sums. It surfaces source caps (100 invoices / 500 orders) and incomplete coverage.
+- Do not claim that an order is late based on age or `created_at`; current source has no committed due-date contract. No open text → SQL translation, no writes, no quote approvals, no invoice reviews, no external LLM calls.

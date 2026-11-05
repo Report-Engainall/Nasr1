@@ -1,3 +1,13 @@
+## 2026-11-06 — P3 Section 57 Safe Arabic Administrative Query Planner — REF-NL-ADMIN-ASSISTANT-057
+
+- Source commits: e04cd47e9bc77810fcde779423ebea3b385db73f (initial deterministic invoice assistant); fa5020b5501ec369b25098b12911c7c70c0f0b44 (clarified exact unit-price variance semantics); e5f9f2ba49943d88eb9972e64f66a338f7bd490c (read-only PO query intents); 078ed05ed55ada3deb0136eb67aebe776e9fb5c2 (parse all five source PO states before filtering).
+- Added six allow-listed Arabic read intents backed by `fetch_purchase_supplier_invoice_workspace` and `fetch_purchase_orders`. These RPCs retain server-side finance and purchase-manager role gates and derive organization from authenticated context.
+- Supplier invoice result labels are specific to unit-price three-way matching; output omits cost/amount fields. PO output shows status and pending item-line counts, not quantities or totals across product UOMs.
+- Query results expose partial scope: latest 100 invoices; latest 500 POs. The assistant rejects unsupported temporal/late-order requests because no committed due-date contract is part of this query source.
+- Files: src/lib/intelligence/natural-language-assistant.ts; src/lib/intelligence/natural-language-assistant-client.ts; src/components/intelligence/NaturalLanguageAssistant.tsx; intelligence barrels.
+- P1 handoff is documented; component exported but not mounted. No tests, build, typecheck, lint, CI, provider call, browser/E2E, DB mutation, Bolt runtime, Preview or production check was run. Partial implementation only; no PASS claimed.
+
+---
 ## 2026-11-06 — P3 Section 56 Data Reliability & Evidence Passport — REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001
 
 - Parent main SHA 46782db4d69a622553da3ac3efa0b3e78125f6b1; code commit 2da6e8c4f14325961b0d69a0bf5524ba6af40d5c.
