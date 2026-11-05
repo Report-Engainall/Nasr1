@@ -1,3 +1,20 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PERSONALIZATION-PRIVACY-ENGINE-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Parent SHA: 31fd4145c481d34db7a2f464238006fe7a04091a.
+- Canonical reference: unified merchant-intelligence specification, Section 59 — Privacy and consent in experience personalization.
+- Added `src/lib/intelligence/personalization-governance.ts`: deterministic preference validation, role-based-only fallback when personalization is not explicitly enabled, reduced-motion and detail-level resolution, IANA-time-zone quiet-hours evaluation, and notification severity filtering.
+- External email/WhatsApp/SMS delivery is denied unless the channel is explicitly enabled, server capability is available, the recipient is currently verified and authorized for the exact data, and one explicit non-revoked consent matches organization, profile, channel, opaque destination ID, purpose and data classification. Duplicate or malformed consent records return REVIEW; no address, phone number, message body or financial/task payload is accepted by this engine.
+- Defaults are tenant/profile-bound, in-app only, summary detail, no personalization and no external processing. Critical alerts may bypass quiet hours and the non-critical severity threshold, but never bypass channel opt-in, recipient authorization or external consent.
+- Added focused tests in `src/lib/intelligence/personalization-governance.test.ts` and exported the policy from `src/lib/intelligence/index.ts`.
+- P1 boundary: no route, app shell, settings page or other P1-owned file changed. P1 can mount a settings surface against the typed contract after a real persistence adapter exists.
+- P2 dependency: persist profile/organization-scoped preferences and recipient-specific consent using server-derived identity, tenant RLS, explicit grant/revoke audit and server-side destination verification; return channel capabilities and authorized recipient context. No client-side direct table write is permitted.
+- Runtime boundary: this is the P3 deterministic policy engine and contract only. It does not claim persisted preferences, external channel delivery, migration application, or live notification integration. No paid provider, quota, secret or Vercel credit was used.
+- Delivery status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests were added but not executed under the active no-test instruction; no PASS is claimed.
+- Exact next action: hand the persistence/recipient/capability contract to P2 and mount the settings component in the existing P1 settings surface; then wire the existing notification sender through this policy before enabling any external channel.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-58-TASK-INTELLIGENCE-REPORTS-001
 
 - Repository: Report-Engainall/Nasr1; branch: main.
