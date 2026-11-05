@@ -30,6 +30,14 @@ These are stable requirement definitions; the live execution cursor remains excl
 - Ownership: P3 deterministic engine/component; P2 authenticated tenant-scoped aggregate sources; P1 existing intelligence surface and authorized record navigation. Acceptance matrix row `REF-GROWTH-OPPORTUNITY-RADAR-001`; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` at code SHA `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
 
 
+
+## Added requirement — Business Health Map and Trapped Capital — 2026-11-05
+
+- `REF-BUSINESS-HEALTH-MAP-001` — Canonical intelligence specification section 51. Compose source-backed liquidity, scheduled cashflow, inventory dead-stock exposure, replenishment quantities and verified customer concentration. Keep currencies/horizons separate, never double count collections or obligations already included in net liquidity, treat stagnant stock as non-cash, and withhold the grand capital-at-risk total until mutually exclusive source populations are proven.
+- CCC, DSO, DPO and product/supplier concentration remain NOT_CALCULABLE unless their required complete period inputs exist. The engine must not infer supplier/product concentration from customer data.
+- Ownership: P3 composition engine/component; P2 same-tenant authoritative data outputs; P1 existing intelligence dashboard mount. Acceptance row `REF-BUSINESS-HEALTH-MAP-001`, `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`, code SHA `d32a833490a79b5bbc60f866ba258d18ad1e7107`, evidence hardening `f924e0cc2288866a99ae2faad68b069f64335e41`.
+
+
 ---
 
 ## Historical registry snapshots — retained for traceability

@@ -1,3 +1,13 @@
+## 2026-11-05 — P3 Business Health Map — code SHA `f924e0cc2288866a99ae2faad68b069f64335e41`
+
+- Task `REF-BUSINESS-HEALTH-MAP-001`, canonical specification section 51.
+- Base `4f2ebcee064f399b53c15f2ed919a8395e939bd7`; feature/component SHA `d32a833490a79b5bbc60f866ba258d18ad1e7107`; fail-closed cashflow evidence hardening SHA `f924e0cc2288866a99ae2faad68b069f64335e41`.
+- Paths: `src/lib/intelligence/business-health-map.ts`, `src/components/intelligence/BusinessHealthMap.tsx`, both P3 barrels, P1/P2 contracts.
+- Product: composition of existing liquidity, cashflow, dead-stock, replenishment and customer-retention engines. No second ledger/query, FX, inferred balances, duplicate capital aggregation or automatic action.
+- Cashflow points are displayed only when schedule completeness, exact as-of, evidence and formula lineage are present. Grand capital total and unavailable CCC/DSO/DPO/product/supplier concentration are withheld with reasons.
+- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS claimed. No Vercel or paid dependencies.
+- P1 must mount the component; P2 must provide authoritative same-tenant source outputs.
+
 ## 2026-11-05 — P3 Growth Opportunity Radar — code SHA `7736d661746c5c663fa0b55d468b42a93c64fa2c`
 
 - Task: `REF-GROWTH-OPPORTUNITY-RADAR-001`, canonical merchant-intelligence specification section 50.

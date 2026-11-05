@@ -1,3 +1,30 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-BUSINESS-HEALTH-MAP-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Base SHA: `4f2ebcee064f399b53c15f2ed919a8395e939bd7`.
+- Product engine/component delivery SHA: `d32a833490a79b5bbc60f866ba258d18ad1e7107`.
+- Evidence hardening SHA: `f924e0cc2288866a99ae2faad68b069f64335e41`.
+- Canonical reference: section 51 — خريطة صحة العمل ورأس المال المحجوز.
+- P3-owned paths:
+  - `src/lib/intelligence/business-health-map.ts`
+  - `src/components/intelligence/BusinessHealthMap.tsx`
+  - `src/lib/intelligence/index.ts`
+  - `src/components/intelligence/index.ts`
+  - `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`
+  - `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`
+- Product composition: source-backed liquidity by currency, scheduled cashflow 7/30/90 day windows, dead-stock classes and cost exposure, source-backed replenishment quantities, and verified customer top-five sales concentration.
+- Capital safeguards: expected collections are already part of net liquidity; due obligations are already deducted; neither is added/subtracted twice. Stagnant stock is non-cash and never deducted from liquidity. Liquidity/dead-stock exposure is represented once only when amount and evidence overlap agree; otherwise withheld. Different currencies and cashflow horizons are not added. Grand capital-at-risk total remains null because disjoint source populations are not proven.
+- Missing-input honesty: CCC, DSO, DPO and product/supplier revenue concentration return NOT_CALCULABLE with explicit missing inputs. No supplier/product concentration is inferred from customer concentration.
+- Operational attention cards are read-only and source-linked. Replenishment quantities are displayed per product/UOM and not summed across different SKUs or translated into money.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Verification boundary: tests/build/lint/typecheck/CI/browser/E2E/database/Preview/production NOT RUN in this product-body batch; no PASS claimed. No Vercel action/credit, no paid provider/dependency, no production/live integration.
+- P1 handoff: mount `BusinessHealthMap` in the existing intelligence surface after the current supplier-finance UI task; use its exported props and preserve unavailable/partial states.
+- P2 handoff: provide current same-tenant engine result payloads for liquidity, cashflow, dead stock, replenishment and customer retention with exact as-of/period/lineage; no new independent ledger or summary write is requested.
+- Next P3 body: section 52 — دفتر ذاكرة القرارات التجارية والتعلم منها. Reuse the existing decision-outcome lifecycle and learning-loop; add versioned evidence snapshots and comparable measured outcomes without automatic rule changes.
+- This parallel P3 task does not alter sequential BODY-COMPLETION-ON-MAIN-018 supplier-finance UI ownership.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-GROWTH-OPPORTUNITY-RADAR-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
