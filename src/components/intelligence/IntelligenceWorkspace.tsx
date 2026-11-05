@@ -868,7 +868,7 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
                 <GrowthOpportunityRadar
                   result={retentionResult?.ok ? retentionResult.growthRadar : null}
                   state={retentionLoading ? "loading" : retentionResult?.ok
-                    ? retentionResult.growthRadar.status === "UNAVAILABLE" ? "empty" : "ready"
+                    ? "ready"
                     : retentionResult?.status === "DENIED" ? "error" : "unavailable"}
                   onRetry={() => setRefreshKey((value) => value + 1)}
                   onOpenRecord={onOpenRecord}
