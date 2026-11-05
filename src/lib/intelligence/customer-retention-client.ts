@@ -1,10 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import { buildCustomerRetentionReport, type CustomerRetentionCoverage, type CustomerRetentionRecord, type CustomerRetentionReport, type CustomerRetentionSaleRecord } from "./customer-retention";
+import { buildGrowthOpportunityRadar, type GrowthOpportunityRadarResult, type GrowthOpportunitySignal } from "./growth-opportunities";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
 export type CustomerRetentionAggregateResult =
-  | { ok: true; data: CustomerRetentionReport }
+  | { ok: true; data: CustomerRetentionReport; growthRadar: GrowthOpportunityRadarResult }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -146,6 +147,8 @@ export async function fetchCustomerRetentionAggregate(
     }
 
     const customers: CustomerRetentionRecord[] = [];
+    const retentionMetrics: MetricSnapshot[] = [];
+    const growthSignals: GrowthOpportunitySignal[] = [];
     for (const item of customersRaw) {
       const customer = record(item);
       if (!customer || !nonEmpty(customer.customerRef, 200) ||
@@ -165,6 +168,29 @@ export async function fetchCustomerRetentionAggregate(
         ordersPreviousPeriod: previous,
         lastOrderAt: customer.lastOrderAt as string | null,
       });
+
+      retentionMetrics.push(current, previous);
+      const currentOrders = Number(current.value);
+      const previousOrders = Number(previous.value);
+      if (currentOrders >= 2) {
+        growthSignals.push({
+          id: "customer-repeat-purchase:" + customer.customerRef,
+          kind: "REPEAT_PURCHASE",
+          subjectRef: customer.customerRef,
+          observedMetricId: current.id,
+          sampleMetricId: current.id,
+        });
+      }
+      if (previousOrders >= 3 && currentOrders < previousOrders) {
+        growthSignals.push({
+          id: "customer-activity-decline:" + customer.customerRef,
+          kind: "CUSTOMER_ACTIVITY_DECLINE",
+          subjectRef: customer.customerRef,
+          observedMetricId: current.id,
+          sampleMetricId: current.id,
+          baselineMetricId: previous.id,
+        });
+      }
     }
 
     const coverage: CustomerRetentionCoverage = {
@@ -199,7 +225,15 @@ export async function fetchCustomerRetentionAggregate(
       id: raw.id, asOf, period: currentPeriod, previousPeriod,
       evidenceRecords: safeEvidence, coverage, customers, salesByCurrency,
     });
-    return { ok: true, data: report };
+    const growthRadar = buildGrowthOpportunityRadar({
+      id: raw.id,
+      generatedAt: asOf,
+      asOf,
+      evidenceRecords: safeEvidence,
+      metrics: retentionMetrics,
+      signals: growthSignals,
+    });
+    return { ok: true, data: report, growthRadar };
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بخدمة تحليلات الاحتفاظ بالعملاء." };
   }
