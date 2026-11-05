@@ -1,3 +1,39 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-018 — SUPPLIER INVOICE ACCOUNTING + DOCUMENT OUTPUT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Product-code SHA at this checkpoint: `6d8e45a0e153e5e035a95ebfec3cdbbba483978d`.
+- Current implementers for this continuation are **P1 (this execution: product UI, routes, typed client integration and operational documents) and P3 (intelligence engines, source lineage, persistence and read DTOs) only**. This override supersedes older three-agent/P1-P2-P3 ownership text in historical entries below. Do not assign new tasks to P2.
+- No branch or pull request was created. No Vercel build, preview, deployment or credit use occurred. No tests, build, lint, CI, browser, database application or runtime verification was run. Bolt New remains the planned project sync, DB link/migration execution and runtime acceptance environment.
+
+## Delivered on main
+
+1. **P3 intelligence integration:** mounted the existing `BusinessHealthMap` in `IntelligenceWorkspace`; mounted and surfaced `GrowthOpportunityRadar`; P1 exposed source navigation and mapped signal types to existing authorized Quotes, Customers and Products views. UNAVAILABLE source results remain distinct from empty results. P3 independently delivered Section 52 decision-memory persistence, capture/correction and embedded memory snapshot read DTO; it remains source-only pending Bolt acceptance.
+2. **Supplier invoice accounting reconciliation:** added `supabase/migrations/20261105260000_supplier_invoice_accounting_handoff.sql`, typed functions in `src/lib/supplier-invoices.ts`, and accountant review UI in `src/components/SupplierInvoiceWorkspace.tsx`, mounted through `GeneralLedgerWorkspace.tsx`.
+   - Reuses the exact original payable-liability account from the posted goods-receipt journal; does not create a second payable or supplier ledger.
+   - Reconciles invoice quantities against actual physical receipt lines and source received unit costs, verifies original posted/unreversed receipt journals and balanced source lines, and withholds incomplete, returned, mixed-currency or mismapped source evidence.
+   - Tax and non-zero merchandise variance require explicit same-tenant chart-of-account selection; the supported currency is YER only. No assumed tax classification, FX, automatic inventory change, supplier payment or automatic journal posting.
+   - Exact match with no tax/variance records a no-additional-entry result. Other cases create a balanced **DRAFT** only. The standard General Ledger posting command remains the sole posting route. Retries return the actual saved DRAFT/POSTED/VOID state instead of creating another journal.
+3. **Supplier invoice accounting voucher:** added a source-validated Arabic A4 print/PDF sheet and three-sheet XLSX workbook (summary, line matching, journal detail). Both are built from the same exact-cent projection, preserve negative variances, show actual ledger state, keep decimal values as text in XLSX, and omit internal UUID/tenant/profile identifiers. Spreadsheet text cells are explicit strings, not executable formulas.
+4. Existing supplier invoice capture, three-way matching, independent price-variance review, private evidence attachments, supplier payment/settlement and supplier account activity remain reused; no duplicate screen, API or parallel ledger was created.
+
+## Current P1 / P3 boundaries
+
+- P1 owns product-facing workspace composition, route navigation, typed UI contracts, print/export projections and screen interactions.
+- P3 owns decision-memory/growth/health intelligence engines, evidence lineage, persistence and source read DTOs. P1 mounts the published contract but does not recreate those engines.
+- These two roles are the only implementation roles for this continuation. Historical P2 ownership language below is archival and must not be used to assign new implementation work.
+
+## Acceptance / handoff boundary
+
+- All above changes are committed to GitHub `main`; the supplier accounting migration and P3 decision-memory migration are source-only and have **not** been applied to a database.
+- Bolt New must sync this repository, apply migrations in its intended non-production database workflow, link its DB, and then perform the requested end-to-end integration/runtime verification. No PASS, live database change, production deployment or delivery receipt is claimed here.
+- GitHub commit notifications are subject to repository watch settings; commits are the source delivery record and no inbox receipt is asserted.
+
+## Resume instruction
+
+Resume from the latest `main` SHA and the active P1/P3 checkpoints. Continue with the next untouched mandatory product capability in the canonical specification/matrix; do not repeat supplier invoice/payment UI, supplier invoice accounting handoff, A4 voucher, XLSX voucher, Business Health Map or Growth Opportunity Radar integration.
+
+---
+
 # BODY-COMPLETION-ON-MAIN — 2026-11-05 — supplier evidence + intelligence surfaces
 
 - Repository: `Report-Engainall/Nasr1`; execution branch: `main` only.
