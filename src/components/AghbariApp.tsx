@@ -165,6 +165,14 @@ function AdminWorkspaceContent({
       return <Reports />;
     case "intelligence":
       return <IntelligenceWorkspace
+        onOpenSupplierInvoice={(invoiceId) => {
+          onNavigate("finance");
+          onNotice("تم فتح مساحة الفواتير والتحصيل لمراجعة فاتورة المورد. مرجع الفاتورة: " + invoiceId);
+        }}
+        onOpenPurchaseOrder={(purchaseOrderId) => {
+          onNavigate("purchase-orders");
+          onNotice("تم فتح مساحة أوامر الشراء والاستلام لمراجعة الأمر. مرجع أمر الشراء: " + purchaseOrderId);
+        }}
         onOpenRecord={(kind, subjectRef) => {
           const destination = kind === "QUOTE_UNCONVERTED"
             ? "quotes"
