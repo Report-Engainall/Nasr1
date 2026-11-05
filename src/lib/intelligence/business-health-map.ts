@@ -101,7 +101,7 @@ export interface BusinessHealthMapResult {
   replenishment: BusinessHealthReplenishmentSummary;
   customerFocus: Array<{
     currency: string; top5SalesConcentration: number | null; customerCount: number | null;
-    status: EvidenceStatus;
+    status: EvidenceStatus; sourcePeriod: EvidencePeriod;
   }>;
   calculations: {
     cashConversionCycle: BusinessHealthCalculability;
@@ -210,7 +210,8 @@ function deadStockAmount(report: DeadStockReport | null | undefined, currency: s
 function mergeStockExposure(a: BusinessHealthAmount, b: BusinessHealthAmount): BusinessHealthAmount {
   if (a.status === "VERIFIED" && b.status === "VERIFIED" && a.value !== null && b.value !== null) {
     const evidenceOverlap = a.evidenceIds.some(id => b.evidenceIds.includes(id));
-    const sameSourceScope = a.sourceAsOf === b.sourceAsOf && samePeriod(a.sourcePeriod, b.sourcePeriod);
+    const sameSourceScope = a.sourceAsOf === b.sourceAsOf && validPeriod(b.sourcePeriod) &&
+      samePeriod(a.sourcePeriod, b.sourcePeriod);
     if (Math.abs(a.value - b.value) <= 0.005 && evidenceOverlap && sameSourceScope) {
       return { ...b, evidenceIds: unique([...a.evidenceIds, ...b.evidenceIds]),
         note: "قياسان متطابقان ولهما دليل مشترك؛ تم احتسابهما مرة واحدة" };
