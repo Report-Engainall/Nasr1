@@ -6,6 +6,7 @@ import {
   type ExternalChannelConsent,
   type NotificationDeliveryInput,
   type PersonalizationPreferences,
+  resolvePersonalizationSignals,
 } from "./personalization-governance";
 
 const asOf = "2026-11-06T20:00:00.000Z";
@@ -228,7 +229,7 @@ describe("personalization signal minimization", () => {
       organizationId: "org-a",
       profileId: "profile-a",
       purpose: "work-dashboard",
-      destination: "INTERNAL" as never,
+      destination: "INTERNAL",
       signals: [
         { id: "role", kind: "WORK_ROLE", ...baseSignal },
         { id: "workflow", kind: "ESSENTIAL_WORK_CONTEXT", ...baseSignal },
@@ -321,5 +322,134 @@ describe("personalization signal minimization", () => {
       purpose: "work-dashboard", destination: "INTERNAL",
       signals: [{ id: "foreign", kind: "WORK_ROLE", ...baseSignal, organizationId: "org-b" }], asOf,
     })).toMatchObject({ status: "UNAVAILABLE", includedSignalIds: [], withheld: [{ reason: "SCOPE_MISMATCH" }] });
+  });
+});
+
+
+describe("privacy data request governance", () => {
+  const basePolicy = {
+    organizationId: "org-a",
+    recordClass: "CUSTOMER_PERSONAL_DATA" as const,
+    purpose: "privacy-rights-request",
+    policyVersion: "policy-2026-01",
+    retentionRule: "FIXED_UNTIL" as const,
+    retainUntil: "2026-01-01T00:00:00.000Z",
+    legalHold: false,
+    supportsAccess: true,
+    correctionMode: "DIRECT" as const,
+    supportsDeletion: true,
+    evidence: {
+      id: "retention-policy-evidence",
+      status: "VERIFIED" as const,
+      completeness: "COMPLETE" as const,
+      quality: "ACCEPTABLE" as const,
+      sourceTimestamp: "2026-11-06T18:00:00.000Z",
+      asOf: "2026-11-06T19:00:00.000Z",
+    },
+  };
+
+  function privacyRequest(overrides: Record<string, unknown> = {}) {
+    return {
+      requestId: "request-1",
+      organizationId: "org-a",
+      actorProfileId: "profile-a",
+      subjectProfileId: "profile-a",
+      recordOrganizationId: "org-a",
+      recordRef: "opaque-record-reference",
+      recordClass: "CUSTOMER_PERSONAL_DATA" as const,
+      purpose: "privacy-rights-request",
+      action: "DELETION" as const,
+      actorAuthorized: true,
+      subjectOwnershipVerified: true,
+      asOf: "2026-11-06T20:00:00.000Z",
+      policy: basePolicy,
+      ...overrides,
+    };
+  }
+
+  it("requires a verified, complete and current source retention policy", async () => {
+    const { resolvePrivacyDataRequest } = await import("./personalization-governance");
+    expect(resolvePrivacyDataRequest(privacyRequest({
+      policy: { ...basePolicy, evidence: { ...basePolicy.evidence, status: "UNVERIFIED" } },
+    }))).toMatchObject({ status: "REVIEW_REQUIRED", reason: "RETENTION_POLICY_NOT_VERIFIED" });
+    expect(resolvePrivacyDataRequest(privacyRequest({ policy: null })))
+      .toMatchObject({ status: "UNAVAILABLE", reason: "RETENTION_POLICY_NOT_LOADED" });
+  });
+
+  it("allows only an authorized, tenant-scoped access workflow", async () => {
+    const { resolvePrivacyDataRequest } = await import("./personalization-governance");
+    expect(resolvePrivacyDataRequest(privacyRequest({ action: "ACCESS" })))
+      .toMatchObject({ status: "ELIGIBLE_FOR_ACCESS_WORKFLOW", performsMutation: false, requiresHumanApproval: true });
+    expect(resolvePrivacyDataRequest(privacyRequest({
+      action: "ACCESS", actorProfileId: "profile-b", subjectOwnershipVerified: false,
+    }))).toMatchObject({ status: "DENIED", reason: "REQUESTER_NOT_AUTHORIZED" });
+    expect(resolvePrivacyDataRequest(privacyRequest({ recordOrganizationId: "org-b" })))
+      .toMatchObject({ status: "DENIED", reason: "RECORD_SCOPE_MISMATCH" });
+  });
+
+  it("never offers deletion for financial or audit records, even after retention expires", async () => {
+    const { resolvePrivacyDataRequest } = await import("./personalization-governance");
+    for (const recordClass of ["FINANCIAL_RECORD", "AUDIT_RECORD"] as const) {
+      expect(resolvePrivacyDataRequest(privacyRequest({
+        recordClass,
+        policy: { ...basePolicy, recordClass, retentionRule: "NOT_REQUIRED", retainUntil: null },
+      }))).toMatchObject({ status: "DENIED", reason: "IMMUTABLE_RECORD", performsMutation: false });
+    }
+  });
+
+  it("honors legal holds and source retention deadlines without inventing retention periods", async () => {
+    const { resolvePrivacyDataRequest } = await import("./personalization-governance");
+    expect(resolvePrivacyDataRequest(privacyRequest({
+      policy: { ...basePolicy, legalHold: true },
+    }))).toMatchObject({ status: "DENIED", reason: "LEGAL_HOLD_ACTIVE" });
+    expect(resolvePrivacyDataRequest(privacyRequest({
+      policy: { ...basePolicy, retainUntil: "2027-01-01T00:00:00.000Z" },
+    }))).toMatchObject({ status: "DENIED", reason: "RETENTION_NOT_EXPIRED" });
+    expect(resolvePrivacyDataRequest(privacyRequest({
+      policy: { ...basePolicy, retentionRule: "INDEFINITE", retainUntil: null },
+    }))).toMatchObject({ status: "DENIED", reason: "INDEFINITE_RETENTION" });
+  });
+
+  it("requires append-only correction for financial and audit records", async () => {
+    const { resolvePrivacyDataRequest } = await import("./personalization-governance");
+    expect(resolvePrivacyDataRequest(privacyRequest({
+      action: "CORRECTION",
+      recordClass: "FINANCIAL_RECORD",
+      policy: { ...basePolicy, recordClass: "FINANCIAL_RECORD", correctionMode: "DIRECT" },
+    }))).toMatchObject({ status: "DENIED", reason: "IMMUTABLE_RECORD" });
+    expect(resolvePrivacyDataRequest(privacyRequest({
+      action: "CORRECTION",
+      recordClass: "FINANCIAL_RECORD",
+      policy: { ...basePolicy, recordClass: "FINANCIAL_RECORD", correctionMode: "APPEND_ONLY" },
+    }))).toMatchObject({ status: "ELIGIBLE_FOR_APPEND_ONLY_CORRECTION", performsMutation: false });
+  });
+
+  it("requires review rather than performing an eligible deletion and emits payload-free audit metadata", async () => {
+    const { createPrivacyAuditMetadata, resolvePrivacyDataRequest } = await import("./personalization-governance");
+    const request = privacyRequest();
+    const result = resolvePrivacyDataRequest(request);
+    expect(result).toMatchObject({
+      status: "ELIGIBLE_FOR_DELETION_REVIEW",
+      reason: "ELIGIBLE",
+      performsMutation: false,
+      requiresHumanApproval: true,
+    });
+    const metadata = createPrivacyAuditMetadata(request, result);
+    expect(metadata).toMatchObject({
+      eventType: "PRIVACY_DATA_REQUEST",
+      requestId: "request-1",
+      decisionStatus: "ELIGIBLE_FOR_DELETION_REVIEW",
+      policyVersion: "policy-2026-01",
+    });
+    expect(metadata).not.toHaveProperty("recordPayload");
+    expect(metadata).not.toHaveProperty("customerName");
+    expect(metadata).not.toHaveProperty("financialAmount");
+  });
+
+  it("returns no audit metadata for a mismatched decision/request pair", async () => {
+    const { createPrivacyAuditMetadata, resolvePrivacyDataRequest } = await import("./personalization-governance");
+    const request = privacyRequest();
+    const decision = resolvePrivacyDataRequest({ ...request, action: "ACCESS" });
+    expect(createPrivacyAuditMetadata(request, decision)).toBeNull();
   });
 });

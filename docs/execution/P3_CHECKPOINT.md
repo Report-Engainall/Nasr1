@@ -1,3 +1,18 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PRIVACY-REQUEST-GOVERNANCE-003
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Parent SHA: c149b2e422a31d1272802e812a65311ae3790b86.
+- Added a deterministic privacy-data-request eligibility engine to Section 59. It requires server-originated requester/subject authorization, record-tenant scope and a current, complete, verified retention-policy evidence record.
+- Supports access, correction and deletion request evaluation without reading, returning, modifying or deleting source records. All allowed outcomes require a human approval workflow; the engine explicitly returns performsMutation=false.
+- Financial and audit records are never eligible for deletion. Their corrections require an append-only workflow; direct mutation is rejected. Deletion requests also fail closed for active legal hold, indefinite retention, unexpired source retention period or unsupported deletion.
+- Added payload-free privacy audit metadata (opaque record reference, actor/subject/profile scope, action, purpose, decision, policy version and timestamp) for the P2 audit writer. No record values, customer names or financial amounts are included.
+- Corrected personalization signal projection status reasons so PARTIAL and UNAVAILABLE are no longer reported as INVALID_INPUT.
+- Added focused tests for authorization, cross-tenant denial, retention evidence, legal hold, financial/audit immutability, append-only correction and audit metadata. No tests were executed.
+- Backend persistence/audit execution remains unintegrated; no retention durations or legal rules are invented. A server-owned, approved retention policy is required before this engine may decide a real request.
+- Exact next action: wire this contract to a server-owned request workflow with RLS and immutable audit, then surface access/correction/deletion request status in the existing P1 privacy/settings surface.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PERSONALIZATION-CONTEXT-MINIMIZATION-002
 
 - Repository: Report-Engainall/Nasr1; branch: main.

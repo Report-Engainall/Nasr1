@@ -455,7 +455,7 @@ export interface PersonalizationSignalsResult {
   reason: "READY" | "INVALID_INPUT" | "PREFERENCES_NOT_LOADED" | "PREFERENCES_INVALID" |
     "PREFERENCES_SCOPE_MISMATCH" | "EXTERNAL_PROCESSING_DISABLED" |
     "EXTERNAL_CONSENT_REQUIRED" | "EXTERNAL_CONSENT_AMBIGUOUS" |
-    "EXTERNAL_CONSENT_INVALID" | "EXTERNAL_CONSENT_REVOKED";
+    "EXTERNAL_CONSENT_INVALID" | "EXTERNAL_CONSENT_REVOKED" | "SIGNALS_WITHHELD" | "SIGNALS_UNAVAILABLE";
 }
 
 function validateExternalPersonalizationConsent(
@@ -610,6 +610,277 @@ export function resolvePersonalizationSignals(
     status,
     includedSignalIds,
     withheld,
-    reason: status === "READY" ? "READY" : "INVALID_INPUT",
+    reason: status === "READY" ? "READY" : status === "PARTIAL" ? "SIGNALS_WITHHELD" : "SIGNALS_UNAVAILABLE",
+  };
+}
+
+
+export type PrivacyRequestAction = "ACCESS" | "CORRECTION" | "DELETION";
+export type PrivacyRecordClass =
+  | "GENERAL_PROFILE"
+  | "DECLARED_PREFERENCE"
+  | "OPERATIONAL_TASK"
+  | "CUSTOMER_PERSONAL_DATA"
+  | "FINANCIAL_RECORD"
+  | "AUDIT_RECORD";
+
+export interface PrivacyRetentionPolicyEvidence {
+  id: string;
+  status: "VERIFIED" | "NEEDS_REVIEW" | "UNVERIFIED" | "UNAVAILABLE";
+  completeness: "COMPLETE" | "PARTIAL" | "UNKNOWN";
+  quality: "ACCEPTABLE" | "WARNINGS" | "INVALID" | "UNKNOWN";
+  sourceTimestamp: string;
+  asOf: string;
+}
+
+export interface PrivacyRetentionPolicy {
+  organizationId: string;
+  recordClass: PrivacyRecordClass;
+  purpose: string;
+  policyVersion: string;
+  retentionRule: "FIXED_UNTIL" | "INDEFINITE" | "NOT_REQUIRED";
+  retainUntil: string | null;
+  legalHold: boolean;
+  supportsAccess: boolean;
+  correctionMode: "DIRECT" | "APPEND_ONLY" | "UNSUPPORTED";
+  supportsDeletion: boolean;
+  evidence: PrivacyRetentionPolicyEvidence;
+}
+
+export interface PrivacyDataRequestInput {
+  requestId: string;
+  organizationId: string;
+  actorProfileId: string;
+  subjectProfileId: string;
+  recordOrganizationId: string;
+  recordRef: string;
+  recordClass: PrivacyRecordClass;
+  purpose: string;
+  action: PrivacyRequestAction;
+  actorAuthorized: boolean;
+  subjectOwnershipVerified: boolean;
+  asOf: string;
+  policy: PrivacyRetentionPolicy | null;
+}
+
+export type PrivacyDataRequestReason =
+  | "ELIGIBLE"
+  | "INVALID_REQUEST"
+  | "REQUESTER_NOT_AUTHORIZED"
+  | "RECORD_SCOPE_MISMATCH"
+  | "RETENTION_POLICY_NOT_LOADED"
+  | "RETENTION_POLICY_NOT_VERIFIED"
+  | "RETENTION_POLICY_SCOPE_MISMATCH"
+  | "RETENTION_POLICY_INVALID"
+  | "LEGAL_HOLD_ACTIVE"
+  | "RETENTION_NOT_EXPIRED"
+  | "INDEFINITE_RETENTION"
+  | "IMMUTABLE_RECORD"
+  | "ACCESS_PROJECTION_UNAVAILABLE"
+  | "CORRECTION_UNSUPPORTED"
+  | "DELETION_UNSUPPORTED";
+
+export interface PrivacyDataRequestDecision {
+  status:
+    | "ELIGIBLE_FOR_ACCESS_WORKFLOW"
+    | "ELIGIBLE_FOR_CORRECTION_WORKFLOW"
+    | "ELIGIBLE_FOR_APPEND_ONLY_CORRECTION"
+    | "ELIGIBLE_FOR_DELETION_REVIEW"
+    | "DENIED"
+    | "REVIEW_REQUIRED"
+    | "UNAVAILABLE";
+  reason: PrivacyDataRequestReason;
+  action: PrivacyRequestAction;
+  recordClass: PrivacyRecordClass | null;
+  retentionPolicyVersion: string | null;
+  requiresHumanApproval: true;
+  performsMutation: false;
+}
+
+const immutableRecordClasses = new Set<PrivacyRecordClass>(["FINANCIAL_RECORD", "AUDIT_RECORD"]);
+
+function validPrivacyRetentionPolicy(
+  policy: PrivacyRetentionPolicy,
+  input: PrivacyDataRequestInput,
+): boolean {
+  const evidence = policy.evidence;
+  if (!isNonEmptyString(policy.organizationId) ||
+      policy.recordClass !== input.recordClass ||
+      !isNonEmptyString(policy.purpose) ||
+      !isNonEmptyString(policy.policyVersion) ||
+      typeof policy.legalHold !== "boolean" ||
+      typeof policy.supportsAccess !== "boolean" ||
+      typeof policy.supportsDeletion !== "boolean" ||
+      !["DIRECT", "APPEND_ONLY", "UNSUPPORTED"].includes(policy.correctionMode) ||
+      !["FIXED_UNTIL", "INDEFINITE", "NOT_REQUIRED"].includes(policy.retentionRule)) {
+    return false;
+  }
+  if (policy.retentionRule === "FIXED_UNTIL") {
+    if (!isNonEmptyString(policy.retainUntil) || !Number.isFinite(Date.parse(policy.retainUntil))) return false;
+  } else if (policy.retainUntil !== null) {
+    return false;
+  }
+
+  return isNonEmptyString(evidence?.id) &&
+    evidence.status === "VERIFIED" &&
+    evidence.completeness === "COMPLETE" &&
+    evidence.quality === "ACCEPTABLE" &&
+    isNonEmptyString(evidence.sourceTimestamp) &&
+    Number.isFinite(Date.parse(evidence.sourceTimestamp)) &&
+    isNonEmptyString(evidence.asOf) &&
+    Number.isFinite(Date.parse(evidence.asOf)) &&
+    Date.parse(evidence.sourceTimestamp) <= Date.parse(evidence.asOf) &&
+    Date.parse(evidence.asOf) <= Date.parse(input.asOf);
+}
+
+function privacyRequestDecision(
+  input: PrivacyDataRequestInput,
+  status: PrivacyDataRequestDecision["status"],
+  reason: PrivacyDataRequestReason,
+): PrivacyDataRequestDecision {
+  return {
+    status,
+    reason,
+    action: input.action,
+    recordClass: input.recordClass ?? null,
+    retentionPolicyVersion: input.policy?.policyVersion ?? null,
+    requiresHumanApproval: true,
+    performsMutation: false,
+  };
+}
+
+/**
+ * Decides eligibility only. The data-owning server service must enforce the same
+ * policy, create the audited request, and execute its normal approval workflow.
+ * This function never reads, changes, exports or deletes a record.
+ */
+export function resolvePrivacyDataRequest(
+  input: PrivacyDataRequestInput,
+): PrivacyDataRequestDecision {
+  if (!isNonEmptyString(input.requestId) ||
+      !isNonEmptyString(input.organizationId) ||
+      !isNonEmptyString(input.actorProfileId) ||
+      !isNonEmptyString(input.subjectProfileId) ||
+      !isNonEmptyString(input.recordOrganizationId) ||
+      !isNonEmptyString(input.recordRef) ||
+      !isNonEmptyString(input.purpose) ||
+      !Number.isFinite(Date.parse(input.asOf)) ||
+      !["ACCESS", "CORRECTION", "DELETION"].includes(input.action)) {
+    return privacyRequestDecision(input, "REVIEW_REQUIRED", "INVALID_REQUEST");
+  }
+
+  if (input.actorAuthorized !== true ||
+      (input.actorProfileId !== input.subjectProfileId && input.subjectOwnershipVerified !== true)) {
+    return privacyRequestDecision(input, "DENIED", "REQUESTER_NOT_AUTHORIZED");
+  }
+  if (input.recordOrganizationId !== input.organizationId) {
+    return privacyRequestDecision(input, "DENIED", "RECORD_SCOPE_MISMATCH");
+  }
+  if (input.policy === null) {
+    return privacyRequestDecision(input, "UNAVAILABLE", "RETENTION_POLICY_NOT_LOADED");
+  }
+
+  const policy = input.policy;
+  if (policy.organizationId !== input.organizationId ||
+      policy.recordClass !== input.recordClass ||
+      policy.purpose !== input.purpose) {
+    return privacyRequestDecision(input, "DENIED", "RETENTION_POLICY_SCOPE_MISMATCH");
+  }
+  if (!validPrivacyRetentionPolicy(policy, input)) {
+    return privacyRequestDecision(input, "REVIEW_REQUIRED", "RETENTION_POLICY_NOT_VERIFIED");
+  }
+
+  if (input.action === "ACCESS") {
+    if (!policy.supportsAccess) {
+      return privacyRequestDecision(input, "UNAVAILABLE", "ACCESS_PROJECTION_UNAVAILABLE");
+    }
+    return privacyRequestDecision(input, "ELIGIBLE_FOR_ACCESS_WORKFLOW", "ELIGIBLE");
+  }
+
+  if (input.action === "CORRECTION") {
+    if (policy.correctionMode === "UNSUPPORTED") {
+      return privacyRequestDecision(input, "DENIED", "CORRECTION_UNSUPPORTED");
+    }
+    if (immutableRecordClasses.has(input.recordClass) && policy.correctionMode !== "APPEND_ONLY") {
+      return privacyRequestDecision(input, "DENIED", "IMMUTABLE_RECORD");
+    }
+    return privacyRequestDecision(
+      input,
+      policy.correctionMode === "APPEND_ONLY"
+        ? "ELIGIBLE_FOR_APPEND_ONLY_CORRECTION"
+        : "ELIGIBLE_FOR_CORRECTION_WORKFLOW",
+      "ELIGIBLE",
+    );
+  }
+
+  if (immutableRecordClasses.has(input.recordClass)) {
+    return privacyRequestDecision(input, "DENIED", "IMMUTABLE_RECORD");
+  }
+  if (policy.legalHold) {
+    return privacyRequestDecision(input, "DENIED", "LEGAL_HOLD_ACTIVE");
+  }
+  if (policy.retentionRule === "INDEFINITE") {
+    return privacyRequestDecision(input, "DENIED", "INDEFINITE_RETENTION");
+  }
+  if (policy.retentionRule === "FIXED_UNTIL" &&
+      Date.parse(policy.retainUntil!) > Date.parse(input.asOf)) {
+    return privacyRequestDecision(input, "DENIED", "RETENTION_NOT_EXPIRED");
+  }
+  if (!policy.supportsDeletion) {
+    return privacyRequestDecision(input, "DENIED", "DELETION_UNSUPPORTED");
+  }
+
+  return privacyRequestDecision(input, "ELIGIBLE_FOR_DELETION_REVIEW", "ELIGIBLE");
+}
+
+export interface PrivacyAuditMetadata {
+  eventType: "PRIVACY_DATA_REQUEST";
+  requestId: string;
+  organizationId: string;
+  actorProfileId: string;
+  subjectProfileId: string;
+  recordRef: string;
+  recordClass: PrivacyRecordClass;
+  action: PrivacyRequestAction;
+  purpose: string;
+  decisionStatus: PrivacyDataRequestDecision["status"];
+  decisionReason: PrivacyDataRequestReason;
+  policyVersion: string | null;
+  occurredAt: string;
+  policyVersionSource: "VERIFIED_SOURCE" | "NOT_AVAILABLE";
+}
+
+/** Produces metadata for the P2 audit writer; never includes the record payload. */
+export function createPrivacyAuditMetadata(
+  input: PrivacyDataRequestInput,
+  decision: PrivacyDataRequestDecision,
+): PrivacyAuditMetadata | null {
+  if (!isNonEmptyString(input.requestId) ||
+      !isNonEmptyString(input.organizationId) ||
+      !isNonEmptyString(input.actorProfileId) ||
+      !isNonEmptyString(input.subjectProfileId) ||
+      !isNonEmptyString(input.recordRef) ||
+      !isNonEmptyString(input.purpose) ||
+      !Number.isFinite(Date.parse(input.asOf)) ||
+      decision.action !== input.action ||
+      decision.recordClass !== input.recordClass) {
+    return null;
+  }
+  const policyVersion = decision.retentionPolicyVersion;
+  return {
+    eventType: "PRIVACY_DATA_REQUEST",
+    requestId: input.requestId,
+    organizationId: input.organizationId,
+    actorProfileId: input.actorProfileId,
+    subjectProfileId: input.subjectProfileId,
+    recordRef: input.recordRef,
+    recordClass: input.recordClass,
+    action: input.action,
+    purpose: input.purpose,
+    decisionStatus: decision.status,
+    decisionReason: decision.reason,
+    policyVersion,
+    occurredAt: input.asOf,
+    policyVersionSource: policyVersion ? "VERIFIED_SOURCE" : "NOT_AVAILABLE",
   };
 }
