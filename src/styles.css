@@ -706,3 +706,30 @@
 .customer-360-follow-up-updated{color:var(--muted-foreground);font-size:10px}
 @media(max-width:680px){.customer-360-follow-up-form{grid-template-columns:1fr}.customer-360-follow-up-actions{grid-column:auto}.customer-360-follow-up-actions button{flex:1}}
 @media(max-width:680px){.customer-360-interaction-form{grid-template-columns:1fr}.customer-360-interaction-details{grid-column:auto}.customer-360-interaction-submit{width:100%}.customer-360-interaction-submit button{width:100%}.customer-360-interaction-meta time{width:100%;margin-inline-start:0}}
+
+
+/* Customer 360 evidence-backed retention intelligence */
+.customer-360-retention{display:grid;gap:13px}
+.customer-360-retention-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.customer-360-retention-heading h3{margin:0 0 5px}
+.customer-360-retention-period{display:grid;gap:5px;min-width:160px;color:var(--foreground);font-size:11px;font-weight:700}
+.customer-360-retention-period select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit}
+.customer-360-retention-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.customer-360-retention-kpis article{display:grid;gap:7px;min-width:0;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--background)}
+.customer-360-retention-kpis article span{color:var(--muted-foreground);font-size:11px;line-height:1.6}
+.customer-360-retention-kpis article strong{font-size:21px;font-weight:900;color:var(--foreground);font-variant-numeric:tabular-nums}
+.customer-360-retention-activity{display:grid;gap:9px;padding:13px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+.customer-360-retention-customer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.customer-360-retention-customer>div{display:grid;gap:3px}
+.customer-360-retention-customer>div strong{font-size:16px}
+.customer-360-retention-verified{padding:4px 8px;border-radius:999px;background:var(--aghbari-brand-soft,var(--muted));color:var(--aghbari-brand,var(--foreground));font-size:10px;font-weight:800}
+.customer-360-retention-activity>p{margin:0;color:var(--foreground);font-size:12px;line-height:1.8}
+.customer-360-retention-facts{display:flex;gap:8px;flex-wrap:wrap}
+.customer-360-retention-facts span{padding:5px 8px;border:1px solid var(--border);border-radius:7px;color:var(--muted-foreground);font-size:10px}
+.customer-360-retention-action{padding:8px 10px;border-inline-start:3px solid var(--aghbari-brand,var(--primary));background:var(--background)}
+.customer-360-retention-state{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--background)}
+.customer-360-retention-state strong{font-size:13px}
+.customer-360-retention-state p{margin:0;color:var(--muted-foreground);font-size:12px;line-height:1.8}
+.customer-360-retention-state small{color:var(--muted-foreground);font-size:10px;overflow-wrap:anywhere}
+@media(max-width:760px){.customer-360-retention-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.customer-360-retention-kpis article strong{font-size:18px}}
