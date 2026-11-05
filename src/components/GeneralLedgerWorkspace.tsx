@@ -541,7 +541,7 @@ export function GeneralLedgerWorkspace() {
       <CashExpenseJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <CustomerInvoicePaymentJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <SupplierCreditNoteWorkspace onRefresh={refreshAccountingViews} />
-      <SupplierInvoiceWorkspace mode="review" />
+      <SupplierInvoiceWorkspace mode="review" accounts={payload?.accounts ?? []} onRefresh={refreshSupplierFinanceViews} />
       <SupplierPaymentWorkspace accounts={payload?.accounts ?? []} onRefresh={refreshSupplierFinanceViews} />
       <SupplierAccountActivityWorkspace refreshKey={supplierActivityRefreshKey} />
       <FinanceDocumentPrintActions />
