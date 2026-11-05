@@ -1,3 +1,55 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER SERVICE SLA, ASSIGNMENT AND ESCALATION
+
+- Repository: \`Report-Engainall/Nasr1\`; branch: \`main\` only.
+- Main head before this checkpoint/documentation update: \`c57bf623cab0c99223c84393b4b36562ead19695\`.
+- Latest product-code commit: \`fe1d3961e6ab5db8073d3d578deba4617c5ae0b4\`.
+- Acceptance-matrix commit for this slice: \`c57bf623cab0c99223c84393b4b36562ead19695\`.
+- Completed action: \`BODY-COMPLETION-ON-MAIN-009\`. All source changes were committed sequentially to official \`main\`; no feature branch, pull request, parallel repository or Vercel operation was used.
+
+## Product functionality delivered
+
+### Customer service SLA policy and deadlines
+- Added \`supabase/migrations/20261105200000_customer_service_case_sla.sql\`.
+- Added organization-scoped priority policies for first response and resolution targets. Manager/admin configuration is persisted and audited; policy changes affect new cases, while existing cases retain their recorded deadline snapshots unless a manager explicitly reschedules them.
+- Default targets for organizations without overrides: urgent 15/240 minutes, high 60/1,440 minutes, medium 240/4,320 minutes, and low 480/10,080 minutes (first response / resolution).
+- New cases receive server-generated \`response_due_at\` and \`resolution_due_at\`. Existing cases receive a one-time deadline backfill based on their creation time and the applicable policy/default.
+- The linked operational sales task receives the resolution deadline as \`due_at\`; the corresponding manager override is stored in task payload so source reconciliation does not silently reset it. Existing linked case tasks with no due date are backfilled.
+- First-response timestamp is recorded by the database when staff move a case into active handling, waiting-for-customer, resolved or closed.
+
+### Manager assignment and escalation
+- Added tenant-scoped case-operations read RPC and manager-only SLA policy/read/write RPCs.
+- Added one manager command to reassign/unassign the case's existing linked task, reschedule response and resolution deadlines, and optionally escalate with a mandatory reason.
+- Assignee validation reuses the existing canonical \`assign_operational_task\` command. This preserves active same-tenant/role checks, audit behavior and the existing assignment-notification trigger; no second assignment queue was introduced.
+- Resolution deadline updates synchronize with the linked task and persist the same manager override.
+- Assignment changes and SLA changes are recorded in append-only case events and audit logs. Assignment notifications use the current in-app task notification flow; deadline updates notify the assigned employee; escalation sends in-app notifications to active same-organization administrators/managers, excluding the actor.
+- Escalation level and timestamp are preserved on the case. The source command requires an escalation reason.
+- The Customer 360 case card displays response/resolution deadlines, first-response evidence, overdue state and escalation state. Managers receive assignment and deadline controls, a reasoned escalation action and a per-priority SLA policy editor. The controls preserve second-level precision when submitting deadlines.
+
+### Source commits
+- SLA migration: \`e22c97d46d32a4ec258680826f45304cbfd1d3e7\`.
+- Typed case API/client: \`e61bc5d02746f02dcbeb0d6e9d84820ee991e086\`.
+- Case SLA manager UI: \`6617b74342824431e0e8ba5bdca9095d70c62cce\`.
+- Responsive SLA and manager styles: \`0c3a518f66ed7a4ad5c052a78f9da3d22b0e448e\`.
+- Existing-case/task deadline backfill and overdue-escalation correction: \`79ab62f47bd41fe3ceecf641a790e4a11e0cccc1\`.
+- Datetime precision correction: \`fe1d3961e6ab5db8073d3d578deba4617c5ae0b4\`.
+- Acceptance leaf appended to the existing matrix: \`DLV-010-CUSTOMER-SERVICE-CASE-SLA-001\`, committed in \`c57bf623cab0c99223c84393b4b36562ead19695\`.
+
+## Explicit delivery and acceptance boundary
+
+- Application code, SQL migration and acceptance mapping are committed on GitHub \`main\`.
+- The new migration has **not** been applied to any local, hosted, production or Bolt database. No database was connected or altered in this session.
+- No build, test suite, lint, code scan, CI run, browser acceptance or Bolt Preview was executed in this implementation batch, by the owner's explicit instruction to prioritize product-body completion and leave synchronization/runtime verification for Bolt New. No PASS or runtime acceptance is claimed.
+- The new acceptance leaf is \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\` until Bolt New applies migrations and performs the connected runtime acceptance.
+- No Vercel build, deployment, preview, API operation or free-credit usage occurred. No paid provider, paid AI service or additional subscription was introduced.
+- GitHub commit history is the code-delivery record. Delivery of separate GitHub push notifications depends on the account's repository watch/notification settings; no unsupported notification-delivery claim is made.
+
+## Next product action
+
+- \`NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-010\`.
+- Build the organization-wide customer service desk from the existing case/task records: manager and permitted staff queue; filters for status, priority, assignee and SLA overdue; due-soon/overdue workload summaries; case-to-task navigation; and case ownership/next-action visibility. Keep the Customer 360 case view as the customer-specific detail, reuse the same RPC and task assignment contracts, and avoid duplicate case/task records. Continue source implementation on \`main\`; do not begin broad verification or consume Vercel credits.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — CRM RETENTION INTELLIGENCE + CUSTOMER SERVICE CASES
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
