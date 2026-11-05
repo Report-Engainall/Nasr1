@@ -2,8 +2,11 @@ import { supabase } from "@/lib/supabase";
 import { fetchSupplierInvoiceWorkspace } from "@/lib/supplier-invoices";
 import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import { fetchSupplierPerformance } from "./supplier-performance-client";
+import { createInventoryIntelligencePeriod,fetchInventoryIntelligence } from "./inventory-intelligence-client";
+import { buildDeadStockReport } from "./dead-stock";
+import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -20,6 +23,32 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="get_inventory_intelligence_aggregate"){
+   const request=createInventoryIntelligencePeriod(new Date(),92);
+   const inventory=await fetchInventoryIntelligence(request.period,request.asOf);
+   if(!inventory.ok){
+    return {status:inventory.status==="DENIED"?"DENIED":inventory.status==="ERROR"?"ERROR":"UNAVAILABLE",
+     message:inventory.message};
+   }
+   const deadStock=buildDeadStockReport({
+    id:"natural-language-dead-stock:"+inventory.data.asOf,
+    asOf:inventory.data.asOf,period:inventory.data.period,
+    evidenceRecords:inventory.data.evidenceRecords,products:inventory.data.deadStockProducts,
+    rule:{id:"dead-stock-days",version:"1.0.0",activeWithinDays:30,stagnantAfterDays:90,
+     lowTurnoverRatio:0.1,turnoverWindowDays:92},
+   });
+   const replenishment=buildReplenishmentRecommendations({
+    id:"natural-language-replenishment:"+inventory.data.asOf,
+    asOf:inventory.data.asOf,period:inventory.data.period,
+    evidenceRecords:inventory.data.evidenceRecords,products:inventory.data.replenishmentProducts,
+   });
+   return {status:"RESULT",plan,result:resolveInventoryIntent(
+    plan.intent as InventoryIntent,{
+     asOf:inventory.data.asOf,period:inventory.data.period,totalProducts:inventory.data.totalProducts,
+     completePopulation:inventory.data.totalProducts===inventory.data.returnedProducts,
+     deadStock,replenishment:replenishment.recommendations,
+    })};
+  }
   if(plan.sourceRpc==="fetch_supplier_performance_snapshot"){
    const to=new Date().toISOString().slice(0,10);
    const fromDate=new Date(to+"T00:00:00.000Z");

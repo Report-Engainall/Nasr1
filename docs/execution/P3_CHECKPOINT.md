@@ -1,3 +1,22 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (INVENTORY INTENTS)
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent SHA: `d096e266f980f1f2bcce50eb23036ee23f24f259`. This delivery reuses the existing inventory aggregate RPC, parser and deterministic P3 engines; it does not edit P1-owned workspace/routes, SQL migrations or the mounted workspace.
+- Added Arabic query intents for dead/stagnant stock and replenishment overview. The assistant calls the existing `get_inventory_intelligence_aggregate` via `fetchInventoryIntelligence`, then reuses `buildDeadStockReport` with the exact active workspace policy (30 active days, 90 stagnant days, 92-day movement window) and `buildReplenishmentRecommendations`.
+- The existing RPC derives tenant and actor from the authenticated active profile, requires `can_manage_finance()` and an admin/manager role, uses same-tenant products/balances/movements/fulfilled orders/physical receipts, is SECURITY DEFINER with empty search_path, and is read-only. The client rejects incomplete product populations and malformed/missing evidence.
+- Dead-stock class counts are disclosed only when the movement report is VERIFIED for the full product population. Replenishment returns product counts only; it never adds quantities across different SKUs/UOMs. Financial exposure is not shown because the source has no verified unit cost and currency. No product references, supplier pricing, purchase order, stock or finance writes are exposed.
+- The inventory source has a fixed 92-day workspace window; the assistant rejects other requested calendar/free-form windows instead of silently changing the requested period.
+- Changed paths:
+  - `src/lib/intelligence/natural-language-assistant.ts`
+  - `src/lib/intelligence/natural-language-assistant-client.ts`
+  - `src/components/intelligence/NaturalLanguageAssistant.tsx`
+  - `docs/execution/P3_CHECKPOINT.md`
+- P1 still mounts the existing exported `NaturalLanguageAssistant` once in `IntelligenceWorkspace`; its existing staff/admin controls and authorized invoice/PO callbacks remain unchanged.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/E2E/RPC/Bolt/Preview/provider/Vercel/production operation was run. Runtime depends on the already-existing inventory migration being applied.
+- Cost/safety: no new paid service, provider, dependency, AI quota, secret, Vercel spend, external contact, finance mutation or stock mutation.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (SUPPLIER PERFORMANCE INTENTS)
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

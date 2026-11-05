@@ -1,12 +1,15 @@
 import type { SupplierInvoiceMatchStatus, SupplierInvoiceRecord } from "@/lib/supplier-invoices";
 import type { CustomerRetentionReport } from "./customer-retention";
 import type { SupplierPerformanceResult } from "./supplier-performance";
+import type { DeadStockReport } from "./dead-stock";
+import type { ReplenishmentRecommendation } from "./replenishment";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
 export type SupplierPerformanceIntent="SUPPLIER_PERFORMANCE_OVERVIEW"|"SUPPLIER_DELIVERY_ADHERENCE";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot";
+export type InventoryIntent="DEAD_STOCK_OVERVIEW"|"REPLENISHMENT_OVERVIEW";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -21,6 +24,19 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   status:"CLARIFICATION",normalizedQuestion,explanation:"اكتب سؤالاً واضحاً لا يتجاوز 400 حرف.",
   clarification:"ما السجلات التي تريد الاستعلام عنها؟"
  };
+ const replenishmentQuestion=/(اعاده التوريد|اعاده الطلب|نقطه اعاده الطلب|احتياج التوريد|اصناف تحتاج توريد|منتجات تحتاج توريد|توصيات التوريد|احتياج الشراء)/.test(normalizedQuestion);
+ const deadStockQuestion=/(المخزون الراكد|مخزون راكد|الاصناف الراكده|اصناف راكده|الركود|بطيء الحركه|بطيئه الحركه|بدون حركه|بلا حركه)/.test(normalizedQuestion);
+ if(replenishmentQuestion||deadStockQuestion){
+  const explicitWindow=/(92\s*(?:يوما?|يوم|ايام))/.test(normalizedQuestion);
+  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر|من تاريخ|بين تاريخ|الفتره|الربع)/.test(normalizedQuestion)||/20\d{2}-\d{2}-\d{2}/.test(normalizedQuestion);
+  if(hasTimeConstraint&&!explicitWindow)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"محرك المخزون الحالي يعتمد نافذة تشغيل ثابتة مقدارها 92 يوماً؛ لا أطبق فترة أخرى أو تواريخ حرة على بيانات هذه اللقطة."
+  };
+  const intent:InventoryIntent=replenishmentQuestion?"REPLENISHMENT_OVERVIEW":"DEAD_STOCK_OVERVIEW";
+  return {status:"READY",intent,normalizedQuestion,sourceRpc:"get_inventory_intelligence_aggregate",
+   filterDescription:"مجتمع المنتجات الكامل للمؤسسة ونافذة حركة 92 يوماً؛ توصيات الكميات تبقى حسب وحدة كل منتج دون جمع وحدات مختلفة."};
+ }
  const supplierPerformanceQuestion=/(اداء المورد|مؤشرات المورد|زمن التوريد|مهله التوريد|التزام المورد|الالتزام بمواعيد التوريد)/.test(normalizedQuestion);
  if(supplierPerformanceQuestion){
   const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90|180|365)\s*(?:يوما?|ايام)/);
@@ -142,7 +158,15 @@ export interface NaturalLanguageSupplierPerformanceResult {
   suppliersWithReliableLeadTime:number|null;promisedDeliverySampleCount:number|null;onTimeCount:number|null;onTimePercent:number|null};
  withheldReasons:string[];
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult;
+export interface NaturalLanguageInventoryResult {
+ kind:"INVENTORY";state:"READY"|"PARTIAL"|"EMPTY";intent:InventoryIntent;
+ answer:string;sourceRpc:"get_inventory_intelligence_aggregate";asOf:string;period:{from:string;to:string};
+ totalProducts:number;completePopulation:boolean;
+ deadStock:{active:number|null;slowMoving:number|null;stagnant:number|null;zeroMovement:number|null;unknown:number|null};
+ replenishment:{recommendedProducts:number|null;noActionProducts:number|null;withheldProducts:number|null};
+ warnings:string[];
+}
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -298,5 +322,55 @@ export function resolveSupplierPerformanceIntent(
   sourceRpc:"fetch_supplier_performance_snapshot",asOf:result.asOf,period:{from:result.period.from,to:result.period.to},
   totalSupplierCount:result.totalSupplierCount,returnedSupplierCount:result.returnedSupplierCount,completePopulation:complete,
   aggregate,withheldReasons:[...result.withheldReasons],
+ };
+}
+
+
+/** Aggregate-only inventory projections; per-SKU values, UOM quantities and financial exposure stay out of the assistant. */
+export function resolveInventoryIntent(
+ intent:InventoryIntent,input:{
+  asOf:string;period:{from:string;to:string};totalProducts:number;completePopulation:boolean;
+  deadStock:DeadStockReport;replenishment:ReplenishmentRecommendation[];
+ },
+):NaturalLanguageInventoryResult {
+ const complete=input.completePopulation;
+ const movementVerified=complete&&input.deadStock.status==="VERIFIED"&&input.deadStock.items.length===input.totalProducts;
+ const stockCounts=movementVerified?{
+  active:input.deadStock.items.filter(item=>item.classification==="ACTIVE").length,
+  slowMoving:input.deadStock.items.filter(item=>item.classification==="SLOW_MOVING").length,
+  stagnant:input.deadStock.items.filter(item=>item.classification==="STAGNANT").length,
+  zeroMovement:input.deadStock.items.filter(item=>item.classification==="ZERO_MOVEMENT").length,
+  unknown:input.deadStock.items.filter(item=>item.classification==="UNKNOWN").length,
+ }:{active:null,slowMoving:null,stagnant:null,zeroMovement:null,unknown:null};
+ const recommendationCoverage=complete&&input.replenishment.length===input.totalProducts;
+ const replenishmentCounts=recommendationCoverage?{
+  recommendedProducts:input.replenishment.filter(item=>item.status==="VERIFIED"&&item.action==="RECOMMEND").length,
+  noActionProducts:input.replenishment.filter(item=>item.status==="VERIFIED"&&item.action==="NO_ACTION").length,
+  withheldProducts:input.replenishment.filter(item=>item.status!=="VERIFIED"||item.action==="WITHHELD").length,
+ }:{recommendedProducts:null,noActionProducts:null,withheldProducts:null};
+ const warnings=[...new Set([
+  ...input.deadStock.warnings,
+  ...input.replenishment.flatMap(item=>item.warnings),
+ ])].slice(0,20);
+ const state=!complete||intent==="DEAD_STOCK_OVERVIEW"&&!movementVerified||intent==="REPLENISHMENT_OVERVIEW"&&!recommendationCoverage
+  ?"PARTIAL":input.totalProducts===0?"EMPTY":"READY";
+ let answer:string;
+ if(!complete){
+  answer="تغطية مجموعة المنتجات غير مكتملة؛ حُجبت المجاميع حتى لا تتحول العينة إلى نتيجة كاملة.";
+ }else if(input.totalProducts===0){
+  answer="لا توجد منتجات نشطة موثقة ضمن مجتمع المنتجات الذي أعاده مصدر المؤسسة.";
+ }else if(intent==="DEAD_STOCK_OVERVIEW"){
+  answer=movementVerified
+   ?"من أصل "+input.totalProducts+" منتجاً: النشط "+stockCounts.active+"، بطيء الحركة "+stockCounts.slowMoving+"، الراكد "+stockCounts.stagnant+"، بلا حركة في السجل "+stockCounts.zeroMovement+"."
+   :"لم تُعتمد تصنيفات الحركة لهذه اللقطة؛ لم تُعرض أعداد الراكد أو النشط كتغطية مكتملة.";
+ }else{
+  answer=recommendationCoverage
+   ?"من أصل "+input.totalProducts+" منتجاً: توجد توصية إعادة توريد موثقة لـ"+replenishmentCounts.recommendedProducts+" منتجاً، ولا حاجة مثبتة لـ"+replenishmentCounts.noActionProducts+"، وتوصية محجوبة لـ"+replenishmentCounts.withheldProducts+" بسبب نقص أو عدم اتساق أحد المدخلات."
+   :"تغطية توصيات إعادة التوريد لا تطابق مجتمع المنتجات؛ حُجبت المجاميع.";
+ }
+ return {
+  kind:"INVENTORY",state,intent,answer,sourceRpc:"get_inventory_intelligence_aggregate",
+  asOf:input.asOf,period:input.period,totalProducts:input.totalProducts,completePopulation:complete,
+  deadStock:stockCounts,replenishment:replenishmentCounts,warnings,
  };
 }
