@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import {
-  AlertTriangle, BellRing, CalendarClock, ClipboardList, Filter,
-  Headphones, RefreshCw, Search, ShieldAlert, UserRound, Users,
+  AlertTriangle, BellRing, CalendarClock, ClipboardList, Download, Filter,
+  Headphones, Printer, RefreshCw, Search, ShieldAlert, UserRound, Users,
 } from "lucide-react";
 import { Button, Empty, ErrorBox, Loading } from "@/components/AdminPages";
 import { useAuth } from "@/lib/auth";
@@ -14,6 +15,9 @@ import {
   type CustomerServiceCasePriority,
   type CustomerServiceCaseStatus,
 } from "@/lib/customer-service-cases";
+import { projectCustomerServiceDeskPrintDocument, type CustomerServiceDeskPrintDocument } from "@/lib/customer-service-desk-print";
+import { downloadCustomerServiceDeskWorkbookXlsx } from "@/lib/customer-service-desk-xlsx";
+import { CustomerServiceDeskPrintSheet } from "@/components/CustomerServiceDeskPrintSheet";
 import {
   fetchCustomerServiceDeskPage,
   type CustomerServiceAssignmentFilter,
@@ -246,6 +250,7 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [assignees, setAssignees] = useState<OperationalTaskAssignee[]>([]);
+  const [printDocument, setPrintDocument] = useState<CustomerServiceDeskPrintDocument | null>(null);
 
   const loadFirstPage = useCallback(async () => {
     setLoading(true);
@@ -279,6 +284,40 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
     return () => { active = false; };
   }, [canManage]);
 
+  useEffect(() => {
+    if (!printDocument || typeof window === "undefined" ||
+        typeof document === "undefined" || typeof window.print !== "function") return;
+    const body = document.body;
+    const previousMode = body.getAttribute("data-print-mode");
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute("data-print-mode");
+      else body.setAttribute("data-print-mode", previousMode);
+      window.removeEventListener("afterprint", restore);
+      setPrintDocument(null);
+    };
+    body.setAttribute("data-print-mode", "customer-service-desk-report");
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => {
+      try {
+        window.print();
+      } catch {
+        setError("تعذر فتح نافذة طباعة تقرير خدمة العملاء.");
+        restore();
+      }
+    }, 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", restore);
+      if (!restored && body.getAttribute("data-print-mode") === "customer-service-desk-report") {
+        if (previousMode === null) body.removeAttribute("data-print-mode");
+        else body.setAttribute("data-print-mode", previousMode);
+      }
+    };
+  }, [printDocument]);
+
   async function loadMore() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
@@ -307,14 +346,52 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
   }
 
   const activeCases = items.filter(item => isActive(item.status));
-  return <section className="customer-service-desk" dir="rtl">
+
+  function createReportDocument(): CustomerServiceDeskPrintDocument {
+    return projectCustomerServiceDeskPrintDocument({ items, summary, filters, hasMore });
+  }
+  function exportServiceDeskReport() {
+    setError("");
+    if (!canManage) return;
+    if (loading || items.length === 0) {
+      setError("حمّل بيانات طابور خدمة العملاء قبل استخراج التقرير.");
+      return;
+    }
+    try {
+      downloadCustomerServiceDeskWorkbookXlsx(createReportDocument());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لطابور خدمة العملاء.");
+    }
+  }
+  function printServiceDeskReport() {
+    setError("");
+    if (!canManage) return;
+    if (loading || items.length === 0 || typeof window === "undefined" || typeof window.print !== "function") {
+      setError("لا تتوفر لقطة بيانات صالحة أو وظيفة الطباعة في هذه البيئة.");
+      return;
+    }
+    try {
+      setPrintDocument(createReportDocument());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تجهيز تقرير طباعة خدمة العملاء.");
+    }
+  }
+
+  return <>
+  <section className="customer-service-desk" dir="rtl">
     <header className="customer-service-desk-hero">
       <div>
         <span><Headphones size={16} /> مركز خدمة العملاء</span>
         <h1>طابور خدمة العملاء الموحد</h1>
         <p>شكاوى واستفسارات وطلبات الخدمة من جميع العملاء في مساحة تشغيل واحدة، مع الاستحقاق والمسؤول وسجل المهمة المرتبطة.</p>
       </div>
-      <Button variant="secondary" disabled={loading} onClick={() => { void loadFirstPage(); }}><RefreshCw size={16} /> تحديث الطابور</Button>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+        {canManage && <>
+          <Button variant="secondary" disabled={loading || items.length === 0} onClick={exportServiceDeskReport}><Download size={15} /> تصدير Excel</Button>
+          <Button variant="secondary" disabled={loading || items.length === 0} onClick={printServiceDeskReport}><Printer size={15} /> طباعة / PDF</Button>
+        </>}
+        <Button variant="secondary" disabled={loading} onClick={() => { void loadFirstPage(); }}><RefreshCw size={16} /> تحديث الطابور</Button>
+      </div>
     </header>
 
     <div className="customer-service-desk-metrics">
@@ -375,5 +452,9 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
       </Button>
     </div>}
     <p className="customer-service-desk-footnote">يستخدم المركز السجلات التشغيلية الأصلية للحالات ومهامها؛ لا ينشئ نسخة ثانية من بيانات العميل أو طابور إسناد موازيًا.</p>
-  </section>;
+  </section>
+  {printDocument && typeof document !== "undefined"
+    ? createPortal(<CustomerServiceDeskPrintSheet document={printDocument} />, document.body)
+    : null}
+  </>;
 }
