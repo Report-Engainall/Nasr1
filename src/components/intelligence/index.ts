@@ -23,3 +23,5 @@ export { CommercePolicyGovernancePanel } from "./CommercePolicyGovernancePanel";
 export * from "./SupplierPerformancePanel";
 export * from "./NaturalLanguageAssistant";
 export * from "./PersonalizationPrivacyPanel";
+export { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
+export type { TaskPerformanceScorecardProps, TaskPerformanceScorecardState } from "./TaskPerformanceScorecard";

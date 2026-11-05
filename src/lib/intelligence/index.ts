@@ -28,3 +28,5 @@ export * from "./natural-language-assistant-client";
 export * from "./task-intelligence-reports";
 export * from "./task-intelligence-reports-client";
 export * from "./personalization-governance";
+export * from "./task-performance-scorecard";
+export * from "./task-performance-scorecard-client";
