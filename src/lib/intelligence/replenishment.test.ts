@@ -4,9 +4,9 @@ import type {EvidenceRecord,MetricSnapshot} from "./types";
 const asOf="2026-10-30T07:00:00Z",period={from:"2026-08-02",to:"2026-10-30"};
 const evidence=(id:string):EvidenceRecord=>({id,source:{kind:"RPC",name:"inventory.replenishment_inputs",version:"v1"},sourceTimestamp:asOf,asOf,period,currency:undefined,status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",warnings:[]});
 const metric=(id:string,value:number,unit:MetricSnapshot["unit"],p:MetricSnapshot["period"]=period,uom:string|null="EA"):MetricSnapshot=>({id,key:id,value,unit,...(unit==="QUANTITY"&&uom?{unitOfMeasure:uom}:{}),status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:p,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id,formulaVersion:"1",transformations:[]},warnings:[]});
-const build=(overrides:Partial<{atp:MetricSnapshot;rop:MetricSnapshot;sold:MetricSnapshot;lead:MetricSnapshot}>={},quantityUnit="EA")=>{
- const rows={atp:metric("atp",5,"QUANTITY"),rop:metric("rop",20,"QUANTITY"),sold:metric("sold",30,"QUANTITY"),lead:metric("lead",15,"DAYS",null),...overrides};
- return buildReplenishmentRecommendations({id:"r",asOf,period,evidenceRecords:[evidence("atp"),evidence("rop"),evidence("sold"),evidence("lead")],products:[{productRef:"SKU-1",availableToPromise:rows.atp,reorderPoint:rows.rop,soldQuantityWindow:rows.sold,supplierLeadTimeDays:rows.lead,quantityUnit}]});
+const build=(overrides:Partial<{atp:MetricSnapshot;rop:MetricSnapshot;sold:MetricSnapshot;lead:MetricSnapshot;incoming:MetricSnapshot}>={},quantityUnit="EA")=>{
+ const rows={atp:metric("atp",5,"QUANTITY"),rop:metric("rop",20,"QUANTITY"),sold:metric("sold",30,"QUANTITY"),lead:metric("lead",15,"DAYS",null),incoming:metric("incoming",0,"QUANTITY"),...overrides};
+ return buildReplenishmentRecommendations({id:"r",asOf,period,evidenceRecords:[evidence("atp"),evidence("rop"),evidence("sold"),evidence("lead"),evidence("incoming")],products:[{productRef:"SKU-1",availableToPromise:rows.atp,reorderPoint:rows.rop,soldQuantityWindow:rows.sold,supplierLeadTimeDays:rows.lead,incomingPurchaseQuantity:rows.incoming,quantityUnit}]});
 };
 describe("replenishment recommendations",()=>{
  it("calculates demand from the full inclusive lookback period and preserves the lead-time basis",()=>{
@@ -18,7 +18,20 @@ describe("replenishment recommendations",()=>{
   const result=build({lead}),r=result.recommendations[0];
   expect(r.status).toBe("UNVERIFIED");expect(r.action).toBe("WITHHELD");expect(r.recommendedQuantity).toBeNull();
  });
- it("does not purchase automatically when ATP is adequate",()=>{
+ it("nets confirmed incoming purchase quantities against replenishment need",()=>{
+  const r=build({incoming:metric("incoming",8,"QUANTITY",null)}).recommendations[0];
+  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",availableToPromise:5,incomingPurchaseQuantity:8,coveredAfterIncoming:13,recommendedQuantity:7,automaticPurchase:false});
+ });
+ it("withholds when incoming commitment units cannot be verified",()=>{
+  const incoming={...metric("incoming",8,"QUANTITY",null),status:"NEEDS_REVIEW" as const};
+  const r=build({incoming}).recommendations[0];
+  expect(r).toMatchObject({status:"NEEDS_REVIEW",action:"WITHHELD",recommendedQuantity:null,automaticPurchase:false});
+ });
+ it("does not recommend duplicate orders when current stock plus incoming orders cover target",()=>{
+  const r=build({incoming:metric("incoming",20,"QUANTITY",null)}).recommendations[0];
+  expect(r).toMatchObject({status:"VERIFIED",action:"NO_ACTION",coveredAfterIncoming:25,recommendedQuantity:0,automaticPurchase:false});
+ });
+ it("does not purchase automatically when ATP is adequate",()=>
   const result=build({atp:metric("atp",50,"QUANTITY")});
   expect(result.recommendations[0]).toMatchObject({action:"NO_ACTION",quantityUnit:"EA",recommendedQuantity:0,automaticPurchase:false});
  });

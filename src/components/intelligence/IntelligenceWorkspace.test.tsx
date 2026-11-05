@@ -180,11 +180,13 @@ function inventoryFixture(): InventoryIntelligenceData {
     evidence("inventory-balance:p1", "inventory.current_balances", asOf, null),
     evidence("sales-window:p1", "orders.completed_sales_quantity"),
     evidence("purchase-receipt-item:r1", "purchase_receipt_items", "2026-10-20T09:00:00.000Z", null),
+    evidence("purchase-order-commitments:p1", "purchase_orders.remaining_quantity", asOf, null),
   ];
   const available = metric("available:p1", "inventory.available_to_promise", 5, "QUANTITY", ["inventory-balance:p1"], null, "EA");
   const reorder = metric("reorder:p1", "inventory.reorder_point", 20, "QUANTITY", ["inventory-balance:p1"], null, "EA");
   const sold = metric("sold:p1", "inventory.sold_quantity_window", 30, "QUANTITY", ["sales-window:p1"], period, "EA");
   const lead = metric("lead:p1", "inventory.observed_supplier_lead_time_days", 10, "DAYS", ["purchase-receipt-item:r1"], null);
+  const incoming = metric("incoming:p1", "inventory.incoming_purchase_order_quantity", 8, "QUANTITY", ["purchase-order-commitments:p1"], null, "EA");
   return {
     asOf,
     period,
@@ -213,6 +215,7 @@ function inventoryFixture(): InventoryIntelligenceData {
       reorderPoint: reorder,
       soldQuantityWindow: sold,
       supplierLeadTimeDays: lead,
+      incomingPurchaseQuantity: incoming,
       quantityUnit: "EA",
       minimumOrderQuantity: null,
       orderMultiple: null,

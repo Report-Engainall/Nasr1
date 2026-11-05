@@ -3,10 +3,10 @@ import type {EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "
 
 export interface ReplenishmentProductInput {
  productRef:string;availableToPromise:MetricSnapshot;reorderPoint:MetricSnapshot;soldQuantityWindow:MetricSnapshot;
- supplierLeadTimeDays:MetricSnapshot;minimumOrderQuantity?:MetricSnapshot|null;orderMultiple?:MetricSnapshot|null;quantityUnit:string;
+ supplierLeadTimeDays:MetricSnapshot;incomingPurchaseQuantity:MetricSnapshot;minimumOrderQuantity?:MetricSnapshot|null;orderMultiple?:MetricSnapshot|null;quantityUnit:string;
 }
 export interface ReplenishmentRecommendation {
- productRef:string;status:EvidenceStatus;action:"RECOMMEND"|"NO_ACTION"|"WITHHELD";quantityUnit:string|null;availableToPromise:number|null;
+ productRef:string;status:EvidenceStatus;action:"RECOMMEND"|"NO_ACTION"|"WITHHELD";quantityUnit:string|null;availableToPromise:number|null;incomingPurchaseQuantity:number|null;coveredAfterIncoming:number|null;
  reorderPoint:number|null;dailyDemand:number|null;leadTimeDemand:number|null;targetStock:number|null;recommendedQuantity:number|null;
  formulaId:string;formulaVersion:string;evidenceIds:string[];warnings:string[];automaticPurchase:false;
 }
@@ -77,7 +77,7 @@ export function buildReplenishmentRecommendations(input:{
 }):{id:string;asOf:string;period:EvidencePeriod;recommendations:ReplenishmentRecommendation[]} {
  if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be valid");
  const periodDays=dayCount(input.period);if(periodDays<1)throw new Error("invalid period");
- const metrics=input.products.flatMap(p=>[p.availableToPromise,p.reorderPoint,p.soldQuantityWindow,p.supplierLeadTimeDays,...(p.minimumOrderQuantity?[p.minimumOrderQuantity]:[]),...(p.orderMultiple?[p.orderMultiple]:[])]);
+ const metrics=input.products.flatMap(p=>[p.availableToPromise,p.reorderPoint,p.soldQuantityWindow,p.supplierLeadTimeDays,p.incomingPurchaseQuantity,...(p.minimumOrderQuantity?[p.minimumOrderQuantity]:[]),...(p.orderMultiple?[p.orderMultiple]:[])]);
  const passport=buildEvidencePassport({id:"replenishment:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const counts=new Map<string,number>();for(const m of passport.metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(counts.get(m.id)===1)index.set(m.id,m);
@@ -97,32 +97,34 @@ export function buildReplenishmentRecommendations(input:{
   const rop = read(product.reorderPoint, "QUANTITY");
   const sold = read(product.soldQuantityWindow, "QUANTITY");
   const lead = read(product.supplierLeadTimeDays, "DAYS");
+  const incoming = read(product.incomingPurchaseQuantity, "QUANTITY");
   const optional = [
     product.minimumOrderQuantity ? read(product.minimumOrderQuantity, "QUANTITY") : null,
     product.orderMultiple ? read(product.orderMultiple, "QUANTITY") : null,
   ];
-  const required=[atp,rop,sold,lead],bad=required.find(r=>r.status!=="VERIFIED")??optional.find(r=>r&&r.status!=="VERIFIED");
+  const required=[atp,rop,sold,lead,incoming],bad=required.find(r=>r.status!=="VERIFIED")??optional.find(r=>r&&r.status!=="VERIFIED");
   if(bad){warnings.push("REQUIRED_OR_CONFIGURED_INPUT_NOT_VERIFIED");return {
-   productRef:product.productRef,status:bad.status,action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   productRef:product.productRef,status:bad.status,action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
   if(required.some(r=>r.value===null)||optional.some(r=>r&&r.value===null)){warnings.push("UNKNOWN_INPUT");return {
-   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
   const dailyDemand=(sold.value as number)/periodDays,leadDemand=dailyDemand*(lead.value as number),target=Math.max(rop.value as number,leadDemand);
-  let recommended=Math.max(0,target-(atp.value as number));
+  const coveredAfterIncoming=(atp.value as number)+(incoming.value as number);
+  let recommended=Math.max(0,target-coveredAfterIncoming);
   const min=optional[0]?.value??0,multiple=optional[1]?.value??null;
   if(min>0&&recommended>0)recommended=Math.max(recommended,min);
   if(multiple!==null&&multiple>0&&recommended>0)recommended=Math.ceil(recommended/multiple)*multiple;
-  const safe=[dailyDemand,leadDemand,target,recommended].every(n=>Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER);
+  const safe=[dailyDemand,leadDemand,target,coveredAfterIncoming,recommended].every(n=>Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER);
   if(!safe){warnings.push("RECOMMENDED_QUANTITY_OVERFLOW");return {
-   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
   return {
    productRef:product.productRef,status:"VERIFIED",action:recommended>0?"RECOMMEND":"NO_ACTION",
-   quantityUnit:expectedQuantityUnit,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand,leadTimeDemand:leadDemand,targetStock:target,recommendedQuantity:recommended,
+   quantityUnit:expectedQuantityUnit,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming,reorderPoint:rop.value,dailyDemand,leadTimeDemand:leadDemand,targetStock:target,recommendedQuantity:recommended,
    formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   };
  });

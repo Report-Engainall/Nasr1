@@ -211,12 +211,13 @@ function parsePayload(value: unknown, requestedAsOf: string, period: EvidencePer
     const reorderPoint = parseMetric(row?.reorderPoint, serverAsOf, "QUANTITY", null);
     const soldQuantityWindow = parseMetric(row?.soldQuantityWindow, serverAsOf, "QUANTITY", period);
     const supplierLeadTimeDays = parseMetric(row?.supplierLeadTimeDays, serverAsOf, "DAYS", null);
+    const incomingPurchaseQuantity = parseMetric(row?.incomingPurchaseQuantity, serverAsOf, "QUANTITY", null);
     if (
       !row || !textValue(row.productRef, 200) || replenishRefs.has(row.productRef) ||
       !textValue(row.quantityUnit, 80) ||
-      !availableToPromise || !reorderPoint || !soldQuantityWindow || !supplierLeadTimeDays ||
+      !availableToPromise || !reorderPoint || !soldQuantityWindow || !supplierLeadTimeDays || !incomingPurchaseQuantity ||
       !resolvedMetric(availableToPromise) || !resolvedMetric(reorderPoint) ||
-      !resolvedMetric(soldQuantityWindow) || !resolvedMetric(supplierLeadTimeDays)
+      !resolvedMetric(soldQuantityWindow) || !resolvedMetric(supplierLeadTimeDays) || !resolvedMetric(incomingPurchaseQuantity)
     ) return null;
     replenishRefs.add(row.productRef);
     replenishmentProducts.push({
@@ -225,6 +226,7 @@ function parsePayload(value: unknown, requestedAsOf: string, period: EvidencePer
       reorderPoint,
       soldQuantityWindow,
       supplierLeadTimeDays,
+      incomingPurchaseQuantity,
       quantityUnit: row.quantityUnit,
       minimumOrderQuantity: null,
       orderMultiple: null,

@@ -19,6 +19,7 @@ function payload() {
     { id: "movement-window:p1", source: { kind: "RPC", name: "inventory.movement_history", recordId: "p1", version: "v1" }, sourceTimestamp: asOf, asOf, period, status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
     { id: "inventory-balance:p1", source: { kind: "RPC", name: "inventory.current_balances", recordId: "p1", version: "v1" }, sourceTimestamp: asOf, asOf, period: null, status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
     { id: "sales-window:p1", source: { kind: "RPC", name: "orders.completed_sales_quantity", recordId: "p1", version: "v1" }, sourceTimestamp: asOf, asOf, period, status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+    { id: "purchase-order-commitments:p1", source: { kind: "RPC", name: "purchase_orders.remaining_quantity", recordId: "p1", version: "v1" }, sourceTimestamp: asOf, asOf, period: null, status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
     { id: "purchase-receipt-item:r1", source: { kind: "TABLE", name: "purchase_receipt_items", recordId: "r1" }, sourceTimestamp: "2026-07-03T09:00:00.000Z", asOf, period: null, status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
   ];
   const metric = (id: string, key: string, unit: string, value: number, periodValue: typeof period | null, sourceIds: string[], unitOfMeasure?: string) => ({
@@ -32,6 +33,7 @@ function payload() {
   const reorder = metric("reorder:p1", "inventory.reorder_point", "QUANTITY", 20, null, ["inventory-balance:p1"], "EA");
   const sold = metric("sold:p1", "inventory.sold_quantity_window", "QUANTITY", 30, period, ["sales-window:p1"], "EA");
   const lead = metric("lead:p1", "inventory.observed_supplier_lead_time_days", "DAYS", 10, null, ["purchase-receipt-item:r1"]);
+  const incoming = metric("incoming:p1", "inventory.incoming_purchase_order_quantity", "QUANTITY", 8, null, ["purchase-order-commitments:p1"], "EA");
   return {
     status: "OK", asOf, period,
     authorization: { tenantScope: "SERVER_RESOLVED_AUTHENTICATED_TENANT", effectiveRole: "admin" },
@@ -44,7 +46,7 @@ function payload() {
     }],
     replenishmentProducts: [{
       productRef: "SKU-1", availableToPromise: available, reorderPoint: reorder,
-      soldQuantityWindow: sold, supplierLeadTimeDays: lead, quantityUnit: "EA",
+      soldQuantityWindow: sold, supplierLeadTimeDays: lead, incomingPurchaseQuantity: incoming, quantityUnit: "EA",
     }],
   };
 }

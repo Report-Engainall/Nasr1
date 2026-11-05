@@ -5,9 +5,9 @@ import { formatEvidenceNumber } from "./shared";
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
 
 const recommendations: ReplenishmentRecommendation[] = [
-  { productRef: "SKU-LOW", status: "VERIFIED", action: "RECOMMEND", availableToPromise: 2, reorderPoint: 8, dailyDemand: 2, leadTimeDemand: 6,
+  { productRef: "SKU-LOW", status: "VERIFIED", action: "RECOMMEND", availableToPromise: 2, incomingPurchaseQuantity: 0, coveredAfterIncoming: 2, reorderPoint: 8, dailyDemand: 2, leadTimeDemand: 6,
     targetStock: 8, recommendedQuantity: 6, quantityUnit: "EA", formulaId: "inventory.replenishment-target", formulaVersion: "1.0.0", evidenceIds: ["e1"], warnings: [], automaticPurchase: false },
-  { productRef: "SKU-UNKNOWN", status: "NEEDS_REVIEW", action: "WITHHELD", availableToPromise: null, reorderPoint: 8, dailyDemand: null, leadTimeDemand: null,
+  { productRef: "SKU-UNKNOWN", status: "NEEDS_REVIEW", action: "WITHHELD", availableToPromise: null, incomingPurchaseQuantity: null, coveredAfterIncoming: null, reorderPoint: 8, dailyDemand: null, leadTimeDemand: null,
     targetStock: null, recommendedQuantity: null, quantityUnit: null, formulaId: "inventory.replenishment-target", formulaVersion: "1.0.0", evidenceIds: [], warnings: ["UNKNOWN_INPUT"], automaticPurchase: false },
 ];
 
