@@ -507,6 +507,9 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
 
   const loadCustomer360 = useCallback(async () => {
     setSummary(null);
+    setInteractionHistory([]);
+    setInteractionHistoryLoading(true);
+    setInteractionHistoryError('');
     setLoading(true);
     setError('');
     setExportError('');
