@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   refreshOperationalTasks: vi.fn(),
   createOperationalTask: vi.fn(),
   setOperationalTaskStatus: vi.fn(),
+  assignOperationalTask: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: mocks.useAuth }));
@@ -18,6 +19,7 @@ vi.mock("@/lib/api", () => ({
   refreshOperationalTasks: mocks.refreshOperationalTasks,
   createOperationalTask: mocks.createOperationalTask,
   setOperationalTaskStatus: mocks.setOperationalTaskStatus,
+  assignOperationalTask: mocks.assignOperationalTask,
 }));
 vi.mock("@/components/CustomerReturnReviewQueue", () => ({
   CustomerReturnReviewQueue: () => <div data-testid="return-review-queue" />,
@@ -93,6 +95,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     });
     mocks.createOperationalTask.mockReset().mockResolvedValue("new-task");
     mocks.setOperationalTaskStatus.mockReset().mockResolvedValue(undefined);
+    mocks.assignOperationalTask.mockReset().mockResolvedValue(undefined);
     originalPrint = Object.getOwnPropertyDescriptor(window, "print");
     printMock = vi.fn();
     Object.defineProperty(window, "print", { configurable: true, writable: true, value: printMock });
@@ -328,4 +331,44 @@ describe("TaskCenter role-boundary and print integration", () => {
     expect(onNotice).toHaveBeenCalledWith("حُفظت المهمة الجديدة مع سجل تدقيق.");
     expect(screen.queryByRole("heading", { name: "إسناد مهمة جديدة" })).not.toBeInTheDocument();
   });
+  it("lets managers reassign an open task to a compatible active employee or return it to its role queue", async () => {
+    setUser(["manager"]);
+    const sourceTask = task({
+      id: "sales-order",
+      title: "طلب عميل للتجهيز",
+      task_role: "sales",
+      assigned_to: "profile-sales-a",
+    });
+    mocks.fetchOperationalTasks
+      .mockResolvedValueOnce([sourceTask])
+      .mockResolvedValueOnce([{ ...sourceTask, assigned_to: "profile-sales-b" }])
+      .mockResolvedValueOnce([{ ...sourceTask, assigned_to: null }]);
+    mocks.fetchOperationalTaskAssignees.mockResolvedValue([
+      { profile_id: "profile-sales-a", full_name: "موظف المبيعات الحالي", email: "sales-a@example.test", roles: ["sales", "staff"] },
+      { profile_id: "profile-sales-b", full_name: "موظف المبيعات البديل", email: "sales-b@example.test", roles: ["sales", "staff"] },
+      { profile_id: "profile-accountant", full_name: "محاسب المؤسسة", email: "accountant@example.test", roles: ["accountant"] },
+    ]);
+
+    render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+
+    let card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+    let assignee = within(card).getByLabelText("المسؤول الجديد للمهمة: طلب عميل للتجهيز") as HTMLSelectElement;
+    expect(within(assignee).getByRole("option", { name: "موظف المبيعات البديل" })).toBeInTheDocument();
+    expect(within(assignee).queryByRole("option", { name: "محاسب المؤسسة" })).not.toBeInTheDocument();
+
+    fireEvent.change(assignee, { target: { value: "profile-sales-b" } });
+    fireEvent.click(within(card).getByRole("button", { name: "حفظ الإسناد" }));
+    await waitFor(() => expect(mocks.assignOperationalTask).toHaveBeenNthCalledWith(1, "sales-order", "profile-sales-b"));
+    await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
+
+    card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+    assignee = within(card).getByLabelText("المسؤول الجديد للمهمة: طلب عميل للتجهيز") as HTMLSelectElement;
+    expect(assignee.value).toBe("profile-sales-b");
+    fireEvent.change(assignee, { target: { value: "" } });
+    fireEvent.click(within(card).getByRole("button", { name: "حفظ الإسناد" }));
+    await waitFor(() => expect(mocks.assignOperationalTask).toHaveBeenNthCalledWith(2, "sales-order", null));
+    await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(3));
+  });
+
 });
