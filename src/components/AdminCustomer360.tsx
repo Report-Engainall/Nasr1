@@ -11,6 +11,8 @@ import { downloadStaffCustomer360WorkbookXlsx } from '@/lib/customer-360-xlsx';
 import { projectStaffCustomer360PrintDocument } from '@/lib/customer-360-print';
 import { Customer360PrintSheet } from '@/components/Customer360PrintSheet';
 import type { StaffCustomer360Summary } from '@/lib/customer-360-summary';
+import { fetchCustomerRetentionReport } from '@/lib/customer-retention-client';
+import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retention';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -325,6 +327,129 @@ function Customer360RecentActivity({ summary }: { summary: StaffCustomer360Summa
         <Customer360RecentPayments summary={summary} />
       </section>
     </>
+  );
+}
+
+
+const retentionActivityLabels = {
+  ACTIVE: 'نشط',
+  COOLING: 'بدأ يتراجع',
+  AT_RISK: 'معرض للانقطاع',
+  INACTIVE: 'غير نشط',
+  NO_ORDER_DATE: 'لا توجد طلبات مسجلة',
+  UNKNOWN: 'غير محدد',
+} as const;
+
+function retentionPercent(value: number | null): string {
+  return value === null ? 'غير متاح' : new Intl.NumberFormat('ar-YE', {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  }).format(value) + '٪';
+}
+
+function Customer360RetentionInsights({ customerId }: { customerId: string }) {
+  const [periodDays, setPeriodDays] = useState<30 | 60 | 90 | 180 | 365>(90);
+  const [report, setReport] = useState<CustomerRetentionReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    setReport(null);
+    try {
+      const result = await fetchCustomerRetentionReport(periodDays);
+      setReport(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر حساب مؤشرات الاحتفاظ بالعملاء.');
+    } finally {
+      setLoading(false);
+    }
+  }, [periodDays]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  const customer = report?.customers.find(item => item.customerRef === customerId) ?? null;
+  const verified = report?.status === 'VERIFIED' && customer?.status === 'VERIFIED';
+  const activity = customer?.activity ?? 'UNKNOWN';
+  const followUpGuidance: Record<keyof typeof retentionActivityLabels, string> = {
+    ACTIVE: 'العميل نشط ضمن فترة القياس. استمر في المتابعة حسب سجل التواصل واحتياج العميل.',
+    COOLING: 'تراجع النشاط مقارنة بآخر طلب. راجع سجل التواصل وحدد خطوة متابعة مناسبة.',
+    AT_RISK: 'لم يسجل العميل طلبًا منذ 61 إلى 90 يومًا. أعطِ التواصل أولوية وتحقق من احتياجه قبل أي استنتاج.',
+    INACTIVE: 'لم يسجل العميل طلبًا منذ أكثر من 90 يومًا. راجع سجل التعامل والتواصل قبل اقتراح إعادة التنشيط.',
+    NO_ORDER_DATE: 'لا توجد طلبات مسجلة لهذا العميل في الفترتين؛ لا يستنتج المحرك سببًا لذلك.',
+    UNKNOWN: 'لا تسمح الأدلة الحالية بتحديد فئة نشاط موثوقة.',
+  };
+
+  return (
+    <section className="panel customer-360-retention">
+      <div className="customer-360-retention-heading">
+        <div>
+          <h3>ذكاء الاحتفاظ بالعملاء</h3>
+          <p className="report-note">تحليل حتمي من سجل الطلبات داخل المؤسسة، دون أسعار أو أرصدة أو ملفات مالية. يستخدم مقارنة فترتين متساويتين وتصنيف النشاط بحسب آخر طلب موثق.</p>
+        </div>
+        <label className="customer-360-retention-period">
+          <span>فترة القياس</span>
+          <select value={periodDays} disabled={loading} onChange={event => setPeriodDays(Number(event.target.value) as 30 | 60 | 90 | 180 | 365)}>
+            <option value={30}>آخر 30 يومًا</option>
+            <option value={60}>آخر 60 يومًا</option>
+            <option value={90}>آخر 90 يومًا</option>
+            <option value={180}>آخر 180 يومًا</option>
+            <option value={365}>آخر 365 يومًا</option>
+          </select>
+        </label>
+      </div>
+
+      {loading ? <Loading /> : error ? (
+        <div className="customer-360-retention-state">
+          <ErrorBox message={error} />
+          <Button variant="secondary" onClick={() => { void reload(); }}>إعادة تحميل التحليل</Button>
+        </div>
+      ) : report ? (
+        report.status !== 'VERIFIED' ? (
+          <div className="customer-360-retention-state" role="status">
+            <strong>التصنيف محجوب لحين اكتمال الأدلة</strong>
+            <p>لم يثبت اكتمال مجتمع العملاء أو سلامة جميع سجلات الطلبات للفترة المختارة. لن يعرض التطبيق معدل احتفاظ أو تصنيف نشاط مبنيًا على عينة ناقصة.</p>
+            <small>حالة الدليل: {report.status} · التحذيرات: {report.warnings.join('، ') || 'لم يقدم المصدر سببًا تفصيليًا.'}</small>
+          </div>
+        ) : (
+          <>
+            <div className="customer-360-retention-kpis">
+              <article><span>معدل الاحتفاظ بالمجموعة السابقة</span><strong>{retentionPercent(report.retentionRate)}</strong></article>
+              <article><span>معدل تكرار الشراء</span><strong>{retentionPercent(report.repeatPurchaseRate)}</strong></article>
+              <article><span>العملاء ضمن المجتمع</span><strong>{formatNumber(report.population.total ?? 0)}</strong></article>
+              <article><span>عملاء نشطون في الفترة</span><strong>{formatNumber(report.population.activeCurrentPeriod ?? 0)}</strong></article>
+            </div>
+            <div className="customer-360-retention-activity">
+              <div className="customer-360-retention-customer">
+                <div>
+                  <span className="report-note">تصنيف هذا العميل</span>
+                  <strong>{customer ? retentionActivityLabels[activity] : 'تعذر مطابقة العميل'}</strong>
+                </div>
+                <span className="customer-360-retention-verified">الدليل مكتمل</span>
+              </div>
+              {customer ? (
+                <>
+                  <p>{followUpGuidance[activity]}</p>
+                  <div className="customer-360-retention-facts">
+                    <span>طلبات الفترة الحالية: {formatNumber(customer.orderCountCurrent ?? 0)}</span>
+                    <span>طلبات الفترة السابقة: {formatNumber(customer.orderCountPrevious ?? 0)}</span>
+                    <span>آخر طلب: {customer.lastOrderAt ? customerInteractionDate(customer.lastOrderAt) : 'لا يوجد'}</span>
+                    <span>منذ آخر طلب: {customer.daysSinceLastOrder === null ? 'غير متاح' : formatNumber(customer.daysSinceLastOrder) + ' يومًا'}</span>
+                  </div>
+                  {(activity === 'COOLING' || activity === 'AT_RISK' || activity === 'INACTIVE') && (
+                    <p className="customer-360-retention-action">الخطوة العملية: سجّل اتصالًا أو زيارة من سجل التواصل أدناه، وحدد موعد المتابعة عند الاتفاق مع العميل.</p>
+                  )}
+                </>
+              ) : (
+                <p>لم يتم العثور على سجل مطابق في نتيجة التحليل؛ لا يتم استبدال المعرف أو التخمين.</p>
+              )}
+            </div>
+            <p className="report-note">الفترة الحالية: {report.period.from} — {report.period.to} · المقارنة السابقة: {report.previousPeriod.from} — {report.previousPeriod.to} · وقت القياس: {customerInteractionDate(report.asOf)}</p>
+          </>
+        )
+      ) : null}
+    </section>
   );
 }
 
@@ -746,6 +871,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
             summary={summary}
             overdueInvoiceCount={overdueInvoiceCount}
           />
+          <Customer360RetentionInsights customerId={summary.customer.id} />
           <Customer360Interactions customerId={summary.customer.id} onHistoryState={handleInteractionHistoryState} />
         </>
       ) : null}   </div>
