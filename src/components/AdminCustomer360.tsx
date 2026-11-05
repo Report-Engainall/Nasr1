@@ -345,6 +345,13 @@ function Customer360LoadedView({
   );
 }
 
+function createCustomerInteractionIdempotencyKey(): string {
+  const randomPart = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID().replace(/-/g, '')
+    : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  return 'customer360_' + randomPart;
+}
+
 const interactionTypeLabels: Record<CustomerInteractionType, string> = {
   call: 'اتصال هاتفي',
   visit: 'زيارة',
@@ -378,6 +385,7 @@ function Customer360Interactions({
   const [subject, setSubject] = useState('');
   const [details, setDetails] = useState('');
   const [nextFollowUpAt, setNextFollowUpAt] = useState('');
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createCustomerInteractionIdempotencyKey());
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -408,6 +416,7 @@ function Customer360Interactions({
     try {
       await recordCustomerInteraction({
         customerId,
+        idempotencyKey,
         interactionType,
         subject,
         details,
@@ -416,6 +425,7 @@ function Customer360Interactions({
       setSubject('');
       setDetails('');
       setNextFollowUpAt('');
+      setIdempotencyKey(createCustomerInteractionIdempotencyKey());
       setNotice('حُفظ التواصل في سجل العميل مع هوية الموظف وسجل التدقيق، وأُنشئت مهمة المتابعة في مركز العمليات عند تحديد موعد.');
       await reload();
     } catch (cause) {
@@ -440,21 +450,21 @@ function Customer360Interactions({
       <form className="customer-360-interaction-form" onSubmit={(event) => { void submitInteraction(event); }}>
         <label>
           <span>نوع التواصل</span>
-          <select value={interactionType} disabled={saving} onChange={(event) => setInteractionType(event.target.value as CustomerInteractionType)}>
+          <select value={interactionType} disabled={saving} onChange={(event) => { setInteractionType(event.target.value as CustomerInteractionType); setIdempotencyKey(createCustomerInteractionIdempotencyKey()); }}>
             {Object.entries(interactionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
         <label>
           <span>موضوع المتابعة</span>
-          <input value={subject} maxLength={200} required disabled={saving} onChange={(event) => setSubject(event.target.value)} placeholder="مثال: متابعة عرض السعر أو موعد التسليم" />
+          <input value={subject} maxLength={200} required disabled={saving} onChange={(event) => { setSubject(event.target.value); setIdempotencyKey(createCustomerInteractionIdempotencyKey()); }} placeholder="مثال: متابعة عرض السعر أو موعد التسليم" />
         </label>
         <label className="customer-360-interaction-details">
           <span>ملخص التواصل والنتيجة</span>
-          <textarea value={details} maxLength={4000} rows={3} required disabled={saving} onChange={(event) => setDetails(event.target.value)} placeholder="اكتب ما تم التواصل بشأنه والاتفاق أو الإجراء التالي" />
+          <textarea value={details} maxLength={4000} rows={3} required disabled={saving} onChange={(event) => { setDetails(event.target.value); setIdempotencyKey(createCustomerInteractionIdempotencyKey()); }} placeholder="اكتب ما تم التواصل بشأنه والاتفاق أو الإجراء التالي" />
         </label>
         <label>
           <span>موعد المتابعة القادمة (اختياري)</span>
-          <input type="datetime-local" value={nextFollowUpAt} disabled={saving} onChange={(event) => setNextFollowUpAt(event.target.value)} />
+          <input type="datetime-local" value={nextFollowUpAt} disabled={saving} onChange={(event) => { setNextFollowUpAt(event.target.value); setIdempotencyKey(createCustomerInteractionIdempotencyKey()); }} />
         </label>
         <div className="customer-360-interaction-submit">
           <Button disabled={saving || !subject.trim() || !details.trim()}>
