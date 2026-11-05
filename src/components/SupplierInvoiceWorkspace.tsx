@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, FileText, Printer, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, FileSpreadsheet, FileText, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   fetchSupplierInvoiceWorkspace,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/supplier-invoices";
 import { projectSupplierInvoiceAccountingPrintDocument, type SupplierInvoiceAccountingPrintDocument } from "@/lib/supplier-invoice-accounting-print";
 import { SupplierInvoiceAccountingPrintSheet } from "@/components/SupplierInvoiceAccountingPrintSheet";
+import { downloadSupplierInvoiceAccountingWorkbookXlsx } from "@/lib/supplier-invoice-accounting-xlsx";
 
 type WorkspaceMode = "capture" | "review";
 type InvoiceLineDraft = { quantity: string; unitCost: string; lineTotal: string };
@@ -446,6 +447,21 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
     }
   }
 
+  function exportAccountingWorkbook() {
+    if (!selectedInvoice || !accountingStatus || accountingLoading || accountingError || mode !== "review") return;
+    try {
+      const projected = projectSupplierInvoiceAccountingPrintDocument({
+        invoice: selectedInvoice,
+        accounting: accountingStatus,
+        accounts,
+      });
+      downloadSupplierInvoiceAccountingWorkbookXlsx(projected);
+      setPrintError("");
+    } catch (cause) {
+      setPrintError(cause instanceof Error ? cause.message : "تعذر تجهيز ملف Excel لمحضر تسوية فاتورة المورد.");
+    }
+  }
+
   function printAccountingDocument() {
     if (!selectedInvoice || !accountingStatus || accountingLoading || accountingError || mode !== "review" || printDocument) return;
     if (typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") {
@@ -702,6 +718,10 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
                 <button type="button" className="btn secondary" onClick={printAccountingDocument}
                   disabled={accountingLoading || !accountingStatus || Boolean(accountingError) || Boolean(printDocument)}>
                   <Printer size={15} /> طباعة محضر المطابقة والتسوية
+                </button>
+                <button type="button" className="btn secondary" onClick={exportAccountingWorkbook}
+                  disabled={accountingLoading || !accountingStatus || Boolean(accountingError) || Boolean(printDocument)}>
+                  <FileSpreadsheet size={15} /> تنزيل محضر التسوية Excel
                 </button>
               </div>
               {printError && <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>{printError}</p>}
