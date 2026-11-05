@@ -50,7 +50,7 @@
 - Changed paths: `src/lib/intelligence/task-prioritization.ts`, `src/components/TaskCenter.tsx`.
 - New experience: role-scoped top-five "What should I do now?" action list with deterministic due/priority ordering, explanation, due date and next step; CTA opens the original task through existing filters.
 - Assignment support: manager/admin creation form suggests the eligible person with the lightest visible open workload, using explicit task/priority/overdue weights. Suggestion is opt-in; no automatic assignment. Existing server command remains the only save path.
-- Main product commits: `125a7b69477b560a7dca76324190c6e1f3b662a4`, `8151baab0415b66481f4c3c8ddca90c7b644b659`, `d7ecd3bc1226c5ae453c130b0a1145701259aeb8`, `34b9c401d87ed71d6c882a42349f491b249e1df4`.
+- Main product commits: `125a7b69477b560a7dca76324190c6e1f3b662a4`, `8151baab0415b66481f4c3c8ddca90c7b644b659`, `d7ecd3bc1226c5ae453c130b0a1145701259aeb8`, `34b9c401d87ed71d6c882a42349f491b249e1df4`, and ranking correction `263d0d83546521ee23c7df61c7eb8f55faf3d98a`.
 - Acceptance leaf `REF-ROLE-TASK-ATTENTION-001` added to the sole matrix and requirement registry; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - No tests/build/lint/typecheck/CI/browser/E2E/DB/Bolt Preview/production checks run. No PASS or runtime verification claimed.
 - No Vercel operation or credit use; no paid dependency/provider; no DB/schema/production changes.
