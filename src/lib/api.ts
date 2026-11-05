@@ -16,7 +16,7 @@ import type {
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
   OperationalTask, OperationalTaskRole, OperationalTaskStatus, OperationalTaskAssignee,
-  CustomerInteraction, CustomerInteractionType,
+  CustomerInteraction, CustomerInteractionType, CustomerInteractionFollowUpStatus,
   StorefrontAnnouncement, StorefrontAnnouncementInput, PromotionInput,
 } from './types';
 
@@ -2311,12 +2311,19 @@ function parseCustomerInteractionHistory(value: unknown): CustomerInteraction[] 
         typeof row.interaction_at !== 'string' ||
         !(typeof row.next_follow_up_at === 'string' || row.next_follow_up_at === null) ||
         typeof row.created_at !== 'string' ||
-        typeof row.recorded_by_name !== 'string') {
+        typeof row.recorded_by_name !== 'string' ||
+        !(typeof row.follow_up_task_id === 'string' || row.follow_up_task_id === null) ||
+        !(typeof row.follow_up_due_at === 'string' || row.follow_up_due_at === null) ||
+        !(typeof row.follow_up_status === 'string' || row.follow_up_status === null) ||
+        !(typeof row.follow_up_cancellation_reason === 'string' || row.follow_up_cancellation_reason === null) ||
+        !(typeof row.follow_up_updated_at === 'string' || row.follow_up_updated_at === null)) {
       throw new Error('بيانات سجل التواصل غير مكتملة؛ لم يتم عرض سجل غير موثوق.');
     }
     if (!Number.isFinite(Date.parse(row.interaction_at)) ||
         !Number.isFinite(Date.parse(row.created_at)) ||
-        (row.next_follow_up_at !== null && !Number.isFinite(Date.parse(row.next_follow_up_at)))) {
+        (row.next_follow_up_at !== null && !Number.isFinite(Date.parse(row.next_follow_up_at))) ||
+        (row.follow_up_due_at !== null && !Number.isFinite(Date.parse(row.follow_up_due_at))) ||
+        (row.follow_up_updated_at !== null && !Number.isFinite(Date.parse(row.follow_up_updated_at)))) {
       throw new Error('تواريخ سجل التواصل غير صالحة.');
     }
     return {
@@ -2328,6 +2335,14 @@ function parseCustomerInteractionHistory(value: unknown): CustomerInteraction[] 
       next_follow_up_at: row.next_follow_up_at,
       created_at: row.created_at,
       recorded_by_name: row.recorded_by_name,
+      follow_up_task_id: row.follow_up_task_id,
+      follow_up_due_at: row.follow_up_due_at,
+      follow_up_status: row.follow_up_status === null ? null :
+        (['pending','in_progress','completed','cancelled'].includes(row.follow_up_status)
+          ? row.follow_up_status as CustomerInteractionFollowUpStatus
+          : (() => { throw new Error('حالة مهمة متابعة العميل غير معروفة؛ لم يتم عرض حالة غير موثوقة.'); })()),
+      follow_up_cancellation_reason: row.follow_up_cancellation_reason,
+      follow_up_updated_at: row.follow_up_updated_at,
     };
   });
 }
@@ -2495,5 +2510,77 @@ export async function receivePurchaseOrder(input:{
     purchase_order:parsePurchaseOrder(row.purchase_order),
     receipt:{id:raw.id,receipt_number:raw.receipt_number,purchase_order_id:raw.purchase_order_id,received_at:raw.received_at},
     idempotent_replay:row.idempotent_replay===true,
+  };
+}
+
+export async function manageCustomerInteractionFollowUp(input: {
+  interactionId: string;
+  action: 'reschedule' | 'cancel';
+  idempotencyKey: string;
+  newDueAt?: string | null;
+  reason?: string | null;
+}): Promise<{
+  id: string;
+  interactionId: string;
+  taskId: string;
+  action: 'rescheduled' | 'cancelled';
+  oldDueAt: string | null;
+  newDueAt: string | null;
+  createdAt: string;
+  replayed: boolean;
+}> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(input.interactionId)) throw new Error('معرّف سجل التواصل غير صالح.');
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(input.idempotencyKey)) throw new Error('مفتاح عملية المتابعة غير صالح.');
+  if (input.action !== 'reschedule' && input.action !== 'cancel') throw new Error('إجراء المتابعة غير صالح.');
+
+  const reason = input.reason?.trim() || null;
+  let newDueAt: string | null = null;
+  if (input.action === 'reschedule') {
+    if (!input.newDueAt || !Number.isFinite(Date.parse(input.newDueAt))) {
+      throw new Error('حدد موعد متابعة جديدًا صالحًا.');
+    }
+    newDueAt = new Date(input.newDueAt).toISOString();
+    if (Date.parse(newDueAt) <= Date.now()) throw new Error('يجب أن يكون موعد المتابعة الجديد في المستقبل.');
+    if (reason && reason.length > 500) throw new Error('ملاحظة تغيير الموعد تتجاوز 500 حرف.');
+  } else {
+    if (input.newDueAt) throw new Error('لا يُرسل موعد جديد عند إلغاء المتابعة.');
+    if (!reason || reason.length > 500) throw new Error('سبب إلغاء المتابعة مطلوب وبحد أقصى 500 حرف.');
+  }
+
+  const { data, error } = await supabase.rpc('manage_customer_interaction_follow_up', {
+    p_interaction_id: input.interactionId,
+    p_action: input.action,
+    p_new_due_at: newDueAt,
+    p_reason: reason,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يرجع الخادم نتيجة موثوقة لإجراء المتابعة.');
+  }
+  const row = data as Record<string, unknown>;
+  const expectedAction = input.action === 'reschedule' ? 'rescheduled' : 'cancelled';
+  if (typeof row.id !== 'string' || !uuidPattern.test(row.id) ||
+      typeof row.interaction_id !== 'string' || row.interaction_id !== input.interactionId ||
+      typeof row.task_id !== 'string' || !uuidPattern.test(row.task_id) ||
+      row.action !== expectedAction ||
+      !(typeof row.old_due_at === 'string' || row.old_due_at === null) ||
+      !(typeof row.new_due_at === 'string' || row.new_due_at === null) ||
+      typeof row.created_at !== 'string' || !Number.isFinite(Date.parse(row.created_at)) ||
+      typeof row.replayed !== 'boolean' ||
+      (row.old_due_at !== null && !Number.isFinite(Date.parse(row.old_due_at))) ||
+      (row.new_due_at !== null && !Number.isFinite(Date.parse(row.new_due_at)))) {
+    throw new Error('استجابة الخادم لإجراء المتابعة غير مكتملة؛ لم يتم اعتماد حالة غير موثوقة.');
+  }
+  return {
+    id: row.id,
+    interactionId: row.interaction_id,
+    taskId: row.task_id,
+    action: expectedAction,
+    oldDueAt: row.old_due_at,
+    newDueAt: row.new_due_at,
+    createdAt: row.created_at,
+    replayed: row.replayed,
   };
 }
