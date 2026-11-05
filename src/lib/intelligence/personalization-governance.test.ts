@@ -209,3 +209,117 @@ describe("personalization privacy and notification policy", () => {
     }))).toMatchObject({ status: "REVIEW", reason: "PREFERENCES_INVALID" });
   });
 });
+
+
+describe("personalization signal minimization", () => {
+  const baseSignal = {
+    organizationId: "org-a",
+    profileId: "profile-a",
+    purpose: "work-dashboard",
+    verified: true,
+    requiredForPurpose: true,
+    declaredByUser: false,
+  };
+
+  it("uses only role and necessary internal work context and excludes sensitive or inferred signals", async () => {
+    const { resolvePersonalizationSignals } = await import("./personalization-governance");
+    const result = resolvePersonalizationSignals({
+      preferences: preferences(),
+      organizationId: "org-a",
+      profileId: "profile-a",
+      purpose: "work-dashboard",
+      destination: "INTERNAL" as never,
+      signals: [
+        { id: "role", kind: "WORK_ROLE", ...baseSignal },
+        { id: "workflow", kind: "ESSENTIAL_WORK_CONTEXT", ...baseSignal },
+        { id: "inferred", kind: "INFERRED_PERSONAL_TRAIT", ...baseSignal },
+        { id: "sensitive", kind: "SENSITIVE_ATTRIBUTE", ...baseSignal },
+        { id: "psych", kind: "PSYCHOLOGICAL_PROFILE", ...baseSignal },
+        { id: "customer", kind: "CUSTOMER_PERSONAL_DATA", ...baseSignal },
+        { id: "finance", kind: "FINANCIAL_RECORD", ...baseSignal },
+        { id: "tasks", kind: "SENSITIVE_TASK_LIST", ...baseSignal },
+      ],
+      asOf,
+    });
+    expect(result.status).toBe("PARTIAL");
+    expect(result.includedSignalIds).toEqual(["role", "workflow"]);
+    expect(result.withheld.map(item => item.signalId)).toEqual([
+      "inferred", "sensitive", "psych", "customer", "finance", "tasks",
+    ]);
+  });
+
+  it("includes a declared preference only when the user explicitly enabled personalization", async () => {
+    const { resolvePersonalizationSignals } = await import("./personalization-governance");
+    const signal = { id: "declared", kind: "DECLARED_PREFERENCE" as const, ...baseSignal, declaredByUser: true };
+    expect(resolvePersonalizationSignals({
+      preferences: preferences(), organizationId: "org-a", profileId: "profile-a",
+      purpose: "work-dashboard", destination: "INTERNAL", signals: [signal], asOf,
+    })).toMatchObject({ status: "UNAVAILABLE", includedSignalIds: [], withheld: [{ reason: "PERSONALIZATION_NOT_ENABLED" }] });
+    expect(resolvePersonalizationSignals({
+      preferences: preferences({ personalizationEnabled: true }), organizationId: "org-a", profileId: "profile-a",
+      purpose: "work-dashboard", destination: "INTERNAL", signals: [signal], asOf,
+    })).toMatchObject({ status: "READY", includedSignalIds: ["declared"] });
+  });
+
+  it("requires provider/model/purpose-scoped user consent before any external personalization context", async () => {
+    const { resolvePersonalizationSignals } = await import("./personalization-governance");
+    const signal = { id: "role", kind: "WORK_ROLE" as const, ...baseSignal };
+    const base = {
+      preferences: preferences({ externalProcessingEnabled: true }),
+      organizationId: "org-a", profileId: "profile-a", purpose: "work-dashboard",
+      destination: "EXTERNAL_AI" as const, provider: "gemini", model: "free-model", signals: [signal], asOf,
+    };
+    expect(resolvePersonalizationSignals(base)).toMatchObject({
+      status: "DENIED", includedSignalIds: [], reason: "EXTERNAL_CONSENT_REQUIRED",
+    });
+    const consent = {
+      id: "ai-consent-1", organizationId: "org-a", profileId: "profile-a",
+      provider: "gemini", model: "free-model", purpose: "work-dashboard",
+      signalKinds: ["WORK_ROLE"] as const, grantedAt: "2026-11-06T19:00:00.000Z",
+      revokedAt: null, consentVersion: "1", source: "EXPLICIT_USER_ACTION" as const,
+    };
+    expect(resolvePersonalizationSignals({ ...base, externalConsents: [consent] }))
+      .toMatchObject({ status: "READY", includedSignalIds: ["role"] });
+    expect(resolvePersonalizationSignals({ ...base, provider: "other", externalConsents: [consent] }))
+      .toMatchObject({ status: "DENIED", reason: "EXTERNAL_CONSENT_REQUIRED" });
+  });
+
+  it("does not export essential work context to external AI and honors a revoked AI consent", async () => {
+    const { resolvePersonalizationSignals } = await import("./personalization-governance");
+    const consent = {
+      id: "ai-consent-1", organizationId: "org-a", profileId: "profile-a",
+      provider: "gemini", model: "free-model", purpose: "work-dashboard",
+      signalKinds: ["WORK_ROLE"] as const, grantedAt: "2026-11-06T19:00:00.000Z",
+      revokedAt: null, consentVersion: "1", source: "EXPLICIT_USER_ACTION" as const,
+    };
+    const base = {
+      preferences: preferences({ externalProcessingEnabled: true }),
+      organizationId: "org-a", profileId: "profile-a", purpose: "work-dashboard",
+      destination: "EXTERNAL_AI" as const, provider: "gemini", model: "free-model",
+      externalConsents: [consent], asOf,
+    };
+    expect(resolvePersonalizationSignals({
+      ...base, signals: [{ id: "workflow", kind: "ESSENTIAL_WORK_CONTEXT", ...baseSignal }],
+    })).toMatchObject({ status: "UNAVAILABLE", withheld: [{ reason: "DISALLOWED_SIGNAL_KIND" }] });
+    expect(resolvePersonalizationSignals({
+      ...base, externalConsents: [{ ...consent, revokedAt: "2026-11-06T19:30:00.000Z" }],
+      signals: [{ id: "role", kind: "WORK_ROLE", ...baseSignal }],
+    })).toMatchObject({ status: "DENIED", reason: "EXTERNAL_CONSENT_REVOKED" });
+  });
+
+  it("rejects duplicate signal IDs and cross-tenant/profile signals", async () => {
+    const { resolvePersonalizationSignals } = await import("./personalization-governance");
+    const duplicate = { id: "duplicate", kind: "WORK_ROLE" as const, ...baseSignal };
+    expect(resolvePersonalizationSignals({
+      preferences: preferences(), organizationId: "org-a", profileId: "profile-a",
+      purpose: "work-dashboard", destination: "INTERNAL", signals: [duplicate, duplicate], asOf,
+    })).toMatchObject({ status: "UNAVAILABLE", includedSignalIds: [], withheld: [
+      { reason: "DUPLICATE_SIGNAL_ID" }, { reason: "DUPLICATE_SIGNAL_ID" },
+    ] });
+    expect(resolvePersonalizationSignals({
+      preferences: preferences(), organizationId: "org-a", profileId: "profile-a",
+      purpose: "work-dashboard", destination: "INTERNAL",
+      signals: [{ id: "foreign", kind: "WORK_ROLE", ...baseSignal, organizationId: "org-b" }], asOf,
+    })).toMatchObject({ status: "UNAVAILABLE", includedSignalIds: [], withheld: [{ reason: "SCOPE_MISMATCH" }] });
+  });
+});

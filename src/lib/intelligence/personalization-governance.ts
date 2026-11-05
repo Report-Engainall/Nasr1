@@ -378,3 +378,238 @@ export function resolveNotificationDelivery(
 
   return decision(input, "ALLOW", "ALLOWED", preferences);
 }
+
+
+export type PersonalizationSignalKind =
+  | "WORK_ROLE"
+  | "DECLARED_PREFERENCE"
+  | "ESSENTIAL_WORK_CONTEXT"
+  | "INFERRED_PERSONAL_TRAIT"
+  | "SENSITIVE_ATTRIBUTE"
+  | "PSYCHOLOGICAL_PROFILE"
+  | "CUSTOMER_PERSONAL_DATA"
+  | "FINANCIAL_RECORD"
+  | "SENSITIVE_TASK_LIST";
+
+export type ExternalPersonalizationSignalKind = "WORK_ROLE" | "DECLARED_PREFERENCE";
+
+export interface PersonalizationSignal {
+  id: string;
+  organizationId: string;
+  profileId: string;
+  purpose: string;
+  kind: PersonalizationSignalKind;
+  verified: boolean;
+  requiredForPurpose: boolean;
+  declaredByUser: boolean;
+}
+
+export interface ExternalPersonalizationConsent {
+  id: string;
+  organizationId: string;
+  profileId: string;
+  provider: string;
+  model: string;
+  purpose: string;
+  signalKinds: ExternalPersonalizationSignalKind[];
+  grantedAt: string;
+  revokedAt: string | null;
+  consentVersion: string;
+  source: "EXPLICIT_USER_ACTION";
+}
+
+export interface ResolvePersonalizationSignalsInput {
+  preferences: PersonalizationPreferences | null;
+  organizationId: string;
+  profileId: string;
+  purpose: string;
+  destination: "INTERNAL" | "EXTERNAL_AI";
+  provider?: string;
+  model?: string;
+  externalConsents?: ExternalPersonalizationConsent[];
+  signals: PersonalizationSignal[];
+  asOf: string;
+}
+
+export interface PersonalizationSignalsResult {
+  status: "READY" | "PARTIAL" | "UNAVAILABLE" | "DENIED" | "REVIEW";
+  includedSignalIds: string[];
+  withheld: Array<{
+    signalId: string;
+    reason:
+      | "DUPLICATE_SIGNAL_ID"
+      | "SCOPE_MISMATCH"
+      | "PURPOSE_MISMATCH"
+      | "SIGNAL_NOT_VERIFIED"
+      | "NOT_REQUIRED_FOR_PURPOSE"
+      | "USER_DECLARATION_REQUIRED"
+      | "PERSONALIZATION_NOT_ENABLED"
+      | "EXTERNAL_PROCESSING_DISABLED"
+      | "EXTERNAL_CONSENT_REQUIRED"
+      | "EXTERNAL_CONSENT_SCOPE_MISMATCH"
+      | "EXTERNAL_CONSENT_REVOKED"
+      | "EXTERNAL_CONSENT_AMBIGUOUS"
+      | "EXTERNAL_CONSENT_INVALID"
+      | "DISALLOWED_SIGNAL_KIND";
+  }>;
+  reason: "READY" | "INVALID_INPUT" | "PREFERENCES_NOT_LOADED" | "PREFERENCES_INVALID" |
+    "PREFERENCES_SCOPE_MISMATCH" | "EXTERNAL_PROCESSING_DISABLED" |
+    "EXTERNAL_CONSENT_REQUIRED" | "EXTERNAL_CONSENT_AMBIGUOUS" |
+    "EXTERNAL_CONSENT_INVALID" | "EXTERNAL_CONSENT_REVOKED";
+}
+
+function validateExternalPersonalizationConsent(
+  input: ResolvePersonalizationSignalsInput,
+): { status: "ALLOW" } | {
+  status: "DENY" | "REVIEW";
+  reason: PersonalizationSignalsResult["reason"];
+  consent?: ExternalPersonalizationConsent;
+} {
+  if (!input.preferences?.externalProcessingEnabled) {
+    return { status: "DENY", reason: "EXTERNAL_PROCESSING_DISABLED" };
+  }
+  if (!isNonEmptyString(input.provider) || !isNonEmptyString(input.model)) {
+    return { status: "REVIEW", reason: "EXTERNAL_CONSENT_INVALID" };
+  }
+
+  const matches = (input.externalConsents ?? []).filter(consent =>
+    consent.organizationId === input.organizationId &&
+    consent.profileId === input.profileId &&
+    consent.provider === input.provider &&
+    consent.model === input.model &&
+    consent.purpose === input.purpose,
+  );
+
+  if (matches.length === 0) return { status: "DENY", reason: "EXTERNAL_CONSENT_REQUIRED" };
+  if (matches.length !== 1) return { status: "REVIEW", reason: "EXTERNAL_CONSENT_AMBIGUOUS" };
+
+  const consent = matches[0];
+  if (!isNonEmptyString(consent.id) || !isNonEmptyString(consent.consentVersion) ||
+      consent.source !== "EXPLICIT_USER_ACTION" ||
+      !Array.isArray(consent.signalKinds) ||
+      consent.signalKinds.some(kind => kind !== "WORK_ROLE" && kind !== "DECLARED_PREFERENCE") ||
+      !isNonEmptyString(consent.grantedAt) || !Number.isFinite(Date.parse(consent.grantedAt)) ||
+      Date.parse(consent.grantedAt) > Date.parse(input.asOf) ||
+      (consent.revokedAt !== null &&
+        (!isNonEmptyString(consent.revokedAt) || !Number.isFinite(Date.parse(consent.revokedAt))))) {
+    return { status: "REVIEW", reason: "EXTERNAL_CONSENT_INVALID" };
+  }
+
+  if (consent.revokedAt !== null && Date.parse(consent.revokedAt) <= Date.parse(input.asOf)) {
+    return { status: "DENY", reason: "EXTERNAL_CONSENT_REVOKED" };
+  }
+
+  return { status: "ALLOW", reason: "READY", consent };
+}
+
+/**
+ * Projects only signal identifiers. Values are intentionally not accepted or returned,
+ * so callers can select the approved source records without passing a mixed payload.
+ */
+export function resolvePersonalizationSignals(
+  input: ResolvePersonalizationSignalsInput,
+): PersonalizationSignalsResult {
+  if (!Number.isFinite(Date.parse(input.asOf)) ||
+      !isNonEmptyString(input.organizationId) ||
+      !isNonEmptyString(input.profileId) ||
+      !isNonEmptyString(input.purpose) ||
+      !Array.isArray(input.signals) ||
+      (input.destination !== "INTERNAL" && input.destination !== "EXTERNAL_AI")) {
+    return {
+      status: "REVIEW", includedSignalIds: [], withheld: [], reason: "INVALID_INPUT",
+    };
+  }
+
+  if (input.preferences === null) {
+    return {
+      status: "REVIEW", includedSignalIds: [], withheld: [], reason: "PREFERENCES_NOT_LOADED",
+    };
+  }
+  if (!validatePreferences(input.preferences, input.asOf)) {
+    return {
+      status: "REVIEW", includedSignalIds: [], withheld: [], reason: "PREFERENCES_INVALID",
+    };
+  }
+  if (input.preferences.organizationId !== input.organizationId ||
+      input.preferences.profileId !== input.profileId) {
+    return {
+      status: "DENIED", includedSignalIds: [], withheld: [], reason: "PREFERENCES_SCOPE_MISMATCH",
+    };
+  }
+
+  let externalConsent: ExternalPersonalizationConsent | null = null;
+  if (input.destination === "EXTERNAL_AI") {
+    const consentResult = validateExternalPersonalizationConsent(input);
+    if (consentResult.status !== "ALLOW") {
+      const reason = consentResult.reason;
+      return {
+        status: consentResult.status === "DENY" ? "DENIED" : "REVIEW",
+        includedSignalIds: [],
+        withheld: input.signals.map(signal => ({
+          signalId: isNonEmptyString(signal?.id) ? signal.id : "UNKNOWN",
+          reason: reason === "EXTERNAL_PROCESSING_DISABLED" ? "EXTERNAL_PROCESSING_DISABLED" :
+            reason === "EXTERNAL_CONSENT_AMBIGUOUS" ? "EXTERNAL_CONSENT_AMBIGUOUS" :
+            reason === "EXTERNAL_CONSENT_INVALID" ? "EXTERNAL_CONSENT_INVALID" :
+            reason === "EXTERNAL_CONSENT_REVOKED" ? "EXTERNAL_CONSENT_REVOKED" :
+            "EXTERNAL_CONSENT_REQUIRED",
+        })),
+        reason,
+      };
+    }
+    externalConsent = consentResult.consent ?? null;
+  }
+
+  const counts = new Map<string, number>();
+  for (const signal of input.signals) {
+    if (isNonEmptyString(signal?.id)) counts.set(signal.id, (counts.get(signal.id) ?? 0) + 1);
+  }
+
+  const includedSignalIds: string[] = [];
+  const withheld: PersonalizationSignalsResult["withheld"] = [];
+
+  for (const signal of input.signals) {
+    const id = isNonEmptyString(signal?.id) ? signal.id : "UNKNOWN";
+    let reason: PersonalizationSignalsResult["withheld"][number]["reason"] | null = null;
+
+    if (!isNonEmptyString(signal?.id) || (counts.get(id) ?? 0) !== 1) {
+      reason = "DUPLICATE_SIGNAL_ID";
+    } else if (signal.organizationId !== input.organizationId || signal.profileId !== input.profileId) {
+      reason = "SCOPE_MISMATCH";
+    } else if (signal.purpose !== input.purpose) {
+      reason = "PURPOSE_MISMATCH";
+    } else if (signal.verified !== true) {
+      reason = "SIGNAL_NOT_VERIFIED";
+    } else if (signal.requiredForPurpose !== true) {
+      reason = "NOT_REQUIRED_FOR_PURPOSE";
+    } else if (signal.kind === "WORK_ROLE") {
+      if (input.destination === "EXTERNAL_AI" &&
+          !externalConsent?.signalKinds.includes("WORK_ROLE")) {
+        reason = "EXTERNAL_CONSENT_SCOPE_MISMATCH";
+      }
+    } else if (signal.kind === "ESSENTIAL_WORK_CONTEXT") {
+      if (input.destination === "EXTERNAL_AI") reason = "DISALLOWED_SIGNAL_KIND";
+    } else if (signal.kind === "DECLARED_PREFERENCE") {
+      if (signal.declaredByUser !== true) reason = "USER_DECLARATION_REQUIRED";
+      else if (!input.preferences.personalizationEnabled) reason = "PERSONALIZATION_NOT_ENABLED";
+      else if (input.destination === "EXTERNAL_AI" &&
+          !externalConsent?.signalKinds.includes("DECLARED_PREFERENCE")) {
+        reason = "EXTERNAL_CONSENT_SCOPE_MISMATCH";
+      }
+    } else {
+      reason = "DISALLOWED_SIGNAL_KIND";
+    }
+
+    if (reason) withheld.push({ signalId: id, reason });
+    else includedSignalIds.push(id);
+  }
+
+  const status = includedSignalIds.length === 0
+    ? "UNAVAILABLE"
+    : withheld.length > 0 ? "PARTIAL" : "READY";
+  return {
+    status,
+    includedSignalIds,
+    withheld,
+    reason: status === "READY" ? "READY" : "INVALID_INPUT",
+  };
+}
