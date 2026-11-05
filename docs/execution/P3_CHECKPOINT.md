@@ -1,3 +1,21 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (EXPECTED COLLECTIONS INTENT)
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent SHA: `96a8bcae7e4178bcc1732243b3d2480c09cd4ba8`. This adds a read-only natural-language view over the existing finance aggregate client; P1 workspace/routes and database migrations are untouched.
+- Added `EXPECTED_CUSTOMER_COLLECTIONS` Arabic intent with bounded future horizons of 7/30/90 days (30 default). Past ranges, free-form dates, and unsupported calendar windows are rejected.
+- Reuses `createCashflowScheduleRequest` and `fetchCashflowSchedule` on the existing `get_intelligence_aggregate` SECURITY DEFINER RPC. The source resolves active organization server-side and requires `can_manage_finance()`. It schedules issued/partially-paid customer invoices net of recorded same-tenant payments; any outstanding invoice without a due date or valid currency makes the source PARTIAL and withholds the complete schedule.
+- The assistant independently requires the top-level and schedule statuses to be OK/VERIFIED/COMPLETE/ACCEPTABLE, every entry amount verified, and per-currency schedule sums to match the source's formula-backed `cashflow.expected_collections` metric within 0.01. It keeps currencies separate, exposes invoice counts and currency totals only, and never calls the result liquidity, cash balance, probability forecast, or supplier payables.
+- Changed paths:
+  - `src/lib/intelligence/natural-language-assistant.ts`
+  - `src/lib/intelligence/natural-language-assistant-client.ts`
+  - `src/components/intelligence/NaturalLanguageAssistant.tsx`
+  - `docs/execution/P3_CHECKPOINT.md`
+- P1 handoff remains the same: mount the single exported assistant in the existing workspace; no P1 component was edited.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/E2E/RPC/Bolt/Preview/provider/Vercel/production operation was run.
+- Cost/safety: no paid provider/dependency, quota, secret, Vercel spend, customer identifiers in the assistant answer, financial write, invoice update, payment, or ledger entry.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (PROCESS BOTTLENECK INTENT)
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

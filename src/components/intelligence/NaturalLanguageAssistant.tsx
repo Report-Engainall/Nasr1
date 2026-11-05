@@ -6,6 +6,8 @@ const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
 function count(value:number|null):string{return value===null?"غير متاح":qty.format(value);}
 function percent(value:number|null):string{return value===null?"غير متاح":rate.format(value)+"%";}
+const money=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:2});
+function collectionsCurrency(amount:number,currency:string):string{return money.format(amount)+" "+currency;}
 function processLabel(key:"ORDERS"|"QUOTES"|"PURCHASE"|"INVOICES"|"TASKS"):string {
  return ({ORDERS:"الطلبات",QUOTES:"عروض الأسعار",PURCHASE:"المشتريات",INVOICES:"الفواتير",TASKS:"المهام"} as const)[key];
 }
@@ -55,7 +57,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات ضمن نوافذ محددة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -87,6 +89,23 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     {invoice.reviewReason?<p className="mt-1 text-xs">سبب المراجعة: {invoice.reviewReason}</p>:null}
     {onOpenSupplierInvoice?<button type="button" onClick={()=>onOpenSupplierInvoice(invoice.invoiceId)} className="mt-2 rounded-lg border px-3 py-1.5 text-xs">فتح الفاتورة</button>:null}
    </article>)}
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="EXPECTED_COLLECTIONS"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2"><strong>التحصيلات المستحقة المجدولة</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="READY"?"تغطية موثقة":response.result.state==="PARTIAL"?"الإجماليات محجوبة":"لا توجد استحقاقات"}</span></div>
+    <p className="mt-2 font-medium">{response.result.answer}</p>
+    <p className="mt-2 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · كما في {response.result.asOf} · الفترة: {response.result.period.from} — {response.result.period.to} · فواتير: {count(response.result.invoiceCount)}</p>
+   </div>
+   {response.result.completeSchedule&&response.result.currencies.length?<div className="grid gap-2 sm:grid-cols-2">
+    {response.result.currencies.map(item=><article key={item.currency} className="rounded-lg border p-3 text-sm">
+     <p className="text-xs text-muted-foreground">العملة {item.currency}</p>
+     <strong className="text-lg">{collectionsCurrency(item.amount,item.currency)}</strong>
+     <p className="text-xs text-muted-foreground">{count(item.invoiceCount)} فاتورة مستحقة</p>
+    </article>)}
+   </div>:null}
+   {response.result.warnings.length?<div role="status" className="rounded-lg border p-3 text-xs"><strong>تنبيهات المصدر</strong><ul className="mt-1 list-disc space-y-1 ps-5">{response.result.warnings.slice(0,10).map(warning=><li key={warning}>{warning}</li>)}</ul></div>:null}
+   <p className="text-xs text-muted-foreground">الأرقام أرصدة فواتير عملاء مستحقة بعد خصم الدفعات المسجلة، مع إبقاء العملات منفصلة. ليست توقعاً لاحتمال التحصيل أو صافي السيولة، ولا تشمل التزامات الموردين.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="PROCESS_BOTTLENECK"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">

@@ -4,10 +4,11 @@ import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import { fetchSupplierPerformance } from "./supplier-performance-client";
 import { createInventoryIntelligencePeriod,fetchInventoryIntelligence } from "./inventory-intelligence-client";
 import { fetchProcessBottlenecks } from "./process-bottlenecks-client";
+import { createCashflowScheduleRequest,fetchCashflowSchedule } from "./cashflow-schedule-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -24,6 +25,12 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="get_intelligence_aggregate"){
+   const request=createCashflowScheduleRequest({horizonDays:plan.horizonDays??30});
+   const schedule=await fetchCashflowSchedule(request);
+   if(!schedule.ok)return {status:schedule.status,message:schedule.message};
+   return {status:"RESULT",plan,result:resolveExpectedCollectionsIntent(schedule.data)};
+  }
   if(plan.sourceRpc==="fetch_process_bottleneck_snapshot"){
    const to=new Date().toISOString().slice(0,10);
    const days=plan.periodDays??30;

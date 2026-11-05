@@ -4,16 +4,18 @@ import type { SupplierPerformanceResult } from "./supplier-performance";
 import type { DeadStockReport } from "./dead-stock";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import type { ProcessBottleneckResult } from "./process-bottlenecks";
+import type { CashflowScheduleSnapshot } from "./cashflow-schedule-client";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
 export type SupplierPerformanceIntent="SUPPLIER_PERFORMANCE_OVERVIEW"|"SUPPLIER_DELIVERY_ADHERENCE";
 export type InventoryIntent="DEAD_STOCK_OVERVIEW"|"REPLENISHMENT_OVERVIEW";
 export type ProcessBottleneckIntent="PROCESS_BOTTLENECK_OVERVIEW";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot";
+export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ExpectedCollectionsIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"get_intelligence_aggregate";
 export type NaturalLanguagePlanResult=
- |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365}
+ |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
 function normalizeArabic(value:string):string {
  return value.normalize("NFKC").replace(/[\u064B-\u065F\u0670\u0640]/g,"")
@@ -26,6 +28,19 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   status:"CLARIFICATION",normalizedQuestion,explanation:"اكتب سؤالاً واضحاً لا يتجاوز 400 حرف.",
   clarification:"ما السجلات التي تريد الاستعلام عنها؟"
  };
+ const expectedCollectionsQuestion=/(التحصيلات المستحقه|التحصيلات المتوقعه|مستحقات العملاء|فواتير مستحقه|المبالغ المستحقه للتحصيل|مبالغ التحصيل المجدوله|التحصيل المجدول)/.test(normalizedQuestion);
+ if(expectedCollectionsQuestion){
+  const dayMatch=normalizedQuestion.match(/(?:خلال\s*)?(7|30|90)\s*(?:يوما?|ايام)/);
+  const hasPastWindow=/(اخر|الماضي|الماضيه|السابقة|السابقه|قبل)/.test(normalizedQuestion);
+  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر|من تاريخ|بين تاريخ|الفتره|الربع|القادمه|المقبله)/.test(normalizedQuestion)||/20\d{2}-\d{2}-\d{2}/.test(normalizedQuestion);
+  if(hasPastWindow||hasTimeConstraint&&!dayMatch)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"مصدر التحصيلات يعرض الاستحقاقات المستقبلية فقط ضمن 7 أو 30 أو 90 يوماً؛ لا يطبق نطاقاً ماضياً أو تاريخاً حراً."
+  };
+  const horizonDays=(dayMatch?Number(dayMatch[1]):30) as 7|30|90;
+  return {status:"READY",intent:"EXPECTED_CUSTOMER_COLLECTIONS",normalizedQuestion,sourceRpc:"get_intelligence_aggregate",horizonDays,
+   filterDescription:"فواتير العملاء الصادرة وغير المسددة بالكامل حسب تاريخ الاستحقاق المستقبلي؛ مجموع مستقل لكل عملة، مع دليل الفاتورة والمدفوعات المسجلة."};
+ }
  const processBottleneckQuestion=/(اختناق|اختناقات|زمن العمليات|زمن دوره العمليه|دوره العمليات|عنق الزجاجه|بطء العمليات|بطء الاجراءات)/.test(normalizedQuestion);
  if(processBottleneckQuestion){
   const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90)\s*(?:يوما?|ايام)/);
@@ -192,7 +207,14 @@ export interface NaturalLanguageProcessBottleneckResult {
  sourceCoverage:Array<{key:"ORDERS"|"QUOTES"|"PURCHASE"|"INVOICES"|"TASKS";status:"VERIFIED"|"UNAVAILABLE";sampleCount:number|null;message:string}>;
  reopenedTasks:number|null;withheldReasons:string[];
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult;
+export interface NaturalLanguageExpectedCollectionsResult {
+ kind:"EXPECTED_COLLECTIONS";state:"READY"|"PARTIAL"|"EMPTY";intent:ExpectedCollectionsIntent;
+ answer:string;sourceRpc:"get_intelligence_aggregate";asOf:string;period:{from:string;to:string};
+ invoiceCount:number|null;completeSchedule:boolean;
+ currencies:Array<{currency:string;amount:number;invoiceCount:number}>;
+ warnings:string[];
+}
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageExpectedCollectionsResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -431,5 +453,52 @@ export function resolveProcessBottlenecksIntent(
   baselinePeriod:result.baselinePeriod?{from:result.baselinePeriod.from,to:result.baselinePeriod.to}:null,
   findings,comparisons,sourceCoverage,reopenedTasks:result.reopenedTasks,
   withheldReasons:[...result.withheldReasons],
+ };
+}
+
+
+/** Sums only fully verified scheduled customer receivables and keeps each currency independent. */
+export function resolveExpectedCollectionsIntent(
+ data:CashflowScheduleSnapshot,
+):NaturalLanguageExpectedCollectionsResult {
+ const grouped=new Map<string,{amount:number;invoiceCount:number}>();
+ let valid=data.status==="OK"&&data.completeness==="COMPLETE"&&data.quality==="ACCEPTABLE"&&
+  data.schedule.status==="VERIFIED"&&data.schedule.completeness==="COMPLETE"&&data.schedule.quality==="ACCEPTABLE"&&
+  !data.warnings.includes("MEASUREMENT_METRIC_WITHHELD");
+ for(const entry of data.schedule.entries){
+  if(entry.direction!=="INFLOW"||entry.amount.status!=="VERIFIED"||entry.amount.completeness!=="COMPLETE"||
+   entry.amount.quality!=="ACCEPTABLE"||!Number.isFinite(entry.amount.value)||entry.amount.value<0||
+   entry.dueDate<data.period.from||entry.dueDate>data.period.to){valid=false;continue;}
+  const group=grouped.get(entry.amount.currency)??{amount:0,invoiceCount:0};
+  group.amount+=entry.amount.value;group.invoiceCount+=1;
+  if(!Number.isFinite(group.amount)||Math.abs(group.amount)>Number.MAX_SAFE_INTEGER)valid=false;
+  grouped.set(entry.amount.currency,group);
+ }
+ const proofByCurrency=new Map(data.measurementMetrics.map(metric=>[metric.currency,metric]));
+ if(grouped.size!==data.measurementMetrics.length)valid=false;
+ for(const [currency,group] of grouped){
+  const proof=proofByCurrency.get(currency);
+  if(!proof||proof.status!=="VERIFIED"||proof.completeness!=="COMPLETE"||proof.quality!=="ACCEPTABLE"||
+   proof.asOf!==data.asOf||proof.period.from!==data.period.from||proof.period.to!==data.period.to||
+   proof.formulaId!=="nasr1.receivables-outstanding"||proof.formulaVersion!=="1"||
+   Math.abs(group.amount-proof.value)>0.01)valid=false;
+ }
+ const warnings=[...new Set(data.warnings)];
+ const completeSchedule=valid;
+ const currencies=valid?[...grouped.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([currency,group])=>({
+  currency,amount:Number(group.amount.toFixed(2)),invoiceCount:group.invoiceCount,
+ })):[]; 
+ const state=!valid?"PARTIAL":data.schedule.entries.length===0?"EMPTY":"READY";
+ const invoiceCount=valid?data.schedule.entries.length:null;
+ const totalCurrencies=currencies.length;
+ const answer=!valid
+  ?"مصدر الاستحقاقات أو أدلة المبالغ غير مكتملة؛ حُجبت جميع الإجماليات ولم تُعرض أرقام جزئية على أنها نهائية."
+  :data.schedule.entries.length===0
+   ?"لا توجد فواتير عملاء مستحقة ضمن نافذة "+data.period.from+" إلى "+data.period.to+"."
+   ?"توجد "+invoiceCount+" فاتورة مستحقة للتحصيل ضمن "+totalCurrencies+" عملة في الفترة "+data.period.from+" إلى "+data.period.to+". المبالغ هي أرصدة فواتير بعد طرح الدفعات المسجلة، وليست توقعاً لاحتمال التحصيل.";
+ return {
+  kind:"EXPECTED_COLLECTIONS",state,intent:"EXPECTED_CUSTOMER_COLLECTIONS",answer,
+  sourceRpc:"get_intelligence_aggregate",asOf:data.asOf,period:data.period,invoiceCount,
+  completeSchedule,currencies,warnings,
  };
 }
