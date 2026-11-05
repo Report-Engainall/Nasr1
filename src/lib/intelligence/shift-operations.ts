@@ -103,6 +103,10 @@ export interface ShiftHandoverSnapshot {
 
 export interface ShiftHandoverResult {
   state: "NOT_REQUIRED" | "ACCEPTED" | "PENDING" | "UNKNOWN";
+  outgoingOwnerProfileId: string | null;
+  incomingOwnerProfileId: string | null;
+  recordedAt: string | null;
+  acceptedAt: string | null;
   reason: string | null;
   note: string | null;
   openItemRefs: string[];
@@ -546,7 +550,10 @@ function buildHandover(
   index: Map<string, EvidenceRecord>,
 ): ShiftHandoverResult {
   const value = snapshot.handover;
-  if (!value.required) return { state: "NOT_REQUIRED", reason: null, note: null, openItemRefs: [], evidenceIds: [] };
+  if (!value.required) return {
+    state: "NOT_REQUIRED", outgoingOwnerProfileId: null, incomingOwnerProfileId: null,
+    recordedAt: null, acceptedAt: null, reason: null, note: null, openItemRefs: [], evidenceIds: [],
+  };
   const coverage = coverageFor(snapshot, "HANDOVER");
   if (!sourceCoverageReady(coverage, snapshot, index) || !value.recordedAt ||
       Date.parse(value.recordedAt) > Date.parse(snapshot.asOf) ||
@@ -554,21 +561,29 @@ function buildHandover(
       !verifiedEvidence(value.evidenceIds, index, snapshot.asOf, coverage?.period ?? null) ||
       value.openItemRefs.some(ref => !rows.some(item => item.sourceRef === ref && item.state !== "UNKNOWN" && item.state !== "RESOLVED"))) {
     return {
-      state: "UNKNOWN", reason: "لم يكتمل إثبات سجل التسليم أو مرجع أحد العناصر المرحّلة.",
+      state: "UNKNOWN", outgoingOwnerProfileId: null, incomingOwnerProfileId: null,
+      recordedAt: null, acceptedAt: null,
+      reason: "لم يكتمل إثبات سجل التسليم أو مرجع أحد العناصر المرحّلة.",
       note: null, openItemRefs: [], evidenceIds: [],
     };
   }
   if (!value.acceptedAt) return {
-    state: "PENDING", reason: value.reason ?? "سُجل التسليم ولم يُسجل قبول المستلم بعد.",
+    state: "PENDING", outgoingOwnerProfileId: value.outgoingOwnerProfileId,
+    incomingOwnerProfileId: value.incomingOwnerProfileId, recordedAt: value.recordedAt,
+    acceptedAt: null, reason: value.reason ?? "سُجل التسليم ولم يُسجل قبول المستلم بعد.",
     note: value.note, openItemRefs: value.openItemRefs, evidenceIds: value.evidenceIds,
   };
   if (!timestamp(value.acceptedAt) || Date.parse(value.acceptedAt) < Date.parse(value.recordedAt) ||
       Date.parse(value.acceptedAt) > Date.parse(snapshot.asOf)) return {
-    state: "UNKNOWN", reason: "توقيت قبول التسليم خارج نطاق اللقطة أو يسبق تسجيله.",
+    state: "UNKNOWN", outgoingOwnerProfileId: null, incomingOwnerProfileId: null,
+    recordedAt: null, acceptedAt: null,
+    reason: "توقيت قبول التسليم خارج نطاق اللقطة أو يسبق تسجيله.",
     note: null, openItemRefs: [], evidenceIds: [],
   };
   return {
-    state: "ACCEPTED", reason: value.reason, note: value.note,
+    state: "ACCEPTED", outgoingOwnerProfileId: value.outgoingOwnerProfileId,
+    incomingOwnerProfileId: value.incomingOwnerProfileId, recordedAt: value.recordedAt,
+    acceptedAt: value.acceptedAt, reason: value.reason, note: value.note,
     openItemRefs: value.openItemRefs, evidenceIds: value.evidenceIds,
   };
 }

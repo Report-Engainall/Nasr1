@@ -149,7 +149,7 @@ export function ShiftOperationsCenter({
         <p className="text-xs text-muted-foreground">{result.shiftLabel} · {result.businessDate} · {result.organizationTimeZone}</p>
         <p className="text-xs text-muted-foreground">آخر قراءة للمصادر: {result.asOf} · تم إنشاء العرض: {result.generatedAt}</p>
       </div>
-      <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={()=>window.print()}>
+      <button type="button" className="rounded-lg border px-3 py-2 text-sm print:hidden" onClick={()=>window.print()}>
         طباعة تقرير الوردية
       </button>
     </header>
@@ -189,6 +189,10 @@ export function ShiftOperationsCenter({
       {result.handover.state==="NOT_REQUIRED"?<p className="text-sm">لا توجد وردية سابقة مطلوبة للتسليم.</p>:
         <article className="rounded-lg border p-3 space-y-2">
           <p className="text-sm font-semibold">{result.handover.state==="ACCEPTED"?"تم قبول التسليم":result.handover.state==="PENDING"?"بانتظار قبول التسليم":"التسليم غير متحقق"}</p>
+          {result.handover.recordedAt?<p className="text-xs text-muted-foreground">وقت تسجيل التسليم: {result.handover.recordedAt}</p>:null}
+          {result.handover.acceptedAt?<p className="text-xs text-muted-foreground">وقت قبول المستلم: {result.handover.acceptedAt}</p>:null}
+          {result.handover.outgoingOwnerProfileId?<p className="text-xs text-muted-foreground">المسؤول السابق: ملف مستخدم موثق</p>:null}
+          {result.handover.incomingOwnerProfileId?<p className="text-xs text-muted-foreground">المسؤول المستلم: ملف مستخدم موثق</p>:null}
           {result.handover.reason?<p className="text-sm text-muted-foreground">{result.handover.reason}</p>:null}
           {result.handover.openItemRefs.length?<div><p className="text-xs">العناصر المرحّلة للوردية الحالية: {result.handover.openItemRefs.length}</p><ul className="list-disc ps-5 text-xs">{result.handover.openItemRefs.map(ref=><li key={ref} dir="ltr">{ref}</li>)}</ul></div>:null}
           {result.handover.note?<p className="text-sm">{result.handover.note}</p>:null}

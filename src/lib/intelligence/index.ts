@@ -18,3 +18,4 @@ export * from "./business-health-map";
 export * from "./customer-retention-client";
 export * from "./decision-memory";
 export * from "./shift-operations";
+export * from "./shift-operations-client";
