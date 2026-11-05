@@ -24,7 +24,7 @@ const dateText = (value: string | null) => {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("ar-YE");
 };
 
-export function SupplierAccountActivityWorkspace() {
+export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKey?: number }) {
   const { user } = useAuth();
   const canManageFinance = Boolean(user?.roles.some((role) =>
     role === "admin" || role === "manager" || role === "accountant"
@@ -49,7 +49,7 @@ export function SupplierAccountActivityWorkspace() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل حركة حسابات الموردين.");
     } finally { setLoading(false); }
-  }, [canManageFinance, from, to, page]);
+  }, [canManageFinance, from, to, page, refreshKey]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -80,7 +80,7 @@ export function SupplierAccountActivityWorkspace() {
         <div>
           <h3 style={{ margin: 0 }}><BookOpen size={18} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} /> كشف حركة حسابات الموردين</h3>
           <p style={{ ...mutedStyle, margin: "5px 0 0" }}>
-            حركة دفترية حسب المستندات المرحلة المرتبطة بالمورد؛ لا تمثل كشف سداد أو رصيدًا نهائيًا مستحقًا.
+            كشف مترابط للاستلامات وإشعارات الدائن ودفعات المورد المرحلة. الدفعات المحجوزة تظهر منفصلة ولا تُخصم من المستحق النهائي قبل ترحيل القيد.
           </p>
         </div>
         <button className="btn secondary" type="button" onClick={() => void load()} disabled={loading}>
@@ -121,6 +121,9 @@ export function SupplierAccountActivityWorkspace() {
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={mutedStyle}>مدين — يخفض الالتزام</span><strong>{amountText(item.debitTotal, item.currency)}</strong></div>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={mutedStyle}>دائن — يزيد الالتزام</span><strong>{amountText(item.creditTotal, item.currency)}</strong></div>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, borderTop: "1px solid var(--border, #e3e9ec)", paddingTop: 6 }}><span style={mutedStyle}>صافي الحركة الدفترية</span><strong>{signedAmountText(item.netCreditMovement, item.currency)}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={mutedStyle}>دفعات محجوزة غير مرحلة</span><strong>{item.pendingPaymentAmount == null ? "—" : amountText(item.pendingPaymentAmount, item.currency)}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={mutedStyle}>المتاح لتخصيص دفعة جديدة</span><strong>{item.availableToAllocate == null ? "—" : amountText(item.availableToAllocate, item.currency)}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, borderTop: "1px solid var(--border, #e3e9ec)", paddingTop: 6 }}><span style={mutedStyle}>المستحق النهائي</span><strong>{item.balanceComplete === true && item.remainingPayable != null ? amountText(item.remainingPayable, item.currency) : "غير معروف — تغطية المصدر غير مكتملة"}</strong></div>
                   </article>
                 ))}
               </div>}
@@ -130,10 +133,11 @@ export function SupplierAccountActivityWorkspace() {
             <strong>ملخص المورد حسب العملة</strong>
             {suppliers.length === 0 ? <p style={mutedStyle}>لا توجد بيانات مصدرية لموردين ضمن الفترة.</p> :
               <div style={{ overflowX: "auto", border: "1px solid var(--border, #e3e9ec)", borderRadius: 10 }}>
-                <table style={{ width: "100%", minWidth: 720, borderCollapse: "collapse", textAlign: "right", fontSize: 13 }}>
+                <table style={{ width: "100%", minWidth: 1040, borderCollapse: "collapse", textAlign: "right", fontSize: 13 }}>
                   <thead><tr style={{ background: "var(--muted, #f4f7f8)" }}>
                     <th style={thStyle}>المورد</th><th style={thStyle}>العملة</th><th style={thStyle}>الحركات</th>
-                    <th style={thStyle}>مدين</th><th style={thStyle}>دائن</th><th style={thStyle}>صافي الحركة</th><th style={thStyle}>آخر حركة</th>
+                    <th style={thStyle}>مدين</th><th style={thStyle}>دائن</th><th style={thStyle}>صافي الحركة</th>
+                    <th style={thStyle}>محجوز غير مرحّل</th><th style={thStyle}>المتاح للتخصيص</th><th style={thStyle}>المستحق النهائي</th><th style={thStyle}>آخر حركة</th>
                   </tr></thead>
                   <tbody>{suppliers.map((supplier) => (
                     <tr key={supplier.supplierId + ":" + supplier.currency} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}>
@@ -143,6 +147,9 @@ export function SupplierAccountActivityWorkspace() {
                       <td style={tdStyle}>{amountText(supplier.debitTotal, supplier.currency)}</td>
                       <td style={tdStyle}>{amountText(supplier.creditTotal, supplier.currency)}</td>
                       <td style={tdStyle}><strong>{signedAmountText(supplier.netCreditMovement, supplier.currency)}</strong></td>
+                      <td style={tdStyle}>{supplier.pendingPaymentAmount == null ? "—" : amountText(supplier.pendingPaymentAmount, supplier.currency)}</td>
+                      <td style={tdStyle}>{supplier.availableToAllocate == null ? "—" : amountText(supplier.availableToAllocate, supplier.currency)}</td>
+                      <td style={tdStyle}><strong>{supplier.balanceComplete === true && supplier.remainingPayable != null ? amountText(supplier.remainingPayable, supplier.currency) : "غير معروف — تغطية المصدر غير مكتملة"}</strong></td>
                       <td style={tdStyle}>{dateText(supplier.lastActivityDate)}</td>
                     </tr>
                   ))}</tbody>
@@ -170,7 +177,11 @@ export function SupplierAccountActivityWorkspace() {
                       <td style={tdStyle}>{entry.payableAccountCode} — {entry.payableAccountName}</td>
                       <td style={tdStyle}>{amountText(entry.debit, entry.currency)}</td>
                       <td style={tdStyle}>{amountText(entry.credit, entry.currency)}</td>
-                      <td style={tdStyle}>{entry.sourceType === "purchase_receipt" ? "استلام — زيادة دائن المورد" : "إشعار دائن — تخفيض دائن المورد"}</td>
+                      <td style={tdStyle}>{entry.sourceType === "purchase_receipt"
+                        ? "استلام — زيادة دائن المورد"
+                        : entry.sourceType === "purchase_supplier_credit_note"
+                          ? "إشعار دائن — تخفيض دائن المورد"
+                          : "دفعة مورد مرحلة — تخفيض دائن المورد"}</td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -185,7 +196,7 @@ export function SupplierAccountActivityWorkspace() {
           </section>
 
           <p style={{ ...mutedStyle, margin: 0, padding: 10, borderRadius: 8, background: "var(--muted, #f5f7f8)" }}>
-            نطاق الكشف: قيود الاستلام وإشعارات الدائن المرحلة فقط، بشرط وجود رابط مستندي وحساب التزام مثبت. استُبعدت المسودات والقيود الملغاة والمعكوسة والقيود غير المربوطة بمورد. لا تتضمن هذه الحركة دفعات المورد أو التسويات النقدية؛ لذلك لا تعرض «المبلغ المتبقي للسداد» ولا «الرصيد النهائي المستحق».
+            نطاق الكشف يشمل قيود الاستلام وإشعارات الدائن ودفعات المورد المرحلة والمربوطة بحساب التزام مثبت. استُبعدت المسودات والقيود الملغاة والمعكوسة والقيود غير المرتبطة بمورد. الدفعات المحجوزة معروضة منفصلة ولا تخفض الرصيد النهائي قبل الترحيل. لا يُعرض «المستحق النهائي» كقيمة رقمية إلا عندما يؤكد المصدر balanceComplete=true؛ وإلا فالرصيد غير معروف بسبب عدم اكتمال تغطية المصدر.
           </p>
         </>
       )}

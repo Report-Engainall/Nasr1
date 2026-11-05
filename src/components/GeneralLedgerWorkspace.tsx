@@ -9,6 +9,7 @@ import { CashExpenseJournalLinker } from "@/components/CashExpenseJournalLinker"
 import { CustomerInvoicePaymentJournalLinker } from "@/components/CustomerInvoicePaymentJournalLinker";
 import { SupplierCreditNoteWorkspace } from "@/components/SupplierCreditNoteWorkspace";
 import { SupplierAccountActivityWorkspace } from "@/components/SupplierAccountActivityWorkspace";
+import { SupplierPaymentWorkspace } from "@/components/SupplierPaymentWorkspace";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { GeneralJournalReversalAction } from "@/components/GeneralJournalReversalAction";
 import { GeneralLedgerPrintSheet } from "@/components/GeneralLedgerPrintSheet";
@@ -162,6 +163,7 @@ export function GeneralLedgerWorkspace() {
   const [printDocument, setPrintDocument] = useState<GeneralLedgerPrintDocument | null>(null);
   const [printError, setPrintError] = useState("");
   const previousPrintMode = useRef<string | null>(null);
+  const [supplierActivityRefreshKey, setSupplierActivityRefreshKey] = useState(0);
 
   function activatePrintMode() {
     if (typeof document === "undefined") return;
@@ -433,6 +435,11 @@ export function GeneralLedgerWorkspace() {
     await refreshStatements();
   }, [refresh, refreshStatements]);
 
+  const refreshSupplierFinanceViews = useCallback(async () => {
+    await refreshAccountingViews();
+    setSupplierActivityRefreshKey((current) => current + 1);
+  }, [refreshAccountingViews]);
+
   if (!ready) return <section style={card}><p role="status">جارٍ التحقق من جلسة الحساب...</p></section>;
   if (!canUseFinance) return <section style={card}><h3 style={{ margin: 0 }}>دفتر الأستاذ العام</h3><p style={muted}>هذه المساحة متاحة للمحاسب والمسؤول والمدير المخوّلين فقط.</p></section>;
 
@@ -533,7 +540,8 @@ export function GeneralLedgerWorkspace() {
       <CashExpenseJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <CustomerInvoicePaymentJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <SupplierCreditNoteWorkspace onRefresh={refreshAccountingViews} />
-      <SupplierAccountActivityWorkspace />
+      <SupplierPaymentWorkspace accounts={payload?.accounts ?? []} onRefresh={refreshSupplierFinanceViews} />
+      <SupplierAccountActivityWorkspace refreshKey={supplierActivityRefreshKey} />
       <FinanceDocumentPrintActions />
 
       <form style={card} onSubmit={(event) => { event.preventDefault(); setFilters(filtersDraft); setPage(0); }}>
@@ -589,7 +597,7 @@ export function GeneralLedgerWorkspace() {
         <div className="no-print"><button style={primary} type="submit" disabled={saving || !checkedDraft.ok || !activeAccounts.length}><Send size={15} />{saving ? "جارٍ الحفظ..." : "حفظ مسودة القيد"}</button></div>
       </form>
 
-      <section style={card}>
+      <section id="general-ledger-journal-queue" style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}><h3 style={{ margin: 0 }}>قيود اليومية ({payload?.entry_count ?? 0})</h3><span style={muted}>المعروض: {payload?.entries.length ?? 0}</span></div>
         {loading ? <p role="status" style={muted}>جارٍ تحميل القيود...</p> :
           !payload?.entries.length ? <p style={muted}>لا توجد قيود مطابقة. لم ينشئ النظام أي قيود تاريخية أو بيانات تجريبية.</p> :
