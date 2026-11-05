@@ -727,7 +727,7 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
     : processResponse?.ok ? "ready"
     : processResponse?.status === "UNAVAILABLE" ? "unavailable"
     : "error";
-  const openShiftItems = shiftWorkspace?.result.items.filter((item) => item.state !== "RESOLVED") ?? [];
+  const openShiftItems = shiftWorkspace?.result.items.filter((item) => item.state !== "RESOLVED" && item.state !== "UNKNOWN") ?? [];
   const handoverRefs = [...new Set(openShiftItems
     .map((item) => item.sourceRef)
     .filter((ref) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)))];
