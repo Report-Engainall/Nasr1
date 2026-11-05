@@ -402,3 +402,128 @@ export async function reviewSupplierInvoiceVariance(input: {
     replayed: row.replayed === true,
   };
 }
+
+
+export interface SupplierInvoiceEvidence {
+  id: string;
+  invoiceId: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: "application/pdf" | "image/jpeg" | "image/png" | "image/webp";
+  byteSize: number;
+  contentSha256: string;
+  uploadedByProfileId: string;
+  createdAt: string;
+}
+
+const SUPPLIER_INVOICE_EVIDENCE_BUCKET = "supplier-invoice-evidence";
+const SUPPLIER_INVOICE_EVIDENCE_LIMIT = 10 * 1024 * 1024;
+const SUPPLIER_INVOICE_EVIDENCE_TYPES = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+} as const;
+
+function parseSupplierInvoiceEvidence(value: unknown): SupplierInvoiceEvidence {
+  const row = object(value, "مرفق فاتورة المورد");
+  const mimeType = row.mime_type;
+  if (mimeType !== "application/pdf" && mimeType !== "image/jpeg" &&
+      mimeType !== "image/png" && mimeType !== "image/webp") {
+    throw new Error("نوع ملف دليل فاتورة المورد غير مسموح.");
+  }
+  const byteSize = typeof row.byte_size === "number" ? row.byte_size : Number(row.byte_size);
+  if (!Number.isSafeInteger(byteSize) || byteSize < 1 || byteSize > SUPPLIER_INVOICE_EVIDENCE_LIMIT) {
+    throw new Error("حجم مرفق فاتورة المورد غير صالح.");
+  }
+  const contentSha256 = text(row.content_sha256, "بصمة الملف");
+  if (!/^[0-9a-f]{64}$/.test(contentSha256)) throw new Error("بصمة مرفق فاتورة المورد غير صالحة.");
+  return {
+    id: uuid(row.id, "مرفق الفاتورة"),
+    invoiceId: uuid(row.invoice_id, "الفاتورة"),
+    storagePath: text(row.storage_path, "مسار المرفق"),
+    fileName: text(row.file_name, "اسم المرفق"),
+    mimeType,
+    byteSize,
+    contentSha256,
+    uploadedByProfileId: uuid(row.uploaded_by_profile_id, "رافع المرفق"),
+    createdAt: text(row.created_at, "وقت رفع المرفق"),
+  };
+}
+
+export async function fetchSupplierInvoiceEvidence(invoiceId: string): Promise<SupplierInvoiceEvidence[]> {
+  if (!UUID_PATTERN.test(invoiceId)) throw new Error("معرّف فاتورة المورد غير صالح.");
+  const { data, error } = await supabase.rpc("fetch_purchase_supplier_invoice_evidence", {
+    p_invoice_id: invoiceId,
+  });
+  if (error) throw error;
+  if (!Array.isArray(data)) throw new Error("أعاد الخادم قائمة مرفقات الفاتورة بصيغة غير صالحة.");
+  return data.map(parseSupplierInvoiceEvidence);
+}
+
+export async function uploadSupplierInvoiceEvidence(input: {
+  invoiceId: string;
+  file: File;
+}): Promise<SupplierInvoiceEvidence> {
+  if (!UUID_PATTERN.test(input.invoiceId)) throw new Error("معرّف فاتورة المورد غير صالح.");
+  const extension = SUPPLIER_INVOICE_EVIDENCE_TYPES[input.file.type as keyof typeof SUPPLIER_INVOICE_EVIDENCE_TYPES];
+  if (!extension || input.file.size < 1 || input.file.size > SUPPLIER_INVOICE_EVIDENCE_LIMIT) {
+    throw new Error("يسمح فقط بملف PDF أو JPG أو PNG أو WEBP، وبحجم لا يتجاوز 10 ميغابايت.");
+  }
+  if (!globalThis.crypto?.randomUUID || !globalThis.crypto?.subtle) {
+    throw new Error("المتصفح لا يدعم إنشاء بصمة SHA-256 ومفتاح ملف آمن؛ لم يُرفع المرفق.");
+  }
+  const safeName = input.file.name
+    .replaceAll("/", "_")
+    .replaceAll(String.fromCharCode(92), "_")
+    .replace(/[\u0000-\u001f\u007f]/g, "_")
+    .trim()
+    .slice(0, 180);
+  if (!safeName) throw new Error("اسم ملف الدليل غير صالح.");
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", await input.file.arrayBuffer());
+  const contentSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const storagePath = input.invoiceId + "/" + globalThis.crypto.randomUUID() + "." + extension;
+
+  const { error: uploadError } = await supabase.storage
+    .from(SUPPLIER_INVOICE_EVIDENCE_BUCKET)
+    .upload(storagePath, input.file, {
+      cacheControl: "3600",
+      contentType: input.file.type,
+      upsert: false,
+    });
+  if (uploadError) throw uploadError;
+
+  try {
+    const { data, error } = await supabase.rpc("record_purchase_supplier_invoice_evidence", {
+      p_invoice_id: input.invoiceId,
+      p_storage_path: storagePath,
+      p_file_name: safeName,
+      p_mime_type: input.file.type,
+      p_byte_size: input.file.size,
+      p_content_sha256: contentSha256,
+    });
+    if (error) throw error;
+    const result = parseSupplierInvoiceEvidence(data);
+    if (result.invoiceId !== input.invoiceId || result.storagePath !== storagePath ||
+        result.contentSha256 !== contentSha256 || result.byteSize !== input.file.size) {
+      throw new Error("لم يؤكد الخادم ربط الملف بالفاتورة وبصمته وحجمه.");
+    }
+    return result;
+  } catch (cause) {
+    // The storage DELETE policy permits cleanup only while this object has no immutable metadata row.
+    await supabase.storage.from(SUPPLIER_INVOICE_EVIDENCE_BUCKET).remove([storagePath]).catch(() => undefined);
+    throw cause;
+  }
+}
+
+export async function createSupplierInvoiceEvidenceSignedUrl(storagePath: string): Promise<string> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(pdf|jpg|png|webp)$/.test(storagePath)) {
+    throw new Error("مسار المرفق غير صالح.");
+  }
+  const { data, error } = await supabase.storage
+    .from(SUPPLIER_INVOICE_EVIDENCE_BUCKET)
+    .createSignedUrl(storagePath, 300);
+  if (error) throw error;
+  if (!data?.signedUrl) throw new Error("لم يُصدر التخزين رابطًا مؤقتًا للمرفق.");
+  return data.signedUrl;
+}
