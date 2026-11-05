@@ -163,13 +163,13 @@ function readMetric(
   }
   if (metric.asOf !== asOf || !validPeriod(metric.period) || !metric.lineage?.evidenceIds?.length ||
       !metric.lineage.formulaId?.trim() || !metric.lineage.formulaVersion?.trim() ||
-      !validTime(metric.lineage.calculatedAt)) {
+      !validTime(metric.lineage.calculatedAt) || Date.parse(metric.lineage.calculatedAt) > Date.parse(asOf)) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   if ((metric.unit === "CURRENCY" || metric.unit === "CURRENCY_PER_UNIT") && !metric.currency?.trim()) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
-  if (metric.unit === "QUANTITY" && !metric.unitOfMeasure?.trim()) {
+  if ((metric.unit === "QUANTITY" || metric.unit === "CURRENCY_PER_UNIT") && !metric.unitOfMeasure?.trim()) {
     return { read: null, reason: "METRIC_SCOPE_MISMATCH" };
   }
   const value = numeric(metric.value);
@@ -196,7 +196,7 @@ function sampleFor(
 }
 
 function priorityFor(kind: GrowthOpportunityKind, direction: GrowthOpportunityDirection, changePercent: number | null): GrowthOpportunityPriority {
-  if (kind === "CUSTOMER_ACTIVITY_DECLINE") return changePercent !== null && changePercent >= 50 ? "P1" : "P2";
+  if (kind === "CUSTOMER_ACTIVITY_DECLINE") return changePercent !== null && Math.abs(changePercent) >= 50 ? "P1" : "P2";
   if (kind === "QUOTE_UNCONVERTED" || kind === "PRODUCT_UNAVAILABLE_DEMAND") return "P2";
   if (kind === "PRODUCT_PERFORMANCE_CHANGE" && direction === "DECLINING") return "P2";
   return "P3";
@@ -275,6 +275,9 @@ export function buildGrowthOpportunityRadar(input: {
   if (!input.id.trim() || !validTime(input.generatedAt) || !validTime(input.asOf) ||
       Date.parse(input.generatedAt) < Date.parse(input.asOf)) {
     throw new Error("growth_radar_timestamp_or_id_invalid");
+  }
+  if (!Array.isArray(input.evidenceRecords) || !Array.isArray(input.metrics) || !Array.isArray(input.signals)) {
+    throw new Error("growth_radar_evidence_payload_invalid");
   }
   const passport = buildEvidencePassport({
     id: "growth-radar:" + input.id,
@@ -357,9 +360,9 @@ export function buildGrowthOpportunityRadar(input: {
             baseline.value < MIN_PRIOR_ORDERS_FOR_DECLINE || observed.value >= baseline.value) {
           reason = "INVALID_COMPARISON";
         } else {
-          changePercent = ((baseline.value - observed.value) / baseline.value) * 100;
+          changePercent = ((observed.value - baseline.value) / baseline.value) * 100;
           direction = "DECLINING";
-          eligible = Number.isFinite(changePercent) && changePercent >= CUSTOMER_DECLINE_THRESHOLD_PERCENT;
+          eligible = Number.isFinite(changePercent) && Math.abs(changePercent) >= CUSTOMER_DECLINE_THRESHOLD_PERCENT;
         }
       }
     } else if (signal.kind === "REPEAT_PURCHASE") {
@@ -378,7 +381,8 @@ export function buildGrowthOpportunityRadar(input: {
         if (!baselineSampleResult.read) reason = baselineSampleResult.reason ?? "METRIC_MISSING";
         else {
           baselineSample = baselineSampleResult.read;
-          const compatibleUnit = baseline.metric.unit === observed.metric.unit &&
+          const supportedPerformanceUnit = observed.metric.unit === "CURRENCY" || observed.metric.unit === "QUANTITY";
+          const compatibleUnit = supportedPerformanceUnit && baseline.metric.unit === observed.metric.unit &&
             (observed.metric.unit !== "CURRENCY" || baseline.metric.currency === observed.metric.currency) &&
             (observed.metric.unit !== "QUANTITY" || baseline.metric.unitOfMeasure === observed.metric.unitOfMeasure);
           if (!compatibleUnit || !periodLengthMetric(baseline) ||
@@ -441,11 +445,10 @@ export function buildGrowthOpportunityRadar(input: {
       formulaVersions.push("growth-opportunity-comparison@" + GROWTH_OPPORTUNITY_POLICY_VERSION);
     }
     const baselinePeriod = baseline?.metric.period && validPeriod(baseline.metric.period) ? baseline.metric.period : null;
-    const sampleSize = signal.kind === "CUSTOMER_ACTIVITY_DECLINE" ? baseline?.value ?? sample.value :
-      signal.kind === "REPEAT_PURCHASE" ? observed.value : sample.value;
+    const sampleSize = signal.kind === "REPEAT_PURCHASE" ? observed.value : sample.value;
     const baselineSampleSize = baselineSample?.value ?? (signal.kind === "CUSTOMER_ACTIVITY_DECLINE" ? baseline?.value ?? null : null);
     const reasonText = signal.kind === "CUSTOMER_ACTIVITY_DECLINE"
-      ? "عدد الطلبات تراجع بنسبة " + (changePercent as number).toFixed(1) + "% مقارنة بفترة سابقة متساوية المدة."
+      ? "عدد الطلبات تراجع بنسبة " + Math.abs(changePercent as number).toFixed(1) + "% مقارنة بفترة سابقة متساوية المدة."
       : signal.kind === "PRODUCT_PERFORMANCE_CHANGE"
         ? direction === "NEW_ACTIVITY"
           ? "رُصد نشاط حالي بعد فترة أساس مكتملة لم تسجل قيمة؛ لا تُعرض نسبة نمو غير معرفة."
