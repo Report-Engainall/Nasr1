@@ -48,7 +48,7 @@ function Customer360Header({
         </div>
         <div className="no-print" style={{ display: 'flex', gap: 6 }}>
           <Button variant="secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} /> تحديث</Button>
-          <Button variant="outline" onClick={onExport} disabled={loading || !summary}><Download size={15} /> تصدير Excel</Button>
+          <Button variant="outline" onClick={onExport} disabled={loading || !summary || printDisabled}><Download size={15} /> تصدير Excel</Button>
           <Button variant="outline" onClick={onPrint} disabled={loading || printDisabled}><Printer size={15} /> طباعة / PDF</Button>
         </div>
       </div>
@@ -430,7 +430,7 @@ function Customer360Interactions({
       <div className="customer-360-interactions-heading">
         <div>
           <h3><MessageSquare size={18} /> سجل التواصل والمتابعة</h3>
-          <p className="report-note">سجل تشغيلي مؤرخ؛ عند تحديد موعد متابعة، ينشئ النظام مهمة مؤرخة في مركز العمليات ويسندها تلقائيًا إلى الموظف الذي سجّل التواصل. لا ينشئ ذلك طلبًا أو فاتورة أو دفعة ولا يغيّر رصيد العميل.</p>
+          <p className="report-note">سجل تشغيلي مؤرخ؛ عند تحديد موعد متابعة، يضيف النظام مهمة مؤرخة إلى قائمة مهام المبيعات في مركز العمليات. لا ينشئ ذلك طلبًا أو فاتورة أو دفعة ولا يغيّر رصيد العميل.</p>
         </div>
         <Button variant="secondary" onClick={() => { void reload(); }} disabled={loading || saving}>
           <RefreshCw size={15} /> تحديث السجل
