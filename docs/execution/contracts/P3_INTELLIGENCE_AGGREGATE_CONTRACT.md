@@ -60,11 +60,11 @@ P3 composes existing verified engines; it does not re-query operational tables o
 
 ## Decision Memory Book — canonical merchant-intelligence specification section 52
 
-P3 owns the deterministic memory reader/renderer; P2 owns persistence, validation and authenticated DTOs. Reuse the existing `decision_outcomes` lifecycle. Do not create a parallel approval/execution lifecycle or allow the browser to write memory tables directly.
+P3 owns the section 52 deterministic memory engine, capture/read component, tenant-scoped persistence migration and authenticated DTO binding for this two-programmer execution. P1 preserves the existing intelligence workspace/mount; its route/screen work remains outside these P3 paths. Reuse the existing `decision_outcomes` lifecycle. Do not create a parallel approval/execution lifecycle or allow the browser to write memory tables directly.
 
 ### Required immutable snapshot contract
 
-Extend the existing `fetch_decision_outcomes(p_limit,p_offset)` response with a nullable `memory_snapshot` for each `decision_id`, and retain its current lifecycle fields. The latest snapshot must include:
+Extend the existing `fetch_decision_outcomes(p_limit,p_offset)` response with a nullable `memorySnapshot` for each decision `id`, and retain its current camelCase lifecycle fields. The latest snapshot must include:
 
 - `id`, `decision_id`, `version`, server-assigned `captured_at`, source `as_of`, and exact `period`.
 - `problem`; `facts_reviewed`; typed `facts`, `opinions`, and `hypotheses` entries with stable ID, text, actor role, record time and source evidence IDs. A FACT is returned only when every source evidence reference resolves uniquely inside the caller's tenant and is VERIFIED / COMPLETE / ACCEPTABLE; opinions and hypotheses remain explicitly labelled and never become facts.
@@ -82,6 +82,13 @@ Extend the existing `fetch_decision_outcomes(p_limit,p_offset)` response with a 
 - The actual metric must agree with the existing `decision_outcomes.measured_outcome` lifecycle payload. If formula/version/evidence is absent or contradictory, return it as withheld; never convert the legacy numeric summary into verified evidence.
 - Corrections are additive: preserve the original text and all prior snapshots; do not rewrite decision history, silently edit the approved decision, change its rule version or update any rule automatically.
 
+### P3 implementation status — section 52
+
+- Delivered in `supabase/migrations/20261105270000_intelligence_decision_memory.sql`, `src/lib/intelligence/decision-memory-client.ts` and the existing decision-memory engine/UI/client files. The save RPC is `save_decision_memory_snapshot(uuid,integer,jsonb,text,text)`; the UI reports a saved version only after strict parsing of the returned snapshot.
+- Current FACT evidence adapters intentionally accept existing `customer_invoices` and `customer_payments` references only. Optional expected baseline accepts only `cashflow.expected_collections` plus currency; the server calculates amount and complete source set for the selected due-date period (up to 90 days) as of the original decision timestamp. No browser monetary value or evidence set is accepted as a metric result.
+- `fetch_decision_outcomes` attaches the latest DTO as `memorySnapshot`. The P3 engine consumes it when the workspace's legacy `snapshots` argument is empty; no P1 workspace edit is required. Actual measurement is projected only from the full lifecycle proof after every evidence reference resolves to the same tenant.
+- Migration source is committed but not applied by this delivery. Until Bolt/Supabase applies it, runtime memory remains PARTIAL/UNVERIFIED. Do not infer runtime availability from a Git commit.
+
 ### P3 interpretation policy
 
 - P3 engine: `src/lib/intelligence/decision-memory.ts`; component: `src/components/intelligence/DecisionMemoryBook.tsx`; it is mounted in the existing `IntelligenceWorkspace`.
@@ -89,7 +96,7 @@ Extend the existing `fetch_decision_outcomes(p_limit,p_offset)` response with a 
 - Expected/actual comparisons are allowed only for the same metric key, unit, currency/UOM, exact period and formula ID/version, with a later actual as-of and complete verified evidence for both. A zero expected value has no percentage variance.
 - Same-rule precedents are comparisons within the currently loaded page unless the server explicitly supplies complete history. They must not imply equivalent context or prescribe an automatic rule change.
 - P3 does not create reminders, tasks, customer communications or accounting/inventory writes. No snapshot returned by P2 means a visible PARTIAL memory with missing fields, not a fabricated snapshot.
-- Required owner handoff: P2 delivers the append-only snapshot storage, commands, tenant/evidence validation and full DTO; P3 then binds the returned snapshots to this engine. The current P2 read DTO exposes only the legacy numeric measured outcome and therefore is not enough to close the memory requirement.
+- Delivery ownership for this execution: P3 owns the migration/RPC, read DTO and binding because the active team has only P1 and P3. Section 52 remains ACCEPTANCE_PENDING until the migration is applied in Bolt and connected authorization/version/idempotency/source-evidence cases are accepted on the same SHA.
 
 
 ## Shift Operations Center — canonical merchant-intelligence specification section 53

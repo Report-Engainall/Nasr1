@@ -1,3 +1,23 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001 — PERSISTENCE + CAPTURE
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- P3 code commit: `6c91b244e14036e07b5a88bc066c77ef3b241e59`; later independent P1 supplier-finance UI commit: `0fb407c784f0c7e4ffa1b097b2b81c07319f8368`.
+- P3 blobs: engine `7f32983428d09b26b4e2dbeb913ecd5870d17c12`; decision-outcome DTO client `69a25cc0286832b64e42438e59487aaaf7212760`; new memory RPC client `9db877fd92e8c8e3571dd4927985be92d2627587`; capture/read component `3b67d0d136a6b4e8f39486dff2d53b10c1a3d424`; migration `c4e695f460193014b7fe77b51e8eb500f86e3c30`.
+- Canonical reference: section 52 — دفتر ذاكرة القرارات التجارية والتعلّم من نتائجها. This closes the previously missing persistence/read contract within P3 ownership; P1 paths remain unchanged.
+- Migration: `supabase/migrations/20261105270000_intelligence_decision_memory.sql`.
+  - Adds tenant-scoped versioned `decision_memory_snapshots` and append-only `decision_memory_events`; update/delete triggers reject mutation and service_role has select/insert only.
+  - Adds atomic `save_decision_memory_snapshot` with server-derived active actor/organization/role, finance authorization, expected-version check, payload-bound idempotency and append-only correction reason/history; audit is written in the same transaction.
+  - Facts resolve only existing customer invoice/payment IDs inside the active tenant; evidence metadata is server-derived. Missing, cross-tenant, future or unresolved sources fail closed.
+  - Existing `fetch_decision_outcomes` now returns a nullable `memorySnapshot`; actual MetricSnapshot is projected only when the existing lifecycle's verified measured-outcome proof resolves to all same-tenant source rows.
+  - Optional expected baseline is limited to `cashflow.expected_collections`; browser submits key/currency only and the server calculates the invoice-minus-payment source population. No browser amount/evidence list is trusted.
+- Product UI captures problem, facts/evidence, opinions, hypotheses, assumptions, alternatives/chosen option, action, review disposition/date and lessons; corrections require a reason. Success is shown only after a strictly parsed server RPC response. Existing workspace refresh callback is reused.
+- Engine consumes the embedded DTO without changing `IntelligenceWorkspace.tsx`; it accepts post-proposal capture timestamps and validates the correction version chain and metric compatibility.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Migration has NOT been applied to Bolt/Supabase. Tests/build/lint/typecheck/CI/browser/E2E/database application/Preview/production checks were NOT RUN in this product-body batch; no PASS or production readiness is claimed.
+- No Vercel action/credit, paid provider, new dependency, production mutation or live integration. Sequential `BODY-COMPLETION-ON-MAIN-018` and the other programmer's supplier-finance paths remain independent.
+- Next action: sync main to Bolt New and apply the migration in the intended non-production database workflow; perform connected acceptance on the exact synced SHA. P3's next canonical body is section 53 after section 52 persistence is available for acceptance.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

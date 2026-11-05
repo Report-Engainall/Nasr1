@@ -1,3 +1,12 @@
+## 2026-11-05 — P3 Decision Memory persistence and capture — REF-DECISION-MEMORY-BOOK-001
+
+- P3 code commit `6c91b244e14036e07b5a88bc066c77ef3b241e59`; subsequent main integration head at checkpoint `0fb407c784f0c7e4ffa1b097b2b81c07319f8368` (the later P1 supplier invoice UI commit is independent).
+- Files: `supabase/migrations/20261105270000_intelligence_decision_memory.sql`; new `src/lib/intelligence/decision-memory-client.ts`; updated `decision-memory.ts`, `decision-outcome-client.ts` and `DecisionMemoryBook.tsx`.
+- Delivered immutable tenant-scoped memory snapshots/events, atomic versioned/idempotent capture and correction RPC, same-tenant invoice/payment evidence resolution, correction/audit history, full `memorySnapshot` DTO and a real capture UI. Expected collections are calculated by the server; browser-supplied amounts/evidence are not used.
+- P1 supplier-finance/workspace paths were not changed. Existing intelligence mount and retry callback are reused.
+- Status `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`: migration not applied to Bolt/Supabase; tests/build/lint/typecheck/CI/browser/E2E/database application/Preview/production not run by this batch; no PASS claimed.
+- No Vercel operation/credit, paid provider/dependency, production mutation or live integration.
+
 ## 2026-11-05 — P3 Decision Memory Book — REF-DECISION-MEMORY-BOOK-001
 
 - Canonical reference section 52; exact integrated P3 code cursor `f2c10b37031cba3551e0f0acef5d868afb3a756e`.

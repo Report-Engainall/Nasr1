@@ -1,3 +1,14 @@
+# P3 SOURCE DELIVERY — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
+
+- Current main integration head: `0fb407c784f0c7e4ffa1b097b2b81c07319f8368`; P3 code commit: `6c91b244e14036e07b5a88bc066c77ef3b241e59`. The later P1 commit touched only `SupplierInvoiceWorkspace.tsx`.
+- Section 52 capture/persistence delivered in the P3 code commit: `supabase/migrations/20261105270000_intelligence_decision_memory.sql`; engine, UI and clients are committed on main.
+- The decision-memory flow now has immutable tenant-scoped versions, an append-only event trail, idempotent server capture/correction, source-validated invoice/payment evidence and the `memorySnapshot` read DTO. No P1-owned files were changed by P3.
+- Migration is source-only until applied in Bolt/Supabase. Runtime acceptance remains pending; no tests/build/CI/browser/DB/Preview/production proof is claimed.
+- Next P3 body after migration acceptance: canonical section 53. Do not redo sections 50/51. P1 sequential pointer `BODY-COMPLETION-ON-MAIN-018` remains separate.
+- No Vercel credits or paid providers were used.
+
+---
+
 # PARALLEL P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
 
 - Repository `Report-Engainall/Nasr1`; only branch `main`.

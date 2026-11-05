@@ -41,9 +41,12 @@ These are stable requirement definitions; the live execution cursor remains excl
 
 ## Added requirement — Decision Memory Book — 2026-11-05
 
-- `REF-DECISION-MEMORY-BOOK-001` — Canonical specification section 52. Maintain a versioned, evidence-backed record of decision context, facts, opinions, hypotheses, assumptions, alternatives, chosen option, action, review state, expected and actual metrics, lessons and append-only corrections.
-- FACT requires unique same-tenant VERIFIED/COMPLETE/ACCEPTABLE evidence. Opinions, hypotheses and assumptions must remain separately labelled. Expected/actual comparison requires identical metric key, unit, currency/UOM, period and formula version, later actual as-of and complete source evidence; actual must match the existing decision lifecycle's measured result. No rule auto-learning or automatic execution.
-- Ownership: P3 engine/component/Workspace (mounted in `IntelligenceWorkspace`); P2 immutable snapshot tables, idempotent commands, tenant evidence validation and full read DTO. Current P2 decision read DTO lacks snapshots, so the UI deliberately shows PARTIAL/UNVERIFIED. Acceptance row `REF-DECISION-MEMORY-BOOK-001`; `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until P2 snapshot persistence/read integration is delivered. Exact P3 code cursor `f2c10b37031cba3551e0f0acef5d868afb3a756e`; engine blob `8f673ed4f7ec265212ddd1326d8a87d64bd44c50`; component blob `b4289972ab6ae0293a69bad7cc982f642ea1efdf`.
+- `REF-DECISION-MEMORY-BOOK-001` — Canonical specification section 52. Maintain a versioned, evidence-backed record of decision context, facts, opinions, hypotheses, assumptions, alternatives, chosen option, action, review state, expected/actual metrics, lessons and append-only corrections.
+- FACT requires unique same-tenant VERIFIED/COMPLETE/ACCEPTABLE evidence. Opinions, hypotheses and assumptions remain separately labelled. Expected/actual comparison requires identical metric key, unit, currency/UOM, period and formula version, later actual as-of and complete source evidence; actual must match the existing decision lifecycle's measured result. No rule auto-learning or automatic execution.
+- Ownership for the two-programmer plan: P3 owns the deterministic engine, capture UI, decision-memory migration/RPC, evidence validation and full read DTO; P1 preserves the existing workspace mount and its independent original-spec UI work.
+- Implemented on main at code SHA `6c91b244e14036e07b5a88bc066c77ef3b241e59`. Migration: `supabase/migrations/20261105270000_intelligence_decision_memory.sql`. Added client `src/lib/intelligence/decision-memory-client.ts`; extended `fetch_decision_outcomes` to return `memorySnapshot`.
+- IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING until Bolt/Supabase applies the migration and connected exact-SHA acceptance covers tenant isolation, permission denial, idempotent replay/conflict, stale version, source evidence and UI refresh. No tests/build/CI/database application/Preview/production verification run; no PASS claimed.
+
 
 
 ---
