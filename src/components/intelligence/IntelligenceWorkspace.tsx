@@ -823,7 +823,7 @@ export function IntelligenceWorkspace() {
             ) : null}
             <div className="grid gap-4 lg:grid-cols-2">
               <DeadStockCard report={deadStockReport} state={inventoryViewState} onRetry={() => setRefreshKey((value) => value + 1)} />
-              <ReplenishmentCard recommendations={replenishmentReport?.recommendations ?? null} state={inventoryViewState} onRetry={() => setRefreshKey((value) => value + 1)} />
+              <ReplenishmentCard recommendations={replenishmentReport?.recommendations ?? null} state={inventoryViewState} canManagePurchases={canManage} onRetry={() => setRefreshKey((value) => value + 1)} />
             </div>
             <p className="report-note">التعرض المالي للمخزون غير متاح لأن سجلات تكلفة الشراء لا تحتوي رمز عملة موثقاً، ومتوسط المخزون التاريخي غير متاح لعدم وجود لقطات أرصدة يومية. مهلة التوريد لا تُحسب إلا من تواريخ أوامر الشراء والاستلام الفعلية؛ لا ينشئ النظام أمراً تلقائياً.</p>
           </section>
