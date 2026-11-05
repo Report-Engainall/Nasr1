@@ -1,3 +1,16 @@
+## 2026-11-05 — Exact-SHA Core + P2 final acceptance — `45ca19c47a985b2d12d23c846ba068222a4e17ce`
+
+- Current main at final documentation update: `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe`; this is a documentation-only descendant of tested code `45ca19c47a985b2d12d23c846ba068222a4e17ce` (five documentation files changed; no application/test/workflow code changed after CI).
+- Core [41940874587 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874587): 272/272 test files, 1,786/1,786 unit tests, PostgreSQL 17 migration/acceptance, RPC inventory, isolated backup/restore, lint, build, Nitro/Vite preview, dev smoke and price visibility all passed.
+- P2 [41940874520 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874520): public UI Chromium 17/17; isolated local PostgreSQL 17/Supabase E2E SUCCESS; authenticated order/tenant, stock-count XLSX, purchase-order XLSX, checkout replay, returns/credit memo, Onyx export, finance/task print 5/5, customer-manager security 1/1 and device-session revocation 2/2 passed. Hosted customer/order/tenant job remained SKIPPED_EXTERNAL; no hosted tenant acceptance claim.
+- P1 TypeScript [41940874537 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874537), Free Static Analysis [41940874495 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874495), Secret Scan [41940874667 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874667), and main cleanup [41940874526 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874526).
+- The tested code SHA `45ca19c47a985b2d12d23c846ba068222a4e17ce` includes the provider-neutral diagnostic privacy tests and Vite/Nitro preview-harness correction. The follow-on main commit `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe` changed documentation only.
+- Vercel status remained FAILURE on the tested code SHA; no deployment is claimed.
+- Bolt Database/auth/storage/server functions and Bolt Preview remain untested and unconnected. CI local Supabase is not equivalent to Bolt Cloud acceptance.
+- NEXT: import `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe` into Bolt, use built-in Bolt Database, map existing SQL/RPC/auth/storage/server-function contracts without weakening guarantees, then run Bolt Preview and full exact-SHA acceptance. Keep all product/feature work intact.
+
+---
+
 ## 2026-11-05 — Source portability CI alignment and exact-SHA acceptance (`45ca19c47a985b2d12d23c846ba068222a4e17ce`)
 
 - Parent/main before correction: `a4eb51f0a28c9e3110f29030d2d43f2cde2c5ff9`; direct-to-main CAS commit: `45ca19c47a985b2d12d23c846ba068222a4e17ce`.
