@@ -42,6 +42,7 @@ export interface DecisionMemorySnapshot {
   opinions: DecisionMemoryStatement[];
   hypotheses: DecisionMemoryStatement[];
   facts: DecisionMemoryStatement[];
+  assumptions: string[];
   alternatives: DecisionMemoryAlternative[];
   chosenOptionId: string | null;
   assumptionsReviewed: boolean;
@@ -77,6 +78,7 @@ export interface DecisionMemoryRecord {
   events: DecisionOutcomeView["history"]; legacyMeasurement: DecisionOutcomeView["measuredOutcome"];
   snapshotVersion: number | null; capturedAt: string | null; problem: string | null;
   facts: DecisionMemoryStatement[]; opinions: DecisionMemoryStatement[]; hypotheses: DecisionMemoryStatement[];
+  assumptions: string[];
   withheldFacts: number; alternatives: DecisionMemoryAlternative[]; chosenAlternative: DecisionMemoryAlternative | null;
   actionTaken: string | null; reviewDisposition: DecisionMemoryReviewDisposition | null; reviewAt: string | null;
   expectedMetric: DecisionMemoryMetricResult | null; metricComparison: DecisionMemoryMetricComparison;
@@ -170,15 +172,15 @@ function verifiedMetric(metric: MetricSnapshot | null, evidence: Map<string, Evi
     reason: null,
   };
 }
-function isVerifiedStatement(statement: DecisionMemoryStatement, evidence: Map<string, EvidenceRecord[]>): boolean {
-  if (!statement.id.trim() || !statement.text.trim() || !statement.actorRole.trim() || !validTime(statement.recordedAt)) return false;
+function isVerifiedStatement(statement: DecisionMemoryStatement, evidence: Map<string, EvidenceRecord[]>,
+  capturedAt: string, period: EvidencePeriod): boolean {
+  if (!statement.id.trim() || !statement.text.trim() || !statement.actorRole.trim() ||
+      !validTime(statement.recordedAt) || Date.parse(statement.recordedAt) > Date.parse(capturedAt)) return false;
   if (statement.kind !== "FACT") return true;
   if (!statement.evidenceIds.length || unique(statement.evidenceIds).length !== statement.evidenceIds.length) return false;
   return statement.evidenceIds.every(id => {
     const matches = evidence.get(id) ?? [];
-    return matches.length === 1 && matches[0].status === "VERIFIED" &&
-      matches[0].completeness === "COMPLETE" && matches[0].quality === "ACCEPTABLE" &&
-      validTime(matches[0].sourceTimestamp) && Date.parse(matches[0].sourceTimestamp) <= Date.parse(statement.recordedAt);
+    return matches.length === 1 && validEvidenceRecord(matches[0], statement.recordedAt, period);
   });
 }
 function validCorrections(corrections: DecisionMemoryCorrection[], capturedAt: string, version: number): DecisionMemoryCorrection[] {
@@ -264,7 +266,7 @@ export function buildDecisionMemoryBook(input: {
         if (outcome.state === "MEASURED") missingFields.push("EXPECTED_METRIC","ACTUAL_METRIC","LESSONS_REVIEWED");
       }
       let problem:string|null=null, facts:DecisionMemoryStatement[]=[], opinions:DecisionMemoryStatement[]=[],
-        hypotheses:DecisionMemoryStatement[]=[], withheldFacts=0, alternatives:DecisionMemoryAlternative[]=[],
+        hypotheses:DecisionMemoryStatement[]=[], assumptions:string[]=[], withheldFacts=0, alternatives:DecisionMemoryAlternative[]=[],
         chosenAlternative:DecisionMemoryAlternative|null=null, actionTaken:string|null=null,
         reviewDisposition:DecisionMemoryReviewDisposition|null=null, reviewAt:string|null=null,
         expectedMetric:DecisionMemoryMetricResult|null=null,
@@ -285,12 +287,13 @@ export function buildDecisionMemoryBook(input: {
           snapshotVersion=snapshot.version;capturedAt=snapshot.capturedAt;
           if(snapshot.problem?.trim()) problem=snapshot.problem.trim(); else missingFields.push("PROBLEM_CONTEXT");
           if(snapshot.factsReviewed===true){
-            facts=(snapshot.facts??[]).filter(statement=>statement.kind==="FACT"&&isVerifiedStatement(statement,evidence));
+            facts=(snapshot.facts??[]).filter(statement=>statement.kind==="FACT"&&isVerifiedStatement(statement,evidence,snapshot.capturedAt,snapshot.period));
             withheldFacts=(snapshot.facts??[]).length-facts.length;
             if(withheldFacts){warnings.push("FACTS_WITHHELD_WITHOUT_VERIFIED_EVIDENCE");missingFields.push("FACTS_WITH_EVIDENCE");}
           } else missingFields.push("FACTS_REVIEWED");
-          opinions=(snapshot.opinions??[]).filter(statement=>statement.kind==="OPINION"&&isVerifiedStatement(statement,evidence));
-          hypotheses=(snapshot.hypotheses??[]).filter(statement=>statement.kind==="HYPOTHESIS"&&isVerifiedStatement(statement,evidence));
+          opinions=(snapshot.opinions??[]).filter(statement=>statement.kind==="OPINION"&&isVerifiedStatement(statement,evidence,snapshot.capturedAt,snapshot.period));
+          hypotheses=(snapshot.hypotheses??[]).filter(statement=>statement.kind==="HYPOTHESIS"&&isVerifiedStatement(statement,evidence,snapshot.capturedAt,snapshot.period));
+          assumptions=(snapshot.assumptions??[]).filter(value=>typeof value==="string"&&value.trim().length>0);
           if(Array.isArray(snapshot.alternatives)&&snapshot.alternatives.some(item=>item.id.trim()&&item.label.trim()))
             alternatives=snapshot.alternatives.filter(item=>item.id.trim()&&item.label.trim());
           else missingFields.push("ALTERNATIVES");
@@ -342,7 +345,7 @@ export function buildDecisionMemoryBook(input: {
         state:outcome.state,version:outcome.version,createdAt:outcome.createdAt,updatedAt:outcome.updatedAt,owner:outcome.ownerLabel,
         proposedResult:outcome.expectedOutcome,decisionReason:outcome.reason,approvalAt:outcome.approvedAt,executionAt:outcome.executedAt,
         eventCount:outcome.eventCount,events:outcome.history,legacyMeasurement:outcome.measuredOutcome,
-        snapshotVersion,capturedAt,problem,facts,opinions,hypotheses,withheldFacts,alternatives,chosenAlternative,
+        snapshotVersion,capturedAt,problem,facts,opinions,hypotheses,assumptions,withheldFacts,alternatives,chosenAlternative,
         actionTaken,reviewDisposition,reviewAt,expectedMetric,metricComparison,lessons,corrections,
         missingFields:unique(missingFields),warnings,memoryStatus,precedents,
       };
