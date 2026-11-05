@@ -85,6 +85,11 @@ export function ReplenishmentPurchaseDraft({
           nextBlocked.push(recommendation.productRef + ": الصنف مكرر في المصدر؛ تم حجب النسخة المكررة.");
           continue;
         }
+        const quantity = Math.ceil(recommendation.recommendedQuantity * 1000) / 1000;
+        if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 999999999999.999) {
+          nextBlocked.push(recommendation.productRef + ": الكمية خارج الدقة أو السعة المدعومة لأمر الشراء.");
+          continue;
+        }
         seen.add(product.id);
         nextLines.push({
           productId: product.id,
@@ -92,7 +97,7 @@ export function ReplenishmentPurchaseDraft({
           itemCode: product.item_code,
           unit: product.unit,
           recommendedQuantity: recommendation.recommendedQuantity,
-          quantity: String(recommendation.recommendedQuantity),
+          quantity: String(quantity),
         });
       }
       setSuppliers(activeSuppliers);
@@ -114,7 +119,6 @@ export function ReplenishmentPurchaseDraft({
   async function createDraft() {
     if (busy || loading || createdOrder) return;
     if (!supplierId || !warehouseId) { setError("اختر المورد والمخزن صراحةً قبل إنشاء المسودة."); return; }
-    if (blocked.length) { setError("توجد أسطر محجوبة بسبب عدم تطابق الكتالوج أو وحدة القياس؛ عالج المصدر أولًا ولا تتجاوز التحذير."); return; }
     if (!lines.length || lines.length > 100) { setError("لا توجد بنود صالحة لإنشاء أمر الشراء."); return; }
     const seen = new Set<string>();
     const purchaseLines: PurchaseOrderLineCommand[] = [];
@@ -217,7 +221,7 @@ export function ReplenishmentPurchaseDraft({
             {suppliers.length === 0 || warehouses.length === 0 ? <p className="mt-3 text-sm text-amber-700">يلزم مورد نشط ومخزن نشط لإنشاء المسودة.</p> : null}
             <footer className="mt-4 flex flex-wrap justify-end gap-2">
               <button type="button" className="btn secondary" onClick={onClose} disabled={busy}>إلغاء</button>
-              <button type="button" className="btn primary" onClick={() => void createDraft()} disabled={busy || !lines.length || !suppliers.length || !warehouses.length || blocked.length > 0}>
+              <button type="button" className="btn primary" onClick={() => void createDraft()} disabled={busy || !lines.length || !suppliers.length || !warehouses.length}>
                 {busy ? "جار حفظ المسودة..." : "تأكيد وإنشاء مسودة أمر الشراء"}
               </button>
             </footer>
