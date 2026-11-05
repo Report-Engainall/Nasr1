@@ -1,3 +1,21 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (PROCESS BOTTLENECK INTENT)
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent SHA: `90763678f99304db30d64d4a2fd2c8868a6b74f9`. This batch adds a safe natural-language entry point to the existing Process Bottlenecks engine and does not edit P1 workspace/routes or duplicate its component.
+- Added `PROCESS_BOTTLENECK_OVERVIEW` intent using the existing `fetchProcessBottlenecks` client and `fetch_process_bottleneck_snapshot` RPC. Supports 30/60/90-day UTC windows (30 days by default), with an equal-length immediately prior non-overlapping baseline; arbitrary dates and calendar approximations are rejected.
+- Reuses the existing server source authorization (active staff or finance capability, with per-source staff/finance/purchase gates), same-tenant filtering, complete-population source coverage, sample threshold of 3, and deterministic P3 finding/comparison logic. Shows stage median/p90 and descriptive comparisons only; no employee ranking, causal claim, or financial/stock write.
+- Assistant result contains aggregate stage metrics and source coverage only; it does not expose individual task/order/invoice identifiers or queue owners.
+- Changed paths:
+  - `src/lib/intelligence/natural-language-assistant.ts`
+  - `src/lib/intelligence/natural-language-assistant-client.ts`
+  - `src/components/intelligence/NaturalLanguageAssistant.tsx`
+  - `docs/execution/P3_CHECKPOINT.md`
+- P1 handoff: mount the existing `NaturalLanguageAssistant` once in `IntelligenceWorkspace`; no workspace edit was made by P3.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/E2E/RPC/Bolt/Preview/provider/Vercel/production operation was run.
+- Cost/safety: no new provider/dependency/service, no quota/secret/Vercel spend, and no financial, purchasing, task or inventory mutation.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (INVENTORY INTENTS)
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

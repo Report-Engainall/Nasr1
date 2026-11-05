@@ -6,6 +6,18 @@ const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
 function count(value:number|null):string{return value===null?"غير متاح":qty.format(value);}
 function percent(value:number|null):string{return value===null?"غير متاح":rate.format(value)+"%";}
+function processLabel(key:"ORDERS"|"QUOTES"|"PURCHASE"|"INVOICES"|"TASKS"):string {
+ return ({ORDERS:"الطلبات",QUOTES:"عروض الأسعار",PURCHASE:"المشتريات",INVOICES:"الفواتير",TASKS:"المهام"} as const)[key];
+}
+function waitClassLabel(value:string):string {
+ const labels:Record<string,string>={MIXED_OR_UNATTRIBUTED:"انتظار مختلط أو غير منسوب",INTERNAL_RESPONSE:"استجابة داخلية",
+  INTERNAL_DRAFT_REVIEW:"مراجعة واعتماد داخلي",MIXED_SUPPLIER_RECEIVING:"استلام مختلط المورد والمستودع",
+  EXTERNAL_CUSTOMER_SETTLEMENT:"تسوية من العميل",INTERNAL_QUEUE_AND_WORK:"انتظار وتنفيذ داخلي"};
+ return labels[value]??"تصنيف انتظار غير معروف";
+}
+function duration(value:number):string {
+ return value<60?rate.format(value)+" دقيقة":rate.format(value/60)+" ساعة";
+}
 function inventoryTitle(intent:"DEAD_STOCK_OVERVIEW"|"REPLENISHMENT_OVERVIEW"):string {
  return intent==="REPLENISHMENT_OVERVIEW"?"احتياج إعادة التوريد":"حركة المخزون والركود";
 }
@@ -43,7 +55,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد ضمن نافذة 92 يوماً. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات ضمن نوافذ محددة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -75,6 +87,31 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     {invoice.reviewReason?<p className="mt-1 text-xs">سبب المراجعة: {invoice.reviewReason}</p>:null}
     {onOpenSupplierInvoice?<button type="button" onClick={()=>onOpenSupplierInvoice(invoice.invoiceId)} className="mt-2 rounded-lg border px-3 py-1.5 text-xs">فتح الفاتورة</button>:null}
    </article>)}
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="PROCESS_BOTTLENECK"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2"><strong>اختناقات العمليات وزمن الدورة</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="READY"?"مصادر مكتملة":response.result.state==="PARTIAL"?"مصادر جزئية":"غير متاح"}</span></div>
+    <p className="mt-2 font-medium">{response.result.answer}</p>
+    <p className="mt-2 text-xs text-muted-foreground">كما في {response.result.asOf} · الحالية: {response.result.period.from} — {response.result.period.to} · المقارنة: {response.result.baselinePeriod?response.result.baselinePeriod.from+" — "+response.result.baselinePeriod.to:"غير متاحة"}</p>
+   </div>
+   {response.result.findings.length?<div className="space-y-2">
+    {response.result.findings.slice(0,5).map((finding,index)=><article key={finding.processKey+":"+finding.stageKey+":"+index} className="rounded-lg border p-3 text-sm">
+     <div className="flex flex-wrap items-center justify-between gap-2"><strong>{processLabel(finding.processKey)} · {finding.stageKey}</strong><span className="text-xs">عينة مكتملة: {count(finding.sampleCount)}</span></div>
+     <p className="mt-1 text-xs text-muted-foreground">{waitClassLabel(finding.waitClass)}</p>
+     <div className="mt-2 grid grid-cols-2 gap-2"><div><p className="text-xs text-muted-foreground">وسيط الانتظار</p><strong>{duration(finding.medianMinutes)}</strong></div><div><p className="text-xs text-muted-foreground">المئين 90</p><strong>{duration(finding.p90Minutes)}</strong></div></div>
+     <p className="mt-2 text-xs">{finding.recommendation}</p>
+    </article>)}
+   </div>:null}
+   {response.result.comparisons.length?<section className="rounded-lg border p-3 text-sm">
+    <strong>التغير بين الفترتين (وصفي)</strong>
+    <div className="mt-2 space-y-2">{response.result.comparisons.slice(0,5).map((item,index)=><p key={item.processKey+":"+item.stageKey+":"+index} className="text-xs">
+     {processLabel(item.processKey)} · {item.stageKey}: {duration(item.baselineMedianMinutes)} ← {duration(item.currentMedianMinutes)}
+     {item.changePercent===null?"":" · "+rate.format(item.changePercent)+"%"} · لا يثبت السببية
+    </p>)}</div>
+   </section>:null}
+   {response.result.withheldReasons.length?<div role="status" className="rounded-lg border p-3 text-xs"><strong>مصادر ومراحل غير مكتملة أو بعينة صغيرة</strong><ul className="mt-1 list-disc space-y-1 ps-5">{response.result.withheldReasons.slice(0,12).map(reason=><li key={reason}>{reason}</li>)}</ul></div>:null}
+   <p className="text-xs text-muted-foreground">لا تُنسب فترات الانتظار إلى موظف، ولا تُعتبر المقارنة سبباً للتغير أو حكماً على الإنتاجية الفردية.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="INVENTORY"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">

@@ -3,10 +3,11 @@ import { fetchSupplierInvoiceWorkspace } from "@/lib/supplier-invoices";
 import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import { fetchSupplierPerformance } from "./supplier-performance-client";
 import { createInventoryIntelligencePeriod,fetchInventoryIntelligence } from "./inventory-intelligence-client";
+import { fetchProcessBottlenecks } from "./process-bottlenecks-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -23,6 +24,24 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="fetch_process_bottleneck_snapshot"){
+   const to=new Date().toISOString().slice(0,10);
+   const days=plan.periodDays??30;
+   const fromDate=new Date(to+"T00:00:00.000Z");
+   fromDate.setUTCDate(fromDate.getUTCDate()-(days-1));
+   const from=fromDate.toISOString().slice(0,10);
+   const baselineToDate=new Date(from+"T00:00:00.000Z");
+   baselineToDate.setUTCDate(baselineToDate.getUTCDate()-1);
+   const baselineTo=baselineToDate.toISOString().slice(0,10);
+   const baselineFromDate=new Date(baselineTo+"T00:00:00.000Z");
+   baselineFromDate.setUTCDate(baselineFromDate.getUTCDate()-(days-1));
+   const process=await fetchProcessBottlenecks({
+    from,to,baselineFrom:baselineFromDate.toISOString().slice(0,10),baselineTo,
+   });
+   if(!process.ok)return {status:process.status,message:process.message};
+   return {status:"RESULT",plan,result:resolveProcessBottlenecksIntent(
+    plan.intent as ProcessBottleneckIntent,process.result)};
+  }
   if(plan.sourceRpc==="get_inventory_intelligence_aggregate"){
    const request=createInventoryIntelligencePeriod(new Date(),92);
    const inventory=await fetchInventoryIntelligence(request.period,request.asOf);

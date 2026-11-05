@@ -3,13 +3,15 @@ import type { CustomerRetentionReport } from "./customer-retention";
 import type { SupplierPerformanceResult } from "./supplier-performance";
 import type { DeadStockReport } from "./dead-stock";
 import type { ReplenishmentRecommendation } from "./replenishment";
+import type { ProcessBottleneckResult } from "./process-bottlenecks";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
 export type SupplierPerformanceIntent="SUPPLIER_PERFORMANCE_OVERVIEW"|"SUPPLIER_DELIVERY_ADHERENCE";
 export type InventoryIntent="DEAD_STOCK_OVERVIEW"|"REPLENISHMENT_OVERVIEW";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate";
+export type ProcessBottleneckIntent="PROCESS_BOTTLENECK_OVERVIEW";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -24,6 +26,19 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   status:"CLARIFICATION",normalizedQuestion,explanation:"اكتب سؤالاً واضحاً لا يتجاوز 400 حرف.",
   clarification:"ما السجلات التي تريد الاستعلام عنها؟"
  };
+ const processBottleneckQuestion=/(اختناق|اختناقات|زمن العمليات|زمن دوره العمليه|دوره العمليات|عنق الزجاجه|بطء العمليات|بطء الاجراءات)/.test(normalizedQuestion);
+ if(processBottleneckQuestion){
+  const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90)\s*(?:يوما?|ايام)/);
+  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر|من تاريخ|بين تاريخ|الفتره|الربع)/.test(normalizedQuestion)||/20\d{2}-\d{2}-\d{2}/.test(normalizedQuestion);
+  if(hasTimeConstraint&&!dayMatch)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"تحليل الاختناقات يقبل نافذة محددة من 30 أو 60 أو 90 يوماً فقط؛ لا أطبق تاريخاً حراً أو فترة تقويمية تقريبية."
+  };
+  const periodDays=(dayMatch?Number(dayMatch[1]):30) as 30|60|90;
+  return {status:"READY",intent:"PROCESS_BOTTLENECK_OVERVIEW",normalizedQuestion,
+   sourceRpc:"fetch_process_bottleneck_snapshot",periodDays,
+   filterDescription:"مراحل عمليات موثقة بعينات مكتملة في نافذتين UTC متساويتين وغير متداخلتين، مع حجب المراحل ذات العينات الأقل من 3."};
+ }
  const replenishmentQuestion=/(اعاده التوريد|اعاده الطلب|نقطه اعاده الطلب|احتياج التوريد|اصناف تحتاج توريد|منتجات تحتاج توريد|توصيات التوريد|احتياج الشراء)/.test(normalizedQuestion);
  const deadStockQuestion=/(المخزون الراكد|مخزون راكد|الاصناف الراكده|اصناف راكده|الركود|بطيء الحركه|بطيئه الحركه|بدون حركه|بلا حركه)/.test(normalizedQuestion);
  if(replenishmentQuestion||deadStockQuestion){
@@ -166,7 +181,18 @@ export interface NaturalLanguageInventoryResult {
  replenishment:{recommendedProducts:number|null;noActionProducts:number|null;withheldProducts:number|null};
  warnings:string[];
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult;
+export interface NaturalLanguageProcessBottleneckResult {
+ kind:"PROCESS_BOTTLENECK";state:"READY"|"PARTIAL"|"UNAVAILABLE";intent:ProcessBottleneckIntent;
+ answer:string;sourceRpc:"fetch_process_bottleneck_snapshot";asOf:string;
+ period:{from:string;to:string};baselinePeriod:{from:string;to:string}|null;
+ findings:Array<{processKey:"ORDERS"|"QUOTES"|"PURCHASE"|"INVOICES"|"TASKS";stageKey:string;
+  waitClass:string;sampleCount:number;medianMinutes:number;p90Minutes:number;recommendation:string}>;
+ comparisons:Array<{processKey:"ORDERS"|"QUOTES"|"PURCHASE"|"INVOICES"|"TASKS";stageKey:string;
+  currentMedianMinutes:number;baselineMedianMinutes:number;changeMinutes:number;changePercent:number|null;note:string}>;
+ sourceCoverage:Array<{key:"ORDERS"|"QUOTES"|"PURCHASE"|"INVOICES"|"TASKS";status:"VERIFIED"|"UNAVAILABLE";sampleCount:number|null;message:string}>;
+ reopenedTasks:number|null;withheldReasons:string[];
+}
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -372,5 +398,38 @@ export function resolveInventoryIntent(
   kind:"INVENTORY",state,intent,answer,sourceRpc:"get_inventory_intelligence_aggregate",
   asOf:input.asOf,period:input.period,totalProducts:input.totalProducts,completePopulation:complete,
   deadStock:stockCounts,replenishment:replenishmentCounts,warnings,
+ };
+}
+
+
+/** Projects only aggregate stage timings from complete, authorized source populations. */
+export function resolveProcessBottlenecksIntent(
+ intent:ProcessBottleneckIntent,result:ProcessBottleneckResult,
+):NaturalLanguageProcessBottleneckResult {
+ const findings=result.findings.map(item=>({
+  processKey:item.processKey,stageKey:item.stageKey,waitClass:item.waitClass,sampleCount:item.sampleCount,
+  medianMinutes:item.medianMinutes,p90Minutes:item.p90Minutes,recommendation:item.recommendation,
+ }));
+ const comparisons=result.comparisons.map(item=>({
+  processKey:item.processKey,stageKey:item.stageKey,currentMedianMinutes:item.currentMedianMinutes,
+  baselineMedianMinutes:item.baselineMedianMinutes,changeMinutes:item.changeMinutes,
+  changePercent:item.changePercent,note:item.note,
+ }));
+ const sourceCoverage=result.sourceCoverage.map(item=>({
+  key:item.key,status:item.status,sampleCount:item.sampleCount,message:item.message,
+ }));
+ const processCount=sourceCoverage.filter(item=>item.status==="VERIFIED"&&item.sampleCount!==null).length;
+ const answer=result.state==="UNAVAILABLE"
+  ?"لا تتوفر مصادر عمليات مكتملة ومصرح بها تكفي لإصدار نتيجة موثوقة؛ لم تُعامل المصادر غير المتاحة كأنها لا تحتوي عملاً."
+  :findings.length===0
+   ?"لم تظهر مراحل تستوفي شرط العينة (3 فترات مكتملة على الأقل) في المصادر الموثقة ضمن النافذة المحددة. هذا لا يعني عدم وجود انتظار في المصادر غير المتاحة."
+   :"تم رصد "+findings.length+" مرحلة ذات زمن دورة قابل للقياس عبر "+processCount+" مصادر مكتملة. الترتيب حسب وسيط زمن الانتظار؛ لا يثبت سبباً أو مسؤولية فردية.";
+ return {
+  kind:"PROCESS_BOTTLENECK",state:result.state,intent,answer,
+  sourceRpc:"fetch_process_bottleneck_snapshot",asOf:result.asOf,
+  period:{from:result.period.from,to:result.period.to},
+  baselinePeriod:result.baselinePeriod?{from:result.baselinePeriod.from,to:result.baselinePeriod.to}:null,
+  findings,comparisons,sourceCoverage,reopenedTasks:result.reopenedTasks,
+  withheldReasons:[...result.withheldReasons],
  };
 }
