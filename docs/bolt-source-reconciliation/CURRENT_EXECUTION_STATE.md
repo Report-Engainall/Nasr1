@@ -42,11 +42,11 @@
 
 ---
 
-# PARALLEL P3 DELIVERY CHECKPOINT — 2026-11-05 — BODY-COMPLETION-ON-MAIN-017
+# PARALLEL P3 DELIVERY CHECKPOINT — 2026-11-05 — P3-ROLE-TASK-ATTENTION-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Product code delivered at SHA: `34b9c401d87ed71d6c882a42349f491b249e1df4` (P3 task-prioritization and existing Task Center only).
-- Completed parallel task: `BODY-COMPLETION-ON-MAIN-017` / `REF-ROLE-TASK-ATTENTION-001`.
+- Completed parallel task: `P3-ROLE-TASK-ATTENTION-001` / `REF-ROLE-TASK-ATTENTION-001`.
 - Changed paths: `src/lib/intelligence/task-prioritization.ts`, `src/components/TaskCenter.tsx`.
 - New experience: role-scoped top-five "What should I do now?" action list with deterministic due/priority ordering, explanation, due date and next step; CTA opens the original task through existing filters.
 - Assignment support: manager/admin creation form suggests the eligible person with the lightest visible open workload, using explicit task/priority/overdue weights. Suggestion is opt-in; no automatic assignment. Existing server command remains the only save path.
@@ -54,9 +54,9 @@
 - Acceptance leaf `REF-ROLE-TASK-ATTENTION-001` added to the sole matrix and requirement registry; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - No tests/build/lint/typecheck/CI/browser/E2E/DB/Bolt Preview/production checks run. No PASS or runtime verification claimed.
 - No Vercel operation or credit use; no paid dependency/provider; no DB/schema/production changes.
-- Parallel task `BODY-COMPLETION-ON-MAIN-016` from the prior cursor (supplier account activity statement) remains preserved and untouched. This independent P3 delivery does not supersede that task.
+- The prior sequential task `BODY-COMPLETION-ON-MAIN-016` (supplier account activity statement) was completed independently by the other programmer. The current sequential next action `BODY-COMPLETION-ON-MAIN-017` is supplier payment/settlement lifecycle and remains outside this P3 scope.
 - GitHub main commits are the delivery surface; inbox notifications are subject to watch settings. No receipt claimed.
-- `NEXT_ACTION_ID` from the existing P2 stream remains `BODY-COMPLETION-ON-MAIN-016`; continue that owner task when resuming the primary cursor.
+- The sequential global next action remains `BODY-COMPLETION-ON-MAIN-017` — source-backed supplier payment/settlement lifecycle. This P3 delivery is separately tracked as `P3-ROLE-TASK-ATTENTION-001`; do not conflate the IDs or edit the payment paths.
 
 ---
 
