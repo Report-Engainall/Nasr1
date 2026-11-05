@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   recordShiftCash: vi.fn(),
   recordShiftHandover: vi.fn(),
   captureShiftSnapshot: vi.fn(),
+  acceptShiftHandover: vi.fn(),
   createProposal: vi.fn(),
   asOf: "2026-10-31T09:00:00.000Z",
   period: { from: "2026-08-01", to: "2026-10-31" },
@@ -44,6 +45,7 @@ vi.mock("@/lib/intelligence/shift-operations-client", () => ({
   startOperationalShift: mocks.startShift,
   recordOperationalShiftCashCount: mocks.recordShiftCash,
   recordOperationalShiftHandover: mocks.recordShiftHandover,
+  acceptOperationalShiftHandover: mocks.acceptShiftHandover,
   captureOperationalShiftSnapshot: mocks.captureShiftSnapshot,
 }));
 vi.mock("@/lib/intelligence/process-bottlenecks-client", () => ({
@@ -259,6 +261,7 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.recordShiftCash.mockReset().mockResolvedValue({ ok: true, data: {} });
     mocks.recordShiftHandover.mockReset().mockResolvedValue({ ok: true, data: {} });
     mocks.captureShiftSnapshot.mockReset().mockResolvedValue({ ok: true, data: {} });
+    mocks.acceptShiftHandover.mockReset().mockResolvedValue({ ok: true, data: {} });
   });
   afterEach(() => cleanup());
 
