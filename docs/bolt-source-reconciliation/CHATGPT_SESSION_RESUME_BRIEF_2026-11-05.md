@@ -1,3 +1,15 @@
+# OWNER CLARIFICATION — EXECUTION ORDER CORRECTION — 2026-11-05
+
+**Highest priority: do not connect to Bolt yet.** The current phase is to continue completing the greatest practical amount of the existing Aghbari product body on NASR1/main first. The earlier text in this brief that labels BOLT-RUNTIME-001 as the immediate next action or says to stop DLV work until Bolt is verified is superseded by this owner clarification.
+
+Current work: implement and accept all source/product-level gaps that can be completed without Bolt-provisioned resources. Preserve all screens, routes, workflows, business engines, SQL/migrations, RPC contracts, tests and documentation. Lovable source detachment is already complete; do not repeat it or reintroduce it. Do not create a Bolt project, sign in, import/sync main, provision Bolt DB, or run Bolt Preview during this phase. Continue on Report-Engainall/Nasr1 main only.
+
+Activate BOLT-RUNTIME-001 only when the product body is at practical handoff readiness: source-level/product feature items that do not require Bolt's own provisioned resources are completed or have precise evidence-backed blockers. No arbitrary percentage or unsupported completion claim. At that later point, import the then-current main once into Bolt, use Bolt's built-in database/auth/storage/server functions, preserve every existing data/security/business contract, and let Bolt run Preview plus real E2E/security/commerce acceptance on one exact SHA. Do not use the historical ZIP as an overlay, separate external Supabase, Lovable services, paid billing, or weakened access controls.
+
+CURRENT NEXT ACTION: BODY-COMPLETION-ON-MAIN-001.
+DEFERRED ACTION: BOLT-RUNTIME-001 (only after the product-body handoff gate).
+
+---
 # SESSION RESUME — FINAL VERIFIED CURSOR — 2026-11-05
 
 - Last verified main before this documentation correction: `Report-Engainall/Nasr1@main` SHA `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe`. Fetch live `main` again before importing; this final follow-up changes documentation only.
