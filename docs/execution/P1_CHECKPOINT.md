@@ -6,7 +6,7 @@
 
 ## Delivered on main — BODY-022
 
-1. Added `supabase/migrations/20261105280000_device_session_keyset_pagination.sql`: replaces `list_organization_sessions(integer)` with an admin-only same-tenant SECURITY DEFINER function accepting page size plus the composite cursor `(last_activity_at, created_at, session_id)`. Sort and cursor comparison use the same descending tuple; session response rows retain the existing shape; all three cursor fields must be null or all supplied. Page size is bounded to 201 to support a 200-row display plus one sentinel.
+1. Added `supabase/migrations/20261106000000_device_session_keyset_pagination.sql`: replaces `list_organization_sessions(integer)` with an admin-only same-tenant SECURITY DEFINER function accepting page size plus the composite cursor `(last_activity_at, created_at, session_id)`. Sort and cursor comparison use the same descending tuple; session response rows retain the existing shape; all three cursor fields must be null or all supplied. Page size is bounded to 201 to support a 200-row display plus one sentinel.
 2. Updated `src/components/DeviceManagement.tsx`: first page requests 201, displays 200, and keeps the sentinel only as proof that more records exist. A load-more action sends the last visible row's exact cursor and appends unique session rows. Refresh starts from page one; a failed continuation keeps already-loaded pages and leaves the same cursor available for retry.
 3. Updated `src/test/device-management-session-cap.test.tsx` to describe the sentinel, exact continuation cursor and final-page behavior.
 4. Updated `scripts/test-session-management.mjs` with SQL-level cursor continuation acceptance, ordering/no-repeat expectations and the new maximum of 201. The scripts/tests are source specifications only; they were not executed.
@@ -14,7 +14,7 @@
 
 ## Source boundaries
 
-- Migration commit: `7445b418997c6d49b7dd9c529df7df42a804be01`.
+- Valid timestamped migration file creation commit: `5e932cee090f33261f2417ba6aeec789328a0e2a`; removal of the invalidly timestamped predecessor commit: `ff852f40a47492e9409d207ac0c76f8ef2359b78`.
 - UI commit/blob: `f782f04ccb009d107169ff05a87812ed47f288d3` / `48d7186cdf276fa348bd5481a30cfb3b3ecfde93`.
 - Focused UI acceptance-source commit/blob: `8870c82533b13ea93b0e7ddf9ebfcf80e25b3077` / `2405539128699ffcda7c3f69815581158abc5fff`.
 - PostgreSQL acceptance-source commit/blob: `ad744b92ef058a3cff9bb1f4ba5c494d748613f0` / `8d37f9d5daecda5bc4eecaf4396a116c4efc62d1`.
