@@ -38,6 +38,7 @@ DECLARE
   v_actor uuid:=public.current_profile_id();
   v_org uuid:=public.current_organization_id();
   v_customer_id uuid;
+  v_customer_name text;
   v_id uuid;
   v_type text:=coalesce(p_interaction_type,'');
   v_subject text:=pg_catalog.btrim(coalesce(p_subject,''));
@@ -73,7 +74,7 @@ BEGIN
       MESSAGE='next follow-up must be scheduled in the future';
   END IF;
 
-  SELECT c.id INTO v_customer_id
+  SELECT c.id,c.business_name INTO v_customer_id,v_customer_name
   FROM public.customers c
   WHERE c.id=p_customer_id AND c.organization_id=v_org
   FOR KEY SHARE;
@@ -92,6 +93,30 @@ BEGIN
     v_interaction_at,p_next_follow_up_at
   )
   RETURNING id INTO v_id;
+
+  -- A scheduled next contact becomes a real sales task in the operational task center.
+  IF p_next_follow_up_at IS NOT NULL THEN
+    PERFORM public.upsert_operational_task(
+      v_org,
+      'متابعة العميل: '||coalesce(nullif(pg_catalog.btrim(v_customer_name),''),'عميل'),
+      'موعد متابعة ناتج من سجل التواصل: '||v_subject||E'\n'||pg_catalog.left(v_details,1200),
+      'sales',
+      'medium',
+      'customer_follow_up',
+      'customer-follow-up:'||v_id::text,
+      'customer_interactions',
+      v_id,
+      p_next_follow_up_at,
+      jsonb_build_object(
+        'customer_id',v_customer_id,
+        'interaction_id',v_id,
+        'interaction_type',v_type,
+        'subject',v_subject,
+        'next_follow_up_at',p_next_follow_up_at
+      ),
+      false
+    );
+  END IF;
 
   INSERT INTO public.audit_logs(
     organization_id,actor_id,action,entity_type,entity_id,new_value
