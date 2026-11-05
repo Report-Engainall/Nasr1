@@ -1,13 +1,13 @@
 # SESSION RESUME — FINAL VERIFIED CURSOR — 2026-11-05
 
-- Latest main to import: `Report-Engainall/Nasr1@main` SHA `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe`.
+- Last verified main before this documentation correction: `Report-Engainall/Nasr1@main` SHA `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe`. Fetch live `main` again before importing; this final follow-up changes documentation only.
 - Application code SHA proven by CI: `45ca19c47a985b2d12d23c846ba068222a4e17ce` (the one commit from `45ca19c47a985b2d12d23c846ba068222a4e17ce` to `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe` is documentation-only).
 - Portability source commit: `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63`; CI/test correction commit: `45ca19c47a985b2d12d23c846ba068222a4e17ce`.
-- Core [41940874587 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874587): 272 files / 1,786 tests PASS, PG17/backup-restore/lint/build/Nitro-Vite preview/dev/price visibility PASS.
-- P2 [41940874520 SUCCESS](https://github.com/Report-Engainall/Nas1/actions/runs/41940874520): public UI 17/17; local authenticated E2E SUCCESS including orders/tenant, stock-count and purchase XLSX, checkout retry, returns, Onyx, print, customer-manager privacy/audit, and device-session revocation. Hosted customer/order/tenant remains SKIPPED_EXTERNAL.
+- Core [41940874587 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874587): 272 files / 1,786 tests PASS, PG17/backup-restore/lint/build/Nitro-Vite preview/dev/price visibility PASS.
+- P2 [41940874520 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874520): public UI 17/17; local authenticated E2E SUCCESS including orders/tenant, stock-count and purchase XLSX, checkout retry, returns, Onyx, print, customer-manager privacy/audit, and device-session revocation. Hosted customer/order/tenant remains SKIPPED_EXTERNAL.
 - P1 TypeScript/static/secret scan/main cleanup all PASS on `45ca19c47a985b2d12d23c846ba068222a4e17ce`. Vercel check FAILURE; not Bolt evidence.
 - Bolt runtime is still NOT VERIFIED. No Bolt project, built-in DB, auth, storage, server functions or Preview was accessed from ChatGPT.
-- NEXT_ACTION_ID: `BOLT-RUNTIME-001`. Import latest main SHA `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe` into Bolt; do not import the old ZIP over main; select Bolt's built-in Database, not a separate external Supabase connection; map the complete existing SQL/RPC/transaction/RLS-equivalent auth/storage/Edge contracts; preserve idempotency, audit, tenant isolation and pricing privacy; run Preview and the full acceptance suite on a single exact SHA. Do not mark done until Bolt returns evidence.
+- NEXT_ACTION_ID: `BOLT-RUNTIME-001`. Fetch and import the live latest `main` into Bolt (last verified pre-update cursor `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe`); do not import the old ZIP over main; select Bolt's built-in Database, not a separate external Supabase connection; map the complete existing SQL/RPC/transaction/RLS-equivalent auth/storage/Edge contracts; preserve idempotency, audit, tenant isolation and pricing privacy; run Preview and the full acceptance suite on a single exact SHA. Do not mark done until Bolt returns evidence.
 - Use `docs/bolt-source-reconciliation/BOLT_EXECUTION_PROMPT_AR_2026-11-05.md` as the single handoff instruction. Do not repeat completed archive, Core or P2 work.
 
 ---
