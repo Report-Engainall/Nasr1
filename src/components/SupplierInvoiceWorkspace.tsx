@@ -25,8 +25,8 @@ const cardStyle: React.CSSProperties = {
   background: "var(--card, #fff)", display: "grid", gap: 10, minWidth: 0,
 };
 const mutedStyle: React.CSSProperties = { color: "var(--muted-foreground, #64748b)", fontSize: 12, lineHeight: 1.7, margin: 0 };
-const moneyPattern = /^(?:0|[1-9]\\d{0,15})(?:\\.\\d{1,2})?$/;
-const quantityPattern = /^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,3})?$/;
+const moneyPattern = /^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/;
+const quantityPattern = /^(?:0|[1-9]\d{0,11})(?:\.\d{1,3})?$/;
 function cents(value: string): bigint | null {
   const normalized = value.trim();
   if (!moneyPattern.test(normalized)) return null;
@@ -209,7 +209,7 @@ export function SupplierInvoiceWorkspace({ mode }: { mode: WorkspaceMode }) {
     const totalCents = cents(invoiceTotal);
     if (!lines.length) { setError("أدخل بند استلام واحدًا على الأقل من أمر الشراء المحدد."); return; }
     if (invoiceNumber.trim().length < 1 || invoiceNumber.trim().length > 80 ||
-        !/^\\d{4}-\\d{2}-\\d{2}$/.test(invoiceDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate) ||
         subtotalCents === null || subtotalCents <= 0n || taxCents === null || totalCents === null ||
         lineSum !== subtotalCents || totalCents !== subtotalCents + taxCents) {
       setError("تحقق من رقم الفاتورة وتاريخها والمبالغ: مجموع البنود = الإجمالي قبل الضريبة، والإجمالي النهائي = البنود + الضريبة الموثقة.");
