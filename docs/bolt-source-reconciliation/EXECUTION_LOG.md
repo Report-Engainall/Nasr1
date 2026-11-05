@@ -1800,11 +1800,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 
 ## 2026-11-05 — Role-aware daily actions and workload-aware assignment — `34b9c401d87ed71d6c882a42349f491b249e1df4`
 
-- **Task:** `BODY-COMPLETION-ON-MAIN-017` / `REF-ROLE-TASK-ATTENTION-001`.
+- **Task:** `P3-ROLE-TASK-ATTENTION-001` / `REF-ROLE-TASK-ATTENTION-001`.
 - **Product behavior:** the existing operational Task Center now presents up to five open tasks from the user's authorized role scope, ordered deterministically by overdue/due window, priority and active status. Each item states why it is surfaced, shows its source due date and next step, and opens the same persisted task in the existing filtered list.
 - **Fair assignment:** the existing manager/admin task form now recommends an eligible assignee with the lightest visible workload. The weight is transparent: one point per open task, plus priority extras (critical 3/high 2/medium 1), plus 2 for an overdue task. The manager must choose the suggestion and then save through the existing server command; no automatic assignment or new permission path was added.
 - **Changed files:** `src/lib/intelligence/task-prioritization.ts`; `src/components/TaskCenter.tsx`.
 - **Product commits:** `125a7b69477b560a7dca76324190c6e1f3b662a4`, `8151baab0415b66481f4c3c8ddca90c7b644b659`, `d7ecd3bc1226c5ae453c130b0a1145701259aeb8`, `34b9c401d87ed71d6c882a42349f491b249e1df4`.
 - **Acceptance:** added `REF-ROLE-TASK-ATTENTION-001` to the existing matrix as `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; registry updated. No duplicate matrix/engine created.
 - **Boundary:** no tests, build, lint, typecheck, CI, browser/E2E, database, Bolt Preview or production checks were run. No PASS/runtime acceptance claimed. No migration, dependency, paid AI, Vercel build/preview/deployment or Vercel credit use. No notification receipt claimed; GitHub push notification delivery depends on watch settings.
-- **Parallel handoff:** preserved the existing `BODY-COMPLETION-ON-MAIN-016` supplier account activity statement as a separate pending task. This P3 batch touched only the P3-owned task/intelligence paths and the P3-owned central records.
+- **Parallel handoff:** sequential `BODY-COMPLETION-ON-MAIN-016` (supplier account activity statement) was completed independently by the other programmer. Current sequential `BODY-COMPLETION-ON-MAIN-017` is supplier payment/settlement and remains untouched. This P3 batch used the distinct id `P3-ROLE-TASK-ATTENTION-001`.
