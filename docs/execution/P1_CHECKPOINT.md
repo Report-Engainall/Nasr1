@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-020 — SUPPLIER PAYMENT VOUCHER PRINT/PDF
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- P1/P3 are the only active implementers. P1 owns product-facing workspaces, typed UI integration and operational documents. P3 owns intelligent engines, evidence lineage, persistence and intelligence DTOs.
+- The existing supplier payment workflow was already mounted in `GeneralLedgerWorkspace.tsx`; BODY-020 adds a distinct printed voucher output only. It does not rebuild payment capture, allocation, reconciliation, accounting draft creation or the supplier ledger.
+
+## Delivered on main — BODY-020
+
+1. Added `src/lib/supplier-payment-voucher-print.ts` as a validated projection from the saved `SupplierPaymentWorkspace` + `SupplierPaymentHistory` DTO. It validates the saved payment identity is present in the current server snapshot, supplier relationship, dates, exact positive decimal amount, currency and payment method.
+2. Added `src/components/SupplierPaymentVoucherPrintSheet.tsx`, an Arabic RTL print document with payment number/date, supplier, amount/currency, method/reference, settlement account, payable account, independent reconciliation state/reference, journal number/status and signature lines.
+3. Wired `طباعة سند الصرف` into each saved payment row in `src/components/SupplierPaymentWorkspace.tsx` through a scoped print lifecycle and portal. Existing finance-role authorization and payment workflow remain unchanged.
+4. Added A4 portrait print styling in `src/styles.css`.
+5. The document uses the actual linked journal status as the settlement boundary: POSTED counts toward payable reduction, DRAFT remains unposted, and VOID stays visibly void. The source payment history does not return receipt-allocation rows, so this voucher explicitly does not invent an allocation breakdown. Internal UUID/tenant/profile/account IDs are omitted.
+
+## Source boundary / acceptance
+
+- Reuses the existing source-only payment model in `supabase/migrations/20261105235000_supplier_payment_settlement.sql`; no additional DB write path or migration was introduced.
+- Exact feature commits: projection `68293a09b55eeb9b9d257d0e5020bd6b2086a30e`; print component `aa2e39041297d9c4d6d5b2d43cfabf822cf7dbe6`; posted-journal boundary `648439d53b5433352a7ce0af09851a028f0a5dd7`; UI action `074b01c45fb4896f379ec4a164e45ce0ae3a6b78`; A4 CSS `f0ddf06a0ae713b4031518b4bd28c0029c3b2c83`.
+- Exact final blobs: projection `fba6b0ad93aac2bd18067d0ab65165fdb494a198`; print sheet `3f00361bd5ce3db3a8687008fbd3b9f3b9ac38ad`; workspace `ca42ce32801eb27a7d3081777840b171cd4aee54`; print CSS `be602fc9c3c33d59670673d2dd4d2b850419ee5e`.
+- Acceptance state: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/CI/browser/E2E/database migration application/Bolt runtime/Preview/Vercel operation occurred; no PASS or production acceptance is claimed. No Vercel credits or paid providers used. GitHub commits are the delivery record; notification receipt depends on repository watch settings.
+
+## Next P1 body cursor
+
+Continue with the next uncovered mandatory non-intelligence product capability from the canonical specification and acceptance matrix. Do not rebuild supplier payment, supplier invoice, supplier account activity, prior DLV-011 templates or P3 intelligence engines.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-019 — SUPPLIER ACCOUNT ACTIVITY STATEMENT PRINT/XLSX
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
