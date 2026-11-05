@@ -1,3 +1,5 @@
+import {parseTaskQualityMetrics,type TaskQualityMetrics} from "./task-quality-reviews";
+
 export type TaskPerformanceRole =
   | "sales"
   | "accountant"
@@ -68,6 +70,7 @@ export interface TaskPerformanceScorecard {
   };
   groups: TaskPerformanceGroup[];
   unavailableMetrics: TaskPerformanceUnavailableMetric[];
+  quality: TaskQualityMetrics;
 }
 
 type PlainRecord = Record<string, unknown>;
@@ -188,6 +191,7 @@ export function parseTaskPerformanceScorecard(value: unknown): TaskPerformanceSc
   const coverage = asRecord(row?.coverage);
   const resolution = asRecord(row?.resolution);
   const audit = asRecord(row?.audit);
+  const quality = parseTaskQualityMetrics(row?.quality);
 
   if (
     !row ||
@@ -252,17 +256,21 @@ export function parseTaskPerformanceScorecard(value: unknown): TaskPerformanceSc
     ) return null;
   }
 
-  const expectedUnavailableMetrics = auditIsWindowComplete
-    ? UNAVAILABLE_METRICS.size - 1
-    : UNAVAILABLE_METRICS.size;
+  const expectedUnavailable = new Set(UNAVAILABLE_METRICS);
+  if (auditIsWindowComplete) expectedUnavailable.delete("REOPEN_RATE");
+  if (quality.status === "READY") {
+    if (quality.actionability.actionableRatePercent !== null) expectedUnavailable.delete("ACTIONABILITY_RATE");
+    if (quality.alerts.falseAlarmRatePercent !== null) expectedUnavailable.delete("FALSE_ALARM_RATE");
+    if (quality.causeReviewCount > 0) expectedUnavailable.delete("REPEATED_CAUSE_RATE");
+  }
+  const actualUnavailable = new Set(row.unavailableMetrics as string[]);
   if (
-    row.unavailableMetrics.some(metric =>
-      typeof metric !== "string" || !UNAVAILABLE_METRICS.has(metric as TaskPerformanceUnavailableMetric),
-    ) ||
-    row.unavailableMetrics.length !== expectedUnavailableMetrics ||
-    new Set(row.unavailableMetrics).size !== expectedUnavailableMetrics ||
-    (auditIsWindowComplete && row.unavailableMetrics.includes("REOPEN_RATE")) ||
-    (!auditIsWindowComplete && !row.unavailableMetrics.includes("REOPEN_RATE"))
+    row.unavailableMetrics.some(metric => typeof metric !== "string" || !UNAVAILABLE_METRICS.has(metric as TaskPerformanceUnavailableMetric)) ||
+    actualUnavailable.size !== row.unavailableMetrics.length ||
+    actualUnavailable.size !== expectedUnavailable.size ||
+    [...expectedUnavailable].some(metric => !actualUnavailable.has(metric)) ||
+    (auditIsWindowComplete && actualUnavailable.has("REOPEN_RATE")) ||
+    (!auditIsWindowComplete && !actualUnavailable.has("REOPEN_RATE"))
   ) return null;
 
   const visibleRoles = scope.visibleRoles as TaskPerformanceRole[];
@@ -339,5 +347,6 @@ export function parseTaskPerformanceScorecard(value: unknown): TaskPerformanceSc
     },
     groups: typedGroups,
     unavailableMetrics: [...new Set(row.unavailableMetrics as TaskPerformanceUnavailableMetric[])],
+    quality,
   };
 }

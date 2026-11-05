@@ -33,18 +33,23 @@ function mapFailure(error: unknown): TaskPerformanceScorecardFetchResult {
   };
 }
 
-/** Read-only server aggregate. Tenant and visible role scope are resolved by the RPC. */
+/** The wrapper adds manager-only review evidence; legacy fallback keeps quality explicitly unavailable. */
 export async function fetchTaskPerformanceScorecard(): Promise<TaskPerformanceScorecardFetchResult> {
-  const { data, error } = await supabase.rpc("fetch_task_performance_scorecard");
-  if (error) return mapFailure(error);
-
-  const scorecard = parseTaskPerformanceScorecard(data);
-  if (!scorecard) {
-    return {
-      ok: false,
-      status: "ERROR",
-      message: "استجابة بطاقة الأداء لا تطابق عقد المصدر أو لا تتوازن أعدادها؛ لم تُستخدم بيانات بديلة.",
-    };
+  try {
+    let response = await supabase.rpc("fetch_task_performance_scorecard_with_quality");
+    if (response.error && (
+      response.error.code === "PGRST202" || response.error.code === "42883" ||
+      /function .* does not exist|could not find the function/i.test(response.error.message ?? "")
+    )) {
+      response = await supabase.rpc("fetch_task_performance_scorecard");
+    }
+    if (response.error) return mapFailure(response.error);
+    const scorecard = parseTaskPerformanceScorecard(response.data);
+    if (!scorecard) {
+      return { ok: false, status: "ERROR", message: "استجابة بطاقة الأداء لا تطابق عقد المصدر أو لا تتوازن أعدادها؛ لم تُستخدم بيانات بديلة." };
+    }
+    return { ok: true, scorecard };
+  } catch {
+    return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بقراءة بطاقة الأداء؛ لم تُستخدم بيانات محلية بديلة." };
   }
-  return { ok: true, scorecard };
 }

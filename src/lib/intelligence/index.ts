@@ -30,3 +30,6 @@ export * from "./task-intelligence-reports-client";
 export * from "./personalization-governance";
 export * from "./task-performance-scorecard";
 export * from "./task-performance-scorecard-client";
+
+export * from "./task-quality-reviews";
+export * from "./task-quality-reviews-client";
