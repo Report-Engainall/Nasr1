@@ -7,6 +7,7 @@ import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type Jour
 import { buildFinancialStatements, formatStatementCents, type FinancialStatementsReport } from "@/lib/financial-statements";
 import { CashExpenseJournalLinker } from "@/components/CashExpenseJournalLinker";
 import { CustomerInvoicePaymentJournalLinker } from "@/components/CustomerInvoicePaymentJournalLinker";
+import { SupplierCreditNoteWorkspace } from "@/components/SupplierCreditNoteWorkspace";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { GeneralJournalReversalAction } from "@/components/GeneralJournalReversalAction";
 import { GeneralLedgerPrintSheet } from "@/components/GeneralLedgerPrintSheet";
@@ -530,6 +531,7 @@ export function GeneralLedgerWorkspace() {
 
       <CashExpenseJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <CustomerInvoicePaymentJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
+      <SupplierCreditNoteWorkspace onRefresh={refreshAccountingViews} />
       <FinanceDocumentPrintActions />
 
       <form style={card} onSubmit={(event) => { event.preventDefault(); setFilters(filtersDraft); setPage(0); }}>
