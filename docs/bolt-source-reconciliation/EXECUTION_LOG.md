@@ -1763,3 +1763,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - No Bolt sign-in, project creation/import, database provisioning or Preview has occurred in this phase. BOLT-RUNTIME-001 remains OPEN/DEFERRED, not PASS.
 - Documentation-only changes in this correction: CURRENT_EXECUTION_STATE.md, CHATGPT_SESSION_RESUME_BRIEF_2026-11-05.md, BOLT_EXECUTION_PROMPT_AR_2026-11-05.md, REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv, and this log.
 - Current next action: BODY-COMPLETION-ON-MAIN-001. Deferred action: BOLT-RUNTIME-001.
+
+## 2026-11-05 — Reconciled DLV-011 multi-invoice receipt print acceptance
+
+- Found the existing dedicated browser test in e2e/finance-task-print.spec.ts: manager records one receipt across two same-customer/same-currency invoices and safely reprints the saved allocation.
+- Verified the file and related component/migration blobs are present at the exact application code SHA 45ca19c47a985b2d12d23c846ba068222a4e17ce. P2 run 41940874520 SUCCESS ran the complete finance-task-print Playwright file; the local Supabase/PostgreSQL 17 + Chromium acceptance step completed SUCCESS.
+- Assertions cover exact 25.00 + 35.00 = 60.00 YER allocations, persisted receipt, Arabic RTL/A4, identical repeat print, no sensitive IDs/private note, unchanged balances/no duplicate financial movement, and ordinary-customer denial. This is isolated test data; no production write.
+- Added matrix leaf DLV-011-CUSTOMER-MULTI-INVOICE-RECEIPT-PRINT-001 as accepted on that exact SHA and updated DLV-011 from six to seven accepted leaves. DLV-011 remains PARTIAL; other pairs and hosted/production evidence remain open.
+- No application code was changed in this acceptance reconciliation. Do not reimplement or repeat the passing test absent a relevant regression.
