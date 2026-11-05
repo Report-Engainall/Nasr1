@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 sequential body update — BODY-COMPLETION-ON-MAIN-028
+
+- Latest product code on `main`: `c24cbe1a4f324dfefd4418632de133eb23e303b0`.
+- Campaign pricing preview parity is implemented in source: customer cart/order preview reuses `resolve_active_promotion_price` (same resolver as `place_order`), returns versioned source-calculated discounts/net totals, and the UI rejects legacy preview responses. Files and commit chain are recorded at the top of `docs/execution/P1_CHECKPOINT.md`.
+- Migration `supabase/migrations/20261106082000_customer_order_pricing_preview_promotion_snapshots.sql` is not applied to Bolt/Supabase. Source implementation is `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no runtime or test PASS is claimed.
+- P1 continues with the next uncovered non-intelligence capability. P3 ownership and all existing cache/privacy/tenant boundaries remain unchanged.
+- This source delivery used no tests/build/lint/CI/browser/E2E/database/Bolt/Preview/Vercel operation, no Vercel credit, no paid provider, and no new dependency.
+
+
 - Repository: `Report-Engainall/Nasr1`; source branch: `main` only.
 - BODY-024 source commits: valid timestamped migration creation `5e932cee090f33261f2417ba6aeec789328a0e2a`; DeviceManagement keyset UI `f782f04ccb009d107169ff05a87812ed47f288d3`; PostgreSQL acceptance source `ad744b92ef058a3cff9bb1f4ba5c494d748613f0`; final UI acceptance source `0940cce583bf826b6ecec51d86aebffe806ee586`. The invalidly timestamped migration predecessor was removed by `ff852f40a47492e9409d207ac0c76f8ef2359b78`.
 - BODY-025 supplier quote comparison report commits: projection `f9fb84bb0e3dccc8e37b6277e5992be66592d1c1`; XLSX `7a61a5f92df2b9d4c8f488b74491e0601eda36da`; print sheet `a3bb03dd2c9eb1495019833ac2add8755c30707f`; UI `21c35a08da1e01c392962170e066dcc522a09fa3`; strict UUID fix `0c6b00322a737a042d1b5fc6aa30304299dfeb17`; CSS `4e7e01587b6129a812f9280ed7a4a3b917006038`. Latest code blob references are in P1_CHECKPOINT.md.
