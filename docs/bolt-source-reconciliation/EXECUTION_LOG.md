@@ -1776,7 +1776,7 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 
 - Archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; nested ZIP SHA-256: `0a71e066357d59e60e33e7f63d8afa3c645d48dc3a29c69ed64decb9ab131a20`.
 - Outer ZIP: 1,119 files / 17,656,042 bytes uncompressed; nested ZIP: 790 files / 9,158,183 bytes uncompressed.
-- Archive checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is ancestor of the reviewed main line (73 commits ahead / 0 behind at comparison).
+- Archive checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is ancestor of the exact reviewed main SHA `431a08c9eb176112908c6dd42d560b95bb42d082` (75 commits ahead / 0 behind).
 - 69/69 provenance source/staged blobs verified; 69/69 repository/path pairs linked to the existing `SOURCE_INTEGRATION_LEDGER.csv`.
 - Published under `نماذج/2026-11-05-project-bolt-archive/`: Arabic report, 69-file decision CSV and special-file disposition CSV. Updated shared models README.
 - No bulk runtime merge: async CSV helper exact-matches current target; image helper is superseded; direct-write category page and privileged role/password migrations excluded; banner image Storage lifecycle remains a partial gap.
