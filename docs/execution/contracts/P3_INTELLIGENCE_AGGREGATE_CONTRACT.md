@@ -57,3 +57,37 @@ P3 composes existing verified engines; it does not re-query operational tables o
 - Cash conversion cycle, DSO and DPO are NOT_CALCULABLE unless aligned average-balance and period-flow denominators are present. Do not infer from overdue receivables or due obligations alone.
 - The capital-at-risk grand total remains withheld because inventory, receivables, expected collections, scheduled flows and payable obligations may overlap.
 - P3 implementation: `src/lib/intelligence/business-health-map.ts`; reusable presentation component: `src/components/intelligence/BusinessHealthMap.tsx`. The component is presentation-only; P1 owns route mounting, and P2 remains the tenant/data authority.
+
+## Decision Memory Book — canonical merchant-intelligence specification section 52
+
+P3 owns the deterministic memory reader/renderer; P2 owns persistence, validation and authenticated DTOs. Reuse the existing `decision_outcomes` lifecycle. Do not create a parallel approval/execution lifecycle or allow the browser to write memory tables directly.
+
+### Required immutable snapshot contract
+
+Extend the existing `fetch_decision_outcomes(p_limit,p_offset)` response with a nullable `memory_snapshot` for each `decision_id`, and retain its current lifecycle fields. The latest snapshot must include:
+
+- `id`, `decision_id`, `version`, server-assigned `captured_at`, source `as_of`, and exact `period`.
+- `problem`; `facts_reviewed`; typed `facts`, `opinions`, and `hypotheses` entries with stable ID, text, actor role, record time and source evidence IDs. A FACT is returned only when every source evidence reference resolves uniquely inside the caller's tenant and is VERIFIED / COMPLETE / ACCEPTABLE; opinions and hypotheses remain explicitly labelled and never become facts.
+- `alternatives[]`, `chosen_option_id`, `assumptions_reviewed`, `assumptions[]`, `action_taken`, `review_disposition` (SCHEDULED / NOT_SCHEDULED / NOT_REQUIRED), and `review_at` only when scheduled.
+- `expected_metric` and `actual_metric` as full MetricSnapshot objects with metric key, value, unit, currency/UOM, period, as-of, status, completeness, quality, formula ID/version and unique evidence IDs. Do not reduce a measurement to value/currency/as-of.
+- `lessons_reviewed`, `lessons[]`, and the append-only `corrections[]` event history with from/to version, actor role, timestamp, original/corrected text, reason and optional source evidence IDs.
+- `evidence_records[]` needed to verify every metric and FACT. Each record must be tenant scoped with source, source timestamp, as-of, period, currency, status, completeness and quality.
+
+### Persistence and commands
+
+- Persist immutable decision-memory snapshots versioned by `(organization_id, decision_outcome_id, version)`; each new revision inserts a complete new version and never updates or deletes the prior row. An append-only correction event must reference the prior and new version.
+- Add idempotent server commands for initial capture and correction/revision. Commands require expected version, payload-bound idempotency key and a reason for every correction. Derive organization, actor and role from the active authenticated profile; never accept these as trusted client fields.
+- Validate the decision belongs to the actor's current organization and an existing decision lifecycle row. Only the existing server-authorized decision management roles may capture/correct memory. Direct INSERT/UPDATE/DELETE from anon/authenticated browser roles is revoked; reads use same-tenant finance/manager authorization.
+- Resolve all evidence IDs server-side against the current tenant; reject ambiguous, missing, stale or cross-tenant sources without inserting snapshot, event or audit side effects. Store actor/time and exact payload fingerprint for every idempotent command.
+- The actual metric must agree with the existing `decision_outcomes.measured_outcome` lifecycle payload. If formula/version/evidence is absent or contradictory, return it as withheld; never convert the legacy numeric summary into verified evidence.
+- Corrections are additive: preserve the original text and all prior snapshots; do not rewrite decision history, silently edit the approved decision, change its rule version or update any rule automatically.
+
+### P3 interpretation policy
+
+- P3 engine: `src/lib/intelligence/decision-memory.ts`; component: `src/components/intelligence/DecisionMemoryBook.tsx`; it is mounted in the existing `IntelligenceWorkspace`.
+- Facts require verified evidence; opinions and hypotheses have distinct labels; assumptions are recorded explicitly and are not facts.
+- Expected/actual comparisons are allowed only for the same metric key, unit, currency/UOM, exact period and formula ID/version, with a later actual as-of and complete verified evidence for both. A zero expected value has no percentage variance.
+- Same-rule precedents are comparisons within the currently loaded page unless the server explicitly supplies complete history. They must not imply equivalent context or prescribe an automatic rule change.
+- P3 does not create reminders, tasks, customer communications or accounting/inventory writes. No snapshot returned by P2 means a visible PARTIAL memory with missing fields, not a fabricated snapshot.
+- Required owner handoff: P2 delivers the append-only snapshot storage, commands, tenant/evidence validation and full DTO; P3 then binds the returned snapshots to this engine. The current P2 read DTO exposes only the legacy numeric measured outcome and therefore is not enough to close the memory requirement.
+
