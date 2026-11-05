@@ -52,11 +52,6 @@ function dateTime(value: unknown, label: string): string {
   return new Date(value).toISOString();
 }
 
-function nullableDate(value: unknown, label: string): string | null {
-  if (value === null) return null;
-  return dateTime(value, label);
-}
-
 function dateOnly(value: unknown, label: string): string | null {
   if (value === null) return null;
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
