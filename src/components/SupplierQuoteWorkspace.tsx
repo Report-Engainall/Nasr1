@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardList, Plus, RefreshCw, Trophy } from "lucide-react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, CheckCircle2, ClipboardList, Download, Plus, Printer, RefreshCw, Trophy } from "lucide-react";
 import {
   fetchActiveInventoryWarehouses,
   fetchProducts,
@@ -15,6 +16,9 @@ import {
   type SupplierQuoteLineInput,
 } from "@/lib/supplier-quotes";
 import type { PurchaseOrder } from "@/lib/purchase-orders";
+import { projectSupplierQuoteComparisonDocument, type SupplierQuoteComparisonDocument } from "@/lib/supplier-quote-comparison-print";
+import { downloadSupplierQuoteComparisonWorkbookXlsx } from "@/lib/supplier-quote-comparison-xlsx";
+import { SupplierQuoteComparisonPrintSheet } from "@/components/SupplierQuoteComparisonPrintSheet";
 
 type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = { productId: string; quantity: string; unitCost: string };
@@ -52,6 +56,7 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [printDocument, setPrintDocument] = useState<SupplierQuoteComparisonDocument | null>(null);
 
   const load = useCallback(async () => {
     if (!canManage) { setLoading(false); return; }
@@ -78,6 +83,40 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
   }, [canManage]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!printDocument || typeof window === "undefined" ||
+        typeof document === "undefined" || typeof window.print !== "function") return;
+    const body = document.body;
+    const previousMode = body.getAttribute("data-print-mode");
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute("data-print-mode");
+      else body.setAttribute("data-print-mode", previousMode);
+      window.removeEventListener("afterprint", restore);
+      setPrintDocument(null);
+    };
+    body.setAttribute("data-print-mode", "supplier-quote-comparison");
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => {
+      try {
+        window.print();
+      } catch {
+        setError("تعذر فتح نافذة طباعة مقارنة عروض الموردين.");
+        restore();
+      }
+    }, 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", restore);
+      if (!restored && body.getAttribute("data-print-mode") === "supplier-quote-comparison") {
+        if (previousMode === null) body.removeAttribute("data-print-mode");
+        else body.setAttribute("data-print-mode", previousMode);
+      }
+    };
+  }, [printDocument]);
 
   const validOffers = useMemo(
     () => quotes.filter((quote) => quote.status === "received"),
@@ -143,6 +182,37 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
     }
   }
 
+  function createComparisonDocument(): SupplierQuoteComparisonDocument {
+    return projectSupplierQuoteComparisonDocument(quotes);
+  }
+
+  function exportComparison() {
+    setError("");
+    if (loading || quotes.length === 0) {
+      setError("حمّل عروض الموردين المحفوظة قبل استخراج المقارنة.");
+      return;
+    }
+    try {
+      downloadSupplierQuoteComparisonWorkbookXlsx(createComparisonDocument());
+      setNotice("تم تصدير مقارنة العروض المحفوظة؛ بقيت العملات منفصلة ولم تُصدر ملاحظات العروض الداخلية.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف مقارنة عروض الموردين.");
+    }
+  }
+
+  function printComparison() {
+    setError("");
+    if (loading || quotes.length === 0 || typeof window === "undefined" || typeof window.print !== "function") {
+      setError("لا تتوفر لقطة عروض صالحة أو وظيفة الطباعة في هذه البيئة.");
+      return;
+    }
+    try {
+      setPrintDocument(createComparisonDocument());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تجهيز مقارنة عروض الموردين للطباعة.");
+    }
+  }
+
   async function award(quote: SupplierQuote) {
     if (busy || quote.status !== "received") return;
     if (!warehouseId) { setError("اختر المخزن الذي سيستقبل أمر الشراء."); return; }
@@ -171,9 +241,17 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
           <h2><ClipboardList size={18} style={{ verticalAlign: "middle", marginInlineEnd: 7 }} /> عروض الموردين ومقارنة الأسعار</h2>
           <p className="po-muted">سجل عروض الموردين الواردة وقارن تكلفة الصنف ومدة التوريد وشروط الدفع قبل إنشاء أمر الشراء. الأسعار بعملة المنشأة الأساسية، ولا يوجد تحويل عملات تقديري.</p>
         </div>
-        <button className="btn secondary" type="button" onClick={() => void load()} disabled={loading || busy}>
-          <RefreshCw size={15} /> تحديث العروض
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          <button className="btn secondary" type="button" onClick={exportComparison} disabled={loading || busy || quotes.length === 0}>
+            <Download size={15} /> تصدير مقارنة Excel
+          </button>
+          <button className="btn secondary" type="button" onClick={printComparison} disabled={loading || busy || quotes.length === 0}>
+            <Printer size={15} /> طباعة / PDF
+          </button>
+          <button className="btn secondary" type="button" onClick={() => void load()} disabled={loading || busy}>
+            <RefreshCw size={15} /> تحديث العروض
+          </button>
+        </div>
       </header>
 
       {error && <div className="po-error" role="alert"><AlertTriangle size={15} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} />{error}</div>}
@@ -299,5 +377,8 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
         {!warehouses.length && <p className="po-muted">لا يوجد مخزن نشط؛ لا يمكن تحويل العرض إلى أمر شراء قبل تهيئة المخزن.</p>}
       </div>
     </section>
+    {printDocument && typeof document !== "undefined"
+      ? createPortal(<SupplierQuoteComparisonPrintSheet document={printDocument} />, document.body)
+      : null}
   );
 }
