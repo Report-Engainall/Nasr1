@@ -616,6 +616,7 @@ export function IntelligenceWorkspace() {
         period: inventoryData.period,
         cashflow: data?.asOf === inventoryData.asOf ? cashflowForecast : null,
         deadStock: deadStockReport,
+        retention: customerRetention?.asOf === inventoryData.asOf ? customerRetention : null,
         replenishment: {
           id: "business-health-replenishment:" + inventoryData.asOf,
           asOf: inventoryData.asOf,
@@ -626,7 +627,7 @@ export function IntelligenceWorkspace() {
     } catch {
       return null;
     }
-  }, [inventoryData, deadStockReport, replenishmentReport, data, cashflowForecast]);
+  }, [inventoryData, deadStockReport, replenishmentReport, customerRetention, data, cashflowForecast]);
 
   const businessHealthMapState = inventoryLoading
     ? "loading"
@@ -788,7 +789,7 @@ export function IntelligenceWorkspace() {
               onRetry={() => setRefreshKey((value) => value + 1)}
             />
             {businessHealthMap && (
-              <p className="report-note">اللقطة: {businessHealthMap.asOf} · نافذة المخزون: {businessHealthMap.period.from} — {businessHealthMap.period.to} · سياسة الدمج: {businessHealthMap.policyVersion}. تركيز العملاء ودورة التحويل النقدي والمؤشرات غير المدعومة تبقى محجوبة إلى حين اكتمال مجاميعها المصدرية.</p>
+              <p className="report-note">اللقطة: {businessHealthMap.asOf} · نافذة المخزون: {businessHealthMap.period.from} — {businessHealthMap.period.to} · سياسة الدمج: {businessHealthMap.policyVersion}. يُعرض تركيز العملاء فقط عندما تصل مبيعات موثقة؛ وتظل دورة التحويل النقدي والمؤشرات غير المدعومة محجوبة.</p>
             )}
           </section>
 
