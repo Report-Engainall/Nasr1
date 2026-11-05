@@ -75,6 +75,16 @@ function matchesTaskCreationRange(
   return true;
 }
 
+function matchesTaskDueRange(task: OperationalTask, dueFrom: string, dueTo: string): boolean {
+  if (!dueFrom && !dueTo) return true;
+  if (!task.due_at) return false;
+  const dueAt = new Date(task.due_at).getTime();
+  if (!Number.isFinite(dueAt)) return false;
+  if (dueFrom && dueAt < new Date(`${dueFrom}T00:00:00`).getTime()) return false;
+  if (dueTo && dueAt >= new Date(`${dueTo}T23:59:59.999`).getTime() + 1) return false;
+  return true;
+}
+
 type TaskCreateFormProps = {
   title: string;
   description: string;
@@ -189,6 +199,9 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'unassigned' | string>('all');
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
+  const [dueFrom, setDueFrom] = useState('');
+  const [dueTo, setDueTo] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
@@ -258,8 +271,10 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     if (assigneeFilter === 'unassigned' && task.assigned_to) return false;
     if (assigneeFilter !== 'all' && assigneeFilter !== 'unassigned' && task.assigned_to !== assigneeFilter) return false;
     if (!matchesTaskCreationRange(task, createdFrom, createdTo)) return false;
+    if (!matchesTaskDueRange(task, dueFrom, dueTo)) return false;
+    if (overdueOnly && !isLate(task)) return false;
     return matchesTaskSearch(task, search);
-  }, [statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
+  }, [statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,dueFrom,dueTo,overdueOnly,search]);
 
   // Apply the same authorized role scope to cards, print output and every summary metric.
   const roleScopedTasks = useMemo(
@@ -439,6 +454,9 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       <label><span><UserCheck size={16} /> المسؤول</span><select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="all">كل المسؤولين</option><option value="unassigned">غير مسندة</option>{assignees.filter((assignee) => assignee.profile_id && tasks.some((task) => task.assigned_to === assignee.profile_id)).map((assignee) => <option key={assignee.profile_id} value={assignee.profile_id}>{assignee.full_name}</option>)}</select></label>
       <label><span>من تاريخ الإنشاء</span><input type="date" value={createdFrom} max={createdTo || undefined} onChange={(event) => setCreatedFrom(event.target.value)} /></label>
       <label><span>إلى تاريخ الإنشاء</span><input type="date" value={createdTo} min={createdFrom || undefined} onChange={(event) => setCreatedTo(event.target.value)} /></label>
+      <label><span>من موعد الاستحقاق</span><input type="date" value={dueFrom} max={dueTo || undefined} onChange={(event) => setDueFrom(event.target.value)} /></label>
+      <label><span>إلى موعد الاستحقاق</span><input type="date" value={dueTo} min={dueFrom || undefined} onChange={(event) => setDueTo(event.target.value)} /></label>
+      <label className="task-overdue-filter"><input type="checkbox" checked={overdueOnly} onChange={(event) => setOverdueOnly(event.target.checked)} /><span>المتأخرة فقط</span></label>
     </section>
     {error && <div className="task-center-error" role="alert"><AlertTriangle size={17} /> {error}</div>}
     {loading ? <div className="panel task-center-empty">جارٍ تحميل المهام المقيّدة بصلاحيات حسابك…</div> : filtered.length===0 ? (
@@ -482,7 +500,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       <header><h1>{operationalTaskPrintTitle()}</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
         <p>نطاق الطباعة: {printScopeLabel} — فلتر الدور على الشاشة: {roleFilter==='all'?'كل الأدوار المسموحة':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
-        <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
+        <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'} — موعد الاستحقاق: {dueFrom||'بلا بداية'} إلى {dueTo||'بلا نهاية'}{overdueOnly?' — المتأخرة فقط':''}</p>
         {search.trim()&&<p>بحث: {search.trim()}</p>}</header>
       <section className="task-print-summary">
         <h2>الملخص التنفيذي للكشف</h2>

@@ -185,6 +185,8 @@
 .task-card-main{min-width:0}.task-card-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .task-select-toggle{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;background:var(--background);color:var(--muted-foreground);font-size:11px;font-weight:700;cursor:pointer}
 .task-select-toggle input{width:15px;height:15px;margin:0;accent-color:var(--primary)}
+.task-overdue-filter{display:flex!important;align-items:center;gap:8px!important;align-self:end;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--background)}
+.task-overdue-filter input{width:16px;height:16px;margin:0;accent-color:var(--primary)}
 .task-role-badge,.task-status-badge,.task-priority-badge,.task-late-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:750;background:var(--muted);color:var(--muted-foreground)}
 .task-status-badge.completed{background:oklch(0.94 0.04 155);color:oklch(0.34 0.1 155)}.task-status-badge.in_progress{background:oklch(0.94 0.04 250);color:oklch(0.38 0.1 250)}
 .task-status-badge.cancelled{text-decoration:line-through}.task-priority-badge.critical,.task-priority-badge.high,.task-late-badge{background:oklch(0.95 0.04 35);color:oklch(0.4 0.15 35)}
