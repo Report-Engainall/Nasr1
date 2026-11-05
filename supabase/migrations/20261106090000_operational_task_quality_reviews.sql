@@ -131,6 +131,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active same-organization manager profile required';
   END IF;
   IF p_task_id IS NULL OR p_expected_task_updated_at IS NULL
+     OR p_review_type IS NULL
      OR p_review_type NOT IN ('ACTIONABILITY','RECOMMENDATION_DISPOSITION','ALERT_VALIDATION')
      OR p_review IS NULL OR pg_catalog.jsonb_typeof(p_review) IS DISTINCT FROM 'object'
      OR p_event_id IS NULL OR pg_catalog.char_length(pg_catalog.btrim(p_event_id)) NOT BETWEEN 1 AND 100
