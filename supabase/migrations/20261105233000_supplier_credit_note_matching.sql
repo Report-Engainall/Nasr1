@@ -225,6 +225,20 @@ BEGIN
       note.variance_amount,
       note.status AS credit_note_status,
       note.variance_review_reason,
+      COALESCE((
+        SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+          'credit_note_number',history_note.supplier_credit_note_number,
+          'action',review_event.action,
+          'reason',review_event.reason,
+          'created_at',review_event.created_at
+        ) ORDER BY review_event.created_at,review_event.id)
+        FROM public.purchase_supplier_credit_notes history_note
+        JOIN public.purchase_supplier_credit_note_review_events review_event
+          ON review_event.organization_id=history_note.organization_id
+         AND review_event.credit_note_id=history_note.id
+        WHERE history_note.organization_id=sr.organization_id
+          AND history_note.supplier_return_id=sr.id
+      ),'[]'::jsonb) AS credit_note_history,
       source_journal.id AS source_journal_entry_id,
       source_journal.entry_number::text AS source_journal_entry_number,
       source_journal.status AS source_journal_status,
