@@ -3,7 +3,7 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Clock3, Filter,
   ListTodo, Play, Plus, Printer, RefreshCw, Search, UserCheck, X,
 } from 'lucide-react';
-import { createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
+import { assignOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
@@ -213,6 +213,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [assignees, setAssignees] = useState<OperationalTaskAssignee[]>([]);
   const [assigneesLoading, setAssigneesLoading] = useState(false);
   const [assigneesError, setAssigneesError] = useState('');
+  const [assigneeDrafts, setAssigneeDrafts] = useState<Record<string, string>>({});
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -358,6 +359,33 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     } finally { setBusy(false); }
   }
 
+  function taskAssigneeDraft(task: OperationalTask): string {
+    return Object.prototype.hasOwnProperty.call(assigneeDrafts, task.id)
+      ? assigneeDrafts[task.id]
+      : task.assigned_to ?? '';
+  }
+
+  async function saveTaskAssignee(task: OperationalTask) {
+    const selectedAssignee = taskAssigneeDraft(task);
+    if (selectedAssignee === (task.assigned_to ?? '')) return;
+    setBusy(true); setError('');
+    try {
+      await assignOperationalTask(task.id, selectedAssignee || null);
+      setAssigneeDrafts((current) => {
+        const next = { ...current };
+        delete next[task.id];
+        return next;
+      });
+      await loadTasks();
+      onNotice(selectedAssignee
+        ? 'تم تحديث مسؤول المهمة وتسجيل التغيير في سجل التدقيق.'
+        : 'أعيدت المهمة إلى قائمة الدور وسُجل إلغاء الإسناد.');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'تعذر تحديث مسؤول المهمة.';
+      setError(message); onNotice(message);
+    } finally { setBusy(false); }
+  }
+
   async function refreshFromSources() {
     setBusy(true); setError('');
     try {
@@ -466,6 +494,9 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       const source=task.source_entity_type?(entityLabels[task.source_entity_type]??task.source_entity_type):'مهمة يدوية';
       const sourceId=task.source_entity_id?task.source_entity_id.slice(0,8):'—';
       const assigned=assignedLabel(task);
+      const compatibleTaskAssignees = assignees.filter((assignee) => canAssignToRole(assignee.roles, task.task_role));
+      const selectedAssignee = taskAssigneeDraft(task);
+      const currentAssigneeMissing = Boolean(task.assigned_to && !compatibleTaskAssignees.some((assignee) => assignee.profile_id === task.assigned_to));
       return <article className="panel task-card" key={task.id}>
         <div className={'task-priority-line '+task.priority} />
         <div className="task-card-main">
@@ -489,6 +520,30 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
           </div>
         </div>
         <div className="task-card-actions">
+          {canManage && !['completed','cancelled'].includes(task.status) && (
+            <label className="task-card-assignment">
+              <span>تعديل إسناد المهمة</span>
+              <select
+                aria-label={'المسؤول الجديد للمهمة: ' + task.title}
+                value={selectedAssignee}
+                disabled={busy || assigneesLoading || Boolean(assigneesError)}
+                onChange={(event) => setAssigneeDrafts((current) => ({ ...current, [task.id]: event.target.value }))}
+              >
+                <option value="">إعادتها إلى قائمة الدور</option>
+                {currentAssigneeMissing && <option value={task.assigned_to!}>المسؤول الحالي غير موجود ضمن الموظفين النشطين</option>}
+                {compatibleTaskAssignees.map((assignee) => (
+                  <option key={assignee.profile_id} value={assignee.profile_id}>{assignee.full_name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={busy || assigneesLoading || Boolean(assigneesError) || selectedAssignee === (task.assigned_to ?? '')}
+                onClick={() => void saveTaskAssignee(task)}
+              >حفظ الإسناد</button>
+              {assigneesError && <small role="status">تعذر تحميل الموظفين المصرح لهم؛ لم يُسمح بتغيير الإسناد.</small>}
+            </label>
+          )}
           {task.status==='pending'&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'in_progress')}><Play size={15}/> استلام</button>}
           {task.status==='in_progress'&&<button type="button" className="btn primary" disabled={busy} onClick={() => void performStatus(task,'completed')}><CheckCircle2 size={15}/> إنجاز</button>}
           {task.status==='pending'&&<button type="button" className="btn primary" disabled={busy} onClick={() => void performStatus(task,'completed')}><CheckCircle2 size={15}/> إنجاز مباشر</button>}
