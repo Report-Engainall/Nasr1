@@ -1098,6 +1098,28 @@ export async function assignOperationalTask(taskId: string, assignedTo: string |
   if (error) throw new Error(error.message || 'تعذر إعادة إسناد المهمة.');
 }
 
+export async function updateOperationalTaskDetails(
+  taskId: string,
+  priority: 'low' | 'medium' | 'high' | 'critical',
+  dueAt: string | null,
+): Promise<void> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
+    throw new Error('معرّف المهمة غير صالح.');
+  }
+  if (!['low','medium','high','critical'].includes(priority)) {
+    throw new Error('أولوية المهمة غير صالحة.');
+  }
+  if (dueAt !== null && !Number.isFinite(Date.parse(dueAt))) {
+    throw new Error('موعد استحقاق المهمة غير صالح.');
+  }
+  const { error } = await supabase.rpc('update_operational_task_details', {
+    p_task_id: taskId,
+    p_priority: priority,
+    p_due_at: dueAt,
+  });
+  if (error) throw new Error(error.message || 'تعذر تحديث أولوية المهمة وموعدها.');
+}
+
 export async function createOperationalTask(input: {
   title: string; description?: string; taskRole: OperationalTaskRole;
   priority: 'low' | 'medium' | 'high' | 'critical'; dueAt?: string | null; assignedTo?: string | null;
