@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-025 — SUPPLIER QUOTE COMPARISON A4 / XLSX
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Only two implementer roles are active: P1 and P3. P1 owns product-facing UI/workspaces and operational outputs; P3 owns intelligence engines, evidence lineage, persistence and read DTOs.
+- BODY-025 adds a saved decision-support document to the existing supplier quote comparison workspace. It does not add a new quote model, database RPC, migration, supplier decision engine or award path.
+
+## Delivered on main — BODY-025
+
+1. Added `src/lib/supplier-quote-comparison-print.ts` as a validated projection over the same `SupplierQuote[]` snapshot loaded by `fetchSupplierQuotes()`. It validates UUID source references, dates, currency, quantities, cent-accurate line totals and product identity consistency. Internal UUIDs are used only for grouping and are not included in output.
+2. Added `src/lib/supplier-quote-comparison-xlsx.ts`: four sheets for report scope, supplier offers/terms, product comparison by currency, and detailed offer lines. Business text is emitted as literal cell text; no supplier notes are included.
+3. Added `src/components/SupplierQuoteComparisonPrintSheet.tsx`: Arabic RTL A4 landscape output from the same validated projection.
+4. Integrated `تصدير مقارنة Excel` and `طباعة / PDF` in `src/components/SupplierQuoteWorkspace.tsx` under its existing admin/manager role gate, using the already-fetched source snapshot. Added scoped print lifecycle and UI feedback.
+5. The report keeps currency/product groups separate. Only quotes whose source status is `received` count toward the lowest recorded unit cost; awarded/expired quotes remain visible but are not ranked. The report explicitly states that lowest cost does not imply best quality or automatic award. It omits notes, UUIDs and internal purchase-order IDs.
+
+## Source boundaries / acceptance
+
+- No migration, RPC, source-table query or write path was added. Existing supplier quote capture and atomic award-to-draft-PO flow remain the source of truth.
+- Feature commits: projection `f9fb84bb0e3dccc8e37b6277e5992be66592d1c1`; XLSX `7a61a5f92df2b9d4c8f488b74491e0601eda36da`; print sheet `a3bb03dd2c9eb1495019833ac2add8755c30707f`; UI `21c35a08da1e01c392962170e066dcc522a09fa3`; strict UUID validation fix `0c6b00322a737a042d1b5fc6aa30304299dfeb17`; A4 CSS `4e7e01587b6129a812f9280ed7a4a3b917006038`.
+- Exact final blobs: projection `2cf96e3278d6464da1dddfd8a6f887e0601a6a70`; XLSX `ff947086bd776d0e657f7e72d413c9e540d3e8f8`; print sheet `02edc95df6446d58b6116501157eaf22a4c31e6c`; workspace `69dfed1ee144083196f277196aac4dbf650e5e5c`; CSS `cf6e0928af77d64ca4cae0de60f7a7f02b1c074e`.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests, build, lint, CI, browser, database operation, Bolt runtime or Vercel preview was run in this source phase; no PASS or production acceptance is claimed. No Vercel credits or paid providers were used.
+
+## Next P1 body cursor
+
+Continue the next genuinely uncovered mandatory non-intelligence product requirement. Do not rebuild supplier quote capture/award, supplier invoice/payment/return workflows, service desk, session inventory, customer portal or P3 intelligence.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-024 — DEVICE SESSION KEYSET PAGINATION
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
