@@ -2,8 +2,8 @@ import type {SupplierPerformanceResult} from "@/lib/intelligence/supplier-perfor
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:3});
 const days=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:2});
 const date=(v:string|null)=>v?new Date(v).toLocaleDateString("ar-YE",{dateStyle:"medium"}):"غير متاح";
-export interface SupplierPerformancePanelProps {result:SupplierPerformanceResult|null;state?:"loading"|"error"|"unavailable"|"ready";onRetry?:()=>void;}
-export function SupplierPerformancePanel({result,state="ready",onRetry}:SupplierPerformancePanelProps) {
+export interface SupplierPerformancePanelProps {result:SupplierPerformanceResult|null;state?:"loading"|"error"|"unavailable"|"ready";onRetry?:()=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
+export function SupplierPerformancePanel({result,state="ready",onRetry,onOpenPurchaseOrder}:SupplierPerformancePanelProps) {
  if(state==="loading")return <section dir="rtl" role="status" className="rounded-xl border p-4">جارٍ تحميل أداء الموردين من سجلات التوريد…</section>;
  if(state!=="ready"||!result)return <section dir="rtl" role="status" className="rounded-xl border p-4 space-y-2">
   <h2 className="font-semibold">تحليل أداء الموردين غير متاح</h2><p className="text-sm text-muted-foreground">لم تُعرض أرقام بديلة أو بيانات تجريبية.</p>
@@ -43,6 +43,7 @@ export function SupplierPerformancePanel({result,state="ready",onRetry}:Supplier
     <div className="mt-3 space-y-2">{s.recentOrders.map(o=><article key={o.purchaseOrderId} className="rounded-md bg-muted/40 p-2 text-xs">
      <div className="flex flex-wrap justify-between gap-2"><strong>أمر {o.purchaseOrderNumber}</strong><span>{o.status==="received"?"مستلم":o.status==="partially_received"?"مستلم جزئياً":"مرسل"}</span></div>
      <p>الإرسال: {date(o.submittedAt)} · آخر استلام: {date(o.lastReceivedAt)}</p>
+     {onOpenPurchaseOrder?<button type="button" onClick={()=>onOpenPurchaseOrder(o.purchaseOrderId)} className="mt-1 rounded-md border px-2 py-1">فتح أمر الشراء</button>:null}
      <p>سطور الأصناف: {qty.format(o.lineCount)} · السطور ذات الاستلام المتبقي: {qty.format(o.pendingLineCount)}</p>
      <p>زمن التوريد: {o.actualLeadDays===null?"غير مكتمل":days.format(o.actualLeadDays)+" يوم"} · الموعود: {o.promisedDeliveryDays===null?"غير مسجل":qty.format(o.promisedDeliveryDays)+" يوم"} · الالتزام: {o.onTime===null?"غير قابل للقياس":o.onTime?"ضمن المدة":"متأخر"}</p>
     </article>)}</div></details>)}
