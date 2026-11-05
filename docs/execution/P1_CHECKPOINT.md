@@ -1,7 +1,7 @@
 # P1 LIVE REQUEST — 2026-11-05 — SUPPLIER PAYMENT / SETTLEMENT UI MOUNT
 
 - Repository: Report-Engainall/Nasr1; branch: main.
-- Backend contract is on main SHA a77f2a7b0e7e68bc039a27a58da53e9086257d40.
+- Backend contract is on main SHA 3e195869f22626af7419a4d479a94503d4159d16.
 - P1 owns all presentation files. P2 owns the migration and typed service paths below. Do not edit P2 paths or P3 intelligence paths.
 
 ## Mount the delivered server workflows — do not recreate them

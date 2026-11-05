@@ -1808,3 +1808,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Acceptance:** added `REF-ROLE-TASK-ATTENTION-001` to the existing matrix as `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; registry updated. No duplicate matrix/engine created.
 - **Boundary:** no tests, build, lint, typecheck, CI, browser/E2E, database, Bolt Preview or production checks were run. No PASS/runtime acceptance claimed. No migration, dependency, paid AI, Vercel build/preview/deployment or Vercel credit use. No notification receipt claimed; GitHub push notification delivery depends on watch settings.
 - **Parallel handoff:** sequential `BODY-COMPLETION-ON-MAIN-016` (supplier account activity statement) was completed independently by the other programmer. Current sequential `BODY-COMPLETION-ON-MAIN-017` is supplier payment/settlement and remains untouched. This P3 batch used the distinct id `P3-ROLE-TASK-ATTENTION-001`.
+
+
+## 2026-11-05 — Supplier payment reconciliation replay correction
+
+- Follow-up source SHA: 3e195869f22626af7419a4d479a94503d4159d16.
+- The reconciliation command now resolves same-key/same-payload replays before checking whether the source has already advanced to journal handoff, so a lost response can be safely retried after handoff. New reconciliation events remain blocked after handoff.
+- Change path: supabase/migrations/20261105235000_supplier_payment_settlement.sql. Source only; no migration application or tests run.
+
