@@ -1,3 +1,33 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-58-TASK-INTELLIGENCE-REPORTS-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Feature code SHA: be811c369bfc5a7628956944dc884f1bb19a8301; source code batch ancestry: 5d76726bd538f20e8737c4807d70b3d023b1fb9a → fca479c5b33cc492107501f86144b6e934434d1d → fa07efc42b968a2945a1c17a394395b96d2af7db → be811c369bfc5a7628956944dc884f1bb19a8301.
+- Canonical reference: unified merchant-intelligence specification, Section 58 — Smart Task Reports; reuses task contracts from Sections 45–48 and current ai_tasks / audit_logs sources.
+- Added public.fetch_task_intelligence_report(text,date,date) in supabase/migrations/20261106050000_intelligence_task_reports.sql. It is a STABLE SECURITY DEFINER read-only RPC with empty search_path; derives actor and organization from the authenticated session, filters every task through can_view_operational_task_role(task_role), and grants execute only to authenticated users.
+- Implemented report kinds:
+  - DAILY: current UTC day, role summaries for created tasks, currently open/overdue tasks, high/critical open tasks, first completion, reopen events/rate and average time to first completion.
+  - WEEKLY: last seven UTC calendar days, grouped by task type/source, role and priority, with counts and average resolution time.
+  - MONTHLY: current UTC month-to-date with week-bucket trend for created, first-completed and reopened events.
+  - MANAGER: manager/admin-only high/critical active-risk list, ordered by priority, due date and age; includes total count and top 25 rows separately.
+- Metric definitions: a new task is a canonical row whose created_at is in the period; reopening does not create another task. Completion is the first recorded completed transition (with completed_at fallback where no audit transition exists). Resolution duration runs from created_at to that first completion and is not attributed to an employee. A reopen event is a recorded completed → pending/in_progress transition. Reopen rate is distinct tasks first completed during the report period and reopened after that completion during the same period divided by distinct tasks first completed during the period.
+- Added a strict TypeScript DTO parser and RPC client in src/lib/intelligence/task-intelligence-reports.ts and task-intelligence-reports-client.ts; the existing natural-language assistant supports daily/weekly/monthly and manager-risk report intents, including clarification/rejection for unsupported historical/free-form windows and employee-ranking questions. The existing assistant component renders Arabic RTL summaries, role/source/trend tables, manager risk rows and metric limitations.
+- Changed paths:
+  - supabase/migrations/20261106050000_intelligence_task_reports.sql
+  - src/lib/intelligence/task-intelligence-reports.ts
+  - src/lib/intelligence/task-intelligence-reports-client.ts
+  - src/lib/intelligence/natural-language-assistant.ts
+  - src/lib/intelligence/natural-language-assistant-client.ts
+  - src/components/intelligence/NaturalLanguageAssistant.tsx
+  - src/lib/intelligence/index.ts
+  - docs/execution/P3_CHECKPOINT.md
+- Explicitly unavailable in the current source contract and returned as NULL / labelled unrecorded: waiting on an external party, financial impact, delay reason, management decision required, false alarms, repeated causes and measured improvement outcomes. The report does not infer these values, invent money or compare employees.
+- P1 boundary: no P1-owned workspace, route, commerce component or server API path was changed. P1 still owns mounting the single NaturalLanguageAssistant in its workspace and preserving current permission visibility/navigation callbacks.
+- Runtime boundary: the SQL migration is committed as source only; it has not been applied to Bolt/Supabase. The reports will return the explicit unavailable state until the migration is applied and the connected database refreshes its RPC schema.
+- Delivery status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Per the active execution order, no unit tests, typecheck, build, lint, CI, E2E/Playwright, RPC runtime, provider, Bolt, Preview, Vercel or production check was run. No PASS, runtime availability or production readiness is claimed.
+- Cost/safety: no paid provider, dependency or API quota; no secret; no Vercel credit; no financial, inventory, task or approval mutation.
+- Exact next action: after Bolt/Supabase applies migration 20261106050000_intelligence_task_reports.sql, verify the report RPC and role matrix on connected test tenants; P1 mounts the already-exported assistant. Then add missing task workflow fields/events (external wait state, delay reason, false-alarm review, repeated-cause classification and improvement outcome links) only through an approved canonical task workflow contract, not inferred report logic.
+
+---
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (TASK QUEUE INTENTS)
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
