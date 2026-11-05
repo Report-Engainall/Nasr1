@@ -1,3 +1,48 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-05 — REPLENISHMENT DRAFT HANDOFF + SUPPLIER QUOTE COMPARISON
+
+- Completed action: `BODY-COMPLETION-ON-MAIN-013`.
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- The preceding `BODY-COMPLETION-ON-MAIN-012` open-purchase-order netting implementation remains intact. No intelligence engine or purchase-order workflow was rebuilt.
+
+## Product functionality delivered
+
+### Evidence-backed replenishment to a confirmed draft
+- Added `src/components/intelligence/ReplenishmentPurchaseDraft.tsx` and connected it to `ReplenishmentCard` and `IntelligenceWorkspace`.
+- Managers can select only recommendations whose action is `RECOMMEND`, evidence status is `VERIFIED`, recommended quantity is positive and a quantity unit is present.
+- The draft handoff resolves `productRef` against the current active same-tenant product catalog and requires exact equality between the recommendation UOM and the current product UOM. Missing, inactive, malformed or mismatched lines are excluded with a visible reason.
+- Recommended quantities are rounded upward to the persisted `0.001` quantity precision, shown beside the original measured recommendation, and remain editable before confirmation.
+- The manager must explicitly choose an active supplier and active warehouse. The operation reuses the existing typed `createPurchaseOrder` / `create_purchase_order` idempotent command; purchase costs remain NULL because the intelligence engine has no verified supplier cost basis.
+- The result is a draft only. It is not submitted, sent to a supplier or received. Stock, accounting journals, payables and payments are not mutated.
+
+### Supplier offer capture, comparison and award
+- Added `supabase/migrations/20261105231000_supplier_quote_comparison.sql` with tenant-scoped quote and quote-line tables, RLS enabled, direct browser table privileges revoked, manager/admin RPC boundaries, audit records and idempotency.
+- Currency is read from the server-resolved organization's base currency; a client cannot choose another currency. Unit prices across offers are therefore compared in the same recorded currency; no FX conversion is inferred.
+- Added typed `src/lib/supplier-quotes.ts` and `src/components/SupplierQuoteWorkspace.tsx`, mounted in the existing Purchase Orders workspace.
+- Managers can capture supplier quote number/reference, validity date, delivery days, payment terms, item quantities and unit costs; review item-level lowest recorded unit costs; and select a current, unawarded offer.
+- Award locks the quote and atomically calls the existing `create_purchase_order` command using a stable quote-derived idempotency key. A single canonical draft is linked to the quote; a retry returns that same draft.
+- Expired offers cannot be awarded. Award does not submit the purchase order, send supplier messages, receive stock or post journals.
+
+## Source and record commits
+- Supplier quote migration timestamp/precision correction: `67ab6de1093e6a685072af5744a34c5a63f4e24e`; duplicate-version file removed in `413349dca667b60f32ca104c575e01684f7165d3`.
+- Typed quote client: `b881e204d08c88317dfb41696e5171e683e649bb`.
+- Quote comparison workspace: `551e45f8b875829192caead6b0bd0e174385c31e`.
+- Purchase Orders integration: `107af16be05f8e6335a172f55f90aa2471ed09b2`.
+- Replenishment draft UI: `65e628e3479ef8aa5aa317b47c493299d657bdaf`; recommendation selection integration `1676e0bfda73ec65232789f0bf48041d1bd13d64`; quantity precision correction `ad9d46f31256746e41e1df8ba5d6b61f66f0f79a`; manager capability wiring `7adfba306a611bfb32bcd42956e506503cd7d1fc`; final copy/draft guard corrections `28886f27598c83a45386c4523a4a8569c095b8a3` and `70d89e6b8f2e05163cd62b70f1702b52408eaeef`.
+- Acceptance leaves: `DLV-007-INVENTORY-REPLENISHMENT-PURCHASE-DRAFT-001` and `DLV-007-SUPPLIER-QUOTE-COMPARISON-001`; both remain `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery and acceptance boundary
+- All source and acceptance mapping changes are on official GitHub `main`.
+- The supplier-quote migration has not been applied to any database. No local, hosted, production or Bolt database was connected or modified.
+- No test, build, lint, typecheck, CI, browser, E2E, Bolt Preview or production validation was run for these changes, per the instruction to prioritize product-body implementation. No PASS or runtime acceptance is claimed.
+- No Vercel build, preview, deployment or free-credit use occurred. No paid provider, service or dependency was added.
+- GitHub commits are the source delivery and the native notification surface; actual push/inbox notification delivery depends on repository watch/notification settings and is not claimed without a GitHub receipt.
+
+## Next product action
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-014`.
+- Build supplier-return processing from an original purchase receipt: select source receipt lines and returnable remaining quantities, enforce manager authorization and tenant scope, write an auditable idempotent supplier-return document and one stock-decrease movement, and link any payable credit/financial entry only through an approved source-cost/currency/accounting workflow. Do not invent FX, cost basis, supplier credit or tax; no direct GL post without the existing authorized accounting lifecycle.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-05 — CUSTOMER 360 FOLLOW-UP LIFECYCLE
 
 - Task: `BODY-COMPLETION-ON-MAIN-006`; product-code SHA `66558c300af38c6a49a4c98feb1b6c31636c7638`.
