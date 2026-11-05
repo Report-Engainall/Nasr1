@@ -32,10 +32,12 @@ function DecisionMemoryCard({record}:{record:DecisionMemoryRecord}){
     {record.decisionReason?<section><h4 className="text-sm font-semibold">مبرر القرار — سياق إداري لا يُعامل كحقيقة مستقلة</h4><p className="text-sm">{record.decisionReason}</p></section>:null}
     <div className="grid gap-2 sm:grid-cols-2">
       {record.facts.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">وقائع مثبتة ({record.facts.length})</h4>
-        {record.facts.map(fact=><div key={fact.id} className="mt-2 text-sm"><p>{fact.text}</p><p className="text-xs text-muted-foreground">الدليل: <EvidenceReferences ids={fact.evidenceIds}/></p></div>)}</section>:null}
+        {record.facts.map(fact=><div key={fact.id} className="mt-2 text-sm"><p>{fact.text}</p><p className="text-xs text-muted-foreground">الدليل: <EvidenceReferences ids={fact.evidenceIds}/></p></div>)}</section>
+      :record.factsReviewed?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">مراجعة الوقائع</h4><p className="text-sm">تمت المراجعة ولم تُسجل وقائع مثبتة لهذا القرار.</p></section>:null}
       {record.opinions.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">آراء مسجلة ({record.opinions.length})</h4>{record.opinions.map(item=><p key={item.id} className="mt-2 text-sm">{item.text}</p>)}</section>:null}
       {record.hypotheses.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">فرضيات قيد التحقق ({record.hypotheses.length})</h4>{record.hypotheses.map(item=><p key={item.id} className="mt-2 text-sm">{item.text}</p>)}</section>:null}
-    {record.assumptions.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">افتراضات معلنة — ليست وقائع مثبتة ({record.assumptions.length})</h4>{record.assumptions.map((item,index)=><p key={index} className="mt-2 text-sm">{item}</p>)}</section>:null}
+    {record.assumptions.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">افتراضات معلنة — ليست وقائع مثبتة ({record.assumptions.length})</h4>{record.assumptions.map((item,index)=><p key={index} className="mt-2 text-sm">{item}</p>)}</section>
+      :record.assumptionsReviewed?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">مراجعة الافتراضات</h4><p className="text-sm">تمت المراجعة ولم تُسجل افتراضات.</p></section>:null}
     </div>
     {record.withheldFacts?<p className="text-xs text-amber-700">حُجبت {record.withheldFacts} واقعة لغياب دليل مكتمل أو صالح.</p>:null}
     {record.alternatives.length?<section className="space-y-1"><h4 className="text-sm font-semibold">البدائل المسجلة</h4><ul className="list-disc space-y-1 ps-5 text-sm">
@@ -52,7 +54,8 @@ function DecisionMemoryCard({record}:{record:DecisionMemoryRecord}){
       {record.legacyMeasurement?<p className="text-xs text-muted-foreground">القيمة المختصرة في دورة القرار: {number(record.legacyMeasurement.value)} {record.legacyMeasurement.currency} حتى {record.legacyMeasurement.asOf}. لا تصل معها حالياً أدلة المؤشر ومعادلته؛ لذلك لا تُعامل كقياس مثبت.</p>:null}
     </section>
     {record.reviewDisposition?<p className="text-sm">المراجعة: {record.reviewDisposition==="SCHEDULED"?"مجدولة":record.reviewDisposition==="NOT_REQUIRED"?"غير مطلوبة":"غير مجدولة"} {record.reviewAt?"في "+record.reviewAt:""}</p>:null}
-    {record.lessons.length?<section><h4 className="text-sm font-semibold">الدروس المستفادة</h4><ul className="list-disc ps-5 text-sm">{record.lessons.map((lesson,index)=><li key={index}>{lesson}</li>)}</ul></section>:null}
+    {record.lessons.length?<section><h4 className="text-sm font-semibold">الدروس المستفادة</h4><ul className="list-disc ps-5 text-sm">{record.lessons.map((lesson,index)=><li key={index}>{lesson}</li>)}</ul></section>
+      :record.lessonsReviewed?<p className="text-sm text-muted-foreground">تمت مراجعة الدروس ولم يُسجل درس جديد بعد.</p>:null}
     {record.corrections.length?<section className="space-y-1"><h4 className="text-sm font-semibold">سجل التصحيحات الإلحاقي</h4>
       {record.corrections.map(correction=><article key={correction.id} className="rounded-lg border p-2 text-xs">
         <p>الإصدار {correction.fromVersion} ← {correction.toVersion} · {correction.actorRole} · {correction.recordedAt}</p>
