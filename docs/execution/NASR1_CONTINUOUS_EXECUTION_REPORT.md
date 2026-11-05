@@ -1,3 +1,17 @@
+# PRODUCT BUILD UPDATE — 2026-11-05 — CUSTOMER 360 FOLLOW-UP TASKS AND LINKED NOTIFICATIONS
+
+- Product-code SHA: `03cd108aad86c189be72c03a55ca0a05469ce49f`; branch: `main`.
+- Added Customer 360 interaction recording/history using server-derived tenant and recorder, same-tenant customer validation, bounded typed input, append-only storage and audit.
+- Scheduled interaction follow-up now creates one assigned operational task with due date and source lineage; task notifications use the existing notification engine.
+- Operational source-event task creation now notifies compatible organization-role recipients once per task/event/profile; no-op assignments and source-upsert replays are quiet.
+- Notifications now retain `ai_task` / task UUID destination metadata and provide a button to open the linked task in the existing TaskCenter, including target search after data load.
+- Source commits: customer history/UI `7f8c79ce9a9a36ab42027cfee51537fd059311d1`; customer follow-up task migration `cba3fc3dcdf319ad7d650bc6cfc64c8591626b20`; Customer 360 handoff UI `78f8ecefdd7b897d78a0d8e326f8f6edacaf9bb1`; source event notifications `b412ad668908ecbcee1d89ca67dfa68c9af10c9a`; notification destinations `fd403ff4015355936fec8899ecae7be33461853f`; notification UI/data/navigation commits `f151674c607688f148b02ab79315999416d453da`, `648075edb4841708c1f1f0de59c87fc4b8cee9b7`, `6b0ebff9658d82e902b9d32f72cafbbd1773c29f`, `0d860e6e6bf183797e9a82fc733b780027df9312`, `f215ba4a57d9e214e538a0a755be80b353d3f0a6`, `48647cfcf55e6cd3cea7156b5612ed61f6029a8d`, `03cd108aad86c189be72c03a55ca0a05469ce49f`.
+- No tests/build/lint/CI/Preview or database migration application was performed. All four new acceptance leaves remain `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No Vercel tool, deployment, preview or credits were used. No live WhatsApp/email/push delivery is claimed.
+- Next: `BODY-COMPLETION-ON-MAIN-005` — authenticated customer order lifecycle notifications linked to the authorized order detail view.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — TASK LIFECYCLE, BULK OPERATIONS AND ASSIGNEE NOTIFICATIONS
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
