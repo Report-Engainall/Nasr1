@@ -1,3 +1,47 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-05 — SOURCE-LINKED SUPPLIER ACCOUNT ACTIVITY
+
+- Completed action: `BODY-COMPLETION-ON-MAIN-016`.
+- Repository/branch: `Report-Engainall/Nasr1` / `main` only.
+- Continues from `BODY-COMPLETION-ON-MAIN-015` supplier credit-note matching. This is a read model over existing source-linked journals; no parallel ledger or payment record was introduced.
+
+## Product functionality delivered
+
+### Supplier account activity statement
+- Added `supabase/migrations/20261105234000_supplier_account_activity_statement.sql` with a finance-only `fetch_supplier_account_activity()` RPC.
+- Purchase receipt movement is included only when its original purchase-receipt journal is POSTED, references the same persisted receipt, the receipt-to-journal posting link exists, and the complete journal contains exactly two balanced lines with the expected saved inventory/payable source amount and payable account.
+- Supplier credit-note movement is included only when the accepted credit-note draft link, supplier return, source receipt journal and POSTED credit-note journal all resolve to the same supplier/source chain; the credit-note payable debit must equal the saved actual credit-note amount. Both source and credit-note journals must remain unreversed.
+- The read model excludes drafts, void entries, reversal-linked entries, foreign-tenant records, unlinked liability rows and mappings that do not prove the expected source amounts/accounts.
+- Supplier totals are grouped by currency and never summed across currencies. The response includes bounded detailed rows, supplier/currency debit and credit totals, net credit movement, activity count and last activity date.
+- The endpoint explicitly returns `settlement_included=false`. It does not infer supplier payments or final outstanding balances from journal net movement.
+
+### Typed client and connected screen
+- Added `src/lib/supplier-account-activity.ts` with strict source/status, amount, UUID, calendar-date, currency, pagination and response validation.
+- Added `src/components/SupplierAccountActivityWorkspace.tsx` with Arabic RTL date filters, currency-level totals, supplier-by-currency summaries, detailed posted journal movements, source references and bounded pagination.
+- Mounted it in the existing `src/components/GeneralLedgerWorkspace.tsx`, beside supplier credit-note matching. Existing finance role checks and the canonical General Ledger are reused.
+
+## Source commits
+- SQL read-model migration: `68307e40708b36386d4b22ef8147e9f42233d586`.
+- Balanced full-journal source guard: `add6e4162a6eac24d088725ba57c5a8a864c9b0f`.
+- Typed client: `2bba5e24c5797ca1b47eade78a79c6fb6497ec23`.
+- UI: `8483fbd13dd266d3c658010fe0df3f3b371e4046`; pagination cap `b73ec7504137b75b2c5bcd68c87997f75dbbfd0f`.
+- General Ledger mount: `90e99e44b71bc1a584c357f369aa40f70e14471a`.
+- Acceptance matrix leaf `DLV-008-SUPPLIER-ACCOUNT-ACTIVITY-001): `9eba58c1e01874ae11b75ada475773822c8344d8`.
+- Live checkpoint update: `a9a84a13b9c23a08a57248ea514477b41d48e538`.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery and runtime boundary
+- Source changes are committed to official `main`.
+- Migration is source-only and has not been applied to local, hosted, production or Bolt databases. No database was connected or changed.
+- No tests, build, lint, typecheck, CI, browser/E2E, Bolt Preview or production checks were run in this implementation batch. No PASS or runtime acceptance is claimed.
+- No Vercel build/preview/deploy occurred; no Vercel free credits were used. No paid service or dependency was added.
+- GitHub commits are the delivery record; actual push/inbox notification delivery depends on repository watch settings.
+
+## Next product action
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-017`.
+- Implement real supplier payment and settlement from an actual treasury/cash/bank transaction source: inspect and reuse an existing canonical source where possible; otherwise add a tenant-scoped payment document, active cash/bank account linkage, idempotent capture, partial allocations against proven supplier activity, reconciliation evidence and a balanced accounting draft. Payment and outstanding balances must be computed only from saved payment/instrument and allocation records, never from a credit note or net journal movement alone.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-05 — SUPPLIER CREDIT-NOTE MATCHING
 
 - Completed action: `BODY-COMPLETION-ON-MAIN-015`.
