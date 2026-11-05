@@ -91,3 +91,37 @@ Extend the existing `fetch_decision_outcomes(p_limit,p_offset)` response with a 
 - P3 does not create reminders, tasks, customer communications or accounting/inventory writes. No snapshot returned by P2 means a visible PARTIAL memory with missing fields, not a fabricated snapshot.
 - Required owner handoff: P2 delivers the append-only snapshot storage, commands, tenant/evidence validation and full DTO; P3 then binds the returned snapshots to this engine. The current P2 read DTO exposes only the legacy numeric measured outcome and therefore is not enough to close the memory requirement.
 
+
+## Shift Operations Center — canonical merchant-intelligence specification section 53
+
+P3 supplies a deterministic reader/renderer for the start-of-shift, end-of-day and handover packet. P2 remains the only authority for source reads, tenant scope, saved shift records, cash counts, handover acceptance and audit history.
+
+### Required read contract
+
+Add `fetch_operational_shift_workspace(p_business_date, p_shift_id)` as a finance/operations-authorized, same-tenant read RPC returning one immutable snapshot compatible with `ShiftOperationsSnapshot` in `src/lib/intelligence/shift-operations.ts`:
+
+- Snapshot identity, server-generated/as-of times, business date, organization time zone, current shift and owner profile reference, previous shift reference, source coverage, queue items, cash controls, latest handover and the evidence records referenced by each row.
+- Source coverage for connectivity/sync, urgent tasks, orders, invoices, physical receipts, supplier/customer payments where applicable, cash, unsent stock movements, deliveries, inventory variances, reminders and handover. Each source includes status, completeness, quality, as-of, period, freshness limit, expected/returned counts, complete-population flag, explicit not-applicable flag, close-critical flag and evidence IDs.
+- When `completePopulation=true`, the returned count must cover the complete source population and match the DTO rows. If pagination or row caps apply, report `completePopulation=false`; P3 will withhold count/zero assertions.
+- Queue rows must point to canonical existing task/order/invoice/receipt/payment/movement/delivery/inventory/reminder source IDs. No manually typed counter presented as a source-backed record. Items include kind/state/severity, updated time, owner profile reference, due date, optional amount/currency and evidence IDs.
+- Currency control rows carry separate opening expected/count values and separate closing expected/count values. Cash is never aggregated across currencies. A missing closing count remains NOT_RECORDED; zero is not substituted.
+- Handover references both the previous and current shift, actual outgoing and incoming profile IDs, record/accept times, unresolved source IDs, note and evidence IDs. An absent handover for an existing previous shift is UNKNOWN, not accepted.
+
+### Persistence and mutation boundaries
+
+- Add a tenant-scoped `operational_shifts` source record only if no canonical shift/session record already exists. Do not create a parallel task/order/ledger/movement repository.
+- Persist immutable/versioned opening and closeout snapshots plus append-only `operational_shift_handover_events`. A correction appends a new version/event; it never rewrites the source evidence or deletes prior handovers.
+- `record_operational_shift_handover` must be payload-bound/idempotent, version-checked and role-authorized. Outgoing and incoming owners are derived from active same-tenant profiles; incoming owner acceptance is a separate recorded action. Handover does not silently reassign tasks or orders.
+- `record_shift_cash_count` records actual counted cash by one currency and shift, with counter, time, note and evidence. A variance review must be a different authorized finance actor with a reason. Never infer cash from orders, invoices or payment allocations.
+- Financial close eligibility from P3 is advisory/read-only. Actual financial closing requires a separately authorized source-specific workflow that verifies all required source queues, currency counts and variance approvals; it must not auto-post a journal, auto-adjust stock or mutate an order.
+- Direct INSERT/UPDATE/DELETE on shift snapshot, handover and cash-control tables is revoked from browser roles. Reads and commands must derive organization and actor from the authenticated active profile, apply same-tenant RLS and audit every mutation. Cross-tenant/missing-source requests fail without partial writes.
+- Keep idempotency keys and payload fingerprints, reject replay with a different payload, and preserve append-only event history.
+
+### P3/P1 component contract
+
+- P3 engine: `src/lib/intelligence/shift-operations.ts`; component: `src/components/intelligence/ShiftOperationsCenter.tsx`.
+- P1 mounts `ShiftOperationsCenter` into the existing operations/shift area and supplies the real P2 snapshot; it may not build a fake local snapshot. `onOpenItem(sourceKey, sourceRef)` must navigate only to the existing authorized source record.
+- Only complete, fresh and evidenced populations can show zero/complete. Unverified/stale/partial data becomes UNKNOWN; source counts and monetary values are withheld. Cash values stay per currency.
+- Opening readiness, operational close completeness and financial-close eligibility are separate states. `ELIGIBLE` only means source evidence is ready for a separate authorized review; it does not mean the day or journal has been closed.
+- P3 performs no task assignment, cash count, variance approval, journal posting, stock movement, customer contact or closeout mutation.
+- State stays `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until P2 source persistence/read DTO and P1 authorized route mount are delivered.
