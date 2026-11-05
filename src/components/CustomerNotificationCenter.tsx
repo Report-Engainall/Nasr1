@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Bell, Check, ExternalLink, RefreshCw } from 'lucide-react';
-import { fetchNotifications, markNotificationRead } from '@/lib/api';
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
@@ -72,6 +72,28 @@ export function CustomerNotificationCenter() {
   const notifications = data ?? [];
   const unread = notifications.filter((item) => !item.is_read).length;
 
+  // Poll only while the customer notification page is visible and the browser is online.
+  // This provides a safe delivery fallback when realtime transport is unavailable.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) void refetch();
+    }, 45_000);
+    return () => window.clearInterval(timer);
+  }, [refetch]);
+
+  async function markAllRead() {
+    setBusyId('__all__');
+    setActionError('');
+    try {
+      await markAllNotificationsRead();
+      await refetch();
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'تعذر تعليم التنبيهات كمقروءة.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function markRead(notificationId: string) {
     setBusyId(notificationId);
     setActionError('');
@@ -113,9 +135,16 @@ export function CustomerNotificationCenter() {
             {notifications.length.toLocaleString('ar-YE')} تنبيه — {unread.toLocaleString('ar-YE')} غير مقروء
           </p>
         </div>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void refetch(); }} disabled={loading}>
-          <RefreshCw size={15} /> تحديث
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {unread > 0 && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void markAllRead(); }} disabled={busyId === '__all__'}>
+              <Check size={14} /> تعليم الكل كمقروء
+            </button>
+          )}
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void refetch(); }} disabled={loading}>
+            <RefreshCw size={15} /> تحديث
+          </button>
+        </div>
       </header>
 
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
