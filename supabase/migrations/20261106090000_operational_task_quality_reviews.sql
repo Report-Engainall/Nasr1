@@ -502,10 +502,31 @@ AS $function$
 DECLARE
   v_scorecard jsonb;
   v_quality jsonb;
+  v_unavailable jsonb;
 BEGIN
   v_scorecard:=public.fetch_task_performance_scorecard();
   v_quality:=public.fetch_operational_task_quality_metrics();
-  RETURN v_scorecard||pg_catalog.jsonb_build_object('quality',v_quality);
+
+  -- Remove only the metric labels that now have a reviewed population and a valid denominator.
+  -- Never turn an unreviewed population or a NULL denominator into a numeric zero.
+  SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.to_jsonb(metric) ORDER BY ordinality),'[]'::jsonb)
+    INTO v_unavailable
+    FROM pg_catalog.jsonb_array_elements_text(v_scorecard->'unavailableMetrics') WITH ORDINALITY AS items(metric,ordinality)
+   WHERE NOT (
+     v_quality->>'status'='READY'
+     AND (
+       (metric='ACTIONABILITY_RATE' AND pg_catalog.jsonb_typeof(v_quality->'actionability'->'actionableRatePercent')='number')
+       OR (metric='FALSE_ALARM_RATE' AND pg_catalog.jsonb_typeof(v_quality->'alerts'->'falseAlarmRatePercent')='number')
+       OR (metric='REPEATED_CAUSE_RATE' AND coalesce((v_quality->>'causeReviewCount')::integer,0)>0)
+     )
+   );
+
+  RETURN pg_catalog.jsonb_set(
+    v_scorecard||pg_catalog.jsonb_build_object('quality',v_quality),
+    '{unavailableMetrics}',
+    v_unavailable,
+    true
+  );
 END;
 $function$;
 
