@@ -1125,7 +1125,6 @@ DECLARE
   v_reason text:=nullif(btrim(coalesce(p_reason,'')),'');
   v_fingerprint text;
   v_required_evidence text;
-  v_lines record;
 BEGIN
   SELECT p.organization_id INTO v_org FROM public.profiles p
   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
@@ -1163,10 +1162,6 @@ BEGIN
      OR (v_action='matched' AND p_observed_amount IS DISTINCT FROM v_payment.amount) THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='matched supplier payment amount and currency must equal the saved source payment';
   END IF;
-  IF v_payment.status<>'recorded' THEN
-    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='reconciliation evidence must be recorded before the General Ledger handoff';
-  END IF;
-
   v_fingerprint:=md5(jsonb_build_object(
     'payment_id',v_payment.id,'action',v_action,'evidence_type',v_evidence_type,
     'evidence_reference',v_reference,'observed_amount',p_observed_amount::text,
@@ -1180,6 +1175,9 @@ BEGIN
     END IF;
     RETURN jsonb_build_object('payment_id',v_payment.id,'action',v_existing.action,
       'evidence_reference',v_existing.evidence_reference,'replayed',true);
+  END IF;
+  IF v_payment.status<>'recorded' THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='new reconciliation evidence must be recorded before the General Ledger handoff';
   END IF;
 
   INSERT INTO public.purchase_supplier_payment_reconciliation_events(
