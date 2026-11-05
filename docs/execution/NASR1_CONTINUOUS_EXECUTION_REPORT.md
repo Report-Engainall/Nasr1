@@ -1,3 +1,72 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — TASK LIFECYCLE, BULK OPERATIONS AND ASSIGNEE NOTIFICATIONS
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Initial main for this implementation stream: `294f85c2a4eae8d9a32109684f8166872eacb44d`.
+- Last recorded main head before this checkpoint update: `816c6ba961098678ed1d2769eabfe1bec9535aa9`.
+- No feature branch was created. Application code, SQL migrations and the acceptance matrix are on the official `main` tree.
+
+## Product capabilities added
+
+### Operational task lifecycle
+- Reassign or unassign a single open task with same-tenant active-user and task-role validation; row lock, idempotent no-op and old/new audit evidence.
+- Change task priority and due date after creation; same-tenant manager authorization, row lock, input guard and persisted `manager_overrides` so source refresh will not silently revert an intentional manager decision.
+- Edit title/description only for open manual tasks. The server rejects system-generated tasks that have source entity references; old/new values are audited.
+- Cancel an open task only with a mandatory reason. The reason is stored in `resolution_note`, a `manager_cancellation` payload marker and the audit log.
+- Explicit manager reopen clears the cancellation marker. The source reconciliation upsert preserves the marker and cancellation until this explicit reopen, avoiding accidental reactivation.
+- Require a non-empty execution outcome (up to 1,000 characters) before task completion. The result is passed to the existing status RPC, stored in `resolution_note`, shown in task details and reused by the current print projection. The UI retains the typed result if persistence fails.
+
+### Bulk task operations
+- Atomic bulk reassignment/unassignment for up to 100 selected open tasks. The RPC rejects duplicate IDs and validates every task/assignee; deterministic row locks plus one transaction mean a bad member rolls back the complete batch. Audit is written per changed task; identical assignment replay is a no-op.
+- Atomic bulk priority/deadline update for up to 100 selected open tasks. The user must choose an explicit new deadline (blank cannot silently clear existing dates); the manager override is stored and audit is recorded per changed task.
+- The manager toolbar filters completed/cancelled tasks out of the bulk payload and uses responsive controls.
+
+### Task assignment notifications
+- `supabase/migrations/20261105120000_operational_task_assignment_notifications.sql` creates/aligns the notification contract used by the existing `fetchNotifications` UI, enables row-level security and adds a restrictive tenant/profile guard.
+- A database trigger inserts one in-app notification when a task is created already assigned, assigned/reassigned to a different profile, or an unassigned task is first claimed. An unchanged assignment produces no new notification; source reconciliation without an assignee change does not create notification spam.
+- Browser privileges are restricted to reading the fields consumed by the UI and updating `is_read`; direct client insert/delete and general update are revoked. The API now requests only `id, organization_id, profile_id, title, body, type, is_read, created_at`.
+
+## Files added/updated
+
+- New SQL:
+  - `supabase/migrations/20261105100000_operational_task_reassignment.sql`
+  - `supabase/migrations/20261105103000_operational_task_details_update.sql`
+  - `supabase/migrations/20261105104500_manual_operational_task_edit.sql`
+  - `supabase/migrations/20261105110000_operational_task_cancel_reason.sql`
+  - `supabase/migrations/20261105113000_operational_task_bulk_assignment.sql`
+  - `supabase/migrations/20261105114000_operational_task_reopen_cancel.sql`
+  - `supabase/migrations/20261105115000_operational_task_bulk_details_update.sql`
+  - `supabase/migrations/20261105120000_operational_task_assignment_notifications.sql`
+- Updated application:
+  - `src/components/TaskCenter.tsx`
+  - `src/lib/api.ts`
+  - `src/styles.css`
+- Updated acceptance matrix:
+  - `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`
+  - Rows now cover task lifecycle editing/cancellation/reopen, bulk reassignment, bulk priority/deadline, completion outcome and assignee notifications.
+
+## Exact implementation status
+
+- Source and SQL migrations are committed on `main`; this is implementation evidence, not runtime acceptance.
+- No tests, build, lint, local PostgreSQL, Supabase, CI, Bolt Preview or end-to-end browser check was run in this stream. The owner's instruction is to prioritize the actual product body instead of spending this session in another broad test cycle.
+- These SQL migrations have not yet been applied to a local, hosted or production database. No production data, tenant records, credentials or external storage were changed.
+- The task leaves remain `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no PASS, release GO or Bolt runtime claim is made.
+- Lovable build/editor-preview/telemetry detachment remains from the earlier merged commits `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63` and CI alignment `45ca19c47a985b2d12d23c846ba068222a4e17ce`. No Lovable dependency was reopened here. Bolt runtime remains deferred until practical product-body readiness.
+
+## Bolt archive disposition
+
+- Original archive found in the ChatGPT Library and materialized at `/mnt/data/project-bolt-github-8ccbjvhg (2).zip`.
+- Outer SHA-256 verified as `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; ZIP listing contains 1,211 entries.
+- The P3 dossier records 69/69 staged provenance files mapped to the existing integration ledger, inner CSV helper exact-matched, product-image helper superseded and legacy privileged migrations excluded. Archive checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is recorded as an ancestor of the reviewed main line.
+- This session did not perform a new byte-for-byte comparison of all 1,211 archive entries against latest main. Do not claim complete entry-by-entry parity or overlay the historical ZIP over current NASR1.
+
+## Next implementation action
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-004`.
+- Move beyond the task center to the next source-level product gap in the customer/storefront/commerce domain. Start with the existing customer 360 interaction/history flow: inspect its current read contracts and customer detail entry point, then add a real tenant-scoped interaction record/write workflow that preserves customer privacy, appends audit evidence and displays the saved history. Do not begin with broad test execution.
+- Continue with multiple connected product features per launch, preserving existing screens, SQL history, role controls, price privacy and business contracts. Keep Bolt import/Preview deferred until source/product work is practically ready.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — OPERATIONAL TASK LIFECYCLE PRODUCT BUILD
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
