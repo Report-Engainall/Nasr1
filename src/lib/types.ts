@@ -14,6 +14,20 @@ export interface Customer {
   email: string | null; address: string | null; city: string | null; customer_tier: number;
   customer_code: string | null; status: string; credit_limit: number; notes: string | null;
 }
+export type CustomerInteractionType =
+  | 'call' | 'visit' | 'whatsapp' | 'email' | 'meeting' | 'note' | 'other';
+
+export interface CustomerInteraction {
+  id: string;
+  interaction_type: CustomerInteractionType;
+  subject: string;
+  details: string;
+  interaction_at: string;
+  next_follow_up_at: string | null;
+  created_at: string;
+  recorded_by_name: string;
+}
+
 export interface Order {
   id: string; order_code: string; customer_id: string; status: string; notes: string | null;
   admin_notes: string | null; total_amount: number; total_items: number; idempotency_key: string | null;
