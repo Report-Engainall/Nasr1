@@ -406,12 +406,29 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
   }
 
   function printCustomer360() {
-    if (!printDocument || typeof window === 'undefined' || typeof window.print !== 'function') {
+    if (!printDocument || typeof window === 'undefined' || typeof document === 'undefined' || typeof window.print !== 'function') {
       setPrintError('تعذر تجهيز نسخة الطباعة من بيانات العميل الحالية.');
       return;
     }
     setPrintError('');
-    window.print();
+    const body = document.body;
+    const previousMode = body.getAttribute('data-print-mode');
+    body.setAttribute('data-print-mode', 'customer-360');
+    let restored = false;
+    const restorePrintMode = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute('data-print-mode');
+      else body.setAttribute('data-print-mode', previousMode);
+      window.removeEventListener('afterprint', restorePrintMode);
+    };
+    window.addEventListener('afterprint', restorePrintMode, { once: true });
+    try {
+      window.print();
+    } catch {
+      restorePrintMode();
+      setPrintError('تعذر فتح نافذة الطباعة في هذا المتصفح.');
+    }
   }
   return <Modal title={summary ? 'ملف العميل 360 — ' + summary.customer.business_name : 'ملف العميل 360'} onClose={onClose}>
     <div style={{ display: 'grid', gap: 14, maxHeight: '75vh', overflowY: 'auto', padding: 2 }}>

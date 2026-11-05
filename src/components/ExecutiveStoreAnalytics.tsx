@@ -223,6 +223,7 @@ function ExecutiveSalesDetails({
 export function ExecutiveStoreAnalytics() {
   const { data, loading, error, refetch } = useFetch(fetchStoreExecutiveAnalytics);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
   const maxDaySales = Math.max(1, ...(data?.sales_trend.map((day) => day.sales) ?? [0]));
   const printDocument = useMemo(
     () => data ? projectExecutiveAnalyticsPrintDocument(data) : null,
@@ -247,8 +248,29 @@ export function ExecutiveStoreAnalytics() {
   }
 
   function printExecutiveReport() {
-    if (!data || !printDocument || typeof window === "undefined" || typeof window.print !== "function") return;
-    window.print();
+    if (!data || !printDocument || typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") {
+      setPrintError('الطباعة غير متاحة؛ يجب تحميل تقرير تنفيذي كامل وصالح أولاً.');
+      return;
+    }
+    setPrintError(null);
+    const body = document.body;
+    const previousMode = body.getAttribute('data-print-mode');
+    body.setAttribute('data-print-mode', 'executive-analytics');
+    let restored = false;
+    const restorePrintMode = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute('data-print-mode');
+      else body.setAttribute('data-print-mode', previousMode);
+      window.removeEventListener('afterprint', restorePrintMode);
+    };
+    window.addEventListener('afterprint', restorePrintMode, { once: true });
+    try {
+      window.print();
+    } catch {
+      restorePrintMode();
+      setPrintError('تعذر فتح نافذة الطباعة في هذا المتصفح.');
+    }
   }
 
   return (
@@ -272,6 +294,7 @@ export function ExecutiveStoreAnalytics() {
       </div>
 
       {exportError ? <ErrorBox message={exportError} /> : null}
+      {printError ? <ErrorBox message={printError} /> : null}
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data ? <Empty text="لا توجد بيانات تحليل موثوقة لعرضها." /> : (
         <>
           <div className="report-grid">
@@ -317,7 +340,9 @@ export function ExecutiveStoreAnalytics() {
       )}
       <ProductActivityReport />
       <StaffDashboardMetrics />
-      {printDocument ? <ExecutiveAnalyticsPrintSheet document={printDocument} /> : null}
+      {printDocument && typeof document !== 'undefined'
+        ? createPortal(<ExecutiveAnalyticsPrintSheet document={printDocument} />, document.body)
+        : null}
     </section>
   );
 }

@@ -89,12 +89,17 @@ describe("executive analytics print acceptance", () => {
 
   afterEach(() => {
     cleanup();
+    document.body.removeAttribute("data-print-mode");
     vi.restoreAllMocks();
   });
 
   it("prints all server aggregate days, all executive KPIs and allowlisted top rows only", async () => {
     mocks.fetchExecutive.mockResolvedValue(makeAnalytics());
-    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const previousPrintMode = "previous-print-mode";
+    document.body.setAttribute("data-print-mode", previousPrintMode);
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {
+      expect(document.body.getAttribute("data-print-mode")).toBe("executive-analytics");
+    });
 
     render(<ExecutiveStoreAnalytics />);
 
@@ -103,7 +108,9 @@ describe("executive analytics print acceptance", () => {
     fireEvent.click(printButton);
 
     expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(document.body.getAttribute("data-print-mode")).toBe("executive-analytics");
     const sheet = screen.getByTestId("executive-analytics-print-document");
+    expect(sheet.parentElement).toBe(document.body);
     expect(sheet.textContent).toContain("متجر الأغبري");
     expect(sheet.textContent).toContain("مبيعات آخر 30 يومًا");
     expect(sheet.textContent).toContain(formatCurrency(1234567.89));
@@ -123,6 +130,25 @@ describe("executive analytics print acceptance", () => {
     ]) {
       expect(sheet.innerHTML).not.toContain(secret);
     }
+    fireEvent(window, new Event("afterprint"));
+    expect(document.body.getAttribute("data-print-mode")).toBe(previousPrintMode);
+  });
+
+  it("restores the previous print mode when the browser print dialog cannot open", async () => {
+    const previousPrintMode = "outer-print-mode";
+    document.body.setAttribute("data-print-mode", previousPrintMode);
+    mocks.fetchExecutive.mockResolvedValue(makeAnalytics());
+    vi.spyOn(window, "print").mockImplementation(() => {
+      throw new Error("browser print unavailable");
+    });
+    render(<ExecutiveStoreAnalytics />);
+
+    const printButton = await screen.findByRole("button", { name: /طباعة التقرير التنفيذي.*PDF/ });
+    await waitFor(() => expect(printButton).toBeEnabled());
+    fireEvent.click(printButton);
+
+    expect(document.body.getAttribute("data-print-mode")).toBe(previousPrintMode);
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر فتح نافذة الطباعة في هذا المتصفح.");
   });
 
   it("does not print when the server-backed report has not loaded", async () => {

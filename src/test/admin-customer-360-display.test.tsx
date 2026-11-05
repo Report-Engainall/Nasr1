@@ -146,6 +146,7 @@ describe("Admin Customer 360 source-lineage display", () => {
 
   afterEach(() => {
     cleanup();
+    document.body.removeAttribute("data-print-mode");
     vi.restoreAllMocks();
   });
 
@@ -285,7 +286,11 @@ describe("Admin Customer 360 source-lineage display", () => {
       margin: 554433,
     } as unknown as StaffCustomer360Summary;
     mocks.fetchSummary.mockResolvedValueOnce(fullSummary);
-    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const previousPrintMode = "previous-print-mode";
+    document.body.setAttribute("data-print-mode", previousPrintMode);
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {
+      expect(document.body.getAttribute("data-print-mode")).toBe("customer-360");
+    });
 
     render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
     const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
@@ -293,6 +298,7 @@ describe("Admin Customer 360 source-lineage display", () => {
     expect(button).toBeEnabled();
     fireEvent.click(button);
     expect(printSpy).toHaveBeenCalledTimes(1);
+    expect(document.body.getAttribute("data-print-mode")).toBe("customer-360");
 
     const sheet = screen.getByTestId("customer-360-print-document");
     expect(sheet.parentElement).toBe(document.body);
@@ -317,6 +323,23 @@ describe("Admin Customer 360 source-lineage display", () => {
     ]) {
       expect(sheet.innerHTML).not.toContain(secret);
     }
+    fireEvent(window, new Event("afterprint"));
+    expect(document.body.getAttribute("data-print-mode")).toBe(previousPrintMode);
+  });
+
+  it("restores the previous print mode when the browser print dialog cannot open", async () => {
+    const previousPrintMode = "outer-print-mode";
+    document.body.setAttribute("data-print-mode", previousPrintMode);
+    vi.spyOn(window, "print").mockImplementation(() => {
+      throw new Error("browser print unavailable");
+    });
+    render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
+
+    const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
+    fireEvent.click(await within(dialog).findByRole("button", { name: /طباعة \/ PDF/ }));
+
+    expect(document.body.getAttribute("data-print-mode")).toBe(previousPrintMode);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("تعذر فتح نافذة الطباعة في هذا المتصفح.");
   });
 
   it("does not print Customer 360 while its tenant-scoped summary is loading", async () => {
