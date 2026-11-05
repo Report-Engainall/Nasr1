@@ -1753,3 +1753,13 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Not executed / not claimed:** Bun install, Vite dev/build/preview, typecheck, lint, Vitest, Bolt Database provisioning, auth, storage, server functions, or E2E. Bolt must run these on the exact imported SHA.
 - **Database preservation:** existing Supabase JS, PostgreSQL migrations, RPC, auth and server contracts were retained pending inspection of Bolt's actual built-in Database interface. No production schema/data/credentials/functions/storage were changed. Do not replace server-side atomic RPC or RLS controls with browser CRUD.
 - **Next:** `BOLT-RUNTIME-BOLT-DB-PORT-001`; use the single execution prompt at `docs/bolt-source-reconciliation/BOLT_EXECUTION_PROMPT_AR_2026-11-05.md`. Built-in Bolt DB only; no paid external Supabase connection; full Preview + E2E acceptance still required.
+
+## 2026-11-05 — OWNER PHASE-ORDER CORRECTION: PRODUCT BODY BEFORE BOLT HANDOFF
+
+- Owner clarified that Bolt workspace creation/import/sync, built-in DB provisioning, runtime mapping and Bolt Preview/E2E are a later single handoff phase, after completing the greatest practical amount of the existing product body on NASR1/main.
+- The earlier immediate BOLT-RUNTIME-001 direction was incorrect for the owner's intended sequence. It is now explicitly deferred; it must not block source/product implementation.
+- Current phase: continue all unaccepted source-level/product requirements in the existing matrix that can be implemented without Bolt-provisioned resources. Preserve all screens, engines, migrations, RPCs, tests and source architecture. Do not repeat Lovable detachment, which is already merged.
+- At practical handoff readiness (all work implementable without actual Bolt resources completed or precisely blocked), sync the then-current main once to Bolt. Bolt then provisions/maps its built-in database, auth, storage and server functions and runs the full Preview/E2E/security/commerce acceptance against one exact SHA.
+- No Bolt sign-in, project creation/import, database provisioning or Preview has occurred in this phase. BOLT-RUNTIME-001 remains OPEN/DEFERRED, not PASS.
+- Documentation-only changes in this correction: CURRENT_EXECUTION_STATE.md, CHATGPT_SESSION_RESUME_BRIEF_2026-11-05.md, BOLT_EXECUTION_PROMPT_AR_2026-11-05.md, REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv, and this log.
+- Current next action: BODY-COMPLETION-ON-MAIN-001. Deferred action: BOLT-RUNTIME-001.
