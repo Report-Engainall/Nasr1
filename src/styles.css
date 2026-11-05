@@ -651,3 +651,11 @@
 .task-card-cancel-editor textarea{width:100%;min-width:0;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-size:12px;line-height:1.6;resize:vertical}
 .task-card-cancel-editor button{justify-self:start}
 @media(max-width:860px){.task-card-cancel-editor{width:100%;max-width:none;min-width:0}}
+
+
+/* Manager batch assignment panel for selected operational tasks. */
+.task-bulk-assignment{display:flex;align-items:end;gap:8px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+.task-bulk-assignment label{display:grid;gap:5px;min-width:190px;color:var(--foreground);font-size:11px;font-weight:750}
+.task-bulk-assignment select{width:100%;min-width:0;padding:8px 9px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit;font-weight:500}
+.task-bulk-assignment small{flex-basis:100%;color:var(--muted-foreground);font-size:11px}
+@media(max-width:860px){.task-bulk-assignment{width:100%;align-items:stretch}.task-bulk-assignment label,.task-bulk-assignment button{width:100%}}
