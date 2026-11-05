@@ -305,7 +305,7 @@ export function buildSupplierInvoiceAccountingWorkbookXlsx(
 export function downloadSupplierInvoiceAccountingWorkbookXlsx(
   document: SupplierInvoiceAccountingPrintDocument,
 ): void {
-  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
+  if (typeof globalThis.document === "undefined" || typeof URL.createObjectURL !== "function") {
     throw new Error("تنزيل ملف Excel غير متاح في هذه البيئة.");
   }
   const bytes = buildSupplierInvoiceAccountingWorkbookXlsx(document);
