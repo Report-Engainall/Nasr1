@@ -103,6 +103,31 @@ DROP TRIGGER IF EXISTS customer_service_case_task_deadline_seed ON public.ai_tas
 CREATE TRIGGER customer_service_case_task_deadline_seed BEFORE INSERT ON public.ai_tasks
 FOR EACH ROW EXECUTE FUNCTION public.seed_customer_service_task_deadline();
 
+-- Snapshot SLA targets for cases that already existed before this migration.
+UPDATE public.customer_service_cases cs
+SET response_due_at=coalesce(cs.response_due_at,cs.created_at+pg_catalog.make_interval(mins=>coalesce(
+      (SELECT p.first_response_minutes FROM public.customer_service_sla_policies p
+        WHERE p.organization_id=cs.organization_id AND p.priority=cs.priority),
+      CASE cs.priority WHEN 'urgent' THEN 15 WHEN 'high' THEN 60 WHEN 'medium' THEN 240 ELSE 480 END))),
+    resolution_due_at=coalesce(cs.resolution_due_at,cs.created_at+pg_catalog.make_interval(mins=>coalesce(
+      (SELECT p.resolution_minutes FROM public.customer_service_sla_policies p
+        WHERE p.organization_id=cs.organization_id AND p.priority=cs.priority),
+      CASE cs.priority WHEN 'urgent' THEN 240 WHEN 'high' THEN 1440 WHEN 'medium' THEN 4320 ELSE 10080 END)))
+WHERE cs.response_due_at IS NULL OR cs.resolution_due_at IS NULL;
+
+-- Align legacy case tasks where no deadline had previously been recorded.
+UPDATE public.ai_tasks t
+SET due_at=cs.resolution_due_at,
+    task_payload=coalesce(t.task_payload,'{}'::jsonb)||pg_catalog.jsonb_build_object(
+      'manager_overrides',
+      coalesce(t.task_payload->'manager_overrides','{}'::jsonb)
+      ||pg_catalog.jsonb_build_object('due_at',cs.resolution_due_at,'source','customer_service_case_sla','updated_at',now())
+    )
+FROM public.customer_service_cases cs
+WHERE t.organization_id=cs.organization_id
+  AND t.source_event_key='customer-service-case:'||cs.id::text
+  AND t.due_at IS NULL AND cs.resolution_due_at IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION public.get_customer_service_case_operations(p_customer_id uuid,p_limit integer DEFAULT 50)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
 AS $function$
@@ -208,7 +233,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='manager permission is required to assign, schedule or escalate customer cases';
   END IF;
   IF p_case_id IS NULL OR p_response_due_at IS NULL OR p_resolution_due_at IS NULL
-     OR p_response_due_at<=now() OR p_resolution_due_at<=now() OR p_response_due_at>p_resolution_due_at
+     OR p_response_due_at>p_resolution_due_at
      OR (p_escalate AND (v_note IS NULL OR pg_catalog.length(v_note)>1000))
      OR (NOT p_escalate AND v_note IS NOT NULL AND pg_catalog.length(v_note)>1000) THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='case deadlines or escalation note are invalid';
@@ -221,6 +246,9 @@ BEGIN
 
   v_assigned_changed:=v_task.assigned_to IS DISTINCT FROM p_assigned_to;
   v_deadlines_changed:=v_case.response_due_at IS DISTINCT FROM p_response_due_at OR v_case.resolution_due_at IS DISTINCT FROM p_resolution_due_at;
+  IF v_deadlines_changed AND p_resolution_due_at<=now() THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='a rescheduled resolution deadline must be in the future';
+  END IF;
 
   -- Canonical manager task assignment validates the same-tenant active role and uses the existing notification trigger.
   PERFORM public.assign_operational_task(v_task.id,p_assigned_to);
