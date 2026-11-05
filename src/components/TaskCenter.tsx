@@ -356,6 +356,13 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     if (printScope === 'selected') setPrintScope('filtered');
   }
 
+  const selectedOpenTaskIds = useMemo(
+    () => tasks
+      .filter((task) => selectedTaskIds.has(task.id) && !['completed','cancelled'].includes(task.status))
+      .map((task) => task.id),
+    [tasks,selectedTaskIds],
+  );
+
   const openCount = roleScopedTasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
   const lateCount = roleScopedTasks.filter(isLate).length;
   const completedCount = roleScopedTasks.filter((task) => task.status === 'completed').length;
@@ -400,8 +407,11 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   }
 
   async function saveBulkTaskAssignment() {
-    const taskIds = [...selectedTaskIds];
-    if (taskIds.length < 1) return;
+    const taskIds = selectedOpenTaskIds;
+    if (taskIds.length < 1) {
+      setError('لا توجد مهام مفتوحة ضمن التحديد الحالي؛ المهام المكتملة والملغاة لا تقبل إعادة الإسناد.');
+      return;
+    }
     if (taskIds.length > 100) {
       setError('تسمح العملية الجماعية بإسناد 100 مهمة كحد أقصى في الدفعة الواحدة.');
       return;
@@ -548,7 +558,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
         {canManage && selectedTaskIds.size > 0 && (
           <div className="task-bulk-assignment">
             <label>
-              <span>إسناد {selectedTaskIds.size.toLocaleString('ar-YE')} مهمة محددة</span>
+              <span>إسناد {selectedOpenTaskIds.length.toLocaleString('ar-YE')} من {selectedTaskIds.size.toLocaleString('ar-YE')} مهمة محددة</span>
               <select
                 aria-label="الموظف لإسناد المهام المحددة"
                 value={bulkAssigneeDraft}
@@ -566,7 +576,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
             <button
               className="btn primary"
               type="button"
-              disabled={busy || loading || assigneesLoading || Boolean(assigneesError) || selectedTaskIds.size > 100}
+              disabled={busy || loading || assigneesLoading || Boolean(assigneesError) || selectedOpenTaskIds.length === 0 || selectedOpenTaskIds.length > 100}
               onClick={() => void saveBulkTaskAssignment()}
             >تنفيذ الإسناد الجماعي</button>
             {selectedTaskIds.size > 100 && <small role="status">قسّم التحديد إلى دفعات لا تتجاوز 100 مهمة.</small>}
