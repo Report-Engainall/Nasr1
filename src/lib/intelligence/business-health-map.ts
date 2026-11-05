@@ -33,6 +33,8 @@ export interface BusinessHealthAmount {
   formulaVersion: string | null;
   evidenceIds: string[];
   note: string;
+  sourceAsOf: string | null;
+  sourcePeriod: EvidencePeriod | null;
 }
 export interface BusinessHealthCurrencyPosition {
   currency: string;
@@ -46,6 +48,8 @@ export interface BusinessHealthCurrencyPosition {
 }
 export interface BusinessHealthStockSummary {
   status: EvidenceStatus;
+  sourceAsOf: string | null;
+  sourcePeriod: EvidencePeriod | null;
   totalProducts: number | null;
   classes: Array<{ classification: DeadStockClass; count: number | null; status: EvidenceStatus }>;
   totalsByCurrency: Array<{
@@ -57,6 +61,8 @@ export interface BusinessHealthStockSummary {
 }
 export interface BusinessHealthReplenishmentSummary {
   status: EvidenceStatus;
+  sourceAsOf: string | null;
+  sourcePeriod: EvidencePeriod | null;
   recommendedCount: number | null;
   noActionCount: number | null;
   withheldCount: number | null;
@@ -149,10 +155,12 @@ function amount(
   formulaVersion: string | null,
   evidenceIds: string[],
   note: string,
+  sourceAsOf: string | null = null,
+  sourcePeriod: EvidencePeriod | null = null,
 ): BusinessHealthAmount {
   const actual = status === "VERIFIED" ? finite(value) : null;
   return { value: actual, currency, status: actual === null && status === "VERIFIED" ? "NEEDS_REVIEW" : status,
-    source, formulaId, formulaVersion, evidenceIds: actual === null ? [] : unique(evidenceIds), note };
+    source, formulaId, formulaVersion, evidenceIds: actual === null ? [] : unique(evidenceIds), note, sourceAsOf, sourcePeriod };
 }
 function unavailable(currency: string, note: string, status: EvidenceStatus = "UNAVAILABLE"): BusinessHealthAmount {
   return amount(null, currency, status, "LIQUIDITY", null, null, [], note);
@@ -163,28 +171,28 @@ function liquidityMetric(position: LiquidityPosition | undefined, key: "net" | "
     case "net":
       return amount(position.netAvailableLiquidity, currency, position.status, "LIQUIDITY",
         position.formulaId, position.formulaVersion, position.lineage.evidenceIds,
-        "صافي السيولة = الرصيد المتاح + التحصيلات المتوقعة − الالتزامات المستحقة");
+        "صافي السيولة = الرصيد المتاح + التحصيلات المتوقعة − الالتزامات المستحقة", position.asOf, position.period);
     case "collections":
       return amount(position.expectedCollections, currency, position.expectedCollectionsStatus, "LIQUIDITY",
         position.formulaId, position.formulaVersion, position.lineage.evidenceIds,
-        "التحصيلات داخلة بالفعل في صافي السيولة؛ هذا عرض تفسيري فقط ولا يُجمع مرة أخرى");
+        "التحصيلات داخلة بالفعل في صافي السيولة؛ هذا عرض تفسيري فقط ولا يُجمع مرة أخرى", position.asOf, position.period);
     case "overdue":
       return amount(position.overdueReceivables, currency, position.overdueReceivablesStatus, "LIQUIDITY",
         position.formulaId, position.formulaVersion, position.lineage.evidenceIds,
-        "الذمم المتأخرة منفصلة ولا تضاف إلى صافي السيولة أو التحصيلات مرة أخرى");
+        "الذمم المتأخرة منفصلة ولا تضاف إلى صافي السيولة أو التحصيلات مرة أخرى", position.asOf, position.period);
     case "obligations":
       return amount(position.dueObligations, currency, position.dueObligationsStatus, "LIQUIDITY",
         position.formulaId, position.formulaVersion, position.lineage.evidenceIds,
-        "الالتزامات المستحقة مخصومة بالفعل من صافي السيولة");
+        "الالتزامات المستحقة مخصومة بالفعل من صافي السيولة", position.asOf, position.period);
     case "stock":
       return amount(position.stagnantStockExposure, currency, position.stagnantStockExposureStatus, "LIQUIDITY",
         "dead-stock.exposure", "1.0.0", position.lineage.evidenceIds,
-        "تعرض المخزون الراكد رأس مال غير نقدي، ولا يخصم من السيولة");
+        "تعرض المخزون الراكد رأس مال غير نقدي، ولا يخصم من السيولة", position.asOf, position.period);
   }
 }
-function deadStockAmount(report: DeadStockReport | null | undefined, currency: string, asOf: string, period: EvidencePeriod): BusinessHealthAmount {
+function deadStockAmount(report: DeadStockReport | null | undefined, currency: string, asOf: string): BusinessHealthAmount {
   if (!report) return unavailable(currency, "تقرير المخزون غير متاح");
-  if (report.asOf !== asOf || !samePeriod(report.period, period)) return unavailable(currency, "فترة أو تاريخ تقرير المخزون لا يطابق الخريطة", "NEEDS_REVIEW");
+  if (report.asOf !== asOf || !validPeriod(report.period)) return unavailable(currency, "تاريخ أو فترة تقرير المخزون غير صالحة", "NEEDS_REVIEW");
   const totals = report.totalsByCurrency.filter(row => row.currency === currency);
   if (totals.length !== 1) return unavailable(currency, totals.length ? "ملخص العملة مكرر" : "لا توجد قيمة تعرض لهذه العملة", totals.length ? "UNVERIFIED" : "UNAVAILABLE");
   const total = totals[0];
@@ -196,12 +204,14 @@ function deadStockAmount(report: DeadStockReport | null | undefined, currency: s
   return amount(valid ? total.exposure : null, currency, valid ? "VERIFIED" : "NEEDS_REVIEW",
     "DEAD_STOCK", versions.length === 1 ? rows[0].formulaId : null,
     versions.length === 1 ? rows[0].formulaVersion : null, evidenceIds,
-    valid ? "التعرض محسوب من الكميات المتاحة وتكلفة الوحدة المثبتة" : "التعرض محجوب لعدم اكتمال أو اتساق تكلفة المخزون");
+    valid ? "التعرض محسوب من الكميات المتاحة وتكلفة الوحدة المثبتة" : "التعرض محجوب لعدم اكتمال أو اتساق تكلفة المخزون",
+    report.asOf, report.period);
 }
 function mergeStockExposure(a: BusinessHealthAmount, b: BusinessHealthAmount): BusinessHealthAmount {
   if (a.status === "VERIFIED" && b.status === "VERIFIED" && a.value !== null && b.value !== null) {
     const evidenceOverlap = a.evidenceIds.some(id => b.evidenceIds.includes(id));
-    if (Math.abs(a.value - b.value) <= 0.005 && evidenceOverlap) {
+    const sameSourceScope = a.sourceAsOf === b.sourceAsOf && samePeriod(a.sourcePeriod, b.sourcePeriod);
+    if (Math.abs(a.value - b.value) <= 0.005 && evidenceOverlap && sameSourceScope) {
       return { ...b, evidenceIds: unique([...a.evidenceIds, ...b.evidenceIds]),
         note: "قياسان متطابقان ولهما دليل مشترك؛ تم احتسابهما مرة واحدة" };
     }
@@ -213,15 +223,17 @@ function mergeStockExposure(a: BusinessHealthAmount, b: BusinessHealthAmount): B
   if (b.status === "VERIFIED" && b.value !== null && a.status !== "VERIFIED") return { ...b, note: "قيمة مثبتة؛ مصدر المقارنة الآخر يحتاج مراجعة" };
   return unavailable(a.currency, "لا يوجد تعرض مخزون مثبت من المصادر المتاحة", rollup([a.status, b.status]));
 }
-function buildStock(report: DeadStockReport | null | undefined, asOf: string, period: EvidencePeriod): BusinessHealthStockSummary {
+function buildStock(report: DeadStockReport | null | undefined, asOf: string): BusinessHealthStockSummary {
   const empty = STOCK_CLASSES.map(classification => ({ classification, count: null, status: "UNAVAILABLE" as EvidenceStatus }));
-  if (!report) return { status: "UNAVAILABLE", totalProducts: null, classes: empty, totalsByCurrency: [], warnings: ["DEAD_STOCK_SOURCE_NOT_SUPPLIED"] };
-  if (report.asOf !== asOf || !samePeriod(report.period, period)) return {
-    status: "NEEDS_REVIEW", totalProducts: null, classes: empty, totalsByCurrency: [], warnings: ["DEAD_STOCK_AS_OF_OR_PERIOD_MISMATCH"],
+  if (!report) return { status: "UNAVAILABLE", sourceAsOf: null, sourcePeriod: null, totalProducts: null, classes: empty, totalsByCurrency: [], warnings: ["DEAD_STOCK_SOURCE_NOT_SUPPLIED"] };
+  if (report.asOf !== asOf || !validPeriod(report.period)) return {
+    status: "NEEDS_REVIEW", sourceAsOf: report.asOf, sourcePeriod: report.period,
+    totalProducts: null, classes: empty, totalsByCurrency: [], warnings: ["DEAD_STOCK_AS_OF_OR_PERIOD_MISMATCH"],
   };
   const refs = report.items.map(row => row.productRef);
   if (refs.some((ref, index) => !ref.trim() || refs.indexOf(ref) !== index)) return {
-    status: "UNVERIFIED", totalProducts: null, classes: empty, totalsByCurrency: [], warnings: ["DUPLICATE_PRODUCT_REFERENCE_IN_DEAD_STOCK"],
+    status: "UNVERIFIED", sourceAsOf: report.asOf, sourcePeriod: report.period,
+    totalProducts: null, classes: empty, totalsByCurrency: [], warnings: ["DUPLICATE_PRODUCT_REFERENCE_IN_DEAD_STOCK"],
   };
   const movementComplete = report.status === "VERIFIED" && report.items.every(row => row.movementStatus === "VERIFIED");
   const classes = STOCK_CLASSES.map(classification => ({
@@ -243,7 +255,8 @@ function buildStock(report: DeadStockReport | null | undefined, asOf: string, pe
     };
   });
   return {
-    status: report.status, totalProducts: movementComplete ? report.items.length : null, classes, totalsByCurrency,
+    status: report.status, sourceAsOf: report.asOf, sourcePeriod: report.period,
+    totalProducts: movementComplete ? report.items.length : null, classes, totalsByCurrency,
     warnings: [...report.warnings, ...(movementComplete ? [] : ["DEAD_STOCK_MOVEMENT_COVERAGE_INCOMPLETE"])],
   };
 }
@@ -277,14 +290,16 @@ function buildCashflow(forecast: CashflowForecast | null | undefined, asOf: stri
   }
   return { points, status: rollup(points.map(point => point.status)), warnings: unique([...forecast.warnings, ...warnings]) };
 }
-function buildReplenishment(source: BusinessHealthReplenishmentSource | null | undefined, asOf: string, period: EvidencePeriod): BusinessHealthReplenishmentSummary {
-  if (!source) return { status: "UNAVAILABLE", recommendedCount: null, noActionCount: null, withheldCount: null, recommendations: [], warnings: ["REPLENISHMENT_SOURCE_NOT_SUPPLIED"] };
-  if (source.asOf !== asOf || !samePeriod(source.period, period)) return {
-    status: "NEEDS_REVIEW", recommendedCount: null, noActionCount: null, withheldCount: null, recommendations: [], warnings: ["REPLENISHMENT_AS_OF_OR_PERIOD_MISMATCH"],
+function buildReplenishment(source: BusinessHealthReplenishmentSource | null | undefined, asOf: string): BusinessHealthReplenishmentSummary {
+  if (!source) return { status: "UNAVAILABLE", sourceAsOf: null, sourcePeriod: null, recommendedCount: null, noActionCount: null, withheldCount: null, recommendations: [], warnings: ["REPLENISHMENT_SOURCE_NOT_SUPPLIED"] };
+  if (source.asOf !== asOf || !validPeriod(source.period)) return {
+    status: "NEEDS_REVIEW", sourceAsOf: source.asOf, sourcePeriod: source.period,
+    recommendedCount: null, noActionCount: null, withheldCount: null, recommendations: [], warnings: ["REPLENISHMENT_AS_OF_OR_PERIOD_MISMATCH"],
   };
   const refs = source.recommendations.map(row => row.productRef);
   if (refs.some((ref, index) => !ref.trim() || refs.indexOf(ref) !== index)) return {
-    status: "UNVERIFIED", recommendedCount: null, noActionCount: null, withheldCount: null, recommendations: [], warnings: ["DUPLICATE_OR_EMPTY_REPLENISHMENT_PRODUCT_REFERENCE"],
+    status: "UNVERIFIED", sourceAsOf: source.asOf, sourcePeriod: source.period,
+    recommendedCount: null, noActionCount: null, withheldCount: null, recommendations: [], warnings: ["DUPLICATE_OR_EMPTY_REPLENISHMENT_PRODUCT_REFERENCE"],
   };
   const recommendations = source.recommendations.filter(row =>
     row.status === "VERIFIED" && row.action === "RECOMMEND" && finite(row.recommendedQuantity) !== null &&
@@ -300,15 +315,16 @@ function buildReplenishment(source: BusinessHealthReplenishmentSource | null | u
   const complete = !invalidRows;
   return {
     status: complete ? "VERIFIED" : "NEEDS_REVIEW",
+    sourceAsOf: source.asOf, sourcePeriod: source.period,
     recommendedCount: complete ? recommendations.length : null,
     noActionCount: complete ? source.recommendations.filter(row => row.action === "NO_ACTION").length : null,
     withheldCount: source.recommendations.length - recommendations.length,
     recommendations, warnings: complete ? [] : ["SOME_REPLENISHMENT_RECOMMENDATIONS_WITHHELD"],
   };
 }
-function buildCustomerFocus(report: CustomerRetentionReport | null | undefined, asOf: string, period: EvidencePeriod) {
+function buildCustomerFocus(report: CustomerRetentionReport | null | undefined, asOf: string) {
   if (!report) return { rows: [] as BusinessHealthMapResult["customerFocus"], status: "UNAVAILABLE" as EvidenceStatus, warnings: ["CUSTOMER_RETENTION_SOURCE_NOT_SUPPLIED"] };
-  if (report.asOf !== asOf || !samePeriod(report.period, period)) return {
+  if (report.asOf !== asOf || !validPeriod(report.period)) return {
     rows: [] as BusinessHealthMapResult["customerFocus"], status: "NEEDS_REVIEW" as EvidenceStatus, warnings: ["CUSTOMER_RETENTION_AS_OF_OR_PERIOD_MISMATCH"],
   };
   const rows = report.focusByCurrency.map(item => {
@@ -317,6 +333,7 @@ function buildCustomerFocus(report: CustomerRetentionReport | null | undefined, 
     return {
       currency: item.currency, top5SalesConcentration: valid ? item.top5SalesConcentration : null,
       customerCount: valid ? item.customerCount : null, status: valid ? "VERIFIED" as const : "NEEDS_REVIEW" as const,
+      sourcePeriod: report.period,
     };
   });
   return { rows, status: report.status, warnings: report.warnings };
@@ -363,7 +380,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   if (!input.id.trim() || !validTime(input.generatedAt) || !validTime(input.asOf) ||
       Date.parse(input.generatedAt) < Date.parse(input.asOf) || !validPeriod(input.period)) throw new Error("business_health_map_input_invalid");
   const warnings: string[] = [];
-  const liquidityValid = input.liquidity?.asOf === input.asOf && samePeriod(input.liquidity.period, input.period);
+  const liquidityValid = input.liquidity?.asOf === input.asOf && validPeriod(input.liquidity.period);
   const liquidity = liquidityValid ? input.liquidity : null;
   if (input.liquidity && !liquidityValid) warnings.push("LIQUIDITY_AS_OF_OR_PERIOD_MISMATCH");
   const rawPositions = liquidity?.positions ?? [];
@@ -378,7 +395,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
     const overdue = ambiguous ? unavailable(currency, "تكرار موضع العملة", "UNVERIFIED") : liquidityMetric(position, "overdue", currency);
     const obligations = ambiguous ? unavailable(currency, "تكرار موضع العملة", "UNVERIFIED") : liquidityMetric(position, "obligations", currency);
     const stockLiquidity = ambiguous ? unavailable(currency, "تكرار موضع العملة", "UNVERIFIED") : liquidityMetric(position, "stock", currency);
-    const stockDetail = deadStockAmount(input.deadStock, currency, input.asOf, input.period);
+    const stockDetail = deadStockAmount(input.deadStock, currency, input.asOf);
     const stock = mergeStockExposure(stockLiquidity, stockDetail);
     return {
       currency,
@@ -425,9 +442,9 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   const cashflowStatus = !input.cashflow ? "UNAVAILABLE" :
     input.cashflow.asOf !== input.asOf ? "NEEDS_REVIEW" : rollup(cashflow.map(point => point.status));
   warnings.push(...cashflowWarnings);
-  const stock = buildStock(input.deadStock, input.asOf, input.period);
-  const replenishment = buildReplenishment(input.replenishment, input.asOf, input.period);
-  const customer = buildCustomerFocus(input.retention, input.asOf, input.period);
+  const stock = buildStock(input.deadStock, input.asOf);
+  const replenishment = buildReplenishment(input.replenishment, input.asOf);
+  const customer = buildCustomerFocus(input.retention, input.asOf);
 
   const calculations = {
     cashConversionCycle: notCalculable(
