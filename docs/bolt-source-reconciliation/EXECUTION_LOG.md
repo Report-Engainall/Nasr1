@@ -1,3 +1,18 @@
+## 2026-11-06 — P3 Commerce Policy Governance and What-if Simulation — REF-SECTION-55-COMMERCE-POLICY-GOVERNANCE-001
+
+- Exact code commit on main: `0d42d66ac8073450db58618c88c38fc2af01454b`; parent `483deeeae9797911e2e4f2ca91e50ec5c7325cf9`.
+- Paths: `supabase/migrations/20261106030000_intelligence_commerce_policy_governance.sql`, `src/lib/intelligence/commerce-policy-governance-client.ts`, `src/components/intelligence/CommercePolicyGovernancePanel.tsx`, plus library/component barrel exports.
+- Added append-only organization-scoped policy metadata linked to actual pricing_rules, promotions, customers, products or inventory balances. Metadata includes owner, version, effective dates, conflict-priority annotation, business-language rule, rationale, test examples and source fingerprint. Changed sources are flagged; prior metadata versions are never overwritten.
+- Added real owner/source lookup, typed RPC/client contracts, Arabic RTL panel and simulation history.
+- Server-enforced read-only scenarios: current winning promotion vs candidate discount; finance-only customer credit preview; product min/order multiple validation; proposed reorder point vs actual 30-day sale movements; open-task/event-key deduplication. All store input/source fingerprints, outcomes and audit evidence; no live domain writes.
+- Added audit-backed previous/current value rollback preview for pricing rules/promotions. It does not execute restore: changes must pass the source domain's original Maker/Checker and write command.
+- Alert-threshold rules and bulk activation were not invented without a source-of-truth/approval contract. Reorder preview is not an automatic reorder or configurable alert. Actual rollback and cross-domain activation remain outside this source-only panel.
+- Targeted schema confirmation: profiles.auth_user_id/full_name, user_roles.profile_id/role, existing customers credit fields, product prices/cost/order quantity fields, inventory balance/movement fields and audit_logs old/new evidence exist in current schema.
+- P1 integration pending: panel not mounted in `IntelligenceWorkspace.tsx`; no P1-owned route/workspace was changed. P1 must mount it.
+- Migration has NOT been applied to Bolt/Supabase. Acceptance pending exact-SHA database/runtime and route integration.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No build/tests/typecheck/lint/CI/browser/E2E/DB migration/Preview/production check run; no PASS claimed.
+- No paid service/provider, API quota, Vercel operation or production mutation.
+
 ## 2026-11-06 — P3 Process Bottleneck and Cycle-Time Engine — REF-SECTION-54-PROCESS-BOTTLENECKS-001
 
 - Exact code commit on main: `280d39709e7ec43bf25001ee957660a09df82e0c`; parent `5aa1853279811a862db856b5271481aa64f2a099`.
