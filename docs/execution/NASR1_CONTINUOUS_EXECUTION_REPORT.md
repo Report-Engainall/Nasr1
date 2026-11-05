@@ -855,3 +855,17 @@ Keep migration versions unique and preserve dependency order:
 - The SLA migration is source-only and has not been applied to any database. No build, test, lint, scan, CI, browser or Bolt runtime verification was performed in this batch, per owner instruction. Status remains \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`; Bolt New is the planned migration synchronization/runtime acceptance environment.
 - No Vercel operation or free-credit use occurred. No paid dependency was added. GitHub commits are the delivery record; push-notification delivery is subject to the repository watch settings.
 - Next action: \`BODY-COMPLETION-ON-MAIN-010\` — organization-wide customer service desk using the canonical case/task records, with role-appropriate queue, status/priority/assignee/SLA filters, due/overdue workload summaries and linked Task Center navigation.
+
+
+## PRODUCT BUILD — 2026-11-05 — Organization-wide Customer Service Desk
+
+- Repository/branch: \`Report-Engainall/Nasr1\` / \`main\`.
+- Latest product-code SHA: \`1a49cf47446c85ae33dce93b456026b723af1707\`.
+- Acceptance-matrix leaf: \`DLV-010-CUSTOMER-SERVICE-DESK-001\`; matrix commit \`0f45e6d5c62c5ba7cee907160a7f7c08033aa637\`.
+- Added \`supabase/migrations/20261105210000_customer_service_desk.sql\`: tenant-scoped staff RPC for an organization-wide customer service desk with keyset pagination, active/all/status, priority, assignment and overdue filters, bounded search and tenant-wide SLA workload rollups.
+- Added validated queue client \`src/lib/customer-service-desk.ts\` and \`src/components/CustomerServiceDesk.tsx\` with Arabic RTL list, SLA/overdue visibility, status updates, manager assignment/deadline/escalation actions, workload cards, pagination and navigation to the existing linked task.
+- Registered \`/admin/service-desk\` through \`src/components/AghbariApp.tsx\`, \`src/routes/admin_.service-desk.tsx\`, \`src/routeTree.gen.ts\` and responsive styles in \`src/styles.css\`.
+- Commits: queue SQL \`90718728ebe372f1b68aa7bc26e41a5eb06b37ab\`; queue client \`35ea4a5cba587c913bd841f8c33966ac9247efc6\`; UI \`1969a3017ddf0f277ff34f736d700205e30eadb8\`; button correction \`8cfef88ee82cfbf3f0aae80c02bf4723bbca6601\`; app navigation \`27f39a6d0e44fcfa3ada99916d11b0bd39dccd90\`; route file \`fd028361f2d2473d55f35b0413c3298618dbfbee\`; styles \`1a44302b3e19ad4d2ed77df86b39775456db6bd6\`; route registry \`1a49cf47446c85ae33dce93b456026b723af1707\`.
+- New SQL migration is source-only and has not been applied. No test/build/lint/scan/CI/browser/Bolt Preview or runtime verification was performed by design. The matrix status remains \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`.
+- No Vercel action/credit usage or new paid service/dependency.
+- Next action: \`BODY-COMPLETION-ON-MAIN-011\` — authenticated customer-side visibility and response flow with strict separation between public customer replies/history and internal escalation/manager notes.
