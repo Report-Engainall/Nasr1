@@ -205,6 +205,44 @@ function TopProductsSection({ document }: { document: Customer360PrintDocument }
   );
 }
 
+const interactionTypeLabels: Record<string, string> = {
+  call: "اتصال هاتفي",
+  visit: "زيارة",
+  whatsapp: "واتساب",
+  email: "بريد إلكتروني",
+  meeting: "اجتماع",
+  note: "ملاحظة داخلية",
+  other: "أخرى",
+};
+
+function CustomerInteractionsSection({ document }: { document: Customer360PrintDocument }) {
+  return (
+    <section className="customer-360-print-section">
+      <h2>سجل التواصل والمتابعة ({formatNumber(document.interactions.length)} معروض من حد أحدث 50)</h2>
+      <p className="customer-360-print-note">سجل تشغيلي مؤرخ لا يمثل قيدًا ماليًا أو فاتورة أو دفعة. قد ينشئ موعد المتابعة مهمة مبيعات في مركز العمليات.</p>
+      {document.interactions.length === 0 ? (
+        <p>لا يوجد سجل تواصل ضمن البيانات المعروضة.</p>
+      ) : (
+        <table>
+          <thead><tr><th>التاريخ</th><th>النوع</th><th>الموضوع</th><th>الملخص والنتيجة</th><th>المتابعة القادمة</th><th>سُجل بواسطة</th></tr></thead>
+          <tbody>
+            {document.interactions.map((row, index) => (
+              <tr key={row.subject + "-" + row.interactionAt + "-" + index}>
+                <td>{date(row.interactionAt)}</td>
+                <td>{interactionTypeLabels[row.interactionType] ?? row.interactionType}</td>
+                <td>{row.subject}</td>
+                <td>{row.details}</td>
+                <td>{date(row.nextFollowUpAt)}</td>
+                <td>{row.recordedByName}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 function RecommendationsSection({ document }: { document: Customer360PrintDocument }) {
   return (
 <section className="customer-360-print-section">
@@ -255,10 +293,12 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
 
             <TopProductsSection document={document} />
 
+            <CustomerInteractionsSection document={document} />
+
             <RecommendationsSection document={document} />
 
       <footer className="customer-360-print-footer">
-        المصدر: ملخص Customer 360 الخادمي للمؤسسة الحالية. مجاميع الطلبات والدفتر المالي كاملة؛ صفوف تفاصيل الطلبات والفواتير والدفعات محدودة بأحدث 20 سجلًا. لا يتضمن هذا المخرج معرّفات داخلية أو بيانات اتصال العميل.
+        المصدر: ملخص Customer 360 الخادمي للمؤسسة الحالية. مجاميع الطلبات والدفتر المالي كاملة؛ صفوف تفاصيل الطلبات والفواتير والدفعات محدودة بأحدث 20 سجلًا، وسجل التواصل بأحدث 50 إدخالًا. لا يتضمن هذا المخرج معرّفات داخلية أو بيانات اتصال العميل.
       </footer>
     </article>
   );
