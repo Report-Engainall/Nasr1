@@ -1,4 +1,45 @@
-# LIVE EXECUTION CHECKPOINT — 2026-11-05 — SUPPLIER ACCOUNT ACTIVITY STATEMENT
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — BODY-COMPLETION-ON-MAIN-017 — SUPPLIER PAYMENT SETTLEMENT
+
+- Repository: Report-Engainall/Nasr1; branch: main only.
+- Base SHA: 16fdfc348f37d4b9db844339048bf308642d0d61; current code SHA: a77f2a7b0e7e68bc039a27a58da53e9086257d40.
+- Owner: P2 — finance source / database RPC / typed client. P1 owns visible UI. P3 retains intelligence paths and release-governance integration.
+- Completed action: BODY-COMPLETION-ON-MAIN-017. No P1 component, route, stylesheet, P3 intelligence module, test, workflow or Vercel path was changed.
+- Product paths:
+  - supabase/migrations/20261105235000_supplier_payment_settlement.sql
+  - src/lib/supplier-payments.ts
+  - src/lib/supplier-account-activity.ts
+
+## Implemented supplier-payment body
+
+- Added tenant-scoped supplier-payment source documents, payment allocations, configurable cash/bank settlement-account mappings, journal handoff linkage, append-only lifecycle events and append-only reconciliation evidence.
+- Settlement account setup explicitly maps an existing active same-tenant ASSET chart account to cash/bank + one currency. It is configuration, not a live bank feed, bank API, cleared-transfer proof or paid service.
+- Payment entry is finance-authorized, payload-bound/idempotent, exact to two decimal places, and requires a real supplier, instrument reference, configured settlement account and unique posted-receipt allocations. Allocation amounts must add exactly to the saved payment; receipts must belong to that supplier/currency and use one payable ledger account. No FX is performed.
+- A recorded payment reserves its allocation but does not reduce verified remaining payable. A different finance actor must append a matching instrument evidence event (bank statement line, cash voucher or cheque clearance) with exact amount and currency before General Ledger handoff. A later exception event prevents handoff until a new matching event is recorded.
+- The accounting handoff creates one balanced DRAFT only: debit the exact linked payable account / credit the mapped cash-bank asset account. It does not post automatically. Only a matching POSTED, balanced, non-reversed journal is counted as paid.
+- Payment cancellation is manager/admin-gated; if a draft was created it must first be voided in the existing General Ledger. Source and allocation history is not deleted.
+- supplier_payment_open_receipts() derives receipt balances only from verified POSTED receipt journals, verified POSTED source-linked credit notes and valid posted supplier-payment journals; pending allocations are shown separately and currencies remain isolated.
+- Extended fetch_supplier_account_activity() to include supplier payment entries and source-derived remaining-payable / pending / available amounts only when receipt-source coverage is complete for that supplier/currency. The response scopes balances to receipt-backed posted journals; supplier invoices outside this model are not silently inferred.
+- Added strict typed client functions for workspace fetch, settlement-account registration, payment capture/replay, journal-draft handoff, void and manual reconciliation; extended supplier statement parsing for payment rows and settlement fields.
+
+## Delivery records and handoff
+
+- Migration initial delivery: 10e88e7ae54054fe8a77fd1696a35deeed474dde; maker-checker/order correction and typed client final delivery: 722ff732895f460073d8dd4f357ee19addd5de3e, a77f2a7b0e7e68bc039a27a58da53e9086257d40.
+- Final migration blob: 337e5bae78caf386e30bbd62f30d6145c7d97b71; typed-client blob: 422bd4e245174e446fcb3dec9b127ec1f189615b; supplier-statement parser blob: 0d4ace3af1f95bb2f727b69e1eead94e5430b177.
+- Acceptance row: DLV-008-SUPPLIER-PAYMENT-SETTLEMENT-001, IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- P1 request: mount the src/lib/supplier-payments.ts contracts in the existing General Ledger / supplier finance experience; see the new entry at the top of docs/execution/P1_CHECKPOINT.md. P1 must not recreate payment RPCs or edit P2 paths.
+- Verification boundary: no test, build, lint, typecheck, CI, browser/E2E, DB migration application, Bolt Preview, hosted/production DB change or release proof was run. Source implementation is not runtime acceptance. Migration remains unapplied.
+- Cost boundary: no Vercel build/preview/deploy, no Vercel credit use, no paid service/provider/dependency. No live bank/WhatsApp/Onyx/AI integration was enabled.
+- GitHub commit updates exist on main. Notification delivery depends on repository watch settings; no inbox/email receipt is claimed.
+
+## Next product action
+
+- NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-018.
+- Build source-backed supplier invoice capture and three-way matching against the saved purchase order and receipt: supplier/document identity, date, currency, line quantities/prices/taxes only when explicitly evidenced, tolerance/review state, duplicate prevention, immutable evidence, maker-checker and draft-only payable journal handoff. Do not infer tax/FX, auto-post, auto-pay or duplicate the purchase-order/receipt workflows.
+- Do not start this while claiming the new payment UI is mounted; P1's UI handoff is separate and must be tracked in its checkpoint.
+
+---
+
+# HISTORICAL CHECKPOINT — 2026-11-05 — BODY-COMPLETION-ON-MAIN-016 — SUPPLIER ACCOUNT ACTIVITY STATEMENT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
 - Main head before this checkpoint write: `9eba58c1e01874ae11b75ada475773822c8344d8`.

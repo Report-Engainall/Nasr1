@@ -1,3 +1,36 @@
+# P1 LIVE REQUEST — 2026-11-05 — SUPPLIER PAYMENT / SETTLEMENT UI MOUNT
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Backend contract is on main SHA a77f2a7b0e7e68bc039a27a58da53e9086257d40.
+- P1 owns all presentation files. P2 owns the migration and typed service paths below. Do not edit P2 paths or P3 intelligence paths.
+
+## Mount the delivered server workflows — do not recreate them
+
+Use src/lib/supplier-payments.ts:
+- fetchSupplierPaymentWorkspace({supplierId,currency,limit,offset})
+- registerSupplierSettlementAccount({accountingAccountId,kind,currency,displayName})
+- recordSupplierPayment({supplierId,paymentDate,amount,currency,method,settlementAccountMappingId,paymentReference,allocations,idempotencyKey})
+- reconcileSupplierPayment({paymentId,action,evidenceType,evidenceReference,observedAmount,currency,reason,idempotencyKey})
+- prepareSupplierPaymentJournalDraft({paymentId,idempotencyKey})
+- voidSupplierPayment({paymentId,reason})
+
+UI behavior:
+1. Register/select a configured cash or bank asset account per currency. Do not treat the mapping as a live bank feed.
+2. List eligible posted receipt balances and allocate one payment across unique same-supplier/same-currency receipts. Display source amount, posted credit-note reductions, reserved, posted paid and available-to-allocate separately. Do not mix currencies.
+3. Capture real payment method + reference. The recorded source reserves allocations; it is NOT paid and must not lower remaining payable.
+4. Require a second authorized finance actor to record matching cash-voucher / bank-statement-line / cheque-clearance evidence (exact amount + currency). Show EXCEPTION separately; latest exception blocks handoff.
+5. Only after matching evidence, call prepareSupplierPaymentJournalDraft. Show that it creates a DRAFT only and link back to the single General Ledger queue. Never auto-post.
+6. Show remaining payable as final only when the server returns balanceComplete=true; otherwise label UNKNOWN / SOURCE COVERAGE INCOMPLETE. Preserve per-currency totals.
+7. Update the existing supplier activity statement for settlementIncluded=true, payment source type purchase_supplier_payment and optional balance fields in the typed payload. Remove the old UI statement that all settlement is excluded, but retain the narrower source-coverage warning.
+8. Read back workspace/statement data after each mutation before showing success. Provide loading/empty/error/retry/unauthorized states and never fabricate IDs/amounts or mark a draft as posted.
+
+Files owned by P1: add a dedicated supplier payment workspace and mount it in the existing supplier/General Ledger route. Do not create another ledger or change the existing General Ledger posting route. Do not touch supabase/**, src/lib/supplier-payments.ts, src/lib/supplier-account-activity.ts, scripts/**, P3 paths or shared governance files.
+
+Acceptance boundary: no migration has been applied and no runtime behavior is proven. P1 UI source should label unavailable until the database receives this migration. Keep existing drawer/accessibility and other active UI work intact; no broad rescan or test cycle is requested in this handoff.
+Backend paths: supabase/migrations/20261105235000_supplier_payment_settlement.sql, src/lib/supplier-payments.ts, src/lib/supplier-account-activity.ts.
+
+---
+
 # P1 FINAL EVIDENCE — 2026-10-30 — DLV-002 VERIFIED ON CURRENT CODE SHA
 
 - task_id: `DLV-002 / ROUTES-001 — mobile admin drawer focus across open, route remount and close`.

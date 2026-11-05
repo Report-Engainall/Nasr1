@@ -1,3 +1,18 @@
+# P2 LIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-017
+
+- Current main code SHA: a77f2a7b0e7e68bc039a27a58da53e9086257d40; base: 16fdfc348f37d4b9db844339048bf308642d0d61.
+- Task: BODY-COMPLETION-ON-MAIN-017 — source-backed supplier payment and settlement.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Owned paths delivered: supabase/migrations/20261105235000_supplier_payment_settlement.sql, src/lib/supplier-payments.ts, src/lib/supplier-account-activity.ts.
+- Main code commits: 10e88e7ae54054fe8a77fd1696a35deeed474dde (migration initial); 722ff732895f460073d8dd4f357ee19addd5de3e (typed service + statement parser); a77f2a7b0e7e68bc039a27a58da53e9086257d40 (maker-checker ordering correction and final migration hardening).
+- Server workflow: cash/bank asset-account mapping; immutable tenant-scoped payment source; exact same-currency posted-receipt allocation; idempotency and audit; different-finance-actor matching evidence before a balanced draft journal handoff; cancellation gate; posted/non-reversed journal-only paid balance; statement extension with completeness boundary.
+- Financial safety: source capture reserves, not pays. Reconciliation must precede GL draft. No draft is counted as paid. No FX, no auto-post, no provider/bank integration, no inference outside receipt source population.
+- P1 handoff written at top of docs/execution/P1_CHECKPOINT.md. P1 owns the payment workspace UI; P2 owns the three source/library paths. Do not overlap.
+- Exact tests/build/lint/typecheck/CI/browser/database/hosted/production acceptance: NOT RUN by the user's explicit product-body priority. Migration NOT APPLIED. No PASS claimed. No Vercel operation/credit or paid dependency.
+- exact_next_command: resume from current main; check only whether P1 has mounted the service using the P1 checkpoint, then proceed to BODY-COMPLETION-ON-MAIN-018 supplier invoice capture/three-way match in unowned P2 paths. Keep source-only and finance controls; do not start test loops.
+
+---
+
 # LIVE RESUME OVERRIDE — 2026-10-30 — SUPERSEDES ALL OLDER P2 NEXT ACTIONS
 - Resume base: main `353588f5df5f36cfb6b7caaef5d067bd28371251`. Core run `41007651137` is IN_PROGRESS on this SHA; poll it. Cleanup `41007651120` is SUCCESS on this SHA.
 - Do NOT execute `AUTHZ-GL-DRAFT-STAFF-DENIAL-001`: this ID is absent from the current acceptance CSV. Existing GL post/void/reversal staff-denial rows already have exact-SHA evidence on `5e53622b66de3947758b14026432953560b267bb`.
