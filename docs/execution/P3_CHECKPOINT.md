@@ -1,3 +1,14 @@
+## P3 PRODUCT CHECKPOINT OVERRIDE — 2026-11-05 — CUSTOMER 360 FOLLOW-UP LIFECYCLE
+
+- Global execution cursor remains `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`; its current checkpoint records `BODY-COMPLETION-ON-MAIN-006` completed at product-code SHA `66558c300af38c6a49a4c98feb1b6c31636c7638`.
+- Delivered on main: immutable Customer 360 interaction source + audited/idempotent manager reschedule/cancel operations for the linked open task; the task stays in the sales role queue and the linked history now returns original/current due time, status and cancellation reason.
+- Files: `supabase/migrations/20261105170000_customer_interaction_followup_lifecycle.sql`, `src/lib/types.ts`, `src/lib/api.ts`, `src/components/AdminCustomer360.tsx`, `src/styles.css`.
+- No tests/build/CI/database application/runtime check was performed; this is source implementation only and acceptance remains pending. No Vercel credits were used.
+- Next global task: `BODY-COMPLETION-ON-MAIN-007` — mount the existing evidence-gated deterministic customer-retention engine into Customer 360; only verified, tenant-scoped and period-complete evidence may drive cohorts or follow-up actions.
+- The latest checkpoint-document commit before this note is `941953e0af0d357a5a8e3a8aad01618a90056a38`.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-05 — CRM FOLLOW-UP AND NOTIFICATION DELIVERY
 
 - Main product-code cursor: `03cd108aad86c189be72c03a55ca0a05469ce49f`.
