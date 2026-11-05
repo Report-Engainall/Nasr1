@@ -16,6 +16,13 @@ const mocks = vi.hoisted(() => ({
   recordShiftHandover: vi.fn(),
   captureShiftSnapshot: vi.fn(),
   acceptShiftHandover: vi.fn(),
+  fetchPolicyCatalog: vi.fn(),
+  fetchPolicyOwners: vi.fn(),
+  fetchPolicySources: vi.fn(),
+  fetchPolicyHistory: vi.fn(),
+  registerPolicyMetadata: vi.fn(),
+  simulatePolicy: vi.fn(),
+  previewPolicyRollback: vi.fn(),
   createProposal: vi.fn(),
   asOf: "2026-10-31T09:00:00.000Z",
   period: { from: "2026-08-01", to: "2026-10-31" },
@@ -50,6 +57,15 @@ vi.mock("@/lib/intelligence/shift-operations-client", () => ({
 }));
 vi.mock("@/lib/intelligence/process-bottlenecks-client", () => ({
   fetchProcessBottlenecks: mocks.fetchProcessBottlenecks,
+}));
+vi.mock("@/lib/intelligence/commerce-policy-governance-client", () => ({
+  fetchCommercePolicyCatalog: mocks.fetchPolicyCatalog,
+  fetchCommercePolicyOwners: mocks.fetchPolicyOwners,
+  fetchCommercePolicySources: mocks.fetchPolicySources,
+  fetchCommercePolicySimulationHistory: mocks.fetchPolicyHistory,
+  registerCommercePolicyMetadata: mocks.registerPolicyMetadata,
+  simulateCommercePolicy: mocks.simulatePolicy,
+  previewCommercePolicyRollback: mocks.previewPolicyRollback,
 }));
 
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace";
@@ -262,6 +278,20 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.recordShiftHandover.mockReset().mockResolvedValue({ ok: true, data: {} });
     mocks.captureShiftSnapshot.mockReset().mockResolvedValue({ ok: true, data: {} });
     mocks.acceptShiftHandover.mockReset().mockResolvedValue({ ok: true, data: {} });
+    mocks.fetchPolicyCatalog.mockReset().mockResolvedValue({ ok: true, data: {
+      asOf: mocks.asOf, totalCount: 0, returnedCount: 0, completePopulation: true, items: [],
+    } });
+    mocks.fetchPolicyOwners.mockReset().mockResolvedValue({ ok: true, data: {
+      items: [], totalCount: 0, returnedCount: 0, completePopulation: true,
+    } });
+    mocks.fetchPolicySources.mockReset().mockResolvedValue({ ok: true, data: {
+      sourceTable: "pricing_rules", items: [], totalCount: 0, returnedCount: 0,
+      completePopulation: true, asOf: mocks.asOf,
+    } });
+    mocks.fetchPolicyHistory.mockReset().mockResolvedValue({ ok: true, data: [] });
+    mocks.registerPolicyMetadata.mockReset().mockResolvedValue({ ok: true, data: {} });
+    mocks.simulatePolicy.mockReset().mockResolvedValue({ ok: true, data: {} });
+    mocks.previewPolicyRollback.mockReset().mockResolvedValue({ ok: true, data: {} });
   });
   afterEach(() => cleanup());
 
@@ -354,6 +384,17 @@ describe("production intelligence workspace inventory screens", () => {
       ownerProfileId: "admin-profile",
       expectedOutcome: "تسجيل المتابعة ونتيجة التحصيل من مستندات المؤسسة.",
     })));
+  });
+
+  it("mounts policy governance with real-client adapters but never runs a simulation automatically", async () => {
+    render(<IntelligenceWorkspace />);
+    expect(await screen.findByRole("region", { name: "حوكمة السياسات التجارية" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "سجل القواعد المسؤولة" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "مختبر «ماذا لو؟»" })).toBeInTheDocument();
+    expect(mocks.fetchPolicyCatalog).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchPolicyOwners).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchPolicySources).toHaveBeenCalledTimes(1);
+    expect(mocks.simulatePolicy).not.toHaveBeenCalled();
   });
 
   it("does not render inventory figures for an ordinary staff role", async () => {
