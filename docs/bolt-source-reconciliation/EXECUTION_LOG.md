@@ -1947,3 +1947,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Added P1 handoff contract at `docs/execution/contracts/P3_TASK_PERFORMANCE_SCORECARD_P1_HANDOFF.md`; matrix row `REF-TASK-PERFORMANCE-SCORECARD-001`.
 - Tests/build/lint/typecheck/CI/browser/E2E/database migration application/Bolt Preview/production were not run. Status is IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING; no PASS claimed.
 - No paid provider, new dependency, Vercel credit, secret or business-data mutation was used.
+
+
+## 2026-11-06 — REF-SECTION-61-TASK-STATUS-AUDIT-PARITY-001 — centralized task lifecycle evidence
+
+- Source commit: 4074ce5fb4db89118e7fed25b2d2142f21fc9f4b (parent a1bca2c3e4aeaf469acc49c8465e4426fc1bdf95).
+- Added a single database AFTER UPDATE status trigger on tenant-scoped ai_tasks. It appends one operational_task.status_changed audit row for a real transition, regardless of whether the update came through the authenticated task RPC or a source-triggered workflow.
+- Replaced update_operational_task_status with the same authorization, tenant lock, role, assignment, cancellation/reopen and response behavior, but removed its former manual audit insert. The trigger is now the only status-event writer for ai_tasks, avoiding duplicate events.
+- actor_id is sourced through current_profile_id and may be NULL for system/source work without a resolved authenticated profile; tenant scope is taken from NEW.organization_id. Unscoped legacy rows do not receive fabricated tenant audit rows.
+- Extended scripts/test-database-migrations.mjs to assert one user-attributed event for an RPC transition and exactly one event each for stock-driven pending→completed and completed→pending transitions.
+- Matrix row REF-TASK-STATUS-AUDIT-PARITY-001 added. P3 checkpoint/global resume cursor updated.
+- Tests, PostgreSQL 17, build, lint, CI, browser, Bolt migration application, Preview and production operations were not run. Source-only: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING; no PASS claimed.
+- Section 61 full historical reopen rate remains withheld pending explicit audit activation baseline; old missing events cannot be reconstructed.

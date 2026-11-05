@@ -1,3 +1,24 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-STATUS-AUDIT-PARITY-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Parent SHA: a1bca2c3e4aeaf469acc49c8465e4426fc1bdf95.
+- Source commit: 4074ce5fb4db89118e7fed25b2d2142f21fc9f4b.
+- Added `supabase/migrations/20261106070000_operational_task_status_audit_parity.sql`.
+- Status-change auditing is centralized at the database row boundary: one AFTER UPDATE trigger on `public.ai_tasks` records exactly one `operational_task.status_changed` event for each real status transition. This catches both authenticated RPC changes and automatic transitions initiated by source triggers (including task close/reopen on order and stock events). The WHEN guard excludes no-op status updates.
+- Audit actor uses `public.current_profile_id()`; `actor_id` may be NULL for source/system work without an authenticated profile, consistent with the Supabase database type contract. Tenant scope is copied from the changed task row. Legacy unscoped rows are not given fabricated tenant IDs or cross-tenant audit records.
+- Replaced the task status RPC body without changing active-profile/organization checks, row lock, role visibility, assignment restrictions, cancellation/reopen rules or return contract. Removed its former explicit audit INSERT so the new trigger is the single writer and an RPC transition cannot create duplicate status events.
+- Extended `scripts/test-database-migrations.mjs` with targeted PostgreSQL acceptance assertions for exactly one actor-attributed audit event on an authenticated RPC transition and exactly one event for each source-driven stock threshold close/reopen transition. The test code is committed but was not run.
+- Changed paths:
+  - `supabase/migrations/20261106070000_operational_task_status_audit_parity.sql`
+  - `scripts/test-database-migrations.mjs`
+- Scorecard boundary: this closes the source-writer gap for transitions occurring after the migration is applied. It does not reconstruct historical transitions that were never logged; Section 61 therefore continues to withhold a historical/full-population reopen rate until its measurement window is bounded to the audit activation baseline.
+- Migration status: source only; not applied to Bolt/Supabase. No tests, typecheck, build, lint, CI, browser, E2E, DB runtime, Preview, Vercel or production operation was run. No PASS or production readiness claimed.
+- Cost/safety: no paid provider, new dependency, secret, Vercel credit, task data mutation or financial/inventory mutation.
+- Delivery status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Exact next action: add an explicit audit-activation baseline and time-bounded reopen metric; keep all pre-activation history marked partial. P1 scorecard mount remains separate and no P1 files were changed.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-PERFORMANCE-SCORECARD-001
 
 - Repository: Report-Engainall/Nasr1; branch: main.
