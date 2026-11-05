@@ -10,6 +10,8 @@ import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
+import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
+import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
 import {
@@ -41,6 +43,8 @@ import {
   GrowthOpportunityRadar,
   LiquiditySummary,
   ReplenishmentCard,
+  ShiftOperationsCenter,
+  ProcessBottlenecksPanel,
 } from "@/components/intelligence";
 
 type Horizon = 7 | 30 | 90;
@@ -57,6 +61,44 @@ function currencyFromCandidate(candidateId: string): string | null {
 }
 function candidateIdFor(currency: string, period: { from: string; to: string }): string {
   return "cashflow.expected_collections:" + currency + ":" + period.from + ":" + period.to;
+}
+
+function utcDay(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function shiftUtcDay(day: string, offset: number): string {
+  const date = new Date(day + "T00:00:00.000Z");
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function previousMatchingPeriod(from: string, to: string): { from: string; to: string } | null {
+  const start = Date.parse(from + "T00:00:00.000Z");
+  const end = Date.parse(to + "T00:00:00.000Z");
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) return null;
+  const days = Math.floor((end - start) / 86_400_000) + 1;
+  return { from: shiftUtcDay(from, -days), to: shiftUtcDay(from, -1) };
+}
+
+function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Aden";
+  } catch {
+    return "Asia/Aden";
+  }
+}
+
+function dayInTimeZone(timeZone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return values.year + "-" + values.month + "-" + values.day;
+  } catch {
+    return utcDay();
+  }
 }
 
 const collectionFollowupRules: DecisionRule[] = [{
@@ -329,6 +371,30 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [retentionResult, setRetentionResult] = useState<CustomerRetentionAggregateResult | null>(null);
   const [retentionLoading, setRetentionLoading] = useState(true);
+  const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
+  const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
+  const [shiftTimeZone, setShiftTimeZone] = useState(browserTimeZone());
+  const [shiftCashPhase, setShiftCashPhase] = useState<"OPENING" | "CLOSING">("OPENING");
+  const [shiftCashCurrency, setShiftCashCurrency] = useState("YER");
+  const [shiftCashAmount, setShiftCashAmount] = useState("");
+  const [shiftCashNote, setShiftCashNote] = useState("");
+  const [shiftCashCorrectionReason, setShiftCashCorrectionReason] = useState("");
+  const [shiftHandoverReason, setShiftHandoverReason] = useState("");
+  const [shiftHandoverNote, setShiftHandoverNote] = useState("");
+  const [shiftResponse, setShiftResponse] = useState<Awaited<ReturnType<typeof fetchOperationalShiftWorkspace>> | null>(null);
+  const [shiftLoading, setShiftLoading] = useState(true);
+  const [shiftRefreshKey, setShiftRefreshKey] = useState(0);
+  const [shiftActionBusy, setShiftActionBusy] = useState(false);
+  const [shiftActionMessage, setShiftActionMessage] = useState<string | null>(null);
+  const shiftRequestGeneration = useRef(0);
+  const shiftCommandKeys = useRef(new Map<string, string>());
+  const [processFrom, setProcessFrom] = useState(() => shiftUtcDay(utcDay(), -29));
+  const [processTo, setProcessTo] = useState(() => utcDay());
+  const [processCompare, setProcessCompare] = useState(true);
+  const [processResponse, setProcessResponse] = useState<ProcessBottleneckFetchResult | null>(null);
+  const [processLoading, setProcessLoading] = useState(true);
+  const [processRefreshKey, setProcessRefreshKey] = useState(0);
+  const processRequestGeneration = useRef(0);
 
   useEffect(() => {
     outcomesMounted.current = true;
@@ -393,6 +459,147 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
     }
   }, [canManage]);
 
+  const loadShiftWorkspace = useCallback(async (active: () => boolean) => {
+    const generation = ++shiftRequestGeneration.current;
+    if (!canManage) {
+      setShiftResponse({ ok: false, status: "DENIED", message: "تتطلب إدارة الوردية صلاحية المدير أو مدير المؤسسة." });
+      setShiftLoading(false);
+      return;
+    }
+    setShiftLoading(true);
+    try {
+      const response = await fetchOperationalShiftWorkspace({ businessDate: shiftBusinessDate });
+      if (!active() || generation !== shiftRequestGeneration.current) return;
+      setShiftResponse(response);
+    } catch {
+      if (!active() || generation !== shiftRequestGeneration.current) return;
+      setShiftResponse({ ok: false, status: "ERROR", message: "تعذر تحميل أدلة الوردية من قاعدة البيانات." });
+    } finally {
+      if (active() && generation === shiftRequestGeneration.current) setShiftLoading(false);
+    }
+  }, [canManage, shiftBusinessDate]);
+
+  const loadProcessBottlenecks = useCallback(async (active: () => boolean) => {
+    const generation = ++processRequestGeneration.current;
+    if (!canManage) {
+      setProcessResponse({ ok: false, status: "DENIED", message: "تتطلب قراءة تحليل العمليات صلاحية المدير أو مدير المؤسسة." });
+      setProcessLoading(false);
+      return;
+    }
+    const baseline = processCompare ? previousMatchingPeriod(processFrom, processTo) : null;
+    const validDay = (value: string) => /^\\d{4}-\\d{2}-\\d{2}$/.test(value)
+      && new Date(value + "T00:00:00.000Z").toISOString().slice(0, 10) === value;
+    if (!validDay(processFrom) || !validDay(processTo) || processFrom > processTo || (processCompare && !baseline)) {
+      setProcessResponse({ ok: false, status: "ERROR", message: "حدد فترة UTC صحيحة؛ يجب أن يكون تاريخ البداية قبل تاريخ النهاية." });
+      setProcessLoading(false);
+      return;
+    }
+    setProcessLoading(true);
+    try {
+      const response = await fetchProcessBottlenecks({
+        from: processFrom,
+        to: processTo,
+        baselineFrom: baseline?.from ?? null,
+        baselineTo: baseline?.to ?? null,
+      });
+      if (!active() || generation !== processRequestGeneration.current) return;
+      setProcessResponse(response);
+    } catch {
+      if (!active() || generation !== processRequestGeneration.current) return;
+      setProcessResponse({ ok: false, status: "ERROR", message: "تعذر تحميل تحليل زمن العمليات من قاعدة البيانات." });
+    } finally {
+      if (active() && generation === processRequestGeneration.current) setProcessLoading(false);
+    }
+  }, [canManage, processCompare, processFrom, processTo]);
+
+  const runShiftMutation = async (
+    scope: string,
+    operation: (idempotencyKey: string) => Promise<{ ok: boolean; message?: string }>,
+    successMessage: string,
+  ) => {
+    const key = shiftCommandKeys.current.get(scope) ?? crypto.randomUUID();
+    shiftCommandKeys.current.set(scope, key);
+    setShiftActionBusy(true);
+    setShiftActionMessage(null);
+    try {
+      const response = await operation(key);
+      if (!response.ok) {
+        setShiftActionMessage(response.message ?? "تعذر حفظ إجراء الوردية.");
+        return;
+      }
+      shiftCommandKeys.current.delete(scope);
+      setShiftActionMessage(successMessage);
+      setShiftRefreshKey((value) => value + 1);
+    } catch {
+      setShiftActionMessage("تعذر إكمال الإجراء؛ أعد المحاولة بالبيانات نفسها للمحافظة على منع التكرار.");
+    } finally {
+      setShiftActionBusy(false);
+    }
+  };
+
+  const submitStartShift = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const scope = ["start", shiftBusinessDate, shiftLabel.trim(), shiftTimeZone.trim()].join(":");
+    void runShiftMutation(scope, (idempotencyKey) => startOperationalShift({
+      businessDate: shiftBusinessDate,
+      shiftLabel: shiftLabel.trim(),
+      timeZone: shiftTimeZone.trim(),
+      idempotencyKey,
+    }), "تم فتح الوردية وحفظ سجلها.");
+  };
+
+  const submitShiftCashCount = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const shift = shiftResponse?.ok ? shiftResponse.data.snapshot : null;
+    const amount = Number(shiftCashAmount);
+    const currency = shiftCashCurrency.trim().toUpperCase();
+    if (!shift || shiftCashAmount.trim() === "" || !Number.isFinite(amount) || amount < 0 || !/^[A-Z]{3}$/.test(currency)) {
+      setShiftActionMessage("أدخل مبلغاً صالحاً ورمز عملة من ثلاثة أحرف.");
+      return;
+    }
+    const scope = ["cash", shift.shiftId, shiftCashPhase, currency, shiftCashAmount, shiftCashNote, shiftCashCorrectionReason].join(":");
+    void runShiftMutation(scope, (idempotencyKey) => recordOperationalShiftCashCount({
+      shiftId: shift.shiftId,
+      phase: shiftCashPhase,
+      currency,
+      countedAmount: amount,
+      note: shiftCashNote.trim() || undefined,
+      correctionReason: shiftCashCorrectionReason.trim() || undefined,
+      idempotencyKey,
+    }), "تم تسجيل العد النقدي؛ أُعيد تحميل أدلة الوردية.");
+  };
+
+  const submitShiftHandover = () => {
+    const shift = shiftResponse?.ok ? shiftResponse.data : null;
+    if (!shift) return;
+    const refs = [...new Set(shift.result.items
+      .filter((item) => item.state !== "RESOLVED")
+      .map((item) => item.sourceRef))];
+    if (!refs.length || refs.length > 200) {
+      setShiftActionMessage(refs.length ? "تجاوزت عناصر التسليم الحد الأقصى البالغ 200." : "لا توجد عناصر مفتوحة موثقة للتسليم.");
+      return;
+    }
+    const scope = ["handover", shift.snapshot.shiftId, refs.join(","), shiftHandoverReason, shiftHandoverNote].join(":");
+    void runShiftMutation(scope, (idempotencyKey) => recordOperationalShiftHandover({
+      currentShiftId: shift.snapshot.shiftId,
+      openItemRefs: refs,
+      reason: shiftHandoverReason.trim() || undefined,
+      note: shiftHandoverNote.trim() || undefined,
+      idempotencyKey,
+    }), "تم تسجيل محضر التسليم؛ قبول المستلم حدث مستقل.");
+  };
+
+  const captureShiftSnapshot = (snapshotKind: "OPENING" | "CLOSEOUT") => {
+    const shift = shiftResponse?.ok ? shiftResponse.data.snapshot : null;
+    if (!shift) return;
+    const scope = ["snapshot", shift.shiftId, snapshotKind].join(":");
+    void runShiftMutation(scope, (idempotencyKey) => captureOperationalShiftSnapshot({
+      shiftId: shift.shiftId,
+      snapshotKind,
+      idempotencyKey,
+    }), snapshotKind === "OPENING" ? "تم حفظ لقطة افتتاح الوردية." : "تم حفظ لقطة الإقفال؛ حالة الإقفال لا تتغير تلقائياً.");
+  };
+
   const loadOutcomes = useCallback(async () => {
     const requestGeneration = ++outcomeRequestGeneration.current;
     if (!outcomesMounted.current) return;
@@ -440,6 +647,24 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
   }, [loadCustomerRetention, refreshKey]);
 
   useEffect(() => {
+    let mounted = true;
+    void loadShiftWorkspace(() => mounted);
+    return () => {
+      mounted = false;
+      shiftRequestGeneration.current += 1;
+    };
+  }, [loadShiftWorkspace, shiftRefreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadProcessBottlenecks(() => mounted);
+    return () => {
+      mounted = false;
+      processRequestGeneration.current += 1;
+    };
+  }, [loadProcessBottlenecks, processRefreshKey]);
+
+  useEffect(() => {
     void loadOutcomes();
   }, [loadOutcomes, refreshKey]);
 
@@ -447,6 +672,22 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
   const cashflowDenied = Boolean(result && !result.ok && result.status === "DENIED");
   const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
   const customerRetention = retentionResult?.ok ? retentionResult.data : null;
+  const shiftWorkspace = shiftResponse?.ok ? shiftResponse.data : null;
+  const shiftViewState = shiftLoading ? "loading"
+    : shiftResponse?.ok ? "ready"
+    : shiftResponse?.status === "NOT_FOUND" ? "empty"
+    : shiftResponse?.status === "UNAVAILABLE" ? "unavailable"
+    : "error";
+  const processViewState = processLoading ? "loading"
+    : processResponse?.ok ? "ready"
+    : processResponse?.status === "UNAVAILABLE" ? "unavailable"
+    : "error";
+  const openShiftItems = shiftWorkspace?.result.items.filter((item) => item.state !== "RESOLVED") ?? [];
+  const handoverRefs = [...new Set(openShiftItems.map((item) => item.sourceRef))];
+  const cashCountAlreadyExists = Boolean(shiftWorkspace?.result.cashControls.some((control) =>
+    control.currency === shiftCashCurrency.trim().toUpperCase() &&
+    (shiftCashPhase === "OPENING" ? control.opening.counted : control.closing.counted) !== null
+  ));
   const cashflowMetrics = useMemo<MetricSnapshot[]>(() => {
     if (!data) return [];
     const scheduledMetrics: MetricSnapshot[] = data.schedule.entries.map((entry) => ({
@@ -790,7 +1031,11 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
                 <div className="flex items-center gap-2"><BrainCircuit size={22} /><h1>ذكاء الأعمال والتحصيلات والقرارات</h1></div>
                 <p className="report-note">يعرض الاستحقاقات من سجلات المؤسسة، ويحفظ دورة القرار وأحداثها في قاعدة البيانات.</p>
               </div>
-              <button type="button" className="btn secondary" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading || outcomesLoading || inventoryLoading}>
+              <button type="button" className="btn secondary" onClick={() => {
+                setRefreshKey((value) => value + 1);
+                setShiftRefreshKey((value) => value + 1);
+                setProcessRefreshKey((value) => value + 1);
+              }} disabled={loading || outcomesLoading || inventoryLoading || shiftLoading || processLoading}>
                 <RefreshCw size={16} /> تحديث
               </button>
             </div>
@@ -805,6 +1050,135 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
               </div>
             </div>
           </header>
+
+          <section className="panel space-y-3" aria-label="مركز الوردية وإجراءاتها">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2>مركز الوردية وإقفال اليوم</h2>
+                <p className="report-note">قراءة من RPC الخادم فقط. لا يُغلق هذا المركز القيود أو الصندوق ولا ينفذ حركة مخزون تلقائياً.</p>
+              </div>
+              <button type="button" className="btn secondary" onClick={() => setShiftRefreshKey((value) => value + 1)} disabled={shiftLoading || shiftActionBusy}>
+                <RefreshCw size={16} /> تحديث الوردية
+              </button>
+            </div>
+            <ShiftOperationsCenter
+              result={shiftWorkspace?.result ?? null}
+              state={shiftViewState}
+              onRetry={() => setShiftRefreshKey((value) => value + 1)}
+            />
+            {shiftResponse && !shiftResponse.ok && shiftResponse.status !== "NOT_FOUND" ? (
+              <p role="alert" className="rounded-lg border p-3 text-sm">{shiftResponse.message}</p>
+            ) : null}
+            {shiftResponse && !shiftResponse.ok && shiftResponse.status === "NOT_FOUND" ? (
+              <form className="grid gap-3 rounded-lg border p-3 md:grid-cols-2" onSubmit={submitStartShift}>
+                <div className="md:col-span-2">
+                  <h3 className="font-semibold">فتح وردية جديدة</h3>
+                  <p className="report-note">لا توجد وردية محفوظة لهذا التاريخ. راجع تاريخ العمل والمنطقة الزمنية الفعلية للمؤسسة قبل الحفظ؛ القيمة الافتراضية أدناه مأخوذة من إعداد المتصفح وليست إعداداً معتمداً للمؤسسة.</p>
+                </div>
+                <label className="grid gap-1 text-sm">تاريخ العمل
+                  <input type="date" className="rounded-lg border bg-background p-2" value={shiftBusinessDate} onChange={(event) => setShiftBusinessDate(event.target.value)} required />
+                </label>
+                <label className="grid gap-1 text-sm">اسم الوردية
+                  <input className="rounded-lg border bg-background p-2" value={shiftLabel} maxLength={80} onChange={(event) => setShiftLabel(event.target.value)} required />
+                </label>
+                <label className="grid gap-1 text-sm md:col-span-2">منطقة المؤسسة الزمنية (IANA)
+                  <input className="rounded-lg border bg-background p-2" value={shiftTimeZone} maxLength={80} onChange={(event) => setShiftTimeZone(event.target.value)} placeholder="Asia/Aden" required />
+                </label>
+                <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">تتحقق قاعدة البيانات من صحة المنطقة الزمنية وتطبق صلاحيات المؤسسة ومنع التكرار.</span>
+                  <button className="btn primary" type="submit" disabled={shiftActionBusy || shiftBusinessDate === "" || shiftLabel.trim().length < 2 || shiftTimeZone.trim() === ""}>فتح الوردية</button>
+                </div>
+              </form>
+            ) : null}
+            {shiftWorkspace ? (
+              <div className="space-y-3 border-t pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-semibold">إجراءات الوردية المحفوظة في الخادم</h3>
+                  <span className="text-xs text-muted-foreground">{shiftWorkspace.snapshot.businessDate} · {shiftWorkspace.snapshot.organizationTimeZone}</span>
+                </div>
+                <form className="grid gap-3 rounded-lg border p-3 md:grid-cols-2" onSubmit={submitShiftCashCount}>
+                  <h4 className="font-semibold md:col-span-2">تسجيل العد النقدي</h4>
+                  <label className="grid gap-1 text-sm">مرحلة العد
+                    <select className="rounded-lg border bg-background p-2" value={shiftCashPhase} onChange={(event) => setShiftCashPhase(event.target.value as "OPENING" | "CLOSING")}>
+                      <option value="OPENING">افتتاح الوردية</option>
+                      <option value="CLOSING">إقفال الوردية</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm">العملة (ISO 4217)
+                    <input className="rounded-lg border bg-background p-2 uppercase" value={shiftCashCurrency} maxLength={3} pattern="[A-Za-z]{3}" onChange={(event) => setShiftCashCurrency(event.target.value.toUpperCase())} required />
+                  </label>
+                  <label className="grid gap-1 text-sm">المبلغ المعدود
+                    <input type="number" min="0" step="0.01" className="rounded-lg border bg-background p-2" value={shiftCashAmount} onChange={(event) => setShiftCashAmount(event.target.value)} required />
+                  </label>
+                  <label className="grid gap-1 text-sm">ملاحظة العد
+                    <input className="rounded-lg border bg-background p-2" value={shiftCashNote} maxLength={1000} onChange={(event) => setShiftCashNote(event.target.value)} />
+                  </label>
+                  <label className="grid gap-1 text-sm md:col-span-2">سبب التصحيح (إلزامي عند تعديل عد مسجل)
+                    <input className="rounded-lg border bg-background p-2" value={shiftCashCorrectionReason} maxLength={500} onChange={(event) => setShiftCashCorrectionReason(event.target.value)} required={cashCountAlreadyExists} />
+                  </label>
+                  <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{cashCountAlreadyExists ? "يوجد عد سابق لهذه العملة والمرحلة؛ أدخل سبب التصحيح. سيُحفظ الحدث دون حذف السجل السابق." : "العد يُحفظ كسجل إضافي؛ لا تُعدّل الأرصدة أو قيود المحاسبة تلقائياً."}</span>
+                    <button className="btn primary" type="submit" disabled={shiftActionBusy || shiftCashAmount.trim() === "" || (cashCountAlreadyExists && !shiftCashCorrectionReason.trim())}>حفظ العد النقدي</button>
+                  </div>
+                </form>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <section className="rounded-lg border p-3 space-y-2">
+                    <h4 className="font-semibold">لقطات الأدلة</h4>
+                    <p className="report-note">كل لقطة غير قابلة للاستبدال وتحفظ بصمة للمصادر وقت الالتقاط.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="btn secondary" onClick={() => captureShiftSnapshot("OPENING")} disabled={shiftActionBusy}>حفظ لقطة الافتتاح</button>
+                      <button type="button" className="btn secondary" onClick={() => captureShiftSnapshot("CLOSEOUT")} disabled={shiftActionBusy}>حفظ لقطة الإقفال</button>
+                    </div>
+                  </section>
+                  <section className="rounded-lg border p-3 space-y-2">
+                    <h4 className="font-semibold">محضر تسليم الوردية</h4>
+                    <p className="text-xs text-muted-foreground">العناصر المفتوحة الظاهرة في العرض الحالي: {openShiftItems.length} · المراجع الفريدة الجاهزة للإرسال: {handoverRefs.length}</p>
+                    <label className="grid gap-1 text-sm">سبب التسليم
+                      <input className="rounded-lg border bg-background p-2" value={shiftHandoverReason} maxLength={500} onChange={(event) => setShiftHandoverReason(event.target.value)} />
+                    </label>
+                    <label className="grid gap-1 text-sm">ملاحظة التسليم
+                      <textarea className="min-h-20 rounded-lg border bg-background p-2" value={shiftHandoverNote} maxLength={2000} onChange={(event) => setShiftHandoverNote(event.target.value)} />
+                    </label>
+                    <button type="button" className="btn primary" onClick={submitShiftHandover} disabled={shiftActionBusy || handoverRefs.length === 0 || handoverRefs.length > 200 || shiftWorkspace.result.handover.state !== "NOT_REQUIRED"}>
+                      تسجيل التسليم إلى الوردية التالية
+                    </button>
+                    {shiftWorkspace.result.handover.state !== "NOT_REQUIRED" ? <p className="text-xs text-muted-foreground">يوجد محضر تسليم مسجل أو حالة سابقة؛ لا يُنشأ محضر موازٍ من هذه الشاشة.</p> : null}
+                    <p className="text-xs text-muted-foreground">تتحقق قاعدة البيانات من كل مرجع وصلاحيته للمؤسسة. قبول المستلم إجراء منفصل ولا تعرض الشاشة زر قبول دون مرجع قبول صادر من الخادم.</p>
+                  </section>
+                </div>
+              </div>
+            ) : null}
+            {shiftActionMessage ? <p role="status" aria-live="polite" className="rounded-lg border p-3 text-sm">{shiftActionMessage}</p> : null}
+          </section>
+
+          <section className="panel space-y-3" aria-label="تحليل الاختناقات وزمن دورة العملية">
+            <div>
+              <h2>تحليل الاختناقات وزمن دورة العملية</h2>
+              <p className="report-note">مقاييس وصفية من أحداث النظام الفعلية، وليست تقييماً لأداء الموظفين أو إثباتاً لسبب التأخير. الفترات ومناطقها الزمنية UTC.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="grid gap-1 text-sm">من تاريخ
+                <input type="date" className="rounded-lg border bg-background p-2" value={processFrom} onChange={(event) => setProcessFrom(event.target.value)} required />
+              </label>
+              <label className="grid gap-1 text-sm">إلى تاريخ
+                <input type="date" className="rounded-lg border bg-background p-2" value={processTo} onChange={(event) => setProcessTo(event.target.value)} required />
+              </label>
+              <label className="flex items-center gap-2 text-sm self-end rounded-lg border p-3">
+                <input type="checkbox" checked={processCompare} onChange={(event) => setProcessCompare(event.target.checked)} />
+                مقارنة بالفترة السابقة المماثلة
+              </label>
+            </div>
+            {processCompare && processFrom <= processTo ? (
+              <p className="text-xs text-muted-foreground">الفترة الحالية: {processFrom} — {processTo} · الفترة السابقة المتساوية: {previousMatchingPeriod(processFrom, processTo)?.from ?? "غير متاحة"} — {previousMatchingPeriod(processFrom, processTo)?.to ?? "غير متاحة"}</p>
+            ) : <p className="text-xs text-muted-foreground">عند تعطيل المقارنة يقرأ المحرك الفترة الحالية فقط.</p>}
+            {!processLoading && processResponse && !processResponse.ok ? <p role="alert" className="text-sm">{processResponse.message}</p> : null}
+            <ProcessBottlenecksPanel
+              result={processResponse?.ok ? processResponse.result : null}
+              state={processViewState}
+              onRetry={() => setProcessRefreshKey((value) => value + 1)}
+            />
+            <button type="button" className="btn secondary self-start" onClick={() => setProcessRefreshKey((value) => value + 1)} disabled={processLoading}>تحديث تحليل العمليات</button>
+          </section>
 
           <section className="panel space-y-3">
             <div>
