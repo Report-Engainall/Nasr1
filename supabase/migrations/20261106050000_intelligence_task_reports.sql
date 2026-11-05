@@ -183,6 +183,9 @@ BEGIN
         'sourceKey',b.source_key,'taskRole',b.task_role,'priority',b.priority,
         'createdCount',b.created_count,'completedCount',b.completed_count,
         'reopenedEventCount',b.reopened_event_count,
+        'reopenedTaskCount',b.reopened_task_count,
+        'reopenRatePercent',CASE WHEN b.resolved_task_count>0
+          THEN round(b.reopened_after_first_completion_count*100.0/b.resolved_task_count,2) ELSE NULL END,
         'resolvedTaskCount',b.resolved_task_count,
         'averageResolutionMinutes',b.average_resolution_minutes
       ) ORDER BY b.source_key,b.task_role,b.priority)
@@ -197,6 +200,12 @@ BEGIN
               AND t.first_completed_at>=t.created_at
           )::integer AS completed_count,
           coalesce(sum(t.reopen_event_count),0)::integer AS reopened_event_count,
+          count(*) FILTER (WHERE t.reopen_event_count>0)::integer AS reopened_task_count,
+          count(*) FILTER (
+            WHERE t.first_completed_at>=v_range_start AND t.first_completed_at<v_range_end
+              AND t.first_completed_at>=t.created_at
+              AND t.first_reopened_at>t.first_completed_at
+          )::integer AS reopened_after_first_completion_count,
           count(*) FILTER (
             WHERE t.first_completed_at>=v_range_start AND t.first_completed_at<v_range_end
               AND t.first_completed_at>=t.created_at
@@ -226,6 +235,18 @@ BEGIN
           WHERE t.first_completed_at>=greatest(w.week_start::date,p_from)::timestamp AT TIME ZONE 'UTC'
             AND t.first_completed_at<least((w.week_start::date+7),p_to+1)::timestamp AT TIME ZONE 'UTC'
             AND t.first_completed_at>=t.created_at
+        ),
+        'averageResolutionMinutes',(
+          SELECT round((avg(extract(epoch FROM (t.first_completed_at-t.created_at))/60.0))::numeric,2)
+          FROM task_rows t
+          WHERE t.first_completed_at>=greatest(w.week_start::date,p_from)::timestamp AT TIME ZONE 'UTC'
+            AND t.first_completed_at<least((w.week_start::date+7),p_to+1)::timestamp AT TIME ZONE 'UTC'
+            AND t.first_completed_at>=t.created_at
+        ),
+        'reopenedTaskCount',(
+          SELECT count(*)::integer FROM task_rows t
+          WHERE t.first_reopened_at>=greatest(w.week_start::date,p_from)::timestamp AT TIME ZONE 'UTC'
+            AND t.first_reopened_at<least((w.week_start::date+7),p_to+1)::timestamp AT TIME ZONE 'UTC'
         ),
         'reopenedEventCount',(
           SELECT count(*)::integer FROM task_status_events e

@@ -29,6 +29,8 @@ export interface TaskIntelligenceSourceSummary {
   createdCount: number;
   completedCount: number;
   reopenedEventCount: number;
+  reopenedTaskCount: number;
+  reopenRatePercent: number | null;
   resolvedTaskCount: number;
   averageResolutionMinutes: number | null;
 }
@@ -36,7 +38,9 @@ export interface TaskIntelligenceWeeklyPoint {
   weekStart: string;
   createdCount: number;
   completedCount: number;
+  reopenedTaskCount: number;
   reopenedEventCount: number;
+  averageResolutionMinutes: number | null;
 }
 export interface TaskIntelligenceManagerRisk {
   id: string;
@@ -136,22 +140,27 @@ function parseSourceSummary(value: unknown): TaskIntelligenceSourceSummary | nul
     typeof row.taskRole !== "string" || !ROLES.has(row.taskRole as TaskIntelligenceRole) ||
     typeof row.priority !== "string" || !PRIORITIES.has(row.priority as TaskIntelligencePriority) ||
     !isCount(row.createdCount) || !isCount(row.completedCount) ||
-    !isCount(row.reopenedEventCount) || !isCount(row.resolvedTaskCount) ||
-    !isNumberOrNull(row.averageResolutionMinutes)) return null;
+    !isCount(row.reopenedEventCount) || !isCount(row.reopenedTaskCount) ||
+    !isNumberOrNull(row.reopenRatePercent) || (row.reopenRatePercent !== null && row.reopenRatePercent > 100) ||
+    !isCount(row.resolvedTaskCount) || !isNumberOrNull(row.averageResolutionMinutes)) return null;
   return {
     sourceKey: row.sourceKey, taskRole: row.taskRole as TaskIntelligenceRole,
     priority: row.priority as TaskIntelligencePriority, createdCount: row.createdCount,
     completedCount: row.completedCount, reopenedEventCount: row.reopenedEventCount,
+    reopenedTaskCount: row.reopenedTaskCount, reopenRatePercent: row.reopenRatePercent as number | null,
     resolvedTaskCount: row.resolvedTaskCount, averageResolutionMinutes: row.averageResolutionMinutes,
   };
 }
 function parseWeeklyPoint(value: unknown): TaskIntelligenceWeeklyPoint | null {
   const row = record(value);
   if (!row || !isDay(row.weekStart) || !isCount(row.createdCount) ||
-    !isCount(row.completedCount) || !isCount(row.reopenedEventCount)) return null;
+    !isCount(row.completedCount) || !isCount(row.reopenedTaskCount) ||
+    !isCount(row.reopenedEventCount) || !isNumberOrNull(row.averageResolutionMinutes)) return null;
   return {
     weekStart: row.weekStart, createdCount: row.createdCount,
-    completedCount: row.completedCount, reopenedEventCount: row.reopenedEventCount,
+    completedCount: row.completedCount, reopenedTaskCount: row.reopenedTaskCount,
+    reopenedEventCount: row.reopenedEventCount,
+    averageResolutionMinutes: row.averageResolutionMinutes as number | null,
   };
 }
 function parseManagerRisk(value: unknown): TaskIntelligenceManagerRisk | null {
