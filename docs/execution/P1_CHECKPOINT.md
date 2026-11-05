@@ -1,3 +1,33 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-027
+
+- Repository: `Report-Engainall/Nasr1`; official branch: `main`.
+- Main code SHA: `a8273d0bf7d42a06f1be5c4df2c93e28a0ea5121`.
+- Exactly two implementers remain active: P1 (product workspace/UI/navigation) and P3 (intelligence engines/evidence/DTOs/persistence). Do not create a P2 stream or recreate delivered P3 logic.
+
+## BODY-026 — Arabic natural-language administrative assistant mount
+
+- Mounted the existing exported `NaturalLanguageAssistant` once inside `src/components/intelligence/IntelligenceWorkspace.tsx`, behind the existing admin/manager workspace guard.
+- Added typed optional callbacks and wired them in `src/components/AghbariApp.tsx` to existing finance and purchase-order workspaces. Navigation notice preserves the source invoice/order reference; it does not claim automatic selection of the target row.
+- Preserved P3's six allow-listed read intents, server-side finance/procurement role checks, tenant derivation, read-only behavior, 100-invoice/500-PO partial-coverage disclosure and unsupported due-date inference.
+- Commits: `26df2ad7d12fa63c5274dc33949e0da0996370a5`, `42f26dd1b51b63b9840b713d1c4019becda985e7`. No new RPC, migration, route, provider, SQL generation or write operation.
+
+## BODY-027 — supplier performance intelligence mount
+
+- Mounted `SupplierPerformancePanel` and connected P3's existing `fetchSupplierPerformance` client inside the same IntelligenceWorkspace.
+- Reused the existing UTC period controls (`processFrom` / `processTo`); date changes reload supplier performance. Added independent loading/error/unavailable/retry state and a 100-supplier request.
+- Supplies only the existing authorized purchase-order navigation callback; preserves the manager/admin UI guard and server role/tenant enforcement.
+- Preserves full-receipt lead-time rules, awarded-quote explicit promised-term rules, minimum sample size, partial-population/withheld reasons, and no supplier prices/payables/payments or heterogeneous UOM aggregation.
+- Source commit: `a8273d0bf7d42a06f1be5c4df2c93e28a0ea5121`. Migration `20261106040000_intelligence_supplier_performance.sql` remains source-only until Bolt applies it.
+
+## Next action and boundary
+
+- Next P1: continue the next genuinely uncovered non-intelligence product capability; do not reopen these integrations or accepted supplier workflows/reports.
+- P3 continues Section 57 only with additional source-backed allow-listed read intents, then the next canonical intelligence section.
+- No tests/typecheck/lint/build/CI/browser/E2E/CodeInspector/database/Bolt/Preview/Vercel/production operation was run in this source batch. No PASS or production acceptance claimed. No Vercel credits, paid provider or new dependency used.
+- GitHub commits are recorded; notification receipt depends on repository watch settings. Bolt New owns main sync, migration application, database/runtime connection and final integrated acceptance.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-025 — SUPPLIER QUOTE COMPARISON A4 / XLSX
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
