@@ -221,9 +221,18 @@ function RootNavigationLink({ item }: { item: RootNavigationItem }) {
 }
 
 function RootNavigation() {
+  const { user } = useAuth();
   return (
     <nav className="no-print" aria-label="التنقل الرئيسي" style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", padding: "6px 10px", background: "var(--foreground, #0f172a)", fontSize: 13 }}>
       {ROOT_NAV_ITEMS.map((item) => <RootNavigationLink key={item[0]} item={item} />)}
+      {user ? (
+        <a
+          href="/notifications"
+          style={{ color: "var(--background, #fff)", padding: "4px 12px", borderRadius: 999, textDecoration: "none" }}
+        >
+          التنبيهات
+        </a>
+      ) : null}
     </nav>
   );
 }
