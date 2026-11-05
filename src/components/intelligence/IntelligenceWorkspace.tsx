@@ -10,7 +10,7 @@ import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
-import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
+import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
@@ -379,6 +379,8 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
   const [retentionLoading, setRetentionLoading] = useState(true);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
+  const [linkPreviousShift, setLinkPreviousShift] = useState(true);
+  const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
   const [shiftTimeZone, setShiftTimeZone] = useState(browserTimeZone());
   const [shiftCashPhase, setShiftCashPhase] = useState<"OPENING" | "CLOSING">("OPENING");
   const [shiftCashCurrency, setShiftCashCurrency] = useState("YER");
@@ -518,7 +520,7 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
 
   const runShiftMutation = async (
     scope: string,
-    operation: (idempotencyKey: string) => Promise<{ ok: boolean; message?: string }>,
+    operation: (idempotencyKey: string) => Promise<{ ok: boolean; message?: string; data?: unknown }>,
     successMessage: string,
   ) => {
     const key = shiftCommandKeys.current.get(scope) ?? crypto.randomUUID();
@@ -543,13 +545,27 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
 
   const submitStartShift = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const scope = ["start", shiftBusinessDate, shiftLabel.trim(), shiftTimeZone.trim()].join(":");
-    void runShiftMutation(scope, (idempotencyKey) => startOperationalShift({
-      businessDate: shiftBusinessDate,
-      shiftLabel: shiftLabel.trim(),
-      timeZone: shiftTimeZone.trim(),
-      idempotencyKey,
-    }), "تم فتح الوردية وحفظ سجلها.");
+    const scope = ["start", shiftBusinessDate, shiftLabel.trim(), shiftTimeZone.trim(), linkPreviousShift].join(":");
+    void runShiftMutation(scope, async (idempotencyKey) => {
+      let previousShiftId: string | undefined;
+      if (linkPreviousShift) {
+        const previous = await fetchOperationalShiftWorkspace({
+          businessDate: shiftUtcDay(shiftBusinessDate, -1),
+        });
+        if (previous.ok) {
+          previousShiftId = previous.data.snapshot.shiftId;
+        } else if (previous.status !== "NOT_FOUND") {
+          return { ok: false, status: previous.status, message: "تعذر التحقق من الوردية السابقة؛ لم تُفتح وردية منفصلة: " + previous.message };
+        }
+      }
+      return startOperationalShift({
+        businessDate: shiftBusinessDate,
+        shiftLabel: shiftLabel.trim(),
+        timeZone: shiftTimeZone.trim(),
+        previousShiftId,
+        idempotencyKey,
+      });
+    }, "تم فتح الوردية وحفظ سجلها.");
   };
 
   const submitShiftCashCount = (event: FormEvent<HTMLFormElement>) => {
@@ -576,21 +592,46 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
   const submitShiftHandover = () => {
     const shift = shiftResponse?.ok ? shiftResponse.data : null;
     if (!shift) return;
+    if (!shift.snapshot.previousShiftId) {
+      setShiftActionMessage("هذه أول وردية في التسلسل؛ لا يوجد مالك سابق يستلزم محضر تسليم.");
+      return;
+    }
+    if (shift.result.handover.state === "ACCEPTED") {
+      setShiftActionMessage("محضر الوردية السابقة مقبول بالفعل.");
+      return;
+    }
     const refs = [...new Set(shift.result.items
-      .filter((item) => item.state !== "RESOLVED")
+      .filter((item) => item.state !== "RESOLVED" && item.state !== "UNKNOWN")
       .map((item) => item.sourceRef))];
     if (!refs.length || refs.length > 200) {
       setShiftActionMessage(refs.length ? "تجاوزت عناصر التسليم الحد الأقصى البالغ 200." : "لا توجد عناصر مفتوحة موثقة للتسليم.");
       return;
     }
     const scope = ["handover", shift.snapshot.shiftId, refs.join(","), shiftHandoverReason, shiftHandoverNote].join(":");
-    void runShiftMutation(scope, (idempotencyKey) => recordOperationalShiftHandover({
-      currentShiftId: shift.snapshot.shiftId,
-      openItemRefs: refs,
-      reason: shiftHandoverReason.trim() || undefined,
-      note: shiftHandoverNote.trim() || undefined,
-      idempotencyKey,
-    }), "تم تسجيل محضر التسليم؛ قبول المستلم حدث مستقل.");
+    void runShiftMutation(scope, async (idempotencyKey) => {
+      const response = await recordOperationalShiftHandover({
+        currentShiftId: shift.snapshot.shiftId,
+        openItemRefs: refs,
+        reason: shiftHandoverReason.trim() || undefined,
+        note: shiftHandoverNote.trim() || undefined,
+        idempotencyKey,
+      });
+      if (response.ok) setShiftHandoverId(response.data.handoverId);
+      return response;
+    }, "تم تسجيل محضر التسليم؛ يمكن للمستلم قبول المحضر من الجلسة الحالية.");
+  };
+
+  const acceptShiftHandover = () => {
+    if (!shiftHandoverId) {
+      setShiftActionMessage("لا يتوفر معرّف محضر القبول في جلسة الشاشة الحالية؛ أعد تسجيل المحضر من مسؤول الوردية لإصدار مرجع قبول جديد.");
+      return;
+    }
+    const scope = ["accept-handover", shiftHandoverId].join(":");
+    void runShiftMutation(scope, async (idempotencyKey) => {
+      const response = await acceptOperationalShiftHandover(shiftHandoverId, idempotencyKey);
+      if (response.ok) setShiftHandoverId(null);
+      return response;
+    }, "تم قبول محضر التسليم من المستلم وحفظ حدث القبول.");
   };
 
   const captureShiftSnapshot = (snapshotKind: "OPENING" | "CLOSEOUT") => {
@@ -1090,6 +1131,10 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
                 <label className="grid gap-1 text-sm md:col-span-2">منطقة المؤسسة الزمنية (IANA)
                   <input className="rounded-lg border bg-background p-2" value={shiftTimeZone} maxLength={80} onChange={(event) => setShiftTimeZone(event.target.value)} placeholder="Asia/Aden" required />
                 </label>
+                <label className="flex items-center gap-2 text-sm md:col-span-2">
+                  <input type="checkbox" checked={linkPreviousShift} onChange={(event) => setLinkPreviousShift(event.target.checked)} />
+                  ربط الوردية بآخر وردية محفوظة في اليوم السابق إن وُجدت
+                </label>
                 <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">تتحقق قاعدة البيانات من صحة المنطقة الزمنية وتطبق صلاحيات المؤسسة ومنع التكرار.</span>
                   <button className="btn primary" type="submit" disabled={shiftActionBusy || shiftBusinessDate === "" || shiftLabel.trim().length < 2 || shiftTimeZone.trim() === ""}>فتح الوردية</button>
@@ -1145,11 +1190,22 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
                     <label className="grid gap-1 text-sm">ملاحظة التسليم
                       <textarea className="min-h-20 rounded-lg border bg-background p-2" value={shiftHandoverNote} maxLength={2000} onChange={(event) => setShiftHandoverNote(event.target.value)} />
                     </label>
-                    <button type="button" className="btn primary" onClick={submitShiftHandover} disabled={shiftActionBusy || handoverRefs.length === 0 || handoverRefs.length > 200 || shiftWorkspace.result.handover.state !== "NOT_REQUIRED"}>
-                      تسجيل التسليم إلى الوردية التالية
-                    </button>
-                    {shiftWorkspace.result.handover.state !== "NOT_REQUIRED" ? <p className="text-xs text-muted-foreground">يوجد محضر تسليم مسجل أو حالة سابقة؛ لا يُنشأ محضر موازٍ من هذه الشاشة.</p> : null}
-                    <p className="text-xs text-muted-foreground">تتحقق قاعدة البيانات من كل مرجع وصلاحيته للمؤسسة. قبول المستلم إجراء منفصل ولا تعرض الشاشة زر قبول دون مرجع قبول صادر من الخادم.</p>
+                    {shiftWorkspace.snapshot.previousShiftId && shiftWorkspace.result.handover.state === "PENDING" && shiftHandoverId ? (
+                      <button type="button" className="btn primary" onClick={acceptShiftHandover} disabled={shiftActionBusy}>
+                        قبول محضر التسليم (المستلم)
+                      </button>
+                    ) : null}
+                    {shiftWorkspace.snapshot.previousShiftId && shiftWorkspace.result.handover.state !== "ACCEPTED" && !shiftHandoverId ? (
+                      <>
+                        <button type="button" className="btn primary" onClick={submitShiftHandover} disabled={shiftActionBusy || handoverRefs.length === 0 || handoverRefs.length > 200 || (shiftWorkspace.result.handover.state === "PENDING" && shiftHandoverReason.trim().length < 5)}>
+                          {shiftWorkspace.result.handover.state === "PENDING" ? "إعادة إصدار محضر التسليم بسبب" : "تسجيل محضر التسليم"}
+                        </button>
+                        {shiftWorkspace.result.handover.state === "PENDING" ? <p className="text-xs text-muted-foreground">يوجد محضر سابق ينتظر قبول المستلم؛ إعادة الإصدار تحفظ حدثاً إضافياً وتتطلب سبباً لا يقل عن خمسة أحرف.</p> : null}
+                      </>
+                    ) : null}
+                    {!shiftWorkspace.snapshot.previousShiftId ? <p className="text-xs text-muted-foreground">لا توجد وردية سابقة مرتبطة؛ لا ينطبق محضر التسليم.</p> : null}
+                    {shiftWorkspace.snapshot.previousShiftId && shiftWorkspace.result.handover.state === "PENDING" && !shiftHandoverId ? <p className="text-xs text-muted-foreground">عقد قراءة الوردية يعرض حالة المحضر دون معرّف الحدث؛ لا يمكن قبول المحضر القديم من هذه الجلسة. أعد إصداره بسبب موثق للحصول على مرجع قبول جديد.</p> : null}
+                    <p className="text-xs text-muted-foreground">تتحقق قاعدة البيانات من المالك السابق والمستلم وكل مرجع وصلاحيته للمؤسسة. قبول التسليم حدث مستقل ينفذه حساب المستلم.</p>
                   </section>
                 </div>
               </div>
