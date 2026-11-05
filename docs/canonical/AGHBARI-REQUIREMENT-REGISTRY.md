@@ -38,6 +38,14 @@ These are stable requirement definitions; the live execution cursor remains excl
 - Ownership: P3 composition engine/component; P2 same-tenant authoritative data outputs; P1 existing intelligence dashboard mount. Acceptance row `REF-BUSINESS-HEALTH-MAP-001`, `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`, code SHA `d32a833490a79b5bbc60f866ba258d18ad1e7107`, evidence hardening `f924e0cc2288866a99ae2faad68b069f64335e41`.
 
 
+
+## Added requirement — Decision Memory Book — 2026-11-05
+
+- `REF-DECISION-MEMORY-BOOK-001` — Canonical specification section 52. Maintain a versioned, evidence-backed record of decision context, facts, opinions, hypotheses, assumptions, alternatives, chosen option, action, review state, expected and actual metrics, lessons and append-only corrections.
+- FACT requires unique same-tenant VERIFIED/COMPLETE/ACCEPTABLE evidence. Opinions, hypotheses and assumptions must remain separately labelled. Expected/actual comparison requires identical metric key, unit, currency/UOM, period and formula version, later actual as-of and complete source evidence; actual must match the existing decision lifecycle's measured result. No rule auto-learning or automatic execution.
+- Ownership: P3 engine/component/Workspace; P2 immutable snapshot tables, idempotent commands, tenant evidence validation and full read DTO. Acceptance row `REF-DECISION-MEMORY-BOOK-001`; `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until P2 snapshot persistence and read integration are delivered.
+
+
 ---
 
 ## Historical registry snapshots — retained for traceability
