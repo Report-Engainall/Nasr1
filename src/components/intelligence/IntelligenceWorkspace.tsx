@@ -952,6 +952,11 @@ export function IntelligenceWorkspace() {
             </div>
             <p className="report-note">التعرض المالي للمخزون غير متاح لأن سجلات تكلفة الشراء لا تحتوي رمز عملة موثقاً، ومتوسط المخزون التاريخي غير متاح لعدم وجود لقطات أرصدة يومية. مهلة التوريد لا تُحسب إلا من تواريخ أوامر الشراء والاستلام الفعلية؛ لا ينشئ النظام أمراً تلقائياً.</p>
           </section>
+          <BusinessHealthMap
+            result={businessHealthMap}
+            state={loading || inventoryLoading || retentionLoading ? "loading" : businessHealthMapState}
+            onRetry={() => setRefreshKey((value) => value + 1)}
+          />
           <section className="panel space-y-3">
             <h2>السيولة والأدلة والقرارات المقترحة الأخرى</h2>
             <p className="report-note">التحصيلات المجدولة تظهر فقط بأدلتها. الرصيد النقدي الافتتاحي والالتزامات النقدية/الموردية غير متاحين في مصدر موحد موثق؛ لذلك يبقى صافي السيولة محجوباً ولا تُحسبه الشاشة من الذمم.</p>
