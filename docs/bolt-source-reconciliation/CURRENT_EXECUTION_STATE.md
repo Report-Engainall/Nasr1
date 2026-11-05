@@ -1,3 +1,13 @@
+# SOURCE ACCEPTANCE RECONCILIATION — 2026-11-05 — MULTI-INVOICE CUSTOMER RECEIPT PRINT
+
+- Verified that DLV-011's previously listed next leaf, the customer multi-invoice payment receipt print, is already implemented and accepted; do not reimplement or rerun it without a regression.
+- Exact tested application code SHA: 45ca19c47a985b2d12d23c846ba068222a4e17ce. Exact P2 run 41940874520 completed SUCCESS on that SHA; authenticated local Supabase/PostgreSQL 17 + Chromium job step 31 (“Run finance document and operational-task print acceptance in Chromium”) completed SUCCESS and runs the full e2e/finance-task-print.spec.ts file.
+- Dedicated test: manager records one receipt across two same-customer, same-currency invoices and safely reprints the saved allocation. It asserts the two exact allocations and total, saved server-side receipt retrieval, Arabic RTL/A4, no private note/internal IDs/UUIDs, two identical print outputs, no duplicate financial movement or balance change after reprints/reload, and ordinary-customer denial.
+- Source evidence: e2e/finance-task-print.spec.ts; src/components/CustomerPaymentReceiptPrintActions.tsx; supabase/migrations/20261102183100_customer_payment_receipt_print.sql. The exact source blob SHAs and detailed assertions are recorded in DLV-011-CUSTOMER-MULTI-INVOICE-RECEIPT-PRINT-001 in the original acceptance matrix.
+- DLV-011 remains PARTIAL, with seven accepted leaves; other role/template pairs and hosted/production gates remain open. Hosted customer/order/tenant was SKIPPED_EXTERNAL, not PASS.
+- Current phase remains BODY-COMPLETION-ON-MAIN-001. BOLT-RUNTIME-001 remains deferred until the practical product-body handoff gate.
+
+---
 # OWNER EXECUTION ORDER OVERRIDE — 2026-11-05 — BUILD THE PRODUCT BODY BEFORE BOLT HANDOFF
 
 **This override supersedes every older instruction in this file that says to import/sync into Bolt immediately, to make BOLT-RUNTIME-001 the current task, or to stop DLV/product-body implementation until Bolt runtime is verified.** The owner clarified the intended sequence: complete the greatest practical amount of the existing product body on NASR1 first; only then hand the current main source to Bolt for its one-time environment integration and full Preview/E2E validation.
