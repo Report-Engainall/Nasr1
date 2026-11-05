@@ -1,3 +1,61 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER 360 FOLLOW-UP LIFECYCLE
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Base main at start of this product batch: `cd11f763024f38e3341cda645a9c629fa7739ed5`.
+- Product-code SHA after implementation: `66558c300af38c6a49a4c98feb1b6c31636c7638`.
+- Main SHA immediately before this checkpoint/documentation update: `96dbabfb317a9108b98cad6d76c5dca955b6864d`.
+- Task: `BODY-COMPLETION-ON-MAIN-006`.
+- Work was committed directly and sequentially to the official `main`; no feature branch, pull request or Vercel operation was used.
+
+## Product capabilities implemented on main
+
+### Customer 360 scheduled follow-up lifecycle
+- Added `supabase/migrations/20261105170000_customer_interaction_followup_lifecycle.sql`.
+- The original `customer_interactions` row stays append-only. Its recorded `next_follow_up_at` is not overwritten when the operational task changes.
+- Added tenant-scoped `customer_interaction_follow_up_events` with immutable reschedule/cancel events, actor, task, old/new due time, reason, request idempotency key and timestamp. Organization/key uniqueness prevents duplicate command effects; direct browser table access is revoked.
+- Added `manage_customer_interaction_follow_up` RPC:
+  - Requires an authenticated active profile in the current organization and manager/admin capability.
+  - Locks the interaction and linked task, checks the fixed `customer-follow-up:<interaction UUID>` source link and allows changes only to open tasks.
+  - Reschedule requires a future date, changes task due date, and persists the manager due-date override so a later source upsert cannot silently restore the original date.
+  - Cancellation requires a non-empty reason and records the cancellation marker, actor and time; source reconciliation preserves the cancelled state.
+  - Same-key/same-input retry returns the original event; same key with different input is rejected.
+  - Both actions add old/new audit evidence in the same transaction. No order, invoice, payment, stock or customer-balance mutation is part of this command.
+- Corrected the follow-up task generator so the task remains in the sales role queue and is assigned to the interaction recorder, consistent with the existing Customer 360 task contract.
+- Extended the history read model with the linked task id, effective due date, status, cancellation reason and latest task update. It preserves both the original interaction date and the effective task date.
+
+### Typed API and Customer 360 interface
+- `src/lib/types.ts`: strict follow-up status and linked-task fields.
+- `src/lib/api.ts`: strict history response parsing and typed/idempotent `manageCustomerInteractionFollowUp` RPC client with input/output validation.
+- `src/components/AdminCustomer360.tsx`: per-interaction display of original and current follow-up date, task status and cancellation reason; manager controls to reschedule or cancel with required reason.
+- `src/styles.css`: responsive mobile layout for follow-up controls.
+
+## Commits
+
+- Migration: `b5e9afc84b62af0e399cd90b3db705aa335669d6`.
+- Types: `890e8c0d5fad8b68be764286f29485de943cae7c`.
+- API: `c19cec2bdd370dc0f872792b0c0ab97bb6437d25`.
+- Customer 360 UI: `a6617fd5ab3a012299a49edfa9f58c3d6f8de174`.
+- Responsive styles / product-code cursor: `66558c300af38c6a49a4c98feb1b6c31636c7638`.
+- Acceptance-matrix correction + new leaf: `96dbabfb317a9108b98cad6d76c5dca955b6864d`.
+
+## Evidence boundary — do not overstate
+
+- Product source, RPC migration, API, UI and styles are committed on GitHub `main`.
+- The migration has **not** been applied to local, hosted or production PostgreSQL; no database schema or customer data was changed.
+- No unit suite, build, lint, CI, browser E2E, Bolt Preview or runtime check was run in this product batch, by deliberate owner instruction to prioritize product-body implementation. No PASS or production/runtime claim is made.
+- New acceptance leaf `DLV-015-CUSTOMER-FOLLOW-UP-LIFECYCLE-001` is `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; it is not runtime-accepted.
+- The existing customer interaction export remains bounded to the latest 50 rows; this change did not claim complete history export.
+- GitHub commits are the delivery/notification path for this batch. Repository notification delivery depends on the account's GitHub watch/subscription settings; no separate notification service was configured.
+- No Vercel command, deployment, preview or free credit was used.
+
+## Next implementation action
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-007`.
+- Integrate the existing deterministic customer-retention intelligence engine into Customer 360 using only tenant-scoped, period-bound and complete evidence. Show activity cohorts (active/cooling/at-risk/inactive) and actionable follow-up context only when the engine returns VERIFIED; otherwise display NEEDS_REVIEW with the missing-evidence reason. Reuse `src/lib/intelligence/customer-retention.ts`; do not create a second scoring engine or infer a customer risk score from missing data.
+- Continue connected product implementation batches. Do not begin broad test/build/lint/CI or consume Vercel credits during this product-body phase.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER 360 INTERACTION CRM + FOLLOW-UP TASK FLOW
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
