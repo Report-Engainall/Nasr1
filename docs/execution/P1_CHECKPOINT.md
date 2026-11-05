@@ -1,3 +1,35 @@
+# BODY-COMPLETION-ON-MAIN — 2026-11-05 — supplier evidence + intelligence surfaces
+
+- Repository: `Report-Engainall/Nasr1`; execution branch: `main` only.
+- Starting code baseline for this continuation: `da9d6495ef36a4f37ca91ce21153e0b6c7b9bcf5`.
+- Latest code HEAD before this checkpoint write: `a591fa03535ae25f3f5fdbf018e42c2d21db9b43`.
+- No work was duplicated from existing supplier-payment settlement, supplier invoice matching service, credit-note service, Business Health Map engine, or Growth Opportunity Radar engine.
+
+## Implemented on main
+
+1. Supplier invoice capture is mounted in `src/components/PurchaseOrdersPage.tsx`, using canonical PO receipt lines and the existing idempotent three-way matching API.
+2. Independent supplier invoice price-variance review is mounted in `src/components/GeneralLedgerWorkspace.tsx`; the same creator cannot review their own variance.
+3. Supplier invoice evidence attachment capability: private Storage bucket, same-tenant invoice scope, metadata table, immutable attachment log, SHA-256, MIME/size limits, orphan-only cleanup, finance read, and short-lived signed links. Added `20261105250000_supplier_invoice_evidence_attachments.sql`, typed client methods, and UI in `SupplierInvoiceWorkspace.tsx`.
+4. Existing supplier-payment settlement workspace was already mounted on main and was left intact; no parallel copy or new payment ledger was created.
+5. Existing `BusinessHealthMap` component is mounted in `IntelligenceWorkspace.tsx`; cashflow and inventory queries now share one snapshot timestamp. Incompatible source periods and unknown financial components remain withheld.
+6. Existing full-population customer-retention RPC is now consumed through `customer-retention-client.ts`, with server-period, evidence lineage and population-coverage parsing; aggregate metrics are surfaced without customer PII.
+7. Existing deterministic `GrowthOpportunityRadar` is connected to source-backed customer repeat-purchase and activity-decline signals only. No synthetic quote, unavailable-product, or product-performance signal is created; no unverified customer navigation is attached.
+
+## Continuation rules
+
+- Continue implementing missing product capabilities on `main`; do not reopen accepted work or create duplicate screens/services.
+- Do not spend Vercel free credits or deploy/preview through Vercel.
+- Do not apply Supabase migrations, link a database, run builds, tests, lint, CodeInspector, CI, Playwright or hosted E2E in this phase. Bolt New owns project synchronization, database linking/migration execution and verification later.
+- Source-only migration `20261105250000_supplier_invoice_evidence_attachments.sql` is not applied to a live database; its UI reports a clear missing-RPC condition until Bolt synchronization.
+- Do not claim runtime success, migration success, or test PASS without Bolt-side evidence.
+- GitHub commits are the delivery path. Repository notifications depend on the user's GitHub watch/notification settings; no separate notification delivery is asserted.
+
+## Next implementation item
+
+Build the controlled supplier-invoice accounting handoff only after mapping the existing goods-receipt accrual journal, tax-account policy and supplier-credit-note reversal behavior. It must reclassify the existing receipt liability rather than create a second payable; explicit account mapping and independent approval are required; prepare a DRAFT only and leave posting to the existing General Ledger flow. Do not guess tax treatment or force an assumed currency/account.
+
+---
+
 # P1 LIVE REQUEST — 2026-11-05 — SUPPLIER FINANCE / PROCUREMENT UI MOUNT
 
 - Repository: Report-Engainall/Nasr1; current backend main SHA: da9d6495ef36a4f37ca91ce21153e0b6c7b9bcf5.
