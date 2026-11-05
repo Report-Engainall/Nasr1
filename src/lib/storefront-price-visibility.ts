@@ -15,6 +15,10 @@ type ServerPricedLine = {
   product_id: string;
   name: string;
   quantity: number;
+  original_unit_price: number;
+  discount_per_unit: number;
+  discount_amount: number;
+  promotion_title: string | null;
   unit_price: number;
   line_total: number;
 };
@@ -25,6 +29,7 @@ export type CustomerOrderPricingPresentation =
       visible: true;
       items: readonly ServerPricedLine[];
       totalAmount: number;
+      discountTotal: number;
       currency?: string;
       customerTierVisible: boolean;
       customerTierLabel?: string;
@@ -75,6 +80,15 @@ function isServerPricedLine(value: unknown): value is ServerPricedLine {
     && Number.isFinite(value.quantity)
     && Number.isInteger(value.quantity)
     && value.quantity > 0
+    && isFiniteNonNegativeAmount(value.original_unit_price)
+    && isFiniteNonNegativeAmount(value.discount_per_unit)
+    && isFiniteNonNegativeAmount(value.discount_amount)
+    && (value.promotion_title === null
+      || (typeof value.promotion_title === "string" && value.promotion_title.trim().length > 0))
+    && (value.discount_per_unit === 0
+      ? value.discount_amount === 0 && value.promotion_title === null
+      : value.discount_amount > 0 && typeof value.promotion_title === "string")
+    && value.discount_per_unit <= value.original_unit_price
     && isFiniteNonNegativeAmount(value.unit_price)
     && isFiniteNonNegativeAmount(value.line_total);
 }
@@ -109,7 +123,9 @@ export function resolveCustomerOrderPricingPresentation(
     || payload.visible !== true
     || (payload.surface !== "cart" && payload.surface !== "orders")
     || (expectedSurface !== undefined && payload.surface !== expectedSurface)
+    || payload.promotion_pricing_version !== 1
     || !hasCompleteServerPricedLines(payload.items, payload.item_count)
+    || !isFiniteNonNegativeAmount(payload.discount_total)
     || typeof payload.currency !== "string"
     || !/^[A-Z]{3}$/.test(payload.currency)
     || !isFiniteNonNegativeAmount(payload.total_amount)
@@ -130,10 +146,15 @@ export function resolveCustomerOrderPricingPresentation(
       product_id: line.product_id,
       name: line.name,
       quantity: line.quantity,
+      original_unit_price: line.original_unit_price,
+      discount_per_unit: line.discount_per_unit,
+      discount_amount: line.discount_amount,
+      promotion_title: line.promotion_title,
       unit_price: line.unit_price,
       line_total: line.line_total,
     })),
     totalAmount: payload.total_amount,
+    discountTotal: payload.discount_total,
     currency: payload.currency,
     customerTierVisible: payload.customer_tier_visible === true && customerTierLabel !== undefined,
     ...(payload.customer_tier_visible === true && customerTierLabel !== undefined
