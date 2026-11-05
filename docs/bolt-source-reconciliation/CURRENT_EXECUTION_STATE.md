@@ -1,4 +1,52 @@
-## P3 ARCHIVE DOSSIER POINTER — 2026-11-05
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — OPERATIONAL TASK REASSIGNMENT + TASK DETAIL EDITS
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Source code/test cursor before this documentation batch: `5c6a2a5b170afa65de1456ca7204d74540302ddf`.
+- Main before this checkpoint: `926d57faa7585eef193f4e816819b47e40eda865` (the matrix now records the new leaf).
+- Starting main for this implementation batch: `294f85c2a4eae8d9a32109684f8166872eacb44d`.
+
+## Product functionality added
+
+1. `supabase/migrations/20261105100000_operational_task_reassignment.sql`
+   - Adds `assign_operational_task(uuid,uuid)`.
+   - Manager/admin only; derives the active organization and actor from the authenticated server context.
+   - Locks the task row, checks the task belongs to the active organization and is not completed/cancelled.
+   - Validates the target profile is active, authenticated, in the same organization and compatible with the task role.
+   - Supports assigning or returning the task to its role queue; identical replay is a no-op; real changes write old/new assignment, role and status into `audit_logs`.
+2. `supabase/migrations/20261105103000_operational_task_details_update.sql`
+   - Adds `update_operational_task_details(uuid,text,timestamptz)`.
+   - Manager/admin only; row-locks a same-tenant open task; validates priority; updates priority/deadline together; identical replay is a no-op; real changes are audited.
+3. `src/lib/api.ts`
+   - Adds validated wrappers `assignOperationalTask` and `updateOperationalTaskDetails`; no direct browser-side write to `ai_tasks`.
+4. `src/components/TaskCenter.tsx`
+   - Adds manager controls to reassign/unassign open tasks, edit priority and deadline after task creation, and reload the persisted task after each saved change.
+   - Assignee options reuse the existing same-tenant active-user list and role-compatibility rule. Completed/cancelled tasks do not expose edit controls.
+5. `src/styles.css`
+   - Adds compact responsive controls for the manager task editing actions.
+6. `src/test/task-center-ui.test.tsx`
+   - Adds focused UI regression specs for compatible reassignment/unassignment and priority/deadline updates.
+
+## Evidence boundary
+
+- Direct-to-main source commits in this batch: migration `5b0b08f99d31bf37f7832dbf551691578b50071e`; API `4f65332d570c578640dba38b58de70b903ad41ba`; TaskCenter `a05f05f835793d4acf733fcff0cfd0b31be2c88d`; styles `cf3930a1cb4e803161ed56150cf79a92ce6db709`; focused test `68535c56ea3e433020af7ca3fde447f62448676a`; details migration `2941ef90c7ac3fc48c25130043a7cccac1f9b207`; API details `7556725dfef1b15582d8a33d4bc65cde670a8367`; TaskCenter details `369494b01ff440f54d3787aba151802fcd6c33bd`; styles `37b95385ac353aaabb16ed57faf6502405091c63`; focused details test `5c6a2a5b170afa65de1456ca7204d74540302ddf`.
+- Acceptance row added: `DLV-015-OPERATIONAL-TASK-MANAGEMENT-EDIT-001`, explicitly `IMPLEMENTED_ON_MAIN; ACCEPTANCE_PENDING`.
+- The focused unit/UI specs were added but not run in this session. The new SQL migrations were not applied to PostgreSQL/Bolt or production; no database, tenant, storage, secrets or production records were changed. No CI PASS is claimed.
+- This batch deliberately did not rerun the historical broad test suite or Bolt Preview.
+
+## Archive and platform disposition
+
+- The original user archive was recovered from the ChatGPT Library and materialized as `/mnt/data/project-bolt-github-8ccbjvhg (2).zip`.
+- SHA-256 verified locally: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; ZIP listing contained 1,211 entries.
+- The in-repository P3 dossier records 69/69 staged provenance files mapped to existing ledger decisions, identifies the inner CSV helper as an exact target match, the image helper as superseded, and old privileged migrations as excluded. The archive checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is recorded as an ancestor of the reviewed main line.
+- This session did not perform a new byte-for-byte comparison of all 1,211 ZIP entries against current main, and did not import/copy the old ZIP over the repository. Therefore full entry-by-entry archive parity is not claimed. Continue only for a concrete unmatched archive item; never copy `.env`, old lockfiles, generated artifacts or stale configuration over current files.
+- Lovable build/editor/preview/telemetry detachment remains integrated from `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63` and CI alignment `45ca19c47a985b2d12d23c846ba068222a4e17ce`; this batch did not reopen or alter it.
+- Bolt runtime remains intentionally deferred until practical product-body handoff readiness. No Bolt project, database, authentication, storage, server functions or Preview was provisioned or tested.
+
+## Next action
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-002`.
+- Extend the existing TaskCenter with manager-only editing of title and description for open **manual** tasks, preserving source-generated task text as read-only. Use one tenant-scoped, row-locked RPC; validate length and ownership; write old/new values to `audit_logs`; expose it through `src/lib/api.ts` and the existing task card; add a focused regression spec. Continue direct-to-main and update the same four central records. Do not run broad suites or Bolt tests as a substitute for product implementation.
+\n---\n\n## P3 ARCHIVE DOSSIER POINTER — 2026-11-05
 
 - Shared reference: `docs/bolt-source-reconciliation/نماذج/2026-11-05-project-bolt-archive/` (Arabic report + per-file decision CSVs).
 - Outer archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; nested archive SHA-256: `0a71e066357d59e60e33e7f63d8afa3c645d48dc3a29c69ed64decb9ab131a20`.
