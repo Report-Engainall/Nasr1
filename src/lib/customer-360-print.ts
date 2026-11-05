@@ -1,4 +1,5 @@
 import type { StaffCustomer360Summary } from "@/lib/customer-360-summary";
+import type { CustomerInteraction, CustomerInteractionType } from "@/lib/types";
 
 export type Customer360PrintDocument = {
   generatedAt: string;
@@ -26,6 +27,15 @@ export type Customer360PrintDocument = {
     priority: "high" | "medium" | "low"; title: string; description: string; action: string; currency: string | null;
     overdueInvoiceCount: number | null; overdueOutstanding: number | null; pendingOrderCount: number | null;
     daysSinceLastOrder: number | null; lastOrderAt: string | null;
+  }>;
+  interactions: Array<{
+    interactionType: CustomerInteractionType;
+    subject: string;
+    details: string;
+    interactionAt: string;
+    nextFollowUpAt: string | null;
+    createdAt: string;
+    recordedByName: string;
   }>;
 };
 
@@ -55,7 +65,7 @@ function text(value: string, label: string): string {
  * Explicit staff print allowlist. Internal row IDs, customer/contact PII, invoice/payment
  * foreign keys, organization identifiers, raw objects, cost and margin never enter the DTO.
  */
-export function projectStaffCustomer360PrintDocument(source: StaffCustomer360Summary): Customer360PrintDocument {
+export function projectStaffCustomer360PrintDocument(source: StaffCustomer360Summary, interactions: readonly CustomerInteraction[] = []): Customer360PrintDocument {
   const generatedAt = validDate(source.generated_at, "وقت إنشاء التقرير");
   if (!generatedAt) throw new Error("وقت إنشاء تقرير العميل غير متاح.");
 
@@ -148,5 +158,22 @@ export function projectStaffCustomer360PrintDocument(source: StaffCustomer360Sum
       daysSinceLastOrder: recommendation.days_since_last_order ?? null,
       lastOrderAt: validDate(recommendation.last_order_at ?? null, "آخر طلب في التوصية"),
     })),
+    interactions: (() => {
+      if (interactions.length > 50) throw new Error("تجاوز سجل التواصل حد أحدث 50 إدخالًا في تقرير العميل.");
+      return interactions.map((interaction) => {
+        if (!["call","visit","whatsapp","email","meeting","note","other"].includes(interaction.interaction_type)) {
+          throw new Error("نوع تواصل غير صالح في تقرير العميل.");
+        }
+        return {
+          interactionType: interaction.interaction_type,
+          subject: text(interaction.subject, "موضوع التواصل"),
+          details: text(interaction.details, "تفاصيل التواصل"),
+          interactionAt: validDate(interaction.interaction_at, "تاريخ التواصل")!,
+          nextFollowUpAt: validDate(interaction.next_follow_up_at, "موعد متابعة التواصل"),
+          createdAt: validDate(interaction.created_at, "تاريخ تسجيل التواصل")!,
+          recordedByName: text(interaction.recorded_by_name, "مسجل التواصل"),
+        };
+      });
+    })(),
   };
 }
