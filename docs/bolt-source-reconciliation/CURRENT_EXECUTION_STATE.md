@@ -1,3 +1,14 @@
+## P3 ARCHIVE DOSSIER POINTER — 2026-11-05
+
+- Shared reference: `docs/bolt-source-reconciliation/نماذج/2026-11-05-project-bolt-archive/` (Arabic report + per-file decision CSVs).
+- Outer archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; nested archive SHA-256: `0a71e066357d59e60e33e7f63d8afa3c645d48dc3a29c69ed64decb9ab131a20`.
+- 69/69 staged provenance files map to the existing integration ledger. Do not re-extract or duplicate them.
+- Inner CSV helper is an exact target match; product-image helper is superseded; legacy privileged migrations are excluded.
+- Documentation-only reference update; no runtime code, SQL, secrets or production data changed. Application tests/build/Preview not run.
+- Current phase remains `BODY-COMPLETION-ON-MAIN-001`; Bolt runtime remains deferred.
+
+---
+
 ## P3 REFERENCE DOSSIER — 2026-11-05
 
 - Durable dossier: `docs/bolt-source-reconciliation/نماذج/2026-11-05-project-bolt-archive/` (Arabic report + two per-file decision CSVs).
