@@ -418,15 +418,24 @@ describe("TaskCenter role-boundary and print integration", () => {
       source_entity_id: null,
       description: "تفاصيل قديمة",
     });
+    const sourceTask = task({
+      id: "source-order",
+      title: "مهمة مولدة من طلب",
+      task_role: "sales",
+    });
     mocks.fetchOperationalTasks
-      .mockResolvedValueOnce([manualTask])
-      .mockResolvedValueOnce([{ ...manualTask, title: "مراجعة طلبات الموردين", description: "مطابقة أمر الشراء مع الإيصال" }]);
+      .mockResolvedValueOnce([manualTask, sourceTask])
+      .mockResolvedValueOnce([{ ...manualTask, title: "مراجعة طلبات الموردين", description: "مطابقة أمر الشراء مع الإيصال" }, sourceTask]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
     await screen.findByRole("heading", { name: "مهمة يدوية" });
-    expect(screen.queryByRole("button", { name: "تعديل نص المهمة" })).not.toBeInTheDocument();
+    await screen.findByRole("heading", { name: "مهمة مولدة من طلب" });
+    const manualCard = screen.getByRole("heading", { name: "مهمة يدوية" }).closest("article") as HTMLElement;
+    const sourceCard = screen.getByRole("heading", { name: "مهمة مولدة من طلب" }).closest("article") as HTMLElement;
+    expect(within(manualCard).getByRole("button", { name: "تعديل نص المهمة" })).toBeInTheDocument();
+    expect(within(sourceCard).queryByRole("button", { name: "تعديل نص المهمة" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "تعديل نص المهمة" }));
+    fireEvent.click(within(manualCard).getByRole("button", { name: "تعديل نص المهمة" }));
     fireEvent.change(screen.getByLabelText("عنوان المهمة المعدّل: مهمة يدوية"), {
       target: { value: "مراجعة طلبات الموردين" },
     });
