@@ -232,7 +232,7 @@ PR #66 is already integrated; no re-merge is required. The current canonical mai
 
 ## Approved reference-parity requirements — 2026-10-30
 
-These 16 requirements extend the existing registry and the existing acceptance matrix. They map into W06/W08/W09/W10 and do not create a new DLV group or a parallel tracker.
+These 17 requirements extend the existing registry and the existing acceptance matrix. They map into W06/W08/W09/W10 and do not create a new DLV group or a parallel tracker.
 
 | Requirement ID | Required capability | Responsibility split | Initial state |
 |---|---|---|---|
@@ -252,6 +252,7 @@ These 16 requirements extend the existing registry and the existing acceptance m
 | `REF-SYSTEM-HEALTH-001` | System health and error center | P2 probes; P3 contract/evidence; P1 interface | `APPROVED_SCOPE / NOT IMPLEMENTED` |
 | `REF-RBAC-MATRIX-001` | Explainable role capability matrix | P2 permission contract; P3 capability catalog; P1 UI | `APPROVED_SCOPE / NOT IMPLEMENTED` |
 | `REF-LEARNING-LOOP-001` | Recommendation outcome learning and calibration | P3 lead; P2 persistence; P1 view | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-ROLE-TASK-ATTENTION-001` | Role-aware daily task attention and workload-aware assignment suggestions | P3 engine/UI; existing P2 task source/authorization; P1 route owner | `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` |
 
 All REF-* entries remain OPEN until code, real data contracts, authorization, appropriate tests and exact-SHA evidence exist. Documentation approval is not implementation proof. The reference gallery `docs/reference-app/README.md` contains seven boards for all 84 provided screenshots; images are design inspiration only, not evidence of the reference app's backend correctness.
 
