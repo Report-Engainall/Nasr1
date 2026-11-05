@@ -476,6 +476,23 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
   }
 
   const invoiceRows = workspace?.invoices ?? [];
+  const activeTaxAccounts = accounts.filter((account) =>
+    account.is_active && (account.account_type === "asset" || account.account_type === "expense")
+  );
+  const activeVarianceAccounts = accounts.filter((account) =>
+    account.is_active && account.account_type === "expense"
+  );
+  const accountingNeedsTax = Boolean(accountingStatus && Number(accountingStatus.taxAmount) > 0);
+  const accountingNeedsVariance = Boolean(accountingStatus && Number(accountingStatus.merchandiseVarianceAmount) !== 0);
+  const canStartAccountingHandoff = Boolean(
+    mode === "review" && selectedInvoice && accountingStatus &&
+    (accountingStatus.accountingStatus === "not_prepared" || accountingStatus.accountingStatus === "journal_void") &&
+    (selectedInvoice.matchStatus === "matched" || selectedInvoice.matchStatus === "variance_approved") &&
+    selectedInvoice.createdByProfileId !== user?.profileId &&
+    accountingStatus.currency === "YER" &&
+    (!accountingNeedsTax || Boolean(taxAccountId && activeTaxAccounts.some((account) => account.id === taxAccountId))) &&
+    (!accountingNeedsVariance || Boolean(varianceAccountId && activeVarianceAccounts.some((account) => account.id === varianceAccountId)))
+  );
   const canReviewSelected = Boolean(
     mode === "review" && selectedInvoice?.matchStatus === "variance_pending" &&
     selectedInvoice.createdByProfileId !== user?.profileId
@@ -605,6 +622,84 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
             <div><p style={mutedStyle}>فرق المطابقة</p><strong>{moneyText(selectedInvoice.merchandiseVarianceAmount, selectedInvoice.currency)}</strong></div>
           </div>
           {selectedInvoice.taxAccountingStatus === "pending" && Number(selectedInvoice.taxAmount) > 0 && <p role="status" style={{ ...mutedStyle, color: "#854d0e" }}>الضريبة مسجلة كدليل فقط وتنتظر المعالجة المحاسبية؛ لم يُنشأ لها قيد أو حساب تلقائي.</p>}
+          {mode === "review" && (
+            <section style={cardStyle} aria-label="تسوية فاتورة المورد المحاسبية">
+              <div>
+                <h4 style={{ margin: 0 }}>التسوية المحاسبية مع التزام إيصال الاستلام</h4>
+                <p style={mutedStyle}>يقارن الخادم قيمة البنود الفعلية بتكلفة الكميات المفوترة في إيصالات الاستلام المرحلة. يستخدم حساب الدائن الأصلي نفسه؛ لا ينشئ التزامًا ثانيًا ولا يرحّل أو يسدد تلقائيًا.</p>
+              </div>
+              {accountingLoading ? <p role="status" style={mutedStyle}>جار قراءة حالة التسوية المحاسبية من المصدر...</p> :
+                accountingError ? <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>{accountingError}</p> :
+                !accountingStatus ? <p style={mutedStyle}>لا توجد حالة تسوية محمّلة لهذه الفاتورة.</p> : (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+                      <div><p style={mutedStyle}>تكلفة الاستلام للكمية المفوترة</p><strong>{moneyText(accountingStatus.sourceMerchandiseAmount, accountingStatus.currency)}</strong></div>
+                      <div><p style={mutedStyle}>قيمة البنود في الفاتورة</p><strong>{moneyText(selectedInvoice.merchandiseSubtotal, selectedInvoice.currency)}</strong></div>
+                      <div><p style={mutedStyle}>فرق الفاتورة عن الاستلام</p><strong>{moneyText(accountingStatus.merchandiseVarianceAmount, accountingStatus.currency)}</strong></div>
+                      <div><p style={mutedStyle}>الضريبة الموثقة</p><strong>{moneyText(accountingStatus.taxAmount, accountingStatus.currency)}</strong></div>
+                    </div>
+                    {accountingStatus.accountingStatus === "no_adjustment_required" && (
+                      <p role="status" style={{ ...mutedStyle, color: "#166534" }}>تطابقت فاتورة المورد مع تكلفة الاستلام المسجلة ولا توجد ضريبة أو فروق؛ لم يُنشأ قيد إضافي ولم يتكرر التزام المورد.</p>
+                    )}
+                    {accountingStatus.accountingStatus === "journal_draft_created" && (
+                      <div role="status" style={{ ...cardStyle, background: "var(--muted, #f8fafb)" }}>
+                        <strong>مسودة قيد التسوية #{accountingStatus.journalEntryNumber ?? "—"}</strong>
+                        <p style={mutedStyle}>القيد متوازن ومحفوظ في دفتر الأستاذ بحالة مسودة. لا يدخل في الأرصدة المرحلة حتى يرحّله محاسب مخوّل صراحةً.</p>
+                        <a href="#general-ledger-journal-queue">فتح قائمة قيود اليومية</a>
+                      </div>
+                    )}
+                    {accountingStatus.accountingStatus === "journal_posted" && (
+                      <p role="status" style={{ ...mutedStyle, color: "#166534" }}>قيد تسوية الفاتورة #{accountingStatus.journalEntryNumber ?? "—"} مرحّل في دفتر الأستاذ. هذا يثبت المعالجة المحاسبية فقط ولا يثبت سداد المورد.</p>
+                    )}
+                    {accountingStatus.accountingStatus === "journal_void" && (
+                      <p role="alert" style={{ ...mutedStyle, color: "#854d0e" }}>أُلغيت مسودة التسوية السابقة. يمكن إنشاء تسلسل جديد بعد مراجعة الحسابات؛ سيبقى سجل المسودة الملغاة محفوظًا.</p>
+                    )}
+                    {accountingStatus.accountingStatus === "journal_reversed" && (
+                      <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>قيد التسوية السابق له قيد عكس؛ أوقف إنشاء قيد آلي آخر وراجع سلسلة القيود في دفتر الأستاذ.</p>
+                    )}
+                    {(accountingStatus.accountingStatus === "not_prepared" || accountingStatus.accountingStatus === "journal_void") && (
+                      <>
+                        {(selectedInvoice.matchStatus === "variance_pending" || selectedInvoice.matchStatus === "variance_rejected") && (
+                          <p role="alert" style={{ ...mutedStyle, color: "#854d0e" }}>لا يمكن إنشاء التسوية قبل اعتماد المطابقة الثلاثية. {selectedInvoice.matchStatus === "variance_pending" ? "تنتظر الفاتورة قرار المراجع المالي المستقل." : "رفض المراجع فرق السعر؛ لا يجوز تمرير التسوية."}</p>
+                        )}
+                        {selectedInvoice.createdByProfileId === user?.profileId && (
+                          <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>منشئ الفاتورة لا يستطيع إعداد تسويتها المحاسبية؛ استخدم مستخدمًا ماليًا مستقلًا.</p>
+                        )}
+                        {accountingStatus.currency !== "YER" && (
+                          <p role="alert" style={{ ...mutedStyle, color: "#854d0e" }}>لا تتوفر سياسة تحويل عملات لهذا المسار؛ التسوية متاحة للريال اليمني فقط دون تخمين سعر صرف.</p>
+                        )}
+                        <form onSubmit={(event) => { event.preventDefault(); void prepareAccountingHandoff(); }} style={{ display: "grid", gap: 10, borderTop: "1px solid var(--border, #d6dfe4)", paddingTop: 12 }}>
+                          {accountingNeedsTax ? (
+                            <label style={{ display: "grid", gap: 5 }}>
+                              حساب الضريبة الموثقة — اختر أصلًا ضريبيًا قابلًا للاسترداد أو مصروفًا غير مسترد وفق سياسة المؤسسة
+                              <select style={fieldStyle} value={taxAccountId} onChange={(event) => setTaxAccountId(event.target.value)} disabled={accountingBusy}>
+                                <option value="">اختر حساب الضريبة</option>
+                                {activeTaxAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name} ({account.account_type === "asset" ? "أصل" : "مصروف"})</option>)}
+                              </select>
+                              {!activeTaxAccounts.length && <p style={mutedStyle}>لا يوجد حساب أصل أو مصروف نشط متاح؛ أضف أو فعّل الحساب الصحيح في دليل الحسابات.</p>}
+                            </label>
+                          ) : <p style={mutedStyle}>لا توجد ضريبة في الفاتورة؛ لن يُنشأ سطر ضريبة.</p>}
+                          {accountingNeedsVariance ? (
+                            <label style={{ display: "grid", gap: 5 }}>
+                              حساب مصروف فرق تكلفة فاتورة المورد عن تكلفة الاستلام الفعلية
+                              <select style={fieldStyle} value={varianceAccountId} onChange={(event) => setVarianceAccountId(event.target.value)} disabled={accountingBusy}>
+                                <option value="">اختر حساب فرق التكلفة</option>
+                                {activeVarianceAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}
+                              </select>
+                              {!activeVarianceAccounts.length && <p style={mutedStyle}>لا يوجد حساب مصروف نشط لفرق التكلفة؛ لا يتم إنشاء حساب أو تصنيف تلقائي.</p>}
+                            </label>
+                          ) : <p style={mutedStyle}>لا يوجد فرق بين قيمة البنود وتكلفة الاستلام للكمية المفوترة؛ لن يُنشأ سطر فرق تكلفة.</p>}
+                          <p style={mutedStyle}>التسوية تُسجل الزيادة أو التخفيض على حساب الدائن الأصلي المرتبط بإيصال الاستلام. لا تُغيّر حركة المخزون ولا تُنشئ دفعة نقدية.</p>
+                          <button type="submit" className="btn primary" disabled={accountingBusy || !canStartAccountingHandoff}>
+                            {accountingBusy ? "جار إعداد مسودة التسوية..." : accountingStatus.accountingStatus === "journal_void" ? "إنشاء تسلسل تسوية جديد" : "إعداد تسوية الفاتورة في دفتر الأستاذ"}
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </>
+                )}
+            </section>
+          )}
           <section style={{ ...cardStyle, background: "var(--muted, #f8fafb)" }}>
             <div>
               <h4 style={{ margin: 0 }}>مستندات الإثبات المرفقة</h4>
