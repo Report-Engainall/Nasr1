@@ -5,7 +5,7 @@ import type { SupplierInvoiceAccountingPrintDocument } from "@/lib/supplier-invo
 type WorkbookSheet = { name: string; rows: CellValue[][] };
 
 function moneyCents(value: string, label: string): bigint {
-  if (typeof value !== "string" || !/^-?(?:0|[1-9]\\d{0,15})(?:\\.\\d{1,2})?$/.test(value)) {
+  if (typeof value !== "string" || !/^-?(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/.test(value)) {
     throw new Error("مبلغ " + label + " غير صالح في ملف تسوية فاتورة المورد.");
   }
   const negative = value.startsWith("-");
@@ -23,7 +23,7 @@ function formatCents(value: bigint): string {
 }
 
 function quantityMilli(value: string): bigint {
-  if (typeof value !== "string" || !/^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,3})?$/.test(value)) {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d{0,11})(?:\.\d{1,3})?$/.test(value)) {
     throw new Error("كمية غير صالحة في ملف تسوية فاتورة المورد.");
   }
   const [whole, fraction = ""] = value.split(".");
