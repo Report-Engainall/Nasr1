@@ -16,6 +16,7 @@ import type {
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
   OperationalTask, OperationalTaskRole, OperationalTaskStatus, OperationalTaskAssignee,
+  CustomerInteraction, CustomerInteractionType,
   StorefrontAnnouncement, StorefrontAnnouncementInput, PromotionInput,
 } from './types';
 
@@ -2289,6 +2290,99 @@ export async function fetchStaffCustomer360Summary(customerId: string): Promise<
   return summary;
 }
 
+
+// ─── Customer 360 interaction history ───
+const customerInteractionTypes: CustomerInteractionType[] = [
+  'call','visit','whatsapp','email','meeting','note','other',
+];
+
+function parseCustomerInteractionHistory(value: unknown): CustomerInteraction[] {
+  if (!Array.isArray(value)) throw new Error('أعاد الخادم سجل تفاعلات غير صالح.');
+  return value.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error('يوجد سجل تواصل غير صالح في استجابة العميل.');
+    }
+    const row = entry as Record<string, unknown>;
+    if (typeof row.id !== 'string' ||
+        typeof row.interaction_type !== 'string' ||
+        !customerInteractionTypes.includes(row.interaction_type as CustomerInteractionType) ||
+        typeof row.subject !== 'string' ||
+        typeof row.details !== 'string' ||
+        typeof row.interaction_at !== 'string' ||
+        !(typeof row.next_follow_up_at === 'string' || row.next_follow_up_at === null) ||
+        typeof row.created_at !== 'string' ||
+        typeof row.recorded_by_name !== 'string') {
+      throw new Error('بيانات سجل التواصل غير مكتملة؛ لم يتم عرض سجل غير موثوق.');
+    }
+    if (!Number.isFinite(Date.parse(row.interaction_at)) ||
+        !Number.isFinite(Date.parse(row.created_at)) ||
+        (row.next_follow_up_at !== null && !Number.isFinite(Date.parse(row.next_follow_up_at)))) {
+      throw new Error('تواريخ سجل التواصل غير صالحة.');
+    }
+    return {
+      id: row.id,
+      interaction_type: row.interaction_type as CustomerInteractionType,
+      subject: row.subject,
+      details: row.details,
+      interaction_at: row.interaction_at,
+      next_follow_up_at: row.next_follow_up_at,
+      created_at: row.created_at,
+      recorded_by_name: row.recorded_by_name,
+    };
+  });
+}
+
+export async function fetchCustomerInteractions(customerId: string, limit = 50): Promise<CustomerInteraction[]> {
+  if (typeof customerId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) {
+    throw new Error('معرّف العميل غير صالح لطلب سجل التواصل.');
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('حدّ عرض سجل التواصل غير صالح.');
+  }
+  const { data, error } = await supabase.rpc('get_customer_interaction_history', {
+    p_customer_id: customerId,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return parseCustomerInteractionHistory(data);
+}
+
+export async function recordCustomerInteraction(input: {
+  customerId: string;
+  interactionType: CustomerInteractionType;
+  subject: string;
+  details: string;
+  nextFollowUpAt?: string | null;
+}): Promise<string> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(input.customerId)) {
+    throw new Error('معرّف العميل غير صالح.');
+  }
+  if (!customerInteractionTypes.includes(input.interactionType)) {
+    throw new Error('نوع التواصل غير صالح.');
+  }
+  const subject = input.subject.trim();
+  const details = input.details.trim();
+  if (!subject || subject.length > 200 || !details || details.length > 4000) {
+    throw new Error('أدخل موضوع التواصل وتفاصيله ضمن الحدود المسموح بها.');
+  }
+  if (input.nextFollowUpAt !== undefined && input.nextFollowUpAt !== null &&
+      !Number.isFinite(Date.parse(input.nextFollowUpAt))) {
+    throw new Error('موعد المتابعة القادمة غير صالح.');
+  }
+  const { data, error } = await supabase.rpc('record_customer_interaction', {
+    p_customer_id: input.customerId,
+    p_interaction_type: input.interactionType,
+    p_subject: subject,
+    p_details: details,
+    p_interaction_at: null,
+    p_next_follow_up_at: input.nextFollowUpAt || null,
+  });
+  if (error) throw error;
+  if (typeof data !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data)) {
+    throw new Error('لم يرجع الخادم معرّف سجل التواصل المحفوظ.');
+  }
+  return data;
+}
 
 // ─── Purchase orders and atomic inventory receiving ───
 const purchaseIdempotencyKey = /^[A-Za-z0-9_-]{16,128}$/;
