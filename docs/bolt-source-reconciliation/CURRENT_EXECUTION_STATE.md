@@ -1,3 +1,50 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — ORGANIZATION-WIDE CUSTOMER SERVICE DESK
+
+- Repository: \`Report-Engainall/Nasr1\`; branch: \`main\` only.
+- Main head before this checkpoint/documentation update: \`0f45e6d5c62c5ba7cee907160a7f7c08033aa637\`.
+- Latest product-code commit: \`1a49cf47446c85ae33dce93b456026b723af1707\`.
+- Acceptance-matrix commit for this slice: \`0f45e6d5c62c5ba7cee907160a7f7c08033aa637\`.
+- Completed action: \`BODY-COMPLETION-ON-MAIN-010\`. The preceding \`BODY-COMPLETION-ON-MAIN-009\` SLA/assignment/escalation slice is preserved. All source commits are sequential on official \`main\`; no parallel branch, PR or secondary repo was created.
+
+## Product functionality delivered
+
+### Organization-wide customer service work queue
+- Added \`supabase/migrations/20261105210000_customer_service_desk.sql\` with \`get_customer_service_work_queue\`, an active same-organization staff RPC returning the canonical case and linked-task records without cost, margin, invoice or pricing fields.
+- The queue uses keyset pagination ordered by \`created_at,id\`, with a bounded page size and explicit continuation cursor. It supports active/all/status, priority, assigned/unassigned, overdue-only and bounded search across case code, subject, customer business name and customer code.
+- The server returns organization-wide workload counts for active cases, overdue first responses, overdue resolutions, unassigned cases, urgent cases and high-priority cases. These summary counts are independent of the current page and filters; the visible queue rows remain filter-scoped.
+- Each row carries customer identity, case classification and content, status/priority, creator, first-response and SLA deadlines, escalation level, linked task, task due date and current assignee. It exposes no finance values.
+- Added \`src/lib/customer-service-desk.ts\` with strict envelope, UUID, date, status, priority, pagination and summary validation.
+- Added \`src/components/CustomerServiceDesk.tsx\`: organization-wide Arabic RTL queue, search, status/priority/assignment/overdue filters, workload metrics, paginated load-more, case status workflow, manager assignment/deadline/escalation controls and Task Center navigation for the canonical linked task.
+- Registered the new \`/admin/service-desk\` workspace in \`src/components/AghbariApp.tsx\`, \`src/routes/admin_.service-desk.tsx\` and \`src/routeTree.gen.ts\`; added responsive styles in \`src/styles.css\`.
+- The queue reuses existing case/task rows and existing manager/notification commands; it does not create duplicate case or task records.
+
+### Source commits
+- Tenant queue migration: \`90718728ebe372f1b68aa7bc26e41a5eb06b37ab\`.
+- Typed queue client: \`35ea4a5cba587c913bd841f8c33966ac9247efc6\`.
+- Queue UI: \`1969a3017ddf0f277ff34f736d700205e30eadb8\`.
+- Button/navigation interaction correction: \`8cfef88ee82cfbf3f0aae80c02bf4723bbca6601\`.
+- Admin navigation and workspace dispatch: \`27f39a6d0e44fcfa3ada99916d11b0bd39dccd90\`.
+- Route file: \`fd028361f2d2473d55f35b0413c3298618dbfbee\`.
+- Responsive queue layout: \`1a44302b3e19ad4d2ed77df86b39775456db6bd6\`.
+- Generated route registry: \`1a49cf47446c85ae33dce93b456026b723af1707\`.
+- Acceptance leaf: \`DLV-010-CUSTOMER-SERVICE-DESK-001\`, matrix commit \`0f45e6d5c62c5ba7cee907160a7f7c08033aa637\`.
+
+## Explicit delivery and acceptance boundary
+
+- Source implementation and documentation are committed to GitHub \`main\`.
+- The new service desk migration has not been applied to any database. No Supabase, local, hosted, production or Bolt database was connected or modified.
+- No build, tests, lint, code scan, CI, browser acceptance or Bolt Preview was run. This follows the owner's instruction to prioritize product-body implementation and reserve integration/runtime acceptance for Bolt New. No PASS is claimed.
+- The new matrix leaf remains \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`.
+- No Vercel build, deployment, preview or credit consumption occurred. No paid provider, subscription or new paid dependency was added.
+- GitHub commit history is the delivery record. Separate push-notification delivery depends on repository watch/notification preferences; do not claim a notification was delivered unless GitHub reports it.
+
+## Next product action
+
+- \`NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-011\`.
+- Add secure customer-side service case visibility and response workflow: authenticated customer contacts can view only their own organization's cases, provide a bounded reply/update, receive case status/deadline notifications, and see public case history without exposing internal escalation notes, employee-only comments or management metadata. Preserve the staff case timeline, tenant boundaries, data-minimization rules and single canonical task. Implement with the existing authentication/notification/customer portal patterns; no paid service and no broad test loop during this phase.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER SERVICE SLA, ASSIGNMENT AND ESCALATION
 
 - Repository: \`Report-Engainall/Nasr1\`; branch: \`main\` only.
