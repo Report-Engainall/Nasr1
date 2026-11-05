@@ -49,10 +49,10 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   status:"UNSUPPORTED",normalizedQuestion,
   explanation:"مرجع تقارير المهام يمنع ترتيب الموظفين أو إصدار مقارنة فردية دون ضبط الدور والحمل والتعقيد والغياب والعوامل الخارجية؛ مصدر المهام الحالي لا يوفر تلك العوامل."
  };
- const managerTaskReport=/(تقرير.*(المدير|الاداره).*المهام|مخاطر المهام المفتوحه|المهام عاليه الاثر للاداره|تقرير مخاطر المهام)/.test(normalizedQuestion);
- const dailyTaskReport=/(تقرير.*المهام.*(اليوم|يومي)|تقرير يومي للمهام|ملخص يومي للمهام|مهام اليوم حسب الدور)/.test(normalizedQuestion);
- const weeklyTaskReport=/(تقرير.*المهام.*(الاسبوع|اسبوعي)|تقرير اسبوعي للمهام|ملخص اسبوعي للمهام|مهام هذا الاسبوع)/.test(normalizedQuestion);
- const monthlyTaskReport=/(تقرير.*المهام.*(الشهر|شهري)|تقرير شهري للمهام|ملخص شهري للمهام|اتجاه عبء المهام|عبء المهام الشهري|مهام هذا الشهر)/.test(normalizedQuestion);
+ const managerTaskReport=/(تقرير.*(المدير|الاداره).*المهام|مخاطر المهام (المفتوحه|للاداره)|المهام عاليه الاثر للاداره|تقرير مخاطر المهام)/.test(normalizedQuestion);
+ const dailyTaskReport=/(التقرير اليومي للمهام|تقرير يومي للمهام|تقرير المهام اليومي|تقرير.*المهام.*(اليوم|يومي)|ملخص يومي للمهام|مهام اليوم حسب الدور)/.test(normalizedQuestion);
+ const weeklyTaskReport=/(التقرير الاسبوعي للمهام|تقرير اسبوعي للمهام|تقرير المهام الاسبوعي|تقرير.*المهام.*(الاسبوع|اسبوعي)|ملخص اسبوعي للمهام|مهام هذا الاسبوع)/.test(normalizedQuestion);
+ const monthlyTaskReport=/(التقرير الشهري للمهام|تقرير شهري للمهام|تقرير المهام الشهري|تقرير.*المهام.*(الشهر|شهري)|ملخص شهري للمهام|اتجاه عبء المهام|عبء المهام الشهري|مهام هذا الشهر)/.test(normalizedQuestion);
  if(managerTaskReport||dailyTaskReport||weeklyTaskReport||monthlyTaskReport){
   if(/(امس|البارحه|الاسبوع الماضي|الشهر الماضي|من تاريخ|بين تاريخ|20\d{2}-\d{2}-\d{2})/.test(normalizedQuestion))return {
    status:"UNSUPPORTED",normalizedQuestion,

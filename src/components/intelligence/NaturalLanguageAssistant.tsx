@@ -219,12 +219,12 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <p className="text-xs text-muted-foreground">المصدر: ai_tasks + audit_logs · كما في {new Date(response.result.report.asOf).toLocaleString("ar",{timeZone:"UTC"})} UTC · الفترة: {response.result.report.period.from} — {response.result.report.period.to} UTC · الأدوار المصرح بها: {response.result.report.scope.visibleRoles.join("، ")}</p>
    {response.result.report.reportKind!=="MANAGER"?<div className="overflow-x-auto">
     <table className="w-full min-w-[720px] text-start text-xs">
-     <thead><tr className="border-b"><th className="p-2">الدور</th><th className="p-2">جديدة</th><th className="p-2">مفتوحة</th><th className="p-2">متأخرة</th><th className="p-2">عالية/حرجة</th><th className="p-2">أُكملت أول مرة</th><th className="p-2">إعادات الفتح</th><th className="p-2">زمن الحل بالدقائق</th></tr></thead>
+     <thead><tr className="border-b"><th className="p-2">الدور</th><th className="p-2">جديدة</th><th className="p-2">مفتوحة</th><th className="p-2">متأخرة</th><th className="p-2">عالية/حرجة</th><th className="p-2">أُكملت أول مرة</th><th className="p-2">إعادات الفتح</th><th className="p-2">معدل إعادة الفتح</th><th className="p-2">زمن الحل بالدقائق</th></tr></thead>
      <tbody>{response.result.report.roleSummaries.map(row=><tr key={row.taskRole} className="border-b last:border-0">
       <th className="p-2 font-medium">{row.taskRole==="sales"?"المبيعات":row.taskRole==="accountant"?"المحاسبة":row.taskRole==="warehouse"?"المخزن":row.taskRole==="purchasing"?"المشتريات":row.taskRole==="management"?"الإدارة":"العمليات"}</th>
       <td className="p-2">{count(row.newCount)}</td><td className="p-2">{count(row.openCount)}</td><td className="p-2">{count(row.overdueOpenCount)}</td>
       <td className="p-2">{count(row.highImpactOpenCount)}</td><td className="p-2">{count(row.completedCount)}</td>
-      <td className="p-2">{count(row.reopenedEventCount)}</td><td className="p-2">{row.averageResolutionMinutes===null?"غير محسوب":count(Math.round(row.averageResolutionMinutes))}</td>
+      <td className="p-2">{count(row.reopenedEventCount)}</td><td className="p-2">{percent(row.reopenRatePercent)}</td><td className="p-2">{row.averageResolutionMinutes===null?"غير محسوب":count(Math.round(row.averageResolutionMinutes))}</td>
      </tr>)}</tbody>
     </table>
    </div>:null}
