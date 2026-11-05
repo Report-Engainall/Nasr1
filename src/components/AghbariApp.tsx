@@ -119,6 +119,11 @@ function AdminWorkspaceContent({
   onOrderDetailChange,
   onNavigationBlockedChange,
 }: AdminWorkspaceContentProps) {
+  const [notificationTaskId, setNotificationTaskId] = useState<string | null>(null);
+  useEffect(() => {
+    if (view === 'tasks' && notificationTaskId) setNotificationTaskId(null);
+  }, [view, notificationTaskId]);
+
   switch (view) {
     case "dashboard":
       return <Dashboard onNavigate={onNavigate} />;
@@ -159,7 +164,13 @@ function AdminWorkspaceContent({
     case "ai":
       return <AiCenter onNotice={onNotice} />;
     case "notifications":
-      return <Notifications onNotice={onNotice} />;
+      return <Notifications
+        onNotice={onNotice}
+        onOpenTask={(taskId) => {
+          setNotificationTaskId(taskId);
+          onNavigate('tasks');
+        }}
+      />;
     case "data":
       return <DataCenter onNotice={onNotice} />;
     case "operations":
@@ -178,7 +189,7 @@ function AdminWorkspaceContent({
     case "finance":
       return <StaffFinancePage />;
     case "tasks":
-      return <TaskCenter onNotice={onNotice} />;
+      return <TaskCenter onNotice={onNotice} initialTaskId={notificationTaskId} />;
     case "audit":
       return <AdminAuditLog />;
     case "stock-count":
