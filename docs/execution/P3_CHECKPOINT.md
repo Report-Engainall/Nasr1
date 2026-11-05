@@ -1,3 +1,17 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PERSONALIZATION-SETTINGS-COMPONENT-005
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Parent SHA: 9af5b12b1afb4de2d68a561d2b5585cd1265e4ce.
+- Added `src/components/intelligence/PersonalizationPrivacyPanel.tsx` as a reusable settings surface for the P1 app shell to mount. It renders channel preferences, notification severity, detail level, time-zone-aware quiet hours, reduced motion, explicitly enabled personalization and the separate external-processing gate.
+- The panel requires an explicit authorized prop and server-loaded preferences. Missing data shows unavailable; missing server save adapter disables save. It sends only the preference update and expected version, and displays success only after the server returns a valid same-tenant/profile preference object.
+- Disconnected external channels cannot be newly enabled; an already-selected disconnected channel can still be turned off. A visible warning explains that external processing is only an additional gate and does not itself grant provider/recipient consent.
+- Added `PersonalizationPreferencesUpdate` contract and focused component tests for unavailable state, permission, missing adapter, versioned server save, wrong-profile response, and disconnected channels. No tests were executed.
+- P1 integration: mount this exported component in the existing account/privacy settings route, passing verified per-profile preferences, the server authorization result, channel capabilities, and the P2-owned save callback. No route or P1-owned component was modified.
+- Server integration remains required before save can be active. No browser/runtime/CI result is claimed.
+- Exact next action: P2/server adapter persists and re-reads the preferences under current profile/organization RLS and optimistic version; P1 mounts this component once. External consent grant/revoke continues as a separate provider/channel/destination-scoped server action.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PRIVACY-AUDIT-HARDENING-004
 
 - Repository: Report-Engainall/Nasr1; branch: main.

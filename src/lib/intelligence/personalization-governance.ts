@@ -13,6 +13,16 @@ export type NotificationDataClass =
   | "SENSITIVE_TASK_LIST"
   | "CUSTOMER_PERSONAL_DATA";
 
+export interface PersonalizationPreferencesUpdate {
+  notificationChannels: NotificationChannel[];
+  notificationLevel: NotificationLevel;
+  quietHours: { enabled: boolean; startLocal: string; endLocal: string; timeZone: string };
+  detailLevel: NotificationDetailLevel;
+  reducedMotion: boolean;
+  personalizationEnabled: boolean;
+  externalProcessingEnabled: boolean;
+}
+
 export interface PersonalizationPreferences {
   schemaVersion: 1;
   organizationId: string;

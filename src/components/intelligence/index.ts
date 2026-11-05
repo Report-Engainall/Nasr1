@@ -22,3 +22,4 @@ export * from "./ProcessBottlenecksPanel";
 export { CommercePolicyGovernancePanel } from "./CommercePolicyGovernancePanel";
 export * from "./SupplierPerformancePanel";
 export * from "./NaturalLanguageAssistant";
+export * from "./PersonalizationPrivacyPanel";
