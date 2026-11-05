@@ -369,15 +369,17 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const lateCount = roleScopedTasks.filter(isLate).length;
   const completedCount = roleScopedTasks.filter((task) => task.status === 'completed').length;
 
-  async function performStatus(task: OperationalTask, status: OperationalTaskStatus, resolutionNote?: string) {
+  async function performStatus(task: OperationalTask, status: OperationalTaskStatus, resolutionNote?: string): Promise<boolean> {
     setBusy(true); setError('');
     try {
       await setOperationalTaskStatus(task.id,status,resolutionNote?.trim() || undefined);
       onNotice(status==='completed'?'تم إغلاق المهمة وحفظ نتيجة التنفيذ.':status==='in_progress'?'تم استلام المهمة وتعيينها للمستخدم الحالي.':'تم تحديث حالة المهمة.');
       await loadTasks();
+      return true;
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'تعذر تحديث المهمة.';
       setError(message); onNotice(message);
+      return false;
     } finally { setBusy(false); }
   }
 
@@ -398,8 +400,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   async function confirmTaskCompletion(task: OperationalTask) {
     const result = (completionDrafts[task.id] ?? '').trim();
     if (!result) return;
-    closeTaskCompletion(task.id);
-    await performStatus(task,'completed',result);
+    const saved = await performStatus(task,'completed',result);
+    if (saved) closeTaskCompletion(task.id);
   }
 
   function taskAssigneeDraft(task: OperationalTask): string {
