@@ -1959,3 +1959,16 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Matrix row REF-TASK-STATUS-AUDIT-PARITY-001 added. P3 checkpoint/global resume cursor updated.
 - Tests, PostgreSQL 17, build, lint, CI, browser, Bolt migration application, Preview and production operations were not run. Source-only: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING; no PASS claimed.
 - Section 61 full historical reopen rate remains withheld pending explicit audit activation baseline; old missing events cannot be reconstructed.
+
+
+## 2026-11-06 — REF-SECTION-61-TASK-REOPEN-AUDIT-WINDOW-001 — bounded exact reopen rate
+
+- Audit-window feature commit: e5327f7f82e1048b5281a8f2c4cbe4f340d56425 (parent fc02edab27848296043d72f9fae042c288eebeaf).
+- Parser/RTL test correction commit: 8fb2b8a1eb88d9d7f5f4ac4b2e095e0fb21816e3 (parent e5327f7f82e1048b5281a8f2c4cbe4f340d56425).
+- Added migration 20261106080000_intelligence_task_reopen_audit_window.sql. It creates a protected singleton audit activation marker only after the central task status trigger is installed; RLS is enabled and client roles receive no table privileges.
+- Hardened status-trigger actor attribution so the profile must be active and belong to the task organization; otherwise actor_id remains NULL. Uses clock_timestamp for transition ordering. This avoids attaching a profile from a different tenant to a source-triggered event.
+- Scorecard now reports exact reopen metrics only for the post-activation audit window: distinct tasks first completed in that window are the denominator; tasks with a later completed→pending/in_progress transition are the numerator; all such transition events are also counted. The rate is NULL when no task completed in the covered window.
+- Pre-activation history remains excluded; no historical transition is fabricated. Old scorecard RPC responses remain validly parsed as PARTIAL until the new migration is applied.
+- Updated the parser, Arabic scorecard presentation, focused source tests and PostgreSQL migration acceptance assertions. Existing test sources remain unexecuted.
+- Changed paths additionally include scorecard parser/component tests and scripts/test-database-migrations.mjs. Acceptance matrix and global cursor updated.
+- Migrations are source-only; tests/build/typecheck/lint/CI/browser/E2E/Bolt runtime/Preview/production not run. No PASS claimed; IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.

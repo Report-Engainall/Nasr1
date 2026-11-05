@@ -1,3 +1,34 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-REOPEN-AUDIT-WINDOW-001
+
+- Repository: `Report-Engainall/Nasr1`; branch `main`.
+- Previous audit-parity source SHA: `4074ce5fb4db89118e7fed25b2d2142f21fc9f4b`.
+- Audit-window source SHA: `e5327f7f82e1048b5281a8f2c4cbe4f340d56425`.
+- Parser/component assertion correction SHA: `8fb2b8a1eb88d9d7f5f4ac4b2e095e0fb21816e3`.
+- Added migration `supabase/migrations/20261106080000_intelligence_task_reopen_audit_window.sql`.
+- A protected singleton `public.operational_task_audit_settings` stores the immutable audit `coverage_started_at`. It has RLS enabled and no grants to PUBLIC/anon/authenticated. The marker is written after the ai_tasks audit trigger has been installed, in the same migration transaction; the DDL lock prevents status writes crossing the baseline before commit.
+- The status audit trigger is hardened to resolve `actor_id` only when the profile is active and belongs to the changed task's organization. Cross-tenant profile attribution is therefore not possible; unresolved/system work is explicitly marked `SYSTEM_OR_UNRESOLVED` with nullable actor. Event time uses `clock_timestamp()` for ordering inside a transaction.
+- Replaced the scorecard RPC to calculate `WINDOW_COMPLETE` reopen metrics only from status-transition audit rows at or after the persisted baseline:
+  - denominator: distinct visible tasks whose first observed `completed` transition occurs after baseline;
+  - numerator: distinct tasks in that denominator with at least one later `completed → pending/in_progress` transition;
+  - event count: all qualifying reopen transitions within the window;
+  - percentage: numerator / denominator, rounded to two decimals; NULL when denominator is zero.
+- Old history before the immutable baseline is excluded and is not reconstructed. The existing older RPC payload remains accepted by the parser as PARTIAL if the new migration has not yet been applied; no false complete rate is shown.
+- Updated the scorecard engine parser, RTL component and tests to validate both the old PARTIAL contract and the post-baseline WINDOW_COMPLETE contract. Extended PostgreSQL acceptance source to verify baseline timestamp, audited denominator/numerator and exact percentage reconciliation.
+- Changed paths:
+  - `supabase/migrations/20261106080000_intelligence_task_reopen_audit_window.sql`
+  - `src/lib/intelligence/task-performance-scorecard.ts`
+  - `src/components/intelligence/TaskPerformanceScorecard.tsx`
+  - `src/lib/intelligence/task-performance-scorecard.test.ts`
+  - `src/components/intelligence/TaskPerformanceScorecard.test.tsx`
+  - `scripts/test-database-migrations.mjs`
+- Tests are authored but NOT run. Migrations `060600`, `060700`, and `060800` are source-only and have NOT been applied to Bolt/Supabase. No build, typecheck, lint, CI, browser, E2E, Preview, Vercel or production operation was run. No PASS or production readiness is claimed.
+- No paid provider, dependency, secret, Vercel credit, task mutation or financial/inventory mutation.
+- Delivery status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- P1 handoff remains: mount `TaskPerformanceScorecard` once in the existing `IntelligenceWorkspace` using `fetchTaskPerformanceScorecard()`; do not create a duplicate route or a mock data path.
+- Next P3 work: build outcome/reason capture so actionability, rejected/deferred recommendation reasons, repeated causes, false alarms and measured operational improvement can be computed from explicit persisted decisions rather than inferred task text.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-STATUS-AUDIT-PARITY-001
 
 - Repository: Report-Engainall/Nasr1; branch: main.
