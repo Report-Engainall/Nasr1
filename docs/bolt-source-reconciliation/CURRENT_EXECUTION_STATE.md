@@ -13,7 +13,7 @@
 
 - Durable dossier: `docs/bolt-source-reconciliation/نماذج/2026-11-05-project-bolt-archive/` (Arabic report + two per-file decision CSVs).
 - Archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; nested ZIP SHA-256: `0a71e066357d59e60e33e7f63d8afa3c645d48dc3a29c69ed64decb9ab131a20`.
-- Archive Git checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is an ancestor of the reviewed main line; main was 73 ahead / 0 behind.
+- Archive Git checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is an ancestor of the reviewed main line; main was 75 ahead / 0 behind.
 - 69/69 staged provenance files map to existing ledger decisions. Do not re-extract or re-copy. Inner CSV helper exact-matches target; image helper is superseded; privileged migrations excluded.
 - Docs-only. No application code, migrations, secrets or production data changed. No app build/tests/Preview were run.
 - Product phase remains `BODY-COMPLETION-ON-MAIN-001`; deferred Bolt runtime remains deferred.
