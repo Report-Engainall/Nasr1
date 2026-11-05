@@ -1,3 +1,27 @@
+# LIVE EXECUTION UPDATE — 2026-11-05 — LOVABLE BUILD/PREVIEW DETACHMENT
+
+This section is newer than the historical Bolt-preparation notes below. It updates the implementation state without deleting earlier evidence.
+
+- REPOSITORY: `Report-Engainall/Nasr1`; branch: `main` only.
+- APPLICATION_SOURCE_SHA: `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63`.
+- SOURCE CHANGE: native `vite` + `@tanstack/react-start/plugin/vite` + `nitro/vite` + React + Tailwind + tsconfig paths now replace the Lovable Vite wrapper. The `@lovable.dev/vite-tanstack-config` dependency was removed from `package.json` and `bun.lock`.
+- SOURCE CHANGE: removed the Lovable editor-preview auth `postMessage` bridge and its file; Supabase browser auth now uses the SDK's normal origin-local storage behavior.
+- SOURCE CHANGE: removed Lovable editor telemetry and replaced it with provider-neutral, metadata-only browser error diagnostics; raw messages, stacks, URLs and user data are not sent to a vendor.
+- SOURCE CHANGE: replaced Lovable-specific setup messages with Bolt Database setup guidance, added `SUPABASE_ANON_KEY` compatibility aliases, and updated the auth bootstrap regression test.
+- EXACT FILES CHANGED: `vite.config.ts`, `package.json`, `bun.lock`, `.env.example`, `src/integrations/supabase/client.ts`, `src/integrations/supabase/client.server.ts`, `src/integrations/supabase/auth-middleware.ts`, `src/lib/auth.tsx`, `src/test/auth-bootstrap.test.tsx`, `src/routes/__root.tsx`, and new `src/lib/runtime-error-reporting.ts`.
+- EXACT FILES REMOVED: `src/lib/lovable-error-reporting.ts`, `src/integrations/supabase/previewAuthStorage.ts`.
+- STATIC REVIEW: the updated package manifest and lock no longer contain the Lovable Vite package; the updated auth/client/root files no longer contain the Lovable preview or telemetry hooks.
+- NOT TESTED: ChatGPT did not run `bun install`, Vite build, typecheck, unit tests, Bolt Preview, Bolt Database, authentication, storage, server functions or browser E2E. These results must be produced by Bolt on the imported current mainline. No PASS is claimed.
+- NOT MIGRATED: the existing app still contains Supabase JS/RPC/auth contracts and the existing PostgreSQL migrations. They were intentionally preserved. Bolt must now identify its actual built-in Database interface and either prove Supabase-compatible endpoint/key support or implement a secure server-side compatibility adapter. Do not guess endpoint names or replace transactions/RPC/RLS with client CRUD.
+- DATABASE SAFETY: no schema, production database, customer/order/payment/inventory data, credentials, storage objects or deployed functions were changed. The production backup/restore and authoritative tenant gates remain NO-GO until proven.
+- BOLT PLAN: use Bolt Database included with the current account; do not select external Supabase connection or enable paid services/auto-billing. Current Bolt documentation says built-in DB/auth/storage/server functions are provided inside Bolt, while connecting an external Supabase DB requires Pro or Teams.
+- NEXT_ACTION_ID: `BOLT-RUNTIME-BOLT-DB-PORT-001`. Import/sync latest `main`, provision the built-in Bolt Database, map the existing schema/RPC/transaction/auth/storage/function contracts, then complete Preview + full E2E acceptance on an exact SHA. Do not resume DLV-011 feature leaves until this portability batch has reached a verified working Bolt runtime.
+
+## One-shot Bolt instruction
+Use `docs/bolt-source-reconciliation/BOLT_EXECUTION_PROMPT_AR_2026-11-05.md` as the exact single message to execute inside Bolt. It includes the owner's 90% readiness target, preservation rules, native Bolt resource selection, implementation order and acceptance evidence.
+
+---
+
 # EXECUTION OVERRIDE — 2026-11-05 — KEEP ALL WORK; MOVE ONLY THE RUNTIME TO BOLT
 
 This is the highest-priority continuation instruction. It supersedes older NEXT_ACTION pointers only for the Bolt-runtime portability workstream. It does NOT supersede, delete, downgrade or close any earlier product requirements, acceptance records or completed features.

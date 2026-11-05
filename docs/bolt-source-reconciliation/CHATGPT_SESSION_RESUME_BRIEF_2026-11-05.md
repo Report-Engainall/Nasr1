@@ -1,3 +1,14 @@
+## EXECUTION OVERRIDE — 2026-11-05 — SOURCE PORTABILITY BATCH COMPLETED; BOLT DATABASE PORT IS NEXT
+
+- Latest application-source commit: `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63` (the docs handoff commit may be newer; preserve this code SHA as the source change reference).
+- Removed the Lovable Vite package/config, editor-preview auth bridge and editor telemetry; replaced with native Vite/TanStack Start/Nitro/React/Tailwind/path-alias configuration and vendor-neutral browser error diagnostics.
+- Updated Bolt database bootstrap guidance and accepted the standard `SUPABASE_ANON_KEY` naming alternative without exposing server secrets.
+- No Bolt database, auth, storage, server function or Preview test has been run yet. Existing Supabase/PostgreSQL contracts and migrations remain preserved for a faithful Bolt mapping.
+- Use the one-shot prompt `docs/bolt-source-reconciliation/BOLT_EXECUTION_PROMPT_AR_2026-11-05.md` when importing the latest main into Bolt. Do not spend credits on another plan-only pass.
+- NEXT_ACTION_ID: `BOLT-RUNTIME-BOLT-DB-PORT-001`.
+
+---
+
 # CHATGPT SESSION RESUME — AGHBARI COMMERCE — 2026-11-05
 
 انسخ الرسالة كاملة عند بدء أي جلسة ChatGPT جديدة. هذه هي ذاكرة الاستئناف التنفيذية؛ لا تطلب من المستخدم إعادة شرح التاريخ.
