@@ -1,3 +1,11 @@
+## P3 ANCESTRY CORRECTION — 2026-11-05
+
+- Exact review main SHA in the archive report: `431a08c9eb176112908c6dd42d560b95bb42d082`.
+- Archive checkpoint `3f33dba1d1879fc1426a2428e331b496c6241dae` is its ancestor: **75 commits ahead / 0 behind**.
+- This replaces the preliminary count 73, which was calculated before concurrent main updates. Report, global resume state and execution log now use 75.
+
+---
+
 ## P3 CHECKPOINT — 2026-11-05 — ARCHIVE REFERENCE DOSSIER
 
 - task_id: `NASR1-ARCHIVE-REFERENCE-20261105`; reference folder: `docs/bolt-source-reconciliation/نماذج/2026-11-05-project-bolt-archive/`.
