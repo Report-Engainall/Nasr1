@@ -21,7 +21,7 @@ BEGIN
       MESSAGE='administrator or manager permission required to edit tasks';
   END IF;
 
-  IF p_task_id IS NULL
+  IF p_task_id IS NULL OR p_priority IS NULL
      OR p_priority NOT IN ('low','medium','high','critical') THEN
     RAISE EXCEPTION USING ERRCODE='22023',
       MESSAGE='task ID and supported priority are required';
