@@ -162,7 +162,7 @@ function OfferList({ promotions, products }: { promotions: StorePromotion[]; pro
 function OfferPricingDisclosure() {
   return (
     <p style={{ marginTop: 18, borderTop: "1px solid #e2eaea", paddingTop: 12, color: "#526b70", fontSize: 13 }}>
-      الخصم الفعلي وسعر الفئة يُحسبان على الخادم عند اعتماد الطلب، ويخضعان لقواعد التسعير وحدود التكلفة؛ قيمة إعداد الحملة المعروضة هنا ليست ضمانًا لسعر فاتورة نهائي.
+      الخصم الفعلي وسعر الفئة يُحسبان على الخادم عند إرسال الطلب، وتُحفظ لقطة الخصم على بنوده؛ ويخضع الخصم لمطابقة الحملة وحدود التكلفة، لذلك لا تمثل قيمة إعداد الحملة وحدها سعر الفاتورة النهائي.
     </p>
   );
 }
