@@ -8,6 +8,7 @@ import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
+import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
 import {
   createInventoryIntelligencePeriod,
@@ -320,6 +321,8 @@ export function IntelligenceWorkspace() {
   const [proposalReason, setProposalReason] = useState("");
   const [inventoryResult, setInventoryResult] = useState<InventoryIntelligenceResult | null>(null);
   const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [retentionResult, setRetentionResult] = useState<CustomerRetentionAggregateResult | null>(null);
+  const [retentionLoading, setRetentionLoading] = useState(true);
 
   useEffect(() => {
     outcomesMounted.current = true;
@@ -367,6 +370,23 @@ export function IntelligenceWorkspace() {
     }
   }, [canManage]);
 
+  const loadCustomerRetention = useCallback(async (active: () => boolean) => {
+    if (!canManage) {
+      setRetentionResult({ ok: false, status: "DENIED", message: "تتطلب قراءة مجتمع العملاء صلاحية موظف نشط داخل المؤسسة." });
+      setRetentionLoading(false);
+      return;
+    }
+    setRetentionLoading(true);
+    try {
+      const response = await fetchCustomerRetentionAggregate(90, snapshotAt.current.toISOString());
+      if (active()) setRetentionResult(response);
+    } catch {
+      if (active()) setRetentionResult({ ok: false, status: "ERROR", message: "تعذر إنشاء لقطة الاحتفاظ بالعملاء." });
+    } finally {
+      if (active()) setRetentionLoading(false);
+    }
+  }, [canManage]);
+
   const loadOutcomes = useCallback(async () => {
     const requestGeneration = ++outcomeRequestGeneration.current;
     if (!outcomesMounted.current) return;
@@ -408,12 +428,19 @@ export function IntelligenceWorkspace() {
   }, [loadInventory, refreshKey]);
 
   useEffect(() => {
+    let mounted = true;
+    void loadCustomerRetention(() => mounted);
+    return () => { mounted = false; };
+  }, [loadCustomerRetention, refreshKey]);
+
+  useEffect(() => {
     void loadOutcomes();
   }, [loadOutcomes, refreshKey]);
 
   const data = result?.ok ? result.data : null;
   const cashflowDenied = Boolean(result && !result.ok && result.status === "DENIED");
   const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
+  const customerRetention = retentionResult?.ok ? retentionResult.data : null;
   const cashflowMetrics = useMemo<MetricSnapshot[]>(() => {
     if (!data) return [];
     const scheduledMetrics: MetricSnapshot[] = data.schedule.entries.map((entry) => ({
@@ -767,6 +794,51 @@ export function IntelligenceWorkspace() {
 
           {loading ? <div className="panel" role="status">جارٍ تحميل بيانات التحصيل من قاعدة البيانات...</div> : null}
           {!loading && result && !result.ok ? <div className="panel" role="alert"><p>{result.message}</p></div> : null}
+
+          <section className="panel space-y-3">
+            <div>
+              <h2>الاحتفاظ بالعملاء وتكرار الشراء</h2>
+              <p className="report-note">قراءة المجتمع الكامل للعملاء من أوامر المؤسسة النشطة غير الملغاة، لفترتين متتاليتين متساويتين. يعرض النظام المجاميع فقط؛ لا يعرض أسماء أو هواتف أو أسعار فئات العملاء.</p>
+            </div>
+            {retentionLoading ? <p role="status" className="text-sm">جار تحميل مجتمع العملاء...</p> : null}
+            {!retentionLoading && retentionResult && !retentionResult.ok ? (
+              <div role="alert" className="rounded-lg border p-3 text-sm">
+                <p>{retentionResult.message}</p>
+                <button type="button" className="btn secondary mt-2" onClick={() => setRefreshKey((value) => value + 1)}>إعادة تحميل مؤشرات العملاء</button>
+              </div>
+            ) : null}
+            {customerRetention ? (
+              <>
+                <div className="report-grid">
+                  <article className="report-metric"><span>مجتمع العملاء</span><strong>{customerRetention.population.total ?? "غير متاح"}</strong><small>تغطية: {customerRetention.status === "VERIFIED" ? "مكتملة وموثقة" : "تحتاج مراجعة"}</small></article>
+                  <article className="report-metric"><span>عملاء نشطون في الفترة</span><strong>{customerRetention.population.activeCurrentPeriod ?? "غير متاح"}</strong><small>لديهم طلب واحد على الأقل</small></article>
+                  <article className="report-metric"><span>عملاء مستمرون</span><strong>{customerRetention.population.retainedCustomers ?? "غير متاح"}</strong><small>عادوا للشراء من مجتمع الفترة السابقة</small></article>
+                  <article className="report-metric"><span>عملاء متكررون</span><strong>{customerRetention.population.repeatPurchaseCustomers ?? "غير متاح"}</strong><small>طلبان أو أكثر في الفترة الحالية</small></article>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <article className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">معدل الاحتفاظ</p><strong className="text-xl">{customerRetention.retentionRate === null ? "غير متاح" : customerRetention.retentionRate.toFixed(1) + "%"}</strong><p className="text-xs text-muted-foreground">من عملاء الفترة السابقة</p></article>
+                  <article className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">معدل تكرار الشراء</p><strong className="text-xl">{customerRetention.repeatPurchaseRate === null ? "غير متاح" : customerRetention.repeatPurchaseRate.toFixed(1) + "%"}</strong><p className="text-xs text-muted-foreground">من العملاء النشطين حالياً</p></article>
+                  <article className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">متوسط الطلبات لكل عميل نشط</p><strong className="text-xl">{customerRetention.averageOrdersPerActiveCustomer === null ? "غير متاح" : customerRetention.averageOrdersPerActiveCustomer.toFixed(2)}</strong><p className="text-xs text-muted-foreground">طلب لكل عميل نشط</p></article>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-5">
+                  {[
+                    ["نشط خلال 30 يوماً", customerRetention.activity.active30Days],
+                    ["فتور 31–60 يوماً", customerRetention.activity.cooling31To60Days],
+                    ["معرض للخمول 61–90", customerRetention.activity.atRisk61To90Days],
+                    ["خامل أكثر من 90", customerRetention.activity.inactiveOver90Days],
+                    ["تاريخ آخر طلب غير متاح", customerRetention.activity.noOrderDate],
+                  ].map(([label, value]) => (
+                    <article key={String(label)} className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <strong className="text-lg">{value === null ? "غير متاح" : value}</strong>
+                    </article>
+                  ))}
+                </div>
+                <p className="report-note">الفترة الحالية: {customerRetention.period.from} — {customerRetention.period.to} · السابقة: {customerRetention.previousPeriod.from} — {customerRetention.previousPeriod.to} · اللقطة: {customerRetention.asOf}. لم يرسل مصدر الاحتفاظ مبيعات أو أرصدة أو أسعاراً؛ لذلك يظل تركيز المبيعات حسب العميل خارج الحساب.</p>
+                {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
+              </>
+            ) : null}
+          </section>
 
           {!loading && data ? (
             <>
