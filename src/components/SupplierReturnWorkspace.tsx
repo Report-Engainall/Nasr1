@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ClipboardList, PackageMinus, RefreshCw, Send } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { SupplierReturnDocumentActions } from "@/components/SupplierReturnDocumentActions";
 import {
   createSupplierReturn,
   fetchSupplierReturns,
@@ -235,13 +236,16 @@ export function SupplierReturnWorkspace() {
                 </div>
                 <p className="po-muted">الكمية المرتجعة: {item.items.reduce((sum, line) => sum + line.quantityReturned, 0).toLocaleString("ar-YE")} · تكلفة المصدر: {costText(item.totalCost, item.currency)}</p>
                 <p className="po-muted">السبب: {item.reason} · تاريخ الإنشاء: {dateText(item.createdAt)}</p>
-                {item.status === "draft" ? (
-                  <button type="button" className="btn primary btn-sm" onClick={() => void postDraft(item)} disabled={busy}>
-                    <Send size={14} /> ترحيل المرتجع وخصم المتاح
-                  </button>
-                ) : (
-                  <p className="po-muted">تاريخ الترحيل: {item.postedAt ? dateText(item.postedAt) : "غير مسجل"}. تتم مطابقة الإشعار الدائن من خلال مهمة المحاسبة المنفصلة.</p>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <SupplierReturnDocumentActions supplierReturn={item} />
+                  {item.status === "draft" ? (
+                    <button type="button" className="btn primary btn-sm" onClick={() => void postDraft(item)} disabled={busy}>
+                      <Send size={14} /> ترحيل المرتجع وخصم المتاح
+                    </button>
+                  ) : (
+                    <p className="po-muted">تاريخ الترحيل: {item.postedAt ? dateText(item.postedAt) : "غير مسجل"}. تتم مطابقة الإشعار الدائن من خلال مهمة المحاسبة المنفصلة.</p>
+                  )}
+                </div>
               </article>
             )) : <p className="po-muted">لا توجد مرتجعات موردين مسجلة.</p>
           }
