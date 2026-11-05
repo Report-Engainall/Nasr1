@@ -1,3 +1,28 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-GROWTH-OPPORTUNITY-RADAR-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Base code SHA: `52ef0b3f92ea5cd063b78eca16a95e92dc8d7a11`.
+- Product code SHA after delivery and evidence hardening: `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+- Task: `REF-GROWTH-OPPORTUNITY-RADAR-001`, aligned to section 50 (رادار فرص النمو المربحة) of the canonical merchant-intelligence specification.
+- P3-owned implementation:
+  - `src/lib/intelligence/growth-opportunities.ts`
+  - `src/components/intelligence/GrowthOpportunityRadar.tsx`
+  - exports in `src/lib/intelligence/index.ts` and `src/components/intelligence/index.ts`
+  - P2 aggregate and P1 component contracts updated under `docs/execution/contracts/`.
+- Implemented five deterministic signal classes: unconverted quotes, demand for unavailable products, customer activity decline, repeat purchase and product performance change.
+- Evidence policy: VERIFIED + COMPLETE + ACCEPTABLE metrics only; unique source/evidence IDs; exact as-of; source timestamps no later than as-of; same currency/UOM; adjacent equal-length periods; minimum sample thresholds; withheld reasons for missing, ambiguous, stale, incomplete or non-comparable evidence. Customer decline is expressed as a negative period-over-period change; no conversion probability, lost-profit or causal claim is invented.
+- Versioned thresholds: at least 3 quotes; at least 5 unavailable searches across 3 distinct searchers; at least 3 prior customer orders and a 30% decline; at least 2 repeat orders; at least 5 product transactions in each equal-length period and a 20% trend threshold. Thresholds are explicit policy defaults, not hidden scores.
+- UI component exposes source evidence, sample size, current/baseline periods, as-of date and optional historical source amount (never labelled projected profit). Navigation callback only; no task, price, purchase, stock or accounting mutation.
+- Main commits: `40dbab10982faefc64e35901d03eb4de0b4b5df3` (feature) and `7736d661746c5c663fa0b55d468b42a93c64fa2c` (comparison/evidence hardening).
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Not run by the current product-body instruction: unit tests, build, lint, typecheck, CI, browser/E2E, database migration/application, Bolt Preview or production. No PASS is claimed.
+- Integration boundaries: P2 must supply the five tenant-scoped aggregate signal families using the updated P3 aggregate contract. P1 must mount `GrowthOpportunityRadar` in the existing intelligence/decision surface and wire `onOpenRecord` to authorized source routes. Both can proceed in their owned paths without modifying P3 engine files.
+- Cost/operations: no paid provider/dependency, no Vercel action/credit, no production write or live external integration.
+- Next P3 action after the P1/P2 handoff: implement section 51 (خريطة صحة العمل ورأس المال المحجوز) by composing verified liquidity, cashflow, dead-stock, replenishment and source-settlement snapshots without double-counting overlapping capital.
+- Sequential BODY-COMPLETION-ON-MAIN-018 supplier-finance UI handoff remains active and unchanged; this parallel P3 delivery does not take ownership of P1 supplier components or P2 finance paths.
+
+---
+
 ## P3 PRODUCT CHECKPOINT OVERRIDE — 2026-11-05 — P3-ROLE-TASK-ATTENTION-001
 
 - **Product code SHA:** `34b9c401d87ed71d6c882a42349f491b249e1df4` on official `main`; subsequent documentation commits do not change the product code.

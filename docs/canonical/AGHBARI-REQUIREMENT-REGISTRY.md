@@ -22,6 +22,14 @@ These are stable requirement definitions; the live execution cursor remains excl
 - Acceptance mappings: `DLV-007-INVENTORY-REPLENISHMENT-PURCHASE-DRAFT-001`, `DLV-007-SUPPLIER-QUOTE-COMPARISON-001` and `DLV-007-SUPPLIER-RETURN-001`. All remain `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until the intended Bolt database applies migrations and the later connected acceptance is performed.
 
 
+
+## Added requirement — Growth Opportunity Radar — 2026-11-05
+
+- `REF-GROWTH-OPPORTUNITY-RADAR-001` — Section 50 of the canonical merchant-intelligence specification. Build deterministic opportunities from tenant-safe source metrics for unconverted quotes, unavailable-product demand, customer activity decline, repeat purchase and product performance change. Enforce verified/complete/acceptable evidence, unique evidence IDs, exact as-of, source timestamp, matching currency/UOM, equal-length adjacent periods and explicit minimum sample thresholds. Unknown or incomplete inputs are withheld, not converted to zero.
+- Amounts from source records are historical values only; no projected profit, lost revenue, conversion probability, FX or causal claim is allowed without a separately approved formula and complete inputs. Suggestions do not create tasks or mutate prices, purchasing, inventory, customer communications or accounting.
+- Ownership: P3 deterministic engine/component; P2 authenticated tenant-scoped aggregate sources; P1 existing intelligence surface and authorized record navigation. Acceptance matrix row `REF-GROWTH-OPPORTUNITY-RADAR-001`; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` at code SHA `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+
+
 ---
 
 ## Historical registry snapshots — retained for traceability

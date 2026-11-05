@@ -1,3 +1,12 @@
+## 2026-11-05 — P3 Growth Opportunity Radar — code SHA `7736d661746c5c663fa0b55d468b42a93c64fa2c`
+
+- Task: `REF-GROWTH-OPPORTUNITY-RADAR-001`, canonical merchant-intelligence specification section 50.
+- Base SHA `52ef0b3f92ea5cd063b78eca16a95e92dc8d7a11`; feature commit `40dbab10982faefc64e35901d03eb4de0b4b5df3`; evidence/comparison hardening commit `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+- Paths: `src/lib/intelligence/growth-opportunities.ts`, `src/components/intelligence/GrowthOpportunityRadar.tsx`, both intelligence barrel exports, `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`, `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
+- Product: five deterministic growth/retention/demand/trend signal classes; source evidence passport validation; unique metric/evidence requirements; minimum samples; period, currency and UOM compatibility; withheld reasons; reusable RTL display component. No provider, model, paid dependency, or side-effectful action.
+- Exact acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN by instruction; no PASS asserted.
+- P2 must supply the five metric families from authenticated same-tenant sources. P1 must mount the component and bind authorized record destinations. The sequential supplier-finance UI work remains separate.
+
 ## 2026-11-05 — Exact-SHA Core + P2 final acceptance — `45ca19c47a985b2d12d23c846ba068222a4e17ce`
 
 - Current main at final documentation update: `9cb9d23ee1149fbe2a66988da48a6c076c8e15fe`; this is a documentation-only descendant of tested code `45ca19c47a985b2d12d23c846ba068222a4e17ce` (five documentation files changed; no application/test/workflow code changed after CI).
