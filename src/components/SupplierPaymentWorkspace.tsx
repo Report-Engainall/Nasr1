@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, Banknote, CheckCircle2, FileText, Landmark, Plus, RefreshCw, Send, ShieldCheck, Wallet, XCircle } from "lucide-react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, Banknote, CheckCircle2, FileText, Landmark, Plus, Printer, RefreshCw, Send, ShieldCheck, Wallet, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchSupplierAccountActivity } from "@/lib/supplier-account-activity";
+import { projectSupplierPaymentVoucherPrintDocument, type SupplierPaymentVoucherPrintDocument } from "@/lib/supplier-payment-voucher-print";
+import { SupplierPaymentVoucherPrintSheet } from "@/components/SupplierPaymentVoucherPrintSheet";
 import {
   fetchSupplierPaymentWorkspace,
   prepareSupplierPaymentJournalDraft,
@@ -150,6 +153,7 @@ export function SupplierPaymentWorkspace({ accounts, onRefresh }: Props) {
   const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, ReconciliationDraft>>({});
   const [voidReasons, setVoidReasons] = useState<Record<string, string>>({});
   const [showVoids, setShowVoids] = useState(false);
+  const [printDocument, setPrintDocument] = useState<SupplierPaymentVoucherPrintDocument | null>(null);
 
   const pendingPayment = useRef<PaymentFingerprint | null>(null);
   const pendingEvidence = useRef<Record<string, PaymentFingerprint>>({});
@@ -198,6 +202,40 @@ export function SupplierPaymentWorkspace({ accounts, onRefresh }: Props) {
     if (!canManageFinance) { setLoading(false); return; }
     void reload().catch(() => undefined);
   }, [ready, canManageFinance, reload]);
+
+  useEffect(() => {
+    if (!printDocument || typeof window === "undefined" ||
+        typeof document === "undefined" || typeof window.print !== "function") return;
+    const body = document.body;
+    const previousMode = body.getAttribute("data-print-mode");
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute("data-print-mode");
+      else body.setAttribute("data-print-mode", previousMode);
+      window.removeEventListener("afterprint", restore);
+      setPrintDocument(null);
+    };
+    body.setAttribute("data-print-mode", "supplier-payment-voucher");
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => {
+      try {
+        window.print();
+      } catch {
+        setError("تعذر فتح نافذة طباعة سند المورد.");
+        restore();
+      }
+    }, 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", restore);
+      if (!restored && body.getAttribute("data-print-mode") === "supplier-payment-voucher") {
+        if (previousMode === null) body.removeAttribute("data-print-mode");
+        else body.setAttribute("data-print-mode", previousMode);
+      }
+    };
+  }, [printDocument]);
 
   const activeAssetAccounts = useMemo(() =>
     accounts.filter((account) => account.is_active && account.account_type === "asset"),
@@ -509,11 +547,25 @@ export function SupplierPaymentWorkspace({ accounts, onRefresh }: Props) {
   const history = payload?.payments ?? [];
   const visiblePayments = showVoids ? history : history.filter((payment) => payment.status !== "void");
   const selectedSupplierName = payload?.suppliers.find((supplier) => supplier.id === supplierId)?.name ?? "";
+
+  function printPaymentVoucher(payment: SupplierPaymentHistory) {
+    setError("");
+    if (!payload) {
+      setError("لا توجد لقطة مصدرية محفوظة لطباعة سند المورد.");
+      return;
+    }
+    try {
+      setPrintDocument(projectSupplierPaymentVoucherPrintDocument(payload, payment));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تجهيز سند طباعة المورد.");
+    }
+  }
   const canSavePayment = !loading && !saving && Boolean(selectedSettlement && selectedPayableAccount && supplierId)
     && allocationRows.length > 0 && !allocationError && allocationTotal > 0n
     && paymentReference.trim().length >= 3 && paymentDate <= today();
 
   return (
+    <>
     <section dir="rtl" aria-label="دورة سداد وتسوية الموردين" style={{ display: "grid", gap: 13, marginBlock: 18, minWidth: 0 }}>
       <header style={panel}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 9 }}>
@@ -802,6 +854,9 @@ export function SupplierPaymentWorkspace({ accounts, onRefresh }: Props) {
                   {payment.journalStatus === "posted" && (
                     <p role="status" style={{ ...muted, color: "#17684d" }}>القيد مرحّل في دفتر الأستاذ. هذا هو الحد الذي تُحتسب عنده الدفعة ضمن المسدد من المستحق.</p>
                   )}
+                  <button type="button" style={button} onClick={() => printPaymentVoucher(payment)} disabled={loading || saving || !payload}>
+                    <Printer size={14} /> طباعة سند الصرف
+                  </button>
 
                   {canVoid && !isVoided && (
                     <details style={{ borderTop: "1px solid var(--border, #e5eaed)", paddingTop: 8 }}>
@@ -826,5 +881,9 @@ export function SupplierPaymentWorkspace({ accounts, onRefresh }: Props) {
         </div>
       </section>
     </section>
+    {printDocument && typeof document !== "undefined"
+      ? createPortal(<SupplierPaymentVoucherPrintSheet document={printDocument} />, document.body)
+      : null}
+    </>
   );
 }
