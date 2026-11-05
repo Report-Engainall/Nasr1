@@ -1,4 +1,24 @@
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-028
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-029
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Latest P1 product-code SHA: `82424db8079c512f84e87b69715453fe24b6330b`.
+- Only P1 and P3 implementer ownership remains. No P3-owned engine, DTO, client or migration file was edited in this delivery.
+
+## BODY-029 — Task Performance Scorecard workspace mount
+
+- Mounted the existing P3 `TaskPerformanceScorecard` once in `src/components/intelligence/IntelligenceWorkspace.tsx`.
+- Connected only `fetchTaskPerformanceScorecard()`; tenant and visible-role scope remain resolved by the server RPC. No direct `ai_tasks` / `audit_logs` query, tenant ID, task identifier, title or assignee metadata was added to the UI.
+- Added generation-safe loading/error handling and real refresh/retry. Maps source `UNAVAILABLE` (migration not applied) to the component's unavailable state, permission denial and other errors to error state, and passes the validated server DTO only when the fetch client returns `ok: true`.
+- Preserved the existing admin/manager intelligence-workspace gate and the scorecard's explicit limitations for partial reopen history and unavailable measures.
+- Source commit: `82424db8079c512f84e87b69715453fe24b6330b`; changed file: `src/components/intelligence/IntelligenceWorkspace.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. P3 migration `20261106060000_intelligence_task_performance_scorecard.sql` and related audit-window migrations remain source-only until Bolt applies them. No tests/build/lint/CI/browser/E2E/database/Bolt/Preview/Vercel operation was run; no runtime PASS is claimed. No Vercel credit, new dependency or paid provider used.
+
+## Next P1 action
+Continue the next uncovered non-intelligence product capability; preserve the existing P3 engine and its evidence contracts.
+
+---
+
+# Historical P1 checkpoint — BODY-COMPLETION-ON-MAIN-028
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Product code SHA: `c24cbe1a4f324dfefd4418632de133eb23e303b0`.
