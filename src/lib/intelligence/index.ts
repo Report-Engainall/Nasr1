@@ -23,3 +23,5 @@ export * from "./process-bottlenecks";
 export * from "./process-bottlenecks-client";
 export * from "./commerce-policy-governance-client";
 export * from "./supplier-performance";
+export * from "./natural-language-assistant";
+export * from "./natural-language-assistant-client";

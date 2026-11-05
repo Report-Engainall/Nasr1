@@ -21,3 +21,4 @@ export type { ShiftOperationsCenterProps } from "./ShiftOperationsCenter";
 export * from "./ProcessBottlenecksPanel";
 export { CommercePolicyGovernancePanel } from "./CommercePolicyGovernancePanel";
 export * from "./SupplierPerformancePanel";
+export * from "./NaturalLanguageAssistant";
