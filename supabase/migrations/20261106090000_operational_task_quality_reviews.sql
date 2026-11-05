@@ -279,17 +279,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='decision outcome is unavailable for this organization';
   END IF;
 
-  INSERT INTO public.operational_task_quality_events(
-    organization_id,task_id,decision_outcome_id,review_type,actionability,disposition,alert_verdict,
-    reason_code,reason_note,cause_key,task_updated_at,task_status_snapshot,task_role_snapshot,
-    task_type_snapshot,actor_profile_id,actor_role,event_id,idempotency_key,command_payload
-  ) VALUES (
-    v_org,p_task_id,v_decision_outcome_id,p_review_type,v_actionability,v_disposition,v_alert_verdict,
-    v_reason_code,v_reason_note,v_reason_code,v_task.updated_at,v_task.status,v_task.task_role,
-    coalesce(nullif(v_task.task_type,''),'UNCLASSIFIED'),v_actor,v_role,
-    pg_catalog.btrim(p_event_id),pg_catalog.btrim(p_idempotency_key),v_payload
-  ) RETURNING id INTO v_event;
-
+  v_event:=gen_random_uuid();
   v_event_snapshot:=pg_catalog.jsonb_build_object(
     'id',v_event,'eventId',pg_catalog.btrim(p_event_id),'taskId',p_task_id,
     'decisionOutcomeId',v_decision_outcome_id,'reviewType',p_review_type,
@@ -298,9 +288,16 @@ BEGIN
   );
   v_result:=pg_catalog.jsonb_build_object('ok',true,'duplicate',false,'event',v_event_snapshot);
 
-  UPDATE public.operational_task_quality_events
-  SET result_snapshot=v_result
-  WHERE id=v_event AND organization_id=v_org;
+  INSERT INTO public.operational_task_quality_events(
+    id,organization_id,task_id,decision_outcome_id,review_type,actionability,disposition,alert_verdict,
+    reason_code,reason_note,cause_key,task_updated_at,task_status_snapshot,task_role_snapshot,
+    task_type_snapshot,actor_profile_id,actor_role,event_id,idempotency_key,command_payload,result_snapshot
+  ) VALUES (
+    v_event,v_org,p_task_id,v_decision_outcome_id,p_review_type,v_actionability,v_disposition,v_alert_verdict,
+    v_reason_code,v_reason_note,v_reason_code,v_task.updated_at,v_task.status,v_task.task_role,
+    coalesce(nullif(v_task.task_type,''),'UNCLASSIFIED'),v_actor,v_role,
+    pg_catalog.btrim(p_event_id),pg_catalog.btrim(p_idempotency_key),v_payload,v_result
+  );
 
   INSERT INTO public.audit_logs(
     organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
