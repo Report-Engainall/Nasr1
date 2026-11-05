@@ -1,3 +1,45 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — REPLENISHMENT PURCHASE DRAFT + SUPPLIER QUOTE COMPARISON
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Main head before this checkpoint write: `c6247c4702ba7aff93322259a50b6bdbc472d2b5`.
+- Completed action: `BODY-COMPLETION-ON-MAIN-013`, building on `BODY-COMPLETION-ON-MAIN-012` open-purchase-order netting. Supplier quote comparison was delivered as an adjacent procurement workflow. All work was committed sequentially to official `main`; no branch, PR, secondary repository or Vercel operation was used.
+
+## Product functionality delivered
+
+### Evidence-backed replenishment → draft purchase order
+- Added `src/components/intelligence/ReplenishmentPurchaseDraft.tsx` and connected it to `src/components/intelligence/ReplenishmentCard.tsx` and `src/components/intelligence/IntelligenceWorkspace.tsx`.
+- Selection is limited to `VERIFIED` + `RECOMMEND` rows with positive quantity and a known unit. The component resolves `productRef` to the current active staff catalog, checks exact UOM equality, and excludes missing/inactive/mismatched rows with a visible reason.
+- Recommended quantities are rounded upward to the persisted 0.001 precision, displayed beside the source recommendation and remain editable before confirmation.
+- Admin/manager must explicitly choose an active supplier and active warehouse. The component reuses the existing typed `createPurchaseOrder` client and idempotent server RPC. Purchase cost remains NULL without a verified source cost.
+- Output is a draft only. It is not submitted or sent to the supplier and causes no stock movement, journal, payable or payment mutation.
+
+### Supplier offer capture, same-currency comparison and award
+- Added `supabase/migrations/20261105231000_supplier_quote_comparison.sql`. The migration uses a unique version timestamp; the earlier duplicate-prefix file `20261105230000_supplier_quote_comparison.sql` was deleted after the corrected path was created.
+- Added tenant-scoped `purchase_supplier_quotes` and `purchase_supplier_quote_items`, RLS with direct browser privileges revoked, admin/manager-only read/write RPCs, audit events, quote idempotency, expiry checks and row-locked award.
+- Currency is derived from `organizations.currency`; browser input cannot change it and FX is not inferred. The comparison groups same-product unit costs in the single organization base currency.
+- Added typed `src/lib/supplier-quotes.ts` and `src/components/SupplierQuoteWorkspace.tsx`, mounted inside the existing Purchase Orders screen.
+- Awarding a current offer atomically calls the existing `create_purchase_order` contract using a stable quote-derived idempotency key and links exactly one draft PO. A retry returns that same PO. It does not submit the order, message the supplier, receive stock or post a journal.
+
+## Main delivery and acceptance records
+- Supplier quote migration final path: `supabase/migrations/20261105231000_supplier_quote_comparison.sql`, create/fix commit `67ab6de1093e6a685072af5744a34c5a63f4e24e`; duplicate-version removal commit `413349dca667b60f32ca104c575e01684f7165d3`.
+- Supplier quote client: `b881e204d08c88317dfb41696e5171e683e649bb`; comparison UI: `551e45f8b875829192caead6b0bd0e174385c31e`; Purchase Orders mount: `107af16be05f8e6335a172f55f90aa2471ed09b2`.
+- Replenishment draft component: `65e628e3479ef8aa5aa317b47c493299d657bdaf`; card wiring: `1676e0bfda73ec65232789f0bf48041d1bd13d64`; precision: `ad9d46f31256746e41e1df8ba5d6b61f66f0f79a`; manager capability wiring: `7adfba306a611bfb32bcd42956e506503cd7d1fc`; final UI corrections: `28886f27598c83a45386c4523a4a8569c095b8a3`, `70d89e6b8f2e05163cd62b70f1702b52408eaeef`.
+- Acceptance matrix update: `2b960cf6e285cb725ae2094d4bb011bd1d3779da`; requirement registry: `fba37fe382dab66b8472de75cdde47bd1c02022d`; execution report: `c6247c4702ba7aff93322259a50b6bdbc472d2b5`.
+- New acceptance leaves: `DLV-007-INVENTORY-REPLENISHMENT-PURCHASE-DRAFT-001` and `DLV-007-SUPPLIER-QUOTE-COMPARISON-001`; both remain `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery and acceptance boundary
+- Source and documentation are committed to official GitHub `main`.
+- The new supplier-quote migration has **not** been applied to any local, hosted, production or Bolt database. No database was connected or changed.
+- Per the current implementation instruction, no tests, build, lint, typecheck, CI, browser/E2E, Bolt Preview or production checks were run for this batch. No PASS or runtime acceptance is claimed.
+- No Vercel build, preview, deployment or free-credit use occurred. No paid dependency or provider was added.
+- GitHub commits are the source delivery and native notification surface. Actual push/inbox notification delivery depends on repository watch/notification settings and is not claimed without a GitHub delivery receipt.
+
+## Next product action
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-014`.
+- Build supplier-return processing from original purchase receipts: select source receipt lines and returnable remaining quantities; enforce same-tenant manager authorization; persist one idempotent/audited supplier-return document; write one stock-decrease movement; and link a payable credit/financial entry only from proven receipt cost and approved currency/account mappings using the existing authorized accounting lifecycle. Do not invent FX, cost basis, supplier credit, tax or direct journal posting.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — REPLENISHMENT OPEN PURCHASE-ORDER NETTING
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
