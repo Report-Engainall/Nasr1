@@ -1181,3 +1181,130 @@
     font-size: 6.5pt;
   }
 }
+
+
+.supplier-payment-voucher-print-sheet { display: none; page: aghbariSupplierPaymentVoucher; }
+@page aghbariSupplierPaymentVoucher { size: A4 portrait; margin: 12mm; }
+@media print {
+  body[data-print-mode="supplier-payment-voucher"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body[data-print-mode="supplier-payment-voucher"] > :not(.supplier-payment-voucher-print-sheet) {
+    display: none !important;
+  }
+  body[data-print-mode="supplier-payment-voucher"] * { visibility: hidden !important; }
+  body[data-print-mode="supplier-payment-voucher"] .supplier-payment-voucher-print-sheet,
+  body[data-print-mode="supplier-payment-voucher"] .supplier-payment-voucher-print-sheet * {
+    visibility: visible !important;
+  }
+  body[data-print-mode="supplier-payment-voucher"] .supplier-payment-voucher-print-sheet {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: rtl !important;
+    text-align: right !important;
+    color: #17221c !important;
+    background: #fff !important;
+    font-family: "Noto Sans Arabic", Arial, sans-serif !important;
+    font-size: 9pt !important;
+    line-height: 1.6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .supplier-payment-voucher-print-header {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #174a37;
+  }
+  .supplier-payment-voucher-print-sheet h1 {
+    margin: 0 0 6px;
+    color: #174a37 !important;
+    font-size: 17pt;
+  }
+  .supplier-payment-voucher-print-sheet h2 {
+    margin: 3px 0 7px;
+    color: #174a37 !important;
+    font-size: 13pt;
+  }
+  .supplier-payment-voucher-print-sheet h3 {
+    margin: 0 0 8px;
+    color: #174a37 !important;
+    font-size: 10pt;
+  }
+  .supplier-payment-voucher-print-sheet p { margin: 3px 0; }
+  .supplier-payment-voucher-print-generated {
+    display: grid;
+    gap: 3px;
+    text-align: left;
+    font-size: 7pt;
+    white-space: nowrap;
+  }
+  .supplier-payment-voucher-print-section {
+    margin-top: 14px;
+    break-inside: avoid;
+  }
+  .supplier-payment-voucher-print-grid {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 7px 12px;
+  }
+  .supplier-payment-voucher-print-grid > div {
+    display: grid;
+    gap: 3px;
+    padding: 7px 9px;
+    border: 1px solid #cbd5cf;
+    break-inside: avoid;
+  }
+  .supplier-payment-voucher-print-grid span {
+    color: #526057 !important;
+    font-size: 7pt;
+  }
+  .supplier-payment-voucher-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+    font-size: 8pt;
+  }
+  .supplier-payment-voucher-print-sheet th,
+  .supplier-payment-voucher-print-sheet td {
+    padding: 7px 9px;
+    border: 1px solid #cbd5cf;
+    text-align: right;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  .supplier-payment-voucher-print-sheet th {
+    width: 32%;
+    color: #174a37 !important;
+    background: #edf4ef !important;
+    font-weight: 800;
+  }
+  .supplier-payment-voucher-print-signatures {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 22px;
+    margin-top: 34px;
+    break-inside: avoid;
+  }
+  .supplier-payment-voucher-print-signatures > div {
+    display: grid;
+    gap: 15px;
+    padding-top: 7px;
+    border-top: 1px solid #64746b;
+  }
+  .supplier-payment-voucher-print-footer {
+    margin-top: 20px;
+    padding-top: 8px;
+    border-top: 1px solid #cbd5cf;
+    color: #526057 !important;
+    font-size: 7pt;
+  }
+}
