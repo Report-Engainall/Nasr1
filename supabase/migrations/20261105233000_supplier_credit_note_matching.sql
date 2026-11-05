@@ -429,11 +429,20 @@ BEGIN
     FROM public.purchase_supplier_credit_notes n
    WHERE n.id=p_credit_note_id AND n.organization_id=v_org
    FOR UPDATE;
-  IF NOT FOUND OR v_note.status<>'variance_pending' THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='only a pending supplier credit note variance can be reviewed';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='supplier credit note is not available in this organization';
   END IF;
 
   v_next_status:=CASE WHEN p_approve THEN 'variance_approved' ELSE 'variance_rejected' END;
+  IF v_note.status IN ('variance_approved','variance_rejected') THEN
+    IF v_note.status=v_next_status AND v_note.variance_review_reason=v_reason THEN
+      RETURN pg_catalog.jsonb_build_object('credit_note_id',v_note.id,'status',v_note.status,'replayed',true);
+    END IF;
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier credit note variance already has a different final decision';
+  END IF;
+  IF v_note.status<>'variance_pending' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='only a pending supplier credit note variance can be reviewed';
+  END IF;
   UPDATE public.purchase_supplier_credit_notes
      SET status=v_next_status,variance_review_reason=v_reason,
          variance_reviewed_by_profile_id=v_actor,variance_reviewed_at=pg_catalog.now(),updated_at=pg_catalog.now()
@@ -559,8 +568,19 @@ BEGIN
     FROM public.accounting_journal_entries j
    WHERE j.organization_id=v_org AND j.id=v_receipt_posting.journal_entry_id
    FOR UPDATE;
-  IF NOT FOUND OR v_source_journal.status<>'posted' OR v_source_journal.source_type<>'purchase_receipt' THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='original source receipt journal must exist and be posted before credit-note handoff';
+  IF NOT FOUND OR v_source_journal.status<>'posted' OR v_source_journal.source_type<>'purchase_receipt'
+     OR v_source_journal.source_reference IS DISTINCT FROM (
+       SELECT pr.receipt_number FROM public.purchase_receipts pr
+        WHERE pr.id=v_return.source_receipt_id AND pr.organization_id=v_org
+     ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='original source receipt journal must exist, reference the same receipt and be posted before credit-note handoff';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.accounting_journal_reversals reversal
+     WHERE reversal.organization_id=v_org
+       AND reversal.original_journal_entry_id=v_source_journal.id
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='original source receipt journal has a reversal record; credit-note accounting handoff is blocked for reconciliation';
   END IF;
 
   SELECT a.account_type INTO v_inventory_type
