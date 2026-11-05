@@ -341,6 +341,29 @@ BEGIN
     END IF;
   END LOOP;
 
+  IF EXISTS (
+    SELECT 1
+      FROM public.purchase_supplier_invoice_lines line
+      JOIN public.purchase_receipt_items source_item
+        ON source_item.id=line.receipt_item_id AND source_item.organization_id=line.organization_id
+      JOIN public.purchase_receipts receipt
+        ON receipt.id=source_item.receipt_id AND receipt.organization_id=source_item.organization_id
+      JOIN public.purchase_orders purchase_order
+        ON purchase_order.id=receipt.purchase_order_id AND purchase_order.organization_id=receipt.organization_id
+      JOIN public.purchase_order_items order_item
+        ON order_item.id=source_item.purchase_order_item_id AND order_item.organization_id=source_item.organization_id
+     WHERE line.organization_id=v_org AND line.invoice_id=v_invoice.id
+       AND (line.receipt_id IS DISTINCT FROM receipt.id
+         OR line.purchase_order_item_id IS DISTINCT FROM source_item.purchase_order_item_id
+         OR line.source_received_quantity IS DISTINCT FROM source_item.quantity_received
+         OR line.received_unit_cost IS DISTINCT FROM source_item.unit_cost
+         OR line.ordered_unit_cost IS DISTINCT FROM order_item.unit_cost
+         OR receipt.purchase_order_id IS DISTINCT FROM v_invoice.purchase_order_id
+         OR purchase_order.supplier_id IS DISTINCT FROM v_invoice.supplier_id)
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='saved supplier invoice line no longer matches its original purchase-order and physical receipt snapshot';
+  END IF;
+
   SELECT COALESCE(sum(round(l.invoiced_quantity*l.received_unit_cost,2)),0)::numeric(18,2),
          COALESCE(sum(l.actual_line_total),0)::numeric(18,2)
     INTO v_source_merchandise_amount,v_invoice_line_total
@@ -496,7 +519,12 @@ BEGIN
           'journal_entry_number',v_journal.entry_number::text,
           'journal_status',v_journal.status,
           'handoff_sequence',v_latest.handoff_sequence,
-          'accounting_status',CASE WHEN v_journal.status='posted' THEN 'journal_posted' ELSE 'journal_draft_created' END,
+          'accounting_status',CASE
+            WHEN EXISTS (SELECT 1 FROM public.accounting_journal_reversals reversal
+              WHERE reversal.organization_id=v_org AND reversal.original_journal_entry_id=v_journal.id)
+              THEN 'journal_reversed'
+            WHEN v_journal.status='posted' THEN 'journal_posted'
+            ELSE 'journal_draft_created' END,
           'replayed',true
         );
       END IF;
