@@ -1,6 +1,9 @@
 # PARALLEL P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
 
 - Repository `Report-Engainall/Nasr1`; only branch `main`.
+- Exact product code cursor: `f2c10b37031cba3551e0f0acef5d868afb3a756e`.
+- Final P3 blobs: `src/lib/intelligence/decision-memory.ts` = `8f673ed4f7ec265212ddd1326d8a87d64bd44c50`; `src/components/intelligence/DecisionMemoryBook.tsx` = `b4289972ab6ae0293a69bad7cc982f642ea1efdf`.
+- The component is mounted in `IntelligenceWorkspace.tsx`. The current P2 DTO still supplies no immutable memory snapshots; the workspace intentionally passes `snapshots: []` and renders current decisions as PARTIAL/UNVERIFIED. Do not mark complete until P2 delivers the snapshot DTO.
 - Canonical reference: section 52 — decision memory and learning.
 - P3 files committed: `src/lib/intelligence/decision-memory.ts`, `src/components/intelligence/DecisionMemoryBook.tsx`, P3 library/component exports, and the mount inside `IntelligenceWorkspace.tsx`.
 - Engine validates versioned decision snapshots, evidence-bound facts, labelled opinions/hypotheses and assumptions, alternatives/chosen option, action/review state, lessons, append-only corrections, and comparable expected/actual metric snapshots. It checks actual metric agreement with the existing decision lifecycle summary and withholds mismatched formula/unit/currency/period/as-of comparisons.
@@ -14,7 +17,9 @@
 # PARALLEL P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-BUSINESS-HEALTH-MAP-001
 
 - Repo `Report-Engainall/Nasr1`, branch `main`; base `4f2ebcee064f399b53c15f2ed919a8395e939bd7`.
-- Product commit `d32a833490a79b5bbc60f866ba258d18ad1e7107`; evidence hardening `f924e0cc2288866a99ae2faad68b069f64335e41`.
+- Initial product commit `d32a833490a79b5bbc60f866ba258d18ad1e7107`; evidence hardening `f924e0cc2288866a99ae2faad68b069f64335e41`.
+- Final integrated P3 code cursor `f2c10b37031cba3551e0f0acef5d868afb3a756e`; final blobs: engine `755a3a75595d12e2a3d2fa2ccf2975a228800c19`, component `f52738ce674b7fc8c07d9481f7f350efaf81744d`.
+- The component is mounted in the existing intelligence workspace and exposes each source's own period/as-of; mismatched scopes are not compared or silently summed.
 - Delivered canonical section 51 using P3 intelligence paths only: `business-health-map.ts`, `BusinessHealthMap.tsx`, exports, P1/P2 contracts.
 - Composes existing verified liquidity, cashflow, dead-stock, replenishment and customer-retention engines. Does not requery or mutate financial/stock records.
 - Prevents double counting: expected collections/due obligations already in net liquidity; stagnant stock is non-cash; same exposure requires matching amount plus shared evidence; 7/30/90-day cashflow horizons remain distinct; no grand capital total without proof of disjoint populations.
@@ -29,7 +34,9 @@
 # PARALLEL P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-GROWTH-OPPORTUNITY-RADAR-001
 
 - Repository: `Report-Engainall/Nasr1`; only branch: `main`.
-- Base code SHA: `52ef0b3f92ea5cd063b78eca16a95e92dc8d7a11`; final P3 code SHA: `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+- Base code SHA: `52ef0b3f92ea5cd063b78eca16a95e92dc8d7a11`; initial feature/hardening SHA: `7736d661746c5c663fa0b55d468b42a93c64fa2c`.
+- Final integrated P3 code cursor: `f2c10b37031cba3551e0f0acef5d868afb3a756e`; final blobs: engine `c5ba2e2af3906c60bfff34ac8b6daad20fb1f98d`, component `dbb2b92c60c78e6009886d59320d65ffb1561c4b`.
+- Current connected aggregate provides customer repeat-purchase and decline signals; quote, unavailable-search and product-performance signals stay withheld until their source contracts are delivered.
 - Delivered `REF-GROWTH-OPPORTUNITY-RADAR-001` (canonical intelligence specification section 50): deterministic growth-opportunity engine plus reusable Arabic RTL display component.
 - Files: `src/lib/intelligence/growth-opportunities.ts`, `src/components/intelligence/GrowthOpportunityRadar.tsx`, their barrel exports, and the P3→P2 aggregate / P3→P1 component contracts.
 - Five signal families: unconverted quotes, unavailable-product demand, customer decline, repeat purchase and product performance. Only unique, source-backed, VERIFIED/COMPLETE/ACCEPTABLE metrics are admitted; same currency/UOM and comparable equal-length periods are mandatory. Incomplete signals are withheld with reason codes.
