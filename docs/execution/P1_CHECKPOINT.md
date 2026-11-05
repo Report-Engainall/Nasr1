@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-019 — SUPPLIER ACCOUNT ACTIVITY STATEMENT PRINT/XLSX
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Latest source commit at this checkpoint: `a21b0c42f052633bb85e0f7353ab4a369333ad03`.
+- P1/P3 are the only active implementers. P1 owns product-facing workspaces, typed UI integration and operational documents; P3 owns intelligence engines, evidence lineage, intelligence persistence and read DTOs. No P2 task or duplicate intelligence engine is created.
+- This delivery extends the existing finance-role supplier activity workspace. It does not add a new ledger or new payment model.
+
+## Delivered on main — BODY-019
+
+1. Added `src/lib/supplier-account-activity-print.ts` as a shared validated document projection. It excludes UUIDs and internal account/tenant/profile IDs, validates source type, page bounds, one-sided debit/credit rows, and balance-completeness semantics.
+2. Added `src/components/SupplierAccountActivityPrintSheet.tsx` and a scoped A4 landscape print mode. The same projection produces Arabic RTL content for print/Save-as-PDF.
+3. Added `src/lib/supplier-account-activity-xlsx.ts`: four sheets for report scope, currency totals, supplier summary and current-page journal details. Business text is written as literal inline strings; unknown values remain blank; currencies are not combined.
+4. Wired `تصدير Excel` and `طباعة / PDF` actions into `SupplierAccountActivityWorkspace.tsx`, retaining its existing admin/manager/accountant role gate, filters and paging.
+5. Explicitly discloses that journal details contain only the current page; the current payable is receipt-source-only, can be unknown when source coverage is incomplete, does not include supplier invoices outside the receipt-linked source model, and is not narrowed by the activity-date filter. Pending payments remain separate from posted liability reduction.
+
+## Source boundary
+
+- Reuses the existing read RPC defined/extended by `20261105234000_supplier_account_activity_statement.sql` and `20261105235000_supplier_payment_settlement.sql`; no additional DB migration or write path was added.
+- Source commits include projection `6abe366258f3ae82ef3429fdd4f8079361b10c42`, XLSX `5096ffb176abaf65410c11115320a4fda87ef434`, print sheet `bd3671775eba492ac06d9c20291515f4e3f55e08`, UI `9eb8d465d4d10b797de10d420a28ae359e0bcf02` + source-scope disclosure `a21b0c42f052633bb85e0f7353ab4a369333ad03`, and print CSS `bb4e033e6fadce6aad4032418a911fb850c044d7`.
+- Exact final blobs: projection `a149476b072981078330250cee9af83ff989dc3f`; print sheet `211fc103c2b187c2147ebdbf651579094b25c1ac`; XLSX `509afdcbfc3e0d85537557e5b71e69f59203f7b1`; workspace `01e42e71092ba2fc479eeec08e021932045f1489`; CSS `744b25751579c8a837bd68662d386d805a944c2e`.
+- Acceptance state: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Bolt New will perform connected DB/runtime and PDF/XLSX acceptance after sync. No tests, build, lint, CI, browser, E2E, migration application, Vercel preview/deployment or production operation was run; no PASS is claimed.
+- No Vercel credits or paid providers were used. GitHub commits are the delivery record; actual notification receipt depends on repository watch settings.
+
+## Next P1 body cursor
+
+Continue with the next uncovered non-intelligence product requirement from the canonical specification and acceptance matrix, without rebuilding supplier invoice/payment/statement surfaces or already-accepted role/template outputs. P3 continues its own intelligence sections independently.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-018 — SUPPLIER INVOICE ACCOUNTING + DOCUMENT OUTPUT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
