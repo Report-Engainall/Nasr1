@@ -645,6 +645,39 @@ export class StreamingCsvParser {
   }
 }
 
+/**
+ * Mirrors public.is_valid_import_quality_date(text) exactly for the local DQS preview.
+ * Empty/whitespace dates are treated as missing (not malformed); non-empty values
+ * must be real calendar dates in one of the server-supported formats.
+ */
+function isValidImportQualityDate(raw: unknown): boolean {
+  const value = raw === null || raw === undefined ? "" : String(raw).trim();
+  if (!value) return true;
+
+  let year: number;
+  let month: number;
+  let day: number;
+
+  const iso = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(value);
+  if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else {
+    const dayFirst = /^([0-9]{2})([/.-])([0-9]{2})\2([0-9]{4})$/.exec(value);
+    if (!dayFirst) return false;
+    day = Number(dayFirst[1]);
+    month = Number(dayFirst[3]);
+    year = Number(dayFirst[4]);
+  }
+
+  if (!Number.isInteger(year) || year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+  const daysInMonth = month === 2 ? (leap ? 29 : 28)
+    : [4, 6, 9, 11].includes(month) ? 30 : 31;
+  return day <= daysInMonth;
+}
+
 export type QualityBreakdown = {
   completeness: number;
   validity: number;
@@ -670,7 +703,7 @@ export class DataQualityAccumulator {
     this.requiredFieldCount += Math.max(this.requiredColumns.length, 1);
     const required = this.requiredColumns.length ? this.requiredColumns : [this.matchingKey];
     this.completeFields += required.filter((field) => String(row.data[field] ?? '').trim() !== '').length;
-    if (row.status !== 'rejected') this.validRows += 1;
+    if (row.status === 'valid') this.validRows += 1;
 
     const key = String(row.data[this.matchingKey] ?? '').trim();
     if (key) this.keys.add(key);
@@ -685,11 +718,8 @@ export class DataQualityAccumulator {
     });
     if (consistent) this.consistentRows += 1;
 
-    // PostgreSQL treats only NULL/empty as a missing date; whitespace is a malformed value.
-    // This component is date-format-only on the server and does not depend on the matching key.
-    const date = String(row.data.date ?? '');
-    const serverDatePattern = new RegExp('^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}[/.-][0-9]{2}[/.-][0-9]{4})$');
-    const dateOkay = date === '' || serverDatePattern.test(date);
+    // Keep exact parity with public.is_valid_import_quality_date(text), including leap years and whitespace.
+    const dateOkay = isValidImportQualityDate(row.data.date);
     if (dateOkay) this.temporalReferentialRows += 1;
   }
 
