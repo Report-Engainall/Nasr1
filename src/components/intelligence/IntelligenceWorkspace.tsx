@@ -380,7 +380,6 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
   const [retentionLoading, setRetentionLoading] = useState(true);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
-  const [linkPreviousShift, setLinkPreviousShift] = useState(true);
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
   const [shiftTimeZone, setShiftTimeZone] = useState(browserTimeZone());
   const [shiftCashPhase, setShiftCashPhase] = useState<"OPENING" | "CLOSING">("OPENING");
@@ -546,27 +545,13 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
 
   const submitStartShift = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const scope = ["start", shiftBusinessDate, shiftLabel.trim(), shiftTimeZone.trim(), linkPreviousShift].join(":");
-    void runShiftMutation(scope, async (idempotencyKey) => {
-      let previousShiftId: string | undefined;
-      if (linkPreviousShift) {
-        const previous = await fetchOperationalShiftWorkspace({
-          businessDate: shiftUtcDay(shiftBusinessDate, -1),
-        });
-        if (previous.ok) {
-          previousShiftId = previous.data.snapshot.shiftId;
-        } else if (previous.status !== "NOT_FOUND") {
-          return { ok: false, status: previous.status, message: "تعذر التحقق من الوردية السابقة؛ لم تُفتح وردية منفصلة: " + previous.message };
-        }
-      }
-      return startOperationalShift({
-        businessDate: shiftBusinessDate,
-        shiftLabel: shiftLabel.trim(),
-        timeZone: shiftTimeZone.trim(),
-        previousShiftId,
-        idempotencyKey,
-      });
-    }, "تم فتح الوردية وحفظ سجلها.");
+    const scope = ["start", shiftBusinessDate, shiftLabel.trim(), shiftTimeZone.trim()].join(":");
+    void runShiftMutation(scope, (idempotencyKey) => startOperationalShift({
+      businessDate: shiftBusinessDate,
+      shiftLabel: shiftLabel.trim(),
+      timeZone: shiftTimeZone.trim(),
+      idempotencyKey,
+    }), "تم فتح الوردية وربطها تلقائياً بآخر وردية سابقة في المؤسسة وفق سجل الخادم.");
   };
 
   const submitShiftCashCount = (event: FormEvent<HTMLFormElement>) => {
@@ -1121,7 +1106,7 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
               <form className="grid gap-3 rounded-lg border p-3 md:grid-cols-2" onSubmit={submitStartShift}>
                 <div className="md:col-span-2">
                   <h3 className="font-semibold">فتح وردية جديدة</h3>
-                  <p className="report-note">لا توجد وردية محفوظة لهذا التاريخ. راجع تاريخ العمل والمنطقة الزمنية الفعلية للمؤسسة قبل الحفظ؛ القيمة الافتراضية أدناه مأخوذة من إعداد المتصفح وليست إعداداً معتمداً للمؤسسة.</p>
+                  <p className="report-note">لا توجد وردية محفوظة لهذا التاريخ. راجع تاريخ العمل والمنطقة الزمنية الفعلية للمؤسسة قبل الحفظ؛ القيمة الافتراضية أدناه مأخوذة من إعداد المتصفح وليست إعداداً معتمداً للمؤسسة. قاعدة البيانات تربط الوردية تلقائياً بآخر وردية سابقة للمؤسسة إن وُجدت.</p>
                 </div>
                 <label className="grid gap-1 text-sm">تاريخ العمل
                   <input type="date" className="rounded-lg border bg-background p-2" value={shiftBusinessDate} onChange={(event) => setShiftBusinessDate(event.target.value)} required />
@@ -1131,10 +1116,6 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
                 </label>
                 <label className="grid gap-1 text-sm md:col-span-2">منطقة المؤسسة الزمنية (IANA)
                   <input className="rounded-lg border bg-background p-2" value={shiftTimeZone} maxLength={80} onChange={(event) => setShiftTimeZone(event.target.value)} placeholder="Asia/Aden" required />
-                </label>
-                <label className="flex items-center gap-2 text-sm md:col-span-2">
-                  <input type="checkbox" checked={linkPreviousShift} onChange={(event) => setLinkPreviousShift(event.target.checked)} />
-                  ربط الوردية بآخر وردية محفوظة في اليوم السابق إن وُجدت
                 </label>
                 <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">تتحقق قاعدة البيانات من صحة المنطقة الزمنية وتطبق صلاحيات المؤسسة ومنع التكرار.</span>
@@ -1191,7 +1172,10 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
                     <label className="grid gap-1 text-sm">ملاحظة التسليم
                       <textarea className="min-h-20 rounded-lg border bg-background p-2" value={shiftHandoverNote} maxLength={2000} onChange={(event) => setShiftHandoverNote(event.target.value)} />
                     </label>
-                    {shiftWorkspace.snapshot.previousShiftId && shiftWorkspace.result.handover.state === "PENDING" && shiftHandoverId ? (
+                    {shiftWorkspace.snapshot.previousShiftId &&
+                      shiftWorkspace.result.handover.state === "PENDING" &&
+                      shiftWorkspace.result.handover.incomingOwnerProfileId === user?.profileId &&
+                      shiftHandoverId ? (
                       <button type="button" className="btn primary" onClick={acceptShiftHandover} disabled={shiftActionBusy}>
                         قبول محضر التسليم (المستلم)
                       </button>
@@ -1205,7 +1189,7 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
                       </>
                     ) : null}
                     {!shiftWorkspace.snapshot.previousShiftId ? <p className="text-xs text-muted-foreground">لا توجد وردية سابقة مرتبطة؛ لا ينطبق محضر التسليم.</p> : null}
-                    {shiftWorkspace.snapshot.previousShiftId && shiftWorkspace.result.handover.state === "PENDING" && !shiftHandoverId ? <p className="text-xs text-muted-foreground">عقد قراءة الوردية يعرض حالة المحضر دون معرّف الحدث؛ لا يمكن قبول المحضر القديم من هذه الجلسة. أعد إصداره بسبب موثق للحصول على مرجع قبول جديد.</p> : null}
+                    {shiftWorkspace.snapshot.previousShiftId && shiftWorkspace.result.handover.state === "PENDING" && !shiftHandoverId ? <p className="text-xs text-muted-foreground">عقد قراءة الوردية يعرض حالة المحضر دون معرّف الحدث؛ لا يمكن قبول المحضر القديم من هذه الجلسة. أعد إصداره بسبب موثق من المالك السابق أو المدير للحصول على مرجع قبول جديد. لا يظهر زر القبول إلا لحساب المستلم المسجل.</p> : null}
                     <p className="text-xs text-muted-foreground">تتحقق قاعدة البيانات من المالك السابق والمستلم وكل مرجع وصلاحيته للمؤسسة. قبول التسليم حدث مستقل ينفذه حساب المستلم.</p>
                   </section>
                 </div>
