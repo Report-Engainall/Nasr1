@@ -168,7 +168,7 @@ export function ReplenishmentPurchaseDraft({
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 id="replenishment-purchase-title" className="font-semibold"><ShoppingCart size={17} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} /> إنشاء مسودة من توصيات إعادة التوريد</h3>
-            <p className="mt-1 text-xs text-muted-foreground">الكميات من محرك الأدلة، والأسعار غير مفترضة. اختيار المورد والمخزن ومراجعة المسودة قرار يدوي.</p>
+            <p className="mt-1 text-xs text-muted-foreground">الكميات من محرك الأدلة؛ تُقرب صعودًا إلى 0.001 من وحدة الصنف المدعومة. الأسعار غير مفترضة، واختيار المورد والمخزن ومراجعة المسودة قرار يدوي.</p>
           </div>
           <button type="button" className="btn secondary" onClick={onClose} disabled={busy}>إغلاق</button>
         </header>
@@ -176,7 +176,7 @@ export function ReplenishmentPurchaseDraft({
         {error && <p role="alert" className="mt-3 rounded-lg border border-destructive/40 p-3 text-sm"><AlertTriangle size={14} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} />{error}</p>}
         {notice && <p role="status" className="mt-3 rounded-lg border p-3 text-sm"><CheckCircle2 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} />{notice}</p>}
         {blocked.length > 0 && <div className="mt-3 rounded-lg border border-amber-500/40 p-3 text-sm">
-          <strong>أسطر لم تُدرج حفاظًا على تطابق البيانات</strong>
+          <strong>أسطر مستبعدة حفاظًا على تطابق البيانات؛ يمكن المتابعة بالبنود الصالحة فقط</strong>
           <ul className="mt-2 list-disc space-y-1 ps-5">{blocked.map((item) => <li key={item}>{item}</li>)}</ul>
         </div>}
 
