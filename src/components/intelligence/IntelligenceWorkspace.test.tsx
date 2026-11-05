@@ -9,6 +9,12 @@ const mocks = vi.hoisted(() => ({
   fetchCashflow: vi.fn(),
   fetchOutcomes: vi.fn(),
   fetchInventory: vi.fn(),
+  fetchShiftWorkspace: vi.fn(),
+  fetchProcessBottlenecks: vi.fn(),
+  startShift: vi.fn(),
+  recordShiftCash: vi.fn(),
+  recordShiftHandover: vi.fn(),
+  captureShiftSnapshot: vi.fn(),
   createProposal: vi.fn(),
   asOf: "2026-10-31T09:00:00.000Z",
   period: { from: "2026-08-01", to: "2026-10-31" },
@@ -32,6 +38,16 @@ vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   fetchDecisionOutcomes: mocks.fetchOutcomes,
   createDecisionOutcomeProposal: mocks.createProposal,
   commandDecisionOutcome: vi.fn(),
+}));
+vi.mock("@/lib/intelligence/shift-operations-client", () => ({
+  fetchOperationalShiftWorkspace: mocks.fetchShiftWorkspace,
+  startOperationalShift: mocks.startShift,
+  recordOperationalShiftCashCount: mocks.recordShiftCash,
+  recordOperationalShiftHandover: mocks.recordShiftHandover,
+  captureOperationalShiftSnapshot: mocks.captureShiftSnapshot,
+}));
+vi.mock("@/lib/intelligence/process-bottlenecks-client", () => ({
+  fetchProcessBottlenecks: mocks.fetchProcessBottlenecks,
 }));
 
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace";
@@ -233,6 +249,16 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [], total: 0 });
     mocks.createProposal.mockReset().mockResolvedValue({ ok: true, duplicate: false });
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
+    mocks.fetchShiftWorkspace.mockReset().mockResolvedValue({
+      ok: false, status: "NOT_FOUND", message: "no shift for this date",
+    });
+    mocks.fetchProcessBottlenecks.mockReset().mockResolvedValue({
+      ok: false, status: "UNAVAILABLE", message: "process fixture unavailable",
+    });
+    mocks.startShift.mockReset().mockResolvedValue({ ok: true, data: { shiftId: "shift-1" } });
+    mocks.recordShiftCash.mockReset().mockResolvedValue({ ok: true, data: {} });
+    mocks.recordShiftHandover.mockReset().mockResolvedValue({ ok: true, data: {} });
+    mocks.captureShiftSnapshot.mockReset().mockResolvedValue({ ok: true, data: {} });
   });
   afterEach(() => cleanup());
 
