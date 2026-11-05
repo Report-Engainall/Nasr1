@@ -1,3 +1,27 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-54-PROCESS-BOTTLENECKS-001
+
+- Repository `Report-Engainall/Nasr1`, branch `main`.
+- Exact P3 code commit `280d39709e7ec43bf25001ee957660a09df82e0c`; parent `5aa1853279811a862db856b5271481aa64f2a099`.
+- Canonical reference section 54 — تحليل الاختناقات وزمن دورة العملية.
+- Files:
+  - `supabase/migrations/20261106020000_intelligence_process_bottlenecks.sql` — blob `3d0b5f80cf80f1201c671bb8b7eefcac823cb1ca`.
+  - `src/lib/intelligence/process-bottlenecks.ts` — blob `3f0d14b7e51135b4a373dace8d1fef656209e894`.
+  - `src/lib/intelligence/process-bottlenecks-client.ts` — blob `a06c7a7d4091a9e9d6a8054343ef1ee57d1c74b2`.
+  - `src/components/intelligence/ProcessBottlenecksPanel.tsx` — blob `126b3e8a4606a51b6f1783d2c5cca29e67265b9a`.
+  - `src/lib/intelligence/index.ts` — blob `624fc505b2879195504a2f5e7ae2fcab441b6c61`.
+  - `src/components/intelligence/index.ts` — blob `b52f6dafa596e6e54769fb53a27299c06c027119`.
+- Added deterministic process cycle-time engine and authenticated server aggregate RPC `fetch_process_bottleneck_snapshot`. It reads real order status history, quote response timestamps, purchase submission/first receipt, fully paid invoice/last payment, and task creation/first completion plus actual task reopen audit transitions.
+- Measures sample size, average, median and p90 per stage. Comparison requires two prior/non-overlapping, equal-length date windows. Recommendations are deterministic review suggestions; a change between windows is explicitly descriptive and not attributed causally.
+- Current queue snapshots are separate from selected historical periods. Staff, purchasing managers and finance roles receive only their authorized sources; unavailable sources are returned as unavailable, not empty or zero.
+- Wait attribution: order stages remain mixed/unattributed; quote response and purchase draft review are internal timestamp intervals; supplier receiving is mixed; fully paid invoice settlement is customer-external; task cycle includes queue and work. The engine does not rank employees or infer individual productivity.
+- Small samples (less than three completed intervals) are not labeled bottlenecks. No stage findings are produced from partial/unavailable source permissions.
+- Integration gap: P1 must mount `ProcessBottlenecksPanel` in the existing intelligence workspace and supply the date-window UI/retry interaction. No P1-owned route/workspace file was modified.
+- Migration is source-only and NOT applied to Bolt/Supabase. Acceptance remains pending exact-SHA PostgreSQL/Bolt execution and P1 mounting.
+- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/E2E/DB migration/Preview/production checks run; no PASS claimed.
+- No paid services, paid dependencies, Vercel spend, live integrations or production changes.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-53-SHIFT-OPERATIONS-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

@@ -1,3 +1,15 @@
+## 2026-11-06 — P3 Process Bottleneck and Cycle-Time Engine — REF-SECTION-54-PROCESS-BOTTLENECKS-001
+
+- Exact code commit on main: `280d39709e7ec43bf25001ee957660a09df82e0c`; parent `5aa1853279811a862db856b5271481aa64f2a099`.
+- Files: `supabase/migrations/20261106020000_intelligence_process_bottlenecks.sql`, new process-bottlenecks engine/client/panel and intelligence barrel exports.
+- Server aggregation uses actual `order_status_history`, `sales_quotes.quoted_at`, purchase submission and first physical receipt, fully paid customer invoices plus payment timestamps, and operational task creation/completion/status-change audit events.
+- Emits per-stage sample count, average, median, p90, current live queue age and same-length prior-period comparison. Baseline must be prior/non-overlapping. Comparisons are descriptive only; no single-change causal attribution.
+- Role-scoped visibility: staff order/quote/task sources; purchase manager purchase sources; finance role invoice/settlement sources. The panel marks restricted source coverage unavailable instead of showing fake zeros.
+- Wait attribution remains mixed where timestamps cannot isolate internal/external waiting. Customer settlement is external; purchase supplier receiving is mixed; order transition time is unattributed; task time includes queue and execution. No employee score/ranking.
+- P1 mount is pending: `IntelligenceWorkspace.tsx` was not modified. P1 must add the date-range/comparison controls, mount the panel and wire loading/retry.
+- Migration is not applied to Bolt/Supabase. Exact database/runtime acceptance pending.
+- Status `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/lint/typecheck/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS asserted.
+
 ## 2026-11-06 — P3 Shift Operations source delivery — REF-SECTION-53-SHIFT-OPERATIONS-001
 
 - Exact P3 code commit on main: \`93894aacd109bd1d773692bb17f3d4b6d08ad27a\`; parent \`a7a19734fb1493918fda9329f371c903325c7d43\`.
