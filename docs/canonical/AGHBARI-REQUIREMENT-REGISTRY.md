@@ -12,6 +12,15 @@ This file is the canonical **requirement definition registry**, not the current 
 - **External gates:** hosted authenticated customer/order/tenant E2E is SKIPPED; real Onyx target-version round-trip, official WhatsApp delivery receipt, live AI-provider response, production deploy/rollback/restore and owner sign-off remain BLOCKED_EXTERNAL or UNVERIFIED.
 - **Next task:** read `CURRENT_EXECUTION_STATE.md`; do not infer a next task from this registry.
 
+## Added requirements — purchasing execution and replenishment handoff — 2026-11-05
+
+These are stable requirement definitions; the live execution cursor remains exclusively in `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`.
+
+- `AGH-INT-REPLENISHMENT-PO-DRAFT-001` — An authorized manager may select only evidence-verified positive replenishment recommendations, resolve the product reference to the active same-tenant catalog record, confirm the current unit of measure, review the recommended quantity at the supported 0.001 precision, select an active supplier and warehouse, and create a draft through the existing idempotent `create_purchase_order` command. The draft is never auto-submitted; no stock, journal or payment mutation occurs.
+- `AGH-PROC-SUPPLIER-QUOTE-COMPARISON-001` — An authorized manager may record supplier offers with validity, delivery and payment terms and item-level quantity/cost; currency is derived from the organization's base currency. The application compares same-currency line prices and can award one current offer into one canonical purchase-order draft. Quote capture/award is tenant-scoped, audited and idempotent. No automatic supplier message, order submission, stock movement or journal posting occurs.
+- Acceptance mappings: `DLV-007-INVENTORY-REPLENISHMENT-PURCHASE-DRAFT-001` and `DLV-007-SUPPLIER-QUOTE-COMPARISON-001`. Both are `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until the intended Bolt database applies migrations and the later connected acceptance is performed.
+
+
 ---
 
 ## Historical registry snapshots — retained for traceability
