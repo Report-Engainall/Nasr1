@@ -7,7 +7,7 @@ export type CustomerRetentionAggregateResult =
   | { ok: true; data: CustomerRetentionReport }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
 
-const ISO_DAY = /^\\d{4}-\\d{2}-\\d{2}$/;
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const STATUS = new Set(["VERIFIED", "NEEDS_REVIEW", "UNVERIFIED", "UNAVAILABLE"]);
 const COMPLETENESS = new Set(["COMPLETE", "PARTIAL", "UNKNOWN"]);
 const QUALITY = new Set(["ACCEPTABLE", "WARNINGS", "INVALID", "UNKNOWN"]);
