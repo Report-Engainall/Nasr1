@@ -1,3 +1,27 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-53-SHIFT-OPERATIONS-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Exact P3 code commit: `93894aacd109bd1d773692bb17f3d4b6d08ad27a`; base parent immediately before the P3 delivery: `a7a19734fb1493918fda9329f371c903325c7d43`. Commit was created on the latest observed main head and moved with expected-SHA, force=false.
+- Canonical reference: section 53 — مركز إقفال اليوم وبدء الوردية. This delivery supplies the previously missing tenant-scoped shift persistence, evidence read, command clients and engine DTO; it does not claim section 53 acceptance is closed.
+- Changed paths:
+  - `supabase/migrations/20261106010000_intelligence_shift_operations.sql` — blob `6e21a6fcb3944bab035790814aaaf1956baf1b10`.
+  - `src/lib/intelligence/shift-operations-client.ts` — blob `9fa131c6c22132f9153a7cfd0c2b2ef4ec513bfb`.
+  - `src/lib/intelligence/shift-operations.ts` — blob `d941268c42dc16f4a32318e5028bc9b2f7469711`.
+  - `src/components/intelligence/ShiftOperationsCenter.tsx` — blob `81264aa69bf65335f2e3eb478816d81ed6517de6`.
+  - `src/lib/intelligence/index.ts` — blob `67fe0f19416762df1280d77e98a3d42cc88735c4`.
+- Persistence added: tenant-bound `operational_shifts`; per-currency opening/closing physical cash counts with append-only correction versions; append-only handover record/acceptance events; immutable versioned opening/closeout workspace snapshots. Writes are authenticated RPCs with server-derived actor/organization, role checks, idempotency/fingerprint checks, serialization locks and audit rows. Direct table access is revoked from browser roles.
+- RPC/client contract added: `startOperationalShift`, `recordOperationalShiftCashCount`, `recordOperationalShiftHandover`, `acceptOperationalShiftHandover`, `fetchOperationalShiftWorkspace`, `captureOperationalShiftSnapshot`, `fetchOperationalShiftSnapshot`. The browser never supplies tenant/actor authority. Invalid/denied/unavailable DTOs fail closed; no demo records are substituted.
+- Real source population: tenant-scoped active `ai_tasks`, open `orders`, issued/part-paid invoices, customer and supplier payments, purchase receipts, low inventory/reorder balances, stock-count variance lines and unresolved `ai_alerts`. Source result caps are explicit; counts above returned population are marked partial/needs-review rather than complete. Role visibility is applied before source payload assembly.
+- Financial privacy: cash counts, invoices and payments are returned only with finance permission; saved snapshots containing financial coverage require finance permission to read. Cash counts are separated by currency. The system deliberately does not invent expected balances or mark cash reconciliation matched without a verified expected-balance source.
+- Honest remaining source gaps: connectivity/sync probe, outbound inventory movement delivery state and delivery/fulfilment feed remain `UNAVAILABLE`; therefore operational/financial close remains partial or blocked as dictated by the existing engine. This migration does not post accounting journals, settle supplier/customer balances, finalize stock counts, mutate orders or auto-reassign tasks.
+- P1 integration: `IntelligenceWorkspace.tsx` currently does not mount `ShiftOperationsCenter`. P1 must mount the existing component and wire the exported client read/commands into its route/workspace with loading/empty/error/retry and explicit start/count/handover/snapshot actions. P3 did not modify the P1-owned workspace or create a parallel route.
+- Bolt boundary: migration is source-only and has NOT been applied to Bolt/Supabase; runtime/database acceptance is pending. P1 workspace mount and actual route actions are pending.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests, build, lint, typecheck, CI, browser/E2E, migration application, Bolt runtime, Preview, Vercel or production checks were run under the user's no-test/no-deployment instruction. No PASS or production readiness is claimed.
+- Cost boundary: no paid provider, new paid dependency, Vercel operation/credit, secret, production mutation or live external integration.
+- Next P3 continuation: proceed to the next genuinely missing intelligence function after this checkpoint without rebuilding completed engines; keep section 53 ACCEPTANCE_PENDING until Bolt migration application and P1 mount are evidenced.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001 — PERSISTENCE + CAPTURE
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

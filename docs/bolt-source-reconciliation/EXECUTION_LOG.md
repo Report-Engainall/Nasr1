@@ -1,3 +1,16 @@
+## 2026-11-06 — P3 Shift Operations source delivery — REF-SECTION-53-SHIFT-OPERATIONS-001
+
+- Exact P3 code commit on main: \`93894aacd109bd1d773692bb17f3d4b6d08ad27a\`; parent \`a7a19734fb1493918fda9329f371c903325c7d43\`.
+- Paths: \`supabase/migrations/20261106010000_intelligence_shift_operations.sql\`; \`src/lib/intelligence/shift-operations-client.ts\`; updates to \`shift-operations.ts\`, \`ShiftOperationsCenter.tsx\` and the intelligence barrel export.
+- Added tenant-scoped shift start and immutable workspace snapshot storage, append-only per-currency physical cash counts (versioned corrections require a reason), append-only outgoing/incoming shift handover with separate recipient acceptance, and authenticated read/capture RPCs.
+- Added strict client methods for start, cash count, handover record/accept, workspace fetch and saved snapshot fetch. Server derives tenant and actor; payloads are validated; idempotency conflicts fail; write events are audited.
+- Workspace source feeds reuse real rows from \`ai_tasks\`, \`orders\`, \`customer_invoices\`, \`customer_payments\`, \`purchase_supplier_payments\`, \`purchase_receipts\`, \`inventory_balances\`, \`stock_count_lines\` and \`ai_alerts\`. Each source reports completeness from expected-versus-returned counts; capped populations remain PARTIAL. Finance sources are finance-gated, task roles are visibility-gated. No fixture data or guessed amounts.
+- Cash counts are currency-separated and physical only; expected balance is NULL until an authoritative cash ledger projection exists. No journal, stock, order or payment mutation is performed by closeout. Connectivity/sync, outbound movements and delivery feed remain unavailable.
+- P1 integration gap: current \`IntelligenceWorkspace.tsx\` does not import or mount \`ShiftOperationsCenter\`; P1 must mount and wire the read/command clients. No P1-owned file was changed.
+- Migration is not applied to Bolt/Supabase. Runtime acceptance pending.
+- Status: \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`. Tests/build/lint/typecheck/CI/browser/E2E/DB migration/Preview/Vercel/production NOT RUN by instruction; no PASS claimed.
+- No paid provider, new dependency, Vercel credit or production/live operation.
+
 ## 2026-11-05 — P3 Decision Memory persistence and capture — REF-DECISION-MEMORY-BOOK-001
 
 - P3 code commit `6c91b244e14036e07b5a88bc066c77ef3b241e59`; subsequent main integration head at checkpoint `0fb407c784f0c7e4ffa1b097b2b81c07319f8368` (the later P1 supplier invoice UI commit is independent).
