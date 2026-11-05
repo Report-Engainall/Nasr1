@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 sequential body update — BODY-COMPLETION-ON-MAIN-029
+
+- Latest P1 product-code SHA: `82424db8079c512f84e87b69715453fe24b6330b`.
+- Mounted P3's existing Task Performance Scorecard in the current manager/admin-gated `IntelligenceWorkspace`, wired to the real `fetchTaskPerformanceScorecard()` RPC client, and supplied loading/unavailable/denied/error/ready plus refresh/retry states. Only `src/components/intelligence/IntelligenceWorkspace.tsx` changed; no P3-owned file was edited.
+- Scorecard/audit-window migrations remain unapplied in Bolt; source mount is `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`, with no runtime/test PASS claimed.
+- No tests/build/lint/CI/browser/E2E/database/Bolt/Preview/Vercel operation or Vercel credit was used for this delivery.
+
 ## P1 sequential body update — BODY-COMPLETION-ON-MAIN-028
 
 - Latest product code on `main`: `c24cbe1a4f324dfefd4418632de133eb23e303b0`.
