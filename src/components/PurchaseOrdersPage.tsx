@@ -13,6 +13,7 @@ import type { ProductWithInventory, Supplier } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
+import { SupplierQuoteWorkspace } from '@/components/SupplierQuoteWorkspace';
 import { PurchaseReceiptPrintActions } from '@/components/PurchaseReceiptPrintActions';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
 import {
@@ -577,6 +578,13 @@ export function PurchaseOrdersPage() {
 
     {error&&<div className="po-error" role="alert"><AlertTriangle size={16} style={{verticalAlign:'middle',marginInlineEnd:6}}/>{error}</div>}
     {notice&&<div className="po-notice" role="status"><CheckCircle2 size={16} style={{verticalAlign:'middle',marginInlineEnd:6}}/>{notice}</div>}
+
+    <SupplierQuoteWorkspace onAwarded={async (order) => {
+      setSelectedId(order.id);
+      await load();
+      setNotice('أُنشئت مسودة أمر الشراء ' + order.purchase_order_number + ' من عرض المورد المحدد. يمكنك مراجعتها في سجل الأوامر قبل اعتمادها.');
+    }} />
+
 
     {showCreate && <PurchaseOrderCreatePanel
       activeSuppliers={activeSuppliers}
