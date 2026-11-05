@@ -29,6 +29,7 @@ function CurrencyHealthCard({ position }: { position: BusinessHealthCurrencyPosi
             <dd className="font-semibold">{money(item.value, position.currency)}</dd>
             <p className="text-xs"><EvidenceStatusLabel status={item.status} /> · {note}</p>
             <p className="text-xs">الإثبات: <EvidenceReferences ids={item.evidenceIds} /></p>
+            <p className="text-xs text-muted-foreground">مصدر القياس: {item.sourceAsOf ?? "غير متاح"} · {item.sourcePeriod ? item.sourcePeriod.from + " — " + item.sourcePeriod.to : "فترة المصدر غير متاحة"}</p>
             <EvidenceWarnings warnings={item.note ? [item.note] : []} />
           </div>
         ))}
@@ -69,7 +70,7 @@ export function BusinessHealthMap({ result = null, state = "ready", onRetry }: B
                 </tr></thead>
                 <tbody>{result.cashflow.filter(point => point.currency === currency).sort((a,b)=>a.horizonDays-b.horizonDays).map(point => (
                   <tr key={point.horizonDays} className="border-b last:border-0">
-                    <td className="p-2">{point.horizonDays} يوم</td>
+                    <td className="p-2">{point.horizonDays} يوم<span className="block text-xs text-muted-foreground">{point.period.from} — {point.period.to}</span></td>
                     <td className="p-2">{money(point.knownInflows,currency)}</td>
                     <td className="p-2">{money(point.knownOutflows,currency)}</td>
                     <td className="p-2 font-semibold">{money(point.projectedBalance,currency)}</td>
@@ -84,6 +85,7 @@ export function BusinessHealthMap({ result = null, state = "ready", onRetry }: B
       <section className="space-y-2">
         <h3 className="font-semibold">حركة المخزون</h3>
         <p className="text-sm">عدد الأصناف: {formatEvidenceNumber(result.stock.totalProducts)} · <EvidenceStatusLabel status={result.stock.status} /></p>
+        <p className="text-xs text-muted-foreground">مصدر حركة المخزون: {result.stock.sourceAsOf ?? "غير متاح"} · {result.stock.sourcePeriod ? result.stock.sourcePeriod.from + " — " + result.stock.sourcePeriod.to : "فترة المصدر غير متاحة"}</p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {result.stock.classes.map(item => <article key={item.classification} className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground">{item.classification}</p>
@@ -100,6 +102,7 @@ export function BusinessHealthMap({ result = null, state = "ready", onRetry }: B
       <section className="space-y-2">
         <h3 className="font-semibold">إعادة التوريد</h3>
         <p className="text-sm"><EvidenceStatusLabel status={result.replenishment.status} /> · توصيات مثبتة: {formatEvidenceNumber(result.replenishment.recommendedCount)} · لا إجراء: {formatEvidenceNumber(result.replenishment.noActionCount)} · محجوب: {formatEvidenceNumber(result.replenishment.withheldCount)}</p>
+        <p className="text-xs text-muted-foreground">فترة بيانات التوريد: {result.replenishment.sourcePeriod ? result.replenishment.sourcePeriod.from + " — " + result.replenishment.sourcePeriod.to : "غير متاحة"}</p>
         {result.replenishment.recommendations.map(item => <article key={item.productRef} className="flex flex-wrap justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>{item.productRef}</span><strong>{formatEvidenceNumber(item.quantity)} {item.quantityUnit}</strong>
           <p className="w-full text-xs">الإثبات: <EvidenceReferences ids={item.evidenceIds} /></p>
@@ -110,6 +113,7 @@ export function BusinessHealthMap({ result = null, state = "ready", onRetry }: B
         {result.customerFocus.length ? result.customerFocus.map(item => <article key={item.currency} className="flex flex-wrap justify-between gap-2 rounded-lg border p-3 text-sm">
           <span>{item.currency}</span><span>تركيز أعلى 5: {item.top5SalesConcentration === null ? "غير متاح" : formatEvidenceNumber(item.top5SalesConcentration) + "%"}</span>
           <span>العملاء: {formatEvidenceNumber(item.customerCount)} · <EvidenceStatusLabel status={item.status} /></span>
+          <span className="w-full text-xs text-muted-foreground">فترة المصدر: {item.sourcePeriod.from} — {item.sourcePeriod.to}</span>
         </article>) : <p className="text-sm text-muted-foreground">تركيز العملاء غير متاح من مصدر مكتمل.</p>}
       </section>
       <section className="space-y-2">
