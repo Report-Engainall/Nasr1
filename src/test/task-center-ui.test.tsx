@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   setOperationalTaskStatus: vi.fn(),
   assignOperationalTask: vi.fn(),
   updateOperationalTaskDetails: vi.fn(),
+  updateManualOperationalTask: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: mocks.useAuth }));
@@ -22,6 +23,7 @@ vi.mock("@/lib/api", () => ({
   setOperationalTaskStatus: mocks.setOperationalTaskStatus,
   assignOperationalTask: mocks.assignOperationalTask,
   updateOperationalTaskDetails: mocks.updateOperationalTaskDetails,
+  updateManualOperationalTask: mocks.updateManualOperationalTask,
 }));
 vi.mock("@/components/CustomerReturnReviewQueue", () => ({
   CustomerReturnReviewQueue: () => <div data-testid="return-review-queue" />,
@@ -99,6 +101,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     mocks.setOperationalTaskStatus.mockReset().mockResolvedValue(undefined);
     mocks.assignOperationalTask.mockReset().mockResolvedValue(undefined);
     mocks.updateOperationalTaskDetails.mockReset().mockResolvedValue(undefined);
+    mocks.updateManualOperationalTask.mockReset().mockResolvedValue(undefined);
     originalPrint = Object.getOwnPropertyDescriptor(window, "print");
     printMock = vi.fn();
     Object.defineProperty(window, "print", { configurable: true, writable: true, value: printMock });
@@ -400,6 +403,42 @@ describe("TaskCenter role-boundary and print integration", () => {
       "sales-order",
       "critical",
       new Date(dueAt).toISOString(),
+    ));
+    await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
+  });
+
+  it("lets managers edit open manual task text while keeping source-generated task text read-only", async () => {
+    setUser(["manager"]);
+    const manualTask = task({
+      id: "manual-task",
+      title: "مهمة يدوية",
+      task_role: "operations",
+      task_type: "manual_operational_task",
+      source_entity_type: null,
+      source_entity_id: null,
+      description: "تفاصيل قديمة",
+    });
+    mocks.fetchOperationalTasks
+      .mockResolvedValueOnce([manualTask])
+      .mockResolvedValueOnce([{ ...manualTask, title: "مراجعة طلبات الموردين", description: "مطابقة أمر الشراء مع الإيصال" }]);
+
+    render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "مهمة يدوية" });
+    expect(screen.queryByRole("button", { name: "تعديل نص المهمة" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "تعديل نص المهمة" }));
+    fireEvent.change(screen.getByLabelText("عنوان المهمة المعدّل: مهمة يدوية"), {
+      target: { value: "مراجعة طلبات الموردين" },
+    });
+    fireEvent.change(screen.getByLabelText("تفاصيل المهمة المعدّلة: مهمة يدوية"), {
+      target: { value: "مطابقة أمر الشراء مع الإيصال" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ النص" }));
+
+    await waitFor(() => expect(mocks.updateManualOperationalTask).toHaveBeenCalledWith(
+      "manual-task",
+      "مراجعة طلبات الموردين",
+      "مطابقة أمر الشراء مع الإيصال",
     ));
     await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
   });
