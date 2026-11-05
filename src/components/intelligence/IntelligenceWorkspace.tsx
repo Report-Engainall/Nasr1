@@ -47,6 +47,7 @@ import {
   ReplenishmentCard,
   ShiftOperationsCenter,
   ProcessBottlenecksPanel,
+  NaturalLanguageAssistant,
 } from "@/components/intelligence";
 
 type Horizon = 7 | 30 | 90;
@@ -354,9 +355,11 @@ function DecisionCyclePanel({
   );
 }
 
-export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem }: {
+export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSupplierInvoice, onOpenPurchaseOrder }: {
   onOpenRecord?: (kind: GrowthOpportunityKind, subjectRef: string) => void;
   onOpenShiftItem?: (sourceKey: ShiftQueueSourceKey, sourceRef: string) => void;
+  onOpenSupplierInvoice?: (invoiceId: string) => void;
+  onOpenPurchaseOrder?: (purchaseOrderId: string) => void;
 }) {
   const { user } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
@@ -1085,6 +1088,11 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem }: {
               </div>
             </div>
           </header>
+
+          <NaturalLanguageAssistant
+            onOpenSupplierInvoice={onOpenSupplierInvoice}
+            onOpenPurchaseOrder={onOpenPurchaseOrder}
+          />
 
           <section className="panel space-y-3" aria-label="مركز الوردية وإجراءاتها">
             <div className="flex flex-wrap items-center justify-between gap-2">
