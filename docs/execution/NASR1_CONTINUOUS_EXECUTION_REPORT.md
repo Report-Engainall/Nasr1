@@ -1,3 +1,16 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-05 — CUSTOMER 360 FOLLOW-UP LIFECYCLE
+
+- Task: `BODY-COMPLETION-ON-MAIN-006`; product-code SHA `66558c300af38c6a49a4c98feb1b6c31636c7638`.
+- Added the tenant-scoped `manage_customer_interaction_follow_up` command and append-only event table. Managers can reschedule an open follow-up or cancel it with a required reason. Task and source interaction are locked; old/new due time and actor are audited; idempotent replay is supported.
+- Reschedule overrides and cancellation markers survive source-event upserts. CustomerInteraction history reads now distinguish the original recorded time from the effective task due time, status and cancellation reason.
+- Typed API and Customer 360 UI controls are connected. The task generator remains in the sales role queue and assigns the recorder.
+- Main commits: `b5e9afc84b62af0e399cd90b3db705aa335669d6`, `890e8c0d5fad8b68be764286f29485de943cae7c`, `c19cec2bdd370dc0f872792b0c0ab97bb6437d25`, `a6617fd5ab3a012299a49edfa9f58c3d6f8de174`, `66558c300af38c6a49a4c98feb1b6c31636c7638`.
+- Acceptance matrix leaf: `DLV-015-CUSTOMER-FOLLOW-UP-LIFECYCLE-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Migration not applied to any database. Tests/build/lint/CI/browser/runtime were not run in this batch; no PASS is claimed. No Vercel use.
+- Next action: `BODY-COMPLETION-ON-MAIN-007` — integrate the existing evidence-gated deterministic customer-retention engine into Customer 360 without inventing scores from incomplete evidence.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER 360 INTERACTION CRM + FOLLOW-UP TASK FLOW
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
