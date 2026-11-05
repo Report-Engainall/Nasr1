@@ -13,6 +13,7 @@ import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult 
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
+import type { ShiftQueueSourceKey } from "@/lib/intelligence/shift-operations";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
 import {
   createInventoryIntelligencePeriod,
@@ -353,8 +354,9 @@ function DecisionCyclePanel({
   );
 }
 
-export function IntelligenceWorkspace({ onOpenRecord }: {
+export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem }: {
   onOpenRecord?: (kind: GrowthOpportunityKind, subjectRef: string) => void;
+  onOpenShiftItem?: (sourceKey: ShiftQueueSourceKey, sourceRef: string) => void;
 }) {
   const { user } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
@@ -1098,6 +1100,7 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
               result={shiftWorkspace?.result ?? null}
               state={shiftViewState}
               onRetry={() => setShiftRefreshKey((value) => value + 1)}
+              onOpenItem={onOpenShiftItem}
             />
             {shiftResponse && !shiftResponse.ok && shiftResponse.status !== "NOT_FOUND" ? (
               <p role="alert" className="rounded-lg border p-3 text-sm">{shiftResponse.message}</p>
