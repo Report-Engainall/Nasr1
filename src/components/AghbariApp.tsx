@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, PackageCheck,
+  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, Headphones, PackageCheck,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
   Pencil, Plus, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
@@ -34,6 +34,7 @@ import { getInventoryAvailabilityStatus } from '@/lib/inventory-metrics';
 import { PricingGrid } from '@/components/PricingGrid';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
+import { CustomerServiceDesk } from '@/components/CustomerServiceDesk';
 import { CustomerActivationInvitationDialog } from '@/components/CustomerActivationInvitationDialog';
 import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
 import { DeviceManagement } from '@/components/DeviceManagement';
@@ -55,13 +56,14 @@ import {
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { IntelligenceWorkspace } from '@/components/intelligence/IntelligenceWorkspace';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence';
+type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'dashboard', label: 'لوحة المعلومات', icon: LayoutDashboard },
   { id: 'products', label: 'إدارة المنتجات', icon: Box },
   { id: 'customers', label: 'العملاء', icon: Users },
+  { id: 'service-desk', label: 'خدمة العملاء', icon: Headphones },
   { id: 'orders', label: 'الطلبات', icon: ShoppingCart },
   { id: 'pricing', label: 'التسعير والمخزون', icon: SlidersHorizontal },
   { id: 'stock-count', label: 'الجرد الفعلي', icon: PackageCheck },
@@ -91,7 +93,7 @@ const adminPaths: Record<View, string> = {
   quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks', audit: '/admin/audit',
   'stock-count': '/admin/stock-count',
   'inventory-transfers': '/admin/inventory-transfers',
-  'purchase-orders': '/admin/purchase-orders', intelligence: '/admin/intelligence',
+  'purchase-orders': '/admin/purchase-orders', intelligence: '/admin/intelligence', 'service-desk': '/admin/service-desk',
 };
 
 
@@ -128,6 +130,11 @@ function AdminWorkspaceContent({
       return <Products onNotice={onNotice} />;
     case "customers":
       return <Customers onNotice={onNotice} />;
+    case "service-desk":
+      return <CustomerServiceDesk onNotice={onNotice} onOpenTask={(taskId) => {
+        setNotificationTaskId(taskId);
+        onNavigate('tasks');
+      }} />;
     case "orders":
       if (!orderDetailId) return <Orders onViewDetail={onOrderDetailChange} />;
       return (
