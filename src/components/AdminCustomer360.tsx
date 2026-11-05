@@ -362,7 +362,13 @@ function customerInteractionDate(value: string): string {
     : 'تاريخ غير صالح في السجل';
 }
 
-function Customer360Interactions({ customerId }: { customerId: string }) {
+function Customer360Interactions({
+  customerId,
+  onHistoryState,
+}: {
+  customerId: string;
+  onHistoryState: (items: CustomerInteraction[], loading: boolean, error: string) => void;
+}) {
   const [items, setItems] = useState<CustomerInteraction[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -376,15 +382,20 @@ function Customer360Interactions({ customerId }: { customerId: string }) {
   const reload = useCallback(async () => {
     setLoading(true);
     setError('');
+    onHistoryState([], true, '');
     try {
       const rows = await fetchCustomerInteractions(customerId, 50);
       setItems(rows);
+      onHistoryState(rows, false, '');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'تعذر تحميل سجل تواصل العميل.');
+      const message = cause instanceof Error ? cause.message : 'تعذر تحميل سجل تواصل العميل.';
+      setError(message);
+      setItems([]);
+      onHistoryState([], false, message);
     } finally {
       setLoading(false);
     }
-  }, [customerId]);
+  }, [customerId, onHistoryState]);
 
   useEffect(() => { void reload(); }, [reload]);
 
@@ -485,6 +496,14 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
   const [error, setError] = useState('');
   const [exportError, setExportError] = useState('');
   const [printError, setPrintError] = useState('');
+  const [interactionHistory, setInteractionHistory] = useState<CustomerInteraction[]>([]);
+  const [interactionHistoryLoading, setInteractionHistoryLoading] = useState(true);
+  const [interactionHistoryError, setInteractionHistoryError] = useState('');
+  const handleInteractionHistoryState = useCallback((items: CustomerInteraction[], isLoading: boolean, historyError: string) => {
+    setInteractionHistory(items);
+    setInteractionHistoryLoading(isLoading);
+    setInteractionHistoryError(historyError);
+  }, []);
 
   const loadCustomer360 = useCallback(async () => {
     setSummary(null);
@@ -521,19 +540,23 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
 
   const overdueInvoiceCount = summary?.finance_by_currency.reduce((total, row) => total + row.overdue_invoice_count, 0) ?? 0;
   const printDocument = useMemo(() => {
-    if (!summary) return null;
+    if (!summary || interactionHistoryLoading || interactionHistoryError) return null;
     try {
-      return projectStaffCustomer360PrintDocument(summary);
+      return projectStaffCustomer360PrintDocument(summary, interactionHistory);
     } catch {
       return null;
     }
-  }, [summary]);
+  }, [summary, interactionHistory, interactionHistoryLoading, interactionHistoryError]);
 
   function exportCustomer360() {
     if (!summary) return;
     setExportError('');
+    if (interactionHistoryLoading || interactionHistoryError) {
+      setExportError('تعذر تضمين سجل التواصل الحالي؛ حدّث السجل قبل تصدير ملف العميل.');
+      return;
+    }
     try {
-      downloadStaffCustomer360WorkbookXlsx(summary);
+      downloadStaffCustomer360WorkbookXlsx(summary, interactionHistory);
     } catch (cause) {
       setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.');
     }
@@ -582,7 +605,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
             summary={summary}
             overdueInvoiceCount={overdueInvoiceCount}
           />
-          <Customer360Interactions customerId={summary.customer.id} />
+          <Customer360Interactions customerId={summary.customer.id} onHistoryState={handleInteractionHistoryState} />
         </>
       ) : null}   </div>
     {printDocument && typeof document !== 'undefined' ? createPortal(<Customer360PrintSheet document={printDocument} />, document.body) : null}
