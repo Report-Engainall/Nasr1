@@ -5202,14 +5202,17 @@ async function main() {
   assert.equal(manualTaskState[0].completed_by, staffProfileId, "completion records the authenticated actor");
   assert.equal(manualTaskState[0].resolution_note, "CI acceptance completion");
   const manualTaskAudit = await db.unsafe(
-    "select old_value->>'status' as old_status,new_value->>'status' as new_status,actor_id from public.audit_logs " +
-      "where organization_id=$1 and entity_type='ai_task' and entity_id=$2 and action='operational_task.status_changed'",
+    "select old_value->>'status' as old_status,new_value->>'status' as new_status,actor_id," +
+      "new_value->>'resolution_note' as resolution_note,new_value ? 'manager_cancellation_cleared' as has_cancel_clear_marker " +
+      "from public.audit_logs where organization_id=$1 and entity_type='ai_task' and entity_id=$2 and action='operational_task.status_changed'",
     [organizationId, manualTaskId],
   );
   assert.equal(manualTaskAudit.length, 1, "one database-level status trigger event is recorded for the RPC transition");
   assert.equal(manualTaskAudit[0].old_status, "pending");
   assert.equal(manualTaskAudit[0].new_status, "completed");
   assert.equal(manualTaskAudit[0].actor_id, staffProfileId, "authenticated transition preserves the real profile actor");
+  assert.equal(manualTaskAudit[0].resolution_note, "CI acceptance completion", "central audit retains the task resolution note");
+  assert.equal(manualTaskAudit[0].has_cancel_clear_marker, true, "central audit preserves the established cancellation metadata contract");
 
   // Force an actual crossing into and out of the persisted reorder threshold.
   await db.unsafe("reset role");
@@ -5272,6 +5275,12 @@ async function main() {
   const auditWindow = auditWindowRows[0].result.audit;
   assert.equal(auditWindow.completeness, "WINDOW_COMPLETE", "reopen-rate window begins only after the centralized audit baseline");
   assert.ok(Number.isFinite(Date.parse(auditWindow.windowStartedAt)), "the audit-coverage start timestamp is persisted");
+  await db.unsafe("reset role");
+  const auditBaselineRows = await db.unsafe(
+    "select count(*)::integer as count from public.operational_task_audit_settings where singleton is true",
+  );
+  assert.equal(auditBaselineRows[0].count, 1, "the audit activation marker is a single immutable tenant-independent baseline");
+  await db.unsafe("set role authenticated");
   assert.ok(Number(auditWindow.firstCompletedTaskCount) >= 1, "the denominator counts tasks first completed within the covered window");
   assert.ok(Number(auditWindow.reopenEventCount) >= 1, "the numerator source includes an actually observed reopen transition");
   assert.equal(
