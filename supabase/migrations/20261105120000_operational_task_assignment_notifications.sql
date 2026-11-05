@@ -59,10 +59,10 @@ CREATE POLICY notifications_update_current_profile
     AND (profile_id IS NULL OR profile_id=public.current_profile_id())
   );
 
-GRANT SELECT ON public.notifications TO authenticated;
-REVOKE UPDATE ON public.notifications FROM PUBLIC,anon,authenticated;
+REVOKE SELECT,INSERT,UPDATE,DELETE ON public.notifications FROM PUBLIC,anon,authenticated;
+GRANT SELECT (id,organization_id,profile_id,title,body,type,is_read,created_at)
+  ON public.notifications TO authenticated;
 GRANT UPDATE (is_read) ON public.notifications TO authenticated;
-REVOKE INSERT,DELETE ON public.notifications FROM PUBLIC,anon,authenticated;
 
 -- A restrictive guard intersects any older permissive policy on this legacy table.
 DROP POLICY IF EXISTS notifications_tenant_scope_guard ON public.notifications;
