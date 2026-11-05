@@ -1,3 +1,19 @@
+# SESSION RESUME OVERRIDE — 2026-11-05 — CURRENT MAIN `45ca19c47a985b2d12d23c846ba068222a4e17ce`
+
+Continue only from `Report-Engainall/Nasr1@main`; no branch or rebuild.
+
+- Latest verified main SHA: `45ca19c47a985b2d12d23c846ba068222a4e17ce`.
+- Application portability baseline: `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63`.
+- CI correction/test SHA: `45ca19c47a985b2d12d23c846ba068222a4e17ce`. Core PASS: 272/272 files, 1,786/1,786 tests; PostgreSQL 17, backup/restore, lint, build, Nitro/Vite preview, dev smoke and price visibility PASS. P1 TypeScript, static analysis, secret scan and branch cleanup PASS.
+- P2 exact-head run `41940874520`: public UI 17/17 PASS; local Supabase authenticated E2E had passed through order/tenant, stock-count XLSX, purchase-order XLSX, checkout replay, returns/credit memo and Onyx XLSX; finance/task print was active in the last observation. Hosted customer/order/tenant test SKIPPED_EXTERNAL.
+- Changed in `45ca19c`: Core and P2 preview launchers now use Vite preview for the actual Nitro output; auth test expects Bolt-native setup messaging; two new runtime-diagnostic privacy tests. No product screen, business engine or database migration was removed.
+- The legacy Vercel status is FAILURE and is not a Bolt acceptance result.
+- Bolt runtime remains NOT VERIFIED. ChatGPT has not connected to Bolt or changed any Bolt project resource. The immediate task remains `BOLT-RUNTIME-001`: import latest main, use Bolt's built-in Database (not an external Supabase connection), map existing database/auth/storage/server-function contracts without weakening RLS-equivalent tenant checks, atomic RPCs, audit, idempotency or pricing privacy, then run Bolt Preview and full acceptance on one exact SHA.
+- Bolt single-message execution instructions: `docs/bolt-source-reconciliation/BOLT_EXECUTION_PROMPT_AR_2026-11-05.md`.
+- Never repeat the archive audit or auth patch; do not redo passed Core/P2 steps. First inspect the P2 run's terminal state, record it, then proceed to Bolt integration.
+
+---
+
 ## EXECUTION OVERRIDE — 2026-11-05 — SOURCE PORTABILITY BATCH COMPLETED; BOLT DATABASE PORT IS NEXT
 
 - Latest application-source commit: `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63` (the docs handoff commit may be newer; preserve this code SHA as the source change reference).

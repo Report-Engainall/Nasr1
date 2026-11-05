@@ -1,3 +1,25 @@
+# LIVE EXECUTION OVERRIDE — 2026-11-05 — BOLT SOURCE PORTABILITY + EXACT-SHA CI ACCEPTANCE
+
+- REPOSITORY: `Report-Engainall/Nasr1`; branch: `main` only.
+- CURRENT_MAIN_SHA: `45ca19c47a985b2d12d23c846ba068222a4e17ce`.
+- APPLICATION_PORTABILITY_SHA: `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63`.
+- CI_ALIGNMENT_AND_REGRESSION_SHA: `45ca19c47a985b2d12d23c846ba068222a4e17ce` (parent `a4eb51f0a28c9e3110f29030d2d43f2cde2c5ff9`; four paths changed).
+- CHANGED_PATHS_ON_CI_ALIGNMENT_SHA:
+  - `.github/workflows/commerce-checks.yml`: use `vite preview` for the actual Nitro/Vite build output; remove the obsolete Wrangler-only `wrangler.json` expectation.
+  - `.github/workflows/p2-playwright-critical-paths.yml`: replace all three obsolete Wrangler preview launchers with `vite preview`; keep all browser acceptance routes and assertions.
+  - `src/test/auth-bootstrap.test.tsx`: expect Bolt-native setup messaging rather than obsolete Lovable-era copy or raw environment variable names.
+  - `src/test/runtime-error-reporting.test.ts`: add regression coverage that diagnostics expose only approved error metadata and never error messages, response bodies, tokens or customer data.
+- EXACT_SHA_CORE: [run 41940874587 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874587) on `45ca19c47a985b2d12d23c846ba068222a4e17ce`. Unit suite: 272/272 test files and 1,786/1,786 tests PASS. Focused outbox TypeScript check PASS. PostgreSQL 17 migrations and acceptance, RPC inventory, atomic finance/inventory/import checks, isolated backup/restore, lint, build, Nitro/Vite production preview, dev smoke and Chromium price-visibility acceptance all PASS.
+- EXACT_SHA_STATIC_AND_GUARDS: [Free Static Analysis 41940874495 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874495); [P1 Targeted TypeScript 41940874537 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874537); [P1 Secret Scan 41940874667 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874667); [one-main-branch cleanup 41940874526 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874526).
+- EXACT_SHA_P2: [run 41940874520 IN PROGRESS at last observation](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874520). Authenticated infrastructure gate PASS; public UI smoke PASS (17/17 Chromium tests); local Supabase/PostgreSQL 17 setup and migrations PASS; endpoint guard, pricing atomicity/rollback/audit, cash-expense source posting/idempotency/void-post concurrency, purchase receipt accounting, exact build + local launch, authenticated order persistence/cross-tenant denial, stock-count XLSX, purchase-orders XLSX, lost-response checkout replay, customer returns/receipt/credit memo and Onyx XLSX all PASS. Finance-document/operational-task print was the active step; customer-manager privacy/audit and device-session stages remained pending at that observation. Hosted customer/order/tenant job was SKIPPED by its external-auth gate and is NOT PASS.
+- LEGACY VERCEL STATUS: the Vercel check reports FAILURE on this SHA; this is not Bolt Preview evidence and does not satisfy or invalidate Bolt's separate runtime acceptance. Do not claim a deployment passed.
+- LOVABLE SOURCE REVIEW: application package/lock and Vite integration had already been decoupled in `b0a091e`; the source tree now has no Lovable-named files or preview-auth bridge paths. Historical documentation may retain source provenance. This is not a substitute for full runtime behavior verification.
+- BOLT_RUNTIME_STATUS: `PARTIAL_SOURCE_PORTABILITY_ON_MAIN / NOT VERIFIED IN BOLT`. ChatGPT performed no Bolt project import, no Bolt Database provisioning, no Bolt auth/storage/server-function mutation, and no Bolt Preview run. CI used isolated GitHub Actions/local Supabase fixtures only.
+- NEXT_ACTION_ID: `BOLT-RUNTIME-001`. Import the latest `main` into Bolt; use the built-in Bolt Database (do not select a separate external Supabase connection); inspect the actual Bolt DB/auth/storage/server-function capabilities; map and preserve all existing SQL/RPC/transactions/authorization contracts; then run Bolt Preview and full auth/session, tenant/RBAC, privacy, commerce, finance, storage and server-function acceptance on one exact SHA. Do not continue DLV feature work until this runtime gate is proven.
+- PRESERVATION: no storefront/admin screen, route, engine, SQL migration, function, test suite, workflow or historical document was removed or rebuilt.
+
+---
+
 # LIVE EXECUTION UPDATE — 2026-11-05 — LOVABLE BUILD/PREVIEW DETACHMENT
 
 This section is newer than the historical Bolt-preparation notes below. It updates the implementation state without deleting earlier evidence.

@@ -1,3 +1,18 @@
+## 2026-11-05 — Source portability CI alignment and exact-SHA acceptance (`45ca19c47a985b2d12d23c846ba068222a4e17ce`)
+
+- Parent/main before correction: `a4eb51f0a28c9e3110f29030d2d43f2cde2c5ff9`; direct-to-main CAS commit: `45ca19c47a985b2d12d23c846ba068222a4e17ce`.
+- Paths: `.github/workflows/commerce-checks.yml`, `.github/workflows/p2-playwright-critical-paths.yml`, `src/test/auth-bootstrap.test.tsx`, `src/test/runtime-error-reporting.test.ts`.
+- Root causes addressed: CI still invoked Cloudflare Wrangler and required `.output/server/wrangler.json` after the app had moved to Vite + TanStack Start + Nitro; auth bootstrap tests still asserted obsolete pre-Bolt copy. The Nitro build itself had succeeded before the harness mismatch.
+- Implementation: switched Core and all three P2 local preview launchers to `npx vite preview`; removed the Wrangler-only artifact gate while retaining the Nitro server and PWA artifact checks; retained route/SSR/API and browser assertions. Updated auth-bootstrap expectations to the Bolt setup message. Added two provider-neutral runtime diagnostic privacy tests.
+- Exact Core [41940874587 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874587): 272/272 test files, 1,786/1,786 unit tests, focused outbox TypeScript, PostgreSQL 17 migrations/acceptance, RPC inventory, finance/inventory/import checks, isolated backup/restore, lint, build, Vite/Nitro production preview, dev smoke and five Chromium price-visibility tests all passed on this exact SHA.
+- Exact P1 TypeScript [41940874537 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874537); Free Static Analysis [41940874495 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874495); Secret Scan [41940874667 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874667); main cleanup [41940874526 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874526).
+- Exact P2 [41940874520](https://github.com/Report-Engainall/Nasr1/actions/runs/41940874520) was still in progress at this checkpoint: public UI Chromium smoke 17/17 PASS; isolated local PostgreSQL 17/Supabase migrations, build/launch, price guard, cash/receipt accounting, order persistence/cross-tenant denial, stock-count XLSX, purchase-order XLSX, checkout replay, customer returns/credit memo and Onyx XLSX passed; finance/task print was active. Hosted customer/order/tenant was SKIPPED_EXTERNAL, not PASS.
+- Vercel check reported FAILURE on this SHA; no Vercel deployment or Bolt deployment is claimed.
+- No Bolt environment, Bolt Database, Bolt auth/storage/server functions or Bolt Preview were accessed. Those remain the mandatory next environment-owned action under `BOLT-RUNTIME-001`.
+- Next: finish the same P2 run without rerunning passed stages; update this checkpoint/matrix with the terminal P2 result; then import exact latest main into Bolt and complete the native-resource mapping/Preview acceptance.
+
+---
+
 ## Final P2 test result and current Core watch — 2026-10-30
 - Current main docs cursor before this update: `31d1bef20a2dfe909e92078c94de8c07545d4348`; code SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
 - P2 run [41017608501 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608501): auth gate/public smoke SUCCESS; local order persistence/cross-tenant denial, returns/credit memo, Onyx XLSX export SUCCESS. Mobile drawer focus assertion failed at `e2e/finance-task-print.spec.ts:69`; finance/task print assertions were not reached; hosted customer/order/tenant SKIPPED.

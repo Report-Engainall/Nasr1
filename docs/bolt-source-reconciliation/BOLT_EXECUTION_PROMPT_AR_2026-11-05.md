@@ -9,6 +9,7 @@
 - المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
 - الفرع الوحيد: `main`.
 - آخر commit خاص بتجهيز مصدر التطبيق: `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63`.
+- آخر main تم التحقق منه للاستيراد بعد محاذاة اختبارات Nitro/المصادقة: `45ca19c47a985b2d12d23c846ba068222a4e17ce`. اسحب أحدث main دائمًا؛ هذا SHA مرجع الاستئناف الحالي فقط.
 - عند الاستيراد، اسحب **أحدث رأس main** ولا تستورد commit قديمًا أو ZIP فوقه. اقرأ كذلك:
   - `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`
   - `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`
