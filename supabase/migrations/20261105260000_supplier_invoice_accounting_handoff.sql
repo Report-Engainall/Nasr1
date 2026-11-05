@@ -476,11 +476,33 @@ BEGIN
     IF v_existing.payload_fingerprint IS DISTINCT FROM v_fingerprint THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='supplier invoice accounting idempotency key payload conflict';
     END IF;
+    IF v_existing.journal_entry_id IS NULL THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'invoice_id',v_invoice.id,'handoff_id',v_existing.id,
+        'journal_entry_id',NULL,'handoff_sequence',v_existing.handoff_sequence,
+        'accounting_status','no_adjustment_required','replayed',true
+      );
+    END IF;
+    SELECT j.* INTO v_journal
+      FROM public.accounting_journal_entries j
+     WHERE j.organization_id=v_org AND j.id=v_existing.journal_entry_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier invoice accounting handoff journal is missing';
+    END IF;
     RETURN pg_catalog.jsonb_build_object(
       'invoice_id',v_invoice.id,'handoff_id',v_existing.id,
       'journal_entry_id',v_existing.journal_entry_id,
+      'journal_entry_number',v_journal.entry_number::text,
+      'journal_status',v_journal.status,
       'handoff_sequence',v_existing.handoff_sequence,
-      'accounting_status',v_existing.handoff_status,'replayed',true
+      'accounting_status',CASE
+        WHEN v_journal.status='void' THEN 'journal_void'
+        WHEN EXISTS (SELECT 1 FROM public.accounting_journal_reversals reversal
+          WHERE reversal.organization_id=v_org AND reversal.original_journal_entry_id=v_journal.id)
+          THEN 'journal_reversed'
+        WHEN v_journal.status='posted' THEN 'journal_posted'
+        ELSE 'journal_draft_created' END,
+      'replayed',true
     );
   END IF;
 
