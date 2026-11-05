@@ -1,28 +1,26 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-05
 
 - Repository: `Report-Engainall/Nasr1`; source branch: `main` only.
-- Latest implemented P1 product-code commit: `a21b0c42f052633bb85e0f7353ab4a369333ad03` (BODY-COMPLETION-ON-MAIN-019).
+- Latest implemented P1 product-code commit: `f0ddf06a0ae713b4031518b4bd28c0029c3b2c83` (BODY-COMPLETION-ON-MAIN-020; A4 voucher CSS is latest product-code commit).
 - **Only two implementation roles are active: P1 and P3.** P1 (this execution) owns product UI/workspaces, route navigation, typed client/UI integration, operational document projection, print and XLSX. P3 owns intelligent engines, evidence lineage, tenant-scoped intelligence persistence, snapshot capture/correction and source read DTOs. No new P2 implementer/task is to be created or assigned. This override supersedes historical P1/P2/P3 ownership text below wherever it conflicts.
-- P1 completed the supplier invoice accounting handoff and Arabic A4/XLSX voucher, then added the supplier account activity document outputs in BODY-COMPLETION-ON-MAIN-019: shared validated projection, Arabic A4 print/PDF, four-sheet XLSX, role-gated UI actions and explicit receipt-source coverage/page-scope disclosures. P1 also mounted BusinessHealthMap and GrowthOpportunityRadar and connected GrowthOpportunityRadar's source navigation to existing authorized screens.
+- P1 completed supplier invoice accounting and its A4/XLSX voucher; BODY-019 added supplier account activity A4/PDF + four-sheet XLSX; BODY-020 added a source-bound Arabic A4/PDF supplier payment voucher from saved payment header and actual linked journal state. P1 also mounted BusinessHealthMap and GrowthOpportunityRadar and connected GrowthOpportunityRadar source navigation to existing authorized screens.
 - P3 delivered the Section 52 decision-memory engine, UI, immutable storage migration, capture/correction RPC and embedded `memorySnapshot` read DTO; P3 owns the next intelligence section after Bolt-side acceptance of Section 52. P1 must not recreate P3 intelligence logic.
 - Supplier invoice capture/three-way match, supplier payment/settlement, source evidence attachments, Business Health Map and Growth Opportunity Radar were existing product capabilities and were reused rather than rebuilt.
 - No tests, build, lint, CI, CodeInspector, browser, E2E, database migration application, Bolt runtime, Preview, Vercel or production operation was run in this product-body phase. No PASS or runtime/production acceptance is claimed. Migrations are source-only until Bolt New sync/apply.
 - No Vercel credits or paid providers were used. GitHub commits are the delivery record; push/email notification receipt is not claimed because it depends on repository watch settings.
 
-## Current sequential product cursor
+## Current seque## Current sequential product cursor
 
-- `BODY-COMPLETION-ON-MAIN-019` — supplier account activity statement A4 print/PDF and four-sheet XLSX — **IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING**.
-- Exact latest source-code commit: `a21b0c42f052633bb85e0f7353ab4a369333ad03`; the later P1 checkpoint and matrix documentation updates are committed separately on `main`.
-- Existing source read model: `supabase/migrations/20261105234000_supplier_account_activity_statement.sql`, extended by `supabase/migrations/20261105235000_supplier_payment_settlement.sql`; its current contract reads source-linked POSTED receipt, supplier-credit-note and supplier-payment journals, groups totals by supplier/currency, and keeps pending payment reservations separate. It excludes supplier invoices outside the receipt-linked source model.
-- P1 document projection: `src/lib/supplier-account-activity-print.ts`; internal UUIDs, tenant/profile IDs and account IDs are omitted.
-- Print/PDF: `src/components/SupplierAccountActivityPrintSheet.tsx` and scoped A4 landscape CSS in `src/styles.css`.
-- XLSX: `src/lib/supplier-account-activity-xlsx.ts`; four worksheets (scope, currency totals, supplier summary, current-page details). Text is emitted as literal strings; currencies remain separate; unknown values remain blank.
-- UI actions: `src/components/SupplierAccountActivityWorkspace.tsx`; existing admin/manager/accountant gate, date filters and pagination retained. Details explicitly describe current-page scope. Current payable is shown only with complete receipt-source coverage; it excludes supplier invoices outside this model, and a movement date filter does not narrow the current payable snapshot.
-- P1 checkpoint: `docs/execution/P1_CHECKPOINT.md`; DLV-008 source scope and DLV-011 document leaf recorded in `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
-- P1 next action: continue the next untouched mandatory non-intelligence product requirement; do not repeat supplier invoice capture/accounting, payment settlement, account activity read/statement, existing seven DLV-011 leaves or Customer 360 interaction export.
-- P3 next action: after Bolt applies and accepts the Section 52 decision-memory migration/DTO, advance to the next canonical intelligence section. Do not duplicate Sections 50–52.
+- `BODY-COMPLETION-ON-MAIN-020` — supplier payment voucher A4 print/PDF — **IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING**.
+- Latest P1 code commit: `f0ddf06a0ae713b4031518b4bd28c0029c3b2c83`; exact feature files/blobs are recorded in `docs/execution/P1_CHECKPOINT.md`.
+- Projection: `src/lib/supplier-payment-voucher-print.ts`; reads saved payment and current supplier workspace DTO, excludes internal IDs, uses posted journal as the settlement boundary, and discloses that allocation details are not returned by the saved payment history model.
+- Print view: `src/components/SupplierPaymentVoucherPrintSheet.tsx`; row action and lifecycle: `src/components/SupplierPaymentWorkspace.tsx`; scoped A4 portrait CSS: `src/styles.css`.
+- Existing supplier payment workflow remains the only payment source and is mounted in `GeneralLedgerWorkspace.tsx`. No parallel payment service, DB write, or migration is added by BODY-020.
+- Historical P1 item `BODY-COMPLETION-ON-MAIN-019` — supplier account activity A4/PDF + four-sheet XLSX — remains implemented on main and recorded in the P1 checkpoint/matrix.
+- P1 next action: continue the next untouched mandatory non-intelligence product requirement. Do not repeat supplier invoice/payment/statement document outputs, existing DLV-011 accepted templates or Customer 360 interaction export.
+- P3 next action: after Bolt applies and accepts Section 52 decision-memory migration/DTO, advance to the next canonical intelligence section. Do not duplicate Sections 50–52.
 
-## Bolt handoff boundary
+boundary
 
 - Sync `Report-Engainall/Nasr1` from `main` into Bolt New.
 - Bolt New owns DB connection, migration application, environment-specific integration and end-to-end runtime/acceptance. The source repository does not claim that those operations have happened.
