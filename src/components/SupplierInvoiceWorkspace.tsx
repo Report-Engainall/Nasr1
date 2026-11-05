@@ -448,6 +448,10 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
 
   function printAccountingDocument() {
     if (!selectedInvoice || !accountingStatus || accountingLoading || accountingError || mode !== "review" || printDocument) return;
+    if (typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") {
+      setPrintError("ميزة الطباعة غير متاحة في هذا المتصفح؛ لم يتم إنشاء مستند.");
+      return;
+    }
     try {
       const projected = projectSupplierInvoiceAccountingPrintDocument({
         invoice: selectedInvoice,
