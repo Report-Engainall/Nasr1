@@ -1,3 +1,53 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — CRM RETENTION INTELLIGENCE + CUSTOMER SERVICE CASES
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Product-code SHA for this implementation batch: `100bc8ac26798854773bb38b24087c6c6b8fc555`.
+- Acceptance-matrix/documentation SHA before this pointer update: `09e38b39b4a98aa0dce7e0e7d5cb11566aa7fdf9`.
+- Completed product work: `BODY-COMPLETION-ON-MAIN-007` and the adjacent CRM case-management slice. Work was committed sequentially to official `main`; no branch or PR was created.
+- Implementation priority for this phase is product body only. Comprehensive database synchronization, build, browser acceptance and end-to-end verification are intentionally deferred to the planned Bolt New handoff. Do not start repetitive broad tests, lint, scans or CI in this phase.
+
+## Product functionality added
+
+### Evidence-backed Customer 360 retention
+- Added read-only `get_customer_retention_aggregate(period_days,as_of)` in `supabase/migrations/20261105180000_customer_retention_aggregate.sql`. It derives the organization from the authenticated active staff profile; clients cannot submit an organization, customer population or evidence record.
+- Returns the full same-tenant customer population with current/previous equal-length non-cancelled order counts, last order timestamp and explicit coverage/evidence records. It returns no finance, invoice, balance, cost, margin or tier-price values.
+- Hard bound: above 5,000 customers the function withholds the sampled list and marks coverage UNVERIFIED/PARTIAL; it never publishes a partial sample as a verified full population.
+- Added `src/lib/customer-retention-client.ts` to validate the server envelope and run the existing `src/lib/intelligence/customer-retention.ts` engine. No second retention engine was created.
+- Mounted the result in `src/components/AdminCustomer360.tsx`: tenant-level retention/repeat-purchase KPIs, selected-customer activity cohort, period selector (30/60/90/180/365 days), and evidence-backed next-step guidance. Cohorts and KPIs are hidden whenever the engine does not return VERIFIED.
+
+### Customer service case workflow
+- Added `supabase/migrations/20261105190000_customer_service_cases.sql` with tenant-scoped case and append-only event tables, protected from direct browser writes.
+- Staff can open complaint, inquiry, service request, delivery issue and other cases with priority, subject and details. Creation is idempotent and returns a readable case code.
+- Staff can move a case through open, in progress, waiting for customer, resolved and closed; resolution/closure requires a note. Reopening a closed case requires manager capability. Status, priority and note events are audited.
+- Each case creates one source-linked sales task in the existing operational Task Center. Task completion follows case resolution/closure; explicit case reopening reopens the source task. Case readback shows the assigned employee from the linked task, so assignment remains in the existing single task queue.
+- Added `src/lib/customer-service-cases.ts` and `src/components/CustomerServiceCases.tsx`; mounted in Customer 360 with responsive case creation, status actions and event history.
+
+## Main commits
+
+- Retention aggregate migration: `853ffdff49d15577f72618d39976efdd0f23c4ec`.
+- Retention client: `53117efcc8d5124f60ddc897f66c0d491f2d69d4`.
+- Retention panel: `202c51dc10cc46a3eb83c5589d2afbebc6c0ccc0`; layout `6f3ebf66ac8a8f16ef7868948cd8350b4e2432d4`; UI cleanup `0bb2ff5f82ef16265aab971c0a1eca58ba23f184`.
+- Customer-case migration: `fd8a28229d68a2ba82e4d9aa6ebbfa29ddb8cbcc`.
+- Customer-case client: `d31750beedf3814decca1b0d44ad559d56e39ff3`.
+- Customer-case UI: `2eb2542b64ed0a0e18951b8842656ce7e4cd205c`.
+- Customer 360 mount: `8062a8a40d932d485ae2a2adf37461dbe07af00c`; combined styles/product-code SHA `100bc8ac26798854773bb38b24087c6c6b8fc555`.
+- Acceptance leaves added to the existing matrix: `DLV-010-CUSTOMER-RETENTION-INTELLIGENCE-001`, `DLV-010-CUSTOMER-SERVICE-CASES-001`, `DLV-015-CUSTOMER-SERVICE-CASE-TASK-001`.
+
+## Explicit boundaries
+
+- Source implementation is committed to GitHub `main`; both new migrations are **not applied** to local, hosted, production or Bolt databases.
+- No tests, build, lint, CI, runtime browser check or Bolt Preview was run in this batch, in accordance with the owner's instruction to reserve integration/verification for Bolt New. No PASS or runtime claim is made.
+- New matrix rows remain `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- GitHub is the only source delivery path. No Vercel deployment, preview, build or free credit was used.
+- Full customer portal visibility, case SLA/manager assignment-escalation and customer-side case updates remain future product work; they are not claimed as implemented.
+
+## Next product action
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-009`.
+- Extend customer service cases with manager assignment/escalation and configurable response/resolution deadlines; display due/overdue state from stored timestamps, and synchronize assignee/deadline with the linked operational task. Keep case history append-only and use existing task notification flow. Do not begin a general test loop or consume Vercel credits.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER 360 FOLLOW-UP LIFECYCLE
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
