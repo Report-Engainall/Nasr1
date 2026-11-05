@@ -24,7 +24,8 @@ function accountingLabel(status: SupplierInvoiceAccountingPrintDocument["account
   return "لم تُعد التسوية المحاسبية";
 }
 
-function journalStatusLabel(status: SupplierInvoiceAccountingPrintDocument["journalStatus"]): string {
+function journalStatusLabel(status: SupplierInvoiceAccountingPrintDocument["journalStatus"], accountingStatus: SupplierInvoiceAccountingPrintDocument["accountingStatus"]): string {
+  if (accountingStatus === "journal_reversed") return "مرحّل وله قيد عكس";
   if (status === "draft") return "مسودة";
   if (status === "posted") return "مرحّل";
   if (status === "void") return "ملغى";
@@ -62,7 +63,7 @@ export function SupplierInvoiceAccountingPrintSheet({
           <div><span>مطابقة أمر الشراء والاستلام والفاتورة</span><strong>{matchLabel(document.matchStatus)}</strong></div>
           <div><span>الحالة المحاسبية</span><strong>{accountingLabel(document.accountingStatus)}</strong></div>
           <div><span>رقم قيد التسوية</span><strong>{document.journalEntryNumber ?? "—"}</strong></div>
-          <div><span>حالة القيد</span><strong>{journalStatusLabel(document.journalStatus)}</strong></div>
+          <div><span>حالة القيد</span><strong>{journalStatusLabel(document.journalStatus, document.accountingStatus)}</strong></div>
         </div>
       </section>
 
@@ -99,7 +100,7 @@ export function SupplierInvoiceAccountingPrintSheet({
             <tr><th>فرق قيمة البنود عن تكلفة الاستلام</th><td>{money(document.merchandiseVarianceAmount, document.currency)}</td></tr>
             <tr><th>الضريبة الفعلية المسجلة في الفاتورة</th><td>{money(document.taxAmount, document.currency)}</td></tr>
             <tr><th>إجمالي فاتورة المورد</th><td><strong>{money(document.invoiceTotalAmount, document.currency)}</strong></td></tr>
-            <tr><th>صافي تعديل التزام المورد</th><td><strong>{money(document.netAdjustmentAmount, document.currency)}</strong></td></tr>
+            <tr><th>صافي تعديل التزام المورد ({document.payableDirection === "increase" ? "زيادة" : document.payableDirection === "decrease" ? "تخفيض" : "دون تغيير"})</th><td><strong>{money(document.netAdjustmentAmount, document.currency)}</strong></td></tr>
           </tbody>
         </table>
       </section>
