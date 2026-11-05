@@ -1,3 +1,16 @@
+# PARALLEL P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
+
+- Repository `Report-Engainall/Nasr1`; only branch `main`.
+- Canonical reference: section 52 — decision memory and learning.
+- P3 files committed: `src/lib/intelligence/decision-memory.ts`, `src/components/intelligence/DecisionMemoryBook.tsx`, P3 library/component exports, and the mount inside `IntelligenceWorkspace.tsx`.
+- Engine validates versioned decision snapshots, evidence-bound facts, labelled opinions/hypotheses and assumptions, alternatives/chosen option, action/review state, lessons, append-only corrections, and comparable expected/actual metric snapshots. It checks actual metric agreement with the existing decision lifecycle summary and withholds mismatched formula/unit/currency/period/as-of comparisons.
+- Current P2 DTO lacks full decision memory snapshots and full measured-outcome lineage. The panel deliberately displays existing rows as PARTIAL/UNVERIFIED and identifies missing fields; it does not synthesize snapshots. P2 contract is appended to `P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; P2 persistence/RPC/read DTO integration remains outstanding. No tests/build/CI/browser/DB/Preview/production check run; no PASS claimed.
+- No Vercel credit, paid provider, new dependency or production change.
+- Existing sequential `BODY-COMPLETION-ON-MAIN-018` pointer and P1/P2 owner paths remain unchanged.
+
+---
+
 # PARALLEL P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-BUSINESS-HEALTH-MAP-001
 
 - Repo `Report-Engainall/Nasr1`, branch `main`; base `4f2ebcee064f399b53c15f2ed919a8395e939bd7`.
