@@ -1120,6 +1120,27 @@ export async function updateOperationalTaskDetails(
   if (error) throw new Error(error.message || 'تعذر تحديث أولوية المهمة وموعدها.');
 }
 
+export async function updateManualOperationalTask(
+  taskId: string,
+  title: string,
+  description: string,
+): Promise<void> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
+    throw new Error('معرّف المهمة غير صالح.');
+  }
+  const normalizedTitle = title.trim();
+  const normalizedDescription = description.trim();
+  if (!normalizedTitle || normalizedTitle.length > 240 || normalizedDescription.length > 2000) {
+    throw new Error('عنوان المهمة أو تفاصيلها تتجاوز الحدود المسموح بها.');
+  }
+  const { error } = await supabase.rpc('update_manual_operational_task', {
+    p_task_id: taskId,
+    p_title: normalizedTitle,
+    p_description: normalizedDescription || null,
+  });
+  if (error) throw new Error(error.message || 'تعذر تحديث نص المهمة اليدوية.');
+}
+
 export async function createOperationalTask(input: {
   title: string; description?: string; taskRole: OperationalTaskRole;
   priority: 'low' | 'medium' | 'high' | 'critical'; dueAt?: string | null; assignedTo?: string | null;
