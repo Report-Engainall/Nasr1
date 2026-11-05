@@ -9,6 +9,7 @@ import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
 import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
+import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
 import {
   createInventoryIntelligencePeriod,
@@ -301,7 +302,9 @@ function DecisionCyclePanel({
   );
 }
 
-export function IntelligenceWorkspace() {
+export function IntelligenceWorkspace({ onOpenRecord }: {
+  onOpenRecord?: (kind: GrowthOpportunityKind, subjectRef: string) => void;
+}) {
   const { user } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const [horizon, setHorizon] = useState<Horizon>(30);
@@ -844,6 +847,7 @@ export function IntelligenceWorkspace() {
                     ? retentionResult.growthRadar.status === "UNAVAILABLE" ? "empty" : "ready"
                     : retentionResult?.status === "DENIED" ? "error" : "unavailable"}
                   onRetry={() => setRefreshKey((value) => value + 1)}
+                  onOpenRecord={onOpenRecord}
                 />
               </>
             ) : null}
