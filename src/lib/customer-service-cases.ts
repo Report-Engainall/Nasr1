@@ -29,6 +29,13 @@ export interface CustomerServiceCase {
   closed_at: string | null;
   task_id: string | null;
   assigned_to_name: string;
+  assigned_to_id: string | null;
+  response_due_at: string;
+  resolution_due_at: string;
+  first_response_at: string | null;
+  escalated_at: string | null;
+  escalation_level: number;
+  can_manage: boolean;
   events: CustomerServiceCaseEvent[];
 }
 export interface CustomerServiceCaseInput {
@@ -38,6 +45,13 @@ export interface CustomerServiceCaseInput {
   subject: string;
   description: string;
   priority: CustomerServiceCasePriority;
+}
+
+export interface CustomerServiceSlaPolicy {
+  priority: CustomerServiceCasePriority;
+  first_response_minutes: number;
+  resolution_minutes: number;
+  configured: boolean;
 }
 
 type Row = Record<string, unknown>;
@@ -118,13 +132,42 @@ function randomCaseRequestKey(): string {
 export async function fetchCustomerServiceCases(customerId: string, limit = 50): Promise<CustomerServiceCase[]> {
   if (!uuid.test(customerId)) throw new Error("معرّف العميل غير صالح.");
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("حد عرض حالات العميل غير صالح.");
-  const { data, error } = await supabase.rpc("get_customer_service_cases", {
-    p_customer_id: customerId,
-    p_limit: limit,
+  const [casesResult, operationsResult] = await Promise.all([
+    supabase.rpc("get_customer_service_cases", { p_customer_id: customerId, p_limit: limit }),
+    supabase.rpc("get_customer_service_case_operations", { p_customer_id: customerId, p_limit: limit }),
+  ]);
+  if (casesResult.error) throw casesResult.error;
+  if (operationsResult.error) throw operationsResult.error;
+  if (!Array.isArray(casesResult.data) || !Array.isArray(operationsResult.data)) {
+    throw new Error("أعاد الخادم بيانات تشغيل حالات غير صالحة.");
+  }
+  const operations = new Map<string, Row>();
+  for (const [index, value] of operationsResult.data.entries()) {
+    const row = object(value, "بيانات تشغيل الحالة " + (index + 1));
+    operations.set(string(row.case_id, "معرف الحالة"), row);
+  }
+  return casesResult.data.map((value, index) => {
+    const item = parseCase(value, index);
+    const operation = operations.get(item.id);
+    if (!operation) throw new Error("بيانات المواعيد والإسناد مفقودة للحالة " + item.case_code + ".");
+    const assignedToId = nullableString(operation.assigned_to_id, "معرف الموظف المسند");
+    if (assignedToId !== null && !uuid.test(assignedToId)) throw new Error("معرف الموظف المسند غير صالح.");
+    const level = operation.escalation_level;
+    if (typeof level !== "number" || !Number.isInteger(level) || level < 0 || level > 10 ||
+        typeof operation.can_manage !== "boolean") {
+      throw new Error("بيانات التصعيد والصلاحيات غير مكتملة.");
+    }
+    return {
+      ...item,
+      assigned_to_id: assignedToId,
+      response_due_at: date(operation.response_due_at, "موعد الاستجابة"),
+      resolution_due_at: date(operation.resolution_due_at, "موعد الحل"),
+      first_response_at: nullableDate(operation.first_response_at, "وقت أول استجابة"),
+      escalated_at: nullableDate(operation.escalated_at, "وقت آخر تصعيد"),
+      escalation_level: level,
+      can_manage: operation.can_manage,
+    };
   });
-  if (error) throw error;
-  if (!Array.isArray(data)) throw new Error("أعاد الخادم قائمة حالات غير صالحة.");
-  return data.map(parseCase);
 }
 
 export async function createCustomerServiceCase(input: CustomerServiceCaseInput): Promise<{
@@ -189,6 +232,77 @@ export async function updateCustomerServiceCase(input: {
     priority: enumValue(row.priority, CASE_PRIORITIES, "أولوية الحالة"),
     taskId,
   };
+}
+
+
+export async function fetchCustomerServiceSlaPolicies(): Promise<CustomerServiceSlaPolicy[]> {
+  const { data, error } = await supabase.rpc("get_customer_service_sla_policies");
+  if (error) throw error;
+  if (!Array.isArray(data)) throw new Error("أعاد الخادم سياسات SLA غير صالحة.");
+  return data.map((value, index) => {
+    const row = object(value, "سياسة SLA " + (index + 1));
+    const priority = enumValue(row.priority, CASE_PRIORITIES, "أولوية SLA");
+    const response = row.first_response_minutes;
+    const resolution = row.resolution_minutes;
+    if (typeof response !== "number" || !Number.isInteger(response) || response < 5 || response > 43200 ||
+        typeof resolution !== "number" || !Number.isInteger(resolution) || resolution < response || resolution > 43200 ||
+        typeof row.configured !== "boolean") {
+      throw new Error("قيم سياسة SLA غير صالحة.");
+    }
+    return { priority, first_response_minutes: response, resolution_minutes: resolution, configured: row.configured };
+  });
+}
+
+export async function setCustomerServiceSlaPolicy(input: {
+  priority: CustomerServiceCasePriority;
+  firstResponseMinutes: number;
+  resolutionMinutes: number;
+}): Promise<CustomerServiceSlaPolicy> {
+  if (!CASE_PRIORITIES.includes(input.priority) ||
+      !Number.isInteger(input.firstResponseMinutes) || input.firstResponseMinutes < 5 || input.firstResponseMinutes > 43200 ||
+      !Number.isInteger(input.resolutionMinutes) || input.resolutionMinutes < input.firstResponseMinutes || input.resolutionMinutes > 43200) {
+    throw new Error("يجب أن تكون دقائق الاستجابة والحل صحيحة، وأن يسبق موعد الاستجابة موعد الحل.");
+  }
+  const { data, error } = await supabase.rpc("set_customer_service_sla_policy", {
+    p_priority: input.priority,
+    p_first_response_minutes: input.firstResponseMinutes,
+    p_resolution_minutes: input.resolutionMinutes,
+  });
+  if (error) throw error;
+  const row = object(data, "نتيجة حفظ سياسة SLA");
+  return {
+    priority: enumValue(row.priority, CASE_PRIORITIES, "أولوية SLA"),
+    first_response_minutes: Number(row.first_response_minutes),
+    resolution_minutes: Number(row.resolution_minutes),
+    configured: row.configured === true,
+  };
+}
+
+export async function manageCustomerServiceCaseOperations(input: {
+  caseId: string;
+  assignedTo: string | null;
+  responseDueAt: string;
+  resolutionDueAt: string;
+  escalate?: boolean;
+  note?: string | null;
+}): Promise<void> {
+  if (!uuid.test(input.caseId) || (input.assignedTo !== null && !uuid.test(input.assignedTo)) ||
+      !Number.isFinite(Date.parse(input.responseDueAt)) || !Number.isFinite(Date.parse(input.resolutionDueAt)) ||
+      Date.parse(input.responseDueAt) > Date.parse(input.resolutionDueAt)) {
+    throw new Error("بيانات إسناد الحالة أو مواعيد SLA غير صالحة.");
+  }
+  const note = input.note?.trim() || null;
+  if (note && note.length > 1000) throw new Error("سبب التصعيد أو ملاحظة التحديث تتجاوز 1,000 حرف.");
+  if (input.escalate && !note) throw new Error("اكتب سبب التصعيد قبل إرساله للإدارة.");
+  const { error } = await supabase.rpc("manage_customer_service_case_operations", {
+    p_case_id: input.caseId,
+    p_assigned_to: input.assignedTo,
+    p_response_due_at: input.responseDueAt,
+    p_resolution_due_at: input.resolutionDueAt,
+    p_escalate: input.escalate === true,
+    p_note: note,
+  });
+  if (error) throw error;
 }
 
 export { randomCaseRequestKey };
