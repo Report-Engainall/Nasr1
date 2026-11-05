@@ -11,6 +11,7 @@ import {
   EvidenceStatusLabel,
   EvidenceWarnings,
   IntelligenceStatePanel,
+  formatEvidenceNumber,
   type IntelligenceViewState,
 } from "./shared";
 
