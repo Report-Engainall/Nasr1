@@ -28,9 +28,14 @@ type OrganizationSession = {
 
 type SessionRpcResult = { data: unknown; error: { message?: string } | null };
 type SessionRpc = (name: string, args?: Record<string, unknown>) => PromiseLike<SessionRpcResult>;
+type OrganizationSessionCursor = {
+  sessionId: string;
+  activityAt: string;
+  createdAt: string;
+};
 
-// The server allows at most 200 session summaries per request and exposes no paging cursor yet.
-const ORGANIZATION_SESSION_LIST_LIMIT = 200;
+// Fetch one extra row as a sentinel; the server uses a stable activity/created/id cursor.
+const ORGANIZATION_SESSION_PAGE_SIZE = 200;
 
 // Session RPCs are introduced by the independently reviewed P2 migration. Keep the
 // name boundary typed locally so this frontend can be merged without pretending the
@@ -307,20 +312,26 @@ function OrganizationSessionCard({
 function OrganizationSessionList({
   sessions,
   loading,
+  loadingMore,
+  hasMore,
   error,
   canManage,
   action,
   currentProfileId,
   onRefresh,
+  onLoadMore,
   onRevoke,
 }: {
   sessions: OrganizationSession[];
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
   error: string;
   canManage: boolean;
   action: string | null;
   currentProfileId?: string;
   onRefresh: () => void;
+  onLoadMore: () => void;
   onRevoke: (item: OrganizationSession) => void;
 }) {
   if (!canManage) {
@@ -331,7 +342,7 @@ function OrganizationSessionList({
     );
   }
   if (loading) return <p role="status" style={{ marginTop: 14 }}>جار تحميل سجل الجلسات من الخادم…</p>;
-  if (error) {
+  if (error && sessions.length === 0) {
     return (
       <div role="alert" className="error-box" style={{ display: 'block', marginTop: 14 }}>
         {error}
@@ -347,11 +358,11 @@ function OrganizationSessionList({
 
   return (
     <>
-      {sessions.length >= ORGANIZATION_SESSION_LIST_LIMIT ? (
-        <div role="status" className="privacy-note" style={{ marginTop: 14, lineHeight: 1.8 }}>
-          يعرض الخادم حتى {ORGANIZATION_SESSION_LIST_LIMIT} جلسة نشطة في هذا الطلب. قد توجد جلسات أخرى لم تظهر؛ لا تعتبر هذه القائمة جردًا كاملًا عند بلوغ الحد.
-        </div>
-      ) : null}
+      {error ? <div role="alert" className="error-box" style={{ display: 'block', marginTop: 14 }}>{error}</div> : null}
+      <p role="status" className="privacy-note" style={{ marginTop: 14 }}>
+        تم تحميل {sessions.length.toLocaleString('ar-YE')} جلسة نشطة من سجل الخادم.
+        {hasMore ? ' قد توجد جلسات أخرى؛ تابع التحميل لإكمال الجرد.' : ' اكتمل تحميل جميع الجلسات التي أعادها الخادم.'}
+      </p>
       <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
         {sessions.map((item) => (
           <OrganizationSessionCard
@@ -359,12 +370,20 @@ function OrganizationSessionList({
             item={item}
             currentProfileId={currentProfileId}
             action={action}
-            sessionsLoading={loading}
+            sessionsLoading={loading || loadingMore}
             canManage={canManage}
             onRevoke={onRevoke}
           />
         ))}
       </div>
+      {hasMore ? (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+          <button type="button" className="btn btn-outline" onClick={onLoadMore} disabled={loadingMore || action !== null}>
+            {loadingMore ? <RefreshCw size={14} className="spin" /> : <MonitorSmartphone size={14} />}
+            {loadingMore ? 'جار تحميل الجلسات…' : 'تحميل المزيد من الجلسات'}
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -372,20 +391,26 @@ function OrganizationSessionList({
 function OrganizationSessionsSection({
   sessions,
   loading,
+  loadingMore,
+  hasMore,
   error,
   canManage,
   action,
   currentProfileId,
   onRefresh,
+  onLoadMore,
   onRevoke,
 }: {
   sessions: OrganizationSession[];
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
   error: string;
   canManage: boolean;
   action: string | null;
   currentProfileId?: string;
   onRefresh: () => void;
+  onLoadMore: () => void;
   onRevoke: (item: OrganizationSession) => void;
 }) {
   return (
@@ -409,6 +434,9 @@ function OrganizationSessionsSection({
         action={action}
         currentProfileId={currentProfileId}
         onRefresh={onRefresh}
+        onLoadMore={onLoadMore}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
         onRevoke={onRevoke}
       />
     </section>
@@ -433,6 +461,9 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   const canManageOrganizationSessions = Boolean(user?.roles.includes('admin'));
   const [session, setSession] = useState<CurrentSession | null>(null);
   const [organizationSessions, setOrganizationSessions] = useState<OrganizationSession[]>([]);
+  const [organizationSessionsCursor, setOrganizationSessionsCursor] = useState<OrganizationSessionCursor | null>(null);
+  const [organizationSessionsHasMore, setOrganizationSessionsHasMore] = useState(false);
+  const [organizationSessionsLoadingMore, setOrganizationSessionsLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [action, setAction] = useState<'others' | 'current' | string | null>(null);
@@ -442,25 +473,45 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   const otherSessionsInFlight = useRef(false);
   // Prevent a slow pre-revocation response from restoring stale rows over a newer list.
   const organizationSessionsRequestId = useRef(0);
+  const organizationSessionsLoadMoreInFlight = useRef(false);
   const currentSignOutInFlight = useRef(false);
 
-  const loadOrganizationSessions = useCallback(async () => {
-    const requestId = ++organizationSessionsRequestId.current;
+  const loadOrganizationSessions = useCallback(async (cursor: OrganizationSessionCursor | null = null) => {
+    const isFirstPage = cursor === null;
+    const requestId = isFirstPage
+      ? ++organizationSessionsRequestId.current
+      : organizationSessionsRequestId.current;
     if (!canManageOrganizationSessions) {
       setOrganizationSessions([]);
+      setOrganizationSessionsCursor(null);
+      setOrganizationSessionsHasMore(false);
       setSessionsError('قائمة جلسات المؤسسة وإبطال جلسة مستخدم آخر متاحان لمدير النظام فقط.');
       setSessionsLoading(false);
+      setOrganizationSessionsLoadingMore(false);
       return;
     }
-    setSessionsLoading(true);
-    setSessionsError('');
+    if (isFirstPage) {
+      setSessionsLoading(true);
+      setOrganizationSessionsCursor(null);
+      setOrganizationSessionsHasMore(false);
+      setOrganizationSessionsLoadingMore(false);
+      setSessionsError('');
+    } else {
+      if (organizationSessionsLoadMoreInFlight.current) return;
+      organizationSessionsLoadMoreInFlight.current = true;
+      setOrganizationSessionsLoadingMore(true);
+      setSessionsError('');
+    }
     try {
-      const { data, error: rpcError } = await callSessionRpc('list_organization_sessions', { p_limit: ORGANIZATION_SESSION_LIST_LIMIT });
-      if (rpcError) {
-        throw new Error(rpcError.message || 'تعذر تأكيد استجابة الخادم.');
-      }
-      if (!Array.isArray(data)) {
-        throw new Error('أعاد الخادم قائمة جلسات بصيغة غير صالحة.');
+      const { data, error: rpcError } = await callSessionRpc('list_organization_sessions', {
+        p_limit: ORGANIZATION_SESSION_PAGE_SIZE + 1,
+        p_after_activity_at: cursor?.activityAt ?? null,
+        p_after_created_at: cursor?.createdAt ?? null,
+        p_after_session_id: cursor?.sessionId ?? null,
+      });
+      if (rpcError) throw new Error(rpcError.message || 'تعذر تأكيد استجابة الخادم.');
+      if (!Array.isArray(data) || data.length > ORGANIZATION_SESSION_PAGE_SIZE + 1) {
+        throw new Error('أعاد الخادم صفحة جلسات بصيغة أو حجم غير صالح.');
       }
       const rows = data.map(parseOrganizationSession);
       if (rows.some((row) => row === null)) {
@@ -469,19 +520,44 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
       const parsed = rows.filter((row): row is OrganizationSession => row !== null);
       const ids = new Set<string>();
       for (const row of parsed) {
-        if (ids.has(row.session_id)) {
-          throw new Error('أعاد الخادم معرّفات جلسات مكررة؛ أُوقف عرض القائمة لحين إعادة التحميل.');
-        }
+        if (ids.has(row.session_id)) throw new Error('أعاد الخادم معرّفات جلسات مكررة داخل الصفحة؛ أُوقف عرض البيانات.');
         ids.add(row.session_id);
       }
+      const pageRows = parsed.slice(0, ORGANIZATION_SESSION_PAGE_SIZE);
+      const hasMore = parsed.length > ORGANIZATION_SESSION_PAGE_SIZE;
+      const last = pageRows[pageRows.length - 1];
+      if (hasMore && (!last || !last.created_at || !last.last_activity_at)) {
+        throw new Error('تعذر بناء مؤشر الصفحة التالية من سجل جلسة ناقص.');
+      }
       if (requestId !== organizationSessionsRequestId.current) return;
-      setOrganizationSessions(parsed);
+
+      if (isFirstPage) setOrganizationSessions(pageRows);
+      else {
+        setOrganizationSessions((current) => {
+          const existingIds = new Set(current.map((row) => row.session_id));
+          return [...current, ...pageRows.filter((row) => !existingIds.has(row.session_id))];
+        });
+      }
+      setOrganizationSessionsHasMore(hasMore);
+      setOrganizationSessionsCursor(hasMore && last ? {
+        sessionId: last.session_id,
+        activityAt: last.last_activity_at!,
+        createdAt: last.created_at!,
+      } : null);
+      setSessionsError('');
     } catch {
       if (requestId !== organizationSessionsRequestId.current) return;
-      setOrganizationSessions([]);
-      setSessionsError('تعذر تحميل قائمة الجلسات المركزية من الخادم. لم تُستنتج أجهزة من المتصفح؛ أعد المحاولة بعد التحقق من نشر عقد الجلسات.');
+      if (isFirstPage) setOrganizationSessions([]);
+      setSessionsError(isFirstPage
+        ? 'تعذر تحميل قائمة الجلسات المركزية من الخادم. لم تُستنتج أجهزة من المتصفح؛ أعد المحاولة بعد التحقق من نشر عقد الجلسات.'
+        : 'تعذر تحميل الصفحة التالية من سجل الجلسات؛ بقيت الصفحات السابقة محفوظة. أعد المحاولة للمتابعة.');
     } finally {
-      if (requestId === organizationSessionsRequestId.current) setSessionsLoading(false);
+      if (isFirstPage) {
+        if (requestId === organizationSessionsRequestId.current) setSessionsLoading(false);
+      } else {
+        organizationSessionsLoadMoreInFlight.current = false;
+        if (requestId === organizationSessionsRequestId.current) setOrganizationSessionsLoadingMore(false);
+      }
     }
   }, [canManageOrganizationSessions]);
 
@@ -495,6 +571,8 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
         setSession(null);
         setError('لا توجد جلسة دخول نشطة لهذا المتصفح. سجّل الدخول من جديد.');
         setOrganizationSessions([]);
+        setOrganizationSessionsCursor(null);
+        setOrganizationSessionsHasMore(false);
         return;
       }
       const claims = sessionClaims(data.session.access_token);
@@ -551,6 +629,8 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
       // stale session card or enable a second logout while the route redirect settles.
       setSession(null);
       setOrganizationSessions([]);
+      setOrganizationSessionsCursor(null);
+      setOrganizationSessionsHasMore(false);
       setSessionsError('');
       onNotice('تم تسجيل الخروج من هذا الجهاز.');
     } catch {
@@ -627,11 +707,16 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
       <OrganizationSessionsSection
         sessions={organizationSessions}
         loading={sessionsLoading}
+        loadingMore={organizationSessionsLoadingMore}
+        hasMore={organizationSessionsHasMore}
         error={sessionsError}
         canManage={canManageOrganizationSessions}
         action={action}
         currentProfileId={user?.profileId}
         onRefresh={() => void loadOrganizationSessions()}
+        onLoadMore={() => {
+          if (organizationSessionsCursor) void loadOrganizationSessions(organizationSessionsCursor);
+        }}
         onRevoke={(target) => void revokeOrganizationSession(target)}
       />
       <DeviceManagementPrivacyNote />
