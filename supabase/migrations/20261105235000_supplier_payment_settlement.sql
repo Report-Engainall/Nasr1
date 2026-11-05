@@ -878,6 +878,7 @@ DECLARE
   v_payment public.purchase_supplier_payments%ROWTYPE;
   v_existing public.purchase_supplier_payment_accounting_drafts%ROWTYPE;
   v_journal public.accounting_journal_entries%ROWTYPE;
+  v_reconciliation public.purchase_supplier_payment_reconciliation_events%ROWTYPE;
   v_open record;
   v_item record;
   v_allocated_total numeric(18,2):=0;
@@ -938,6 +939,25 @@ BEGIN
   IF v_allocated_total<>v_payment.amount OR v_allocated_total<=0 THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='supplier payment allocations do not equal the saved payment amount';
   END IF;
+
+  -- A different finance actor must verify the exact instrument evidence before any liability-reducing journal is created.
+  SELECT e.* INTO v_reconciliation
+  FROM public.purchase_supplier_payment_reconciliation_events e
+  WHERE e.organization_id=v_org AND e.payment_id=v_payment.id
+  ORDER BY e.created_at DESC,e.id DESC
+  LIMIT 1;
+  IF NOT FOUND OR v_reconciliation.action<>'matched'
+     OR v_reconciliation.actor_profile_id=v_payment.created_by_profile_id
+     OR v_reconciliation.observed_amount IS DISTINCT FROM v_payment.amount
+     OR v_reconciliation.currency IS DISTINCT FROM v_payment.currency
+     OR v_reconciliation.evidence_type IS DISTINCT FROM CASE
+       WHEN v_payment.payment_method='cash' THEN 'cash_voucher'
+       WHEN v_payment.payment_method='bank_transfer' THEN 'bank_statement_line'
+       WHEN v_payment.payment_method='cheque' THEN 'cheque_clearance'
+       ELSE NULL END THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='a matching, independently reviewed settlement evidence event is required before journal handoff';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM public.accounting_accounts a
     WHERE a.id=v_payment.payable_account_id AND a.organization_id=v_org
@@ -1097,7 +1117,6 @@ DECLARE
   v_actor uuid:=public.current_profile_id();
   v_org uuid;
   v_payment public.purchase_supplier_payments%ROWTYPE;
-  v_journal public.accounting_journal_entries%ROWTYPE;
   v_existing public.purchase_supplier_payment_reconciliation_events%ROWTYPE;
   v_action text:=lower(btrim(coalesce(p_action,'')));
   v_evidence_type text:=lower(btrim(coalesce(p_evidence_type,'')));
@@ -1144,31 +1163,8 @@ BEGIN
      OR (v_action='matched' AND p_observed_amount IS DISTINCT FROM v_payment.amount) THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='matched supplier payment amount and currency must equal the saved source payment';
   END IF;
-  SELECT j.* INTO v_journal
-  FROM public.purchase_supplier_payment_accounting_drafts d
-  JOIN public.accounting_journal_entries j
-    ON j.id=d.journal_entry_id AND j.organization_id=d.organization_id
-  WHERE d.organization_id=v_org AND d.payment_id=v_payment.id;
-  IF NOT FOUND OR v_journal.status<>'posted' OR v_journal.source_type<>'purchase_supplier_payment'
-     OR v_journal.source_reference IS DISTINCT FROM v_payment.payment_number::text
-     OR EXISTS (
-       SELECT 1 FROM public.accounting_journal_reversals reversal
-       WHERE reversal.organization_id=v_org
-         AND (reversal.original_journal_entry_id=v_journal.id OR reversal.reversal_journal_entry_id=v_journal.id)
-     ) THEN
-    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier payment must have a valid posted and non-reversed General Ledger journal before reconciliation';
-  END IF;
-  SELECT count(*)::integer AS line_count,
-    coalesce(sum(l.debit),0)::numeric(18,2) AS debit_total,
-    coalesce(sum(l.credit),0)::numeric(18,2) AS credit_total,
-    coalesce(sum(l.debit) FILTER (WHERE l.account_id=v_payment.payable_account_id),0)::numeric(18,2) AS payable_debit,
-    coalesce(sum(l.credit) FILTER (WHERE l.account_id=v_payment.settlement_account_id),0)::numeric(18,2) AS settlement_credit
-  INTO v_lines
-  FROM public.accounting_journal_lines l
-  WHERE l.organization_id=v_org AND l.journal_entry_id=v_journal.id;
-  IF v_lines.line_count<>2 OR v_lines.debit_total<>v_payment.amount OR v_lines.credit_total<>v_payment.amount
-     OR v_lines.payable_debit<>v_payment.amount OR v_lines.settlement_credit<>v_payment.amount THEN
-    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='posted supplier payment journal no longer matches its immutable source amount and accounts';
+  IF v_payment.status<>'recorded' THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='reconciliation evidence must be recorded before the General Ledger handoff';
   END IF;
 
   v_fingerprint:=md5(jsonb_build_object(

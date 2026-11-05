@@ -294,12 +294,20 @@ export async function fetchSupplierPaymentWorkspace(input: {
   };
 }
 
+export interface SupplierPaymentSettlementAccountRegistration {
+  id: string;
+  accountingAccountId: string;
+  kind: SupplierPaymentSettlementKind;
+  currency: string;
+  displayName: string;
+}
+
 export async function registerSupplierSettlementAccount(input: {
   accountingAccountId: string;
   kind: SupplierPaymentSettlementKind;
   currency: string;
   displayName: string;
-}): Promise<SupplierPaymentSettlementAccount> {
+}): Promise<SupplierPaymentSettlementAccountRegistration> {
   const name = input.displayName.trim();
   const currencyCode = input.currency.trim().toUpperCase();
   if (!UUID_PATTERN.test(input.accountingAccountId) ||
@@ -321,8 +329,6 @@ export async function registerSupplierSettlementAccount(input: {
   return {
     id: uuid(row.settlement_account_id, "ربط حساب التسوية"),
     accountingAccountId: uuid(row.accounting_account_id, "حساب الأستاذ"),
-    accountCode: "",
-    accountName: "",
     kind: row.settlement_kind,
     currency: currencyCode,
     displayName: requiredText(row.display_name, "اسم حساب التسوية"),
@@ -379,7 +385,7 @@ export async function recordSupplierPayment(input: {
   });
   if (error) throw error;
   const result = parsePaymentCommand(data);
-  if (result.amount !== amountText || result.currency !== currencyCode) {
+  if (toMinorUnits(result.amount) !== toMinorUnits(amountText) || result.currency !== currencyCode) {
     throw new Error("أعاد الخادم سند سداد لا يطابق المبلغ أو العملة المطلوبة.");
   }
   return result;
@@ -441,7 +447,10 @@ export async function reconcileSupplierPayment(input: {
   const reference = input.evidenceReference.trim();
   const currencyCode = input.currency.trim().toUpperCase();
   const reason = input.reason?.trim() || null;
-  const amountText = validateMoneyInput(input.observedAmount, "المبلغ المرصود").replace(/\.00$/, "");
+  const amountText = input.observedAmount.trim();
+  if (!MONEY_PATTERN.test(amountText) || !Number.isFinite(Number(amountText))) {
+    throw new Error("مبلغ " + "المبلغ المرصود" + " غير صالح.");
+  }
   if (!UUID_PATTERN.test(input.paymentId) || !UUID_PATTERN.test(input.idempotencyKey) ||
       !["matched", "exception"].includes(input.action) ||
       !["bank_statement_line", "cash_voucher", "cheque_clearance"].includes(input.evidenceType) ||
