@@ -47,6 +47,16 @@ const statusLabel = (status: SupplierReturnCreditNoteRecord["creditNoteStatus"])
 };
 const journalStatusLabel = (status: SupplierReturnCreditNoteRecord["journalStatus"]) =>
   status === "posted" ? "مرحل" : status === "void" ? "ملغى" : status === "draft" ? "مسودة" : "غير متاح";
+const reviewActionLabel = (action: string) => {
+  switch (action) {
+    case "recorded_exact_match": return "تسجيل مستند مطابق";
+    case "recorded_variance_pending": return "تسجيل فرق بانتظار المراجعة";
+    case "variance_approved": return "اعتماد فرق المبلغ";
+    case "variance_rejected": return "رفض إشعار المورد";
+    case "journal_draft_created": return "إنشاء مسودة القيد";
+    default: return "حدث مراجعة";
+  }
+};
 
 function makeIdempotencyKey(): string {
   if (typeof globalThis.crypto?.randomUUID !== "function") {
@@ -207,6 +217,21 @@ function CreditNoteReturnCard({ item, accounts, busy, onBusyChange, onRefresh }:
         <span><ShieldCheck size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />قيد إيصال المصدر: {item.sourceJournalEntryNumber ?? "غير مربوط"} ({journalStatusLabel(item.sourceJournalStatus)})</span>
         {item.creditNoteIssuedOn && <span>تاريخ إشعار المورد: {dateText(item.creditNoteIssuedOn)}</span>}
       </div>
+
+      {item.reviewHistory.length > 0 && (
+        <section style={{ display: "grid", gap: 7, borderTop: "1px solid var(--border, #e3e9ec)", paddingTop: 12 }}>
+          <strong>سجل المطابقة والمراجعة المحاسبية</strong>
+          {item.reviewHistory.map((event, index) => (
+            <div key={event.createdAt + ":" + event.action + ":" + index} style={{ display: "grid", gap: 3, padding: "7px 9px", borderRadius: 8, background: "var(--muted, #f5f7f8)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", fontSize: 12 }}>
+                <strong>{reviewActionLabel(event.action)} — {event.supplierCreditNoteNumber}</strong>
+                <span style={{ color: "var(--muted-foreground, #64748b)" }}>{dateText(event.createdAt)}</span>
+              </div>
+              {event.reason && <span style={{ color: "var(--muted-foreground, #64748b)", fontSize: 12 }}>{event.reason}</span>}
+            </div>
+          ))}
+        </section>
+      )}
 
       {item.creditNoteId === null && (
         <section style={{ display: "grid", gap: 9, borderTop: "1px solid var(--border, #e3e9ec)", paddingTop: 12 }}>
