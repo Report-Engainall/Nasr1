@@ -6,6 +6,7 @@ import {
 import { assignOperationalTask, assignOperationalTasks, cancelOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails, updateOperationalTasksDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
+import { prioritizeOperationalTasks } from '@/lib/intelligence/task-prioritization';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
@@ -379,6 +380,22 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
   const lateCount = roleScopedTasks.filter(isLate).length;
   const completedCount = roleScopedTasks.filter((task) => task.status === 'completed').length;
 
+  const todayAttention = useMemo(
+    () => prioritizeOperationalTasks(roleScopedTasks, Date.now(), 5),
+    [roleScopedTasks],
+  );
+
+  function focusAttentionTask(task: OperationalTask) {
+    setRoleFilter(task.task_role);
+    setStatusFilter('open');
+    setPriorityFilter('all');
+    setAssigneeFilter('all');
+    setCreatedFrom(''); setCreatedTo(''); setDueFrom(''); setDueTo('');
+    setOverdueOnly(false);
+    setSearch(task.id);
+  }
+
+
   async function performStatus(task: OperationalTask, status: OperationalTaskStatus, resolutionNote?: string): Promise<boolean> {
     setBusy(true); setError('');
     try {
@@ -707,6 +724,40 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
       <article><span><CheckCircle2 size={19} /> مكتملة</span><strong>{completedCount.toLocaleString('ar-YE')}</strong></article>
       <article><span><ClipboardList size={19} /> النتائج الحالية</span><strong>{filtered.length.toLocaleString('ar-YE')}</strong></article>
     </div>
+    <section className="panel p-4" aria-labelledby="task-today-heading">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="task-today-heading" className="text-lg font-semibold">ماذا ينبغي أن أفعل الآن؟</h2>
+          <p className="mt-1 text-sm text-muted-foreground">أهم خمس مهام مفتوحة ضمن الأدوار المسموح بها لحسابك، مرتبة من مواعيد المصدر وأولويته.</p>
+        </div>
+        <span className="text-xs text-muted-foreground">ترتيب حتمي — لا ينشئ مهام ولا يغيّر حالتها</span>
+      </header>
+      {loading ? (
+        <p className="mt-3 text-sm text-muted-foreground">جارٍ تحميل المهام الفعلية…</p>
+      ) : todayAttention.length === 0 ? (
+        <p className="mt-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">لا توجد مهام مفتوحة ضمن الأدوار التي يحق لحسابك رؤيتها.</p>
+      ) : (
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {todayAttention.map(({ task, whyNow, nextStep }) => (
+            <article key={task.id} className="rounded-xl border p-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={'task-role-badge ' + task.task_role}>{roleLabels[task.task_role]}</span>
+                <span className={'task-priority-badge ' + task.priority}>{priorityLabels[task.priority] ?? 'غير مصنفة'}</span>
+                <span className={'task-status-badge ' + task.status}>{statusLabels[task.status] ?? task.status}</span>
+              </div>
+              <h3 className="mt-2 font-semibold">{task.title}</h3>
+              <p className="mt-1 text-sm">{whyNow}</p>
+              <p className="mt-1 text-xs text-muted-foreground">الموعد المسجل: {dateText(task.due_at)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">الخطوة التالية: {nextStep}</p>
+              <button className="btn secondary mt-3" type="button" onClick={() => focusAttentionTask(task)}>
+                فتح المهمة وإجراءها
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+
     {showCreate && canManage && (
       <TaskCreateForm
         title={title}
