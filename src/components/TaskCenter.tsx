@@ -3,7 +3,7 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Clock3, Filter,
   ListTodo, Play, Plus, Printer, RefreshCw, Search, UserCheck, X,
 } from 'lucide-react';
-import { assignOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails } from '@/lib/api';
+import { assignOperationalTask, cancelOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
@@ -224,6 +224,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [taskDetailDrafts, setTaskDetailDrafts] = useState<Record<string, { priority: OperationalTask['priority']; dueAt: string }>>({});
   const [manualTaskDrafts, setManualTaskDrafts] = useState<Record<string, { title: string; description: string }>>({});
   const [editingManualTaskId, setEditingManualTaskId] = useState<string | null>(null);
+  const [cancellationDrafts, setCancellationDrafts] = useState<Record<string, string>>({});
+  const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -454,6 +456,30 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       onNotice('تم حفظ نص المهمة اليدوية وتسجيل التغيير في سجل التدقيق.');
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'تعذر تحديث نص المهمة اليدوية.';
+      setError(message); onNotice(message);
+    } finally { setBusy(false); }
+  }
+
+  function closeTaskCancellation(taskId: string) {
+    setCancellationDrafts((current) => {
+      const next = { ...current };
+      delete next[taskId];
+      return next;
+    });
+    setCancellingTaskId((current) => current === taskId ? null : current);
+  }
+
+  async function confirmTaskCancellation(task: OperationalTask) {
+    const reason = (cancellationDrafts[task.id] ?? '').trim();
+    if (!reason) return;
+    setBusy(true); setError('');
+    try {
+      await cancelOperationalTask(task.id, reason);
+      closeTaskCancellation(task.id);
+      await loadTasks();
+      onNotice('أُلغيت المهمة وحُفظ السبب في سجل المهمة والتدقيق.');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'تعذر إلغاء المهمة.';
       setError(message); onNotice(message);
     } finally { setBusy(false); }
   }
@@ -704,6 +730,27 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
               >حفظ الإسناد</button>
               {assigneesError && <small role="status">تعذر تحميل الموظفين المصرح لهم؛ لم يُسمح بتغيير الإسناد.</small>}
             </label>
+          )}
+          {canManage && !['completed','cancelled'].includes(task.status) && (
+            cancellingTaskId === task.id ? (
+              <div className="task-card-cancel-editor">
+                <label>
+                  <span>سبب الإلغاء — حقل إلزامي</span>
+                  <textarea
+                    aria-label={'سبب إلغاء المهمة: ' + task.title}
+                    rows={2}
+                    maxLength={1000}
+                    value={cancellationDrafts[task.id] ?? ''}
+                    disabled={busy}
+                    onChange={(event) => setCancellationDrafts((current) => ({ ...current, [task.id]: event.target.value }))}
+                  />
+                </label>
+                <button type="button" className="btn danger" disabled={busy || !(cancellationDrafts[task.id] ?? '').trim()} onClick={() => void confirmTaskCancellation(task)}>تأكيد الإلغاء</button>
+                <button type="button" className="btn secondary" disabled={busy} onClick={() => closeTaskCancellation(task.id)}>تراجع</button>
+              </div>
+            ) : (
+              <button type="button" className="btn danger" disabled={busy || cancellingTaskId !== null} onClick={() => setCancellingTaskId(task.id)}>إلغاء المهمة</button>
+            )
           )}
           {task.status==='pending'&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'in_progress')}><Play size={15}/> استلام</button>}
           {task.status==='in_progress'&&<button type="button" className="btn primary" disabled={busy} onClick={() => void performStatus(task,'completed')}><CheckCircle2 size={15}/> إنجاز</button>}
