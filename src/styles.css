@@ -643,3 +643,11 @@
 .task-card-text-editor input,.task-card-text-editor textarea{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-weight:500}
 .task-card-text-editor textarea{resize:vertical;line-height:1.6}
 .task-card-text-actions{display:flex;gap:7px;flex-wrap:wrap}
+
+
+/* Explicit manager cancellation requires a persisted explanation. */
+.task-card-cancel-editor{display:grid;gap:7px;min-width:190px;max-width:240px;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--background)}
+.task-card-cancel-editor label{display:grid;gap:5px;color:var(--foreground);font-size:11px;font-weight:750}
+.task-card-cancel-editor textarea{width:100%;min-width:0;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-size:12px;line-height:1.6;resize:vertical}
+.task-card-cancel-editor button{justify-self:start}
+@media(max-width:860px){.task-card-cancel-editor{width:100%;max-width:none;min-width:0}}
