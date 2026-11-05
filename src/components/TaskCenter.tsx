@@ -227,6 +227,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [cancellationDrafts, setCancellationDrafts] = useState<Record<string, string>>({});
   const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
   const [bulkAssigneeDraft, setBulkAssigneeDraft] = useState('');
+  const [completionDrafts, setCompletionDrafts] = useState<Record<string, string>>({});
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -367,16 +369,37 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const lateCount = roleScopedTasks.filter(isLate).length;
   const completedCount = roleScopedTasks.filter((task) => task.status === 'completed').length;
 
-  async function performStatus(task: OperationalTask, status: OperationalTaskStatus) {
+  async function performStatus(task: OperationalTask, status: OperationalTaskStatus, resolutionNote?: string) {
     setBusy(true); setError('');
     try {
-      await setOperationalTaskStatus(task.id,status,status==='completed'?'اكتمل التنفيذ من مركز المهام.':undefined);
-      onNotice(status==='completed'?'تم إغلاق المهمة وتسجيل أثر التنفيذ.':status==='in_progress'?'تم استلام المهمة وتعيينها للمستخدم الحالي.':'تم تحديث حالة المهمة.');
+      await setOperationalTaskStatus(task.id,status,resolutionNote?.trim() || undefined);
+      onNotice(status==='completed'?'تم إغلاق المهمة وحفظ نتيجة التنفيذ.':status==='in_progress'?'تم استلام المهمة وتعيينها للمستخدم الحالي.':'تم تحديث حالة المهمة.');
       await loadTasks();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'تعذر تحديث المهمة.';
       setError(message); onNotice(message);
     } finally { setBusy(false); }
+  }
+
+  function beginTaskCompletion(task: OperationalTask) {
+    setCompletionDrafts((current) => ({ ...current, [task.id]: current[task.id] ?? '' }));
+    setCompletingTaskId(task.id);
+  }
+
+  function closeTaskCompletion(taskId: string) {
+    setCompletionDrafts((current) => {
+      const next = { ...current };
+      delete next[taskId];
+      return next;
+    });
+    setCompletingTaskId((current) => current === taskId ? null : current);
+  }
+
+  async function confirmTaskCompletion(task: OperationalTask) {
+    const result = (completionDrafts[task.id] ?? '').trim();
+    if (!result) return;
+    closeTaskCompletion(task.id);
+    await performStatus(task,'completed',result);
   }
 
   function taskAssigneeDraft(task: OperationalTask): string {
@@ -814,9 +837,30 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
               <button type="button" className="btn danger" disabled={busy || cancellingTaskId !== null} onClick={() => setCancellingTaskId(task.id)}>إلغاء المهمة</button>
             )
           )}
-          {task.status==='pending'&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'in_progress')}><Play size={15}/> استلام</button>}
-          {task.status==='in_progress'&&<button type="button" className="btn primary" disabled={busy} onClick={() => void performStatus(task,'completed')}><CheckCircle2 size={15}/> إنجاز</button>}
-          {task.status==='pending'&&<button type="button" className="btn primary" disabled={busy} onClick={() => void performStatus(task,'completed')}><CheckCircle2 size={15}/> إنجاز مباشر</button>}
+          {task.status==='pending'&&<button type="button" className="btn secondary" disabled={busy || completingTaskId !== null} onClick={() => void performStatus(task,'in_progress')}><Play size={15}/> استلام</button>}
+          {['pending','in_progress'].includes(task.status) && completingTaskId !== task.id && (
+            <button type="button" className="btn primary" disabled={busy || completingTaskId !== null} onClick={() => beginTaskCompletion(task)}>
+              <CheckCircle2 size={15}/> {task.status==='pending'?'إنجاز مباشر':'إنجاز'}
+            </button>
+          )}
+          {completingTaskId === task.id && (
+            <div className="task-card-completion-editor">
+              <label>
+                <span>ملخص التنفيذ والنتيجة — مطلوب للإغلاق</span>
+                <textarea
+                  aria-label={'نتيجة تنفيذ المهمة: ' + task.title}
+                  rows={3}
+                  maxLength={1000}
+                  value={completionDrafts[task.id] ?? ''}
+                  disabled={busy}
+                  onChange={(event) => setCompletionDrafts((current) => ({ ...current, [task.id]: event.target.value }))}
+                  placeholder="سجّل ما تم تنفيذه والنتيجة أو الإجراء المتبقي"
+                />
+              </label>
+              <button type="button" className="btn primary" disabled={busy || !(completionDrafts[task.id] ?? '').trim()} onClick={() => void confirmTaskCompletion(task)}>حفظ النتيجة وإغلاق المهمة</button>
+              <button type="button" className="btn secondary" disabled={busy} onClick={() => closeTaskCompletion(task.id)}>إلغاء</button>
+            </div>
+          )}
           {canManage&&['completed','cancelled'].includes(task.status)&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'pending')}><RefreshCw size={15}/> إعادة فتح</button>}
         </div>
       </article>;
