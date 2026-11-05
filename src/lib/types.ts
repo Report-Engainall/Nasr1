@@ -17,6 +17,8 @@ export interface Customer {
 export type CustomerInteractionType =
   | 'call' | 'visit' | 'whatsapp' | 'email' | 'meeting' | 'note' | 'other';
 
+export type CustomerInteractionFollowUpStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+
 export interface CustomerInteraction {
   id: string;
   interaction_type: CustomerInteractionType;
@@ -26,6 +28,11 @@ export interface CustomerInteraction {
   next_follow_up_at: string | null;
   created_at: string;
   recorded_by_name: string;
+  follow_up_task_id: string | null;
+  follow_up_due_at: string | null;
+  follow_up_status: CustomerInteractionFollowUpStatus | null;
+  follow_up_cancellation_reason: string | null;
+  follow_up_updated_at: string | null;
 }
 
 export interface Order {
