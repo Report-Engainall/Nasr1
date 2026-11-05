@@ -1,3 +1,14 @@
+## P3 CHECKPOINT — 2026-11-05 — ARCHIVE REFERENCE DOSSIER
+
+- task_id: `NASR1-ARCHIVE-REFERENCE-20261105`; reference folder: `docs/bolt-source-reconciliation/نماذج/2026-11-05-project-bolt-archive/`.
+- Outer archive SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; inner: `0a71e066357d59e60e33e7f63d8afa3c645d48dc3a29c69ed64decb9ab131a20`.
+- 69 provenance files map to existing ledger decisions. No duplicate staged source or application files copied.
+- Outcome: no wholesale runtime merge. Legacy pages remain reference-only; sensitive role/password migrations excluded; no code/SQL/secret/production changes.
+- Evidence: digests, file counts, Git ancestry, provenance/ledger mapping 69/69, selected target blob equality. App build/tests/PG17/Playwright/Preview NOT RUN.
+- Next task unchanged: `BODY-COMPLETION-ON-MAIN-001`; no re-extraction.
+
+---
+
 ## P3 LIVE CHECKPOINT — 2026-11-01 — CODEINSPECTOR TRIAGE + PERSISTENCE REPAIR
 - Base main SHA: `12496925453ea8656177de36e064d0998346f126`; code quality patch: `db88ff6718094f4814d8e4282e08825d066fdb77`.
 - Implemented cleanup failure diagnostics in AI/Onyx/catalog database acceptance scripts, guarded Service Worker async paths, and logging in both archive reconciliation utilities.
