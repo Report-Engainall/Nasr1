@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Bell, Check, ExternalLink, RefreshCw } from 'lucide-react';
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
@@ -65,7 +65,10 @@ function NotificationItem({
 export function CustomerNotificationCenter() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { data, loading, error, refetch } = useFetch(fetchNotifications);
+  const { data, loading, error, refetch } = useFetch(
+    () => user ? fetchNotifications() : Promise.resolve([]),
+    [user?.profileId],
+  );
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
 
@@ -124,6 +127,19 @@ export function CustomerNotificationCenter() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  if (!user) {
+    return (
+      <main className="storefront" dir="rtl" style={{ paddingTop: 32, paddingBottom: 40 }}>
+        <section className="rounded-xl border border-border bg-card p-8 text-center">
+          <Bell size={28} style={{ margin: '0 auto 10px', color: 'var(--muted-foreground)' }} />
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>تنبيهات الحساب</h1>
+          <p style={{ margin: '8px 0 16px', color: 'var(--muted-foreground)', fontSize: 13 }}>سجّل الدخول لعرض التنبيهات المرتبطة بحسابك.</p>
+          <Link to="/login" className="btn btn-primary">تسجيل الدخول</Link>
+        </section>
+      </main>
+    );
   }
 
   return (
