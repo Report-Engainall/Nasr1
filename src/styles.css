@@ -183,6 +183,8 @@
 .task-priority-line{border-radius:99px;background:var(--muted)}
 .task-priority-line.low{background:oklch(0.68 0.08 190)}.task-priority-line.medium{background:oklch(0.72 0.08 80)}.task-priority-line.high{background:oklch(0.67 0.15 60)}.task-priority-line.critical{background:oklch(0.58 0.2 25)}
 .task-card-main{min-width:0}.task-card-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.task-select-toggle{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;background:var(--background);color:var(--muted-foreground);font-size:11px;font-weight:700;cursor:pointer}
+.task-select-toggle input{width:15px;height:15px;margin:0;accent-color:var(--primary)}
 .task-role-badge,.task-status-badge,.task-priority-badge,.task-late-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:750;background:var(--muted);color:var(--muted-foreground)}
 .task-status-badge.completed{background:oklch(0.94 0.04 155);color:oklch(0.34 0.1 155)}.task-status-badge.in_progress{background:oklch(0.94 0.04 250);color:oklch(0.38 0.1 250)}
 .task-status-badge.cancelled{text-decoration:line-through}.task-priority-badge.critical,.task-priority-badge.high,.task-late-badge{background:oklch(0.95 0.04 35);color:oklch(0.4 0.15 35)}
@@ -209,6 +211,14 @@
   .receivables-aging-report th{background:#efefef!important}
   .receivables-aging-report tr{break-inside:avoid!important;page-break-inside:avoid!important}
   .operational-task-print header{margin-bottom:12px;border-bottom:2px solid #222;padding-bottom:8px}.operational-task-print h1{margin:0 0 8px;font-size:18pt}
+  .operational-task-print .task-print-summary{margin:10px 0 14px;break-inside:avoid;page-break-inside:avoid}
+  .operational-task-print .task-print-summary h2{margin:0 0 7px;font-size:12pt}
+  .task-print-summary-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-bottom:8px}
+  .task-print-summary-cards>div{display:grid;gap:3px;padding:7px;border:1px solid #888;border-radius:4px}
+  .task-print-summary-cards span{font-size:8pt;color:#333}
+  .task-print-summary-cards strong{font-size:15pt;font-variant-numeric:tabular-nums}
+  .operational-task-print .task-print-role-summary{margin:7px 0 10px;font-size:8pt}
+  .operational-task-print .task-print-role-summary th,.operational-task-print .task-print-role-summary td{padding:4px 6px}
   .operational-task-print p{margin:3px 0}.operational-task-print table{width:100%;border-collapse:collapse;table-layout:fixed}
   .operational-task-print th,.operational-task-print td{border:1px solid #888;padding:6px;vertical-align:top;text-align:right;overflow-wrap:anywhere}
   .operational-task-print th{background:#efefef!important;color:#111!important}.operational-task-print tr{break-inside:avoid;page-break-inside:avoid}

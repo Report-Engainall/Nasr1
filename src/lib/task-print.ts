@@ -1,8 +1,8 @@
 import type { OperationalTask, OperationalTaskRole } from '@/lib/types';
 import { BUSINESS_BRAND_NAME } from '@/lib/brand';
 
-type HasTaskRole = { task_role: OperationalTaskRole };
-export type TaskPrintScope = OperationalTaskRole | 'all' | 'filtered';
+type HasTaskRole = { id: string; task_role: OperationalTaskRole };
+export type TaskPrintScope = OperationalTaskRole | 'all' | 'filtered' | 'selected';
 
 /** Canonical title used by the printable operational task register. */
 export function operationalTaskPrintTitle(): string {
@@ -19,9 +19,13 @@ export function filterTasksForPrint<T extends HasTaskRole>(
   scope: TaskPrintScope,
   allowedRoles: readonly OperationalTaskRole[],
   currentlyDisplayedTasks: readonly T[] = tasks,
+  selectedTaskIds: ReadonlySet<string> = new Set(),
 ): T[] {
   if (scope === 'filtered') {
     return currentlyDisplayedTasks.filter((task) => allowedRoles.includes(task.task_role));
+  }
+  if (scope === 'selected') {
+    return tasks.filter((task) => allowedRoles.includes(task.task_role) && selectedTaskIds.has(task.id));
   }
   if (scope !== 'all' && !allowedRoles.includes(scope)) return [];
   return tasks.filter((task) =>

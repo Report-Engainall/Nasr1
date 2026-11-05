@@ -37,7 +37,7 @@ function dateText(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? 'تاريخ غير صالح' :
     date.toLocaleString('ar-YE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
-function isLate(task: OperationalTask): boolean {
+function isLate(task: Pick<OperationalTask, 'due_at' | 'status'>): boolean {
   return Boolean(task.due_at && new Date(task.due_at).getTime() < Date.now() && !['completed','cancelled'].includes(task.status));
 }
 function roleOptionsFor(roles: string[]): OperationalTaskRole[] {
@@ -203,7 +203,15 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
-    try { setTasks(await fetchOperationalTasks()); }
+    try {
+      const rows = await fetchOperationalTasks();
+      setTasks(rows);
+      const availableIds = new Set(rows.map((task) => task.id));
+      setSelectedTaskIds((current) => {
+        const retained = new Set([...current].filter((id) => availableIds.has(id)));
+        return retained.size === current.size ? current : retained;
+      });
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'تعذر تحميل مهام التشغيل.'); }
     finally { setLoading(false); }
   }, []);
@@ -239,7 +247,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   }
 
 
-  const [printScope, setPrintScope] = useState<OperationalTaskRole | 'all' | 'filtered'>('all');
+  const [printScope, setPrintScope] = useState<OperationalTaskRole | 'all' | 'filtered' | 'selected'>('all');
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(() => new Set());
 
   // One shared predicate applies all non-role filters to both screen and print output.
   const matchesNonRoleFilters = useCallback((task: OperationalTask) => {
@@ -266,15 +275,57 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     [filteredWithoutRole,roleFilter],
   );
   const printable = useMemo(
-    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles,filtered)
-      .map((task) => projectOperationalTaskPrintRow(task, assignedLabel(task))),
-    [filteredWithoutRole,filtered,printScope,allowedRoles,assigneeById,user?.profileId],
+    () => filterTasksForPrint(
+      printScope === 'selected' ? roleScopedTasks : filteredWithoutRole,
+      printScope,
+      allowedRoles,
+      filtered,
+      selectedTaskIds,
+    ).map((task) => projectOperationalTaskPrintRow(task, assignedLabel(task))),
+    [roleScopedTasks,filteredWithoutRole,filtered,printScope,allowedRoles,selectedTaskIds,assigneeById,user?.profileId],
   );
   const printScopeLabel = printScope === 'filtered'
     ? 'النتائج المفلترة الحالية'
     : printScope === 'all'
       ? 'كل المهام المسموحة'
-      : roleLabels[printScope];
+      : printScope === 'selected'
+        ? 'المهام المحددة'
+        : roleLabels[printScope];
+
+  const printableSummary = useMemo(() => ({
+    total: printable.length,
+    open: printable.filter((task) => !['completed','cancelled'].includes(task.status)).length,
+    late: printable.filter(isLate).length,
+    critical: printable.filter((task) => task.priority === 'critical').length,
+    completed: printable.filter((task) => task.status === 'completed').length,
+  }), [printable]);
+  const printableRoleSummary = useMemo(
+    () => allowedRoles.map((role) => ({
+      role,
+      total: printable.filter((task) => task.task_role === role).length,
+      open: printable.filter((task) => task.task_role === role && !['completed','cancelled'].includes(task.status)).length,
+      late: printable.filter((task) => task.task_role === role && isLate(task)).length,
+    })).filter((row) => row.total > 0),
+    [allowedRoles,printable],
+  );
+
+  function toggleTaskSelection(taskId: string, checked: boolean) {
+    setSelectedTaskIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(taskId);
+      else next.delete(taskId);
+      return next;
+    });
+  }
+
+  function selectFilteredTasks() {
+    setSelectedTaskIds((current) => new Set([...current, ...filtered.map((task) => task.id)]));
+  }
+
+  function clearTaskSelection() {
+    setSelectedTaskIds(new Set());
+    if (printScope === 'selected') setPrintScope('filtered');
+  }
 
   const openCount = roleScopedTasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
   const lateCount = roleScopedTasks.filter(isLate).length;
@@ -326,16 +377,23 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
         <button className="btn secondary" type="button" onClick={() => void loadTasks()} disabled={busy}><RefreshCw size={16} /> تحديث</button>
         {canManage && <button className="btn secondary" type="button" onClick={() => void refreshFromSources()} disabled={busy}><RefreshCw size={16} /> مصالحة مع حركة النظام</button>}
         {canManage && <button className="btn primary" type="button" onClick={() => setShowCreate((visible) => !visible)}><Plus size={16} /> مهمة يدوية</button>}
+        <button className="btn secondary" type="button" onClick={selectFilteredTasks} disabled={loading || filtered.length === 0}>
+          <ListTodo size={16} /> تحديد النتائج الحالية ({filtered.length.toLocaleString('ar-YE')})
+        </button>
+        <button className="btn secondary" type="button" onClick={clearTaskSelection} disabled={selectedTaskIds.size === 0}>
+          إلغاء التحديد ({selectedTaskIds.size.toLocaleString('ar-YE')})
+        </button>
         <label className="task-print-scope">
           <span>نطاق الطباعة</span>
-          <select value={printScope} onChange={(event) => setPrintScope(event.target.value as OperationalTaskRole | 'all' | 'filtered')}>
+          <select value={printScope} onChange={(event) => setPrintScope(event.target.value as OperationalTaskRole | 'all' | 'filtered' | 'selected')}>
             <option value="filtered">النتائج المفلترة الحالية</option>
             <option value="all">الكل — الأدوار المسموحة</option>
+            <option value="selected">المهام المحددة ({selectedTaskIds.size.toLocaleString('ar-YE')})</option>
             {allowedRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
           </select>
         </label>
-        <button className="btn primary" type="button" onClick={() => window.print()} disabled={printable.length===0}>
-          <Printer size={16} /> طباعة {printScopeLabel}
+        <button className="btn primary" type="button" onClick={() => window.print()} disabled={printable.length===0 || (printScope === 'selected' && selectedTaskIds.size === 0)}>
+          <Printer size={16} /> {printScope === 'selected' ? 'طباعة المهام المحددة' : 'طباعة ' + printScopeLabel}
         </button>
       </div>
     </div>
@@ -393,7 +451,12 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       return <article className="panel task-card" key={task.id}>
         <div className={'task-priority-line '+task.priority} />
         <div className="task-card-main">
-          <div className="task-card-top"><span className={'task-role-badge '+task.task_role}>{roleLabels[task.task_role]}</span>
+          <div className="task-card-top">
+            <label className="task-select-toggle">
+              <input type="checkbox" checked={selectedTaskIds.has(task.id)} onChange={(event) => toggleTaskSelection(task.id,event.target.checked)} aria-label={'تحديد المهمة للطباعة: ' + task.title} />
+              <span>تحديد للطباعة</span>
+            </label>
+            <span className={'task-role-badge '+task.task_role}>{roleLabels[task.task_role]}</span>
             <span className={'task-status-badge '+task.status}>{statusLabels[task.status]??task.status}</span>
             <span className={'task-priority-badge '+task.priority}>{priorityLabels[task.priority]??task.priority}</span>
             {late&&<span className="task-late-badge"><AlertTriangle size={13}/> متأخرة</span>}</div>
@@ -418,9 +481,26 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
       <header><h1>{operationalTaskPrintTitle()}</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
-        <p>نطاق الطباعة: {printScope==='filtered'?'النتائج المفلترة الحالية':printScope==='all'?'كل الأدوار المسموحة للحساب':roleLabels[printScope]} — فلتر الدور على الشاشة: {roleFilter==='all'?'كل الأدوار المسموحة':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
+        <p>نطاق الطباعة: {printScopeLabel} — فلتر الدور على الشاشة: {roleFilter==='all'?'كل الأدوار المسموحة':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
         <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
         {search.trim()&&<p>بحث: {search.trim()}</p>}</header>
+      <section className="task-print-summary">
+        <h2>الملخص التنفيذي للكشف</h2>
+        <div className="task-print-summary-cards">
+          <div><span>إجمالي المهام المطبوعة</span><strong>{printableSummary.total.toLocaleString('ar-YE')}</strong></div>
+          <div><span>المفتوحة</span><strong>{printableSummary.open.toLocaleString('ar-YE')}</strong></div>
+          <div><span>المتأخرة</span><strong>{printableSummary.late.toLocaleString('ar-YE')}</strong></div>
+          <div><span>الحرجة</span><strong>{printableSummary.critical.toLocaleString('ar-YE')}</strong></div>
+          <div><span>المكتملة</span><strong>{printableSummary.completed.toLocaleString('ar-YE')}</strong></div>
+        </div>
+        {canManage && <table className="task-print-role-summary">
+          <thead><tr><th>الدور</th><th>إجمالي المهام</th><th>المفتوحة</th><th>المتأخرة</th></tr></thead>
+          <tbody>{printableRoleSummary.map((row) => <tr key={row.role}>
+            <td>{roleLabels[row.role]}</td><td>{row.total.toLocaleString('ar-YE')}</td>
+            <td>{row.open.toLocaleString('ar-YE')}</td><td>{row.late.toLocaleString('ar-YE')}</td>
+          </tr>)}</tbody>
+        </table>}
+      </section>
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
         <tbody>{printable.map((task,index) => <tr key={task.id}><td>{index+1}</td><td><strong>{task.title}</strong><br/>{task.description??'—'}{task.resolution_note?<><br/>النتيجة: {task.resolution_note}</>:null}</td>
           <td>{roleLabels[task.task_role]}</td><td>{priorityLabels[task.priority]??task.priority}</td><td>{statusLabels[task.status]??task.status}</td><td>{dateText(task.due_at)}</td>
