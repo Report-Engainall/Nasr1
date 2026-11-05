@@ -1141,6 +1141,21 @@ export async function updateManualOperationalTask(
   if (error) throw new Error(error.message || 'تعذر تحديث نص المهمة اليدوية.');
 }
 
+export async function cancelOperationalTask(taskId: string, reason: string): Promise<void> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
+    throw new Error('معرّف المهمة غير صالح.');
+  }
+  const normalizedReason = reason.trim();
+  if (!normalizedReason || normalizedReason.length > 1000) {
+    throw new Error('اكتب سبب إلغاء للمهمة بين حرف واحد و1000 حرف.');
+  }
+  const { error } = await supabase.rpc('cancel_operational_task', {
+    p_task_id: taskId,
+    p_reason: normalizedReason,
+  });
+  if (error) throw new Error(error.message || 'تعذر إلغاء المهمة.');
+}
+
 export async function createOperationalTask(input: {
   title: string; description?: string; taskRole: OperationalTaskRole;
   priority: 'low' | 'medium' | 'high' | 'critical'; dueAt?: string | null; assignedTo?: string | null;
