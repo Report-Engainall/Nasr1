@@ -936,3 +936,141 @@
 .customer-service-conversation-reply textarea{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-size:11px;resize:vertical}
 .customer-service-conversation-error{margin:0;color:var(--destructive,var(--foreground));font-size:10px}
 @media(max-width:620px){.customer-service-portal{padding:16px 12px 36px}.customer-service-portal-form-grid,.customer-service-portal-dates{grid-template-columns:1fr}.customer-service-portal-case-head{flex-direction:column}.customer-service-portal-form-footer{align-items:stretch}.customer-service-portal-form-footer button,.customer-service-portal-reply button,.customer-service-conversation-reply button{width:100%}}
+
+
+/* Supplier invoice reconciliation voucher — scoped Arabic RTL A4 print / Save as PDF. */
+.supplier-invoice-accounting-print-sheet { display: none; page: aghbariSupplierInvoiceAccounting; }
+@page aghbariSupplierInvoiceAccounting { size: A4 portrait; margin: 10mm; }
+@media print {
+  body[data-print-mode="supplier-invoice-accounting"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body[data-print-mode="supplier-invoice-accounting"] > :not(.supplier-invoice-accounting-print-sheet) {
+    display: none !important;
+  }
+  body[data-print-mode="supplier-invoice-accounting"] * { visibility: hidden !important; }
+  body[data-print-mode="supplier-invoice-accounting"] .supplier-invoice-accounting-print-sheet,
+  body[data-print-mode="supplier-invoice-accounting"] .supplier-invoice-accounting-print-sheet * {
+    visibility: visible !important;
+  }
+  body[data-print-mode="supplier-invoice-accounting"] .supplier-invoice-accounting-print-sheet {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: rtl !important;
+    text-align: right !important;
+    color: #17221c !important;
+    background: #fff !important;
+    font-family: "Noto Sans Arabic", Arial, sans-serif !important;
+    font-size: 8pt !important;
+    line-height: 1.55 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .supplier-invoice-accounting-print-header {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #174a37;
+  }
+  .supplier-invoice-accounting-print-sheet h1 {
+    margin: 0 0 5px;
+    color: #174a37 !important;
+    font-size: 15pt;
+  }
+  .supplier-invoice-accounting-print-sheet h2 {
+    margin: 3px 0 6px;
+    color: #174a37 !important;
+    font-size: 12pt;
+  }
+  .supplier-invoice-accounting-print-sheet h3 {
+    margin: 0 0 5px;
+    color: #174a37 !important;
+    font-size: 9pt;
+  }
+  .supplier-invoice-accounting-print-sheet p { margin: 2px 0; }
+  .supplier-invoice-accounting-print-generated {
+    display: grid;
+    gap: 3px;
+    text-align: left;
+    font-size: 7pt;
+    white-space: nowrap;
+  }
+  .supplier-invoice-accounting-print-section {
+    margin-top: 9px;
+    break-inside: auto;
+  }
+  .supplier-invoice-accounting-print-grid {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 5px 10px;
+  }
+  .supplier-invoice-accounting-print-grid > div {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1px;
+    padding: 4px 6px;
+    border: 1px solid #cbd5cf;
+    break-inside: avoid;
+  }
+  .supplier-invoice-accounting-print-grid span {
+    color: #526057 !important;
+    font-size: 7pt;
+  }
+  .supplier-invoice-accounting-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+    font-size: 7pt;
+  }
+  .supplier-invoice-accounting-print-sheet thead { display: table-header-group; }
+  .supplier-invoice-accounting-print-sheet th,
+  .supplier-invoice-accounting-print-sheet td {
+    padding: 3px 4px;
+    border: 1px solid #cbd5cf;
+    text-align: right;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  .supplier-invoice-accounting-print-sheet thead th {
+    color: #174a37 !important;
+    background: #edf4ef !important;
+    font-weight: 800;
+  }
+  .supplier-invoice-accounting-print-sheet tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .supplier-invoice-accounting-print-sheet small {
+    display: block;
+    color: #526057 !important;
+    font-size: 6.5pt;
+  }
+  .supplier-invoice-accounting-print-signatures {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 18px;
+    margin-top: 18px;
+    break-inside: avoid;
+  }
+  .supplier-invoice-accounting-print-signatures > div {
+    display: grid;
+    gap: 12px;
+    padding-top: 5px;
+    border-top: 1px solid #64746b;
+  }
+  .supplier-invoice-accounting-print-footer {
+    margin-top: 10px;
+    padding-top: 6px;
+    border-top: 1px solid #cbd5cf;
+    color: #526057 !important;
+    font-size: 7pt;
+  }
+}
