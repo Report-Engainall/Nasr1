@@ -77,8 +77,11 @@ export interface DecisionMemoryRecord {
   approvalAt: string | null; executionAt: string | null; eventCount: number;
   events: DecisionOutcomeView["history"]; legacyMeasurement: DecisionOutcomeView["measuredOutcome"];
   snapshotVersion: number | null; capturedAt: string | null; problem: string | null;
+  factsReviewed: boolean;
   facts: DecisionMemoryStatement[]; opinions: DecisionMemoryStatement[]; hypotheses: DecisionMemoryStatement[];
+  assumptionsReviewed: boolean;
   assumptions: string[];
+  lessonsReviewed: boolean;
   withheldFacts: number; alternatives: DecisionMemoryAlternative[]; chosenAlternative: DecisionMemoryAlternative | null;
   actionTaken: string | null; reviewDisposition: DecisionMemoryReviewDisposition | null; reviewAt: string | null;
   expectedMetric: DecisionMemoryMetricResult | null; metricComparison: DecisionMemoryMetricComparison;
@@ -266,7 +269,7 @@ export function buildDecisionMemoryBook(input: {
         if (outcome.state === "MEASURED") missingFields.push("EXPECTED_METRIC","ACTUAL_METRIC","LESSONS_REVIEWED");
       }
       let problem:string|null=null, facts:DecisionMemoryStatement[]=[], opinions:DecisionMemoryStatement[]=[],
-        hypotheses:DecisionMemoryStatement[]=[], assumptions:string[]=[], withheldFacts=0, alternatives:DecisionMemoryAlternative[]=[],
+        hypotheses:DecisionMemoryStatement[]=[], assumptions:string[]=[], factsReviewed=false, assumptionsReviewed=false, lessonsReviewed=false, withheldFacts=0, alternatives:DecisionMemoryAlternative[]=[],
         chosenAlternative:DecisionMemoryAlternative|null=null, actionTaken:string|null=null,
         reviewDisposition:DecisionMemoryReviewDisposition|null=null, reviewAt:string|null=null,
         expectedMetric:DecisionMemoryMetricResult|null=null,
@@ -286,7 +289,8 @@ export function buildDecisionMemoryBook(input: {
         } else {
           snapshotVersion=snapshot.version;capturedAt=snapshot.capturedAt;
           if(snapshot.problem?.trim()) problem=snapshot.problem.trim(); else missingFields.push("PROBLEM_CONTEXT");
-          if(snapshot.factsReviewed===true){
+          factsReviewed=snapshot.factsReviewed===true;
+           if(snapshot.factsReviewed===true){
             facts=(snapshot.facts??[]).filter(statement=>statement.kind==="FACT"&&isVerifiedStatement(statement,evidence,snapshot.capturedAt,snapshot.period));
             withheldFacts=(snapshot.facts??[]).length-facts.length;
             if(withheldFacts){warnings.push("FACTS_WITHHELD_WITHOUT_VERIFIED_EVIDENCE");missingFields.push("FACTS_WITH_EVIDENCE");}
@@ -300,7 +304,8 @@ export function buildDecisionMemoryBook(input: {
           if(snapshot.chosenOptionId&&alternatives.some(item=>item.id===snapshot.chosenOptionId))
             chosenAlternative=alternatives.find(item=>item.id===snapshot.chosenOptionId)??null;
           else if(outcome.state!=="REJECTED") missingFields.push("CHOSEN_OPTION");
-          if(snapshot.assumptionsReviewed!==true) missingFields.push("ASSUMPTIONS_REVIEWED");
+          assumptionsReviewed=snapshot.assumptionsReviewed===true;
+           if(snapshot.assumptionsReviewed!==true) missingFields.push("ASSUMPTIONS_REVIEWED");
           if(["APPROVED","ASSIGNED","EXECUTING","EXECUTED","MEASURED"].includes(outcome.state)){
             if(snapshot.actionTaken?.trim()) actionTaken=snapshot.actionTaken.trim(); else missingFields.push("ACTION_TAKEN");
           } else actionTaken=snapshot.actionTaken?.trim()||null;
@@ -320,7 +325,8 @@ export function buildDecisionMemoryBook(input: {
           if(outcome.state==="MEASURED"){
             if(!expectedMetric) missingFields.push("EXPECTED_METRIC");
             if(!actualMetric) missingFields.push("ACTUAL_METRIC");
-            if(!snapshot.lessonsReviewed) missingFields.push("LESSONS_REVIEWED");
+            lessonsReviewed=snapshot.lessonsReviewed===true;
+             if(!snapshot.lessonsReviewed) missingFields.push("LESSONS_REVIEWED");
             else lessons=(snapshot.lessons??[]).filter(value=>typeof value==="string"&&value.trim().length>0);
           } else if(actualMetric){warnings.push("ACTUAL_METRIC_PRESENT_BEFORE_MEASURED_STATE");actualMetric=null;}
           if(actualMetric&&outcome.state==="MEASURED"&&!outcome.measuredOutcome){
@@ -347,7 +353,7 @@ export function buildDecisionMemoryBook(input: {
         state:outcome.state,version:outcome.version,createdAt:outcome.createdAt,updatedAt:outcome.updatedAt,owner:outcome.ownerLabel,
         proposedResult:outcome.expectedOutcome,decisionReason:outcome.reason,approvalAt:outcome.approvedAt,executionAt:outcome.executedAt,
         eventCount:outcome.eventCount,events:outcome.history,legacyMeasurement:outcome.measuredOutcome,
-        snapshotVersion,capturedAt,problem,facts,opinions,hypotheses,assumptions,withheldFacts,alternatives,chosenAlternative,
+        snapshotVersion,capturedAt,problem,factsReviewed,facts,opinions,hypotheses,assumptionsReviewed,assumptions,lessonsReviewed,withheldFacts,alternatives,chosenAlternative,
         actionTaken,reviewDisposition,reviewAt,expectedMetric,metricComparison,lessons,corrections,
         missingFields:unique(missingFields),warnings,memoryStatus,precedents,
       };
