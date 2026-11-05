@@ -1783,3 +1783,16 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Docs/reference-only. No source code, migrations, secrets, DB or production changes. App build/unit/PG17/Playwright/Bolt Preview NOT RUN.
 - Next action remains `BODY-COMPLETION-ON-MAIN-001`; do not re-extract the ZIP.
 
+
+
+## 2026-11-05 — Replenishment nets confirmed open purchase commitments
+
+- **Product-code SHA:** `310c41e3d2e68f57b45b2cd117f489d9244d608f` on official `main`.
+- **Root cause:** the existing deterministic replenishment engine used available stock, reorder point, completed sales and observed supplier lead time, but did not deduct quantities already committed by submitted purchase orders. It could therefore recommend buying the same units a second time.
+- **Implementation:** added `20261105230000_intelligence_replenishment_open_purchase_orders.sql` to extend the existing inventory intelligence aggregate with a tenant-derived, source-backed incoming quantity. Only remaining quantities on submitted/partially_received orders count. Draft/cancelled/fully received orders are excluded. A mismatch between the purchase-order line's historical unit snapshot and the current product unit withholds the value as `NEEDS_REVIEW`.
+- **Calculation:** `recommended = max(0, targetStock - (availableToPromise + incomingPurchaseQuantity))`. The UI now displays incoming quantity and coverage after incoming orders. No order is automatically created or submitted.
+- **Changed files:** migration; `src/lib/intelligence/replenishment.ts`; `src/lib/intelligence/inventory-intelligence-client.ts`; `src/components/intelligence/ReplenishmentCard.tsx`; source fixtures/cases in the three corresponding intelligence test files and `IntelligenceWorkspace.test.tsx`.
+- **Source tests:** acceptance cases added for incoming quantity netting, unit mismatch withholding and already-covered target. **Not executed** in this batch at the owner's direction. Build, lint, typecheck, database, CI, browser and Bolt Preview not run; no PASS claimed.
+- **Runtime boundary:** migration not applied to any database. No Vercel build/deploy/preview/credit use, no paid provider or dependency.
+- **Acceptance matrix:** added `DLV-007-INVENTORY-REPLENISHMENT-OPEN-PO-NETTING-001` as `IMPLEMENTED_ON_MAIN / runtime acceptance pending`.
+- **Next:** `BODY-COMPLETION-ON-MAIN-013` — wire evidence-backed recommendations into the existing purchase-order draft form with human supplier/warehouse selection and confirmation; use existing idempotent create command and never auto-submit.

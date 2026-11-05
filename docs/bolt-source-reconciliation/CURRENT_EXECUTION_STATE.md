@@ -1,3 +1,49 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — REPLENISHMENT OPEN PURCHASE-ORDER NETTING
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Main head before this code slice: `e209c556f885fab9c248c327c7be0e706042cc1d`.
+- Product-code SHA: `310c41e3d2e68f57b45b2cd117f489d9244d608f`.
+- Completed action: `BODY-COMPLETION-ON-MAIN-012`. Prior customer service portal/desk source remains on main; no CRM screen was rebuilt here.
+
+## Product functionality delivered
+
+- Added `supabase/migrations/20261105230000_intelligence_replenishment_open_purchase_orders.sql`, replacing the existing tenant-scoped `get_inventory_intelligence_aggregate(date,date,timestamptz)` implementation with an additional measured field for remaining confirmed purchase-order quantities.
+- For each active product, only same-organization purchase-order lines whose parent order is `submitted` or `partially_received`, submitted by the as-of timestamp, and still have a positive unreceived quantity contribute. Draft, cancelled and fully received orders are excluded.
+- The aggregate compares each historical `unit_snapshot` with the product's current unit. If an outstanding purchase line uses a different unit, the incoming quantity is returned as NULL with `NEEDS_REVIEW`; the engine withholds the recommendation instead of summing unlike units.
+- Added a dedicated evidence record and metric `inventory.incoming_purchase_order_quantity`, including source identity, timestamp, formula and transformations.
+- Updated `src/lib/intelligence/inventory-intelligence-client.ts` to require and parse that metric under the existing tenant/role/evidence envelope.
+- Updated `src/lib/intelligence/replenishment.ts`: projected replenishment quantity is now `max(0, targetStock - (availableToPromise + incomingPurchaseQuantity))`. Existing reorder point, demand period, supplier lead-time, UOM and evidence checks remain in force. Automatic purchasing remains disabled.
+- Updated `src/components/intelligence/ReplenishmentCard.tsx` to show confirmed incoming quantity and total coverage after incoming orders, and to explain when existing stock plus inbound commitments already cover the target.
+- Updated source acceptance fixtures/cases for netting, coverage and unit-mismatch withholding.
+
+## Source files committed
+
+- `supabase/migrations/20261105230000_intelligence_replenishment_open_purchase_orders.sql`
+- `src/lib/intelligence/replenishment.ts`
+- `src/lib/intelligence/inventory-intelligence-client.ts`
+- `src/components/intelligence/ReplenishmentCard.tsx`
+- `src/lib/intelligence/replenishment.test.ts`
+- `src/lib/intelligence/inventory-intelligence-client.test.ts`
+- `src/components/intelligence/ReplenishmentCard.test.tsx`
+- `src/components/intelligence/IntelligenceWorkspace.test.tsx`
+
+## Delivery and acceptance boundary
+
+- Source commit is on official `main`: `310c41e3d2e68f57b45b2cd117f489d9244d608f`.
+- Regression cases were added to the source test files but were **not executed**. No build, lint, typecheck, database migration, CI, browser, Bolt Preview or production check was run in this product-body batch. No PASS is claimed.
+- The new migration has not been applied to a local, hosted, production or Bolt database. Runtime acceptance remains pending the later Bolt database handoff.
+- No Vercel build, preview, deployment or credit usage occurred. No paid service or dependency was added.
+- GitHub commit is the source delivery record; push notification delivery remains controlled by GitHub repository watch/notification settings.
+
+## Next product action
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-013`.
+- Connect the existing evidence-backed replenishment recommendations to the existing purchase-order draft workflow: let an authorized manager select recommended product lines, prefill the net recommended quantities into a new draft, and require explicit supplier and warehouse selection plus final user confirmation. Reuse the existing idempotent `create_purchase_order` command; never create, submit or send an order automatically. Do not duplicate the purchase-order subsystem.
+
+- `BOLT-RUNTIME-001` remains deferred until the source/product body reaches practical handoff readiness; do not sign in, import, provision or run Bolt Preview during this phase.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — ORGANIZATION-WIDE CUSTOMER SERVICE DESK
 
 - Repository: \`Report-Engainall/Nasr1\`; branch: \`main\` only.

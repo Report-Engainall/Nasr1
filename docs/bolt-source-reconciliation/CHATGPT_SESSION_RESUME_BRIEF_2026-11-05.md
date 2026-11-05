@@ -1,3 +1,16 @@
+## Latest verified source checkpoint — 2026-11-05
+
+- Live source: `Report-Engainall/Nasr1` / `main`.
+- Latest product-code SHA: `310c41e3d2e68f57b45b2cd117f489d9244d608f`.
+- Completed: `BODY-COMPLETION-ON-MAIN-012` — replenishment subtracts the remaining quantity in same-tenant submitted/partially received purchase orders before recommending another purchase. Draft/cancelled/received orders are excluded; unit mismatch withholds the recommendation.
+- Files: `supabase/migrations/20261105230000_intelligence_replenishment_open_purchase_orders.sql`, the inventory-intelligence client, replenishment engine, Arabic card and source fixtures/cases.
+- No tests/build/CI/database/Bolt runtime checks were executed; no PASS claimed. Migration not yet applied.
+- No Vercel credits were used.
+- Next: `BODY-COMPLETION-ON-MAIN-013` — prefill a user-confirmed purchase-order draft from selected recommendations, requiring supplier and warehouse choice; reuse the existing idempotent purchase command and never auto-submit.
+- Bolt runtime handoff remains deferred.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER 360 INTERACTION CRM + FOLLOW-UP TASK FLOW
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
