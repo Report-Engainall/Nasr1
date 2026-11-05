@@ -470,6 +470,15 @@ BEGIN
           THEN pg_catalog.round(a.false_positive_count*100.0/(a.true_positive_count+a.false_positive_count),2) ELSE NULL END
       ) FROM alert_counts a
     ),
+    'causeReviewCount',(
+      SELECT count(*) FROM latest
+      WHERE reason_code IS NOT NULL
+        AND (
+          (review_type='ACTIONABILITY' AND actionability IN ('NOT_ACTIONABLE','DEFERRED'))
+          OR (review_type='RECOMMENDATION_DISPOSITION' AND disposition IN ('REJECTED','DEFERRED'))
+          OR (review_type='ALERT_VALIDATION' AND alert_verdict='FALSE_POSITIVE')
+        )
+    ),
     'repeatedCauses',coalesce((
       SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
         'reasonCode',c.reason_code,'affectedTaskCount',c.task_count,'reviewCount',c.event_count
