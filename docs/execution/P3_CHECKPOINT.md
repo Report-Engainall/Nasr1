@@ -1,3 +1,20 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (TASK QUEUE INTENTS)
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent SHA: `68c60358fe18dab40a0b0a78cad814d804a45c78`. This reuses the existing process-bottleneck RPC and the source's per-task-role visibility checks; no P1 workspace/routes or server migration was changed.
+- Added `OPEN_TASKS_OVERVIEW` for the current pending/in-progress queue and `REOPENED_TASKS_OVERVIEW` for completed-to-pending/in-progress transitions in 30/60/90-day windows. Historical date filters for the current queue and unsupported due-date/late-task claims are rejected.
+- A count is disclosed only when source coverage reports TASKS=VERIFIED and completePopulation=true. The current queue count additionally requires its role-filtered queue record; reopen count additionally requires non-null server count. If task source coverage is unavailable, the assistant returns UNAVAILABLE rather than zero.
+- No task identifiers, assignees, role assignments or descriptions are exposed. The SQL source gates every task by `can_view_operational_task_role(task_role)` and resolves tenant from the authenticated session.
+- Changed paths:
+  - `src/lib/intelligence/natural-language-assistant.ts`
+  - `src/lib/intelligence/natural-language-assistant-client.ts`
+  - `src/components/intelligence/NaturalLanguageAssistant.tsx`
+  - `docs/execution/P3_CHECKPOINT.md`
+- P1 still mounts the existing single `NaturalLanguageAssistant` in `IntelligenceWorkspace`; no P1 files were edited.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/E2E/RPC/Bolt/Preview/provider/Vercel/production operation was run.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (EXPECTED COLLECTIONS INTENT)
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

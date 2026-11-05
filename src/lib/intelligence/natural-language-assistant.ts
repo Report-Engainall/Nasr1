@@ -11,8 +11,9 @@ export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPE
 export type SupplierPerformanceIntent="SUPPLIER_PERFORMANCE_OVERVIEW"|"SUPPLIER_DELIVERY_ADHERENCE";
 export type InventoryIntent="DEAD_STOCK_OVERVIEW"|"REPLENISHMENT_OVERVIEW";
 export type ProcessBottleneckIntent="PROCESS_BOTTLENECK_OVERVIEW";
+export type ProcessTaskIntent="OPEN_TASKS_OVERVIEW"|"REOPENED_TASKS_OVERVIEW";
 export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ExpectedCollectionsIntent;
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|ExpectedCollectionsIntent;
 export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"get_intelligence_aggregate";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90}
@@ -40,6 +41,31 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   const horizonDays=(dayMatch?Number(dayMatch[1]):30) as 7|30|90;
   return {status:"READY",intent:"EXPECTED_CUSTOMER_COLLECTIONS",normalizedQuestion,sourceRpc:"get_intelligence_aggregate",horizonDays,
    filterDescription:"فواتير العملاء الصادرة وغير المسددة بالكامل حسب تاريخ الاستحقاق المستقبلي؛ مجموع مستقل لكل عملة، مع دليل الفاتورة والمدفوعات المسجلة."};
+ }
+ const openTasksQuestion=/(المهام المفتوحه|المهام الجاريه|الاعمال المفتوحه|قائمه المهام المفتوحه|المهام المتراكمه|التكليفات المفتوحه)/.test(normalizedQuestion);
+ const reopenedTasksQuestion=/(المهام المعاد فتحها|المهام التي اعيد فتحها|مهام اعيد فتحها|اعيد فتح المهام|اعاده فتح المهام|اعاده فتح المهمه)/.test(normalizedQuestion);
+ if(openTasksQuestion||reopenedTasksQuestion){
+  if(/متاخر|متاخره/.test(normalizedQuestion))return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"مصدر قائمة المهام لا يقدم تاريخ استحقاق موحداً؛ أستطيع عرض المفتوح حالياً أو ما أعيد فتحه، ولا أصف مهمة بأنها متأخرة."
+  };
+  const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90)\s*(?:يوما?|ايام)/);
+  if(openTasksQuestion){
+   if(dayMatch||/(اليوم|امس|غدا|خلال|اخر|هذا الشهر|الشهر الماضي|من تاريخ|بين تاريخ)/.test(normalizedQuestion))return {
+    status:"UNSUPPORTED",normalizedQuestion,
+    explanation:"قائمة المهام المفتوحة لقطة حالية وليست سجلاً تاريخياً لفترة ماضية؛ احذف مرشح الفترة أو اسأل عن المهام المعاد فتحها."
+   };
+   return {status:"READY",intent:"OPEN_TASKS_OVERVIEW",normalizedQuestion,sourceRpc:"fetch_process_bottleneck_snapshot",
+    periodDays:30,filterDescription:"قائمة حالية للمهام pending/in_progress المسموح للمستخدم برؤيتها حسب دور المهمة؛ عدد وأقدم عمر فقط دون أسماء أو منفذين."};
+  }
+  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر|من تاريخ|بين تاريخ|الفتره|الربع)/.test(normalizedQuestion)||/20\d{2}-\d{2}-\d{2}/.test(normalizedQuestion);
+  if(hasTimeConstraint&&!dayMatch)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"إعادة فتح المهام تدعم نافذة 30 أو 60 أو 90 يوماً فقط؛ لا أطبق تواريخ حرة أو فترات تقويمية."
+  };
+  return {status:"READY",intent:"REOPENED_TASKS_OVERVIEW",normalizedQuestion,sourceRpc:"fetch_process_bottleneck_snapshot",
+   periodDays:(dayMatch?Number(dayMatch[1]):30) as 30|60|90,
+   filterDescription:"عدد انتقالات المهمة من completed إلى pending/in_progress خلال نافذة UTC محددة، مع تقييد المؤسسة ودور المهمة من الخادم."};
  }
  const processBottleneckQuestion=/(اختناق|اختناقات|زمن العمليات|زمن دوره العمليه|دوره العمليات|عنق الزجاجه|بطء العمليات|بطء الاجراءات)/.test(normalizedQuestion);
  if(processBottleneckQuestion){
@@ -207,6 +233,12 @@ export interface NaturalLanguageProcessBottleneckResult {
  sourceCoverage:Array<{key:"ORDERS"|"QUOTES"|"PURCHASE"|"INVOICES"|"TASKS";status:"VERIFIED"|"UNAVAILABLE";sampleCount:number|null;message:string}>;
  reopenedTasks:number|null;withheldReasons:string[];
 }
+export interface NaturalLanguageProcessTasksResult {
+ kind:"PROCESS_TASKS";state:"READY"|"UNAVAILABLE";intent:ProcessTaskIntent;
+ answer:string;sourceRpc:"fetch_process_bottleneck_snapshot";asOf:string;period:{from:string;to:string};
+ taskCount:number|null;oldestAgeMinutes:number|null;oldestOpenedAt:string|null;
+ completeSource:boolean;sourceMessage:string;
+}
 export interface NaturalLanguageExpectedCollectionsResult {
  kind:"EXPECTED_COLLECTIONS";state:"READY"|"PARTIAL"|"EMPTY";intent:ExpectedCollectionsIntent;
  answer:string;sourceRpc:"get_intelligence_aggregate";asOf:string;period:{from:string;to:string};
@@ -214,7 +246,7 @@ export interface NaturalLanguageExpectedCollectionsResult {
  currencies:Array<{currency:string;amount:number;invoiceCount:number}>;
  warnings:string[];
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageExpectedCollectionsResult;
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageExpectedCollectionsResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -500,5 +532,33 @@ export function resolveExpectedCollectionsIntent(
   kind:"EXPECTED_COLLECTIONS",state,intent:"EXPECTED_CUSTOMER_COLLECTIONS",answer,
   sourceRpc:"get_intelligence_aggregate",asOf:data.asOf,period:data.period,invoiceCount,
   completeSchedule,currencies,warnings,
+ };
+}
+
+
+/** Projects authorized task queue/reopen counts only after the task-role coverage gate succeeds. */
+export function resolveProcessTasksIntent(
+ intent:ProcessTaskIntent,result:ProcessBottleneckResult,
+):NaturalLanguageProcessTasksResult {
+ const coverage=result.sourceCoverage.find(item=>item.key==="TASKS");
+ const completeSource=Boolean(coverage&&coverage.status==="VERIFIED"&&coverage.completePopulation);
+ const queue=result.queues.find(item=>item.processKey==="TASKS");
+ const taskCount=intent==="OPEN_TASKS_OVERVIEW"
+  ?(completeSource&&queue?queue.openCount:null)
+  :(completeSource&&result.reopenedTasks!==null?result.reopenedTasks:null);
+ const state=taskCount===null?"UNAVAILABLE":"READY";
+ const answer=taskCount===null
+  ?"مصدر المهام غير متاح لهذا الدور أو لم يكتمل إثبات تغطيته؛ لم يُفسر غياب المصدر على أنه صفر مهام."
+  :intent==="OPEN_TASKS_OVERVIEW"
+   ?taskCount===0?"لا توجد مهام مفتوحة حالياً ضمن الأدوار التي تسمح صلاحيتك برؤيتها."
+    :"توجد "+taskCount+" مهمة مفتوحة حالياً ضمن الأدوار التي تسمح صلاحيتك برؤيتها."
+   :taskCount===0?"لم تسجل إعادة فتح للمهام خلال الفترة المحددة."
+    :"سُجلت "+taskCount+" عملية إعادة فتح لمهمة خلال الفترة المحددة.";
+ return {
+  kind:"PROCESS_TASKS",state,intent,answer,sourceRpc:"fetch_process_bottleneck_snapshot",
+  asOf:result.asOf,period:{from:result.period.from,to:result.period.to},
+  taskCount,oldestAgeMinutes:intent==="OPEN_TASKS_OVERVIEW"&&queue?queue.oldestAgeMinutes:null,
+  oldestOpenedAt:intent==="OPEN_TASKS_OVERVIEW"&&queue?queue.oldestOpenedAt:null,
+  completeSource,sourceMessage:coverage?.message??"مصدر المهام لا يقدم تغطية لهذا الدور.",
  };
 }

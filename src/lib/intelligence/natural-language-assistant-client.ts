@@ -8,7 +8,7 @@ import { createCashflowScheduleRequest,fetchCashflowSchedule } from "./cashflow-
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -46,6 +46,10 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     from,to,baselineFrom:baselineFromDate.toISOString().slice(0,10),baselineTo,
    });
    if(!process.ok)return {status:process.status,message:process.message};
+   if(plan.intent==="OPEN_TASKS_OVERVIEW"||plan.intent==="REOPENED_TASKS_OVERVIEW"){
+    return {status:"RESULT",plan,result:resolveProcessTasksIntent(
+     plan.intent as ProcessTaskIntent,process.result)};
+   }
    return {status:"RESULT",plan,result:resolveProcessBottlenecksIntent(
     plan.intent as ProcessBottleneckIntent,process.result)};
   }
