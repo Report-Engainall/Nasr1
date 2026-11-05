@@ -1074,3 +1074,110 @@
     font-size: 7pt;
   }
 }
+
+
+.supplier-account-activity-print-sheet { display: none; page: aghbariSupplierAccountActivity; }
+@page aghbariSupplierAccountActivity { size: A4 landscape; margin: 9mm; }
+@media print {
+  body[data-print-mode="supplier-account-activity"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body[data-print-mode="supplier-account-activity"] > :not(.supplier-account-activity-print-sheet) {
+    display: none !important;
+  }
+  body[data-print-mode="supplier-account-activity"] * { visibility: hidden !important; }
+  body[data-print-mode="supplier-account-activity"] .supplier-account-activity-print-sheet,
+  body[data-print-mode="supplier-account-activity"] .supplier-account-activity-print-sheet * {
+    visibility: visible !important;
+  }
+  body[data-print-mode="supplier-account-activity"] .supplier-account-activity-print-sheet {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: rtl !important;
+    text-align: right !important;
+    color: #17221c !important;
+    background: #fff !important;
+    font-family: "Noto Sans Arabic", Arial, sans-serif !important;
+    font-size: 7.5pt !important;
+    line-height: 1.5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .supplier-account-activity-print-header {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding-bottom: 7px;
+    border-bottom: 2px solid #174a37;
+  }
+  .supplier-account-activity-print-sheet h1 {
+    margin: 0 0 4px;
+    color: #174a37 !important;
+    font-size: 14pt;
+  }
+  .supplier-account-activity-print-sheet h2 {
+    margin: 2px 0 5px;
+    color: #174a37 !important;
+    font-size: 11pt;
+  }
+  .supplier-account-activity-print-sheet h3 {
+    margin: 0 0 5px;
+    color: #174a37 !important;
+    font-size: 8.5pt;
+  }
+  .supplier-account-activity-print-sheet p { margin: 2px 0 5px; }
+  .supplier-account-activity-print-generated {
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    font-size: 6.5pt;
+    white-space: nowrap;
+  }
+  .supplier-account-activity-print-section {
+    margin-top: 8px;
+    break-inside: auto;
+  }
+  .supplier-account-activity-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+    font-size: 6.5pt;
+  }
+  .supplier-account-activity-print-sheet thead { display: table-header-group; }
+  .supplier-account-activity-print-sheet th,
+  .supplier-account-activity-print-sheet td {
+    padding: 2px 3px;
+    border: 1px solid #cbd5cf;
+    text-align: right;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  .supplier-account-activity-print-sheet thead th {
+    color: #174a37 !important;
+    background: #edf4ef !important;
+    font-weight: 800;
+  }
+  .supplier-account-activity-print-sheet tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .supplier-account-activity-print-sheet small {
+    display: block;
+    color: #526057 !important;
+    font-size: 6pt;
+  }
+  .supplier-account-activity-print-footer {
+    margin-top: 8px;
+    padding-top: 5px;
+    border-top: 1px solid #cbd5cf;
+    color: #526057 !important;
+    font-size: 6.5pt;
+  }
+}
