@@ -50,8 +50,25 @@ CREATE POLICY notifications_update_current_profile
   );
 
 GRANT SELECT ON public.notifications TO authenticated;
+REVOKE UPDATE ON public.notifications FROM PUBLIC,anon,authenticated;
 GRANT UPDATE (is_read) ON public.notifications TO authenticated;
 REVOKE INSERT,DELETE ON public.notifications FROM PUBLIC,anon,authenticated;
+
+-- A restrictive guard intersects any older permissive policy on this legacy table.
+DROP POLICY IF EXISTS notifications_tenant_scope_guard ON public.notifications;
+CREATE POLICY notifications_tenant_scope_guard
+  ON public.notifications
+  AS RESTRICTIVE
+  FOR ALL
+  TO authenticated
+  USING (
+    organization_id=public.current_organization_id()
+    AND (profile_id IS NULL OR profile_id=public.current_profile_id())
+  )
+  WITH CHECK (
+    organization_id=public.current_organization_id()
+    AND (profile_id IS NULL OR profile_id=public.current_profile_id())
+  );
 
 CREATE OR REPLACE FUNCTION public.notify_operational_task_assignee()
 RETURNS trigger
