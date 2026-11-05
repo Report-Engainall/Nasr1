@@ -3,6 +3,14 @@ import { runNaturalLanguageAssistantQuery,type NaturalLanguageAssistantResponse 
 import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@/lib/intelligence/natural-language-assistant";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
+const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
+function count(value:number|null):string{return value===null?"غير متاح":qty.format(value);}
+function percent(value:number|null):string{return value===null?"غير متاح":rate.format(value)+"%";}
+function retentionTitle(intent:"CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK"):string {
+ if(intent==="CUSTOMER_DORMANCY_RISK")return "مخاطر فتور وخمول العملاء";
+ if(intent==="CUSTOMER_REPEAT_PURCHASE")return "تكرار الشراء";
+ return "ملخص الاحتفاظ بالعملاء";
+}
 function invoiceStatus(status:NaturalLanguageInvoiceMatch["matchStatus"]):string {
  if(status==="matched")return "مطابقة سعرية ثلاثية";
  if(status==="variance_pending")return "فرق سعر بانتظار المراجعة";
@@ -29,7 +37,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، وفروق السعر قيد المراجعة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ضمن نافذة معتمدة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -61,6 +69,30 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     {invoice.reviewReason?<p className="mt-1 text-xs">سبب المراجعة: {invoice.reviewReason}</p>:null}
     {onOpenSupplierInvoice?<button type="button" onClick={()=>onOpenSupplierInvoice(invoice.invoiceId)} className="mt-2 rounded-lg border px-3 py-1.5 text-xs">فتح الفاتورة</button>:null}
    </article>)}
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="CUSTOMER_RETENTION"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2"><strong>{retentionTitle(response.result.intent)}</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="READY"?"تغطية موثقة":"تغطية غير مكتملة"}</span></div>
+    <p className="mt-2 font-medium">{response.result.answer}</p>
+    <p className="mt-2 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · كما في {response.result.asOf} · الفترة الحالية: {response.result.period.from} — {response.result.period.to} · السابقة: {response.result.previousPeriod.from} — {response.result.previousPeriod.to}</p>
+   </div>
+   {response.result.completePopulation?<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">مجتمع العملاء</p><strong className="text-lg">{count(response.result.population.total)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">العملاء النشطون</p><strong className="text-lg">{count(response.result.population.activeCurrentPeriod)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">معدل الاحتفاظ</p><strong className="text-lg">{percent(response.result.rates.retentionRate)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">معدل تكرار الشراء</p><strong className="text-lg">{percent(response.result.rates.repeatPurchaseRate)}</strong></article>
+   </div>:null}
+   {response.result.completePopulation?<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">مستمرون</p><strong>{count(response.result.population.retainedCustomers)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">متكررون</p><strong>{count(response.result.population.repeatPurchaseCustomers)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">نشطون خلال 30 يوماً</p><strong>{count(response.result.activity.active30Days)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">فتور 31–60 يوماً</p><strong>{count(response.result.activity.cooling31To60Days)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">معرضون للخمول 61–90 يوماً</p><strong>{count(response.result.activity.atRisk61To90Days)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">خاملون أكثر من 90 يوماً</p><strong>{count(response.result.activity.inactiveOver90Days)}</strong></article>
+   </div>:null}
+   {response.result.warnings.length?<div role="status" className="rounded-lg border p-3 text-xs"><strong>قيود المصدر</strong><ul className="mt-1 list-disc space-y-1 ps-5">{response.result.warnings.map(warning=><li key={warning}>{warning}</li>)}</ul></div>:null}
+   <p className="text-xs text-muted-foreground">المساعد يعرض مؤشرات مجمعة فقط؛ لا يكشف أسماء العملاء أو مراجعهم أو أرصدتهم أو أسعارهم، ولا ينشئ رسائل متابعة أو إجراءات تلقائية.</p>
   </div>:null}
  </section>;
 }

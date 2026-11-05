@@ -1,7 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { fetchSupplierInvoiceWorkspace } from "@/lib/supplier-invoices";
+import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -18,6 +19,12 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="get_customer_retention_aggregate"){
+   const retention=await fetchCustomerRetentionAggregate(plan.periodDays??90,new Date().toISOString());
+   if(!retention.ok)return {status:retention.status,message:retention.message};
+   return {status:"RESULT",plan,result:resolveCustomerRetentionIntent(
+    plan.intent as CustomerRetentionIntent,retention.data)};
+  }
   if(plan.sourceRpc==="fetch_purchase_supplier_invoice_workspace"){
    const workspace=await fetchSupplierInvoiceWorkspace({limit:100,offset:0});
    return {status:"RESULT",plan,result:resolveSupplierInvoiceIntent(

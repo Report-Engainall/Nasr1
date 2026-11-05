@@ -1,10 +1,12 @@
 import type { SupplierInvoiceMatchStatus, SupplierInvoiceRecord } from "@/lib/supplier-invoices";
+import type { CustomerRetentionReport } from "./customer-retention";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders";
+export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate";
 export type NaturalLanguagePlanResult=
- |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string}
+ |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
 function normalizeArabic(value:string):string {
  return value.normalize("NFKC").replace(/[\u064B-\u065F\u0670\u0640]/g,"")
@@ -17,6 +19,25 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   status:"CLARIFICATION",normalizedQuestion,explanation:"اكتب سؤالاً واضحاً لا يتجاوز 400 حرف.",
   clarification:"ما السجلات التي تريد الاستعلام عنها؟"
  };
+ const retentionQuestion=/(احتفاظ|استبقاء|تكرار الشراء|شراء متكرر|متكرر|نشاط العملاء|نشطون|الخمول|خاملون|معرضون للخمول|معرضين للخمول|معرض للخمول|فتور)/.test(normalizedQuestion);
+ if(retentionQuestion){
+  const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90|180|365)\s*(?:يوما?|ايام)/);
+  const monthPeriod=/اخر شهر/.test(normalizedQuestion)?30:
+   /اخر 3 اشهر/.test(normalizedQuestion)?90:/اخر 6 اشهر/.test(normalizedQuestion)?180:
+   /اخر سنه/.test(normalizedQuestion)?365:null;
+  const periodDays=(dayMatch?Number(dayMatch[1]):monthPeriod??90) as 30|60|90|180|365;
+  const hasTimeConstraint=/(اليوم|امس|غدا|هذا الشهر|الشهر الحالي|الشهر الماضي|خلال|اخر|الاسبوع|سنه|عام|شهر|اشهر)/.test(normalizedQuestion);
+  const hasSupportedPeriod=Boolean(dayMatch||monthPeriod!==null);
+  if(hasTimeConstraint&&!hasSupportedPeriod)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"مصدر الاحتفاظ يدعم نوافذ محددة فقط (30 أو 60 أو 90 أو 180 أو 365 يوماً)، ولا يطبق تواريخ حرة أو فترات تقويمية غير مطابقة."
+  };
+  const intent:CustomerRetentionIntent=/(الخمول|خاملون|معرضون للخمول|معرضين للخمول|معرض للخمول|فتور)/.test(normalizedQuestion)
+   ?"CUSTOMER_DORMANCY_RISK":/(تكرار الشراء|شراء متكرر|متكرر)/.test(normalizedQuestion)
+   ?"CUSTOMER_REPEAT_PURCHASE":"CUSTOMER_RETENTION_OVERVIEW";
+  return {status:"READY",intent,normalizedQuestion,sourceRpc:"get_customer_retention_aggregate",periodDays,
+   filterDescription:"مجتمع العملاء الكامل من أوامر المؤسسة النشطة غير الملغاة؛ مقارنة نافذتين متتاليتين متساويتين بطول "+periodDays+" يوماً؛ قراءة مجمعة فقط."};
+ }
  const purchaseQuestion=/(امر|اوامر|شراء|مشتريات|توريد)/.test(normalizedQuestion);
  const invoiceQuestion=normalizedQuestion.includes("فاتور");
  const supplierQuestion=normalizedQuestion.includes("مورد");
@@ -83,7 +104,16 @@ export interface NaturalLanguagePurchaseOrderResult {
  completePopulation:boolean;countsByStatus:{submitted:number;partially_received:number};
  orders:NaturalLanguagePurchaseOrder[];notice:string|null;
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult;
+export interface NaturalLanguageCustomerRetentionResult {
+ kind:"CUSTOMER_RETENTION";state:"READY"|"PARTIAL";intent:CustomerRetentionIntent;
+ answer:string;sourceRpc:"get_customer_retention_aggregate";asOf:string;
+ period:{from:string;to:string};previousPeriod:{from:string;to:string};completePopulation:boolean;
+ population:{total:number|null;activeCurrentPeriod:number|null;retainedCustomers:number|null;repeatPurchaseCustomers:number|null};
+ rates:{retentionRate:number|null;repeatPurchaseRate:number|null;averageOrdersPerActiveCustomer:number|null};
+ activity:{active30Days:number|null;cooling31To60Days:number|null;atRisk61To90Days:number|null;inactiveOver90Days:number|null;noOrderDate:number|null};
+ warnings:string[];
+}
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -165,4 +195,39 @@ export function resolvePurchaseOrderIntent(intent:PurchaseOrderIntent,rawOrders:
   inspectedOrderCount:orders.length,matchedQueryCount:matching.length,completePopulation,
   countsByStatus:counts,orders:matching,notice:completePopulation?null:
   "أعاد المصدر سقفه الأقصى (500 أمر)؛ لا يمكن إثبات اكتمال المجموعة أو استبعاد أوامر أقدم."};
+}
+
+
+/** Projects only aggregate customer-retention metrics; customer refs and activity rows never reach the assistant UI. */
+export function resolveCustomerRetentionIntent(
+ intent:CustomerRetentionIntent,report:CustomerRetentionReport,
+):NaturalLanguageCustomerRetentionResult {
+ const completePopulation=report.status==="VERIFIED";
+ const state=completePopulation?"READY":"PARTIAL";
+ const numberLabel=(value:number|null)=>value===null?"غير متاح":new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0}).format(value);
+ const rateLabel=(value:number|null)=>value===null?"غير متاح":new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1}).format(value)+"%";
+ const periodLabel=report.period.from+" إلى "+report.period.to;
+ const previousLabel=report.previousPeriod.from+" إلى "+report.previousPeriod.to;
+ let answer:string;
+ if(!completePopulation){
+  answer="تعذر اعتماد مجتمع العملاء كاملاً لهذه اللقطة؛ لم تُعرض أعداد أو نسب تقديرية. راجع حالة التغطية والتحذيرات قبل اتخاذ قرار.";
+ }else if(intent==="CUSTOMER_DORMANCY_RISK"){
+  answer="حالة نشاط العملاء في الفترة "+periodLabel+": فتور 31–60 يوماً "+numberLabel(report.activity.cooling31To60Days)+"، معرضون للخمول 61–90 يوماً "+numberLabel(report.activity.atRisk61To90Days)+"، وخاملون لأكثر من 90 يوماً "+numberLabel(report.activity.inactiveOver90Days)+".";
+ }else if(intent==="CUSTOMER_REPEAT_PURCHASE"){
+  answer="في الفترة "+periodLabel+" بلغ عدد العملاء المتكررين "+numberLabel(report.population.repeatPurchaseCustomers)+"، ومعدل تكرار الشراء "+rateLabel(report.repeatPurchaseRate)+"، ومتوسط الطلبات لكل عميل نشط "+(report.averageOrdersPerActiveCustomer===null?"غير متاح":new Intl.NumberFormat("ar-YE",{maximumFractionDigits:2}).format(report.averageOrdersPerActiveCustomer))+".";
+ }else{
+  answer="في الفترة "+periodLabel+" بلغ مجتمع العملاء "+numberLabel(report.population.total)+"، والنشطون "+numberLabel(report.population.activeCurrentPeriod)+"، والمستمرون "+numberLabel(report.population.retainedCustomers)+"، والمتكررون "+numberLabel(report.population.repeatPurchaseCustomers)+". معدل الاحتفاظ "+rateLabel(report.retentionRate)+". تمت المقارنة مع الفترة السابقة "+previousLabel+".";
+ }
+ return {
+  kind:"CUSTOMER_RETENTION",state,intent,answer,sourceRpc:"get_customer_retention_aggregate",asOf:report.asOf,
+  period:report.period,previousPeriod:report.previousPeriod,completePopulation,
+  population:{total:report.population.total,activeCurrentPeriod:report.population.activeCurrentPeriod,
+   retainedCustomers:report.population.retainedCustomers,repeatPurchaseCustomers:report.population.repeatPurchaseCustomers},
+  rates:{retentionRate:report.retentionRate,repeatPurchaseRate:report.repeatPurchaseRate,
+   averageOrdersPerActiveCustomer:report.averageOrdersPerActiveCustomer},
+  activity:{active30Days:report.activity.active30Days,cooling31To60Days:report.activity.cooling31To60Days,
+   atRisk61To90Days:report.activity.atRisk61To90Days,inactiveOver90Days:report.activity.inactiveOver90Days,
+   noOrderDate:report.activity.noOrderDate},
+  warnings:[...report.warnings],
+ };
 }

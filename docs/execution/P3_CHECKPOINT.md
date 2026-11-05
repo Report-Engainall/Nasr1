@@ -1,3 +1,22 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (CUSTOMER RETENTION INTENTS)
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent SHA: `b1a7fe4c9e424c1e1c4b4da976e9bae4552356af`. This delivery extends the latest Section 57 code cursor without editing the P1-owned workspace or routes.
+- Added three deterministic Arabic query intents to the existing administrative natural-language assistant: customer-retention overview, repeat-purchase summary, and customer dormancy/activity-risk summary. The planner supports only 30/60/90/180/365-day windows (plus explicit one/three/six-month and one-year aliases); the default is 90 days and both current and prior equal-length UTC periods are returned by the source. Unsupported calendar/free-form windows remain rejected.
+- Reads the existing `get_customer_retention_aggregate` RPC through `fetchCustomerRetentionAggregate`; the SQL source derives the active organization/profile server-side, requires `public.is_staff()`, is SECURITY DEFINER with an empty search_path, is read-only, and returns only tenant-scoped order counts/activity timestamps and evidence. No table query, SQL generation, write, provider call, or new migration is added.
+- The assistant projection intentionally strips customer references, last-order timestamps and row-level activity. It returns aggregate counts/rates only; all customer counts/rates are withheld unless the deterministic report status is `VERIFIED`. A >5,000-customer or otherwise incomplete population remains `PARTIAL`, never an invented zero or complete answer.
+- Changed paths:
+  - `src/lib/intelligence/natural-language-assistant.ts`
+  - `src/lib/intelligence/natural-language-assistant-client.ts`
+  - `src/components/intelligence/NaturalLanguageAssistant.tsx`
+  - `docs/execution/P3_CHECKPOINT.md`
+- P1 handoff: mount the exported `NaturalLanguageAssistant` once inside the existing `IntelligenceWorkspace`, visible only to active staff; retain existing authorized invoice/PO callbacks. Customer-retention answers are aggregate-only and have no row-level navigation. P3 did not edit P1 workspace/routes.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests, build, typecheck, lint, CI, E2E, RPC call, Bolt/Preview, provider, Vercel, or production execution was performed, per the active instruction. Runtime remains subject to the already-existing migration being present in the target database.
+- Cost/safety: no paid service/provider/dependency, no API quota use, no secrets, no customer finance/pricing data, no external messaging, and no financial/inventory mutation.
+- Next: P1 mounts the assistant; P3 proceeds to the next source-backed Section 57 intent only when its server RPC, tenant scope, authorization gate, source cap and privacy boundary are established.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-ADMIN-ASSISTANT-057 (PARTIAL)
 
 - Repository Report-Engainall/Nasr1; branch main. Section 57 source commits: deterministic assistant `e04cd47e9bc77810fcde779423ebea3b385db73f`; invoice mismatch semantics correction `fa5020b5501ec369b25098b12911c7c70c0f0b44`; purchase-order intents `e5f9f2ba49943d88eb9972e64f66a338f7bd490c`; parser of all PO source states `078ed05ed55ada3deb0136eb67aebe776e9fb5c2`. Latest Section 57 code cursor: `078ed05ed55ada3deb0136eb67aebe776e9fb5c`.
