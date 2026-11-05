@@ -57,8 +57,18 @@ export function CustomerOrderPricingPresentation({
             <span className="sf-order-pricing-item">
               {line.name} × {line.quantity}
             </span>
+            {line.discount_amount > 0 ? (
+              <>
+                <span className="sf-order-pricing-unit">
+                  السعر قبل الحملة: {formatServerAmount(line.original_unit_price, presentation.currency ?? "YER")}
+                </span>
+                <span className="sf-order-pricing-discount">
+                  خصم {line.promotion_title ? "«" + line.promotion_title + "»" : "الحملة"}: {formatServerAmount(line.discount_amount, presentation.currency ?? "YER")}
+                </span>
+              </>
+            ) : null}
             <span className="sf-order-pricing-unit">
-              سعر الوحدة: {formatServerAmount(line.unit_price, presentation.currency ?? "YER")}
+              سعر الوحدة بعد الخصم: {formatServerAmount(line.unit_price, presentation.currency ?? "YER")}
             </span>
             <span className="sf-order-pricing-line-total">
               {formatServerAmount(line.line_total, presentation.currency ?? "YER")}
@@ -66,8 +76,14 @@ export function CustomerOrderPricingPresentation({
           </li>
         ))}
       </ul>
+      {presentation.discountTotal > 0 ? (
+        <div className="sf-order-pricing-total" aria-label="إجمالي خصم الحملات">
+          <span>إجمالي خصم الحملات</span>
+          <strong>{formatServerAmount(presentation.discountTotal, presentation.currency ?? "YER")}</strong>
+        </div>
+      ) : null}
       <div className="sf-order-pricing-total">
-        <span>الإجمالي</span>
+        <span>الإجمالي بعد الخصم</span>
         <strong>{formatServerAmount(presentation.totalAmount, presentation.currency ?? "YER")}</strong>
       </div>
     </section>
