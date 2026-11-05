@@ -57,6 +57,14 @@ BEGIN
   UPDATE public.ai_tasks
   SET priority=p_priority,
       due_at=p_due_at,
+      task_payload=coalesce(task_payload,'{}'::jsonb) || jsonb_build_object(
+        'manager_overrides',jsonb_build_object(
+          'priority',p_priority,
+          'due_at',p_due_at,
+          'updated_at',now(),
+          'updated_by',v_actor
+        )
+      ),
       updated_at=now()
   WHERE id=v_task.id
     AND organization_id=v_org;
