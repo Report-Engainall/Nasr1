@@ -182,14 +182,13 @@ function AdminWorkspaceContent({
               onNotice("احفظ مراجعة الطلب الحالية قبل فتح طلب آخر.");
               return;
             }
-            onOrderDetailChange(sourceRef);
             onNavigate("orders");
-            onNotice("تم فتح تفاصيل الطلب المرتبط بالوردية.");
+            onNotice("تم فتح شاشة الطلبات لمراجعة سجل الوردية. المرجع: " + sourceRef);
             return;
           }
           if (sourceKey === "TASKS") {
-            setNotificationTaskId(sourceRef);
             onNavigate("tasks");
+            onNotice("تم فتح شاشة المهام التشغيلية. مرجع المهمة: " + sourceRef);
             return;
           }
           const destination: View =
