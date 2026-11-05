@@ -1,3 +1,54 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-05 — SUPPLIER CREDIT-NOTE MATCHING
+
+- Completed action: `BODY-COMPLETION-ON-MAIN-015`.
+- Repository/branch: `Report-Engainall/Nasr1` / `main` only.
+- Builds directly on `BODY-COMPLETION-ON-MAIN-014` receipt-linked supplier returns. Existing purchase receipts, purchase-receipt accounting and General Ledger were reused; no duplicate ledger or supplier-return path was introduced.
+
+## Product functionality delivered
+
+### Supplier document capture and variance control
+- Added `supabase/migrations/20261105233000_supplier_credit_note_matching.sql`.
+- Added finance-only, tenant-scoped supplier credit-note records with immutable supplier-document evidence, source amount snapshots, actual amount, currency, signed variance, idempotency and audit metadata.
+- The server derives the supplier, source amount and currency from a POSTED supplier return. It rejects a return whose source cost is missing/non-positive and rejects credit notes with a different currency. It does not infer FX or tax.
+- A same-amount document is eligible for the controlled journal handoff. Any non-zero variance remains pending until a finance user records an approval or rejection with a reason. The decision has actor/time/reason history and is idempotent for same-decision replay.
+- Rejected evidence remains in append-only history. A corrected supplier document can be registered as the active document for that posted return; prior rejected evidence is not overwritten or deleted. A partial unique constraint prevents more than one active supplier credit note per return.
+
+### Controlled General Ledger handoff
+- The migration creates one finance-only accounting-draft link for each accepted supplier credit note.
+- Before creating the journal, the server proves the original purchase-receipt accounting posting exists and the original source journal is POSTED, references the same receipt number, contains exactly the expected balanced inventory/payable lines, uses the stored mapping, and has no reversal record. The source accounts must still be active and retain their required account types.
+- The resulting entry uses the original inventory/payable accounts. Any approved amount difference requires an explicit active revenue account when the actual note exceeds source cost or an expense account when it is lower.
+- The existing general ledger accepts the new `purchase_supplier_credit_note` source type. The handoff creates a balanced DRAFT only; the accountant must review and explicitly post it from the existing ledger. No automatic GL post, payment, supplier message, tax or FX write occurs.
+
+### Typed client and interface
+- Added `src/lib/supplier-credit-notes.ts` for typed read, document record, variance review and draft-handoff RPCs with strict response parsing.
+- Added `src/components/SupplierCreditNoteWorkspace.tsx`: Arabic RTL return queue, real source and actual amounts, supplier note details, finance variance approval/rejection, variance-account selection, journal source eligibility and visible immutable review history.
+- Mounted the workspace within `src/components/GeneralLedgerWorkspace.tsx`; the newly created accounting draft appears within the existing General Ledger workflow.
+
+## Source commits
+- Migration create: `6498e9ad162b684846293ea585bad6b9474fc453`.
+- Migration date guard: `c49340fcb7bfa6ebd479c06af5b15f3380683e8f`.
+- Rejected-document correction path: `2a2d13aecfbdedab2cc31109340c0106aa6533e8`.
+- Idempotent variance review and reversed-source protection: `59bf034a50d16d1f52ff42bea39c1af6703b5249`.
+- Read-model review history: `d065037d534e9ab51099aff628a1e52192f4f83d`.
+- Typed client: `55cfaa4382cb28dda13e13bf3b82fa04b69320a8`; journal status parser correction: `a8864430261ce78f4e468c312a2ad9230ceef4ea`; review-history/date parser: `16fca8ccbbb9b40879746844db07e0ed4d554d4e`.
+- UI: `9bb158573d4abde3f4564723d38745215eb90d24`; history display: `8b1d1f604845172f9a4041af928ededdaed99ad7`.
+- General Ledger mount: `2dcbcaad3a73e6352b51edca80b58d1a8e7c8f84`.
+- Acceptance matrix update: `84b59d50d52fbe4051ce9dd9188b8032f46aacd3`; live checkpoint update: `66541f8a372f4e82f10facd7ec6eb06d38366211`.
+- New matrix leaf: `DLV-008-SUPPLIER-CREDIT-NOTE-MATCHING-001`, status `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery and runtime boundary
+- All changes are committed to official `main`.
+- The migration is source-only and has not been applied to any local, hosted, production or Bolt database. No database was connected or modified.
+- No tests, build, lint, typecheck, CI, browser/E2E, Bolt Preview or production verification were run in this implementation batch. No PASS or runtime acceptance is claimed.
+- No Vercel build, preview, deployment or free-credit usage occurred. No paid service or dependency was added.
+- GitHub commits provide the source-delivery record; actual push/inbox notifications remain subject to repository watch settings and are not claimed without a receipt.
+
+## Next product action
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-016`.
+- Build the supplier account activity statement from POSTED receipt journals and POSTED supplier-credit-note journals through their source links. Preserve per-supplier dated debit/credit movements and document references; exclude drafts, void/reversed source journals and unlinked liability rows from supplier attribution. Do not call journal net movement a payable settlement unless an actual supplier payment source exists.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-05 — RECEIPT-LINKED SUPPLIER RETURNS
 
 - Completed action: `BODY-COMPLETION-ON-MAIN-014`.
