@@ -29,6 +29,22 @@ Continue with the next untouched mandatory non-intelligence product capability. 
 
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-021 — CUSTOMER SERVICE DESK SLA REPORT PRINT/XLSX
 
+
+## P1 PRODUCT DELIVERY — 2026-11-05 — BODY-COMPLETION-ON-MAIN-023 — SUPPLIER CREDIT NOTE RECONCILIATION A4 / XLSX
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Added finance document output to the existing manager/admin/accountant supplier-credit-note matching workspace; no new source data, database function or migration was introduced.
+- New files:
+  - `src/lib/supplier-credit-note-document.ts` — finance document projection with source/actual/variance reconciliation; suppresses a declared variance when it does not match actual minus source to the cent.
+  - `src/lib/supplier-credit-note-xlsx.ts` — two-sheet Arabic Excel output for the saved reconciliation summary and immutable review history.
+  - `src/components/SupplierCreditNoteDocumentActions.tsx` — Arabic RTL A4 print/Save-as-PDF and workbook download.
+- Existing UI integration: `src/components/SupplierCreditNoteWorkspace.tsx`; each persisted supplier credit-note reconciliation card exposes the actions under the workspace's existing admin/manager/accountant gate.
+- Privacy and accounting boundaries: tenant/actor/account UUIDs and other internal IDs are omitted; no account mapping or posting action is created. Source journal and supplier journal statuses are displayed independently. A draft journal is explicitly not described as posted. Missing amounts remain blank; inconsistent variance is withheld. Historical review reasons and dates are retained in the output.
+- Code commits on main: projection `88629fb38f1756800ef1834deb5ddc8f7c2a5127`; workbook `e6813113cd911887c5e1a904a665fd161d3542a5`; action component `d99a3ee1b6fb9af8b3dcb0694d0a425934dbc9a5`; workspace integration `e8b8ee3af443146679f1774441d235e6f8876e65`; projection cleanup `f0f2a5315521b4302ad53e2b02ec03257228f4ba`.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests, typecheck, build, lint, CI, browser, database or Bolt runtime operation was run in this product-body batch; no PASS or production acceptance is claimed. Bolt New owns connected runtime acceptance.
+- No migration, new dependency, external provider, Vercel operation or Vercel credit was used.
+- Next P1 body: continue the next genuinely uncovered mandatory customer/staff/admin/warehouse/finance operational workflow or report; do not rebuild the existing workflows or document outputs recorded in BODY-019 through BODY-023.
+
 ## P1 PRODUCT DELIVERY — 2026-11-05 — BODY-COMPLETION-ON-MAIN-022 — SUPPLIER RETURN A4 / XLSX
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
