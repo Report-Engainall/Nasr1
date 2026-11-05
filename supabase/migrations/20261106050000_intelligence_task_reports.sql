@@ -36,7 +36,7 @@ BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active operational profile required';
   END IF;
-  IF p_report_kind NOT IN ('DAILY','WEEKLY','MONTHLY','MANAGER')
+  IF p_report_kind IS NULL OR p_report_kind NOT IN ('DAILY','WEEKLY','MONTHLY','MANAGER')
      OR p_from IS NULL OR p_to IS NULL OR p_from>p_to OR p_to>v_today_utc THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='unsupported task report window';
   END IF;
@@ -56,7 +56,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='manager permission required for task risk report';
   END IF;
 
-  v_task_access:=v_can_staff OR EXISTS(
+  v_task_access:=v_can_staff OR v_can_manage OR EXISTS(
     SELECT 1
     FROM public.profiles p
     JOIN public.user_roles r ON r.profile_id=p.id
