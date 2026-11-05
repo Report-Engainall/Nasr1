@@ -209,5 +209,54 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    {response.result.warnings.length?<div role="status" className="rounded-lg border p-3 text-xs"><strong>قيود المصدر</strong><ul className="mt-1 list-disc space-y-1 ps-5">{response.result.warnings.map(warning=><li key={warning}>{warning}</li>)}</ul></div>:null}
    <p className="text-xs text-muted-foreground">المساعد يعرض مؤشرات مجمعة فقط؛ لا يكشف أسماء العملاء أو مراجعهم أو أرصدتهم أو أسعارهم، ولا ينشئ رسائل متابعة أو إجراءات تلقائية.</p>
   </div>:null}
+
+  {response?.status==="RESULT"&&response.result.kind==="TASK_REPORT"?<div className="space-y-3 rounded-lg border p-3 text-sm">
+   <div className="flex flex-wrap items-center justify-between gap-2">
+    <strong>{response.result.intent==="MANAGER_TASK_RISKS"?"تقرير مخاطر المهام للإدارة":response.result.intent==="DAILY_TASK_REPORT"?"التقرير اليومي للمهام":response.result.intent==="WEEKLY_TASK_REPORT"?"التقرير الأسبوعي للمهام":"التقرير الشهري للمهام"}</strong>
+    <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="EMPTY"?"لا توجد سجلات مهام":"تغطية كاملة ضمن الأدوار المصرح بها"}</span>
+   </div>
+   <p className="font-medium">{response.result.answer}</p>
+   <p className="text-xs text-muted-foreground">المصدر: ai_tasks + audit_logs · كما في {new Date(response.result.report.asOf).toLocaleString("ar",{timeZone:"UTC"})} UTC · الفترة: {response.result.report.period.from} — {response.result.report.period.to} UTC · الأدوار المصرح بها: {response.result.report.scope.visibleRoles.join("، ")}</p>
+   {response.result.report.reportKind!=="MANAGER"?<div className="overflow-x-auto">
+    <table className="w-full min-w-[720px] text-start text-xs">
+     <thead><tr className="border-b"><th className="p-2">الدور</th><th className="p-2">جديدة</th><th className="p-2">مفتوحة</th><th className="p-2">متأخرة</th><th className="p-2">عالية/حرجة</th><th className="p-2">أُكملت أول مرة</th><th className="p-2">إعادات الفتح</th><th className="p-2">زمن الحل بالدقائق</th></tr></thead>
+     <tbody>{response.result.report.roleSummaries.map(row=><tr key={row.taskRole} className="border-b last:border-0">
+      <th className="p-2 font-medium">{row.taskRole==="sales"?"المبيعات":row.taskRole==="accountant"?"المحاسبة":row.taskRole==="warehouse"?"المخزن":row.taskRole==="purchasing"?"المشتريات":row.taskRole==="management"?"الإدارة":"العمليات"}</th>
+      <td className="p-2">{count(row.newCount)}</td><td className="p-2">{count(row.openCount)}</td><td className="p-2">{count(row.overdueOpenCount)}</td>
+      <td className="p-2">{count(row.highImpactOpenCount)}</td><td className="p-2">{count(row.completedCount)}</td>
+      <td className="p-2">{count(row.reopenedEventCount)}</td><td className="p-2">{row.averageResolutionMinutes===null?"غير محسوب":count(Math.round(row.averageResolutionMinutes))}</td>
+     </tr>)}</tbody>
+    </table>
+   </div>:null}
+   {response.result.report.reportKind==="WEEKLY"?<div className="space-y-2">
+    <strong>التوزيع حسب المصدر والدور والأولوية</strong>
+    <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-xs"><thead><tr className="border-b"><th className="p-2">المصدر</th><th className="p-2">الدور</th><th className="p-2">الأولوية</th><th className="p-2">إنشاء</th><th className="p-2">إكمال</th><th className="p-2">إعادة فتح</th><th className="p-2">متوسط الحل</th></tr></thead>
+     <tbody>{response.result.report.sourceBreakdown.map(row=><tr key={row.sourceKey+row.taskRole+row.priority} className="border-b"><td className="p-2" dir="ltr">{row.sourceKey}</td><td className="p-2">{row.taskRole}</td><td className="p-2">{row.priority}</td><td className="p-2">{count(row.createdCount)}</td><td className="p-2">{count(row.completedCount)}</td><td className="p-2">{count(row.reopenedEventCount)}</td><td className="p-2">{row.averageResolutionMinutes===null?"غير محسوب":count(Math.round(row.averageResolutionMinutes))}</td></tr>)}</tbody>
+    </table></div>
+   </div>:null}
+   {response.result.report.reportKind==="MONTHLY"?<div className="space-y-2">
+    <strong>اتجاه العمل أسبوعياً داخل الشهر</strong>
+    <div className="overflow-x-auto"><table className="w-full min-w-[460px] text-xs"><thead><tr className="border-b"><th className="p-2">بداية الأسبوع</th><th className="p-2">جديدة</th><th className="p-2">أُكملت</th><th className="p-2">إعادة فتح</th></tr></thead>
+     <tbody>{response.result.report.weeklyTrend.map(row=><tr key={row.weekStart} className="border-b"><td className="p-2">{row.weekStart}</td><td className="p-2">{count(row.createdCount)}</td><td className="p-2">{count(row.completedCount)}</td><td className="p-2">{count(row.reopenedEventCount)}</td></tr>)}</tbody>
+    </table></div>
+   </div>:null}
+   {response.result.report.reportKind==="MANAGER"?<div className="space-y-2">
+    <div className="flex flex-wrap justify-between gap-2"><strong>المخاطر المفتوحة عالية/حرجة الأولوية</strong><span className="text-xs text-muted-foreground">{count(response.result.report.scope.managerRiskTotalCount??0)} إجمالي · {count(response.result.report.managerRisks.length)} معروض</span></div>
+    {response.result.report.managerRisks.length===0?<p className="text-muted-foreground">لا توجد مهام مفتوحة عالية/حرجة الأولوية في النطاق المصرح به.</p>:<div className="space-y-2">{response.result.report.managerRisks.map(risk=><article key={risk.id} className="rounded-md border p-3">
+     <div className="flex flex-wrap justify-between gap-2"><strong>{risk.title}</strong><span>{risk.priority==="critical"?"حرجة":"عالية"}</span></div>
+     <p className="mt-1 text-xs text-muted-foreground">الدور: {risk.taskRole} · الحالة: {risk.status} · عمر المهمة: {count(Math.round(risk.ageMinutes))} دقيقة · الاستحقاق: {risk.dueAt??"غير محدد"}</p>
+     <p className="text-xs">مرجع المكلف: {risk.assignedProfileId??"غير مسند"} · سبب التأخير: {risk.delayReason??"غير مسجل في المصدر"} · القرار الإداري المطلوب: {risk.requiredManagementDecision??"غير مسجل في المصدر"}</p>
+     {risk.sourceEntityType&&risk.sourceEntityId?<p className="mt-1 text-xs text-muted-foreground">مرجع المصدر: {risk.sourceEntityType} / {risk.sourceEntityId}</p>:null}
+    </article>)}</div>}
+    {!response.result.report.scope.managerRiskCompletePopulation?<p className="text-xs text-muted-foreground">تعرض القائمة أعلى 25 مهمة فقط؛ العدد الإجمالي مستقل عن عدد الصفوف المعروضة.</p>:null}
+   </div>:null}
+   <div className="rounded-md border p-3 text-xs">
+    <strong>تعريفات القياس وحدوده</strong>
+    <p className="mt-1">الجديد = سجل أُنشئ في الفترة ولا يُعاد عده عند إعادة الفتح. الإكمال = أول انتقال موثق إلى completed. زمن الحل = من الإنشاء إلى أول إكمال. إعادة الفتح حدث مستقل؛ النسبة تقيس المهام التي اكتملت أول مرة ثم أعيد فتحها داخل الفترة نفسها.</p>
+    <p className="mt-1">الانتظار على طرف آخر، أسباب التأخير، الإنذارات الكاذبة، الأسباب المتكررة ونتائج التحسين غير مسجلة في عقد المصدر؛ لا تعرض كأصفار. الأولوية التشغيلية ليست أثراً مالياً.</p>
+    {response.result.report.limitations.length?<ul className="mt-2 list-disc space-y-1 ps-5">{response.result.report.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>:null}
+   </div>
+  </div>:null}
+
  </section>;
 }

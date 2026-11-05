@@ -25,3 +25,5 @@ export * from "./commerce-policy-governance-client";
 export * from "./supplier-performance";
 export * from "./natural-language-assistant";
 export * from "./natural-language-assistant-client";
+export * from "./task-intelligence-reports";
+export * from "./task-intelligence-reports-client";

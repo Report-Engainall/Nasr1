@@ -4,11 +4,12 @@ import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import { fetchSupplierPerformance } from "./supplier-performance-client";
 import { createInventoryIntelligencePeriod,fetchInventoryIntelligence } from "./inventory-intelligence-client";
 import { fetchProcessBottlenecks } from "./process-bottlenecks-client";
+import { fetchTaskIntelligenceReport } from "./task-intelligence-reports-client";
 import { createCashflowScheduleRequest,fetchCashflowSchedule } from "./cashflow-schedule-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -25,6 +26,13 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="fetch_task_intelligence_report"){
+   if(!plan.taskReportKind)return {status:"ERROR",message:"نوع تقرير المهام غير محدد؛ لم يُنفذ طلب غير مكتمل."};
+   const report=await fetchTaskIntelligenceReport(plan.taskReportKind);
+   if(!report.ok)return {status:report.status,message:report.message};
+   return {status:"RESULT",plan,result:resolveTaskIntelligenceReport(
+    plan.intent as TaskIntelligenceReportIntent,report.report)};
+  }
   if(plan.sourceRpc==="get_intelligence_aggregate"){
    const request=createCashflowScheduleRequest({horizonDays:plan.horizonDays??30});
    const schedule=await fetchCashflowSchedule(request);

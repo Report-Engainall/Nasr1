@@ -5,6 +5,7 @@ import type { DeadStockReport } from "./dead-stock";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import type { ProcessBottleneckResult } from "./process-bottlenecks";
 import type { CashflowScheduleSnapshot } from "./cashflow-schedule-client";
+import type { TaskIntelligenceReport, TaskIntelligenceReportKind } from "./task-intelligence-reports";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
@@ -12,11 +13,12 @@ export type SupplierPerformanceIntent="SUPPLIER_PERFORMANCE_OVERVIEW"|"SUPPLIER_
 export type InventoryIntent="DEAD_STOCK_OVERVIEW"|"REPLENISHMENT_OVERVIEW";
 export type ProcessBottleneckIntent="PROCESS_BOTTLENECK_OVERVIEW";
 export type ProcessTaskIntent="OPEN_TASKS_OVERVIEW"|"REOPENED_TASKS_OVERVIEW";
+export type TaskIntelligenceReportIntent="DAILY_TASK_REPORT"|"WEEKLY_TASK_REPORT"|"MONTHLY_TASK_REPORT"|"MANAGER_TASK_RISKS";
 export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|ExpectedCollectionsIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"get_intelligence_aggregate";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate";
 export type NaturalLanguagePlanResult=
- |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90}
+ |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
 function normalizeArabic(value:string):string {
  return value.normalize("NFKC").replace(/[\u064B-\u065F\u0670\u0640]/g,"")
@@ -42,6 +44,40 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   return {status:"READY",intent:"EXPECTED_CUSTOMER_COLLECTIONS",normalizedQuestion,sourceRpc:"get_intelligence_aggregate",horizonDays,
    filterDescription:"فواتير العملاء الصادرة وغير المسددة بالكامل حسب تاريخ الاستحقاق المستقبلي؛ مجموع مستقل لكل عملة، مع دليل الفاتورة والمدفوعات المسجلة."};
  }
+ const employeeComparisonQuestion=/(مقارنه الموظفين|قارن الموظفين|اداء كل موظف|ترتيب الموظفين|اسرع الموظفين|ابطا الموظفين)/.test(normalizedQuestion);
+ if(employeeComparisonQuestion)return {
+  status:"UNSUPPORTED",normalizedQuestion,
+  explanation:"مرجع تقارير المهام يمنع ترتيب الموظفين أو إصدار مقارنة فردية دون ضبط الدور والحمل والتعقيد والغياب والعوامل الخارجية؛ مصدر المهام الحالي لا يوفر تلك العوامل."
+ };
+ const managerTaskReport=/(تقرير.*(المدير|الاداره).*المهام|مخاطر المهام المفتوحه|المهام عاليه الاثر للاداره|تقرير مخاطر المهام)/.test(normalizedQuestion);
+ const dailyTaskReport=/(تقرير.*المهام.*(اليوم|يومي)|تقرير يومي للمهام|ملخص يومي للمهام|مهام اليوم حسب الدور)/.test(normalizedQuestion);
+ const weeklyTaskReport=/(تقرير.*المهام.*(الاسبوع|اسبوعي)|تقرير اسبوعي للمهام|ملخص اسبوعي للمهام|مهام هذا الاسبوع)/.test(normalizedQuestion);
+ const monthlyTaskReport=/(تقرير.*المهام.*(الشهر|شهري)|تقرير شهري للمهام|ملخص شهري للمهام|اتجاه عبء المهام|عبء المهام الشهري|مهام هذا الشهر)/.test(normalizedQuestion);
+ if(managerTaskReport||dailyTaskReport||weeklyTaskReport||monthlyTaskReport){
+  if(/(امس|البارحه|الاسبوع الماضي|الشهر الماضي|من تاريخ|بين تاريخ|20\d{2}-\d{2}-\d{2})/.test(normalizedQuestion))return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"تقارير المهام محددة بالفترة اليومية الحالية أو آخر 7 أيام UTC أو الشهر الحالي حتى اليوم؛ لا أستبدلها بتاريخ ماضٍ أو نطاق حر."
+  };
+  const taskReportKind:TaskIntelligenceReportKind=managerTaskReport?"MANAGER":
+   dailyTaskReport?"DAILY":weeklyTaskReport?"WEEKLY":"MONTHLY";
+  const intent:TaskIntelligenceReportIntent=taskReportKind==="MANAGER"?"MANAGER_TASK_RISKS":
+   taskReportKind==="DAILY"?"DAILY_TASK_REPORT":
+   taskReportKind==="WEEKLY"?"WEEKLY_TASK_REPORT":"MONTHLY_TASK_REPORT";
+  const filterDescription=taskReportKind==="DAILY"
+   ?"مهام اليوم حسب الدور؛ الجديد حسب created_at، والمتأخر حسب due_at والسجل النشط وقت التقرير."
+   :taskReportKind==="WEEKLY"
+    ?"آخر سبعة أيام UTC؛ توزيع الإنشاء والإكمال وإعادة الفتح حسب مصدر المهمة والدور والأولوية."
+    :taskReportKind==="MONTHLY"
+     ?"من أول الشهر UTC حتى اليوم؛ اتجاه أسبوعي للإنشاء والإكمال وإعادة الفتح، دون مقارنة موظفين."
+     :"لقطة المهام المفتوحة عالية/حرجة الأولوية؛ للمسؤول الإداري فقط، مع عمر المهمة ومرجع المكلف عند وجوده.";
+  return {status:"READY",intent,normalizedQuestion,sourceRpc:"fetch_task_intelligence_report",
+   taskReportKind,filterDescription};
+ }
+ if(/تقرير.*المهام|تقارير المهام/.test(normalizedQuestion))return {
+  status:"CLARIFICATION",normalizedQuestion,
+  explanation:"نوع تقرير المهام غير واضح؛ اختر الفترة أو غرض الإدارة.",
+  clarification:"هل تريد التقرير اليومي، أم الأسبوعي، أم الشهري، أم تقرير مخاطر الإدارة؟"
+ };
  const openTasksQuestion=/(المهام المفتوحه|المهام الجاريه|الاعمال المفتوحه|قائمه المهام المفتوحه|المهام المتراكمه|التكليفات المفتوحه)/.test(normalizedQuestion);
  const reopenedTasksQuestion=/(المهام المعاد فتحها|المهام التي اعيد فتحها|مهام اعيد فتحها|اعيد فتح المهام|اعاده فتح المهام|اعاده فتح المهمه)/.test(normalizedQuestion);
  if(openTasksQuestion||reopenedTasksQuestion){
@@ -239,6 +275,10 @@ export interface NaturalLanguageProcessTasksResult {
  taskCount:number|null;oldestAgeMinutes:number|null;oldestOpenedAt:string|null;
  completeSource:boolean;sourceMessage:string;
 }
+export interface NaturalLanguageTaskReportResult {
+ kind:"TASK_REPORT";state:"READY"|"EMPTY";intent:TaskIntelligenceReportIntent;
+ answer:string;sourceRpc:"fetch_task_intelligence_report";report:TaskIntelligenceReport;
+}
 export interface NaturalLanguageExpectedCollectionsResult {
  kind:"EXPECTED_COLLECTIONS";state:"READY"|"PARTIAL"|"EMPTY";intent:ExpectedCollectionsIntent;
  answer:string;sourceRpc:"get_intelligence_aggregate";asOf:string;period:{from:string;to:string};
@@ -246,7 +286,7 @@ export interface NaturalLanguageExpectedCollectionsResult {
  currencies:Array<{currency:string;amount:number;invoiceCount:number}>;
  warnings:string[];
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageExpectedCollectionsResult;
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -488,6 +528,24 @@ export function resolveProcessBottlenecksIntent(
  };
 }
 
+
+/** Builds a human-readable Section 58 summary from canonical task counts only. */
+export function resolveTaskIntelligenceReport(
+ intent:TaskIntelligenceReportIntent,report:TaskIntelligenceReport,
+):NaturalLanguageTaskReportResult {
+ const totals=report.roleSummaries.reduce((acc,row)=>({
+  created:acc.created+row.newCount,open:acc.open+row.openCount,
+  overdue:acc.overdue+row.overdueOpenCount,completed:acc.completed+row.completedCount,
+  reopened:acc.reopened+row.reopenedEventCount,high:acc.high+row.highImpactOpenCount,
+ }),{created:0,open:0,overdue:0,completed:0,reopened:0,high:0});
+ const answer=report.state==="EMPTY"
+  ?"لا توجد سجلات مهام في مجتمع البيانات الذي تسمح صلاحيتك برؤيته."
+  :report.reportKind==="MANAGER"
+   ?"توجد "+report.scope.managerRiskTotalCount+" مهمة مفتوحة عالية أو حرجة الأولوية؛ عُرضت "+report.scope.managerRiskReturnedCount+" منها مرتبة حسب الأولوية والاستحقاق والعمر."
+   :"الفترة "+report.period.from+" إلى "+report.period.to+" UTC: "+totals.created+" مهمة جديدة، "+totals.overdue+" متأخرة، "+totals.completed+" أُكملت لأول مرة، و"+totals.reopened+" حدث إعادة فتح. المفتوح حالياً "+totals.open+"، وعالي/حرج الأولوية "+totals.high+".";
+ return {kind:"TASK_REPORT",state:report.state,intent,answer,
+  sourceRpc:"fetch_task_intelligence_report",report};
+}
 
 /** Sums only fully verified scheduled customer receivables and keeps each currency independent. */
 export function resolveExpectedCollectionsIntent(
