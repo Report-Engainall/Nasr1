@@ -875,3 +875,64 @@
   .customer-service-desk-management-actions{grid-template-columns:1fr}
   .customer-service-desk-management-actions>button{width:100%}
 }
+
+/* Customer service portal and shared public correspondence */
+.customer-service-portal{max-width:1120px;margin:0 auto;padding:26px 18px 56px;display:grid;gap:16px;color:var(--foreground)}
+.customer-service-portal-hero,.customer-service-portal-create,.customer-service-portal-case,.customer-service-portal-list-section{border:1px solid var(--border);border-radius:15px;background:var(--card);padding:17px}
+.customer-service-portal-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.customer-service-portal-hero>div>span{display:inline-flex;align-items:center;gap:7px;color:var(--aghbari-brand,var(--primary));font-size:11px;font-weight:800}
+.customer-service-portal-hero h1{font-size:clamp(21px,3vw,28px);margin:7px 0 5px}
+.customer-service-portal-hero p,.customer-service-portal-section-heading p{color:var(--muted-foreground);font-size:12px;line-height:1.8;margin:0}
+.customer-service-portal-create,.customer-service-portal-list-section{display:grid;gap:14px}
+.customer-service-portal-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.customer-service-portal-section-heading h2{display:flex;align-items:center;gap:7px;margin:0 0 4px;font-size:16px}
+.customer-service-portal-section-heading>span{font-size:12px;color:var(--muted-foreground)}
+.customer-service-portal-create form{display:grid;gap:12px}
+.customer-service-portal-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.customer-service-portal-form-grid label,.customer-service-portal-reply label{display:grid;gap:6px;color:var(--muted-foreground);font-size:11px;font-weight:700}
+.customer-service-portal-form-grid label.wide{grid-column:1/-1}
+.customer-service-portal-form-grid input,.customer-service-portal-form-grid select,.customer-service-portal-form-grid textarea,.customer-service-portal-reply textarea{width:100%;min-width:0;padding:10px 11px;border:1px solid var(--border);border-radius:9px;background:var(--background);color:var(--foreground);font:inherit;font-size:12px;line-height:1.65}
+.customer-service-portal-form-grid textarea,.customer-service-portal-reply textarea{resize:vertical}
+.customer-service-portal-form-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.customer-service-portal-form-footer small,.customer-service-portal-footnote{font-size:10px;color:var(--muted-foreground);line-height:1.8}
+.customer-service-portal-cases{display:grid;gap:12px}
+.customer-service-portal-case{display:grid;gap:12px}
+.customer-service-portal-case-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.customer-service-portal-case-head h2{margin:5px 0;font-size:15px;overflow-wrap:anywhere}
+.customer-service-portal-case-head p{margin:0;color:var(--muted-foreground);font-size:10px}
+.customer-service-portal-code{color:var(--aghbari-brand,var(--primary));font-size:10px;font-weight:900}
+.customer-service-portal-status{flex:0 0 auto;padding:5px 9px;border-radius:999px;background:var(--aghbari-brand-soft,var(--muted));font-size:10px;font-weight:800}
+.customer-service-portal-status.status-closed,.customer-service-portal-status.status-resolved{background:var(--muted);color:var(--muted-foreground)}
+.customer-service-portal-description{margin:0;white-space:pre-wrap;line-height:1.8;font-size:12px;overflow-wrap:anywhere}
+.customer-service-portal-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.customer-service-portal-dates>div{display:grid;gap:5px;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--background);min-width:0}
+.customer-service-portal-dates span{display:flex;align-items:center;gap:6px;color:var(--muted-foreground);font-size:10px}
+.customer-service-portal-dates strong{font-size:11px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.customer-service-portal-dates small{font-size:9px;color:var(--muted-foreground)}
+.customer-service-portal-thread{border-top:1px solid var(--border);padding-top:10px}
+.customer-service-portal-thread summary{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;font-weight:800}
+.customer-service-portal-messages,.customer-service-conversation-list{display:grid;gap:8px;list-style:none;padding:0;margin:10px 0}
+.customer-service-portal-message,.customer-service-conversation-list li{display:grid;gap:5px;padding:10px;border-radius:10px;background:var(--background);border:1px solid var(--border)}
+.customer-service-portal-message.from-staff,.customer-service-conversation-list li.from-staff{border-inline-start:3px solid var(--aghbari-brand,var(--primary))}
+.customer-service-portal-message.from-customer,.customer-service-conversation-list li.from-customer{border-inline-start:3px solid var(--aghbari-gold,var(--border))}
+.customer-service-portal-message>div,.customer-service-conversation-list li>div{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.customer-service-portal-message strong,.customer-service-conversation-list strong{font-size:10px}
+.customer-service-portal-message time,.customer-service-conversation-list time{color:var(--muted-foreground);font-size:9px}
+.customer-service-portal-message p,.customer-service-conversation-list li p{margin:0;font-size:12px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.customer-service-portal-reply,.customer-service-conversation-reply{display:grid;gap:8px;padding-top:10px}
+.customer-service-portal-reply button,.customer-service-conversation-reply button{justify-self:start}
+.customer-service-portal-notice,.customer-service-portal-error,.customer-service-portal-readonly{display:flex;align-items:flex-start;gap:8px;padding:11px 13px;border-radius:9px;font-size:11px;line-height:1.8;margin:0}
+.customer-service-portal-notice{background:var(--aghbari-brand-soft,var(--muted));color:var(--foreground)}
+.customer-service-portal-error{background:color-mix(in srgb,var(--destructive,var(--aghbari-brand)) 8%,var(--card));color:var(--destructive,var(--foreground))}
+.customer-service-portal-readonly,.customer-service-portal-muted,.customer-service-portal-empty{color:var(--muted-foreground);font-size:11px;line-height:1.8}
+.customer-service-portal-empty{padding:24px;text-align:center;border:1px dashed var(--border);border-radius:11px}
+.customer-service-conversation{display:grid;gap:8px;border-top:1px solid var(--border);padding-top:9px}
+.customer-service-conversation-toggle{display:flex;align-items:center;gap:7px;width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit;font-size:10px;font-weight:800;text-align:start;cursor:pointer}
+.customer-service-conversation-count{margin-inline-start:auto;color:var(--muted-foreground);font-size:9px}
+.customer-service-conversation-body{display:grid;gap:9px;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--background)}
+.customer-service-conversation-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.customer-service-conversation-toolbar>span,.customer-service-conversation-muted{color:var(--muted-foreground);font-size:9px;line-height:1.8;margin:0}
+.customer-service-conversation-reply label{font-size:10px;font-weight:800;color:var(--muted-foreground)}
+.customer-service-conversation-reply textarea{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-size:11px;resize:vertical}
+.customer-service-conversation-error{margin:0;color:var(--destructive,var(--foreground));font-size:10px}
+@media(max-width:620px){.customer-service-portal{padding:16px 12px 36px}.customer-service-portal-form-grid,.customer-service-portal-dates{grid-template-columns:1fr}.customer-service-portal-case-head{flex-direction:column}.customer-service-portal-form-footer{align-items:stretch}.customer-service-portal-form-footer button,.customer-service-portal-reply button,.customer-service-conversation-reply button{width:100%}}

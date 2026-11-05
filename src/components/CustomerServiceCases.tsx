@@ -17,6 +17,7 @@ import {
   type CustomerServiceSlaPolicy,
 } from "@/lib/customer-service-cases";
 import { formatDateShort } from "@/lib/format";
+import { CustomerServiceConversation } from "@/components/CustomerServiceConversation";
 
 const typeLabels: Record<CustomerServiceCaseType,string> = {
   complaint: "شكوى", inquiry: "استفسار", service_request: "طلب خدمة",
@@ -33,7 +34,7 @@ const eventLabels: Record<string,string> = {
   opened: "فتح الحالة", status_changed: "تغيير الحالة", priority_changed: "تغيير الأولوية",
   note_added: "إضافة ملاحظة", resolved: "حل الحالة", closed: "إغلاق الحالة",
   reopened: "إعادة فتح الحالة", assigned: "تغيير المسؤول", sla_updated: "تعديل مواعيد SLA",
-  escalated: "تصعيد الحالة",
+  escalated: "تصعيد الحالة", customer_message_received: "استلام رد العميل", staff_reply_sent: "إرسال رد للعميل",
 };
 
 function toLocalDateTime(value: string | null): string {
@@ -237,6 +238,7 @@ function CustomerServiceCaseCard({
 
       {notice && <p className="customer-service-case-notice" role="status">{notice}</p>}
       {error && <ErrorBox message={error} />}
+      <CustomerServiceConversation caseId={item.id} status={item.status} onReplied={onRefresh} />
       {item.events.length > 0 && (
         <details className="customer-service-case-history">
           <summary>سجل الأحداث ({item.events.length})</summary>

@@ -7,9 +7,10 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import type { Notification } from '@/lib/types';
 
-function notificationDestination(notification: Notification, isStaff: boolean): 'order' | 'task' | null {
+function notificationDestination(notification: Notification, isStaff: boolean): 'order' | 'task' | 'service-case' | null {
   if (notification.entity_type === 'order' && typeof notification.entity_id === 'string') return 'order';
   if (isStaff && notification.entity_type === 'ai_task' && typeof notification.entity_id === 'string') return 'task';
+  if (!isStaff && notification.entity_type === 'customer_service_case' && typeof notification.entity_id === 'string') return 'service-case';
   return null;
 }
 
@@ -49,7 +50,7 @@ function NotificationItem({
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {destination && (
           <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => onOpen(notification)}>
-            <ExternalLink size={14} /> {destination === 'order' ? 'فتح تفاصيل الطلب' : 'فتح المهمة'}
+            <ExternalLink size={14} /> {destination === 'order' ? 'فتح تفاصيل الطلب' : destination === 'task' ? 'فتح المهمة' : 'فتح مركز خدمة العملاء'}
           </button>
         )}
         {!notification.is_read && (
@@ -119,8 +120,10 @@ export function CustomerNotificationCenter() {
       if (!notification.is_read) await markNotificationRead(notification.id);
       if (destination === 'order') {
         await navigate({ to: '/orders/$id', params: { id: notification.entity_id } });
-      } else {
+      } else if (destination === 'task') {
         await navigate({ to: '/admin/tasks' });
+      } else {
+        await navigate({ to: '/service-cases' });
       }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'تعذر فتح العنصر المرتبط بالتنبيه.');

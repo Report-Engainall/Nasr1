@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { Button, Empty, ErrorBox, Loading } from "@/components/AdminPages";
 import { useAuth } from "@/lib/auth";
+import { CustomerServiceConversation } from "@/components/CustomerServiceConversation";
 import { fetchOperationalTaskAssignees } from "@/lib/api";
 import type { OperationalTaskAssignee } from "@/lib/types";
 import {
@@ -189,6 +190,7 @@ function DeskCaseCard({ item, canManage, assignees, onRefresh, onOpenTask, onNot
       {item.task_id && <button type="button" className="btn secondary" disabled={saving} onClick={() => onOpenTask(item.task_id!)}><ClipboardList size={15} /> المهمة</button>}
     </form>
 
+    <CustomerServiceConversation caseId={item.case_id} status={item.status} onReplied={onRefresh} />
     {canManage && active && <details className="customer-service-desk-management">
       <summary><UserRound size={15} /> إسناد ومواعيد وتصعيد</summary>
       <div className="customer-service-desk-management-grid">

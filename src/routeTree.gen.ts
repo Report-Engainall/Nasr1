@@ -60,6 +60,7 @@ import { Route as AdminInventoryTransfersRouteImport } from './routes/admin_.inv
 import { Route as AdminIntelligenceRouteImport } from './routes/admin_.intelligence'
 import { Route as AdminTasksRouteImport } from './routes/admin_.tasks'
 import { Route as AdminServiceDeskRouteImport } from './routes/admin_.service-desk'
+import { Route as ServiceCasesRouteImport } from './routes/service-cases'
 import { Route as ApiStatementPdfRouteImport } from './routes/api.statement-pdf'
 import { Route as CompanyAcceptInvitationRouteImport } from './routes/company.accept-invitation'
 import { Route as CompanyContactsRouteImport } from './routes/company.contacts'
@@ -283,6 +284,11 @@ const AdminServiceDeskRoute = AdminServiceDeskRouteImport.update({
   path: '/admin/service-desk',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServiceCasesRoute = ServiceCasesRouteImport.update({
+  id: '/service-cases',
+  path: '/service-cases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStatementPdfRoute = ApiStatementPdfRouteImport.update({
   id: '/api/statement-pdf',
   path: '/api/statement-pdf',
@@ -426,6 +432,7 @@ export interface FileRoutesByFullPath {
   '/admin/intelligence': typeof AdminIntelligenceRoute
   '/admin/tasks': typeof AdminTasksRoute
   '/admin/service-desk': typeof AdminServiceDeskRoute
+  '/service-cases': typeof ServiceCasesRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
   '/company/contacts': typeof CompanyContactsRoute
@@ -553,6 +560,7 @@ export interface FileRoutesById {
   '/admin_/intelligence': typeof AdminIntelligenceRoute
   '/admin_/tasks': typeof AdminTasksRoute
   '/admin_/service-desk': typeof AdminServiceDeskRoute
+  '/service-cases': typeof ServiceCasesRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
   '/company/contacts': typeof CompanyContactsRoute
@@ -797,6 +805,7 @@ export interface RootRouteChildren {
   AdminIntelligenceRoute: typeof AdminIntelligenceRoute
   AdminTasksRoute: typeof AdminTasksRoute
   AdminServiceDeskRoute: typeof AdminServiceDeskRoute
+  ServiceCasesRoute: typeof ServiceCasesRoute
   ApiStatementPdfRoute: typeof ApiStatementPdfRoute
   CompanyAcceptInvitationRoute: typeof CompanyAcceptInvitationRoute
   CompanyContactsRoute: typeof CompanyContactsRoute
@@ -1115,6 +1124,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminServiceDeskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/service-cases': {
+      id: '/service-cases'
+      path: '/service-cases'
+      fullPath: '/service-cases'
+      preLoaderRoute: typeof ServiceCasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/statement-pdf': {
       id: '/api/statement-pdf'
       path: '/api/statement-pdf'
@@ -1318,6 +1334,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminIntelligenceRoute: AdminIntelligenceRoute,
   AdminTasksRoute: AdminTasksRoute,
   AdminServiceDeskRoute: AdminServiceDeskRoute,
+  ServiceCasesRoute: ServiceCasesRoute,
   ApiStatementPdfRoute: ApiStatementPdfRoute,
   CompanyAcceptInvitationRoute: CompanyAcceptInvitationRoute,
   CompanyContactsRoute: CompanyContactsRoute,
