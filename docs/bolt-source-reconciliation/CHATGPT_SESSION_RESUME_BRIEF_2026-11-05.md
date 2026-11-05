@@ -1,3 +1,10 @@
+## Verified DLV-011 acceptance already present on the tested application SHA
+
+- Do not rebuild/retest the customer multi-invoice receipt print: DLV-011-CUSTOMER-MULTI-INVOICE-RECEIPT-PRINT-001 is accepted on exact code SHA 45ca19c47a985b2d12d23c846ba068222a4e17ce by P2 41940874520 SUCCESS. The full finance-task-print Playwright file ran in local PostgreSQL 17/Supabase + Chromium and included the 2-invoice allocation, saved receipt, identical reprints, unchanged balances/no duplicate financial movement, privacy/UUID exclusion, RTL/A4 and customer-denial checks. Detailed proof is in the acceptance matrix and execution checkpoint.
+- DLV-011 remains PARTIAL with seven accepted leaves. Hosted customer/order/tenant remains SKIPPED_EXTERNAL.
+- Current execution remains BODY-COMPLETION-ON-MAIN-001; Bolt import, provisioning and Preview are deferred until practical product-body readiness.
+
+---
 # OWNER CLARIFICATION — EXECUTION ORDER CORRECTION — 2026-11-05
 
 **Highest priority: do not connect to Bolt yet.** The current phase is to continue completing the greatest practical amount of the existing Aghbari product body on NASR1/main first. The earlier text in this brief that labels BOLT-RUNTIME-001 as the immediate next action or says to stop DLV work until Bolt is verified is superseded by this owner clarification.
