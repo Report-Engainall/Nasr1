@@ -35,6 +35,7 @@ import {
   CashflowForecastCard,
   DeadStockCard,
   EvidencePassport,
+  GrowthOpportunityRadar,
   LiquiditySummary,
   ReplenishmentCard,
 } from "@/components/intelligence";
@@ -837,6 +838,13 @@ export function IntelligenceWorkspace() {
                 </div>
                 <p className="report-note">الفترة الحالية: {customerRetention.period.from} — {customerRetention.period.to} · السابقة: {customerRetention.previousPeriod.from} — {customerRetention.previousPeriod.to} · اللقطة: {customerRetention.asOf}. لم يرسل مصدر الاحتفاظ مبيعات أو أرصدة أو أسعاراً؛ لذلك يظل تركيز المبيعات حسب العميل خارج الحساب.</p>
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
+                <GrowthOpportunityRadar
+                  result={retentionResult?.ok ? retentionResult.growthRadar : null}
+                  state={retentionLoading ? "loading" : retentionResult?.ok
+                    ? retentionResult.growthRadar.status === "UNAVAILABLE" ? "empty" : "ready"
+                    : retentionResult?.status === "DENIED" ? "error" : "unavailable"}
+                  onRetry={() => setRefreshKey((value) => value + 1)}
+                />
               </>
             ) : null}
           </section>
