@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
-  AlertTriangle, BellRing, CalendarClock, CheckCircle2, ClipboardList, Filter,
+  AlertTriangle, BellRing, CalendarClock, ClipboardList, Filter,
   Headphones, RefreshCw, Search, ShieldAlert, UserRound, Users,
 } from "lucide-react";
 import { Button, Empty, ErrorBox, Loading } from "@/components/AdminPages";
@@ -186,7 +186,7 @@ function DeskCaseCard({ item, canManage, assignees, onRefresh, onOpenTask, onNot
           placeholder="مطلوب عند الحل أو الإغلاق" />
       </label>
       <Button disabled={saving || (status === item.status && !statusNote.trim())}>{saving ? "جارٍ الحفظ…" : "حفظ الحالة"}</Button>
-      {item.task_id && <Button type="button" variant="secondary" disabled={saving} onClick={() => onOpenTask(item.task_id!)}><ClipboardList size={15} /> المهمة</Button>}
+      {item.task_id && <button type="button" className="btn secondary" disabled={saving} onClick={() => onOpenTask(item.task_id!)}><ClipboardList size={15} /> المهمة</button>}
     </form>
 
     {canManage && active && <details className="customer-service-desk-management">
