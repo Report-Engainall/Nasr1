@@ -1,3 +1,32 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-PERFORMANCE-SCORECARD-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Parent SHA: 6c32180d954f9f56a1b6243cd2de6f0c2d16044e.
+- Feature code SHA: 149156c9f957e24be2448ebc91887c9b1af2ea99.
+- Canonical reference: unified merchant-intelligence specification, Section 61 — operational task-center and recommendation success metrics.
+- Added the read-only, authenticated RPC `public.fetch_task_performance_scorecard()` in `supabase/migrations/20261106060000_intelligence_task_performance_scorecard.sql`. The RPC derives actor and organization from the active session, applies the same role-visible task contract as Section 58, returns the complete population of rows visible to those roles, and emits aggregate counts only. It does not return task titles, task IDs, assignee IDs, source identifiers or task payloads.
+- Added source coverage measures for tasks linked to an entity: idempotency-key coverage and full traceability coverage (source event key + entity type + entity ID). These are coverage measures only; they are not duplicate-attempt rates, and tasks without source-entity markers are not silently classified as source-generated.
+- Added median and P90 completion duration by task type and role. The sample is limited to tasks currently in completed state whose created_at/completed_at timestamps are both present and ordered. Missing/invalid timestamps are counted and excluded; no employee ranking or attribution is inferred from system-triggered completion.
+- Audit-observed reopen-event count and distinct task count are shown only as a lower-bound observation. The metric parser requires reopenRatePercent=null and audit completeness=PARTIAL because source-triggered task upserts can reopen a task without writing operational_task.status_changed. A full reopen rate is withheld until every automatic transition is audited.
+- The RPC reports no invented values for duplicate replay rate, actionability, false alarms, repeated causes, waiting-on-other-party, improvement outcomes, print success or employee comparisons. The DTO parser reconciles all visible task/group/source/sample totals and rejects a fabricated reopen percentage.
+- Added `src/lib/intelligence/task-performance-scorecard.ts`, its Supabase read client, `src/components/intelligence/TaskPerformanceScorecard.tsx`, library/component exports and focused engine/component test files.
+- Changed paths:
+  - `supabase/migrations/20261106060000_intelligence_task_performance_scorecard.sql`
+  - `src/lib/intelligence/task-performance-scorecard.ts`
+  - `src/lib/intelligence/task-performance-scorecard-client.ts`
+  - `src/components/intelligence/TaskPerformanceScorecard.tsx`
+  - `src/lib/intelligence/task-performance-scorecard.test.ts`
+  - `src/components/intelligence/TaskPerformanceScorecard.test.tsx`
+  - `src/lib/intelligence/index.ts`
+  - `src/components/intelligence/index.ts`
+- P1 handoff: mount the exported component once in the existing `IntelligenceWorkspace`, load via `fetchTaskPerformanceScorecard()`, and wire explicit loading/unavailable/error/retry/ready states. The exact integration contract is `docs/execution/contracts/P3_TASK_PERFORMANCE_SCORECARD_P1_HANDOFF.md`. P3 did not modify the P1 workspace, routes or CSS.
+- Migration status: source only; not applied to Bolt/Supabase. Tests were added but not run. No typecheck, build, lint, CI, browser, E2E, DB runtime, Preview, Vercel or production operation was run. No PASS or production readiness is claimed.
+- Cost/safety: no new dependency, paid provider, AI quota, secret, Vercel credit, task mutation or financial/inventory mutation.
+- Delivery status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Exact next actions: P1 mounts the component; Bolt applies and verifies the migration in the approved non-production workflow; P3 closes the automatic source-transition audit gap before calculating any complete reopen rate.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-59-PANEL-TYPE-AND-A11Y-HARDENING-006
 
 - Repository: Report-Engainall/Nasr1; branch: main.

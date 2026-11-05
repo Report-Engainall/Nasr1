@@ -1935,3 +1935,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - No tests/build/lint/typecheck/CI/browser/E2E/database apply/Bolt Preview/hosted/production verification run. Status source-only, IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. No PASS. No Vercel credit or paid dependencies.
 - Next: P1 UI mount. P2 may later add source document attachment and controlled tax/variance accounting only after existing storage and chart-account contracts are explicitly established.
 
+
+
+## 2026-11-06 — REF-SECTION-61-TASK-PERFORMANCE-SCORECARD-001 — source delivery
+
+- Feature code commit: 149156c9f957e24be2448ebc91887c9b1af2ea99 (parent 6c32180d954f9f56a1b6243cd2de6f0c2d16044e).
+- Added `public.fetch_task_performance_scorecard()` as a tenant-derived, role-filtered, read-only RPC; it returns aggregate-only data for every task row visible to the authenticated user's task roles.
+- Added source entity/key coverage and median/P90 current-completion duration by task type and role. Invalid completion timestamps are explicitly excluded and counted.
+- Reopen events are presented as audit-observed lower bounds only. Automatic source-triggered upserts can reopen task rows without emitting `operational_task.status_changed`; the RPC therefore marks audit completeness PARTIAL and forces reopenRatePercent=null.
+- Added the validated scorecard parser, Supabase client, RTL component and focused tests. The component is exported but awaits P1 mount in IntelligenceWorkspace.
+- Added P1 handoff contract at `docs/execution/contracts/P3_TASK_PERFORMANCE_SCORECARD_P1_HANDOFF.md`; matrix row `REF-TASK-PERFORMANCE-SCORECARD-001`.
+- Tests/build/lint/typecheck/CI/browser/E2E/database migration application/Bolt Preview/production were not run. Status is IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING; no PASS claimed.
+- No paid provider, new dependency, Vercel credit, secret or business-data mutation was used.
