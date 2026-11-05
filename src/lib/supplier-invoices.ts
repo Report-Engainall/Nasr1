@@ -665,8 +665,11 @@ export async function prepareSupplierInvoiceAccountingDraft(input: {
     replayed: row.replayed === true,
   };
   if (result.invoiceId !== input.invoiceId) throw new Error("أعاد الخادم نتيجة تسوية لفاتورة أخرى.");
-  if (result.accountingStatus === "journal_draft_created" && (!result.journalEntryId || result.journalStatus !== "draft")) {
-    throw new Error("لم يؤكد الخادم إنشاء مسودة قيد متوازنة لفاتورة المورد.");
+  if ((result.accountingStatus === "journal_draft_created" && (!result.journalEntryId || result.journalStatus !== "draft")) ||
+      (result.accountingStatus === "journal_posted" && (!result.journalEntryId || result.journalStatus !== "posted")) ||
+      (result.accountingStatus === "journal_void" && (!result.journalEntryId || result.journalStatus !== "void")) ||
+      (result.accountingStatus === "journal_reversed" && (!result.journalEntryId || result.journalStatus !== "posted"))) {
+    throw new Error("لم تتطابق حالة مسودة/قيد تسوية المورد مع سجل دفتر الأستاذ.");
   }
   if (result.accountingStatus === "no_adjustment_required" && result.journalEntryId !== null) {
     throw new Error("أعاد الخادم قيدًا غير متوقع لفاتورة لا تحتاج إلى تسوية.");
