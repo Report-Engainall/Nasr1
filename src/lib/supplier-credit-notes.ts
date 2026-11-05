@@ -260,7 +260,13 @@ export async function prepareSupplierCreditNoteJournalDraft(input: {
   creditNoteId: string;
   varianceAccountId: string | null;
   idempotencyKey: string;
-}): Promise<SupplierCreditNoteCommandResult> {
+}): Promise<{
+  creditNoteId: string;
+  journalEntryId: string;
+  journalEntryNumber: string;
+  journalStatus: SupplierCreditNoteJournalStatus;
+  replayed: boolean;
+}> {
   if (!UUID_PATTERN.test(input.creditNoteId) || !UUID_PATTERN.test(input.idempotencyKey) ||
       (input.varianceAccountId !== null && !UUID_PATTERN.test(input.varianceAccountId))) {
     throw new Error("مرجع إشعار المورد أو حساب الفرق أو مفتاح العملية غير صالح.");
@@ -271,5 +277,14 @@ export async function prepareSupplierCreditNoteJournalDraft(input: {
     p_idempotency_key: input.idempotencyKey,
   });
   if (error) throw error;
-  return parseCommand(data);
+  const row = object(data, "مسودة قيد المورد");
+  const journalState = journalStatus(row.status);
+  if (!journalState) throw new Error("حالة مسودة قيد المورد غير معروفة.");
+  return {
+    creditNoteId: uuid(row.credit_note_id, "إشعار المورد"),
+    journalEntryId: uuid(row.journal_entry_id, "قيد المورد"),
+    journalEntryNumber: requiredText(row.journal_entry_number, "رقم قيد المورد"),
+    journalStatus: journalState,
+    replayed: row.replayed === true,
+  };
 }
