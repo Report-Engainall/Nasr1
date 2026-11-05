@@ -1,3 +1,12 @@
+## 2026-11-05 — P3 Decision Memory Book — REF-DECISION-MEMORY-BOOK-001
+
+- Canonical reference section 52.
+- P3 implementation: `src/lib/intelligence/decision-memory.ts`, `src/components/intelligence/DecisionMemoryBook.tsx`, P3 exports and mount in `IntelligenceWorkspace.tsx`.
+- Deterministic evidence rules: verified facts only; opinions/hypotheses/assumptions separately labelled; expected/actual comparison requires identical metric, unit, currency/UOM, period and formula ID/version; actual as-of must be later and reconcile to the existing decision lifecycle's measurement summary; zero-baseline percentage withheld. Precedents are page-scoped. Corrections are versioned append-only; no automatic rules/tasks/actions.
+- P2 contract delivered in `P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`: immutable snapshots, append-only corrections, idempotency, same-tenant evidence resolution and full measured metric DTO.
+- Current limitation: P2 read contract does not yet return snapshots or full measurement proof. The mounted book therefore renders existing decisions as PARTIAL/UNVERIFIED until actual P2 data arrives; no fabricated memory.
+- State `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Tests/build/CI/browser/E2E/DB/Preview/production NOT RUN; no PASS claimed. No Vercel spend or paid dependencies.
+
 ## 2026-11-05 — P3 Business Health Map — code SHA `f924e0cc2288866a99ae2faad68b069f64335e41`
 
 - Task `REF-BUSINESS-HEALTH-MAP-001`, canonical specification section 51.
