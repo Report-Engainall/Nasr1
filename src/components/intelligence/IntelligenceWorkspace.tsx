@@ -35,6 +35,7 @@ import {
 } from "@/lib/intelligence/decision-outcome-client";
 import {
   ActionCard,
+  CommercePolicyGovernancePanel,
   BusinessHealthMap,
   DecisionMemoryBook,
   CashflowForecastCard,
@@ -1241,6 +1242,8 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
             />
             <button type="button" className="btn secondary self-start" onClick={() => setProcessRefreshKey((value) => value + 1)} disabled={processLoading}>تحديث تحليل العمليات</button>
           </section>
+
+          <CommercePolicyGovernancePanel />
 
           <section className="panel space-y-3">
             <div>
