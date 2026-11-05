@@ -19,3 +19,5 @@ export * from "./customer-retention-client";
 export * from "./decision-memory";
 export * from "./shift-operations";
 export * from "./shift-operations-client";
+export * from "./process-bottlenecks";
+export * from "./process-bottlenecks-client";

@@ -18,3 +18,4 @@ export { DecisionMemoryBook } from "./DecisionMemoryBook";
 export type { DecisionMemoryBookProps } from "./DecisionMemoryBook";
 export { ShiftOperationsCenter } from "./ShiftOperationsCenter";
 export type { ShiftOperationsCenterProps } from "./ShiftOperationsCenter";
+export * from "./ProcessBottlenecksPanel";
