@@ -579,6 +579,13 @@ function optionalUuid(value: unknown, label: string): string | null {
   return value === null || value === undefined || value === "" ? null : uuid(value, label);
 }
 
+function signedMoney(value: unknown, label: string): string {
+  const result = typeof value === "number" ? String(value) : text(value, label);
+  if (!/^-?(?:0|[1-9]\\d{0,15})(?:\\.\\d{1,2})?$/.test(result) ||
+      !Number.isFinite(Number(result))) throw new Error("مبلغ " + label + " غير صالح.");
+  return result;
+}
+
 function optionalJournalStatus(value: unknown): "draft" | "posted" | "void" | null {
   if (value === null || value === undefined) return null;
   if (value === "draft" || value === "posted" || value === "void") return value;
@@ -597,7 +604,7 @@ function parseSupplierInvoiceAccountingStatus(value: unknown): SupplierInvoiceAc
     accountingStatus: accountingStatusName(row.accounting_status),
     currency: currency(row.currency),
     sourceMerchandiseAmount: money(row.source_merchandise_amount, "تكلفة الاستلام المصدرية"),
-    merchandiseVarianceAmount: money(row.merchandise_variance_amount, "فرق تكلفة الاستلام"),
+    merchandiseVarianceAmount: signedMoney(row.merchandise_variance_amount, "فرق تكلفة الاستلام"),
     taxAmount: money(row.tax_amount, "ضريبة المورد"),
     invoiceTotalAmount: money(row.invoice_total_amount, "إجمالي فاتورة المورد"),
     handoffSequence: sequence as number | null,
