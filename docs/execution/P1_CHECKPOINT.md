@@ -1,4 +1,24 @@
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-027
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-028
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product code SHA: `c24cbe1a4f324dfefd4418632de133eb23e303b0`.
+- Ownership remains P1 product UI/workspaces and P3 intelligence engines/evidence/persistence. No P3-owned file was changed.
+
+## BODY-028 — customer campaign pricing preview parity
+
+- Repaired the mismatch between the existing order-submit promotion resolver and the customer cart/order-review preview. The preview now calls the same internal `resolve_active_promotion_price` function used by `place_order`.
+- The server response exposes gross unit price, actual allowed discount per unit/line, campaign title, net unit price, net line total, aggregate discount and a versioned response contract. The existing cost-floor cap, one-best-matching-campaign rule, tenant scope, customer-member revocation lock and `show_price_in_cart / show_price_in_orders` fail-closed gate remain in force.
+- The UI validates `promotion_pricing_version=1`, renders source-returned campaign discounts and net totals, and hides stale/legacy preview responses rather than presenting gross prices as final prices. Promotion admin/storefront copy now reflects server-applied pricing.
+- Main commits: migration `26c25943018ab9e472f77c783ae9710fb85a82c6`; strict preview DTO `2da88009f487565cc9fb75fb6791e232416997da`; pricing UI `9fad6191d1fcc8125fb1c0953b4c2122df4b30d2`; admin campaign copy `276a48afadddb50b9031e58e52cf450d76087a0c`; storefront offer copy `c24cbe1a4f324dfefd4418632de133eb23e303b0`.
+- Main files: `supabase/migrations/20261106082000_customer_order_pricing_preview_promotion_snapshots.sql`, `src/lib/storefront-price-visibility.ts`, `src/components/CustomerOrderPricingPresentation.tsx`, `src/components/PromotionManager.tsx`, `src/components/StorefrontOffersPage.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. The migration is source-only until Bolt New applies it. No tests/build/lint/CI/browser/E2E/database/Bolt/Preview/Vercel operation was run in this source batch; no runtime PASS is claimed. No Vercel credits, paid provider or new dependency used.
+
+## Next P1 action
+Continue the next genuinely uncovered non-intelligence product capability from the acceptance matrix. Preserve prior routes and owner boundaries; do not reopen BODY-028 unless a regression is reproduced.
+
+---
+
+# Historical P1 checkpoint — BODY-COMPLETION-ON-MAIN-027
 
 - Repository: `Report-Engainall/Nasr1`; official branch: `main`.
 - Main code SHA: `a8273d0bf7d42a06f1be5c4df2c93e28a0ea5121`.
