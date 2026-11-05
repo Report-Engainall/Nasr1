@@ -15,6 +15,7 @@ import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
 import { SupplierQuoteWorkspace } from '@/components/SupplierQuoteWorkspace';
 import { SupplierReturnWorkspace } from '@/components/SupplierReturnWorkspace';
+import { SupplierInvoiceWorkspace } from '@/components/SupplierInvoiceWorkspace';
 import { PurchaseReceiptPrintActions } from '@/components/PurchaseReceiptPrintActions';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
 import {
@@ -587,6 +588,8 @@ export function PurchaseOrdersPage() {
     }} />
 
     <SupplierReturnWorkspace />
+
+    <SupplierInvoiceWorkspace mode="capture" />
 
 
     {showCreate && <PurchaseOrderCreatePanel
