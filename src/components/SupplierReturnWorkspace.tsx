@@ -28,6 +28,7 @@ export function SupplierReturnWorkspace() {
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedReturnId, setSelectedReturnId] = useState<string | null>(null);
+  const [submissionKey, setSubmissionKey] = useState<{ fingerprint: string; key: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -88,6 +89,16 @@ export function SupplierReturnWorkspace() {
     }
     if (!lines.length) { setError("أدخل كمية مرتجع لبند واحد على الأقل."); return; }
     if (reason.trim().length < 3) { setError("سبب المرتجع مطلوب ويجب ألا يقل عن 3 أحرف."); return; }
+    const payloadFingerprint = JSON.stringify({
+      receiptId: selectedReceipt.id,
+      lines,
+      reason: reason.trim(),
+      notes: notes.trim(),
+    });
+    const idempotencyKey = submissionKey?.fingerprint === payloadFingerprint
+      ? submissionKey.key
+      : "supplier-return-" + globalThis.crypto.randomUUID().replace(/-/g, "");
+    setSubmissionKey({ fingerprint: payloadFingerprint, key: idempotencyKey });
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await createSupplierReturn({
@@ -95,10 +106,11 @@ export function SupplierReturnWorkspace() {
         lines,
         reason,
         notes,
-        idempotencyKey: "supplier-return-" + globalThis.crypto.randomUUID().replace(/-/g, ""),
+        idempotencyKey,
       });
       await load();
       setSelectedReturnId(result.supplierReturn.id);
+      setSubmissionKey(null);
       setLineDrafts({});
       setReason("");
       setNotes("");
@@ -179,6 +191,7 @@ export function SupplierReturnWorkspace() {
               </label>
               {selectedReceipt ? <>
                 <p className="po-muted">المورد: <strong>{selectedReceipt.supplierName}</strong> · أمر الشراء: {selectedReceipt.purchaseOrderNumber} · المخزن: {selectedReceipt.warehouseName} · العملة المصدرية: {selectedReceipt.currency}</p>
+                <p className="po-muted">المتبقي محسوب بعد المرتجعات المُرحّلة فقط؛ مسودة المرتجع لا تحجز الكمية، ويعيد الخادم التحقق من الكمية المتاحة تحت قفل الإيصال عند الترحيل.</p>
                 {returnableLines.length ? <div className="po-table-wrap">
                   <table>
                     <thead><tr><th>الصنف</th><th>المستلم</th><th>مرتجع سابق</th><th>المتبقي</th><th>تكلفة الوحدة</th><th>كمية المرتجع</th></tr></thead>
