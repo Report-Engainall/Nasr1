@@ -1,3 +1,13 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-05 — CRM FOLLOW-UP AND NOTIFICATION DELIVERY
+
+- Main product-code cursor: `03cd108aad86c189be72c03a55ca0a05469ce49f`.
+- P3/UI delivery integrated Customer 360 interaction capture/history, follow-up task handoff, task source labels, notification destination action and TaskCenter target loading. P2 migrations/contracts deliver tenant scope, audit, dedupe and recipient routing.
+- Product acceptance leaves added: `REF-CUSTOMER-INTERACTION-HISTORY-001`, `REF-CUSTOMER-FOLLOWUP-ACTION-001`, `REF-OPERATIONAL-SOURCE-NOTIFICATION-001`.
+- Source commits are recorded in the global resume checkpoint. No UI tests, build, CI, database migration application or Bolt/Vercel runtime check was run. These leaves remain acceptance pending.
+- Next: continue customer-facing order lifecycle notifications with authenticated profile/customer binding and a safe order-detail destination; coordinate only the server recipient contract that is genuinely missing.
+
+---
+
 ## P3 ANCESTRY CORRECTION — 2026-11-05
 
 - Exact review main SHA in the archive report: `431a08c9eb176112908c6dd42d560b95bb42d082`.
