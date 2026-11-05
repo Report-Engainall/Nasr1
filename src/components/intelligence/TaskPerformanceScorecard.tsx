@@ -191,18 +191,44 @@ export function TaskPerformanceScorecard({
 
       <div className="space-y-2 rounded-lg border p-3">
         <h4 className="text-sm font-semibold">إعادة الفتح والتدقيق</h4>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <p className="text-xs text-muted-foreground">انتقالات إعادة الفتح المرصودة في سجل التدقيق</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{number(scorecard.audit.observedReopenEventCount)}</p>
-            <p className="text-xs text-muted-foreground">
-              حد أدنى مرصود يخص {number(scorecard.audit.observedReopenedTaskCount)} مهمة مميزة
+        {scorecard.audit.completeness === "WINDOW_COMPLETE" ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <SummaryCard
+              title="معدل إعادة الفتح داخل نافذة التدقيق"
+              value={percent(scorecard.audit.reopenRatePercent)}
+              detail={
+                number(scorecard.audit.reopenedTaskCount) + " من " +
+                number(scorecard.audit.firstCompletedTaskCount ?? 0) +
+                " مهمة اكتملت أول مرة بعد بدء التغطية"
+              }
+            />
+            <SummaryCard
+              title="انتقالات إعادة الفتح"
+              value={number(scorecard.audit.reopenEventCount)}
+              detail="عدد أحداث completed إلى pending / in progress داخل النافذة"
+            />
+            <SummaryCard
+              title="بداية التغطية الكاملة"
+              value={scorecard.audit.windowStartedAt
+                ? new Date(scorecard.audit.windowStartedAt).toLocaleDateString("ar-YE")
+                : "غير متاح"}
+              detail="لا تشمل هذه النسبة أي تاريخ يسبق تفعيل سجل الانتقالات المركزي"
+            />
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-muted-foreground">انتقالات إعادة الفتح المرصودة في سجل التدقيق</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums">{number(scorecard.audit.reopenEventCount)}</p>
+              <p className="text-xs text-muted-foreground">
+                حد أدنى مرصود يخص {number(scorecard.audit.reopenedTaskCount)} مهمة مميزة
+              </p>
+            </div>
+            <p className="text-sm">
+              <strong>معدل إعادة الفتح الكامل: غير متاح.</strong> سجل الانتقالات قبل تفعيل التدقيق المركزي غير مكتمل؛ لذلك لا تُعرض نسبة تاريخية مضللة.
             </p>
           </div>
-          <p className="text-sm">
-            <strong>معدل إعادة الفتح: غير متاح.</strong> بعض إعادة الفتح الآلي عبر أحداث المصدر لا يكتب سجل انتقال حالة؛ لذلك العدد أعلاه ليس إجمالي الإعادات.
-          </p>
-        </div>
+        )}
       </div>
 
       <div className="space-y-2">

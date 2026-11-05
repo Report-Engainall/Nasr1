@@ -69,6 +69,58 @@ describe("parseTaskPerformanceScorecard", () => {
     expect(parsed?.audit.reopenRatePercent).toBeNull();
   });
 
+  it("accepts a precisely bounded reopen rate only after the audit activation baseline", () => {
+    const data = fixture();
+    data.audit = {
+      reopenEventCount: 2,
+      reopenedTaskCount: 1,
+      firstCompletedTaskCount: 4,
+      windowStartedAt: "2026-11-06T03:00:00.000Z",
+      completeness: "WINDOW_COMPLETE",
+      reasonCode: "COMPLETE_SINCE_AUDIT_ACTIVATION",
+      reopenRatePercent: 25,
+    };
+    data.unavailableMetrics = [
+      "DUPLICATE_REPLAY_RATE",
+      "ACTIONABILITY_RATE",
+      "FALSE_ALARM_RATE",
+      "REPEATED_CAUSE_RATE",
+      "WAITING_ON_OTHER_PARTY",
+      "IMPROVEMENT_OUTCOMES",
+      "PRINT_SUCCESS_RATE",
+      "EMPLOYEE_COMPARISON",
+    ];
+    const parsed = parseTaskPerformanceScorecard(data);
+    expect(parsed?.audit.completeness).toBe("WINDOW_COMPLETE");
+    expect(parsed?.audit.reopenRatePercent).toBe(25);
+    expect(parsed?.audit.firstCompletedTaskCount).toBe(4);
+    expect(parsed?.audit.windowStartedAt).toBe("2026-11-06T03:00:00.000Z");
+  });
+
+  it("rejects a bounded reopen rate that does not reconcile to its source counts", () => {
+    const data = fixture();
+    data.audit = {
+      reopenEventCount: 2,
+      reopenedTaskCount: 1,
+      firstCompletedTaskCount: 4,
+      windowStartedAt: "2026-11-06T03:00:00.000Z",
+      completeness: "WINDOW_COMPLETE",
+      reasonCode: "COMPLETE_SINCE_AUDIT_ACTIVATION",
+      reopenRatePercent: 0,
+    };
+    data.unavailableMetrics = [
+      "DUPLICATE_REPLAY_RATE",
+      "ACTIONABILITY_RATE",
+      "FALSE_ALARM_RATE",
+      "REPEATED_CAUSE_RATE",
+      "WAITING_ON_OTHER_PARTY",
+      "IMPROVEMENT_OUTCOMES",
+      "PRINT_SUCCESS_RATE",
+      "EMPLOYEE_COMPARISON",
+    ];
+    expect(parseTaskPerformanceScorecard(data)).toBeNull();
+  });
+
   it("rejects a visible population that does not reconcile to task-type and role groups", () => {
     const data = fixture();
     data.scope = { ...(data.scope as Record<string, unknown>), visibleTaskCount: 4 };

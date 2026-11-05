@@ -56,11 +56,15 @@ export interface TaskPerformanceScorecard {
     status: "VERIFIED" | "PARTIAL" | "UNAVAILABLE";
   };
   audit: {
-    observedReopenEventCount: number;
-    observedReopenedTaskCount: number;
-    completeness: "PARTIAL";
-    reasonCode: "AUTOMATIC_SOURCE_TRANSITIONS_ARE_NOT_ALL_AUDITED";
-    reopenRatePercent: null;
+    reopenEventCount: number;
+    reopenedTaskCount: number;
+    firstCompletedTaskCount: number | null;
+    windowStartedAt: string | null;
+    completeness: "PARTIAL" | "WINDOW_COMPLETE";
+    reasonCode:
+      | "AUTOMATIC_SOURCE_TRANSITIONS_ARE_NOT_ALL_AUDITED"
+      | "COMPLETE_SINCE_AUDIT_ACTIVATION";
+    reopenRatePercent: number | null;
   };
   groups: TaskPerformanceGroup[];
   unavailableMetrics: TaskPerformanceUnavailableMetric[];
@@ -207,18 +211,58 @@ export function parseTaskPerformanceScorecard(value: unknown): TaskPerformanceSc
     !isCount(resolution.completedTaskCount) ||
     !isCount(resolution.sampleCount) ||
     !isCount(resolution.excludedCount) ||
-    !isCount(audit.observedReopenEventCount) ||
-    !isCount(audit.observedReopenedTaskCount) ||
-    audit.completeness !== "PARTIAL" ||
-    audit.reasonCode !== "AUTOMATIC_SOURCE_TRANSITIONS_ARE_NOT_ALL_AUDITED" ||
-    audit.reopenRatePercent !== null ||
     !Array.isArray(row.groups) ||
-    !Array.isArray(row.unavailableMetrics) ||
+    !Array.isArray(row.unavailableMetrics)
+  ) return null;
+
+  const auditIsWindowComplete = audit.completeness === "WINDOW_COMPLETE";
+  const rawEventCount = audit.reopenEventCount ?? audit.observedReopenEventCount;
+  const rawReopenedTaskCount = audit.reopenedTaskCount ?? audit.observedReopenedTaskCount;
+  const rawFirstCompletedTaskCount = audit.firstCompletedTaskCount;
+  const rawWindowStartedAt = audit.windowStartedAt;
+  const rawReopenRate = audit.reopenRatePercent;
+  const reasonCode = audit.reasonCode;
+
+  if (!isCount(rawEventCount) || !isCount(rawReopenedTaskCount)) return null;
+
+  let firstCompletedTaskCount: number | null = null;
+  let windowStartedAt: string | null = null;
+  let reopenRatePercent: number | null = null;
+
+  if (auditIsWindowComplete) {
+    if (
+      reasonCode !== "COMPLETE_SINCE_AUDIT_ACTIVATION" ||
+      !isTimestamp(rawWindowStartedAt) ||
+      !isCount(rawFirstCompletedTaskCount) ||
+      !isPercent(rawReopenRate) ||
+      rawReopenedTaskCount > rawFirstCompletedTaskCount ||
+      rawReopenedTaskCount > rawEventCount ||
+      rawReopenRate !== percentage(rawReopenedTaskCount, rawFirstCompletedTaskCount)
+    ) return null;
+    firstCompletedTaskCount = rawFirstCompletedTaskCount;
+    windowStartedAt = rawWindowStartedAt;
+    reopenRatePercent = rawReopenRate;
+  } else {
+    if (
+      audit.completeness !== "PARTIAL" ||
+      reasonCode !== "AUTOMATIC_SOURCE_TRANSITIONS_ARE_NOT_ALL_AUDITED" ||
+      rawReopenRate !== null ||
+      (rawWindowStartedAt !== undefined && rawWindowStartedAt !== null) ||
+      (rawFirstCompletedTaskCount !== undefined && rawFirstCompletedTaskCount !== null)
+    ) return null;
+  }
+
+  const expectedUnavailableMetrics = auditIsWindowComplete
+    ? UNAVAILABLE_METRICS.size - 1
+    : UNAVAILABLE_METRICS.size;
+  if (
     row.unavailableMetrics.some(metric =>
       typeof metric !== "string" || !UNAVAILABLE_METRICS.has(metric as TaskPerformanceUnavailableMetric),
     ) ||
-    row.unavailableMetrics.length !== UNAVAILABLE_METRICS.size ||
-    new Set(row.unavailableMetrics).size !== UNAVAILABLE_METRICS.size
+    row.unavailableMetrics.length !== expectedUnavailableMetrics ||
+    new Set(row.unavailableMetrics).size !== expectedUnavailableMetrics ||
+    (auditIsWindowComplete && row.unavailableMetrics.includes("REOPEN_RATE")) ||
+    (!auditIsWindowComplete && !row.unavailableMetrics.includes("REOPEN_RATE"))
   ) return null;
 
   const visibleRoles = scope.visibleRoles as TaskPerformanceRole[];
@@ -252,8 +296,7 @@ export function parseTaskPerformanceScorecard(value: unknown): TaskPerformanceSc
       coverage.traceableTaskCount,
       coverage.sourceLinkedTaskCount,
     ) ||
-    resolution.sampleCount + resolution.excludedCount !== resolution.completedTaskCount ||
-    audit.observedReopenedTaskCount > audit.observedReopenEventCount
+    resolution.sampleCount + resolution.excludedCount !== resolution.completedTaskCount
   ) return null;
 
   const resolutionStatus = resolution.sampleCount === 0
@@ -284,11 +327,15 @@ export function parseTaskPerformanceScorecard(value: unknown): TaskPerformanceSc
       status: resolutionStatus,
     },
     audit: {
-      observedReopenEventCount: audit.observedReopenEventCount,
-      observedReopenedTaskCount: audit.observedReopenedTaskCount,
-      completeness: "PARTIAL",
-      reasonCode: "AUTOMATIC_SOURCE_TRANSITIONS_ARE_NOT_ALL_AUDITED",
-      reopenRatePercent: null,
+      reopenEventCount: rawEventCount,
+      reopenedTaskCount: rawReopenedTaskCount,
+      firstCompletedTaskCount,
+      windowStartedAt,
+      completeness: auditIsWindowComplete ? "WINDOW_COMPLETE" : "PARTIAL",
+      reasonCode: auditIsWindowComplete
+        ? "COMPLETE_SINCE_AUDIT_ACTIVATION"
+        : "AUTOMATIC_SOURCE_TRANSITIONS_ARE_NOT_ALL_AUDITED",
+      reopenRatePercent,
     },
     groups: typedGroups,
     unavailableMetrics: [...new Set(row.unavailableMetrics as TaskPerformanceUnavailableMetric[])],

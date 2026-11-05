@@ -5265,6 +5265,22 @@ async function main() {
     "automatic threshold close and reopen both create exactly one canonical status audit event",
   );
 
+  await db.unsafe("set role authenticated");
+  const auditWindowRows = await db.unsafe(
+    "select public.fetch_task_performance_scorecard() as result",
+  );
+  const auditWindow = auditWindowRows[0].result.audit;
+  assert.equal(auditWindow.completeness, "WINDOW_COMPLETE", "reopen-rate window begins only after the centralized audit baseline");
+  assert.ok(Number.isFinite(Date.parse(auditWindow.windowStartedAt)), "the audit-coverage start timestamp is persisted");
+  assert.ok(Number(auditWindow.firstCompletedTaskCount) >= 1, "the denominator counts tasks first completed within the covered window");
+  assert.ok(Number(auditWindow.reopenEventCount) >= 1, "the numerator source includes an actually observed reopen transition");
+  assert.equal(
+    Number(auditWindow.reopenRatePercent),
+    Math.round((Number(auditWindow.reopenedTaskCount) * 10000) / Number(auditWindow.firstCompletedTaskCount)) / 100,
+    "reopen rate reconciles to audited reopened tasks divided by first-completed tasks",
+  );
+  await db.unsafe("reset role");
+
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
