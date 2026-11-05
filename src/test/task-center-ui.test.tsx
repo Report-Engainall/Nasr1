@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createOperationalTask: vi.fn(),
   setOperationalTaskStatus: vi.fn(),
   assignOperationalTask: vi.fn(),
+  updateOperationalTaskDetails: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: mocks.useAuth }));
@@ -20,6 +21,7 @@ vi.mock("@/lib/api", () => ({
   createOperationalTask: mocks.createOperationalTask,
   setOperationalTaskStatus: mocks.setOperationalTaskStatus,
   assignOperationalTask: mocks.assignOperationalTask,
+  updateOperationalTaskDetails: mocks.updateOperationalTaskDetails,
 }));
 vi.mock("@/components/CustomerReturnReviewQueue", () => ({
   CustomerReturnReviewQueue: () => <div data-testid="return-review-queue" />,
@@ -96,6 +98,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     mocks.createOperationalTask.mockReset().mockResolvedValue("new-task");
     mocks.setOperationalTaskStatus.mockReset().mockResolvedValue(undefined);
     mocks.assignOperationalTask.mockReset().mockResolvedValue(undefined);
+    mocks.updateOperationalTaskDetails.mockReset().mockResolvedValue(undefined);
     originalPrint = Object.getOwnPropertyDescriptor(window, "print");
     printMock = vi.fn();
     Object.defineProperty(window, "print", { configurable: true, writable: true, value: printMock });
@@ -369,6 +372,36 @@ describe("TaskCenter role-boundary and print integration", () => {
     fireEvent.click(within(card).getByRole("button", { name: "حفظ الإسناد" }));
     await waitFor(() => expect(mocks.assignOperationalTask).toHaveBeenNthCalledWith(2, "sales-order", null));
     await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(3));
+  });
+
+  it("lets managers update an open task's priority and due date after creation", async () => {
+    setUser(["manager"]);
+    const sourceTask = task({
+      id: "sales-order",
+      title: "طلب عميل للتجهيز",
+      task_role: "sales",
+      priority: "medium",
+      due_at: null,
+    });
+    mocks.fetchOperationalTasks
+      .mockResolvedValueOnce([sourceTask])
+      .mockResolvedValueOnce([{ ...sourceTask, priority: "critical", due_at: "2026-11-05T11:30:00.000Z" }]);
+
+    render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+
+    const card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+    fireEvent.change(within(card).getByLabelText("أولوية المهمة: طلب عميل للتجهيز"), { target: { value: "critical" } });
+    const dueAt = "2026-11-05T14:30";
+    fireEvent.change(within(card).getByLabelText("موعد استحقاق المهمة: طلب عميل للتجهيز"), { target: { value: dueAt } });
+    fireEvent.click(within(card).getByRole("button", { name: "حفظ التفاصيل" }));
+
+    await waitFor(() => expect(mocks.updateOperationalTaskDetails).toHaveBeenCalledWith(
+      "sales-order",
+      "critical",
+      new Date(dueAt).toISOString(),
+    ));
+    await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
   });
 
 });
