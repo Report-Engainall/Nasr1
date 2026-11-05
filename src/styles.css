@@ -733,3 +733,36 @@
 .customer-360-retention-state small{color:var(--muted-foreground);font-size:10px;overflow-wrap:anywhere}
 @media(max-width:760px){.customer-360-retention-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.customer-360-retention-kpis article strong{font-size:18px}}
+
+
+/* Customer service case management */
+.customer-service-cases{display:grid;gap:13px}
+.customer-service-cases-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.customer-service-cases-heading h3{margin:0 0 5px}
+.customer-service-case-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:13px;border:1px solid var(--border);border-radius:10px;background:var(--background)}
+.customer-service-case-form label,.customer-service-case-update label{display:grid;gap:5px;color:var(--foreground);font-size:11px;font-weight:700}
+.customer-service-case-form input,.customer-service-case-form select,.customer-service-case-form textarea,.customer-service-case-update input,.customer-service-case-update select{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-weight:500}
+.customer-service-case-form textarea{resize:vertical;line-height:1.65}
+.customer-service-case-form-subject,.customer-service-case-form-description{grid-column:1/-1}
+.customer-service-case-form-submit{display:flex;align-items:center;grid-column:1/-1}
+.customer-service-case-list{display:grid;gap:10px}
+.customer-service-case{display:grid;gap:10px;padding:13px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+.customer-service-case-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.customer-service-case-heading>div{display:grid;gap:6px;min-width:0}
+.customer-service-case-heading strong{font-size:13px;overflow-wrap:anywhere}
+.customer-service-case-meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted-foreground);font-size:10px}
+.customer-service-case-status{padding:4px 8px;border-radius:999px;background:var(--aghbari-brand-soft,var(--muted));color:var(--aghbari-brand,var(--foreground));font-size:10px;font-weight:800;white-space:nowrap}
+.customer-service-case-status.status-resolved,.customer-service-case-status.status-closed{background:var(--muted);color:var(--muted-foreground)}
+.customer-service-case-description{margin:0;color:var(--foreground);font-size:12px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
+.customer-service-case-resolution{margin:0;padding:8px 10px;border-inline-start:3px solid var(--aghbari-brand,var(--primary));background:var(--background);font-size:11px;line-height:1.7}
+.customer-service-case-update{display:grid;grid-template-columns:minmax(145px,.55fr) minmax(220px,1.45fr) auto;align-items:end;gap:9px;padding-top:9px;border-top:1px solid var(--border)}
+.customer-service-case-update button{white-space:nowrap}
+.customer-service-case-notice{margin:0;color:var(--aghbari-brand,var(--primary));font-size:11px;font-weight:700}
+.customer-service-case-history{padding-top:6px;border-top:1px dashed var(--border);color:var(--foreground);font-size:11px}
+.customer-service-case-history summary{cursor:pointer;font-weight:800}
+.customer-service-case-history ol{display:grid;gap:8px;padding-inline-start:22px}
+.customer-service-case-history li{display:grid;gap:3px}
+.customer-service-case-history li strong{font-size:11px}
+.customer-service-case-history li span,.customer-service-case-history>small{color:var(--muted-foreground);font-size:10px}
+.customer-service-case-history li p{margin:0;font-size:11px;line-height:1.7;white-space:pre-wrap}
+@media(max-width:680px){.customer-service-case-form{grid-template-columns:1fr}.customer-service-case-form-subject,.customer-service-case-form-description,.customer-service-case-form-submit{grid-column:auto}.customer-service-case-update{grid-template-columns:1fr}.customer-service-case-update button{width:100%}}
