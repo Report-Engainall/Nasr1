@@ -92,7 +92,8 @@ function status(value: string): value is SupplierQuote["status"] {
 function line(row: SupplierQuoteLine, quoteCurrency: string, quoteId: string, index: number) {
   const productId = text(row.product_id, "مرجع الصنف", 64);
   const lineId = text(row.id, "مرجع بند العرض", 64);
-  if (!/^[0-9a-f-]{36}$/i.test(productId) || !/^[0-9a-f-]{36}$/i.test(lineId)) {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(productId) || !uuidPattern.test(lineId)) {
     throw new Error("مرجع داخلي غير صالح في بند عرض المورد.");
   }
   const quantity = finiteAmount(row.quantity_quoted, "الكمية");
