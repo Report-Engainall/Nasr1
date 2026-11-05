@@ -34,36 +34,43 @@ type IconType = LucideIcon;
 function NotificationRow({
   notification,
   onRead,
+  onOpenTask,
 }: {
   notification: Notification;
   onRead: (id: string) => void;
+  onOpenTask: (taskId: string) => void;
 }) {
-  const handleClick = () => {
-    if (!notification.is_read) onRead(notification.id);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (notification.is_read || (event.key !== "Enter" && event.key !== " ")) return;
-    event.preventDefault();
-    onRead(notification.id);
-  };
+  const taskId = notification.entity_type === 'ai_task' && typeof notification.entity_id === 'string'
+    ? notification.entity_id
+    : null;
 
   return (
-    <div
-      className={`notif-row ${notification.is_read ? "read" : ""}`}
-      role={!notification.is_read ? "button" : undefined}
-      tabIndex={!notification.is_read ? 0 : undefined}
-      aria-label={!notification.is_read ? `تعليم التنبيه كمقروء: ${notification.title}` : undefined}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-    >
+    <div className={`notif-row ${notification.is_read ? "read" : ""}`}>
       <span className={`notif-type ${notification.type}`}><Bell size={16} /></span>
       <div>
         <strong>{notification.title}</strong>
         <p>{notification.body ?? "—"}</p>
         <small>{timeAgo(notification.created_at)}</small>
       </div>
-      {!notification.is_read && <span className="notif-dot" />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {taskId && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (!notification.is_read) onRead(notification.id);
+              onOpenTask(taskId);
+            }}
+          >
+            فتح المهمة
+          </Button>
+        )}
+        {!notification.is_read && (
+          <Button variant="ghost" onClick={() => onRead(notification.id)}>
+            تعليم كمقروء
+          </Button>
+        )}
+        {!notification.is_read && <span className="notif-dot" />}
+      </div>
     </div>
   );
 }
@@ -73,11 +80,13 @@ function NotificationsContent({
   loading,
   error,
   onRead,
+  onOpenTask,
 }: {
   data: Notification[] | null | undefined;
   loading: boolean;
   error: string | null;
   onRead: (id: string) => void;
+  onOpenTask: (taskId: string) => void;
 }) {
   if (loading) return <Loading />;
   if (error) return <ErrorBox message={error} />;
@@ -87,13 +96,13 @@ function NotificationsContent({
   return (
     <div className="notif-list">
       {data.map((notification) => (
-        <NotificationRow key={notification.id} notification={notification} onRead={onRead} />
+        <NotificationRow key={notification.id} notification={notification} onRead={onRead} onOpenTask={onOpenTask} />
       ))}
     </div>
   );
 }
 
-export function Notifications({ onNotice }: { onNotice: (m: string) => void }) {
+export function Notifications({ onNotice, onOpenTask }: { onNotice: (m: string) => void; onOpenTask: (taskId: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchNotifications);
   const unread = data?.filter((n) => !n.is_read).length ?? 0;
 
@@ -130,7 +139,7 @@ export function Notifications({ onNotice }: { onNotice: (m: string) => void }) {
         </>
       }
     >
-      <NotificationsContent data={data} loading={loading} error={error} onRead={readOne} />
+      <NotificationsContent data={data} loading={loading} error={error} onRead={readOne} onOpenTask={onOpenTask} />
     </AdminPage>
   );
 }
