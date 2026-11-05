@@ -42,6 +42,12 @@ P3 consumes only these evidence-backed signal metrics; P2 must derive them from 
 
 ## Business Health Map — canonical merchant-intelligence specification section 51
 
+### Independent source-period preservation
+
+A composed business-health view may receive source periods with different business meanings, such as a forward cashflow horizon and a historical inventory movement lookback. Preserve and display each source's own period and as-of date. Do not reject a valid source merely because it differs from the top-level view period. Do not compare or deduplicate financial exposures across unequal source periods/as-of values. A combined inventory exposure is permitted only when amount, source scope, currency and shared evidence IDs agree; otherwise withhold the combined value rather than adding or choosing silently.
+
+
+
 P3 composes existing verified engines; it does not re-query operational tables or recalculate source metrics:
 - Liquidity by currency: preserve source status on net liquidity, expected collections, overdue receivables and due obligations. Collections are already included in the liquidity net formula; due obligations are already deducted. Display explanatory components only; never sum them again.
 - Stagnant inventory exposure: reconcile `LiquidityPosition.stagnantStockExposure` with `DeadStockReport.totalsByCurrency` for the same currency, exact as-of and period. Matching values require both equal amount and shared evidence IDs; represent them once. Conflicts or unproven overlap are withheld. Stagnant stock is non-cash and never deducted from net liquidity.
