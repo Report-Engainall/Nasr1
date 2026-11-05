@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useState,type FormEvent} from "react";
 import {MessageCircle,RefreshCw,Send} from "lucide-react";
 import {addCustomerServiceCaseStaffMessage,fetchCustomerServiceCaseMessages,type CustomerServicePortalMessage} from "@/lib/customer-service-portal";
 import type {CustomerServiceCaseStatus} from "@/lib/customer-service-cases";
@@ -8,7 +8,7 @@ export function CustomerServiceConversation({caseId,status,onReplied}:{caseId:st
  const canReply=status!=="resolved"&&status!=="closed";
  async function refresh(){setLoading(true);setError("");try{setMessages(await fetchCustomerServiceCaseMessages(caseId));setLoaded(true);}catch(e){setError(e instanceof Error?e.message:"تعذر تحميل المراسلات.");}finally{setLoading(false);}}
  async function toggle(){const next=!expanded;setExpanded(next);if(next&&!loaded&&!loading)await refresh();}
- async function send(event:React.FormEvent<HTMLFormElement>){event.preventDefault();const body=draft.trim();if(!body||body.length>2000||sending||!canReply)return;setSending(true);setError("");try{await addCustomerServiceCaseStaffMessage(caseId,body);setDraft("");await refresh();await onReplied?.();}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال الرد للعميل.");}finally{setSending(false);}}
+ async function send(event:FormEvent<HTMLFormElement>){event.preventDefault();const body=draft.trim();if(!body||body.length>2000||sending||!canReply)return;setSending(true);setError("");try{await addCustomerServiceCaseStaffMessage(caseId,body);setDraft("");await refresh();await onReplied?.();}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال الرد للعميل.");}finally{setSending(false);}}
  return <section className="customer-service-conversation">
   <button type="button" className="customer-service-conversation-toggle" aria-expanded={expanded} onClick={()=>{void toggle();}}><MessageCircle size={16}/><span>المراسلات الظاهرة للعميل</span><span className="customer-service-conversation-count">{loaded?messages.length:"عرض"}</span></button>
   {expanded&&<div className="customer-service-conversation-body"><div className="customer-service-conversation-toolbar"><span>المحتوى هنا مشترك مع جهة اتصال العميل؛ الملاحظات الداخلية لا تظهر.</span><button type="button" className="btn secondary btn-sm" disabled={loading} onClick={()=>{void refresh();}}><RefreshCw size={13}/> تحديث</button></div>
