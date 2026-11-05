@@ -527,3 +527,142 @@ export async function createSupplierInvoiceEvidenceSignedUrl(storagePath: string
   if (!data?.signedUrl) throw new Error("لم يُصدر التخزين رابطًا مؤقتًا للمرفق.");
   return data.signedUrl;
 }
+
+
+export type SupplierInvoiceAccountingStatusName =
+  | "not_prepared"
+  | "no_adjustment_required"
+  | "journal_draft_created"
+  | "journal_posted"
+  | "journal_void"
+  | "journal_reversed";
+
+export interface SupplierInvoiceAccountingStatus {
+  invoiceId: string;
+  accountingStatus: SupplierInvoiceAccountingStatusName;
+  currency: string;
+  sourceMerchandiseAmount: string;
+  merchandiseVarianceAmount: string;
+  taxAmount: string;
+  invoiceTotalAmount: string;
+  handoffSequence: number | null;
+  handoffId: string | null;
+  journalEntryId: string | null;
+  journalEntryNumber: string | null;
+  journalStatus: "draft" | "posted" | "void" | null;
+  sourcePayableAccountId: string | null;
+  taxAccountId: string | null;
+  merchandiseVarianceAccountId: string | null;
+  createdByProfileId: string | null;
+  createdAt: string | null;
+}
+
+export interface SupplierInvoiceAccountingCommandResult {
+  invoiceId: string;
+  handoffId: string;
+  accountingStatus: SupplierInvoiceAccountingStatusName;
+  handoffSequence: number;
+  journalEntryId: string | null;
+  journalEntryNumber: string | null;
+  journalStatus: "draft" | "posted" | "void" | null;
+  replayed: boolean;
+}
+
+function accountingStatusName(value: unknown): SupplierInvoiceAccountingStatusName {
+  if (value === "not_prepared" || value === "no_adjustment_required" ||
+      value === "journal_draft_created" || value === "journal_posted" ||
+      value === "journal_void" || value === "journal_reversed") return value;
+  throw new Error("حالة التسوية المحاسبية لفاتورة المورد غير معروفة.");
+}
+
+function optionalUuid(value: unknown, label: string): string | null {
+  return value === null || value === undefined || value === "" ? null : uuid(value, label);
+}
+
+function optionalJournalStatus(value: unknown): "draft" | "posted" | "void" | null {
+  if (value === null || value === undefined) return null;
+  if (value === "draft" || value === "posted" || value === "void") return value;
+  throw new Error("حالة قيد تسوية فاتورة المورد غير معروفة.");
+}
+
+function parseSupplierInvoiceAccountingStatus(value: unknown): SupplierInvoiceAccountingStatus {
+  const row = object(value, "حالة تسوية فاتورة المورد");
+  const sequence = row.handoff_sequence === null || row.handoff_sequence === undefined
+    ? null : row.handoff_sequence;
+  if (sequence !== null && (!Number.isSafeInteger(sequence) || Number(sequence) < 1)) {
+    throw new Error("رقم تسلسل تسوية فاتورة المورد غير صالح.");
+  }
+  return {
+    invoiceId: uuid(row.invoice_id, "فاتورة المورد"),
+    accountingStatus: accountingStatusName(row.accounting_status),
+    currency: currency(row.currency),
+    sourceMerchandiseAmount: money(row.source_merchandise_amount, "تكلفة الاستلام المصدرية"),
+    merchandiseVarianceAmount: money(row.merchandise_variance_amount, "فرق تكلفة الاستلام"),
+    taxAmount: money(row.tax_amount, "ضريبة المورد"),
+    invoiceTotalAmount: money(row.invoice_total_amount, "إجمالي فاتورة المورد"),
+    handoffSequence: sequence as number | null,
+    handoffId: optionalUuid(row.handoff_id, "سجل التسوية"),
+    journalEntryId: optionalUuid(row.journal_entry_id, "قيد تسوية المورد"),
+    journalEntryNumber: nullableText(row.journal_entry_number, "رقم قيد التسوية"),
+    journalStatus: optionalJournalStatus(row.journal_status),
+    sourcePayableAccountId: optionalUuid(row.source_payable_account_id, "حساب المورد المصدر"),
+    taxAccountId: optionalUuid(row.tax_account_id, "حساب الضريبة"),
+    merchandiseVarianceAccountId: optionalUuid(row.merchandise_variance_account_id, "حساب فرق التكلفة"),
+    createdByProfileId: optionalUuid(row.created_by_profile_id, "منفذ التسوية"),
+    createdAt: nullableText(row.created_at, "وقت التسوية"),
+  };
+}
+
+export async function fetchSupplierInvoiceAccountingStatus(invoiceId: string): Promise<SupplierInvoiceAccountingStatus> {
+  if (!UUID_PATTERN.test(invoiceId)) throw new Error("معرّف فاتورة المورد غير صالح.");
+  const { data, error } = await supabase.rpc("fetch_purchase_supplier_invoice_accounting_status", {
+    p_invoice_id: invoiceId,
+  });
+  if (error) throw error;
+  const result = parseSupplierInvoiceAccountingStatus(data);
+  if (result.invoiceId !== invoiceId) throw new Error("أعاد الخادم حالة تسوية لفاتورة أخرى.");
+  return result;
+}
+
+export async function prepareSupplierInvoiceAccountingDraft(input: {
+  invoiceId: string;
+  taxAccountId: string | null;
+  merchandiseVarianceAccountId: string | null;
+  idempotencyKey: string;
+}): Promise<SupplierInvoiceAccountingCommandResult> {
+  if (!UUID_PATTERN.test(input.invoiceId) || !UUID_PATTERN.test(input.idempotencyKey) ||
+      (input.taxAccountId !== null && !UUID_PATTERN.test(input.taxAccountId)) ||
+      (input.merchandiseVarianceAccountId !== null && !UUID_PATTERN.test(input.merchandiseVarianceAccountId))) {
+    throw new Error("معرّف فاتورة أو حساب أو مفتاح منع تكرار التسوية غير صالح.");
+  }
+  const { data, error } = await supabase.rpc("prepare_purchase_supplier_invoice_accounting_draft", {
+    p_invoice_id: input.invoiceId,
+    p_tax_account_id: input.taxAccountId,
+    p_merchandise_variance_account_id: input.merchandiseVarianceAccountId,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (error) throw error;
+  const row = object(data, "نتيجة تسوية فاتورة المورد");
+  const sequence = row.handoff_sequence;
+  if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 1) {
+    throw new Error("لم يؤكد الخادم تسلسل تسوية فاتورة المورد.");
+  }
+  const result: SupplierInvoiceAccountingCommandResult = {
+    invoiceId: uuid(row.invoice_id, "فاتورة المورد"),
+    handoffId: uuid(row.handoff_id, "سجل التسوية"),
+    accountingStatus: accountingStatusName(row.accounting_status),
+    handoffSequence: sequence,
+    journalEntryId: optionalUuid(row.journal_entry_id, "قيد التسوية"),
+    journalEntryNumber: nullableText(row.journal_entry_number, "رقم قيد التسوية"),
+    journalStatus: optionalJournalStatus(row.journal_status),
+    replayed: row.replayed === true,
+  };
+  if (result.invoiceId !== input.invoiceId) throw new Error("أعاد الخادم نتيجة تسوية لفاتورة أخرى.");
+  if (result.accountingStatus === "journal_draft_created" && (!result.journalEntryId || result.journalStatus !== "draft")) {
+    throw new Error("لم يؤكد الخادم إنشاء مسودة قيد متوازنة لفاتورة المورد.");
+  }
+  if (result.accountingStatus === "no_adjustment_required" && result.journalEntryId !== null) {
+    throw new Error("أعاد الخادم قيدًا غير متوقع لفاتورة لا تحتاج إلى تسوية.");
+  }
+  return result;
+}
