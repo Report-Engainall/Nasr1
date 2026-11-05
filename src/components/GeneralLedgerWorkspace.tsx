@@ -8,6 +8,7 @@ import { buildFinancialStatements, formatStatementCents, type FinancialStatement
 import { CashExpenseJournalLinker } from "@/components/CashExpenseJournalLinker";
 import { CustomerInvoicePaymentJournalLinker } from "@/components/CustomerInvoicePaymentJournalLinker";
 import { SupplierCreditNoteWorkspace } from "@/components/SupplierCreditNoteWorkspace";
+import { SupplierInvoiceWorkspace } from "@/components/SupplierInvoiceWorkspace";
 import { SupplierAccountActivityWorkspace } from "@/components/SupplierAccountActivityWorkspace";
 import { SupplierPaymentWorkspace } from "@/components/SupplierPaymentWorkspace";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
@@ -540,6 +541,7 @@ export function GeneralLedgerWorkspace() {
       <CashExpenseJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <CustomerInvoicePaymentJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <SupplierCreditNoteWorkspace onRefresh={refreshAccountingViews} />
+      <SupplierInvoiceWorkspace mode="review" />
       <SupplierPaymentWorkspace accounts={payload?.accounts ?? []} onRefresh={refreshSupplierFinanceViews} />
       <SupplierAccountActivityWorkspace refreshKey={supplierActivityRefreshKey} />
       <FinanceDocumentPrintActions />
