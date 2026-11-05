@@ -14,7 +14,7 @@ DECLARE
   v_po_number text;
   v_supplier_name text;
 BEGIN
-  SELECT i.*,po.purchase_order_number,s.name
+  SELECT i,po.purchase_order_number,s.name
   INTO v_invoice,v_po_number,v_supplier_name
   FROM public.purchase_supplier_invoices i
   JOIN public.purchase_orders po
@@ -141,7 +141,7 @@ DECLARE
   v_supplier_name text;
   v_journal_number text;
 BEGIN
-  SELECT p.*,s.name INTO v_payment,v_supplier_name
+  SELECT p,s.name INTO v_payment,v_supplier_name
   FROM public.purchase_supplier_payments p
   JOIN public.suppliers s ON s.id=p.supplier_id AND s.organization_id=p.organization_id
   WHERE p.id=NEW.payment_id AND p.organization_id=NEW.organization_id;
@@ -231,7 +231,7 @@ DECLARE
   v_priority text;
   v_type text;
 BEGIN
-  SELECT p.*,s.name INTO v_payment,v_supplier_name
+  SELECT p,s.name INTO v_payment,v_supplier_name
   FROM public.purchase_supplier_payments p
   JOIN public.suppliers s ON s.id=p.supplier_id AND s.organization_id=p.organization_id
   WHERE p.id=NEW.payment_id AND p.organization_id=NEW.organization_id;
@@ -298,7 +298,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT p.*,s.name INTO v_payment,v_supplier_name
+  SELECT p,s.name INTO v_payment,v_supplier_name
   FROM public.purchase_supplier_payments p
   JOIN public.suppliers s ON s.id=p.supplier_id AND s.organization_id=p.organization_id
   WHERE p.organization_id=NEW.organization_id
