@@ -1,3 +1,43 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER 360 FOLLOW-UPS AND ACTIONABLE OPERATIONAL NOTIFICATIONS
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Product-code SHA at this checkpoint: `03cd108aad86c189be72c03a55ca0a05469ce49f`.
+- Work was committed through GitHub directly to the official `main` line. No Vercel tools, deployments, previews or free-credit actions were used.
+- The owner explicitly prioritized product implementation. No test suite, build, lint, CI run, local/hosted PostgreSQL application or Bolt Preview was run for this batch. No runtime PASS or deployed-database claim is made.
+
+## Product functionality now present on main
+
+1. Customer 360 now records typed interactions (call, visit, WhatsApp, email, meeting, note, other), subject, details, occurrence timestamp and optional next follow-up. The server derives organization and recorder, rejects cross-tenant customer IDs and invalid/future scheduling input, writes audit evidence, and exposes a bounded read history with recorder name.
+2. A scheduled next follow-up creates one source-linked operational task in the same database transaction. The task is assigned to the staff member who recorded the interaction, carries the follow-up due date and customer/interaction lineage, appears in TaskCenter, and reuses the existing assignment notification pipeline. No follow-up date means no task.
+3. Operational notifications now cover real source-event task creation and role queues, as well as individual assignment/reassignment and explicit role-queue return. Role delivery is limited to active, authenticated profiles in the same organization with compatible task roles. A dedupe key is unique per task/event/profile; source reconciliation updates do not rebroadcast.
+4. Task notifications store a typed `ai_task` destination. The inbox exposes an action to open the linked task in TaskCenter; the target is retained until the task data has loaded and the search focuses the requested task. General notifications retain their mark-read action.
+5. TaskCenter labels customer-follow-up source tasks as `متابعة عميل 360`.
+
+## Source and migrations
+
+- Customer interaction contract: `supabase/migrations/20261105130000_customer_interaction_history.sql`.
+- Operational role queue notification contract: `supabase/migrations/20261105130000_operational_task_role_queue_notifications.sql`.
+- Customer follow-up task generation: `supabase/migrations/20261105140000_customer_interaction_followup_tasks.sql`.
+- Source-event role notifications: `supabase/migrations/20261105150000_operational_source_event_notifications.sql`.
+- Notification task destinations: `supabase/migrations/20261105160000_operational_notification_destinations.sql`.
+- UI/data paths: `src/lib/types.ts`, `src/lib/api.ts`, `src/components/AdminCustomer360.tsx`, `src/components/AdminPages.tsx`, `src/components/AghbariApp.tsx`, `src/components/TaskCenter.tsx`.
+- GitHub application commits for the linked notification workflow include `f151674c607688f148b02ab79315999416d453da`, `648075edb4841708c1f1f0de59c87fc4b8cee9b7`, `6b0ebff9658d82e902b9d32f72cafbbd1773c29f`, `0d860e6e6bf183797e9a82fc733b780027df9312`, `f215ba4a57d9e214e538a0a755be80b353d3f0a6`, `48647cfcf55e6cd3cea7156b5612ed61f6029a8d`, and `03cd108aad86c189be72c03a55ca0a05469ce49f`.
+
+## Evidence boundary
+
+- Source files and SQL migrations exist on `main`; the schema migrations have not been applied to a live/local database in this batch.
+- Customer interaction, follow-up task, source notification and destination-link acceptance leaves are `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; they are not marked PASS.
+- No external WhatsApp, customer push or email delivery is claimed. The notifications described here are in-app notifications stored in the existing notifications table.
+- No Vercel service was invoked or consumed. GitHub is the only source-control/update path for this batch.
+
+## Next implementation action
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-005`.
+- Continue with the next real commerce journey, starting with customer-facing order lifecycle updates and the authenticated customer notification feed. Reuse the existing notification contract and order state source; derive the customer recipient from the existing verified profile/customer binding, never from a browser-supplied customer ID. Link each notification to its allowed order detail destination. Keep staff order-review/fulfillment task notifications intact.
+- Continue source/product work in connected batches. Do not start a broad test loop or consume Vercel credits in this phase.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — TASK LIFECYCLE, BULK OPERATIONS AND ASSIGNEE NOTIFICATIONS
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
