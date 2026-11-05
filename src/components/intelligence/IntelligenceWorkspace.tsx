@@ -8,6 +8,7 @@ import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
+import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
@@ -33,6 +34,7 @@ import {
 import {
   ActionCard,
   BusinessHealthMap,
+  DecisionMemoryBook,
   CashflowForecastCard,
   DeadStockCard,
   EvidencePassport,
@@ -640,6 +642,28 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
       : inventoryResult?.status === "DENIED" || inventoryResult?.status === "ERROR"
         ? "error"
         : "unavailable";
+  const decisionMemoryBook = useMemo(() => {
+    if (!outcomeResult?.ok) return null;
+    try {
+      return buildDecisionMemoryBook({
+        generatedAt: snapshotAt.current.toISOString(),
+        outcomes: outcomeResult.items,
+        // P2 has not yet delivered the immutable decision-memory snapshot read contract.
+        // Keep these empty until the server returns actual persisted snapshots.
+        snapshots: [],
+        totalOutcomes: outcomeResult.total,
+      });
+    } catch {
+      return null;
+    }
+  }, [outcomeResult]);
+  const decisionMemoryState = outcomesLoading
+    ? "loading"
+    : outcomeResult && !outcomeResult.ok
+      ? outcomeResult.status === "UNAVAILABLE" ? "unavailable" : "error"
+      : outcomeResult?.ok
+        ? outcomeResult.items.length ? "ready" : "empty"
+        : "unavailable";
   const verified = Boolean(
     data &&
     data.status === "OK" &&
@@ -939,6 +963,11 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
             profileId={user?.profileId}
             onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
             onTransition={runTransition}
+          />
+          <DecisionMemoryBook
+            result={decisionMemoryBook}
+            state={decisionMemoryState}
+            onRetry={() => void loadOutcomes()}
           />
 
           {outcomeMessage ? <div className="panel" role="status">{outcomeMessage}</div> : null}
