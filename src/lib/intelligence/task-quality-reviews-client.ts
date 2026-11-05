@@ -8,6 +8,7 @@ export interface RecordTaskQualityReviewInput {
   taskId:string;taskUpdatedAt:string;reviewType:TaskQualityReviewType;
   actionability?:TaskQualityActionability;disposition?:TaskQualityDisposition;alertVerdict?:TaskQualityAlertVerdict;
   reasonCode?:TaskQualityReasonCode;reasonNote?:string;decisionOutcomeId?:string;
+  eventId?:string;idempotencyKey?:string;
 }
 export interface TaskQualityReviewEvent {
   id:string;eventId:string;taskId:string;decisionOutcomeId:string|null;reviewType:TaskQualityReviewType;
@@ -38,7 +39,9 @@ function failure(error:unknown):Extract<TaskQualityReviewResult,{ok:false}>{
 function validInput(input:RecordTaskQualityReviewInput):boolean{
  if(!UUID.test(input.taskId)||!Number.isFinite(Date.parse(input.taskUpdatedAt))||
    (input.decisionOutcomeId!==undefined&&!UUID.test(input.decisionOutcomeId))||
-   (input.reasonNote!==undefined&&input.reasonNote.length>500))return false;
+   (input.reasonNote!==undefined&&input.reasonNote.length>500)||
+   (input.eventId!==undefined&&(!input.eventId.trim()||input.eventId.length>100))||
+   (input.idempotencyKey!==undefined&&(!input.idempotencyKey.trim()||input.idempotencyKey.length>100)))return false;
  const needsReason=(input.reviewType==="ACTIONABILITY"&&input.actionability!=="ACTIONABLE")||
    (input.reviewType==="RECOMMENDATION_DISPOSITION"&&(input.disposition==="REJECTED"||input.disposition==="DEFERRED"))||
    (input.reviewType==="ALERT_VALIDATION"&&input.alertVerdict==="FALSE_POSITIVE");
@@ -73,7 +76,7 @@ export async function recordOperationalTaskQualityReview(input:RecordTaskQuality
   if(input.decisionOutcomeId)review.decisionOutcomeId=input.decisionOutcomeId;
   const {data,error}=await supabase.rpc("record_operational_task_quality_review",{
    p_task_id:input.taskId,p_expected_task_updated_at:input.taskUpdatedAt,p_review_type:input.reviewType,
-   p_review:review,p_event_id:crypto.randomUUID(),p_idempotency_key:crypto.randomUUID(),
+   p_review:review,p_event_id:input.eventId??crypto.randomUUID(),p_idempotency_key:input.idempotencyKey??crypto.randomUUID(),
   });
   if(error)return failure(error);
   const result=asRow(data),event=asRow(result?.event);

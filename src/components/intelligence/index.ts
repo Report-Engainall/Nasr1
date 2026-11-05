@@ -25,3 +25,6 @@ export * from "./NaturalLanguageAssistant";
 export * from "./PersonalizationPrivacyPanel";
 export { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
 export type { TaskPerformanceScorecardProps, TaskPerformanceScorecardState } from "./TaskPerformanceScorecard";
+
+export { TaskQualityReviewForm } from "./TaskQualityReviewForm";
+export type { TaskQualityReviewFormProps } from "./TaskQualityReviewForm";
