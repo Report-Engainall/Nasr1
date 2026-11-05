@@ -1972,3 +1972,13 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Updated the parser, Arabic scorecard presentation, focused source tests and PostgreSQL migration acceptance assertions. Existing test sources remain unexecuted.
 - Changed paths additionally include scorecard parser/component tests and scripts/test-database-migrations.mjs. Acceptance matrix and global cursor updated.
 - Migrations are source-only; tests/build/typecheck/lint/CI/browser/E2E/Bolt runtime/Preview/production not run. No PASS claimed; IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## 2026-11-06 — REF-SECTION-61-TASK-AUDIT-WINDOW-BOUNDARY-001 — final boundary and audit payload preservation
+
+- Boundary/payload source commit: d32b4fa96f53161b3808f9330915d1e713b5924b (parent c8b72c87cf9683d2e5c606e69722733dc5368090).
+- Guard correction commit: 8695394f5039cbe072d6b7e8a94e325f2fc6a8e6 (parent d32b4fa96f53161b3808f9330915d1e713b5924b). The final migration checks the singleton with NOT EXISTS; it does not rely on PL/pgSQL FOUND across a nested DO block.
+- Added migration 20261106081000_operational_task_audit_payload_and_boundary.sql. It acquires SHARE ROW EXCLUSIVE on ai_tasks, replacing the trigger's payload logic and refreshing the final coverage_started_at while no task status writer can cross the boundary. Migration aborts if the singleton baseline is missing.
+- The central audit event preserves status, manager_cancellation, assigned_to, resolution_note, and manager_cancellation_cleared values from the former status RPC audit payload. The task status RPC stays free of a second explicit event insert.
+- PostgreSQL acceptance source asserts the prior resolution-note/cancellation metadata contract and a single baseline row in addition to user/source transition event uniqueness and exact post-baseline reopen-rate reconciliation.
+- Current main after source changes: 8695394f5039cbe072d6b7e8a94e325f2fc6a8e6. Tests and all runtime/toolchain acceptance were not run; all four Section 61 migrations remain source-only, status IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. No PASS claim.

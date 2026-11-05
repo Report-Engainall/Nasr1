@@ -1,3 +1,36 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-AUDIT-WINDOW-BOUNDARY-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Latest source SHA: `8695394f5039cbe072d6b7e8a94e325f2fc6a8e6`.
+- Audit-window RPC and DTO/UI feature: `e5327f7f82e1048b5281a8f2c4cbe4f340d56425`; parser/UI compatibility correction: `8fb2b8a1eb88d9d7f5f4ac4b2e095e0fb21816e3`.
+- Central task status audit parity: `4074ce5fb4db89118e7fed25b2d2142f21fc9f4b`.
+- Boundary/compatibility implementation: `d32b4fa96f53161b3808f9330915d1e713b5924b`; PL/pgSQL baseline-existence guard correction: `8695394f5039cbe072d6b7e8a94e325f2fc6a8e6`.
+- Required source migrations (apply in lexical order, non-production first):
+  1. `20261106060000_intelligence_task_performance_scorecard.sql`
+  2. `20261106070000_operational_task_status_audit_parity.sql`
+  3. `20261106080000_intelligence_task_reopen_audit_window.sql`
+  4. `20261106081000_operational_task_audit_payload_and_boundary.sql`
+- The fourth migration obtains `SHARE ROW EXCLUSIVE` on `public.ai_tasks`, replaces the status audit function while preserving the former RPC's audit payload (status, manager-cancellation metadata, assigned_to and resolution_note), then refreshes the protected baseline timestamp and explicitly verifies that the singleton exists before commit. This seals the final measurement boundary: in-flight task writers finish before the lock; new writers cannot cross the marker and resume only after commit.
+- The trigger validates candidate profile is active and belongs to the changed task's organization before attributing an actor. Actor remains NULL for system/unresolved work; no foreign tenant's profile can be attached. Event timestamps use `clock_timestamp()`.
+- The scorecard exposes exact reopen rate only within the final coverage window: denominator = distinct visible tasks whose first completion event is after `coverage_started_at`; numerator = those tasks with at least one later completed→pending/in_progress event; reopen event count includes all such events. Percentage is null for zero denominator. Historical pre-window events are excluded and are not reconstructed.
+- The parser accepts the earlier RPC contract only as `PARTIAL` while migration 0800/0810 is pending, and accepts `WINDOW_COMPLETE` only when baseline/counts/rate reconcile. The Arabic scorecard clearly labels the window start and does not claim an all-time rate.
+- Test source extended in `scripts/test-database-migrations.mjs`: one actor-attributed event for user RPC transition; exactly one for automatic stock close and reopen; preserved resolution note/cancellation metadata; a single baseline row; post-baseline numerator/denominator/percentage reconciliation. Focused TypeScript and component tests also exist.
+- Changed paths in the final source batch:
+  - `supabase/migrations/20261106080000_intelligence_task_reopen_audit_window.sql`
+  - `supabase/migrations/20261106081000_operational_task_audit_payload_and_boundary.sql`
+  - `src/lib/intelligence/task-performance-scorecard.ts`
+  - `src/components/intelligence/TaskPerformanceScorecard.tsx`
+  - `src/lib/intelligence/task-performance-scorecard.test.ts`
+  - `src/components/intelligence/TaskPerformanceScorecard.test.tsx`
+  - `scripts/test-database-migrations.mjs`
+- All four migrations remain source-only. Tests, build, typecheck, lint, CI, browser, E2E, DB runtime, Bolt, Preview, Vercel and production were not run. No PASS or production readiness claimed.
+- No paid provider, new dependency, secret, Vercel credit, live service or financial/inventory mutation.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- P1 handoff remains: mount `TaskPerformanceScorecard` once in existing `IntelligenceWorkspace` using `fetchTaskPerformanceScorecard()`; no P1 files were changed.
+- Next P3 work: explicit append-only decision outcome/reason capture for task actionability, recommendation rejection/deferral, reviewed false alarms, repeated causes and measurable operational outcomes. Do not infer them from task text/status.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-REOPEN-AUDIT-WINDOW-001
 
 - Repository: `Report-Engainall/Nasr1`; branch `main`.
