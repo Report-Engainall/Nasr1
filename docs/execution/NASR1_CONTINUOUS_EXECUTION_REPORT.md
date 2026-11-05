@@ -1,3 +1,85 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER 360 INTERACTION CRM + FOLLOW-UP TASK FLOW
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Main at the beginning of this Customer 360 product batch: `5f9332843bc81b5bfacd1e8d973fecd317071ed5`.
+- Last verified main head immediately before this checkpoint update: `b78e331134f70f44d2371e0eeae528da19f625fc`.
+- The main head above includes the Customer 360 interaction implementation and acceptance-matrix updates. It also contains a subsequent main commit `feat(storefront): notify customer members about order lifecycle` (`b78e331...`); that independent commit was preserved and not overwritten.
+- All work in this stream was committed directly to the official `main`; no feature branch was created.
+
+## New product capabilities implemented
+
+### Customer 360 — append-only interaction history
+- Added `supabase/migrations/20261105130000_customer_interaction_history.sql`:
+  - Tenant-scoped `customer_interactions` table with customer, server-derived recorder, contact type, subject, details, occurrence time, optional next follow-up, creation timestamp and organization-scoped idempotency key.
+  - Direct client table privileges are revoked; the browser cannot insert, update or delete interaction rows.
+  - `record_customer_interaction` checks an active staff profile and current organization, locks the customer row, verifies customer membership in that organization, validates the interaction payload and optional future follow-up, writes the immutable interaction and an `audit_logs` event.
+  - `get_customer_interaction_history` returns latest bounded records with recorder display names, and verifies the active staff/tenant/customer scope.
+  - No interaction write changes customer balances, orders, invoices, payments, stock or accounting.
+- Idempotency:
+  - A unique `(organization_id,idempotency_key)` index prevents duplicate saves.
+  - Replaying the same key with the same customer/actor/type/subject/details/follow-up returns the original interaction ID without a second interaction, audit entry or follow-up task.
+  - Reusing the same key with different input is rejected.
+  - Replay is resolved before checking whether the original follow-up date is now in the past, so a delayed network retry remains safe.
+  - The UI retains the key after an unsuccessful request and renews it after successful save or when the user changes input.
+- Added `CustomerInteraction` and `CustomerInteractionType` models to `src/lib/types.ts`.
+- Added strict response parsing plus `fetchCustomerInteractions` and `recordCustomerInteraction` RPC wrappers in `src/lib/api.ts`.
+- Added the Customer 360 form and saved interaction timeline in `src/components/AdminCustomer360.tsx`, supporting call, visit, WhatsApp, email, meeting, internal note and other; each record shows timestamp, content, recorder and optional follow-up.
+- Added responsive interaction form/history styles to `src/styles.css`.
+
+### Scheduled follow-up becomes an operational sales task
+- When an interaction includes a future follow-up date, the same database transaction creates one idempotent task using the existing `upsert_operational_task` contract.
+- The task is in the `sales` role queue, carries the due date and concise interaction context, and links to its source interaction using a stable source event key.
+- It is **not assigned to the employee who recorded the interaction**; it is made visible in the sales role queue for authorized staff. The Customer 360 UI wording reflects this.
+- `src/components/TaskCenter.tsx` labels the source as `متابعة عميل 360`.
+- No task is created when no follow-up date is supplied; same interaction replay does not create a second task.
+
+### Customer 360 print/PDF and Excel outputs
+- `src/lib/customer-360-print.ts` extends the explicit allowlisted print DTO with the latest interaction rows. It includes only interaction type, subject, details, occurrence date, follow-up date, record date and recorder display name; it excludes organization, customer, interaction, profile and other internal UUIDs.
+- `src/components/Customer360PrintSheet.tsx` adds a dedicated interaction-history section.
+- `src/lib/customer-360-xlsx.ts` adds a dedicated `سجل التواصل` worksheet.
+- `src/components/AdminCustomer360.tsx` now synchronizes the fetched interaction list with print/export. Print and export remain disabled while interaction history is loading or failed, avoiding a seemingly complete file that silently omits the history.
+- Interaction details are explicitly limited to the latest 50 entries in the UI and exports; older entries remain stored and are not claimed to be included.
+
+## Files changed in this product batch
+
+- SQL: `supabase/migrations/20261105130000_customer_interaction_history.sql`.
+- Types/API: `src/lib/types.ts`, `src/lib/api.ts`.
+- Customer 360 UI: `src/components/AdminCustomer360.tsx`, `src/styles.css`.
+- Print/PDF projection: `src/lib/customer-360-print.ts`, `src/components/Customer360PrintSheet.tsx`.
+- Excel export: `src/lib/customer-360-xlsx.ts`.
+- Operational task source label: `src/components/TaskCenter.tsx`.
+- Acceptance matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+- Added matrix leaves:
+  - `DLV-006-CUSTOMER-INTERACTION-HISTORY-001`
+  - `DLV-006-CUSTOMER-INTERACTION-IDEMPOTENCY-001`
+  - `DLV-011-CUSTOMER-INTERACTION-EXPORT-001`
+  - `DLV-015-CUSTOMER-FOLLOW-UP-TASK-001`
+
+## Evidence boundary — do not overstate
+
+- Source and documentation updates are committed on `main`. The latest Customer 360 interaction form/idempotency UI commit is `5f5a1f239e2e2ee9825f310987d0f192373b1a7e`; the full replacement migration commit is `3adc4e033e6addc94fb41b159e7add54b9a4934c`; the matrix update commit is `c24a8744cab044e488e6ea1c5344929169a84ca6`.
+- The SQL migration was **not applied** to local, hosted or production PostgreSQL. No production data, schema, tenant, credentials or storage was changed.
+- No tests, build, lint, local Supabase, CI, browser E2E, Bolt Preview or runtime check was run in this product batch. The owner asked to prioritize implementation and avoid spending the session on broad test cycles. No test PASS is claimed.
+- DLV rows remain `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; implementation in source is not the same as runtime acceptance.
+- The Customer 360 history read/export is bounded to the latest 50 rows. It is not described as the complete history in print/XLSX.
+- Interaction follow-up tasks remain in the sales role queue and are not automatically assigned to the recording employee.
+- Lovable detachment remains integrated from `b0a091e0a506da43a9b0d0dd0d1e9b992498ca63` and CI alignment `45ca19c47a985b2d12d23c846ba068222a4e17ce`. No Lovable dependency was reopened.
+- Bolt runtime remains deliberately deferred until practical source/product handoff readiness.
+
+## Bolt archive disposition
+
+- Original archive remains available from the ChatGPT Library at `/mnt/data/project-bolt-github-8ccbjvhg (2).zip`.
+- Verified outer SHA-256: `db56924e7d629e480c96652ada8090f9605f466ccb773580446ce5b45cb09bc9`; the ZIP listing contains 1,211 entries.
+- The P3 dossier records 69/69 staged provenance files mapped to the existing integration ledger, the inner CSV helper as an exact target match, the product-image helper as superseded, and legacy privileged migrations as excluded.
+- No new byte-for-byte comparison of all 1,211 ZIP entries was performed in this batch. Do not claim full archive parity or copy the historical ZIP over the newer NASR1 tree.
+
+## Next implementation action
+
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-006`.
+- Extend the Customer 360 follow-up lifecycle: add a tenant-scoped command to reschedule or cancel an open customer-follow-up task from the interaction history while keeping the interaction as an immutable record and the linked `customer_follow_up:<interaction-id>` task synchronized in one transaction. Record old/new follow-up time and action in audit logs; cancellation must require a reason and must not be undone by source reconciliation. Keep the sales queue visible and preserve idempotency.
+- Continue product work in multiple connected code changes per launch. Do not begin broad tests/build/lint/CI or Bolt Preview during this implementation phase.
+
+---
 # PRODUCT BUILD UPDATE — 2026-11-05 — CUSTOMER 360 FOLLOW-UP TASKS AND LINKED NOTIFICATIONS
 
 - Product-code SHA: `03cd108aad86c189be72c03a55ca0a05469ce49f`; branch: `main`.
