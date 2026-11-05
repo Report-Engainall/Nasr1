@@ -6,7 +6,7 @@ import {
 import { assignOperationalTask, assignOperationalTasks, cancelOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails, updateOperationalTasksDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
-import { prioritizeOperationalTasks } from '@/lib/intelligence/task-prioritization';
+import { prioritizeOperationalTasks, suggestOperationalTaskAssignee, type OperationalTaskAssigneeSuggestion } from '@/lib/intelligence/task-prioritization';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
@@ -104,6 +104,8 @@ type TaskCreateFormProps = {
   assignedTo: string;
   assigneesLoading: boolean;
   assigneesError: string;
+  workloadSuggestion: OperationalTaskAssigneeSuggestion | null;
+  onUseWorkloadSuggestion: (profileId: string) => void;
   priority: 'low' | 'medium' | 'high' | 'critical';
   dueAt: string;
   busy: boolean;
@@ -162,7 +164,7 @@ function TaskCreateActions({ busy, title, onClose }: { busy: boolean; title: str
 
 function TaskCreateForm({
   title, description, newRole, allowedRoles, eligibleAssignees, assignedTo,
-  assigneesLoading, assigneesError, priority, dueAt, busy, onSubmit, onClose,
+  assigneesLoading, assigneesError, workloadSuggestion, onUseWorkloadSuggestion, priority, dueAt, busy, onSubmit, onClose,
   onTitleChange, onDescriptionChange, onRoleChange, onAssigneeChange,
   onPriorityChange, onDueAtChange,
 }: TaskCreateFormProps) {
@@ -174,6 +176,22 @@ function TaskCreateForm({
       </div>
       <label>عنوان المهمة<input required maxLength={240} value={title} onChange={(event) => onTitleChange(event.target.value)} placeholder="اكتب الإجراء المطلوب" /></label>
       <label>التفاصيل<textarea maxLength={2000} rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} placeholder="الإجراء أو المرجع التشغيلي" /></label>
+      {workloadSuggestion && (
+        <div className="rounded-xl border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <strong>اقتراح توزيع بحسب عبء العمل</strong>
+              <p className="mt-1 text-sm">{workloadSuggestion.assignee.full_name} — {workloadSuggestion.openTaskCount.toLocaleString('ar-YE')} مهمة مفتوحة، منها {workloadSuggestion.overdueTaskCount.toLocaleString('ar-YE')} متأخرة.</p>
+              <p className="mt-1 text-xs text-muted-foreground">العبء المرجح: {workloadSuggestion.weightedLoad.toLocaleString('ar-YE')} نقطة؛ مهمة واحدة = 1، وتضاف أوزان للأولوية والتأخر. الحساب من المهام الظاهرة فقط.</p>
+            </div>
+            <button type="button" className="btn secondary" disabled={busy || assignedTo === workloadSuggestion.assignee.profile_id}
+              onClick={() => onUseWorkloadSuggestion(workloadSuggestion.assignee.profile_id)}>
+              استخدام الاقتراح
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">اقتراح غير ملزم؛ لا يتغير الإسناد حتى تحفظ المهمة أو تؤكد الإسناد يدوياً.</p>
+        </div>
+      )}
       <TaskCreateFields
         allowedRoles={allowedRoles}
         newRole={newRole}
@@ -273,6 +291,11 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
   const eligibleAssignees = useMemo(
     () => assignees.filter((assignee) => canAssignToRole(assignee.roles, newRole)),
     [assignees, newRole],
+  );
+
+  const workloadSuggestion = useMemo(
+    () => suggestOperationalTaskAssignee(tasks, eligibleAssignees, Date.now()),
+    [tasks, eligibleAssignees],
   );
   const assigneeById = useMemo(
     () => new Map(assignees.map((assignee) => [assignee.profile_id, assignee])),
@@ -768,6 +791,8 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
         assignedTo={assignedTo}
         assigneesLoading={assigneesLoading}
         assigneesError={assigneesError}
+        workloadSuggestion={workloadSuggestion}
+        onUseWorkloadSuggestion={setAssignedTo}
         priority={priority}
         dueAt={dueAt}
         busy={busy}
