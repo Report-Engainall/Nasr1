@@ -3,6 +3,13 @@
 -- No FX, automatic posting, or inferred settlement is performed.
 BEGIN;
 
+-- The source schema guarantees global primary keys, but the tenant-paired foreign keys below
+-- require explicit unique parent keys. These indexes are safe because id is already globally unique.
+CREATE UNIQUE INDEX IF NOT EXISTS purchase_supplier_payment_supplier_org_id_uq
+  ON public.suppliers(organization_id,id);
+CREATE UNIQUE INDEX IF NOT EXISTS purchase_supplier_payment_receipt_org_id_uq
+  ON public.purchase_receipts(organization_id,id);
+
 ALTER TABLE public.accounting_journal_entries
   DROP CONSTRAINT IF EXISTS accounting_journal_entries_source_type_check;
 ALTER TABLE public.accounting_journal_entries
