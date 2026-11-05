@@ -446,7 +446,7 @@ function Customer360Interactions({ customerId }: { customerId: string }) {
           <input type="datetime-local" value={nextFollowUpAt} disabled={saving} onChange={(event) => setNextFollowUpAt(event.target.value)} />
         </label>
         <div className="customer-360-interaction-submit">
-          <Button type="submit" disabled={saving || !subject.trim() || !details.trim()}>
+          <Button disabled={saving || !subject.trim() || !details.trim()}>
             {saving ? 'جارٍ حفظ التواصل…' : 'حفظ في سجل العميل'}
           </Button>
         </div>
