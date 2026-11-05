@@ -2349,6 +2349,7 @@ export async function fetchCustomerInteractions(customerId: string, limit = 50):
 
 export async function recordCustomerInteraction(input: {
   customerId: string;
+  idempotencyKey: string;
   interactionType: CustomerInteractionType;
   subject: string;
   details: string;
@@ -2356,6 +2357,9 @@ export async function recordCustomerInteraction(input: {
 }): Promise<string> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(input.customerId)) {
     throw new Error('معرّف العميل غير صالح.');
+  }
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(input.idempotencyKey)) {
+    throw new Error('مفتاح حفظ التواصل غير صالح؛ أعد المحاولة من النموذج.');
   }
   if (!customerInteractionTypes.includes(input.interactionType)) {
     throw new Error('نوع التواصل غير صالح.');
@@ -2371,6 +2375,7 @@ export async function recordCustomerInteraction(input: {
   }
   const { data, error } = await supabase.rpc('record_customer_interaction', {
     p_customer_id: input.customerId,
+    p_idempotency_key: input.idempotencyKey,
     p_interaction_type: input.interactionType,
     p_subject: subject,
     p_details: details,
