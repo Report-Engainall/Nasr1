@@ -474,7 +474,7 @@ function Customer360Interactions({ customerId }: { customerId: string }) {
           ))}
         </div>
       )}
-      <p className="report-note">يعرض السجل أحدث {formatNumber(items.length)} تواصل من أصل غير محدود؛ تُحفظ كل الإدخالات في قاعدة البيانات ولا تُحذف من هذه الشاشة.</p>
+      <p className="report-note">يعرض السجل أحدث {formatNumber(items.length)} إدخالًا من حد العرض الحالي (حتى 50 سجلًا)؛ تبقى بقية الإدخالات محفوظة في قاعدة البيانات ولا تُحذف من هذه الشاشة.</p>
     </section>
   );
 }
