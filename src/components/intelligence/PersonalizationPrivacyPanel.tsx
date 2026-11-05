@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type {
   NotificationChannel,
   NotificationLevel,
@@ -106,7 +106,7 @@ export function PersonalizationPrivacyPanel({
     setDraft(preferences ? toDraft(preferences) : null);
     setError(null);
     setNotice(null);
-  }, [preferences?.organizationId, preferences?.profileId, preferences?.updatedAt]);
+  }, [preferences]);
 
   function updateDraft(changes: Partial<PersonalizationPreferencesUpdate>) {
     setDraft(current => current ? { ...current, ...changes } : current);
@@ -122,7 +122,7 @@ export function PersonalizationPrivacyPanel({
     updateDraft({ notificationChannels: channelOrder.filter(value => channels.has(value)) });
   }
 
-  async function savePreferences(event: React.FormEvent<HTMLFormElement>) {
+  async function savePreferences(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!preferences || !draft || !onSavePreferences || saving) return;
 

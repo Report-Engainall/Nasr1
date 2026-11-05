@@ -94,8 +94,8 @@ describe("PersonalizationPrivacyPanel", () => {
         channelCapabilities={{ EMAIL: false, WHATSAPP: false, SMS: false }}
       />,
     );
-    const email = screen.getByRole("checkbox", { name: "البريد الإلكتروني" }) as HTMLInputElement;
-    const whatsapp = screen.getByRole("checkbox", { name: "واتساب" }) as HTMLInputElement;
+    const email = screen.getByRole("checkbox", { name: /البريد الإلكتروني/ }) as HTMLInputElement;
+    const whatsapp = screen.getByRole("checkbox", { name: /واتساب/ }) as HTMLInputElement;
     expect(email.disabled).toBe(false);
     expect(whatsapp.disabled).toBe(true);
   });
