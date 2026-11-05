@@ -5201,6 +5201,15 @@ async function main() {
   assert.equal(manualTaskState[0].status, "completed");
   assert.equal(manualTaskState[0].completed_by, staffProfileId, "completion records the authenticated actor");
   assert.equal(manualTaskState[0].resolution_note, "CI acceptance completion");
+  const manualTaskAudit = await db.unsafe(
+    "select old_value->>'status' as old_status,new_value->>'status' as new_status,actor_id from public.audit_logs " +
+      "where organization_id=$1 and entity_type='ai_task' and entity_id=$2 and action='operational_task.status_changed'",
+    [organizationId, manualTaskId],
+  );
+  assert.equal(manualTaskAudit.length, 1, "one database-level status trigger event is recorded for the RPC transition");
+  assert.equal(manualTaskAudit[0].old_status, "pending");
+  assert.equal(manualTaskAudit[0].new_status, "completed");
+  assert.equal(manualTaskAudit[0].actor_id, staffProfileId, "authenticated transition preserves the real profile actor");
 
   // Force an actual crossing into and out of the persisted reorder threshold.
   await db.unsafe("reset role");
@@ -5245,6 +5254,16 @@ async function main() {
   const reenteredTask = await db.unsafe("select id,status from public.ai_tasks where organization_id=$1 and source_event_key=$2", [organizationId, stockKey]);
   assert.equal(reenteredTask.length, 1, "a new low-stock episode reuses the same unique task");
   assert.equal(reenteredTask[0].status, "pending", "only a real new threshold crossing reopens the closed task");
+  const stockTaskAudit = await db.unsafe(
+    "select old_value->>'status' as old_status,new_value->>'status' as new_status from public.audit_logs " +
+      "where organization_id=$1 and entity_type='ai_task' and entity_id=$2 and action='operational_task.status_changed'",
+    [organizationId, lowStockTask[0].id],
+  );
+  assert.deepEqual(
+    stockTaskAudit.map((event) => event.old_status + ">" + event.new_status).sort(),
+    ["completed>pending", "pending>completed"],
+    "automatic threshold close and reopen both create exactly one canonical status audit event",
+  );
 
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
