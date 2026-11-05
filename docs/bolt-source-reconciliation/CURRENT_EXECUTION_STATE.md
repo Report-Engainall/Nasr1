@@ -14,14 +14,12 @@
 
 - `BODY-COMPLETION-ON-MAIN-025` — supplier quote comparison A4/PDF + four-sheet XLSX — **IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING**.
 - Projection: `src/lib/supplier-quote-comparison-print.ts`; XLSX: `src/lib/supplier-quote-comparison-xlsx.ts`; Arabic print sheet: `src/components/SupplierQuoteComparisonPrintSheet.tsx`; role-gated UI: `src/components/SupplierQuoteWorkspace.tsx`; scoped A4 CSS in `src/styles.css`.
-- It uses the existing fetched quote snapshot only, excludes notes/internal IDs, groups by product/currency, and computes lowest recorded unit cost among `received` status only. No new DB objects or award operation added.
-- Historical BODY-024 remains complete on source; migration `supabase/migrations/20261106000000_device_session_keyset_pagination.sql` is still unapplied and awaits Bolt DB acceptance.
-- Migration: `supabase/migrations/20261106000000_device_session_keyset_pagination.sql`; replaces the old 200-row fixed list with a role/tenant-guarded cursor function ordered by (activity, creation, session UUID).
-- UI: `src/components/DeviceManagement.tsx`; fetches 201 as sentinel, displays 200, and continues from the last visible cursor while appending unique records. Refresh restarts the first page; a failed next-page request retains already loaded records and the retry cursor.
-- Source acceptance contracts updated: `src/test/device-management-session-cap.test.tsx` and `scripts/test-session-management.mjs`. They were not executed. Migration is not applied; Bolt must confirm the actual auth.sessions columns and cursor behavior.
-- Exact code/acceptance commits are recorded in `docs/execution/P1_CHECKPOINT.md`; DLV-014 rollup and leaf are in `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
-- P1 next action: continue the next untouched mandatory non-intelligence product capability. Do not redo supplier invoice/payment/account activity outputs, customer service portal/desk, device session inventory/revocation, accepted DLV-011 document leaves or P3 intelligence.
-- P3 next action: after Bolt applies and accepts Section 52 decision-memory migration/DTO, proceed to the next canonical intelligence section. Do not duplicate Sections 50–52.
+- It uses the existing fetched quote snapshot only, excludes quote notes/internal IDs, groups comparisons by product and currency, and computes lowest recorded unit cost for status=`received` only. No new DB object or award operation was added.
+- BODY-025 feature/source commits: projection `f9fb84bb0e3dccc8e37b6277e5992be66592d1c1`; XLSX `7a61a5f92df2b9d4c8f488b74491e0601eda36da`; print sheet `a3bb03dd2c9eb1495019833ac2add8755c30707f`; UI `21c35a08da1e01c392962170e066dcc522a09fa3`; strict UUID fix `0c6b00322a737a042d1b5fc6aa30304299dfeb17`; CSS `4e7e01587b6129a812f9280ed7a4a3b917006038`.
+- Historical BODY-024 remains complete on source; migration `supabase/migrations/20261106000000_device_session_keyset_pagination.sql` is not applied. Its stable cursor pagination is in `src/components/DeviceManagement.tsx`; source acceptance contracts in `src/test/device-management-session-cap.test.tsx` and `scripts/test-session-management.mjs` were edited but not executed.
+- Historical BODY-023 supplier credit note reconciliation and BODY-022 supplier return document outputs remain preserved in the P1 checkpoint.
+- P1 next action: continue the next genuinely uncovered mandatory non-intelligence product capability; use the acceptance matrix to avoid duplicating implemented routes, source workflows or reports.
+- P3 next action: after Bolt applies and accepts the Section 52 decision-memory migration/DTO, proceed to the next canonical intelligence section. Do not duplicate Sections 50–52.
 
 ## Bolt handoff boundary
 
