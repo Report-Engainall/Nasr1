@@ -187,7 +187,7 @@ BEGIN
         'averageResolutionMinutes',b.average_resolution_minutes
       ) ORDER BY b.source_key,b.task_role,b.priority)
       FROM (
-        SELECT coalesce(nullif(t.source_entity_type,''),nullif(t.task_type,''),'UNCLASSIFIED') AS source_key,
+        SELECT coalesce(nullif(t.task_type,''),nullif(t.source_entity_type,''),'UNCLASSIFIED') AS source_key,
           t.task_role,t.priority,
           count(*) FILTER (
             WHERE t.created_at>=v_range_start AND t.created_at<v_range_end
@@ -209,7 +209,7 @@ BEGIN
         WHERE (t.created_at>=v_range_start AND t.created_at<v_range_end)
            OR (t.first_completed_at>=v_range_start AND t.first_completed_at<v_range_end)
            OR t.reopen_event_count>0
-        GROUP BY coalesce(nullif(t.source_entity_type,''),nullif(t.task_type,''),'UNCLASSIFIED'),
+        GROUP BY coalesce(nullif(t.task_type,''),nullif(t.source_entity_type,''),'UNCLASSIFIED'),
           t.task_role,t.priority
       ) b
     ),'[]'::jsonb),
