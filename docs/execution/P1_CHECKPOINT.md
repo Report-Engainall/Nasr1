@@ -1,10 +1,10 @@
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-022 — DEVICE SESSION KEYSET PAGINATION
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-024 — DEVICE SESSION KEYSET PAGINATION
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
 - Only two active implementer roles: P1 and P3. P1 owns UI/workspaces and product interfaces; P3 owns intelligence engines, evidence lineage and intelligence persistence/DTOs.
-- BODY-022 closes the product-side truncation at 200 active organization sessions. It replaces the non-paginated query contract with a stable server keyset cursor and exposes page continuation in the existing DeviceManagement screen. Existing security roles and revocation workflows are preserved.
+- BODY-024 closes the product-side truncation at 200 active organization sessions. It replaces the non-paginated query contract with a stable server keyset cursor and exposes page continuation in the existing DeviceManagement screen. Existing security roles and revocation workflows are preserved.
 
-## Delivered on main — BODY-022
+## Delivered on main — BODY-024
 
 1. Added `supabase/migrations/20261106000000_device_session_keyset_pagination.sql`: replaces `list_organization_sessions(integer)` with an admin-only same-tenant SECURITY DEFINER function accepting page size plus the composite cursor `(last_activity_at, created_at, session_id)`. Sort and cursor comparison use the same descending tuple; session response rows retain the existing shape; all three cursor fields must be null or all supplied. Page size is bounded to 201 to support a 200-row display plus one sentinel.
 2. Updated `src/components/DeviceManagement.tsx`: first page requests 201, displays 200, and keeps the sentinel only as proof that more records exist. A load-more action sends the last visible row's exact cursor and appends unique session rows. Refresh starts from page one; a failed continuation keeps already-loaded pages and leaves the same cursor available for retry.
