@@ -1,4 +1,4 @@
-import type { OperationalTask } from "@/lib/types";
+import type { OperationalTask, OperationalTaskAssignee } from "@/lib/types";
 
 export interface OperationalTaskAttentionItem {
   task: OperationalTask;
@@ -82,4 +82,52 @@ export function prioritizeOperationalTasks(
     )
     .slice(0, safeLimit)
     .map(({ task, whyNow, nextStep }) => ({ task, whyNow, nextStep }));
+}
+
+
+export interface OperationalTaskAssigneeSuggestion {
+  assignee: OperationalTaskAssignee;
+  openTaskCount: number;
+  overdueTaskCount: number;
+  weightedLoad: number;
+}
+
+/**
+ * Suggests the eligible staff member with the lightest visible open workload.
+ * Weight: one point per open task, +3 critical, +2 high, +1 medium,
+ * and +2 when its persisted due date is overdue. A manager must confirm.
+ */
+export function suggestOperationalTaskAssignee(
+  tasks: readonly OperationalTask[],
+  eligibleAssignees: readonly OperationalTaskAssignee[],
+  now = Date.now(),
+): OperationalTaskAssigneeSuggestion | null {
+  if (eligibleAssignees.length === 0) return null;
+  const safeNow = Number.isFinite(now) ? now : Date.now();
+  const priorityExtra: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
+
+  const ranked = eligibleAssignees.map((assignee) => {
+    const openTasks = tasks.filter((task) =>
+      task.assigned_to === assignee.profile_id &&
+      (task.status === "pending" || task.status === "in_progress"),
+    );
+    const overdueTaskCount = openTasks.filter((task) => {
+      const due = task.due_at ? Date.parse(task.due_at) : Number.NaN;
+      return Number.isFinite(due) && due < safeNow;
+    }).length;
+    const weightedLoad = openTasks.reduce((total, task) => {
+      const base = 1 + (priorityExtra[task.priority] ?? 0);
+      const due = task.due_at ? Date.parse(task.due_at) : Number.NaN;
+      return total + base + (Number.isFinite(due) && due < safeNow ? 2 : 0);
+    }, 0);
+    return { assignee, openTaskCount: openTasks.length, overdueTaskCount, weightedLoad };
+  });
+
+  ranked.sort((a, b) =>
+    a.weightedLoad - b.weightedLoad ||
+    a.openTaskCount - b.openTaskCount ||
+    a.overdueTaskCount - b.overdueTaskCount ||
+    a.assignee.full_name.localeCompare(b.assignee.full_name, "ar"),
+  );
+  return ranked[0] ?? null;
 }
