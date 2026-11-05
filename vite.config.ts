@@ -1,10 +1,22 @@
-// The locked Lovable wrapper supplies TanStack Start, React, Tailwind, path aliases,
-// Nitro/Cloudflare output, and preview integration. Avoid duplicate plugins.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { defineConfig } from "vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { nitro } from "nitro/vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import tsconfigPaths from "vite-tsconfig-paths";
 
+// Provider-neutral Vite/TanStack Start configuration.
+// Keep the existing SSR server entry and all application routes intact.
 export default defineConfig({
-  // Use the shared server wrapper for consistent, actionable SSR error reporting.
-  tanstackStart: {
-    server: { entry: "server" },
-  },
+  plugins: [
+    tanstackStart({
+      server: { entry: "server" },
+    }),
+    nitro(),
+    react(),
+    tailwindcss(),
+    tsconfigPaths(),
+  ],
+  server: { host: "0.0.0.0" },
+  preview: { host: "0.0.0.0" },
 });

@@ -88,13 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setConfigurationError(null);
       void refresh();
     } catch (cause) {
-      // Do not let failed Lovable Cloud/Supabase bootstrapping escape the root React tree.
+      // Do not let failed database/auth bootstrapping escape the root React tree.
       // The application remains navigable, while the root banner identifies the configuration blocker.
       const detail = cause instanceof Error ? cause.message : String(cause);
-      const missingConfig = /Missing Supabase environment variable|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|Connect Supabase in Lovable Cloud/i.test(detail);
+      const missingConfig = /Missing (?:database|Supabase) environment variable|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY|Bolt Database/i.test(detail);
       setConfigurationError(
         missingConfig
-          ? 'اتصال قاعدة البيانات غير مهيأ. اربط Supabase من إعدادات Lovable Cloud وتأكد من متغيرات SUPABASE_URL وSUPABASE_PUBLISHABLE_KEY.'
+          ? 'إعداد قاعدة البيانات والمصادقة غير مكتمل. استخدم قاعدة البيانات المدمجة في Bolt، وأكمل متغيرات الاتصال العامة وأسرار الخادم التي يوفرها المشروع.'
           : 'تعذر تهيئة جلسة الحساب. أعد المحاولة، وإذا استمر العطل فتحقق من إعدادات اتصال قاعدة البيانات.',
       );
       setUser(null);
