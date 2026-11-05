@@ -34,12 +34,22 @@ BEGIN
     source_entity_type=EXCLUDED.source_entity_type,
     source_entity_id=EXCLUDED.source_entity_id,
     due_at=EXCLUDED.due_at,
-    task_payload=CASE
-      WHEN public.ai_tasks.task_payload ? 'manager_cancellation'
-      THEN EXCLUDED.task_payload || jsonb_build_object(
-        'manager_cancellation',public.ai_tasks.task_payload->'manager_cancellation'
-      )
-      ELSE EXCLUDED.task_payload
+    task_payload=EXCLUDED.task_payload
+      || CASE WHEN public.ai_tasks.task_payload ? 'manager_cancellation'
+        THEN jsonb_build_object('manager_cancellation',public.ai_tasks.task_payload->'manager_cancellation')
+        ELSE '{}'::jsonb END
+      || CASE WHEN public.ai_tasks.task_payload ? 'manager_overrides'
+        THEN jsonb_build_object('manager_overrides',public.ai_tasks.task_payload->'manager_overrides')
+        ELSE '{}'::jsonb END,
+    priority=CASE
+      WHEN public.ai_tasks.task_payload ? 'manager_overrides'
+      THEN coalesce(public.ai_tasks.task_payload->'manager_overrides'->>'priority',EXCLUDED.priority)
+      ELSE EXCLUDED.priority
+    END,
+    due_at=CASE
+      WHEN public.ai_tasks.task_payload ? 'manager_overrides'
+      THEN NULLIF(public.ai_tasks.task_payload->'manager_overrides'->>'due_at','')::timestamptz
+      ELSE EXCLUDED.due_at
     END,
     status=CASE
       WHEN public.ai_tasks.status='cancelled'
