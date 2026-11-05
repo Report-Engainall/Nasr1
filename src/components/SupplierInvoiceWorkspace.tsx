@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, FileText, RefreshCw, ShieldCheck } from "lucide-react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, FileText, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   fetchSupplierInvoiceWorkspace,
@@ -16,6 +17,8 @@ import {
   type SupplierInvoiceReceivableLine,
   type SupplierInvoiceWorkspace,
 } from "@/lib/supplier-invoices";
+import { projectSupplierInvoiceAccountingPrintDocument, type SupplierInvoiceAccountingPrintDocument } from "@/lib/supplier-invoice-accounting-print";
+import { SupplierInvoiceAccountingPrintSheet } from "@/components/SupplierInvoiceAccountingPrintSheet";
 
 type WorkspaceMode = "capture" | "review";
 type InvoiceLineDraft = { quantity: string; unitCost: string; lineTotal: string };
@@ -126,6 +129,17 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
   const [evidenceError, setEvidenceError] = useState("");
   const [evidenceLinks, setEvidenceLinks] = useState<Record<string, string>>({});
   const [evidenceLinkBusy, setEvidenceLinkBusy] = useState<string | null>(null);
+  const [printDocument, setPrintDocument] = useState<SupplierInvoiceAccountingPrintDocument | null>(null);
+  const [printError, setPrintError] = useState("");
+  const previousPrintMode = useRef<string | null>(null);
+
+  function restorePreviousPrintMode() {
+    if (typeof document === "undefined") return;
+    const previousMode = previousPrintMode.current;
+    if (previousMode === null) document.body.removeAttribute("data-print-mode");
+    else if (previousMode !== undefined) document.body.setAttribute("data-print-mode", previousMode);
+    previousPrintMode.current = null;
+  }
 
   const refreshEvidence = useCallback(async (invoiceId: string | null) => {
     if (!canUseFinance || !invoiceId) {
@@ -148,6 +162,32 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
     void refreshEvidence(selectedInvoiceId);
   }, [selectedInvoiceId, refreshEvidence]);
 
+  useEffect(() => {
+    if (!printDocument || typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") return;
+    const body = document.body;
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      restorePreviousPrintMode();
+      window.removeEventListener("afterprint", restore);
+      setPrintDocument(null);
+    };
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => {
+      try {
+        window.print();
+      } catch {
+        setPrintError("تعذر فتح نافذة الطباعة في هذا المتصفح.");
+        restore();
+      }
+    }, 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", restore);
+      if (!restored && body.getAttribute("data-print-mode") === "supplier-invoice-accounting") restorePreviousPrintMode();
+    };
+  }, [printDocument]);
 
   const load = useCallback(async (requestedOffset = offset, requestedOrderId?: string | null) => {
     async function addInvoiceEvidence(file: File) {
@@ -406,6 +446,23 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
     }
   }
 
+  function printAccountingDocument() {
+    if (!selectedInvoice || !accountingStatus || accountingLoading || accountingError || mode !== "review" || printDocument) return;
+    try {
+      const projected = projectSupplierInvoiceAccountingPrintDocument({
+        invoice: selectedInvoice,
+        accounting: accountingStatus,
+        accounts,
+      });
+      previousPrintMode.current = document.body.getAttribute("data-print-mode");
+      document.body.setAttribute("data-print-mode", "supplier-invoice-accounting");
+      setPrintError("");
+      setPrintDocument(projected);
+    } catch (cause) {
+      setPrintError(cause instanceof Error ? cause.message : "تعذر تجهيز محضر مطابقة فاتورة المورد للطباعة.");
+    }
+  }
+
   async function prepareAccountingHandoff() {
     if (!selectedInvoice || !accountingStatus || accountingBusy || mode !== "review") return;
     if (selectedInvoice.createdByProfileId === user?.profileId) {
@@ -637,6 +694,13 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
                 <h4 style={{ margin: 0 }}>التسوية المحاسبية مع التزام إيصال الاستلام</h4>
                 <p style={mutedStyle}>يقارن الخادم قيمة البنود الفعلية بتكلفة الكميات المفوترة في إيصالات الاستلام المرحلة. يستخدم حساب الدائن الأصلي نفسه؛ لا ينشئ التزامًا ثانيًا ولا يرحّل أو يسدد تلقائيًا.</p>
               </div>
+              <div className="no-print" style={{ display: "flex", justifyContent: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                <button type="button" className="btn secondary" onClick={printAccountingDocument}
+                  disabled={accountingLoading || !accountingStatus || Boolean(accountingError) || Boolean(printDocument)}>
+                  <Printer size={15} /> طباعة محضر المطابقة والتسوية
+                </button>
+              </div>
+              {printError && <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>{printError}</p>}
               {accountingLoading ? <p role="status" style={mutedStyle}>جار قراءة حالة التسوية المحاسبية من المصدر...</p> :
                 accountingError ? <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>{accountingError}</p> :
                 !accountingStatus ? <p style={mutedStyle}>لا توجد حالة تسوية محمّلة لهذه الفاتورة.</p> : (
@@ -763,6 +827,9 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
           )}
         </section>
       )}
+      {printDocument && typeof document !== "undefined"
+        ? createPortal(<SupplierInvoiceAccountingPrintSheet document={printDocument} />, document.body)
+        : null}
     </section>
   );
 }
