@@ -23,8 +23,8 @@ CREATE TABLE public.purchase_supplier_quotes (
   UNIQUE (organization_id,idempotency_key),
   UNIQUE (organization_id,supplier_id,quote_number),
   UNIQUE (organization_id,purchase_order_id),
-  FOREIGN KEY (organization_id,purchase_order_id)
-    REFERENCES public.purchase_orders(organization_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (purchase_order_id)
+    REFERENCES public.purchase_orders(id) ON DELETE RESTRICT,
   CHECK (pg_catalog.char_length(pg_catalog.btrim(quote_number)) BETWEEN 1 AND 80),
   CHECK (supplier_reference IS NULL OR pg_catalog.char_length(supplier_reference) <= 120),
   CHECK (payment_terms IS NULL OR pg_catalog.char_length(payment_terms) <= 1000),
@@ -44,8 +44,8 @@ CREATE TABLE public.purchase_supplier_quote_items (
   line_total numeric(15,2) NOT NULL CHECK (line_total >= 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (quote_id,product_id),
-  FOREIGN KEY (organization_id,quote_id)
-    REFERENCES public.purchase_supplier_quotes(organization_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (quote_id)
+    REFERENCES public.purchase_supplier_quotes(id) ON DELETE RESTRICT,
   CHECK (pg_catalog.round(quantity_quoted,3)=quantity_quoted),
   CHECK (pg_catalog.round(unit_cost,2)=unit_cost),
   CHECK (pg_catalog.round(line_total,2)=line_total)
@@ -259,6 +259,9 @@ BEGIN
      FOR SHARE;
     IF NOT FOUND THEN
       RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='quoted product is unavailable in the active organization';
+    END IF;
+    IF v_quantity*v_unit_cost>9999999999999.99 THEN
+      RAISE EXCEPTION USING ERRCODE='22003',MESSAGE='quoted line total exceeds supported precision';
     END IF;
     v_line_total:=(v_quantity*v_unit_cost)::numeric(15,2);
     INSERT INTO public.purchase_supplier_quote_items(
