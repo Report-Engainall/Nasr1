@@ -49,6 +49,8 @@ CREATE TABLE public.purchase_supplier_return_items (
   line_total numeric(15,2),
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (return_id,source_receipt_item_id),
+  FOREIGN KEY (organization_id,return_id)
+    REFERENCES public.purchase_supplier_returns(organization_id,id) ON DELETE RESTRICT,
   CHECK (quantity_returned<=source_received_quantity),
   CHECK (unit_cost IS NULL OR (unit_cost>=0 AND pg_catalog.round(unit_cost,2)=unit_cost)),
   CHECK (line_total IS NULL OR (line_total>=0 AND pg_catalog.round(line_total,2)=line_total))
@@ -369,6 +371,9 @@ BEGIN
       END IF;
       v_line_total:=(v_qty*v_item.unit_cost)::numeric(15,2);
       v_total:=v_total+v_line_total;
+      IF v_total>9999999999999.99 THEN
+        RAISE EXCEPTION USING ERRCODE='22003',MESSAGE='supplier return total exceeds supported precision';
+      END IF;
     END IF;
     INSERT INTO public.purchase_supplier_return_items(
       organization_id,return_id,source_receipt_item_id,purchase_order_item_id,product_id,
