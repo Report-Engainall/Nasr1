@@ -192,7 +192,7 @@ function TaskCreateForm({
   );
 }
 
-export function TaskCenter({ onNotice, initialTaskId = null }: { onNotice: (message: string) => void; initialTaskId?: string | null }) {
+export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplied }: { onNotice: (message: string) => void; initialTaskId?: string | null; onInitialTaskApplied?: () => void }) {
   const { user } = useAuth();
   const roles = user?.roles ?? [];
   const canManage = roles.includes('admin') || roles.includes('manager');
@@ -253,7 +253,8 @@ export function TaskCenter({ onNotice, initialTaskId = null }: { onNotice: (mess
     if (!initialTaskId || loading) return;
     const target = tasks.find((task) => task.id === initialTaskId);
     setSearch(target?.title ?? initialTaskId);
-  }, [initialTaskId, loading, tasks]);
+    onInitialTaskApplied?.();
+  }, [initialTaskId, loading, tasks, onInitialTaskApplied]);
   useEffect(() => {
     if (!canManage) return;
     let active = true;
