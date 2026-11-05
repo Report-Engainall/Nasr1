@@ -1,12 +1,13 @@
 import { BUSINESS_BRAND_NAME } from "@/lib/brand";
 import { xmlEscape, worksheetXml, zipStore, type CellValue } from "@/lib/onyx-export";
 import type { StaffCustomer360Summary } from "@/lib/customer-360-summary";
+import type { CustomerInteraction } from "@/lib/types";
 
 const MAX_RECENT_DETAIL_ROWS = 20;
 
 type WorkbookSheet = { name: string; rows: CellValue[][] };
 
-function validateDetailBounds(summary: StaffCustomer360Summary): void {
+function validateDetailBounds(summary: StaffCustomer360Summary, interactions: readonly CustomerInteraction[]): void {
   if (
     summary.recent_orders.length > MAX_RECENT_DETAIL_ROWS ||
     summary.recent_invoices.length > MAX_RECENT_DETAIL_ROWS ||
@@ -14,9 +15,12 @@ function validateDetailBounds(summary: StaffCustomer360Summary): void {
   ) {
     throw new Error("تجاوزت تفاصيل العميل حد آخر 20 حركة؛ أوقف التصدير حتى لا يظهر ملف جزئي على أنه كامل.");
   }
+  if (interactions.length > 50) {
+    throw new Error("تجاوز سجل التواصل حد أحدث 50 إدخالًا؛ أوقف التصدير حتى لا يظهر ملف جزئي على أنه كامل.");
+  }
 }
 
-function workbookSheets(summary: StaffCustomer360Summary): WorkbookSheet[] {
+function workbookSheets(summary: StaffCustomer360Summary, interactions: readonly CustomerInteraction[] = []): WorkbookSheet[] {
   const customer = summary.customer;
   const orders = summary.order_summary;
   const invoiceById = new Map(summary.recent_invoices.map((invoice) => [invoice.id, invoice]));
@@ -47,6 +51,7 @@ function workbookSheets(summary: StaffCustomer360Summary): WorkbookSheet[] {
     ["عدد صفوف الطلبات التفصيلية المصدرة", summary.recent_orders.length],
     ["عدد صفوف الفواتير التفصيلية المصدرة", summary.recent_invoices.length],
     ["عدد صفوف الدفعات التفصيلية المصدرة", summary.recent_payments.length],
+    ["عدد سجلات التواصل المصدرة", interactions.length],
     ["نطاق التفاصيل", "الجداول التفصيلية تعرض أحدث 20 حركة أو أقل مما أعاده الخادم؛ ليست دفترًا تاريخيًا كاملًا."],
     ["نطاق الملخص المالي", "ورقة «حسب العملة» تحتوي إجماليات الخادم الكاملة لكل عملة؛ لا تجمع عملات مختلفة في إجمالي واحد."],
     ["القيم المجهولة", "القيمة غير المتاحة تبقى خلية فارغة؛ لا تُحوّل إلى صفر."],
@@ -112,6 +117,19 @@ function workbookSheets(summary: StaffCustomer360Summary): WorkbookSheet[] {
     ...orders.status_distribution.map((row) => [row.status, row.count]),
   ];
 
+  const interactionHistory: CellValue[][] = [
+    ["تاريخ التواصل", "نوع التواصل", "الموضوع", "ملخص التواصل والنتيجة", "موعد المتابعة القادم", "سُجل بواسطة", "تاريخ التسجيل"],
+    ...interactions.map((row) => [
+      row.interaction_at,
+      row.interaction_type,
+      row.subject,
+      row.details,
+      row.next_follow_up_at,
+      row.recorded_by_name,
+      row.created_at,
+    ]),
+  ];
+
   return [
     { name: "ملخص العميل", rows: overview },
     { name: "حسب العملة", rows: finance },
@@ -121,11 +139,12 @@ function workbookSheets(summary: StaffCustomer360Summary): WorkbookSheet[] {
     { name: "أكثر المنتجات", rows: topProducts },
     { name: "إشارات المتابعة", rows: recommendations },
     { name: "توزيع الحالات", rows: statusDistribution },
+    { name: "سجل التواصل", rows: interactionHistory },
   ];
 }
 
-function workbookFiles(summary: StaffCustomer360Summary): { name: string; content: string }[] {
-  const sheets = workbookSheets(summary);
+function workbookFiles(summary: StaffCustomer360Summary, interactions: readonly CustomerInteraction[] = []): { name: string; content: string }[] {
+  const sheets = workbookSheets(summary, interactions);
   const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -173,14 +192,20 @@ function workbookFiles(summary: StaffCustomer360Summary): { name: string; conten
   ];
 }
 
-export function buildStaffCustomer360WorkbookXlsx(summary: StaffCustomer360Summary): Uint8Array {
-  validateDetailBounds(summary);
-  return zipStore(workbookFiles(summary));
+export function buildStaffCustomer360WorkbookXlsx(
+  summary: StaffCustomer360Summary,
+  interactions: readonly CustomerInteraction[] = [],
+): Uint8Array {
+  validateDetailBounds(summary, interactions);
+  return zipStore(workbookFiles(summary, interactions));
 }
 
-export function downloadStaffCustomer360WorkbookXlsx(summary: StaffCustomer360Summary): void {
+export function downloadStaffCustomer360WorkbookXlsx(
+  summary: StaffCustomer360Summary,
+  interactions: readonly CustomerInteraction[] = [],
+): void {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return;
-  const bytes = buildStaffCustomer360WorkbookXlsx(summary);
+  const bytes = buildStaffCustomer360WorkbookXlsx(summary, interactions);
   const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
