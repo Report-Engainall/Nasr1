@@ -292,7 +292,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance permission required to record a supplier credit note';
   END IF;
   IF p_return_id IS NULL OR p_idempotency_key IS NULL OR v_number=''
-     OR pg_catalog.char_length(v_number)>80 OR p_issued_on IS NULL OR p_issued_on>pg_catalog.current_date
+     OR pg_catalog.char_length(v_number)>80 OR p_issued_on IS NULL OR p_issued_on>current_date
      OR p_actual_amount IS NULL OR p_actual_amount<=0 OR p_actual_amount>=10000000000000000
      OR pg_catalog.round(p_actual_amount,2)<>p_actual_amount
      OR p_currency IS NULL OR p_currency !~ '^[A-Z]{3}$' THEN
