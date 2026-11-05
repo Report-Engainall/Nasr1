@@ -466,7 +466,8 @@ describe("TaskCenter role-boundary and print integration", () => {
     const reason = "أُلغي بناءً على طلب الإدارة بعد مراجعة المصدر";
     mocks.fetchOperationalTasks
       .mockResolvedValueOnce([sourceTask])
-      .mockResolvedValueOnce([{ ...sourceTask, status: "cancelled", resolution_note: reason }]);
+      .mockResolvedValueOnce([{ ...sourceTask, status: "cancelled", resolution_note: reason }])
+      .mockResolvedValueOnce([{ ...sourceTask, status: "pending", resolution_note: null }]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
     await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
@@ -482,6 +483,15 @@ describe("TaskCenter role-boundary and print integration", () => {
     await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
     expect(await screen.findByText(reason)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "إلغاء المهمة" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة فتح" }));
+    await waitFor(() => expect(mocks.setOperationalTaskStatus).toHaveBeenCalledWith(
+      "sales-order",
+      "pending",
+      undefined,
+    ));
+    await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(3));
+    expect(screen.queryByText(reason)).not.toBeInTheDocument();
   });
 
 });
