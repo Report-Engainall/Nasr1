@@ -3,7 +3,7 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Clock3, Filter,
   ListTodo, Play, Plus, Printer, RefreshCw, Search, UserCheck, X,
 } from 'lucide-react';
-import { assignOperationalTask, assignOperationalTasks, cancelOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails } from '@/lib/api';
+import { assignOperationalTask, assignOperationalTasks, cancelOperationalTask, createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus, updateManualOperationalTask, updateOperationalTaskDetails, updateOperationalTasksDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
@@ -228,6 +228,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
   const [bulkAssigneeDraft, setBulkAssigneeDraft] = useState('');
   const [completionDrafts, setCompletionDrafts] = useState<Record<string, string>>({});
+  const [bulkDetailsPriority, setBulkDetailsPriority] = useState<OperationalTask['priority']>('medium');
+  const [bulkDetailsDueAt, setBulkDetailsDueAt] = useState('');
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
@@ -464,6 +466,36 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     };
   }
 
+  async function saveBulkTaskDetails() {
+    const taskIds = selectedOpenTaskIds;
+    if (taskIds.length < 1 || taskIds.length > 100) {
+      setError('اختر من مهمة واحدة إلى 100 مهمة مفتوحة لتحديثها دفعة واحدة.');
+      return;
+    }
+    if (!bulkDetailsDueAt) {
+      setError('حدد موعد الاستحقاق المشترك قبل تنفيذ تحديث المجموعة.');
+      return;
+    }
+    setBusy(true); setError('');
+    try {
+      const result = await updateOperationalTasksDetails(
+        taskIds,
+        bulkDetailsPriority,
+        new Date(bulkDetailsDueAt).toISOString(),
+      );
+      setSelectedTaskIds(new Set());
+      setBulkDetailsDueAt('');
+      await loadTasks();
+      onNotice(
+        'تم تحديث '+result.processed_count.toLocaleString('ar-YE')+
+        ' مهمة؛ تغيرت الأولوية أو المواعيد في '+result.changed_count.toLocaleString('ar-YE')+' مهمة.'
+      );
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'تعذر تحديث المهام المحددة.';
+      setError(message); onNotice(message);
+    } finally { setBusy(false); }
+  }
+
   async function saveTaskDetails(task: OperationalTask) {
     const draft = taskDetailsDraft(task);
     const nextDueAt = draft.dueAt ? new Date(draft.dueAt).toISOString() : null;
@@ -580,6 +612,42 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
         <button className="btn secondary" type="button" onClick={selectFilteredTasks} disabled={loading || filtered.length === 0}>
           <ListTodo size={16} /> تحديد النتائج الحالية ({filtered.length.toLocaleString('ar-YE')})
         </button>
+        {canManage && selectedOpenTaskIds.length > 0 && selectedTaskIds.size > 0 && (
+          <div className="task-bulk-details">
+            <label>
+              <span>أولوية المهام المحددة</span>
+              <select
+                aria-label="الأولوية المشتركة للمهام المحددة"
+                value={bulkDetailsPriority}
+                disabled={busy}
+                onChange={(event) => setBulkDetailsPriority(event.target.value as OperationalTask['priority'])}
+              >
+                <option value="low">منخفضة</option>
+                <option value="medium">متوسطة</option>
+                <option value="high">مرتفعة</option>
+                <option value="critical">حرجة</option>
+              </select>
+            </label>
+            <label>
+              <span>موعد الاستحقاق المشترك</span>
+              <input
+                type="datetime-local"
+                aria-label="موعد الاستحقاق المشترك للمهام المحددة"
+                value={bulkDetailsDueAt}
+                required
+                disabled={busy}
+                onChange={(event) => setBulkDetailsDueAt(event.target.value)}
+              />
+            </label>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={busy || loading || selectedOpenTaskIds.length > 100 || !bulkDetailsDueAt}
+              onClick={() => void saveBulkTaskDetails()}
+            >تطبيق الأولوية والموعد على المجموعة</button>
+            <small>يتطلب هذا الإجراء موعدًا جديدًا صريحًا؛ لا يمسح المواعيد الحالية بصمت.</small>
+          </div>
+        )}
         {canManage && selectedTaskIds.size > 0 && (
           <div className="task-bulk-assignment">
             <label>
