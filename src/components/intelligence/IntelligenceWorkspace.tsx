@@ -12,6 +12,7 @@ import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
+import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { ShiftQueueSourceKey } from "@/lib/intelligence/shift-operations";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
@@ -47,6 +48,7 @@ import {
   ReplenishmentCard,
   ShiftOperationsCenter,
   ProcessBottlenecksPanel,
+  SupplierPerformancePanel,
   NaturalLanguageAssistant,
 } from "@/components/intelligence";
 
@@ -408,6 +410,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [processLoading, setProcessLoading] = useState(true);
   const [processRefreshKey, setProcessRefreshKey] = useState(0);
   const processRequestGeneration = useRef(0);
+  const [supplierPerformanceResponse, setSupplierPerformanceResponse] = useState<SupplierPerformanceFetchResult | null>(null);
+  const [supplierPerformanceLoading, setSupplierPerformanceLoading] = useState(true);
+  const [supplierPerformanceRefreshKey, setSupplierPerformanceRefreshKey] = useState(0);
+  const supplierPerformanceRequestGeneration = useRef(0);
 
   useEffect(() => {
     outcomesMounted.current = true;
@@ -522,6 +528,33 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       if (active() && generation === processRequestGeneration.current) setProcessLoading(false);
     }
   }, [canManage, processCompare, processFrom, processTo]);
+
+  useEffect(() => {
+    let mounted = true;
+    const generation = ++supplierPerformanceRequestGeneration.current;
+    if (!canManage) {
+      setSupplierPerformanceResponse({ ok: false, status: "DENIED", message: "تتطلب قراءة أداء الموردين صلاحية المدير أو مدير المؤسسة." });
+      setSupplierPerformanceLoading(false);
+      return () => { mounted = false; };
+    }
+    setSupplierPerformanceLoading(true);
+    void fetchSupplierPerformance({ from: processFrom, to: processTo, limit: 100 })
+      .then((response) => {
+        if (mounted && generation === supplierPerformanceRequestGeneration.current) setSupplierPerformanceResponse(response);
+      })
+      .catch(() => {
+        if (mounted && generation === supplierPerformanceRequestGeneration.current) {
+          setSupplierPerformanceResponse({ ok: false, status: "ERROR", message: "تعذر تحميل مؤشرات أداء الموردين من سجلات التوريد." });
+        }
+      })
+      .finally(() => {
+        if (mounted && generation === supplierPerformanceRequestGeneration.current) setSupplierPerformanceLoading(false);
+      });
+    return () => {
+      mounted = false;
+      supplierPerformanceRequestGeneration.current += 1;
+    };
+  }, [canManage, processFrom, processTo, supplierPerformanceRefreshKey]);
 
   const runShiftMutation = async (
     scope: string,
@@ -717,6 +750,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const processViewState = processLoading ? "loading"
     : processResponse?.ok ? "ready"
     : processResponse?.status === "UNAVAILABLE" ? "unavailable"
+    : "error";
+  const supplierPerformanceViewState = supplierPerformanceLoading ? "loading"
+    : supplierPerformanceResponse?.ok ? "ready"
+    : supplierPerformanceResponse?.status === "UNAVAILABLE" ? "unavailable"
     : "error";
   const openShiftItems = shiftWorkspace?.result.items.filter((item) => item.state !== "RESOLVED" && item.state !== "UNKNOWN") ?? [];
   const handoverRefs = [...new Set(openShiftItems
@@ -1236,6 +1273,21 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
               onRetry={() => setProcessRefreshKey((value) => value + 1)}
             />
             <button type="button" className="btn secondary self-start" onClick={() => setProcessRefreshKey((value) => value + 1)} disabled={processLoading}>تحديث تحليل العمليات</button>
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <h2>أداء الموردين والتزام التوريد</h2>
+                <p className="report-note">تستخدم هذه اللوحة نفس فترة التاريخ أعلاه (UTC). يعتمد زمن التوريد على أوامر مكتملة الاستلام فقط، والالتزام على مدة توريد صريحة في عرض سعر ممنوح؛ ولا تعرض أسعار الشراء أو الديون أو المدفوعات.</p>
+              </div>
+              {supplierPerformanceResponse && !supplierPerformanceResponse.ok ? (
+                <p role="alert" className="text-sm">{supplierPerformanceResponse.message}</p>
+              ) : null}
+              <SupplierPerformancePanel
+                result={supplierPerformanceResponse?.ok ? supplierPerformanceResponse.result : null}
+                state={supplierPerformanceViewState}
+                onRetry={() => setSupplierPerformanceRefreshKey((value) => value + 1)}
+                onOpenPurchaseOrder={onOpenPurchaseOrder}
+              />
+            </div>
           </section>
 
           <CommercePolicyGovernancePanel />
