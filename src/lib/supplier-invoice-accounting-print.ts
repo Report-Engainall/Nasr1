@@ -51,8 +51,8 @@ type LedgerAccount = {
 
 function parseCents(value: string, label: string, signed = false): bigint {
   const pattern = signed
-    ? /^-?(?:0|[1-9]\\d{0,15})(?:\\.\\d{1,2})?$/
-    : /^(?:0|[1-9]\\d{0,15})(?:\\.\\d{1,2})?$/;
+    ? /^-?(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/
+    : /^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/;
   if (typeof value !== "string" || !pattern.test(value)) {
     throw new Error("قيمة " + label + " غير صالحة لمستند الطباعة.");
   }
@@ -71,7 +71,7 @@ function formatCents(value: bigint): string {
 }
 
 function quantityMilli(value: string): bigint {
-  if (!/^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,3})?$/.test(value)) {
+  if (!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,3})?$/.test(value)) {
     throw new Error("كمية سطر فاتورة المورد غير صالحة لمستند الطباعة.");
   }
   const [whole, fraction = ""] = value.split(".");
@@ -90,7 +90,7 @@ function accountReference(
   label: string,
 ): SupplierInvoiceAccountingPrintAccount | null {
   if (!id) return null;
-  const account = accounts.find((item) => item.id === id && item.is_active);
+  const account = accounts.find((item) => item.id === id);
   if (!account || !expectedTypes.includes(account.account_type) || !account.code.trim() || !account.name.trim()) {
     throw new Error("تعذر مطابقة " + label + " مع حساب نشط في دليل الحسابات؛ أوقف الطباعة.");
   }
