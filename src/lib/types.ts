@@ -286,6 +286,7 @@ export interface AiAlert {
 export interface Notification {
   id: string; organization_id: string | null; profile_id: string | null; title: string;
   body: string | null; type: string; is_read: boolean; created_at: string;
+  entity_type?: string | null; entity_id?: string | null;
 }
 export interface OperationalTaskAssignee {
   profile_id: string;
