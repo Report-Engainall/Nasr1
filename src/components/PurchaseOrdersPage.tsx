@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
 import { SupplierQuoteWorkspace } from '@/components/SupplierQuoteWorkspace';
+import { SupplierReturnWorkspace } from '@/components/SupplierReturnWorkspace';
 import { PurchaseReceiptPrintActions } from '@/components/PurchaseReceiptPrintActions';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
 import {
@@ -584,6 +585,8 @@ export function PurchaseOrdersPage() {
       await load();
       setNotice('أُنشئت مسودة أمر الشراء ' + order.purchase_order_number + ' من عرض المورد المحدد. يمكنك مراجعتها في سجل الأوامر قبل اعتمادها.');
     }} />
+
+    <SupplierReturnWorkspace />
 
 
     {showCreate && <PurchaseOrderCreatePanel
