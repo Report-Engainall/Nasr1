@@ -7,6 +7,7 @@ import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
+import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
 import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
 import {
   createInventoryIntelligencePeriod,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/intelligence/decision-outcome-client";
 import {
   ActionCard,
+  BusinessHealthMap,
   CashflowForecastCard,
   DeadStockCard,
   EvidencePassport,
@@ -308,6 +310,7 @@ export function IntelligenceWorkspace() {
   const [outcomesLoading, setOutcomesLoading] = useState(true);
   const [outcomeOffset, setOutcomeOffset] = useState(0);
   const outcomeRequestGeneration = useRef(0);
+  const snapshotAt = useRef(new Date());
   const outcomesMounted = useRef(false);
   const [outcomeBusyId, setOutcomeBusyId] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
@@ -334,7 +337,7 @@ export function IntelligenceWorkspace() {
     }
     setLoading(true);
     try {
-      const request = createCashflowScheduleRequest({ horizonDays: horizon });
+      const request = createCashflowScheduleRequest({ horizonDays: horizon, now: snapshotAt.current });
       const response = await fetchCashflowSchedule(request);
       if (!active()) return;
       setResult(response);
@@ -354,7 +357,7 @@ export function IntelligenceWorkspace() {
     }
     setInventoryLoading(true);
     try {
-      const request = createInventoryIntelligencePeriod(new Date(), 92);
+      const request = createInventoryIntelligencePeriod(snapshotAt.current, 92);
       const response = await fetchInventoryIntelligence(request.period, request.asOf);
       if (active()) setInventoryResult(response);
     } catch {
@@ -387,6 +390,10 @@ export function IntelligenceWorkspace() {
     setOutcomeResult(response);
     setOutcomesLoading(false);
   }, [canManage, outcomeOffset]);
+
+  useEffect(() => {
+    snapshotAt.current = new Date();
+  }, [refreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -571,6 +578,36 @@ export function IntelligenceWorkspace() {
       : inventoryResult?.status === "UNAVAILABLE"
         ? "unavailable"
         : "error";
+
+  const businessHealthMap = useMemo<BusinessHealthMapResult | null>(() => {
+    if (!inventoryData || !deadStockReport || !replenishmentReport) return null;
+    try {
+      return buildBusinessHealthMap({
+        id: "business-health-map:" + inventoryData.asOf,
+        generatedAt: inventoryData.asOf,
+        asOf: inventoryData.asOf,
+        period: inventoryData.period,
+        cashflow: data?.asOf === inventoryData.asOf ? cashflowForecast : null,
+        deadStock: deadStockReport,
+        replenishment: {
+          id: "business-health-replenishment:" + inventoryData.asOf,
+          asOf: inventoryData.asOf,
+          period: inventoryData.period,
+          recommendations: replenishmentReport.recommendations,
+        },
+      });
+    } catch {
+      return null;
+    }
+  }, [inventoryData, deadStockReport, replenishmentReport, data, cashflowForecast]);
+
+  const businessHealthMapState = inventoryLoading
+    ? "loading"
+    : businessHealthMap
+      ? "ready"
+      : inventoryResult?.status === "DENIED" || inventoryResult?.status === "ERROR"
+        ? "error"
+        : "unavailable";
   const verified = Boolean(
     data &&
     data.status === "OK" &&
@@ -712,6 +749,21 @@ export function IntelligenceWorkspace() {
               </div>
             </div>
           </header>
+
+          <section className="panel space-y-3">
+            <div>
+              <h2>خريطة صحة الأعمال ورأس المال المعرض للمخاطر</h2>
+              <p className="report-note">تجمع أدلة حركة المخزون وتوصيات إعادة التوريد مع نوافذ التدفق النقدي عند تطابق توقيت اللقطة. لا تحسب رأس مال إجمالياً متداخلاً، ولا تعرض رصيداً نقدياً أو ذمماً غير موجودة في مصدر مكتمل متوافق.</p>
+            </div>
+            <BusinessHealthMap
+              result={businessHealthMap}
+              state={businessHealthMapState}
+              onRetry={() => setRefreshKey((value) => value + 1)}
+            />
+            {businessHealthMap && (
+              <p className="report-note">اللقطة: {businessHealthMap.asOf} · نافذة المخزون: {businessHealthMap.period.from} — {businessHealthMap.period.to} · سياسة الدمج: {businessHealthMap.policyVersion}. تركيز العملاء ودورة التحويل النقدي والمؤشرات غير المدعومة تبقى محجوبة إلى حين اكتمال مجاميعها المصدرية.</p>
+            )}
+          </section>
 
           {loading ? <div className="panel" role="status">جارٍ تحميل بيانات التحصيل من قاعدة البيانات...</div> : null}
           {!loading && result && !result.ok ? <div className="panel" role="alert"><p>{result.message}</p></div> : null}
