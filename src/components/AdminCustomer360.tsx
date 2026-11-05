@@ -405,7 +405,7 @@ function Customer360Interactions({ customerId }: { customerId: string }) {
       setSubject('');
       setDetails('');
       setNextFollowUpAt('');
-      setNotice('حُفظ التواصل في سجل العميل مع هوية الموظف وسجل التدقيق.');
+      setNotice('حُفظ التواصل في سجل العميل مع هوية الموظف وسجل التدقيق، وأُنشئت مهمة المتابعة في مركز العمليات عند تحديد موعد.');
       await reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تعذر حفظ تواصل العميل.');
@@ -419,7 +419,7 @@ function Customer360Interactions({ customerId }: { customerId: string }) {
       <div className="customer-360-interactions-heading">
         <div>
           <h3><MessageSquare size={18} /> سجل التواصل والمتابعة</h3>
-          <p className="report-note">سجل تشغيلي مؤرخ لا ينشئ طلبًا أو فاتورة أو دفعة ولا يغيّر رصيد العميل.</p>
+          <p className="report-note">سجل تشغيلي مؤرخ؛ عند تحديد موعد متابعة، ينشئ النظام مهمة مؤرخة في مركز العمليات ويسندها تلقائيًا إلى الموظف الذي سجّل التواصل. لا ينشئ ذلك طلبًا أو فاتورة أو دفعة ولا يغيّر رصيد العميل.</p>
         </div>
         <Button variant="secondary" onClick={() => { void reload(); }} disabled={loading || saving}>
           <RefreshCw size={15} /> تحديث السجل
@@ -468,7 +468,7 @@ function Customer360Interactions({ customerId }: { customerId: string }) {
               <p>{item.details}</p>
               <div className="customer-360-interaction-footer">
                 <small>سُجل بواسطة: {item.recorded_by_name} · {formatDateShort(item.created_at)}</small>
-                {item.next_follow_up_at && <small>المتابعة القادمة: {customerInteractionDate(item.next_follow_up_at)}</small>}
+                {item.next_follow_up_at && <small>المتابعة القادمة: {customerInteractionDate(item.next_follow_up_at)} · مهمة مؤرخة في مركز العمليات</small>}
               </div>
             </article>
           ))}
