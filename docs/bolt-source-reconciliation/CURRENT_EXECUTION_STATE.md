@@ -12,7 +12,7 @@
 ## Current sequential product cursor
 
 - `BODY-COMPLETION-ON-MAIN-022` — complete organization device-session inventory with stable server keyset pagination — **IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING**.
-- Migration: `supabase/migrations/20261105280000_device_session_keyset_pagination.sql`; replaces the old 200-row fixed list with a role/tenant-guarded cursor function ordered by (activity, creation, session UUID).
+- Migration: `supabase/migrations/20261106000000_device_session_keyset_pagination.sql`; replaces the old 200-row fixed list with a role/tenant-guarded cursor function ordered by (activity, creation, session UUID).
 - UI: `src/components/DeviceManagement.tsx`; fetches 201 as sentinel, displays 200, and continues from the last visible cursor while appending unique records. Refresh restarts the first page; a failed next-page request retains already loaded records and the retry cursor.
 - Source acceptance contracts updated: `src/test/device-management-session-cap.test.tsx` and `scripts/test-session-management.mjs`. They were not executed. Migration is not applied; Bolt must confirm the actual auth.sessions columns and cursor behavior.
 - Exact code/acceptance commits are recorded in `docs/execution/P1_CHECKPOINT.md`; DLV-014 rollup and leaf are in `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
