@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { AlertTriangle, BookOpen, RefreshCw } from "lucide-react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, BookOpen, Download, Printer, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   fetchSupplierAccountActivity,
   type SupplierAccountActivityPayload,
 } from "@/lib/supplier-account-activity";
+import { projectSupplierAccountActivityPrintDocument, type SupplierAccountActivityPrintDocument } from "@/lib/supplier-account-activity-print";
+import { downloadSupplierAccountActivityWorkbookXlsx } from "@/lib/supplier-account-activity-xlsx";
+import { SupplierAccountActivityPrintSheet } from "@/components/SupplierAccountActivityPrintSheet";
 
 const fieldStyle: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", padding: "9px 10px",
@@ -37,6 +41,9 @@ export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKe
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exportError, setExportError] = useState("");
+  const [printError, setPrintError] = useState("");
+  const [printDocument, setPrintDocument] = useState<SupplierAccountActivityPrintDocument | null>(null);
 
   const load = useCallback(async () => {
     if (!canManageFinance) { setLoading(false); return; }
@@ -53,6 +60,40 @@ export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKe
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (!printDocument || typeof window === "undefined" ||
+        typeof document === "undefined" || typeof window.print !== "function") return;
+    const body = document.body;
+    const previousMode = body.getAttribute("data-print-mode");
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute("data-print-mode");
+      else body.setAttribute("data-print-mode", previousMode);
+      window.removeEventListener("afterprint", restore);
+      setPrintDocument(null);
+    };
+    body.setAttribute("data-print-mode", "supplier-account-activity");
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => {
+      try {
+        window.print();
+      } catch {
+        setPrintError("تعذر فتح نافذة طباعة كشف الموردين في هذا المتصفح.");
+        restore();
+      }
+    }, 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", restore);
+      if (!restored && body.getAttribute("data-print-mode") === "supplier-account-activity") {
+        if (previousMode === null) body.removeAttribute("data-print-mode");
+        else body.setAttribute("data-print-mode", previousMode);
+      }
+    };
+  }, [printDocument]);
+
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (draftFrom && draftTo && draftFrom > draftTo) {
@@ -67,6 +108,34 @@ export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKe
   function clearFilters() {
     setDraftFrom(""); setDraftTo("");
     setFrom(""); setTo(""); setPage(0);
+    setExportError(""); setPrintError("");
+  }
+
+  function createStatementDocument(): SupplierAccountActivityPrintDocument {
+    if (!payload) throw new Error("لا توجد بيانات مصدرية لإنشاء كشف الموردين.");
+    return projectSupplierAccountActivityPrintDocument(payload, { from, to });
+  }
+
+  function exportStatement() {
+    setExportError("");
+    try {
+      downloadSupplierAccountActivityWorkbookXlsx(createStatementDocument());
+    } catch (cause) {
+      setExportError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لكشف الموردين.");
+    }
+  }
+
+  function printStatement() {
+    setPrintError("");
+    if (typeof window === "undefined" || typeof window.print !== "function") {
+      setPrintError("الطباعة غير مدعومة في بيئة المتصفح الحالية.");
+      return;
+    }
+    try {
+      setPrintDocument(createStatementDocument());
+    } catch (cause) {
+      setPrintError(cause instanceof Error ? cause.message : "تعذر إنشاء مستند طباعة كشف الموردين.");
+    }
   }
 
   if (!canManageFinance) return null;
@@ -75,6 +144,7 @@ export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKe
   const currencyTotals = payload?.currencyTotals ?? [];
 
   return (
+    <>
     <section aria-label="كشف حركة حسابات الموردين" dir="rtl" style={{ display: "grid", gap: 12, marginBlock: 18, minWidth: 0 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div>
@@ -83,9 +153,17 @@ export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKe
             كشف مترابط للاستلامات وإشعارات الدائن ودفعات المورد المرحلة. الدفعات المحجوزة تظهر منفصلة ولا تُخصم من المستحق النهائي قبل ترحيل القيد.
           </p>
         </div>
-        <button className="btn secondary" type="button" onClick={() => void load()} disabled={loading}>
-          <RefreshCw size={15} /> تحديث الكشف
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          <button className="btn secondary" type="button" onClick={() => void load()} disabled={loading}>
+            <RefreshCw size={15} /> تحديث الكشف
+          </button>
+          <button className="btn secondary" type="button" onClick={exportStatement} disabled={loading || !payload}>
+            <Download size={15} /> تصدير Excel
+          </button>
+          <button className="btn secondary" type="button" onClick={printStatement} disabled={loading || !payload}>
+            <Printer size={15} /> طباعة / PDF
+          </button>
+        </div>
       </header>
 
       <form onSubmit={applyFilters} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", alignItems: "end", gap: 9, padding: 12, border: "1px solid var(--border, #e3e9ec)", borderRadius: 10 }}>
@@ -102,6 +180,8 @@ export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKe
       </form>
 
       {error && <p role="alert" style={{ margin: 0, color: "#991b1b" }}><AlertTriangle size={14} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />{error}</p>}
+      {exportError && <p role="alert" style={{ margin: 0, color: "#991b1b" }}>{exportError}</p>}
+      {printError && <p role="alert" style={{ margin: 0, color: "#991b1b" }}>{printError}</p>}
       {loading && <p role="status" style={mutedStyle}>جار تحميل الحركات المرحلة…</p>}
 
       {!loading && payload && (
@@ -201,6 +281,10 @@ export function SupplierAccountActivityWorkspace({ refreshKey = 0 }: { refreshKe
         </>
       )}
     </section>
+    {printDocument && typeof document !== "undefined"
+      ? createPortal(<SupplierAccountActivityPrintSheet document={printDocument} />, document.body)
+      : null}
+    </>
   );
 }
 
