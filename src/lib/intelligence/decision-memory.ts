@@ -11,6 +11,7 @@ export interface DecisionMemoryStatement {
   actorRole: string;
   recordedAt: string;
   evidenceIds: string[];
+  sourceEvidenceIds?: string[];
 }
 export interface DecisionMemoryAlternative {
   id: string;
@@ -76,7 +77,7 @@ export interface DecisionMemoryRecord {
   owner: string; proposedResult: string; decisionReason: string | null;
   approvalAt: string | null; executionAt: string | null; eventCount: number;
   events: DecisionOutcomeView["history"]; legacyMeasurement: DecisionOutcomeView["measuredOutcome"];
-  snapshotVersion: number | null; capturedAt: string | null; problem: string | null;
+  snapshotVersion: number | null; capturedAt: string | null; snapshot: DecisionMemorySnapshot | null; problem: string | null;
   factsReviewed: boolean;
   facts: DecisionMemoryStatement[]; opinions: DecisionMemoryStatement[]; hypotheses: DecisionMemoryStatement[];
   assumptionsReviewed: boolean;
@@ -188,21 +189,23 @@ function isVerifiedStatement(statement: DecisionMemoryStatement, evidence: Map<s
 }
 function validCorrections(corrections: DecisionMemoryCorrection[], capturedAt: string, version: number): DecisionMemoryCorrection[] {
   const ordered = [...corrections].sort((a,b)=>a.toVersion-b.toVersion || a.recordedAt.localeCompare(b.recordedAt));
+  if (!ordered.length) return [];
   const result: DecisionMemoryCorrection[] = [];
-  let lastVersion = version;
-  let lastTime = Date.parse(capturedAt);
+  let lastVersion = 1;
+  let lastTime = Number.NEGATIVE_INFINITY;
   const seen = new Set<string>();
   for (const correction of ordered) {
+    const recordedAt = Date.parse(correction.recordedAt);
     if (!correction.id.trim() || seen.has(correction.id) || correction.fromVersion !== lastVersion ||
         correction.toVersion !== correction.fromVersion + 1 || !validTime(correction.recordedAt) ||
-        Date.parse(correction.recordedAt) < lastTime || !correction.actorRole.trim() ||
+        recordedAt < lastTime || recordedAt > Date.parse(capturedAt) || !correction.actorRole.trim() ||
         correction.reason.trim().length < 3 || !correction.originalText.trim() || !correction.correctedText.trim()) continue;
     seen.add(correction.id);
     result.push(correction);
     lastVersion = correction.toVersion;
-    lastTime = Date.parse(correction.recordedAt);
+    lastTime = recordedAt;
   }
-  return result;
+  return lastVersion === version ? result : [];
 }
 function compareMetrics(expected: DecisionMemoryMetricResult | null, actual: DecisionMemoryMetricResult | null,
   expectedReason: string | null, actualReason: string | null): DecisionMemoryMetricComparison {
@@ -245,7 +248,8 @@ export function buildDecisionMemoryBook(input: {
   const totalCount = input.totalOutcomes ?? input.outcomes.length;
   if (!Number.isInteger(totalCount) || totalCount < input.outcomes.length) throw new Error("decision_memory_total_invalid");
   const snapshotsByDecision = new Map<string, DecisionMemorySnapshot[]>();
-  for (const snapshot of input.snapshots) {
+  const suppliedSnapshots = input.snapshots.length ? input.snapshots : input.outcomes.flatMap(outcome => outcome.memorySnapshot ? [outcome.memorySnapshot] : []);
+  for (const snapshot of suppliedSnapshots) {
     const rows = snapshotsByDecision.get(snapshot.decisionId) ?? [];
     rows.push(snapshot);
     snapshotsByDecision.set(snapshot.decisionId, rows);
@@ -279,8 +283,9 @@ export function buildDecisionMemoryBook(input: {
         const evidence=evidenceIndex(snapshot.evidenceRecords??[]);
         const snapshotValid=snapshot.id.trim()!=="" && snapshot.decisionId===outcome.id &&
           Number.isInteger(snapshot.version) && snapshot.version>=1 && validTime(snapshot.capturedAt) &&
-          validTime(snapshot.asOf) && Date.parse(snapshot.capturedAt)<=Date.parse(outcome.createdAt) &&
-          Date.parse(snapshot.asOf)<=Date.parse(snapshot.capturedAt) && validPeriod(snapshot.period);
+          validTime(snapshot.asOf) && Date.parse(snapshot.capturedAt)<=Date.parse(input.generatedAt) &&
+          Date.parse(snapshot.asOf)<=Date.parse(outcome.createdAt) && Date.parse(snapshot.asOf)<=Date.parse(snapshot.capturedAt) &&
+          validPeriod(snapshot.period);
         if(!snapshotValid){
           warnings.push("DECISION_MEMORY_SNAPSHOT_SCOPE_INVALID");
           missingFields.push("PROBLEM_CONTEXT","FACTS_REVIEWED","ALTERNATIVES","CHOSEN_OPTION",
@@ -353,7 +358,7 @@ export function buildDecisionMemoryBook(input: {
         state:outcome.state,version:outcome.version,createdAt:outcome.createdAt,updatedAt:outcome.updatedAt,owner:outcome.ownerLabel,
         proposedResult:outcome.expectedOutcome,decisionReason:outcome.reason,approvalAt:outcome.approvedAt,executionAt:outcome.executedAt,
         eventCount:outcome.eventCount,events:outcome.history,legacyMeasurement:outcome.measuredOutcome,
-        snapshotVersion,capturedAt,problem,factsReviewed,facts,opinions,hypotheses,assumptionsReviewed,assumptions,lessonsReviewed,withheldFacts,alternatives,chosenAlternative,
+        snapshotVersion,capturedAt,snapshot,problem,factsReviewed,facts,opinions,hypotheses,assumptionsReviewed,assumptions,lessonsReviewed,withheldFacts,alternatives,chosenAlternative,
         actionTaken,reviewDisposition,reviewAt,expectedMetric,metricComparison,lessons,corrections,
         missingFields:unique(missingFields),warnings,memoryStatus,precedents,
       };
@@ -364,7 +369,7 @@ export function buildDecisionMemoryBook(input: {
   const verifiedMeasurementCount=records.filter(record=>record.metricComparison.status==="VERIFIED").length;
   const correctionCount=records.reduce((sum,record)=>sum+record.corrections.length,0);
   const warnings=unique([
-    ...(input.snapshots.length===0&&records.length?["DECISION_MEMORY_SNAPSHOT_SOURCE_NOT_AVAILABLE"]:[]),
+    ...(suppliedSnapshots.length===0&&records.length?["DECISION_MEMORY_SNAPSHOT_SOURCE_NOT_AVAILABLE"]:[]),
     ...(totalCount>input.outcomes.length?["DECISION_HISTORY_IS_PAGINATED"]:[]),
     ...records.flatMap(record=>record.warnings),
   ]);

@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { CashflowMeasurementProof } from "./cashflow-schedule-client";
+import { parseDecisionMemorySnapshot } from "./decision-memory-client";
+import type { DecisionMemorySnapshot } from "./decision-memory";
 
 export type DecisionOutcomeState =
   | "PROPOSED" | "IN_REVIEW" | "APPROVED" | "REJECTED"
@@ -33,6 +35,7 @@ export interface DecisionOutcomeView {
   assignedAt: string | null;
   executedAt: string | null;
   measuredOutcome: { value: number; currency: string; asOf: string } | null;
+  memorySnapshot: DecisionMemorySnapshot | null;
   eventCount: number;
   history: DecisionOutcomeEventView[];
 }
@@ -75,6 +78,9 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
   const raw = record(value);
   const owner = record(raw?.owner);
   const measured = record(raw?.measuredOutcome);
+  const memorySnapshot = raw?.memorySnapshot === null || raw?.memorySnapshot === undefined
+    ? null : parseDecisionMemorySnapshot(raw.memorySnapshot);
+  if (raw?.memorySnapshot !== null && raw?.memorySnapshot !== undefined && !memorySnapshot) return null;
   if (
     !raw || !owner ||
     !str(raw.id, 80) || !UUID.test(raw.id) ||
@@ -117,6 +123,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     assignedAt: nullableIso(raw.assignedAt),
     executedAt: nullableIso(raw.executedAt),
     measuredOutcome: measurement,
+    memorySnapshot,
     eventCount: raw.eventCount as number,
     history,
   };
