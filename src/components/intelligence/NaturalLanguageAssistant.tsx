@@ -4,7 +4,7 @@ import type { NaturalLanguageInvoiceMatch } from "@/lib/intelligence/natural-lan
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;}
 const quantity=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 function statusLabel(status:NaturalLanguageInvoiceMatch["matchStatus"]):string {
- if(status==="matched")return "مطابقة ثلاثية";
+ if(status==="matched")return "مطابقة سعرية ثلاثية";
  if(status==="variance_pending")return "فرق سعر بانتظار المراجعة";
  if(status==="variance_approved")return "فرق سعر معتمد";
  return "فرق سعر مرفوض";
@@ -31,7 +31,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice}:NaturalLanguage
     {loading?"جارٍ الاستعلام…":"اسأل"}
    </button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة مدعومة: الفواتير غير المطابقة، والفواتير التي تنتظر مراجعة فرق السعر. لا يُستنتج التأخير الزمني من عمر أمر الشراء.</p>
+  <p className="text-xs text-muted-foreground">هذا المسار يرصد اختلاف سعر الوحدة بين الفاتورة وأمر الشراء والاستلام؛ لا يصنف فرق الضريبة أو النقص الكمي. أمثلة مدعومة: الفواتير ذات فروق السعر، والفواتير التي تنتظر مراجعة فرق السعر. لا يُستنتج التأخير الزمني من عمر أمر الشراء.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}
   </div>:null}

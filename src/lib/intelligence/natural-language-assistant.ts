@@ -40,7 +40,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  if(hasInvoice&&hasSupplier&&hasMismatch) return {
   status:"READY",intent:"SUPPLIER_INVOICES_UNMATCHED",normalizedQuestion,
   sourceRpc:"fetch_purchase_supplier_invoice_workspace",
-  filterDescription:"match_status != matched؛ يشمل فرق السعر المعلّق والمعتمد والمرفوض."
+  filterDescription:"match_status != matched؛ سجلات فرق سعر الوحدة بين الفاتورة وتكلفة أمر الشراء والاستلام، بما فيها الفروق المعلّقة والمعتمدة والمرفوضة. هذا لا يصنّف فرق الضريبة أو النقص الكمي."
  };
  if(hasInvoice&&hasSupplier&&hasMatched&&!/(غير|لم|لا|عدم)/.test(normalizedQuestion)) return {
   status:"READY",intent:"SUPPLIER_INVOICES_MATCHED",normalizedQuestion,
@@ -98,16 +98,16 @@ export function resolveSupplierInvoiceIntent(
  const completePopulation=!metadata.hasMore&&records.length===metadata.invoiceCount;
  const state=invoices.length===0?(completePopulation?"EMPTY":"PARTIAL"):(completePopulation?"READY":"PARTIAL");
  const labels:Record<NaturalLanguageIntent,string>={
-  SUPPLIER_INVOICES_UNMATCHED:"غير المطابقة",
+  SUPPLIER_INVOICES_UNMATCHED:"ذات فروق سعر",
   SUPPLIER_INVOICES_PRICE_REVIEW:"التي تنتظر مراجعة فرق السعر",
   SUPPLIER_INVOICES_MATCHED:"المطابقة",
  };
  const answer=state==="EMPTY"
-  ?"لم توجد فواتير موردين بهذه الحالة ضمن كامل السجلات التي أعادها المصدر."
+  ?"لم توجد فواتير موردين بهذه الحالة ضمن كامل السجلات التي أعادها المصدر. المقصود هنا حالة فرق سعر الوحدة في المطابقة الثلاثية."
   :state==="PARTIAL"
    ?"عُثر على "+invoices.length+" فاتورة "+labels[intent]+" ضمن أحدث "+records.length+
     " فاتورة مفحوصة؛ إجمالي السجلات "+metadata.invoiceCount+". النتيجة جزئية ولا تثبت عدم وجود نتائج أقدم."
-   :"عُثر على "+invoices.length+" فاتورة "+labels[intent]+" من أصل "+metadata.invoiceCount+" فاتورة في المصدر.";
+   :"عُثر على "+invoices.length+" فاتورة "+labels[intent]+" من أصل "+metadata.invoiceCount+" فاتورة في المصدر. المقصود فروق سعر الوحدة بين الفاتورة وتكلفة أمر الشراء والاستلام.";
  return {
   state,intent,answer,sourceRpc:"fetch_purchase_supplier_invoice_workspace",asOfDate:metadata.asOfDate,
   totalInvoiceCount:metadata.invoiceCount,inspectedInvoiceCount:records.length,
