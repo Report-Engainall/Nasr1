@@ -1,30 +1,32 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-05
 
 - Repository: `Report-Engainall/Nasr1`; source branch: `main` only.
-- Latest implemented P1 product-code commit: `f0ddf06a0ae713b4031518b4bd28c0029c3b2c83` (BODY-COMPLETION-ON-MAIN-020; A4 voucher CSS is latest product-code commit).
-- **Only two implementation roles are active: P1 and P3.** P1 (this execution) owns product UI/workspaces, route navigation, typed client/UI integration, operational document projection, print and XLSX. P3 owns intelligent engines, evidence lineage, tenant-scoped intelligence persistence, snapshot capture/correction and source read DTOs. No new P2 implementer/task is to be created or assigned. This override supersedes historical P1/P2/P3 ownership text below wherever it conflicts.
-- P1 completed supplier invoice accounting and its A4/XLSX voucher; BODY-019 added supplier account activity A4/PDF + four-sheet XLSX; BODY-020 added a source-bound Arabic A4/PDF supplier payment voucher from saved payment header and actual linked journal state. P1 also mounted BusinessHealthMap and GrowthOpportunityRadar and connected GrowthOpportunityRadar source navigation to existing authorized screens.
+- Latest implemented P1 product-code commit: `65ece83ce2b475278b3212959e1edd7e1487951e` (BODY-COMPLETION-ON-MAIN-021; Arabic A4 service-desk report CSS).
+- **Only two implementation roles are active: P1 and P3.** P1 owns product UI/workspaces, routes, typed UI integration, operational document projection, print and XLSX. P3 owns intelligent engines, evidence lineage, tenant-scoped intelligence persistence, snapshot capture/correction and source read DTOs. No P2 implementer/task is to be created or assigned. This override supersedes historical ownership text below wherever it conflicts.
+- P1 completed the supplier invoice accounting handoff and A4/XLSX voucher; BODY-019 added supplier account activity A4/PDF + four-sheet XLSX; BODY-020 added the source-bound supplier payment A4/PDF voucher; BODY-021 added manager/admin customer-service desk SLA reporting in Arabic A4/PDF + three-sheet XLSX, and corrected the checkpoint to recognize the already-implemented customer service portal. P1 also mounted BusinessHealthMap and GrowthOpportunityRadar and connected GrowthOpportunityRadar source navigation to existing authorized screens.
 - P3 delivered the Section 52 decision-memory engine, UI, immutable storage migration, capture/correction RPC and embedded `memorySnapshot` read DTO; P3 owns the next intelligence section after Bolt-side acceptance of Section 52. P1 must not recreate P3 intelligence logic.
-- Supplier invoice capture/three-way match, supplier payment/settlement, source evidence attachments, Business Health Map and Growth Opportunity Radar were existing product capabilities and were reused rather than rebuilt.
-- No tests, build, lint, CI, CodeInspector, browser, E2E, database migration application, Bolt runtime, Preview, Vercel or production operation was run in this product-body phase. No PASS or runtime/production acceptance is claimed. Migrations are source-only until Bolt New sync/apply.
-- No Vercel credits or paid providers were used. GitHub commits are the delivery record; push/email notification receipt is not claimed because it depends on repository watch settings.
+- Supplier invoice capture/three-way match, supplier payment/settlement, source evidence attachments, customer service case management/portal/SLA, Business Health Map and Growth Opportunity Radar are existing product capabilities and are reused rather than rebuilt.
+- No tests, build, lint, CI, CodeInspector, browser, E2E, database migration application, Bolt runtime, Preview, Vercel or production operation was run in this product-body phase. No PASS or runtime/production acceptance is claimed. Migrations remain source-only until Bolt New sync/apply.
+- No Vercel credits or paid providers were used. GitHub commits are the delivery record; notification receipt depends on repository watch settings and is not claimed.
 
-## Current seque## Current sequential product cursor
+## Current sequential product cursor
 
-- `BODY-COMPLETION-ON-MAIN-020` — supplier payment voucher A4 print/PDF — **IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING**.
-- Latest P1 code commit: `f0ddf06a0ae713b4031518b4bd28c0029c3b2c83`; exact feature files/blobs are recorded in `docs/execution/P1_CHECKPOINT.md`.
-- Projection: `src/lib/supplier-payment-voucher-print.ts`; reads saved payment and current supplier workspace DTO, excludes internal IDs, uses posted journal as the settlement boundary, and discloses that allocation details are not returned by the saved payment history model.
-- Print view: `src/components/SupplierPaymentVoucherPrintSheet.tsx`; row action and lifecycle: `src/components/SupplierPaymentWorkspace.tsx`; scoped A4 portrait CSS: `src/styles.css`.
-- Existing supplier payment workflow remains the only payment source and is mounted in `GeneralLedgerWorkspace.tsx`. No parallel payment service, DB write, or migration is added by BODY-020.
-- Historical P1 item `BODY-COMPLETION-ON-MAIN-019` — supplier account activity A4/PDF + four-sheet XLSX — remains implemented on main and recorded in the P1 checkpoint/matrix.
-- P1 next action: continue the next untouched mandatory non-intelligence product requirement. Do not repeat supplier invoice/payment/statement document outputs, existing DLV-011 accepted templates or Customer 360 interaction export.
-- P3 next action: after Bolt applies and accepts Section 52 decision-memory migration/DTO, advance to the next canonical intelligence section. Do not duplicate Sections 50–52.
+- `BODY-COMPLETION-ON-MAIN-021` — customer service desk SLA report A4 print/PDF and three-sheet XLSX — **IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING**.
+- Latest P1 product-code commit: `65ece83ce2b475278b3212959e1edd7e1487951e`; full blobs and feature commits are recorded in `docs/execution/P1_CHECKPOINT.md`.
+- Projection: `src/lib/customer-service-desk-print.ts`; it uses the already-authorized typed keyset queue pages, full-organization open-case metrics, current filters and the remaining-page indicator. No new DB query or write path was added.
+- XLSX: `src/lib/customer-service-desk-xlsx.ts`; three worksheets for scope, organization-wide open-case SLA metrics and currently loaded case rows.
+- Print/PDF: `src/components/CustomerServiceDeskPrintSheet.tsx`; Arabic RTL A4 landscape using the same validated projection.
+- UI: `src/components/CustomerServiceDesk.tsx`; manager/admin-only export controls and scoped print lifecycle. Detail rows include only the pages loaded in this session; `hasMore` is explicitly disclosed. Case descriptions, conversation messages, internal notes, financial fields and UUID/task/profile/tenant IDs are excluded.
+- Customer case portal already exists in `src/components/CustomerServicePortal.tsx`, `src/lib/customer-service-portal.ts` and `src/routes/service-cases.tsx`; the matrix records its current implementation. Do not rebuild portal visibility or a second case model.
+- Historical P1 deliveries: BODY-020 supplier payment voucher A4/PDF; BODY-019 supplier account activity A4/PDF + four-sheet XLSX. Both remain on main and are recorded in the P1 checkpoint/matrix.
+- P1 next action: continue the next untouched mandatory non-intelligence product requirement. Do not redo customer service case management/portal/SLA, supplier invoice/payment/account statement outputs, accepted DLV-011 leaves or P3 intelligence engines.
+- P3 next action: after Bolt applies and accepts the Section 52 decision-memory migration/DTO, advance to the next canonical intelligence section. Do not duplicate Sections 50–52.
 
-boundary
+## Bolt handoff boundary
 
 - Sync `Report-Engainall/Nasr1` from `main` into Bolt New.
-- Bolt New owns DB connection, migration application, environment-specific integration and end-to-end runtime/acceptance. The source repository does not claim that those operations have happened.
-- Preserve one source of truth: official GitHub `main`; no branch/PR workflow for this continuation.
+- Bolt New owns DB connection, migration application, environment-specific integrations and end-to-end runtime acceptance. The source repository does not claim these operations have happened.
+- Preserve one source of truth: official GitHub `main`; no side branch/PR workstream for this continuation.
 
 ---
 
