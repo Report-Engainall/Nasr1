@@ -1,3 +1,12 @@
+## 2026-11-06 — P3 Section 56 Data Reliability & Evidence Passport — REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001
+
+- Parent main SHA 46782db4d69a622553da3ac3efa0b3e78125f6b1; code commit 2da6e8c4f14325961b0d69a0bf5524ba6af40d5c.
+- Changed src/lib/unified-import.ts (blob 9439d825119393b1b93ca5f5db029b35d34db8c3): DQS preview now awards validity points only for status valid, matching PostgreSQL; date scoring now validates calendar dates and matches SQL format/leap-year/whitespace semantics.
+- Changed src/components/intelligence/EvidencePassport.tsx (blob c2e47b2cccff9fcc7617af294bcd512dcb91cb44): per-metric calculation disclosure includes formula/version, times, period, units, quality/completeness, recorded transformations and detailed linked evidence; missing and excluded evidence limits are explicit.
+- Existing EvidencePassport mount in IntelligenceWorkspace is preserved; no P1 workspace file was edited. No server migration or external model added.
+- Source-only; no test/build/lint/typecheck/CI/browser/E2E/database/Bolt/Preview/production checks run. No PASS claimed.
+
+---
 ## 2026-11-06 — P3 Supplier Performance Intelligence — REF-SUPPLIER-PERFORMANCE-INTELLIGENCE-001
 
 - Parent main SHA: 08c8e58c19898be2432869ca069bc7353eda1ef1; P3 feature commit: 31f10763d54a6e0b212185e057f4ef262bd23254; unit-safe correction: e2279f090c30858d129aa666ea236bc1c053a49a; final component contract commit: d8da9100e1bbd8ac2694f4a11658da6613b2d3f8.

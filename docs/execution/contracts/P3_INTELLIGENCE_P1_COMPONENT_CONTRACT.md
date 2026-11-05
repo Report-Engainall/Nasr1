@@ -84,3 +84,11 @@ P1 owns route mounting, tenant-safe request orchestration and interactions. Cons
 - The view shows order/completion/open counts, lead time from submission to last full receipt, median/P90, promised-date adherence only from an awarded quote, pending line counts, sample evidence and withheld reasons. It never adds line quantities across products/UOMs or exposes supplier prices/payables/payments.
 - Mean/median/P90 and on-time percentage must remain hidden for fewer than 3 corresponding observations. No sample means unavailable, not zero. Partial supplier populations remain visibly partial.
 - No fake data, new source workflow, order mutation, quote award, task creation or supplier communication is allowed.
+
+## EvidencePassport — Section 56 calculation explanation
+
+- Existing import remains EvidencePassport from @/components/intelligence; P1 already mounts it in IntelligenceWorkspace. Preserve that single mount.
+- Each metric now exposes an accessible details/summary disclosure titled «كيف حُسب هذا المؤشر؟». No extra prop or page is required.
+- The disclosure shows formula ID/version, calculatedAt/asOf, period, unit/currency, completeness/quality, recorded transformations and included evidence references. Evidence details include source type/name, record ID/version when available, source timestamp/asOf, period, currency, status, completeness, quality and warnings.
+- Missing evidence IDs are called out. Do not state that excluded records are zero/none: the current source DTO does not expose excluded-record IDs or an independent filter field. Show this limitation explicitly.
+- P3 corrected local DQS scoring/date-validation parity inside src/lib/unified-import.ts. The server remains authoritative for finalized import quality and existing publication thresholds; local preview is not a final persisted snapshot.

@@ -143,3 +143,11 @@ Add `fetch_operational_shift_workspace(p_business_date, p_shift_id)` as a financ
 - Open workload is reported as open order count and pending source-line count. Do not sum quantities across products or UOMs. Financial prices, liabilities, payments and balances are excluded. RPC is read-only and has no mutations or external provider.
 - Response is a limited supplier list with explicit total/returned count and complete-population flag; each supplier carries five most recent PO summaries for traceability. Incomplete populations remain explicitly PARTIAL.
 - Migration status: source-only; Bolt/Supabase application and exact-SHA runtime acceptance remain pending.
+
+## REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001 — Section 56 source and metric explanations
+
+- Existing EvidencePassport is already mounted by P1 in IntelligenceWorkspace. This delivery extends that component in place; no second route or dashboard is required.
+- For each metric, the Details/How calculated disclosure shows its formula ID/version, calculation time, metric as-of, period, unit/currency, completeness, quality, recorded transformations and included evidence references. Each linked evidence row shows source kind/name/record ID/version, source timestamp, as-of, period/currency, completeness, quality and warnings.
+- Missing linked evidence IDs are surfaced. The current DTO does not provide excluded-record IDs; the UI explicitly withholds an exclusion list rather than implying that no records were excluded. Filters are disclosed only where supplied as recorded transformations; the DTO does not carry an independent filter object.
+- Local import DQS preview in src/lib/unified-import.ts now matches server validity status (only valid earns validity points) and exact server date rules (calendar-valid ISO/day-first forms, leap-year handling and whitespace-as-missing). Server DQS remains public.calculate_import_job_quality(uuid), with its established five equal quality components and publication labels/thresholds.
+- No server migrations, new data access or external model were added in this Section 56 delivery. Source-only; no runtime acceptance is claimed.

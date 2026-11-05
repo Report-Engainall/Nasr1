@@ -1,3 +1,16 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001
+
+- Repository Report-Engainall/Nasr1; branch main. Code commit: 2da6e8c4f14325961b0d69a0bf5524ba6af40d5c; parent 46782db4d69a622553da3ac3efa0b3e78125f6b1.
+- Reference: canonical merchant intelligence master, Section 56 (Data Reliability & Evidence Explanations); linked Section 12 auditability and Section 64.2 Data Reliability & Evidence Passport.
+- Corrected deterministic local import DQS preview in src/lib/unified-import.ts: validity points are awarded only to status=valid, matching public.calculate_import_job_quality(uuid), not to warning rows. Replaced the syntax-only date regex with calendar-validating parity for public.is_valid_import_quality_date(text), including leap years, day-first separators, year >= 1, and whitespace-as-missing semantics.
+- Expanded the already-mounted EvidencePassport component in src/components/intelligence/EvidencePassport.tsx with a per-metric How calculated accordion: formula ID/version, calculatedAt, asOf, period, unit/currency, completeness and quality; recorded transformations; included evidence references; source type/name/record ID/version/timestamps/period/currency/quality/completeness/warnings; and explicit missing evidence IDs.
+- Explicit limitation: current EvidenceRecord/MetricSnapshot contract does not supply excluded record IDs, source-level inclusion filters beyond recorded transformations, or per-source numeric quality dimensions. UI explicitly says excluded-record list is not available; it does not fabricate one. Import DQS continues to use the existing five equal component scores and server publication thresholds; the local preview now matches the server's validity/date semantics.
+- Changed paths: src/lib/unified-import.ts; src/components/intelligence/EvidencePassport.tsx. Existing IntelligenceWorkspace already mounts EvidencePassport; no P1 workspace file or route was edited.
+- Exact blobs: unified import engine 9439d825119393b1b93ca5f5db029b35d34db8c3; EvidencePassport component c2e47b2cccff9fcc7617af294bcd512dcb91cb44.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. No tests, build, lint, typecheck, CI, browser/E2E, DB, provider, Bolt, Preview or production checks were run. No PASS claim. This is source delivery only.
+- Next: continue Section 57 only after preserving the current EvidencePassport contracts; a complete natural-language assistant must use allow-listed query plans and existing read RPCs, not client SQL or free-form execution.
+
+---
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SUPPLIER-PERFORMANCE-INTELLIGENCE-001
 
 - Repository: Report-Engainall/Nasr1; branch main.
