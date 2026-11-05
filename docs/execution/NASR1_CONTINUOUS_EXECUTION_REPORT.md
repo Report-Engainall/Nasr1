@@ -841,3 +841,17 @@ Keep migration versions unique and preserve dependency order:
 - **Inventory artifact:** [12948614805](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12948614805/zip) — 330 runtime public functions, 330/330 source matched, 0 unmatched, 174 migrations; structural map only.
 - **Proof boundary:** hosted customer/order/tenant Playwright is `SKIPPED`; local Supabase/Chromium is not hosted or production proof. DLV-007/008/011/015 remain PARTIAL; no production DB used.
 - **Sole next task:** `DLV-007-REORDER-POINT-STAFF-DENIAL-001` — unauthorized ordinary staff attempt to change reorder point must return `42501` and leave inventory balance, purchasing AI task and audit history unchanged. P2 file owner: `scripts/test-database-migrations.mjs`.
+
+
+## PRODUCT BUILD — 2026-11-05 — Customer service SLA, manager assignment and escalation
+
+- Repository/branch: \`Report-Engainall/Nasr1\` / \`main\`.
+- Product-code SHA: \`fe1d3961e6ab5db8073d3d578deba4617c5ae0b4\`.
+- Acceptance matrix leaf: \`DLV-010-CUSTOMER-SERVICE-CASE-SLA-001\`; matrix commit \`c57bf623cab0c99223c84393b4b36562ead19695\`.
+- Added \`supabase/migrations/20261105200000_customer_service_case_sla.sql\`: tenant-configurable first-response/resolution SLA by priority; default SLA targets; deadline snapshot/backfill for existing cases; linked case-task resolution deadline synchronization with persistent manager override; first-response timestamp; append-only assignment/SLA/escalation events; manager-only case assignment, rescheduling and reasoned escalation; assignee and manager in-app notifications.
+- Added typed client functions in \`src/lib/customer-service-cases.ts\` for SLA settings, operational case metadata and manager operations.
+- Expanded \`src/components/CustomerServiceCases.tsx\` with deadline/overdue visibility, manager assignment, SLA rescheduling, escalation and priority policy editor; added responsive styles in \`src/styles.css\`.
+- Commits: migration \`e22c97d46d32a4ec258680826f45304cbfd1d3e7\`; API \`e61bc5d02746f02dcbeb0d6e9d84820ee991e086\`; UI \`6617b74342824431e0e8ba5bdca9095d70c62cce\`; CSS \`0c3a518f66ed7a4ad5c052a78f9da3d22b0e448e\`; migration backfill/overdue escalation correction \`79ab62f47bd41fe3ceecf641a790e4a11e0cccc1\`; local datetime second-precision correction \`fe1d3961e6ab5db8073d3d578deba4617c5ae0b4\`.
+- The SLA migration is source-only and has not been applied to any database. No build, test, lint, scan, CI, browser or Bolt runtime verification was performed in this batch, per owner instruction. Status remains \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`; Bolt New is the planned migration synchronization/runtime acceptance environment.
+- No Vercel operation or free-credit use occurred. No paid dependency was added. GitHub commits are the delivery record; push-notification delivery is subject to the repository watch settings.
+- Next action: \`BODY-COMPLETION-ON-MAIN-010\` — organization-wide customer service desk using the canonical case/task records, with role-appropriate queue, status/priority/assignee/SLA filters, due/overdue workload summaries and linked Task Center navigation.
