@@ -1,7 +1,64 @@
-# P1 LIVE REQUEST — 2026-11-05 — SUPPLIER PAYMENT / SETTLEMENT UI MOUNT
+# P1 LIVE REQUEST — 2026-11-05 — SUPPLIER FINANCE / PROCUREMENT UI MOUNT
+
+- Repository: Report-Engainall/Nasr1; current backend main SHA: da9d6495ef36a4f37ca91ce21153e0b6c7b9bcf5.
+- P1 owns presentation components, page composition and route mounts. P2 owns the two SQL migrations and the typed service files below. Do not edit P2 or P3-owned paths.
+- This request consolidates the already delivered payment settlement and supplier invoice bodies. Do not repeat service work.
+
+## A) Supplier payment settlement
+
+Use src/lib/supplier-payments.ts:
+- fetchSupplierPaymentWorkspace({supplierId,currency,limit,offset})
+- registerSupplierSettlementAccount({accountingAccountId,kind,currency,displayName})
+- recordSupplierPayment({supplierId,paymentDate,amount,currency,method,settlementAccountMappingId,paymentReference,allocations,idempotencyKey})
+- reconcileSupplierPayment({paymentId,action,evidenceType,evidenceReference,observedAmount,currency,reason,idempotencyKey})
+- prepareSupplierPaymentJournalDraft({paymentId,idempotencyKey})
+- voidSupplierPayment({paymentId,reason})
+
+UI constraints:
+- Map an existing active same-tenant cash/bank asset account per currency. This is configuration, not a live bank connection.
+- Allocate only to posted source receipts for one supplier/currency; show source cost, posted credit notes, reserved, posted payment and available-to-allocate separately.
+- Recorded payment reserves but does not reduce payable. Require a different authorized finance actor for exact matching evidence before draft handoff.
+- Reconciliation evidence: cash_voucher, bank_statement_line or cheque_clearance as appropriate. Latest exception blocks the handoff.
+- Journal API creates DRAFT only. Link back to the single General Ledger queue; never auto-post.
+- Only verified posted balanced non-reversed journals count as paid. Hide final remaining balance unless server says balanceComplete=true; never mix currencies.
+- Read back server state after each mutation before showing success.
+
+## B) Supplier invoice capture / three-way matching
+
+Use src/lib/supplier-invoices.ts:
+- fetchSupplierInvoiceWorkspace({purchaseOrderId,limit,offset})
+- recordSupplierInvoice({purchaseOrderId,invoiceNumber,invoiceDate,merchandiseSubtotal,taxAmount,invoiceTotalAmount,lines,idempotencyKey})
+- reviewSupplierInvoiceVariance({invoiceId,approve,reason})
+
+UI constraints:
+- Select only a submitted / partially received / received canonical PO with physical receipt lines. Show supplier and organization currency derived by server.
+- Capture supplier invoice number/date, merchandise subtotal, explicit tax amount and invoice total; header total must equal subtotal + tax. No inferred tax rate, freight, discount, withholding or FX.
+- Add only real receipt lines by receiptItemId. Show source received quantity, already invoiced, remaining-to-invoice, PO unit price, receipt unit price and supplier invoice unit price/line total.
+- No over-invoicing, duplicate line ids, cross-PO receipt line, or currency mixing. Show exact three-way price match versus variance_pending.
+- A price variance requires an independent second finance user with reason; show approved/rejected history. Do not let creator review their own invoice.
+- Non-zero tax remains tax_accounting_status=pending. Do not post tax or create another payable from the invoice: existing PO receipt accounting remains the payable source.
+- Refresh/read back invoice and receipt-line availability after mutations. Do not display success based only on request completion.
+
+## Ownership and delivery
+
+- P1 may add a supplier invoice workspace component and supplier payment workspace component, mounting them in existing purchasing/supplier and General Ledger navigation as appropriate.
+- Do not touch: supabase/**, src/lib/supplier-payments.ts, src/lib/supplier-account-activity.ts, src/lib/supplier-invoices.ts, scripts/**, P3 intelligence modules, or shared governance files.
+- UI should show database-contract unavailable until these migrations are applied. These source commits have not been applied to any database.
+- No Vercel preview/deployment/credit use. Do not run broad test or scan loops during this body batch. Preserve any other in-flight P1 file ownership and split components rather than editing the same component concurrently.
+
+Exact backend files:
+- supabase/migrations/20261105235000_supplier_payment_settlement.sql
+- supabase/migrations/20261105240000_supplier_invoice_three_way_matching.sql
+- src/lib/supplier-payments.ts
+- src/lib/supplier-account-activity.ts
+- src/lib/supplier-invoices.ts
+
+---
+
+# HISTORICAL P1 REQUEST — SUPPLIER PAYMENT / SETTLEMENT UI MOUNT
 
 - Repository: Report-Engainall/Nasr1; branch: main.
-- Backend contract is on main SHA 3e195869f22626af7419a4d479a94503d4159d16.
+- Backend contract is on main SHA 6ca6f9700b797eb120dec6bfe6f8fc278d010858.
 - P1 owns all presentation files. P2 owns the migration and typed service paths below. Do not edit P2 paths or P3 intelligence paths.
 
 ## Mount the delivered server workflows — do not recreate them

@@ -1,7 +1,48 @@
-# LIVE EXECUTION CHECKPOINT — 2026-11-05 — BODY-COMPLETION-ON-MAIN-017 — SUPPLIER PAYMENT SETTLEMENT
+# LIVE EXECUTION CHECKPOINT — 2026-11-05 — BODY-COMPLETION-ON-MAIN-018 — SUPPLIER INVOICE THREE-WAY MATCH
 
 - Repository: Report-Engainall/Nasr1; branch: main only.
-- Base SHA: 16fdfc348f37d4b9db844339048bf308642d0d61; current code SHA: 3e195869f22626af7419a4d479a94503d4159d16.
+- Base code SHA: 6ca6f9700b797eb120dec6bfe6f8fc278d010858; current code SHA: da9d6495ef36a4f37ca91ce21153e0b6c7b9bcf5.
+- Sequential work completed: BODY-COMPLETION-ON-MAIN-017 supplier payment settlement, then BODY-COMPLETION-ON-MAIN-018 source-backed supplier invoice capture and three-way match.
+- Ownership: P2 owns the migration and typed service paths below. P1 owns new finance/procurement UI components and their route mounts. P3 remains owner of intelligence modules and release/governance integration. No P1 component or P3 intelligence file was changed in this delivery.
+
+## Product functionality delivered
+
+### Supplier invoice document and three-way matching
+- Added supabase/migrations/20261105240000_supplier_invoice_three_way_matching.sql and src/lib/supplier-invoices.ts.
+- The invoice is a separate immutable supplier document tied to one same-tenant canonical purchase order and its actual physical receipt lines. It is not a second payable ledger or a duplicate purchase order/receipt.
+- Header capture requires the real supplier invoice number, invoice date, explicit merchandise subtotal, explicit tax amount and invoice total; server derives supplier identity and currency from the saved PO / organization.
+- The server requires the invoice merchandise subtotal to equal the exact sum of line values; invoice total must equal merchandise subtotal + explicitly supplied tax. No tax rate, withholding, freight, discount or FX value is inferred.
+- Each line references an actual receipt_item_id from the same purchase order; it checks received quantity, prior non-rejected invoice quantities, the PO ordered unit cost, physical receipt unit cost and supplier-invoiced unit cost. Source cost gaps block matching rather than become zero.
+- Duplicate invoice number is rejected per supplier (case-insensitive); idempotency key is payload-bound and replay-safe. PO-scoped advisory locking serializes quantity reservations to prevent concurrent over-invoicing.
+- Exact three-way matches are accepted as matched. Price discrepancies are placed in variance_pending. Only a different finance actor can approve or reject the variance with a reason; source, line and review history are immutable/append-only.
+- Actual tax is retained as invoice evidence. If tax is non-zero its tax_accounting_status is pending; no tax-account mapping, tax journal or payable adjustment is invented. The PO receipt accounting remains the existing payable source, preventing a duplicate payable journal.
+- Workspace RPC returns eligible submitted/partially_received/received POs with physical receipts, receivable quantities, actual source costs, invoices, line comparisons and review history with bounded pagination.
+
+## Delivery records
+
+- Base before BODY018: 6ca6f9700b797eb120dec6bfe6f8fc278d010858.
+- BODY018 code commit: da9d6495ef36a4f37ca91ce21153e0b6c7b9bcf5.
+- Migration blob: b5c78a5b8c5fe77ec9115641146be87a8fffb773.
+- Typed client blob: 0cfe8b0b87774697755421f7695b8a5d6ae44529.
+- Prior BODY017 payment source final code: 6ca6f9700b797eb120dec6bfe6f8fc278d010858; final payment migration blob 44c15006822acc4367cce1cde504bfc13f95fe8f; typed client src/lib/supplier-payments.ts; statement extension src/lib/supplier-account-activity.ts.
+- Acceptance row: DLV-007-SUPPLIER-INVOICE-THREE-WAY-MATCH-001, IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- P1 handoff is at the top of docs/execution/P1_CHECKPOINT.md and requests mounting both payment and invoice service contracts without modifying P2 paths.
+- No tests/build/lint/typecheck/CI/browser/E2E/database migration application/Bolt Preview/hosted or production verification was run in this product-body batch. No PASS is claimed. Migration is source-only and unapplied.
+- No Vercel build/preview/deployment, no Vercel credit, no paid service/provider/dependency, no production mutation or live integration. GitHub main commit notifications remain subject to repository watch settings; no delivery receipt is claimed.
+
+## Next action
+
+- NEXT_ACTION_ID: P1-SUPPLIER-FINANCE-UI-MOUNT-001.
+- P1: mount the supplier payment and invoice service contracts into the existing supplier/General Ledger/purchasing experience, preserving loading/empty/error/retry/unauthorized/unavailable states. Do not recreate server workflows or edit P2-owned paths.
+- P2 next backend body after the UI mount begins: complete invoice evidence attachment and controlled tax/price-variance accounting only after explicit same-tenant storage and chart-of-account contracts are established. No tax inference or duplicate payable.
+- Keep current product-body priority; do not start another broad scan or test loop.
+
+---
+
+# HISTORICAL CHECKPOINT — 2026-11-05 — BODY-COMPLETION-ON-MAIN-017 — SUPPLIER PAYMENT SETTLEMENT
+
+- Repository: Report-Engainall/Nasr1; branch: main only.
+- Base SHA: 16fdfc348f37d4b9db844339048bf308642d0d61; current code SHA: 6ca6f9700b797eb120dec6bfe6f8fc278d010858.
 - Owner: P2 — finance source / database RPC / typed client. P1 owns visible UI. P3 retains intelligence paths and release-governance integration.
 - Completed action: BODY-COMPLETION-ON-MAIN-017. No P1 component, route, stylesheet, P3 intelligence module, test, workflow or Vercel path was changed.
 - Product paths:
@@ -23,8 +64,8 @@
 
 ## Delivery records and handoff
 
-- Migration initial delivery: 10e88e7ae54054fe8a77fd1696a35deeed474dde; maker-checker/order correction and typed client final delivery: 722ff732895f460073d8dd4f357ee19addd5de3e, 3e195869f22626af7419a4d479a94503d4159d16.
-- Final migration blob after replay-order correction: 6e514c062226dd45c2baf2b9157bb6ff2a4a8d69; typed-client blob: 422bd4e245174e446fcb3dec9b127ec1f189615b; supplier-statement parser blob: 0d4ace3af1f95bb2f727b69e1eead94e5430b177.
+- Migration initial delivery: 10e88e7ae54054fe8a77fd1696a35deeed474dde; maker-checker/order correction and typed client final delivery: 722ff732895f460073d8dd4f357ee19addd5de3e, 6ca6f9700b797eb120dec6bfe6f8fc278d010858.
+- Final migration blob after replay-order correction: 44c15006822acc4367cce1cde504bfc13f95fe8f; typed-client blob: 422bd4e245174e446fcb3dec9b127ec1f189615b; supplier-statement parser blob: 0d4ace3af1f95bb2f727b69e1eead94e5430b177.
 - Acceptance row: DLV-008-SUPPLIER-PAYMENT-SETTLEMENT-001, IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
 - P1 request: mount the src/lib/supplier-payments.ts contracts in the existing General Ledger / supplier finance experience; see the new entry at the top of docs/execution/P1_CHECKPOINT.md. P1 must not recreate payment RPCs or edit P2 paths.
 - Verification boundary: no test, build, lint, typecheck, CI, browser/E2E, DB migration application, Bolt Preview, hosted/production DB change or release proof was run. Source implementation is not runtime acceptance. Migration remains unapplied.

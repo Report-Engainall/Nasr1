@@ -1816,3 +1816,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - The reconciliation command now resolves same-key/same-payload replays before checking whether the source has already advanced to journal handoff, so a lost response can be safely retried after handoff. New reconciliation events remain blocked after handoff.
 - Change path: supabase/migrations/20261105235000_supplier_payment_settlement.sql. Source only; no migration application or tests run.
 
+
+
+## 2026-11-05 — BODY-COMPLETION-ON-MAIN-018 — Supplier invoice three-way matching
+
+- Base SHA: 6ca6f9700b797eb120dec6bfe6f8fc278d010858; implementation commit: da9d6495ef36a4f37ca91ce21153e0b6c7b9bcf5.
+- New paths: supabase/migrations/20261105240000_supplier_invoice_three_way_matching.sql (blob b5c78a5b8c5fe77ec9115641146be87a8fffb773) and src/lib/supplier-invoices.ts (blob 0cfe8b0b87774697755421f7695b8a5d6ae44529).
+- Captures immutable invoice header and receipt-linked lines; exact source cost/quantity comparison; same-tenant PO/receipt linkage; case-insensitive duplicate invoice number; idempotent replay; PO-scoped concurrent quantity reservation; source-cost fail-closed; independent finance variance approval/rejection with reason and append-only history.
+- Tax is explicit invoice evidence and remains pending when nonzero. No inferred tax/FX, auto-post or duplicate payable journal; existing receipt accounting stays the payable source.
+- P1 handoff consolidates supplier payment and invoice UI contracts at top of docs/execution/P1_CHECKPOINT.md. P2 owns only migration/service paths.
+- No tests/build/lint/typecheck/CI/browser/E2E/database apply/Bolt Preview/hosted/production verification run. Status source-only, IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. No PASS. No Vercel credit or paid dependencies.
+- Next: P1 UI mount. P2 may later add source document attachment and controlled tax/variance accounting only after existing storage and chart-account contracts are explicitly established.
+
