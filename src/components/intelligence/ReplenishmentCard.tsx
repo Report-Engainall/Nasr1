@@ -1,6 +1,5 @@
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth";
 import { ReplenishmentPurchaseDraft } from "./ReplenishmentPurchaseDraft";
 import { EvidenceReferences, EvidenceStatusLabel, EvidenceWarnings, formatEvidenceNumber, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 
@@ -8,11 +7,10 @@ export interface ReplenishmentCardProps {
   recommendations?: ReplenishmentRecommendation[] | null;
   state?: IntelligenceViewState;
   onRetry?: () => void;
+  canManagePurchases?: boolean;
 }
 
-export function ReplenishmentCard({ recommendations, state = "ready", onRetry }: ReplenishmentCardProps) {
-  const { user } = useAuth();
-  const canManagePurchases = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
+export function ReplenishmentCard({ recommendations, state = "ready", onRetry, canManagePurchases = false }: ReplenishmentCardProps) {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
   const [draftOpen, setDraftOpen] = useState(false);
   const selectableRecommendations = (recommendations ?? []).filter((item) =>
