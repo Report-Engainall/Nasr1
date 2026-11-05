@@ -73,6 +73,12 @@ function shiftUtcDay(day: string, offset: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function isUtcDay(value: string): boolean {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const date = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function previousMatchingPeriod(from: string, to: string): { from: string; to: string } | null {
   const start = Date.parse(from + "T00:00:00.000Z");
   const end = Date.parse(to + "T00:00:00.000Z");
@@ -487,9 +493,7 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
       return;
     }
     const baseline = processCompare ? previousMatchingPeriod(processFrom, processTo) : null;
-    const validDay = (value: string) => /^\\d{4}-\\d{2}-\\d{2}$/.test(value)
-      && new Date(value + "T00:00:00.000Z").toISOString().slice(0, 10) === value;
-    if (!validDay(processFrom) || !validDay(processTo) || processFrom > processTo || (processCompare && !baseline)) {
+    if (!isUtcDay(processFrom) || !isUtcDay(processTo) || processFrom > processTo || (processCompare && !baseline)) {
       setProcessResponse({ ok: false, status: "ERROR", message: "حدد فترة UTC صحيحة؛ يجب أن يكون تاريخ البداية قبل تاريخ النهاية." });
       setProcessLoading(false);
       return;
@@ -683,7 +687,9 @@ export function IntelligenceWorkspace({ onOpenRecord }: {
     : processResponse?.status === "UNAVAILABLE" ? "unavailable"
     : "error";
   const openShiftItems = shiftWorkspace?.result.items.filter((item) => item.state !== "RESOLVED") ?? [];
-  const handoverRefs = [...new Set(openShiftItems.map((item) => item.sourceRef))];
+  const handoverRefs = [...new Set(openShiftItems
+    .map((item) => item.sourceRef)
+    .filter((ref) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref)))];
   const cashCountAlreadyExists = Boolean(shiftWorkspace?.result.cashControls.some((control) =>
     control.currency === shiftCashCurrency.trim().toUpperCase() &&
     (shiftCashPhase === "OPENING" ? control.opening.counted : control.closing.counted) !== null
