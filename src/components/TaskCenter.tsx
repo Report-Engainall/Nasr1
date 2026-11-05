@@ -755,7 +755,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
           {task.status==='pending'&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'in_progress')}><Play size={15}/> استلام</button>}
           {task.status==='in_progress'&&<button type="button" className="btn primary" disabled={busy} onClick={() => void performStatus(task,'completed')}><CheckCircle2 size={15}/> إنجاز</button>}
           {task.status==='pending'&&<button type="button" className="btn primary" disabled={busy} onClick={() => void performStatus(task,'completed')}><CheckCircle2 size={15}/> إنجاز مباشر</button>}
-          {canManage&&task.status==='completed'&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'pending')}><RefreshCw size={15}/> إعادة فتح</button>}
+          {canManage&&['completed','cancelled'].includes(task.status)&&<button type="button" className="btn secondary" disabled={busy} onClick={() => void performStatus(task,'pending')}><RefreshCw size={15}/> إعادة فتح</button>}
         </div>
       </article>;
     })}</div>}
