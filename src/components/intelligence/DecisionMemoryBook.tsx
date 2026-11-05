@@ -35,6 +35,7 @@ function DecisionMemoryCard({record}:{record:DecisionMemoryRecord}){
         {record.facts.map(fact=><div key={fact.id} className="mt-2 text-sm"><p>{fact.text}</p><p className="text-xs text-muted-foreground">الدليل: <EvidenceReferences ids={fact.evidenceIds}/></p></div>)}</section>:null}
       {record.opinions.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">آراء مسجلة ({record.opinions.length})</h4>{record.opinions.map(item=><p key={item.id} className="mt-2 text-sm">{item.text}</p>)}</section>:null}
       {record.hypotheses.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">فرضيات قيد التحقق ({record.hypotheses.length})</h4>{record.hypotheses.map(item=><p key={item.id} className="mt-2 text-sm">{item.text}</p>)}</section>:null}
+    {record.assumptions.length?<section className="rounded-lg border p-3"><h4 className="text-sm font-semibold">افتراضات معلنة — ليست وقائع مثبتة ({record.assumptions.length})</h4>{record.assumptions.map((item,index)=><p key={index} className="mt-2 text-sm">{item}</p>)}</section>:null}
     </div>
     {record.withheldFacts?<p className="text-xs text-amber-700">حُجبت {record.withheldFacts} واقعة لغياب دليل مكتمل أو صالح.</p>:null}
     {record.alternatives.length?<section className="space-y-1"><h4 className="text-sm font-semibold">البدائل المسجلة</h4><ul className="list-disc space-y-1 ps-5 text-sm">
