@@ -59,8 +59,28 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   assert.ok(!listed.some((s) => s.session_id === expiredSession), "sessions past not_after are not shown as active");
   assert.equal(Object.keys(listed.find((s) => s.session_id === targetSession) ?? {}).some((k) => /token|secret|password/i.test(k)), false,
     "session results never expose access/refresh tokens or secrets");
-  await expectFailure("session inventory has a bounded page size",
-    () => db.unsafe("select public.list_organization_sessions(201)"), /limit|between/i);
+
+  // The UI requests 201 to display 200 plus a sentinel. Continue after the
+  // second visible row so the sentinel is returned again as the first next-page row.
+  const firstPage = (await db.unsafe(
+    "select public.list_organization_sessions(3) as sessions",
+  ))[0].sessions;
+  assert.equal(firstPage.length, 3, "a bounded session page returns the requested number when rows remain");
+  const cursorRow = firstPage[1];
+  const nextPage = (await db.unsafe(
+    "select public.list_organization_sessions(3,$1::timestamptz,$2::timestamptz,$3::uuid) as sessions",
+    [cursorRow.last_activity_at,cursorRow.created_at,cursorRow.session_id],
+  ))[0].sessions;
+  assert.ok(nextPage.some((s) => s.session_id === firstPage[2].session_id),
+    "the sentinel row becomes the first row after the displayed-page cursor");
+  assert.ok(!nextPage.some((s) => s.session_id === firstPage[0].session_id || s.session_id === firstPage[1].session_id),
+    "keyset continuation does not repeat the visible page");
+  const pagedIds = [...firstPage.slice(0,2), ...nextPage].map((s) => s.session_id);
+  assert.deepEqual(pagedIds, listed.map((s) => s.session_id),
+    "concatenated keyset pages reproduce the complete stable organization session ordering");
+
+  await expectFailure("session page size remains bounded",
+    () => db.unsafe("select public.list_organization_sessions(202)"), /limit|between/i);
 
   await db.unsafe("reset role");
   const listAudit = await db.unsafe(
