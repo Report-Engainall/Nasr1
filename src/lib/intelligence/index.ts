@@ -21,3 +21,4 @@ export * from "./shift-operations";
 export * from "./shift-operations-client";
 export * from "./process-bottlenecks";
 export * from "./process-bottlenecks-client";
+export * from "./commerce-policy-governance-client";
