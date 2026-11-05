@@ -5,7 +5,10 @@ import {
   fetchSupplierInvoiceWorkspace,
   recordSupplierInvoice,
   reviewSupplierInvoiceVariance,
+  fetchSupplierInvoiceAccountingStatus,
+  prepareSupplierInvoiceAccountingDraft,
   fetchSupplierInvoiceEvidence,
+  type SupplierInvoiceAccountingStatus,
   uploadSupplierInvoiceEvidence,
   createSupplierInvoiceEvidenceSignedUrl,
   type SupplierInvoiceEvidence,
@@ -17,6 +20,8 @@ import {
 type WorkspaceMode = "capture" | "review";
 type InvoiceLineDraft = { quantity: string; unitCost: string; lineTotal: string };
 type InvoiceKey = { fingerprint: string; key: string };
+type AccountingKey = { fingerprint: string; key: string };
+type AccountingLedgerAccount = { id: string; code: string; name: string; account_type: string; is_active: boolean };
 
 const emptyLine = (): InvoiceLineDraft => ({ quantity: "", unitCost: "", lineTotal: "" });
 const fieldStyle: React.CSSProperties = {
@@ -80,7 +85,11 @@ function unavailableMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "تعذر تحميل مساحة فواتير الموردين.";
 }
 
-export function SupplierInvoiceWorkspace({ mode }: { mode: WorkspaceMode }) {
+export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
+  mode: WorkspaceMode;
+  accounts?: AccountingLedgerAccount[];
+  onRefresh?: () => Promise<void>;
+}) {
   const { user } = useAuth();
   const canUseFinance = Boolean(user?.roles.some((role) =>
     role === "admin" || role === "manager" || role === "accountant"
@@ -104,6 +113,13 @@ export function SupplierInvoiceWorkspace({ mode }: { mode: WorkspaceMode }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const submissionKey = useRef<InvoiceKey | null>(null);
+  const accountingKey = useRef<AccountingKey | null>(null);
+  const [accountingStatus, setAccountingStatus] = useState<SupplierInvoiceAccountingStatus | null>(null);
+  const [accountingLoading, setAccountingLoading] = useState(false);
+  const [accountingBusy, setAccountingBusy] = useState(false);
+  const [accountingError, setAccountingError] = useState("");
+  const [taxAccountId, setTaxAccountId] = useState("");
+  const [varianceAccountId, setVarianceAccountId] = useState("");
   const [evidenceRows, setEvidenceRows] = useState<SupplierInvoiceEvidence[]>([]);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState(false);
@@ -202,6 +218,33 @@ export function SupplierInvoiceWorkspace({ mode }: { mode: WorkspaceMode }) {
   useEffect(() => {
     if (isCapture && purchaseOrderId) void load(0, purchaseOrderId);
   }, [isCapture, purchaseOrderId, load]);
+
+  useEffect(() => {
+    let active = true;
+    if (mode !== "review" || !canUseFinance || !selectedInvoiceId) {
+      setAccountingStatus(null);
+      setAccountingError("");
+      setAccountingLoading(false);
+      return () => { active = false; };
+    }
+    setAccountingLoading(true);
+    setAccountingError("");
+    void fetchSupplierInvoiceAccountingStatus(selectedInvoiceId)
+      .then((result) => {
+        if (!active) return;
+        setAccountingStatus(result);
+        setTaxAccountId(result.taxAccountId ?? "");
+        setVarianceAccountId(result.merchandiseVarianceAccountId ?? "");
+        if (result.accountingStatus === "journal_void") accountingKey.current = null;
+      })
+      .catch((cause) => {
+        if (active) setAccountingError(unavailableMessage(cause));
+      })
+      .finally(() => {
+        if (active) setAccountingLoading(false);
+      });
+    return () => { active = false; };
+  }, [mode, canUseFinance, selectedInvoiceId]);
 
   const selectedOrder = useMemo(
     () => orderOptions.find((order) => order.id === purchaseOrderId) ?? null,
@@ -360,6 +403,71 @@ export function SupplierInvoiceWorkspace({ mode }: { mode: WorkspaceMode }) {
       setError(cause instanceof Error ? cause.message : "تعذر تسجيل قرار مراجعة الفاتورة.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function prepareAccountingHandoff() {
+    if (!selectedInvoice || !accountingStatus || accountingBusy || mode !== "review") return;
+    if (selectedInvoice.createdByProfileId === user?.profileId) {
+      setAccountingError("منشئ الفاتورة لا ينفذ تسويتها المحاسبية؛ يلزم مستخدم مالي مستقل.");
+      return;
+    }
+    if (selectedInvoice.matchStatus !== "matched" && selectedInvoice.matchStatus !== "variance_approved") {
+      setAccountingError("يجب اكتمال المطابقة أو اعتماد فرق السعر من مراجع مستقل أولاً.");
+      return;
+    }
+    if (accountingStatus.currency !== "YER") {
+      setAccountingError("تسوية فواتير الموردين المحاسبية متاحة حاليًا للريال اليمني فقط؛ لا توجد سياسة تحويل عملات معتمدة لهذا المسار.");
+      return;
+    }
+    const hasTax = Number(accountingStatus.taxAmount) > 0;
+    const hasVariance = Number(accountingStatus.merchandiseVarianceAmount) !== 0;
+    if (hasTax && !taxAccountId) {
+      setAccountingError("اختر حساب الضريبة صراحةً وفق سياسة المؤسسة قبل إنشاء قيد التسوية.");
+      return;
+    }
+    if (hasVariance && !varianceAccountId) {
+      setAccountingError("اختر حساب المصروف المخصص لفرق تكلفة الفاتورة عن تكلفة الاستلام.");
+      return;
+    }
+    if (!globalThis.crypto?.randomUUID) {
+      setAccountingError("المتصفح لا يدعم مفتاح منع التكرار الآمن؛ لم يتم إرسال التسوية.");
+      return;
+    }
+    const payload = {
+      invoiceId: selectedInvoice.id,
+      taxAccountId: hasTax ? taxAccountId : null,
+      merchandiseVarianceAccountId: hasVariance ? varianceAccountId : null,
+    };
+    const fingerprint = JSON.stringify(payload);
+    const idempotencyKey = accountingKey.current?.fingerprint === fingerprint
+      ? accountingKey.current.key
+      : globalThis.crypto.randomUUID();
+    accountingKey.current = { fingerprint, key: idempotencyKey };
+    setAccountingBusy(true);
+    setAccountingError("");
+    setError("");
+    setNotice("");
+    try {
+      const result = await prepareSupplierInvoiceAccountingDraft({ ...payload, idempotencyKey });
+      const refreshed = await fetchSupplierInvoiceAccountingStatus(selectedInvoice.id);
+      if (refreshed.invoiceId !== selectedInvoice.id ||
+          (result.accountingStatus === "no_adjustment_required" && refreshed.accountingStatus !== "no_adjustment_required") ||
+          (result.journalEntryId !== null && refreshed.journalEntryId !== result.journalEntryId)) {
+        throw new Error("لم تتطابق قراءة التسوية اللاحقة مع نتيجة الخادم؛ لا يتم إعلان اكتمال العملية.");
+      }
+      setAccountingStatus(refreshed);
+      if (refreshed.accountingStatus === "journal_void") accountingKey.current = null;
+      try { await onRefresh?.(); } catch { /* The persisted handoff is already confirmed by its dedicated readback. */ }
+      setNotice(refreshed.accountingStatus === "no_adjustment_required"
+        ? "تطابقت الفاتورة مع تكلفة الاستلام المسجلة؛ لم تكن هناك حاجة لقيد إضافي أو التزام مكرر."
+        : refreshed.journalEntryNumber
+          ? "أُنشئت مسودة قيد التسوية رقم " + refreshed.journalEntryNumber + " في دفتر الأستاذ. لم يُرحّل القيد ولم يُسدد المورد."
+          : "حُفظت تسوية فاتورة المورد؛ راجع حالة القيد من دفتر الأستاذ قبل أي ترحيل.");
+    } catch (cause) {
+      setAccountingError(cause instanceof Error ? cause.message : "تعذر إنشاء مسودة تسوية فاتورة المورد.");
+    } finally {
+      setAccountingBusy(false);
     }
   }
 
