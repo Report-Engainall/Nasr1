@@ -58,7 +58,7 @@ function paymentState(payment: SupplierPaymentHistory): {
       settlementEffectLabel: "السند الملغى لا يُعد سدادًا؛ راجع قيد الأستاذ المرتبط قبل أي تسوية لاحقة.",
     };
   }
-  if (payment.journalStatus === "posted" && payment.status === "journal_draft_created") {
+  if (payment.journalStatus === "posted") {
     return {
       paymentStatusLabel: "قيد الدفع مرحّل",
       journalStatusLabel: "مرحّل",
