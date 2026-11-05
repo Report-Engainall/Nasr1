@@ -1,5 +1,22 @@
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-05 — BODY-COMPLETION-ON-MAIN-021 — CUSTOMER SERVICE DESK SLA REPORT PRINT/XLSX
 
+## P1 PRODUCT DELIVERY — 2026-11-05 — BODY-COMPLETION-ON-MAIN-022 — SUPPLIER RETURN A4 / XLSX
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Added one saved-record operational document to the existing manager/admin supplier-return workspace; the existing return capture/post flow and all database contracts are reused.
+- New files:
+  - `src/lib/supplier-return-document.ts` — strict projection for one saved supplier return; validates identity labels, dates, currency, unique item rows, source/returned quantities and source cost consistency. Cost fields are withheld as a whole unless every line and the persisted header total reconcile; unknown is never converted to zero.
+  - `src/lib/supplier-return-xlsx.ts` — two-sheet Arabic OOXML workbook (return summary and item lines), using the existing `onyx-export` XML/ZIP writer; IDs, actor metadata and internal notes are excluded.
+  - `src/components/SupplierReturnDocumentActions.tsx` — Arabic RTL A4 print/Save-as-PDF and Excel download actions for a saved return.
+- Existing UI integration: `src/components/SupplierReturnWorkspace.tsx`; each saved return now exposes the document actions beside the existing draft-post control or posted-state disclosure. The route remains guarded by the existing admin/manager role check and server RPC.
+- Explicit state semantics: a draft is identified as unposted and carries no inventory/accounting effect; a posted return is identified as posted to inventory only. The document does not claim a supplier credit note or journal is posted. Internal notes and internal UUIDs are not printed/exported.
+- Code commits on main: projection `3b20fa0e6dc15f06bd89782f48fe1dc7ead540ba`; XLSX `bb491ae5055a1dd225a641dedbd33e1ffb32a31b`; action component `0b92810f37d0604c198ee4a446f6188a912a2970`; workspace integration `c11c28010ddb7c258eff6ece572817384f99c04e`.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests, typecheck, build, lint, CI, browser, database or Bolt runtime operation was run in this product-body batch; no PASS or production acceptance is claimed. Bolt New owns migration application and connected runtime acceptance.
+- No database migration, new dependency, external provider, Vercel operation or Vercel credit was used.
+- Next P1 body: continue the next genuinely uncovered mandatory purchasing/warehouse/customer/staff/admin operational report or product workflow; do not rebuild purchase receipt print, purchase-order print/XLSX, supplier invoice/payment/account activity outputs, supplier return document, inventory transfer print/XLSX, admin sales-order print or customer service desk report.
+
+
+
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
 - Only P1 and P3 are active implementers. P1 owns product-facing workspaces, route/UI integration and operational document outputs. P3 owns intelligence engines and intelligence persistence/DTOs.
 - Customer case management and customer-facing portal already exist. BODY-021 does not recreate them; it adds an internal report output to the existing organization-wide service desk.
