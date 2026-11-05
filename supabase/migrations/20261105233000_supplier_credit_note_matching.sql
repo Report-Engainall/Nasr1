@@ -34,7 +34,6 @@ CREATE TABLE public.purchase_supplier_credit_notes (
   created_by_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (organization_id,supplier_return_id),
   UNIQUE (organization_id,supplier_id,supplier_credit_note_number),
   UNIQUE (organization_id,idempotency_key),
   UNIQUE (organization_id,id),
@@ -116,6 +115,9 @@ CREATE TABLE public.purchase_supplier_credit_note_accounting_drafts (
 
 CREATE INDEX purchase_supplier_credit_notes_status_idx
   ON public.purchase_supplier_credit_notes(organization_id,status,created_at DESC,id DESC);
+CREATE UNIQUE INDEX purchase_supplier_credit_notes_one_active_per_return_idx
+  ON public.purchase_supplier_credit_notes(organization_id,supplier_return_id)
+  WHERE status IN ('exact_match','variance_pending','variance_approved','journal_draft_created');
 CREATE INDEX purchase_supplier_credit_note_reviews_history_idx
   ON public.purchase_supplier_credit_note_review_events(organization_id,credit_note_id,created_at,id);
 CREATE INDEX purchase_supplier_credit_note_drafts_return_idx
@@ -239,8 +241,14 @@ BEGIN
       ON po.id=sr.purchase_order_id AND po.organization_id=sr.organization_id
     JOIN public.suppliers s
       ON s.id=sr.supplier_id AND s.organization_id=sr.organization_id
-    LEFT JOIN public.purchase_supplier_credit_notes note
-      ON note.organization_id=sr.organization_id AND note.supplier_return_id=sr.id
+    LEFT JOIN LATERAL (
+      SELECT n.*
+        FROM public.purchase_supplier_credit_notes n
+       WHERE n.organization_id=sr.organization_id AND n.supplier_return_id=sr.id
+         AND n.status<>'variance_rejected'
+       ORDER BY n.created_at DESC,n.id DESC
+       LIMIT 1
+    ) note ON true
     LEFT JOIN public.purchase_receipt_accounting_postings receipt_posting
       ON receipt_posting.organization_id=sr.organization_id AND receipt_posting.receipt_id=sr.source_receipt_id
     LEFT JOIN public.accounting_journal_entries source_journal
@@ -336,6 +344,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.purchase_supplier_credit_notes n
      WHERE n.organization_id=v_org AND n.supplier_return_id=v_return.id
+       AND n.status<>'variance_rejected'
   ) THEN
     RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='this supplier return already has a recorded credit note';
   END IF;
