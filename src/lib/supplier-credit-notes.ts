@@ -16,6 +16,12 @@ export interface SupplierCreditNoteAccount {
   accountType: SupplierCreditNoteAccountType;
   isActive: boolean;
 }
+export interface SupplierCreditNoteReviewEvent {
+  supplierCreditNoteNumber: string;
+  action: "recorded_exact_match" | "recorded_variance_pending" | "variance_approved" | "variance_rejected" | "journal_draft_created";
+  reason: string | null;
+  createdAt: string;
+}
 export interface SupplierReturnCreditNoteRecord {
   returnId: string;
   returnNumber: string;
@@ -34,6 +40,7 @@ export interface SupplierReturnCreditNoteRecord {
   varianceAmount: number | null;
   creditNoteStatus: SupplierCreditNoteStatus | null;
   varianceReviewReason: string | null;
+  reviewHistory: SupplierCreditNoteReviewEvent[];
   sourceJournalEntryId: string | null;
   sourceJournalEntryNumber: string | null;
   sourceJournalStatus: SupplierCreditNoteJournalStatus | null;
@@ -99,7 +106,9 @@ function nullableAmount(value: unknown, label: string): number | null {
 }
 function date(value: unknown, label: string): string {
   const result = requiredText(value, label);
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(result) || !Number.isFinite(Date.parse(result + "T00:00:00Z"))) {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(result)) throw new Error("تاريخ " + label + " غير صالح.");
+  const parsed = new Date(result + "T00:00:00.000Z");
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== result) {
     throw new Error("تاريخ " + label + " غير صالح.");
   }
   return result;
@@ -135,6 +144,20 @@ function parseReturn(value: unknown): SupplierReturnCreditNoteRecord {
   if (!/^[A-Z]{3}$/.test(currency)) throw new Error("عملة المرتجع غير صالحة.");
   const noteStatus = row.credit_note_status === null || row.credit_note_status === undefined
     ? null : status(row.credit_note_status);
+  if (!Array.isArray(row.credit_note_history)) throw new Error("سجل مراجعة إشعار المورد غير صالح.");
+  const reviewHistory = row.credit_note_history.map((value): SupplierCreditNoteReviewEvent => {
+    const event = object(value, "حدث مراجعة إشعار المورد");
+    const action = event.action;
+    if (action !== "recorded_exact_match" && action !== "recorded_variance_pending" &&
+        action !== "variance_approved" && action !== "variance_rejected" &&
+        action !== "journal_draft_created") throw new Error("نوع حدث مراجعة إشعار المورد غير معروف.");
+    return {
+      supplierCreditNoteNumber: requiredText(event.credit_note_number, "رقم الإشعار في سجل المراجعة"),
+      action,
+      reason: nullableText(event.reason, "سبب المراجعة"),
+      createdAt: requiredText(event.created_at, "وقت المراجعة"),
+    };
+  });
   const varianceAmount = nullableAmount(row.variance_amount, "فرق إشعار المورد");
   const actualAmount = nullableAmount(row.actual_amount, "المبلغ الفعلي للإشعار");
   const sourceAmount = nullableAmount(row.source_amount, "تكلفة مصدر المرتجع");
@@ -159,6 +182,7 @@ function parseReturn(value: unknown): SupplierReturnCreditNoteRecord {
     varianceAmount,
     creditNoteStatus: noteStatus,
     varianceReviewReason: nullableText(row.variance_review_reason, "سبب اعتماد الفرق"),
+    reviewHistory,
     sourceJournalEntryId: nullableUuid(row.source_journal_entry_id, "قيد إيصال المصدر"),
     sourceJournalEntryNumber: nullableText(row.source_journal_entry_number, "رقم قيد إيصال المصدر"),
     sourceJournalStatus: journalStatus(row.source_journal_status),
