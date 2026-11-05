@@ -64,6 +64,7 @@ function matchesTaskSearch(task: OperationalTask, search: string): boolean {
   const needle = search.trim().toLocaleLowerCase();
   if (!needle) return true;
   const searchableValues = [
+    task.id,
     task.title,
     task.description ?? '',
     task.source_entity_id ?? '',
@@ -191,7 +192,7 @@ function TaskCreateForm({
   );
 }
 
-export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }) {
+export function TaskCenter({ onNotice, initialTaskId = null }: { onNotice: (message: string) => void; initialTaskId?: string | null }) {
   const { user } = useAuth();
   const roles = user?.roles ?? [];
   const canManage = roles.includes('admin') || roles.includes('manager');
@@ -248,6 +249,11 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void loadTasks(); }, [loadTasks]);
+  useEffect(() => {
+    if (!initialTaskId || loading) return;
+    const target = tasks.find((task) => task.id === initialTaskId);
+    setSearch(target?.title ?? initialTaskId);
+  }, [initialTaskId, loading, tasks]);
   useEffect(() => {
     if (!canManage) return;
     let active = true;
