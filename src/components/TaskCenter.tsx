@@ -29,6 +29,7 @@ const entityLabels: Record<string, string> = {
   customer_return_requests: 'طلب إرجاع',
   customer_return_receipts: 'استلام مرتجع',
   customer_return_credit_memos: 'إشعار دائن لمرتجع',
+  customer_interactions: 'متابعة عميل 360',
 };
 
 function dateText(value: string | null | undefined): string {
