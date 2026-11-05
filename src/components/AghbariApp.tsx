@@ -164,7 +164,17 @@ function AdminWorkspaceContent({
     case "reports":
       return <Reports />;
     case "intelligence":
-      return <IntelligenceWorkspace />;
+      return <IntelligenceWorkspace onOpenRecord={(kind, subjectRef) => {
+        const destination = kind === "QUOTE_UNCONVERTED"
+          ? "quotes"
+          : kind === "CUSTOMER_ACTIVITY_DECLINE" || kind === "REPEAT_PURCHASE"
+            ? "customers"
+            : "products";
+        const destinationLabel = destination === "quotes" ? "عروض الأسعار"
+          : destination === "customers" ? "العملاء" : "المنتجات";
+        onNavigate(destination);
+        onNotice("تم فتح شاشة " + destinationLabel + " لمراجعة السجل المرتبط. مرجع السجل: " + subjectRef);
+      }} />;
     case "ai":
       return <AiCenter onNotice={onNotice} />;
     case "notifications":
