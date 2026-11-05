@@ -66,7 +66,9 @@ WHERE singleton IS TRUE;
 
 DO $block$
 BEGIN
-  IF NOT FOUND THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.operational_task_audit_settings WHERE singleton IS TRUE
+  ) THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='task audit baseline singleton is missing';
   END IF;
 END
