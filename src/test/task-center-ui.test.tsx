@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   assignOperationalTask: vi.fn(),
   updateOperationalTaskDetails: vi.fn(),
   updateManualOperationalTask: vi.fn(),
+  cancelOperationalTask: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: mocks.useAuth }));
@@ -24,6 +25,7 @@ vi.mock("@/lib/api", () => ({
   assignOperationalTask: mocks.assignOperationalTask,
   updateOperationalTaskDetails: mocks.updateOperationalTaskDetails,
   updateManualOperationalTask: mocks.updateManualOperationalTask,
+  cancelOperationalTask: mocks.cancelOperationalTask,
 }));
 vi.mock("@/components/CustomerReturnReviewQueue", () => ({
   CustomerReturnReviewQueue: () => <div data-testid="return-review-queue" />,
@@ -102,6 +104,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     mocks.assignOperationalTask.mockReset().mockResolvedValue(undefined);
     mocks.updateOperationalTaskDetails.mockReset().mockResolvedValue(undefined);
     mocks.updateManualOperationalTask.mockReset().mockResolvedValue(undefined);
+    mocks.cancelOperationalTask.mockReset().mockResolvedValue(undefined);
     originalPrint = Object.getOwnPropertyDescriptor(window, "print");
     printMock = vi.fn();
     Object.defineProperty(window, "print", { configurable: true, writable: true, value: printMock });
@@ -450,6 +453,35 @@ describe("TaskCenter role-boundary and print integration", () => {
       "مطابقة أمر الشراء مع الإيصال",
     ));
     await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
+  });
+
+  it("requires and persists a manager cancellation reason for an open operational task", async () => {
+    setUser(["manager"]);
+    const sourceTask = task({
+      id: "sales-order",
+      title: "طلب عميل للتجهيز",
+      task_role: "sales",
+      status: "in_progress",
+    });
+    const reason = "أُلغي بناءً على طلب الإدارة بعد مراجعة المصدر";
+    mocks.fetchOperationalTasks
+      .mockResolvedValueOnce([sourceTask])
+      .mockResolvedValueOnce([{ ...sourceTask, status: "cancelled", resolution_note: reason }]);
+
+    render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    const card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+
+    fireEvent.click(within(card).getByRole("button", { name: "إلغاء المهمة" }));
+    const reasonInput = within(card).getByLabelText("سبب إلغاء المهمة: طلب عميل للتجهيز") as HTMLTextAreaElement;
+    expect(within(card).getByRole("button", { name: "تأكيد الإلغاء" })).toBeDisabled();
+    fireEvent.change(reasonInput, { target: { value: reason } });
+    fireEvent.click(within(card).getByRole("button", { name: "تأكيد الإلغاء" }));
+
+    await waitFor(() => expect(mocks.cancelOperationalTask).toHaveBeenCalledWith("sales-order", reason));
+    await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إلغاء المهمة" })).not.toBeInTheDocument();
   });
 
 });
