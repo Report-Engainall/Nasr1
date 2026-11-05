@@ -75,7 +75,7 @@ describe("TaskPerformanceScorecard", () => {
       ],
     });
     render(<TaskPerformanceScorecard scorecard={windowData} />);
-    expect(screen.getByText(/50/)).toBeInTheDocument();
+    expect(screen.getByText(/٥٠|50/)).toBeInTheDocument();
     expect(screen.getByText(/بداية التغطية الكاملة/)).toBeInTheDocument();
   });
 

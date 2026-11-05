@@ -178,9 +178,9 @@ function parseGroup(value: unknown): TaskPerformanceGroup | null {
 }
 
 /**
- * Parse the trusted RPC contract without upgrading partial evidence to complete.
- * A reopen rate is rejected unless it is explicitly null: the current writer set
- * does not audit every automatic source-triggered reopen.
+ * Parse the trusted RPC contract without upgrading pre-baseline history to complete.
+ * A reopen rate is accepted only when the server supplies its immutable activation
+ * timestamp, a first-completion denominator, and an exactly reconciling rate.
  */
 export function parseTaskPerformanceScorecard(value: unknown): TaskPerformanceScorecard | null {
   const row = asRecord(value);
