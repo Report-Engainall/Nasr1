@@ -28,27 +28,27 @@ export function SupplierPerformancePanel({result,state="ready",onRetry}:Supplier
   </div>
   <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead><tr className="border-b text-right">
    <th className="p-2">المورد</th><th className="p-2">أوامر / مكتمل</th><th className="p-2">مفتوح</th><th className="p-2">متوسط التوريد (يوم)</th>
-   <th className="p-2">الوسيط / P90</th><th className="p-2">الالتزام بالموعد الموعود</th><th className="p-2">كمية غير مستلمة</th>
+   <th className="p-2">الوسيط / P90</th><th className="p-2">الالتزام بالموعد الموعود</th><th className="p-2">سطور أصناف معلقة</th>
   </tr></thead><tbody>{result.suppliers.map(s=><tr key={s.supplierId} className="border-b align-top">
    <td className="p-2"><p className="font-semibold">{s.supplierName}</p><p className="text-xs text-muted-foreground">{s.supplierCode??"بلا رمز مورد"}</p></td>
    <td className="p-2 tabular-nums">{qty.format(s.purchaseOrderCount)} / {qty.format(s.completedOrderCount)}</td>
    <td className="p-2 tabular-nums">{qty.format(s.openOrderCount)}</td>
-   <td className="p-2 tabular-nums">{s.averageLeadDays===null?"غير كافٍ":days.format(s.averageLeadDays)}<p className="text-xs text-muted-foreground">عينة {qty.format(s.leadTimeSampleCount)}</p></td>
-   <td className="p-2 tabular-nums">{s.medianLeadDays===null||s.p90LeadDays===null?"غير متاح":days.format(s.medianLeadDays)+" / "+days.format(s.p90LeadDays)}</td>
-   <td className="p-2">{s.onTimePercent===null?"غير متاح":days.format(s.onTimePercent)+"٪"}<p className="text-xs text-muted-foreground">{qty.format(s.onTimeCount)} من {qty.format(s.promisedDeliverySampleCount)} عينة</p></td>
-   <td className="p-2 tabular-nums">{qty.format(s.backlogQuantity)}</td>
+   <td className="p-2 tabular-nums">{s.leadTimeSampleCount<3||s.averageLeadDays===null?"عينة غير كافية":days.format(s.averageLeadDays)}<p className="text-xs text-muted-foreground">عينة {qty.format(s.leadTimeSampleCount)}</p></td>
+   <td className="p-2 tabular-nums">{s.leadTimeSampleCount<3||s.medianLeadDays===null||s.p90LeadDays===null?"عينة غير كافية":days.format(s.medianLeadDays)+" / "+days.format(s.p90LeadDays)}</td>
+   <td className="p-2">{s.promisedDeliverySampleCount<3||s.onTimePercent===null?"عينة غير كافية":days.format(s.onTimePercent)+"٪"}<p className="text-xs text-muted-foreground">{qty.format(s.onTimeCount)} من {qty.format(s.promisedDeliverySampleCount)} عينة</p></td>
+   <td className="p-2 tabular-nums">{qty.format(s.backlogLineCount)}</td>
   </tr>)}</tbody></table></div>
   <section className="space-y-2"><h3 className="font-semibold">أحدث أوامر الشراء ومصدر القياس</h3>
    {result.suppliers.map(s=><details key={s.supplierId} className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">{s.supplierName} · {qty.format(s.recentOrders.length)} سجلات</summary>
     <div className="mt-3 space-y-2">{s.recentOrders.map(o=><article key={o.purchaseOrderId} className="rounded-md bg-muted/40 p-2 text-xs">
      <div className="flex flex-wrap justify-between gap-2"><strong>أمر {o.purchaseOrderNumber}</strong><span>{o.status==="received"?"مستلم":o.status==="partially_received"?"مستلم جزئياً":"مرسل"}</span></div>
      <p>الإرسال: {date(o.submittedAt)} · آخر استلام: {date(o.lastReceivedAt)}</p>
-     <p>المطلوب: {qty.format(o.orderedQuantity)} · المستلم: {qty.format(o.receivedQuantity)} · المتبقي: {qty.format(o.remainingQuantity)}</p>
+     <p>سطور الأصناف: {qty.format(o.lineCount)} · السطور ذات الاستلام المتبقي: {qty.format(o.pendingLineCount)}</p>
      <p>زمن التوريد: {o.actualLeadDays===null?"غير مكتمل":days.format(o.actualLeadDays)+" يوم"} · الموعود: {o.promisedDeliveryDays===null?"غير مسجل":qty.format(o.promisedDeliveryDays)+" يوم"} · الالتزام: {o.onTime===null?"غير قابل للقياس":o.onTime?"ضمن المدة":"متأخر"}</p>
     </article>)}</div></details>)}
   </section>
   {result.withheldReasons.length>0?<details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-semibold">البيانات والمؤشرات المحجوبة</summary>
    <ul className="mt-2 list-disc space-y-1 ps-5 text-sm">{result.withheldReasons.map(x=><li key={x}>{x}</li>)}</ul></details>:null}
-  <p className="text-xs text-muted-foreground">زمن التوريد من إرسال أمر الشراء إلى آخر استلام ولا يظهر إلا بعد اكتمال الكميات. الالتزام يقاس فقط بمدة عرض سعر ممنوح. لا تعرض الشاشة أسعار شراء أو ديوناً أو مدفوعات، ولا تدّعي قياس الجودة أو العيوب أو تصنيف المورد.</p>
+  <p className="text-xs text-muted-foreground">زمن التوريد من إرسال أمر الشراء إلى آخر استلام ولا يظهر إلا بعد اكتمال الكميات. الالتزام يقاس فقط بمدة عرض سعر ممنوح. السطور المعلقة تُعد ولا تُجمع كميات أصناف أو وحدات مختلفة؛ المؤشرات والنسب لا تُعرض إلا بعينة لا تقل عن 3 أوامر. لا تعرض الشاشة أسعار شراء أو ديوناً أو مدفوعات، ولا تدّعي قياس الجودة أو العيوب أو تصنيف المورد.</p>
  </section>;
 }

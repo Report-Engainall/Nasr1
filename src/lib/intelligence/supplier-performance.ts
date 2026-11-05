@@ -1,12 +1,12 @@
 export interface SupplierPerformancePeriod {from:string;to:string;timeZone:"UTC";}
 export interface SupplierPerformanceOrder {
   purchaseOrderId:string;purchaseOrderNumber:string;status:"submitted"|"partially_received"|"received";
-  submittedAt:string;lastReceivedAt:string|null;orderedQuantity:number;receivedQuantity:number;
-  remainingQuantity:number;receiptCount:number;actualLeadDays:number|null;promisedDeliveryDays:number|null;onTime:boolean|null;
+  submittedAt:string;lastReceivedAt:string|null;lineCount:number;pendingLineCount:number;
+  receiptCount:number;actualLeadDays:number|null;promisedDeliveryDays:number|null;onTime:boolean|null;
 }
 export interface SupplierPerformanceSupplier {
   supplierId:string;supplierName:string;supplierCode:string|null;purchaseOrderCount:number;completedOrderCount:number;
-  openOrderCount:number;inconsistentReceivedCount:number;backlogQuantity:number;leadTimeSampleCount:number;
+  openOrderCount:number;inconsistentReceivedCount:number;backlogLineCount:number;leadTimeSampleCount:number;
   averageLeadDays:number|null;medianLeadDays:number|null;p90LeadDays:number|null;promisedDeliverySampleCount:number;
   onTimeCount:number;onTimePercent:number|null;completedWithoutPromiseCount:number;latestSubmittedAt:string;
   recentOrders:SupplierPerformanceOrder[];
@@ -40,24 +40,22 @@ function parseOrder(v:unknown):SupplierPerformanceOrder|null {
  const r=obj(v);
  if(!r||typeof r.purchaseOrderId!=="string"||!UUID.test(r.purchaseOrderId)||!txt(r.purchaseOrderNumber,40)||
   !["submitted","partially_received","received"].includes(String(r.status))||!timestamp(r.submittedAt)||
-  (r.lastReceivedAt!==null&&!timestamp(r.lastReceivedAt))||!num(r.orderedQuantity)||!num(r.receivedQuantity)||
-  !num(r.remainingQuantity)||!int(r.receiptCount)||!nullableNum(r.actualLeadDays)||
+  (r.lastReceivedAt!==null&&!timestamp(r.lastReceivedAt))||!int(r.lineCount)||!int(r.pendingLineCount)||r.pendingLineCount>r.lineCount||
+  !int(r.receiptCount)||!nullableNum(r.actualLeadDays)||
   (r.promisedDeliveryDays!==null&&!int(r.promisedDeliveryDays))||(r.onTime!==null&&typeof r.onTime!=="boolean"))return null;
- if(r.receivedQuantity>r.orderedQuantity||r.remainingQuantity>r.orderedQuantity||
-  Math.abs(r.orderedQuantity-r.receivedQuantity-r.remainingQuantity)>0.001||
-  (r.actualLeadDays!==null&&(r.status!=="received"||r.lastReceivedAt===null||r.receiptCount===0))||
+ if((r.actualLeadDays!==null&&(r.status!=="received"||r.lastReceivedAt===null||r.receiptCount===0))||
   (r.onTime!==null&&(r.promisedDeliveryDays===null||r.actualLeadDays===null)))return null;
  return {purchaseOrderId:r.purchaseOrderId,purchaseOrderNumber:r.purchaseOrderNumber,
   status:r.status as SupplierPerformanceOrder["status"],submittedAt:r.submittedAt,lastReceivedAt:r.lastReceivedAt as string|null,
-  orderedQuantity:r.orderedQuantity,receivedQuantity:r.receivedQuantity,remainingQuantity:r.remainingQuantity,
-  receiptCount:r.receiptCount,actualLeadDays:r.actualLeadDays as number|null,
+  lineCount:r.lineCount,pendingLineCount:r.pendingLineCount,receiptCount:r.receiptCount,
+  actualLeadDays:r.actualLeadDays as number|null,
   promisedDeliveryDays:r.promisedDeliveryDays as number|null,onTime:r.onTime as boolean|null};
 }
 function parseSupplier(v:unknown):SupplierPerformanceSupplier|null {
  const r=obj(v);
  if(!r||typeof r.supplierId!=="string"||!UUID.test(r.supplierId)||!txt(r.supplierName,160)||
   (r.supplierCode!==null&&!txt(r.supplierCode,80))||!int(r.purchaseOrderCount)||r.purchaseOrderCount<1||
-  !int(r.completedOrderCount)||!int(r.openOrderCount)||!int(r.inconsistentReceivedCount)||!num(r.backlogQuantity)||
+  !int(r.completedOrderCount)||!int(r.openOrderCount)||!int(r.inconsistentReceivedCount)||!int(r.backlogLineCount)||
   !int(r.leadTimeSampleCount)||!nullableNum(r.averageLeadDays)||!nullableNum(r.medianLeadDays)||!nullableNum(r.p90LeadDays)||
   !int(r.promisedDeliverySampleCount)||!int(r.onTimeCount)||!int(r.completedWithoutPromiseCount)||
   !timestamp(r.latestSubmittedAt)||!Array.isArray(r.recentOrders)||r.recentOrders.length>5)return null;
@@ -70,7 +68,7 @@ function parseSupplier(v:unknown):SupplierPerformanceSupplier|null {
  if(recent.some(x=>x===null)||new Set((recent as SupplierPerformanceOrder[]).map(x=>x.purchaseOrderId)).size!==recent.length)return null;
  return {supplierId:r.supplierId,supplierName:r.supplierName,supplierCode:r.supplierCode as string|null,
   purchaseOrderCount:r.purchaseOrderCount,completedOrderCount:r.completedOrderCount,openOrderCount:r.openOrderCount,
-  inconsistentReceivedCount:r.inconsistentReceivedCount,backlogQuantity:r.backlogQuantity,leadTimeSampleCount:r.leadTimeSampleCount,
+  inconsistentReceivedCount:r.inconsistentReceivedCount,backlogLineCount:r.backlogLineCount,leadTimeSampleCount:r.leadTimeSampleCount,
   averageLeadDays:r.averageLeadDays as number|null,medianLeadDays:r.medianLeadDays as number|null,p90LeadDays:r.p90LeadDays as number|null,
   promisedDeliverySampleCount:r.promisedDeliverySampleCount,onTimeCount:r.onTimeCount,
   onTimePercent:r.promisedDeliverySampleCount>0?Math.round(r.onTimeCount/r.promisedDeliverySampleCount*1000)/10:null,
@@ -100,6 +98,8 @@ export function buildSupplierPerformance(s:SupplierPerformanceSnapshot):Supplier
  const promised=s.suppliers.reduce((n,x)=>n+x.promisedDeliverySampleCount,0);
  const noPromise=s.suppliers.reduce((n,x)=>n+x.completedWithoutPromiseCount,0);
  if(completed>0&&lead===0)reasons.push("لا توجد أوامر مكتملة بشروط استلام كافية لقياس زمن التوريد.");
+ if(s.suppliers.some(x=>x.leadTimeSampleCount>0&&x.leadTimeSampleCount<3))reasons.push("حُجبت مؤشرات زمن التوريد للموردين ذوي العينات الأقل من 3 أوامر.");
+ if(s.suppliers.some(x=>x.promisedDeliverySampleCount>0&&x.promisedDeliverySampleCount<3))reasons.push("حُجب معدل الالتزام بالموعد للموردين ذوي العينات الأقل من 3 أوامر.");
  if(noPromise>0)reasons.push("حُجب قياس الموعد عن "+noPromise+" أمراً مكتملاً لغياب مدة توريد في عرض سعر ممنوح.");
  if(completed>0&&promised===0)reasons.push("لا توجد عينة مكتملة ذات مدة توريد موعودة؛ لم يُحسب معدل الالتزام.");
  if(s.suppliers.some(x=>x.inconsistentReceivedCount>0))reasons.push("عُزلت أوامر حالتها مستلمة لكن كمياتها أو أدلة استلامها غير مكتملة.");
