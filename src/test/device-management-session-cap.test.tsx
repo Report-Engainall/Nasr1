@@ -64,7 +64,7 @@ function makeSessions(count: number, startIndex = 0) {
   });
 }
 
-describe("device-session inventory result limit", () => {
+describe("device-session keyset pagination", () => {
   beforeEach(() => {
     const payload = window.btoa(JSON.stringify({
       session_id: CURRENT_SESSION_ID,
