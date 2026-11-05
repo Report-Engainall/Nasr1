@@ -3,6 +3,17 @@ import { xmlEscape, worksheetXml, zipStore, type CellValue } from "@/lib/onyx-ex
 import type { StaffCustomer360Summary } from "@/lib/customer-360-summary";
 import type { CustomerInteraction } from "@/lib/types";
 
+const interactionTypeLabels: Record<string, string> = {
+  call: "اتصال هاتفي",
+  visit: "زيارة",
+  whatsapp: "واتساب",
+  email: "بريد إلكتروني",
+  meeting: "اجتماع",
+  note: "ملاحظة داخلية",
+  other: "أخرى",
+};
+
+
 const MAX_RECENT_DETAIL_ROWS = 20;
 
 type WorkbookSheet = { name: string; rows: CellValue[][] };
@@ -52,6 +63,7 @@ function workbookSheets(summary: StaffCustomer360Summary, interactions: readonly
     ["عدد صفوف الفواتير التفصيلية المصدرة", summary.recent_invoices.length],
     ["عدد صفوف الدفعات التفصيلية المصدرة", summary.recent_payments.length],
     ["عدد سجلات التواصل المصدرة", interactions.length],
+    ["نطاق سجل التواصل", "أحدث 50 إدخالًا أو أقل مما أعاده الخادم؛ تبقى الإدخالات الأقدم محفوظة في قاعدة البيانات."],
     ["نطاق التفاصيل", "الجداول التفصيلية تعرض أحدث 20 حركة أو أقل مما أعاده الخادم؛ ليست دفترًا تاريخيًا كاملًا."],
     ["نطاق الملخص المالي", "ورقة «حسب العملة» تحتوي إجماليات الخادم الكاملة لكل عملة؛ لا تجمع عملات مختلفة في إجمالي واحد."],
     ["القيم المجهولة", "القيمة غير المتاحة تبقى خلية فارغة؛ لا تُحوّل إلى صفر."],
@@ -121,7 +133,7 @@ function workbookSheets(summary: StaffCustomer360Summary, interactions: readonly
     ["تاريخ التواصل", "نوع التواصل", "الموضوع", "ملخص التواصل والنتيجة", "موعد المتابعة القادم", "سُجل بواسطة", "تاريخ التسجيل"],
     ...interactions.map((row) => [
       row.interaction_at,
-      row.interaction_type,
+      interactionTypeLabels[row.interaction_type] ?? row.interaction_type,
       row.subject,
       row.details,
       row.next_follow_up_at,
