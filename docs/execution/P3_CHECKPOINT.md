@@ -1,3 +1,24 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-DECISION-MEMORY-BOOK-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Canonical reference: section 52 — دفتر ذاكرة القرارات التجارية والتعلّم من نتائجها.
+- P3 product paths:
+  - `src/lib/intelligence/decision-memory.ts`
+  - `src/components/intelligence/DecisionMemoryBook.tsx`
+  - exports in `src/lib/intelligence/index.ts` and `src/components/intelligence/index.ts`
+  - mounted in the existing `src/components/intelligence/IntelligenceWorkspace.tsx`
+  - P2 persistence/read contract defined in `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`.
+- Product behavior: reads the existing immutable decision lifecycle; separates evidence-backed FACT from explicitly labelled OPINION and HYPOTHESIS; records assumptions separately; validates alternatives/chosen option/action/review disposition; validates expected and actual MetricSnapshots only against uniquely resolved VERIFIED/COMPLETE/ACCEPTABLE evidence.
+- Measurement guard: actual metric must agree with the saved decision lifecycle measurement (value, currency and as-of); expected/actual comparison is withheld unless metric key, unit, currency/UOM, period, formula ID/version match and actual as-of is later. Zero baseline percentage is withheld. Same-rule precedents are limited to the loaded page and are not assumed equivalent.
+- Corrections are represented as versioned append-only events; no policy/rule is automatically altered and no task, reminder, communication, finance or inventory write is made.
+- Current source boundary: `fetch_decision_outcomes` returns only the legacy numeric measurement summary; no full historical memory snapshot DTO exists yet. The workspace therefore displays current decisions as PARTIAL/UNVERIFIED with missing fields instead of inventing memory. It passes an empty snapshots list until P2 implements the documented contract.
+- P2 handoff: immutable versioned snapshot records, idempotent capture/correction RPCs, same-tenant evidence validation, append-only correction history, and the full `memory_snapshot` DTO described in the aggregate contract. The actual metric must match the lifecycle's measured outcome.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; P2 persistence/read integration remains outstanding. No tests/build/lint/typecheck/CI/browser/E2E/DB application/Preview/production verification run; no PASS claimed.
+- Cost boundary: no Vercel operation/credit, paid model/provider/dependency, production mutation or live integration.
+- Next P3 action: bind the full P2 snapshot DTO into this engine when it is delivered; then advance to the next canonical reference section without duplicating decision approval/execution workflows.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-05 — REF-BUSINESS-HEALTH-MAP-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
