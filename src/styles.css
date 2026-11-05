@@ -801,3 +801,77 @@
   .customer-service-case-escalate{grid-template-columns:1fr}
   .customer-service-case-escalate button{width:100%}
 }
+
+
+/* Organization-wide Customer Service Desk */
+.customer-service-desk{display:grid;gap:16px;min-width:0}
+.customer-service-desk-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;padding:18px;border:1px solid var(--border);border-radius:13px;background:var(--card)}
+.customer-service-desk-hero>div:first-child>span{display:inline-flex;align-items:center;gap:7px;color:var(--aghbari-brand,var(--primary));font-size:11px;font-weight:800}
+.customer-service-desk-hero h1{margin:7px 0 5px;font-size:clamp(19px,2.3vw,25px)}
+.customer-service-desk-hero p{max-width:760px;margin:0;color:var(--muted-foreground);font-size:12px;line-height:1.8}
+.customer-service-desk-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.customer-service-desk-metric{display:grid;gap:10px;min-width:0;padding:13px;border:1px solid var(--border);border-radius:11px;background:var(--card)}
+.customer-service-desk-metric>span{display:flex;align-items:center;gap:7px;color:var(--muted-foreground);font-size:10px;font-weight:700}
+.customer-service-desk-metric>strong{font-size:22px;font-variant-numeric:tabular-nums}
+.customer-service-desk-metric.tone-warning>strong{color:var(--aghbari-gold,var(--foreground))}
+.customer-service-desk-metric.tone-danger>strong{color:var(--destructive,var(--foreground))}
+.customer-service-desk-filters{display:grid;gap:11px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+.customer-service-desk-filter-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px}
+.customer-service-desk-filter-heading>span{margin-inline-start:auto;color:var(--muted-foreground);font-size:10px}
+.customer-service-desk-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.customer-service-desk-search>label{display:flex;align-items:center;gap:8px;min-width:0;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--muted-foreground)}
+.customer-service-desk-search input{width:100%;min-width:0;padding:10px 0;border:0;outline:none;background:transparent;color:var(--foreground);font:inherit;font-size:12px}
+.customer-service-desk-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.customer-service-desk-filter-grid label:not(.customer-service-desk-overdue-filter){display:grid;gap:5px;color:var(--muted-foreground);font-size:10px;font-weight:700}
+.customer-service-desk-filter-grid select,.customer-service-desk-status-form select,.customer-service-desk-status-form input,.customer-service-desk-management select,.customer-service-desk-management input{width:100%;min-width:0;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit;font-size:11px}
+.customer-service-desk-overdue-filter{display:flex;align-items:center;gap:8px;align-self:end;min-height:36px;color:var(--foreground);font-size:11px;font-weight:700}
+.customer-service-desk-overdue-filter input{width:16px;height:16px;accent-color:var(--aghbari-brand,var(--primary))}
+.customer-service-desk-results-heading{display:flex;justify-content:space-between;align-items:end;gap:10px;flex-wrap:wrap}
+.customer-service-desk-results-heading>div{display:grid;gap:3px}
+.customer-service-desk-results-heading h2{margin:0;font-size:17px}
+.customer-service-desk-results-heading span{color:var(--muted-foreground);font-size:10px}
+.customer-service-desk-results-heading>span{display:flex;align-items:center;gap:6px}
+.customer-service-desk-list{display:grid;gap:12px}
+.customer-service-desk-card{display:grid;gap:11px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+.customer-service-desk-card-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.customer-service-desk-case-title{display:grid;gap:6px;min-width:0}
+.customer-service-desk-case-title>strong{font-size:13px;overflow-wrap:anywhere}
+.customer-service-desk-meta{display:flex;gap:7px;flex-wrap:wrap;color:var(--muted-foreground);font-size:10px}
+.customer-service-desk-escalation{color:var(--destructive,var(--aghbari-brand));font-weight:800}
+.customer-service-desk-status{flex:0 0 auto;padding:4px 8px;border-radius:999px;background:var(--aghbari-brand-soft,var(--muted));color:var(--aghbari-brand,var(--foreground));font-size:10px;font-weight:800}
+.customer-service-desk-status.status-resolved,.customer-service-desk-status.status-closed{background:var(--muted);color:var(--muted-foreground)}
+.customer-service-desk-description{margin:0;color:var(--foreground);font-size:12px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.customer-service-desk-deadlines{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.customer-service-desk-deadlines>div{display:grid;gap:4px;min-width:0;padding:9px;border:1px solid var(--border);border-radius:9px;background:var(--background)}
+.customer-service-desk-deadlines span,.customer-service-desk-deadlines small{color:var(--muted-foreground);font-size:9px;overflow-wrap:anywhere}
+.customer-service-desk-deadlines strong{font-size:11px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.customer-service-desk-deadlines .is-overdue{border-color:var(--destructive,var(--border));background:color-mix(in srgb,var(--destructive,var(--aghbari-brand)) 7%,var(--background))}
+.customer-service-desk-deadlines .is-overdue small{color:var(--destructive,var(--aghbari-brand));font-weight:800}
+.customer-service-desk-status-form{display:grid;grid-template-columns:minmax(130px,.7fr) minmax(180px,1.5fr) auto auto;align-items:end;gap:8px;padding-top:9px;border-top:1px solid var(--border)}
+.customer-service-desk-status-form label{display:grid;gap:4px;color:var(--muted-foreground);font-size:10px;font-weight:700;min-width:0}
+.customer-service-desk-management{display:grid;gap:10px;padding:11px;border:1px dashed var(--border);border-radius:9px;background:var(--background)}
+.customer-service-desk-management summary{display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--foreground);font-size:11px;font-weight:800}
+.customer-service-desk-management-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.customer-service-desk-management-grid label,.customer-service-desk-escalation-reason{display:grid;gap:4px;min-width:0;color:var(--muted-foreground);font-size:10px;font-weight:700}
+.customer-service-desk-management-actions{display:grid;grid-template-columns:auto minmax(160px,1fr) auto;align-items:end;gap:8px}
+.customer-service-desk-more{display:flex;justify-content:center;padding:7px}
+.customer-service-desk-footnote{margin:0;color:var(--muted-foreground);font-size:10px;line-height:1.7}
+@media(max-width:850px){
+  .customer-service-desk-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .customer-service-desk-deadlines{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .customer-service-desk-status-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .customer-service-desk-management-actions{grid-template-columns:1fr 1fr}
+  .customer-service-desk-escalation-reason{grid-column:1/-1;grid-row:1}
+}
+@media(max-width:580px){
+  .customer-service-desk-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .customer-service-desk-filter-grid,.customer-service-desk-management-grid{grid-template-columns:1fr}
+  .customer-service-desk-search{grid-template-columns:1fr}
+  .customer-service-desk-search>button{width:100%}
+  .customer-service-desk-card-heading{align-items:flex-start}
+  .customer-service-desk-deadlines{grid-template-columns:1fr 1fr}
+  .customer-service-desk-status-form{grid-template-columns:1fr}
+  .customer-service-desk-status-form>button{width:100%}
+  .customer-service-desk-management-actions{grid-template-columns:1fr}
+  .customer-service-desk-management-actions>button{width:100%}
+}
