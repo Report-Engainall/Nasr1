@@ -1084,6 +1084,40 @@ export async function fetchOperationalTaskAssignees(): Promise<OperationalTaskAs
   });
 }
 
+export async function updateOperationalTasksDetails(
+  taskIds: string[],
+  priority: 'low' | 'medium' | 'high' | 'critical',
+  dueAt: string | null,
+): Promise<{ processed_count: number; changed_count: number }> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (taskIds.length < 1 || taskIds.length > 100 || taskIds.some((id) => !uuidPattern.test(id)) ||
+      new Set(taskIds).size !== taskIds.length) {
+    throw new Error('اختر من مهمة واحدة إلى 100 مهمة دون تكرار.');
+  }
+  if (!['low','medium','high','critical'].includes(priority)) {
+    throw new Error('أولوية المهمة غير صالحة.');
+  }
+  if (dueAt !== null && !Number.isFinite(Date.parse(dueAt))) {
+    throw new Error('موعد الاستحقاق غير صالح.');
+  }
+  const { data, error } = await supabase.rpc('update_operational_tasks_details', {
+    p_task_ids: taskIds,
+    p_priority: priority,
+    p_due_at: dueAt,
+  });
+  if (error) throw new Error(error.message || 'تعذر تحديث أولوية ومواعيد المهام المحددة.');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('أعاد الخادم نتيجة تحديث جماعي غير صالحة.');
+  }
+  const result = data as Record<string, unknown>;
+  if (typeof result.processed_count !== 'number' || typeof result.changed_count !== 'number' ||
+      result.processed_count !== taskIds.length || result.changed_count < 0 ||
+      result.changed_count > result.processed_count) {
+    throw new Error('نتيجة تحديث المهام المحددة غير مكتملة.');
+  }
+  return { processed_count: result.processed_count, changed_count: result.changed_count };
+}
+
 export async function assignOperationalTasks(taskIds: string[], assignedTo: string | null): Promise<{
   processed_count: number;
   changed_count: number;
