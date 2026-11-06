@@ -33,6 +33,15 @@ describe("admin workspace search client", () => {
     await expect(searchAdminWorkspaceRecords("INV-1")).rejects.toThrow("مرجع غير صالح");
   });
 
+  it("accepts only the fixed import, task and supplier destinations", async () => {
+    mocks.rpc.mockResolvedValue({ data: { items: [
+      { kind: "supplier", id: "supplier-1", title: "مورد", subtitle: "SUP-1", status: "active", route: "/admin/suppliers", created_at: null },
+      { kind: "task", id: "task-1", title: "مراجعة مخزون", subtitle: "warehouse · high", status: "pending", route: "/admin/tasks", created_at: null },
+      { kind: "import", id: "job-1", title: "stock.csv", subtitle: "completed · inventory", status: "completed", route: "/admin/data", created_at: null },
+    ] }, error: null });
+    await expect(searchAdminWorkspaceRecords("مراجعة")).resolves.toHaveLength(3);
+  });
+
   it("rejects excessive input and server result size", async () => {
     await expect(searchAdminWorkspaceRecords("x".repeat(121))).rejects.toThrow("120");
     expect(mocks.rpc).not.toHaveBeenCalled();
