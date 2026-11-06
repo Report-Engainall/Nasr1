@@ -1,4 +1,14 @@
-export interface Category { id: string; name: string; name_en: string | null; parent_id: string | null; sort_order: number; is_active: boolean; icon: string | null }
+export interface Category {
+  id: string;
+  name: string;
+  name_en: string | null;
+  code?: string | null;
+  description?: string | null;
+  parent_id: string | null;
+  sort_order: number;
+  is_active: boolean;
+  icon: string | null;
+}
 export interface Brand { id: string; name: string; name_en: string | null; is_active: boolean }
 export interface Product {
   id: string; name: string; name_en: string | null; item_code: string; sku: string | null; barcode: string | null;
@@ -6,6 +16,8 @@ export interface Product {
   /** Additional same-tenant WebP gallery images; image_url remains the primary image. */
   image_gallery_urls?: string[];
   is_active: boolean; is_featured: boolean; sort_order: number;
+  /** Database lifecycle status; public reads expose only active records. */
+  status?: string;
   price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number; base_price: number;
   stock_quantity: number; reserved_quantity: number; min_stock_level: number;
   /** Product-level order policy; defaults to 1 for pre-policy fixtures and transitional reads. */
@@ -15,6 +27,11 @@ export interface Customer {
   id: string; user_id: string | null; full_name: string; company_name: string | null; phone: string;
   email: string | null; address: string | null; city: string | null; customer_tier: number;
   customer_code: string | null; status: string; credit_limit: number; notes: string | null;
+  /** Tenant-owned CRM projection fields returned by customer directory and administrative reads. */
+  business_name?: string | null;
+  contact_name?: string | null;
+  tier?: 'retail' | 'wholesale' | 'vip' | string | null;
+  current_balance?: number | null;
 }
 export type CustomerInteractionType =
   | 'call' | 'visit' | 'whatsapp' | 'email' | 'meeting' | 'note' | 'other';
@@ -41,6 +58,19 @@ export interface Order {
   id: string; order_code: string; customer_id: string; status: string; notes: string | null;
   admin_notes: string | null; total_amount: number; total_items: number; idempotency_key: string | null;
   created_at: string; updated_at: string;
+  /** Read-model fields returned by the canonical order detail and customer lifecycle RPCs. */
+  order_number?: string;
+  quantity_review_required?: boolean;
+  customer_adjustment_note?: string | null;
+  customer_confirmed_at?: string | null;
+  customer_payment_requested_at?: string | null;
+  payment_request_status?: string | null;
+  delivery_address_snapshot?: {
+    label?: string | null; recipient_name?: string | null; phone?: string | null;
+    address_line1?: string | null; address_line2?: string | null; city?: string | null;
+    region?: string | null; postal_code?: string | null; country?: string | null;
+    delivery_instructions?: string | null;
+  } | null;
 }
 export interface OrderItem {
   id: string; order_id: string; product_id: string | null; product_name: string; product_code: string;
@@ -50,6 +80,18 @@ export interface OrderItem {
   promotion_title_snapshot?: string | null;
   promotion_discount_type_snapshot?: string | null;
   promotion_discount_value_snapshot?: number | null;
+  /** Customer/admin amendment and immutable order-item snapshot columns. */
+  item_code?: string | null;
+  product_name_snapshot?: string;
+  unit_snapshot?: string | null;
+  requested_quantity?: number | null;
+  approved_quantity?: number | null;
+  proposed_quantity?: number | null;
+  proposed_unit_price?: number | null;
+  approved_unit_price?: number | null;
+  unit_price_snapshot?: number;
+  proposed_price_reason?: string | null;
+  price_override_reason?: string | null;
 }
 export type PromotionDiscountType = 'percentage' | 'fixed';
 export interface Promotion {
@@ -212,6 +254,11 @@ export interface ImportProfile {
   optional_columns?: string[] | null;
   validation_rules?: unknown;
   normalization_rules?: unknown;
+  transformation_rules?: unknown;
+  date_rules?: unknown;
+  ignored_columns?: string[] | null;
+  report_type?: string | null;
+  source?: string | null;
   matching_key?: string | null;
   merge_strategy?: string | null;
   is_full_dataset?: boolean;
@@ -281,7 +328,7 @@ export type OperationalTaskStatus = 'pending' | 'in_progress' | 'completed' | 'c
 
 export interface AiTask {
   id: string; organization_id: string; title: string; description: string | null; task_type: string | null;
-  priority: 'low' | 'medium' | 'high' | 'critical' | string; status: OperationalTaskStatus | string;
+  priority: 'low' | 'medium' | 'high' | 'critical'; status: OperationalTaskStatus | string;
   assigned_to: string | null; created_at: string; completed_at: string | null;
   task_role?: OperationalTaskRole; source_event_key?: string | null; source_entity_type?: string | null;
   source_entity_id?: string | null; due_at?: string | null; created_by?: string | null; completed_by?: string | null;
