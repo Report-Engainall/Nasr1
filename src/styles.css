@@ -926,6 +926,15 @@
 .customer-service-portal-error{background:color-mix(in srgb,var(--destructive,var(--aghbari-brand)) 8%,var(--card));color:var(--destructive,var(--foreground))}
 .customer-service-portal-readonly,.customer-service-portal-muted,.customer-service-portal-empty{color:var(--muted-foreground);font-size:11px;line-height:1.8}
 .customer-service-portal-empty{padding:24px;text-align:center;border:1px dashed var(--border);border-radius:11px}
+
+.customer-service-portal-case-filters{display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(145px,1fr));gap:10px;align-items:end;padding:13px;border:1px solid var(--border);border-radius:11px;background:var(--background)}
+.customer-service-portal-case-filters label{display:grid;gap:6px;min-width:0;color:var(--muted-foreground);font-size:10px;font-weight:750}
+.customer-service-portal-case-filters input,.customer-service-portal-case-filters select{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font:inherit;font-size:12px}
+.customer-service-portal-filter-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;grid-column:1/-1}
+.customer-service-portal-case-filters>.customer-service-portal-muted{grid-column:1/-1;margin:0}
+.customer-service-portal-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+.customer-service-portal-pagination>span{font-size:10px;color:var(--muted-foreground)}
+.customer-service-portal-pagination>div{display:flex;gap:8px}
 .customer-service-conversation{display:grid;gap:8px;border-top:1px solid var(--border);padding-top:9px}
 .customer-service-conversation-toggle{display:flex;align-items:center;gap:7px;width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit;font-size:10px;font-weight:800;text-align:start;cursor:pointer}
 .customer-service-conversation-count{margin-inline-start:auto;color:var(--muted-foreground);font-size:9px}
