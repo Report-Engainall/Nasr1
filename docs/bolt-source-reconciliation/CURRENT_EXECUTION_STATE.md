@@ -35,6 +35,19 @@
 Continue with the next P3-owned Section 52/remaining Section 53–56 and 59–63 gap grounded by the live matrix; do not duplicate completed engines and do not modify P1-owned workspace/routes.
 
 
+## P1 sequential body update — BODY-COMPLETION-ON-MAIN-033
+
+- Main source SHA: `86cdb16459cb65b28ca88d45749f751e23557fbf`.
+- Existing atomic purchase receiving now persists supplier batch number and expiry date on saved receipt lines; UI captures them per received item; strict API/SQL validation requires batch with expiry and prevents posting already-expired lots into available stock. Saved receipt history and A4 print expose the metadata.
+- This is receipt-level traceability only; the existing aggregate stock source is unchanged. No lot-level remaining balance or FEFO/FIFO claim is made.
+- P1 Checkpoint has the full BODY-033 commit/file record. New leaf `DLV-007-PURCHASE-RECEIPT-BATCH-EXPIRY-TRACEABILITY-001` is `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## P1 sequential body update — BODY-COMPLETION-ON-MAIN-032
+
+- Mounted P3's existing TaskQualityReviewForm inside the existing manager/admin Task Center cards with real task ID/version, task-key isolation and the existing reload callback. Closed tasks remain reviewable. P3 engine/client/DTO/persistence files were not changed.
+- UI commit `4eb080d6ee44a74a36086a6cb9014e8d0fb4004b`; quality-review migration remains source-only pending Bolt.
+- No tests/build/CI/browser/DB/Bolt/Preview/Vercel operations or runtime PASS are claimed for BODY-032/033.
+
 ## P1 sequential body update — BODY-COMPLETION-ON-MAIN-031
 
 - Latest P1 UI source commit: `51daf271923dc89a654b35890b2f2faf3997dbd7`.
