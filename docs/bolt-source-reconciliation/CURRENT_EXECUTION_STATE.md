@@ -2153,3 +2153,13 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Code commits: migration `d7876f7cb7aff2dea08f6f570219ef9309b43a66`; strict engine `cc3cffec727464c34612a17b7873cd87583f3004`; client `a8e19dafa119056128423424c019f06b5080a3e9`; planner `f3921721d4623d63395d04885492bff82f8a694a`; client route `09bdf840e915236638a8790d870c50e017fb6db0`; Arabic UI `ef1717bf8a0f1b9ae248dffb511defbf1ef1ea74`.
 - Acceptance row `REF-NL-ADMIN-ASSISTANT-057` updated at `eec22f0d982765afc40b3a7c7bdb55e79b8f237a`; P3 checkpoint appended at `263928a9bff577c5d4684e0619c493ad78204377`.
 - Migration remains source-only. No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production claim.
+
+
+## P3 body update — 2026-11-06 — Section 55 promotion overlap review
+
+- Added a deterministic, read-only review over the existing commerce-policy catalog. It flags only potential promotion pairs where both registry/source windows overlap and an explicit same product ID or same category ID is shared, with both source fingerprints unchanged and both sources active.
+- Unchanged facts only: the review does not infer discount stacking conflict, choose which priority executes, activate/deactivate policies or modify prices, credit, inventory or the registry.
+- Uncertain source fingerprint/status/date, malformed/mixed/empty product-category scope and cross-dimension comparisons remain withheld; an incomplete 200-row catalog remains PARTIAL.
+- Engine commits: `279073a02c636475082bfb1e5f42257b66f50d74`, hardening `29ab0ec2afa8353bc433e5e935ccf87ff52e5041`; existing policy panel integration `339a6abc51d193f3d34cd5ad8a749b3a4196d9cb`, label hardening `0a8e43444891d34f1fbc9f3d715d9b48c9ae6b42`.
+- Matrix `INT-POLICY-001` updated at `296c2b64973d9ad446b00ea2b08a95c010f953b2`; P3 checkpoint appended at `fdf7ea3e9887b6dbd70c0cf511082d08a304c83a`.
+- No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
