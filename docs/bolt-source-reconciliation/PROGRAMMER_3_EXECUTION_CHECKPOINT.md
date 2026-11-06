@@ -321,3 +321,34 @@ Documentation commits:
 - The shortlist is limited to up to five high/critical items returned by the authorized manager report (the source currently has a bounded result); it is not an exhaustive task list and has no automatic navigation/action callback. Use the existing TaskCenter to open and act on the original task.
 
 **Next P3 action:** preserve the server-only manager boundary; do not broaden to ordinary roles until an authenticated role-scoped task-list RPC exists. Continue with source-backed analytics only.
+
+
+## P3 incremental product-body checkpoint — Arabic commerce policy catalog read — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commit:** `c94d2360b8e5db31fee3efdd43d813b515edc642`  
+**Parent:** `4301ea3dc2aea666b0b205ed02489ab3eac5fa5b`
+
+### Delivered on main
+
+- Added explicit Arabic intents `COMMERCE_POLICY_OVERVIEW` and `COMMERCE_POLICY_SOURCE_CHANGES` to the existing natural-language assistant.
+- The read path calls the existing `fetchCommercePolicyCatalog()` client, which uses the existing `fetch_commerce_policy_catalog` RPC. No SQL, new RPC, alternate catalog query or provider call was added.
+- Before aggregation, it validates `totalCount`, `returnedCount`, item count, nonnegative integer bounds, `completePopulation` consistency and `asOf`. Invalid counts withhold the result.
+- The response exposes only counts by lifecycle (scheduled/effective/expired/superseded), the count of `sourceChanged` policies in the returned page, timestamp and returned/total coverage. It does not expose source IDs, owner IDs, business rules, rationale, source payload or test examples.
+- On incomplete catalog coverage, state remains `PARTIAL`; the count of changed source fingerprints is explicitly labelled as applying to returned policies only.
+- The existing RPC permission boundary is preserved. The assistant performs no registration, activation, simulation, rollback or other write operation.
+
+### Exact changed files
+
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+
+### State and limits
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Section 55 activation, bulk activation, alert thresholds and rollback remain outside this read-only capability and remain constrained to their existing approved workflows.
+- No tests, build, lint, typecheck, CI, browser, database, Bolt, Preview, Vercel or production operation was run for this body-only batch. No PASS or runtime proof is claimed.
+- Approved non-production acceptance must prove manager authorization and denial for other roles, full/partial count reconciliation, lifecycle counts reconcile to returned items, changed-source count is page-scoped under partial coverage, raw owner/source/rule details are not displayed, and no policy write side effect occurs.
+
+**Next P3 action:** resume from live `main`; keep Section 53 shift workspace on its explicit business-date input rather than deriving a timezone-sensitive date in the assistant. Continue only where the caller can provide or the server can resolve the business date safely.
