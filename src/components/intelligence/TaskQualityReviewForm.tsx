@@ -1,4 +1,4 @@
-import {useMemo,useRef,useState,type FormEvent} from "react";
+import {useEffect,useMemo,useRef,useState,type FormEvent} from "react";
 import {recordOperationalTaskQualityReview} from "@/lib/intelligence/task-quality-reviews-client";
 import type {TaskQualityActionability,TaskQualityAlertVerdict,TaskQualityDisposition,TaskQualityReasonCode,TaskQualityReviewType} from "@/lib/intelligence/task-quality-reviews";
 
@@ -16,6 +16,11 @@ export function TaskQualityReviewForm({taskId,taskUpdatedAt,decisionOutcomeId,on
  const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[message,setMessage]=useState<string|null>(null);
  const requestKey=useRef<{eventId:string;idempotencyKey:string}|null>(null);
  const resetRequestKey=()=>{requestKey.current=null;};
+ useEffect(()=>{
+  requestKey.current=null;
+  setError(null);
+  setMessage(null);
+ },[taskId,taskUpdatedAt]);
  const requiresReason=(reviewType==="ACTIONABILITY"&&actionability!=="ACTIONABLE")||
   (reviewType==="RECOMMENDATION_DISPOSITION"&&(disposition==="REJECTED"||disposition==="DEFERRED"))||
   (reviewType==="ALERT_VALIDATION"&&alertVerdict==="FALSE_POSITIVE");
