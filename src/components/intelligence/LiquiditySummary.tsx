@@ -85,7 +85,7 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         currency={position.currency}
         status={position.availableBalanceStatus}
         emphasized
-        evidence={position.metricEvidence.find((item) => item.key === "availableBalance")}
+        evidence={(position.metricEvidence ?? []).find((item) => item.key === "availableBalance")}
       />
       <LiquidityMetric
         label="التحصيلات المتوقعة"
@@ -93,7 +93,7 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         currency={position.currency}
         status={position.expectedCollectionsStatus}
         emphasized
-        evidence={position.metricEvidence.find((item) => item.key === "expectedCollections")}
+        evidence={(position.metricEvidence ?? []).find((item) => item.key === "expectedCollections")}
       />
       <LiquidityMetric
         label="المبالغ المستحقة"
@@ -101,14 +101,14 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         currency={position.currency}
         status={position.dueObligationsStatus}
         emphasized
-        evidence={position.metricEvidence.find((item) => item.key === "dueObligations")}
+        evidence={(position.metricEvidence ?? []).find((item) => item.key === "dueObligations")}
       />
       <LiquidityMetric
         label="الذمم المتأخرة"
         value={position.overdueReceivables}
         currency={position.currency}
         status={position.overdueReceivablesStatus}
-        evidence={position.metricEvidence.find((item) => item.key === "overdueReceivables")}
+        evidence={(position.metricEvidence ?? []).find((item) => item.key === "overdueReceivables")}
       />
       <LiquidityMetric
         label="صافي السيولة المتاحة"
@@ -123,7 +123,7 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         value={position.stagnantStockExposure}
         currency={position.currency}
         status={position.stagnantStockExposureStatus}
-        evidence={position.metricEvidence.find((item) => item.key === "stagnantStockCost")}
+        evidence={(position.metricEvidence ?? []).find((item) => item.key === "stagnantStockCost")}
       />
     </dl>
   );
@@ -159,7 +159,7 @@ function ReceivableAgingPanel({ position }: { position: LiquidityPosition }) {
             key={bucket.bucket + ":" + index}
             bucket={bucket}
             currency={position.currency}
-            evidence={position.metricEvidence.find((item) => item.key === "receivableAging:" + index)}
+            evidence={(position.metricEvidence ?? []).find((item) => item.key === "receivableAging:" + index)}
           />
         ))}
       </ul>
