@@ -340,7 +340,7 @@ BEGIN
   END IF;
   IF p_current_shift_id IS NULL OR p_idempotency_key IS NULL
      OR p_open_item_refs IS NULL OR pg_catalog.jsonb_typeof(p_open_item_refs)<>'array'
-     OR CASE WHEN pg_catalog.jsonb_typeof(p_open_item_refs)='array' THEN pg_catalog.jsonb_array_length(p_open_item_refs)>200 ELSE true END
+     OR (CASE WHEN pg_catalog.jsonb_typeof(p_open_item_refs)='array' THEN pg_catalog.jsonb_array_length(p_open_item_refs)>200 ELSE true END)
      OR char_length(coalesce(p_reason,''))>500 OR char_length(coalesce(p_note,''))>2000 THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='valid shift handover payload is required';
   END IF;
