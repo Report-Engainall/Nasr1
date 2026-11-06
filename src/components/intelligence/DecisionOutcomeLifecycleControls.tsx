@@ -8,6 +8,7 @@ import type { DecisionMemoryMetricResult } from "@/lib/intelligence/decision-mem
 import {
   commandDecisionOutcome,
   deferDecisionOutcome,
+  resumeDeferredDecisionOutcome,
   type DecisionOutcomeEventType,
   type DecisionOutcomeState,
 } from "@/lib/intelligence/decision-outcome-client";
@@ -35,6 +36,7 @@ const labels: Partial<Record<DecisionOutcomeEventType, string>> = {
   APPROVE: "اعتماد القرار",
   REJECT: "رفض القرار",
   DEFER: "تأجيل القرار مع حفظ السبب",
+  RESUBMIT_FOR_REVIEW: "إعادة القرار للمراجعة بسبب موثق",
   ASSIGN: "تثبيت المسؤول المعتمد",
   START_EXECUTION: "بدء التنفيذ",
   COMPLETE_EXECUTION: "تسجيل اكتمال التنفيذ",
@@ -43,6 +45,7 @@ const labels: Partial<Record<DecisionOutcomeEventType, string>> = {
 function allowedEvents(state: DecisionOutcomeState, ownerProfileId: string | null): DecisionOutcomeEventType[] {
   if (state === "PROPOSED") return ["SUBMIT_FOR_REVIEW"];
   if (state === "IN_REVIEW") return ["APPROVE", "REJECT", "DEFER"];
+  if (state === "DEFERRED") return ["RESUBMIT_FOR_REVIEW"];
   if (state === "APPROVED") return ownerProfileId ? ["ASSIGN"] : [];
   if (state === "ASSIGNED") return ["START_EXECUTION"];
   if (state === "EXECUTING") return ["COMPLETE_EXECUTION"];
@@ -189,7 +192,15 @@ export function DecisionOutcomeLifecycleControls({
             eventId: command.eventId,
             idempotencyKey: command.idempotencyKey,
           })
-        : await commandDecisionOutcome({
+        : command.eventType === "RESUBMIT_FOR_REVIEW"
+          ? await resumeDeferredDecisionOutcome({
+              outcomeId,
+              expectedVersion: command.expectedVersion,
+              reason: command.reason,
+              eventId: command.eventId,
+              idempotencyKey: command.idempotencyKey,
+            })
+          : await commandDecisionOutcome({
             outcomeId,
             expectedVersion: command.expectedVersion,
             eventType: command.eventType,
