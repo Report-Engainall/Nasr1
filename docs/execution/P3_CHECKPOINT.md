@@ -1570,3 +1570,40 @@ Continue with the next independently implementable Section 50–63 P3 gap. Bolt 
 ### Next P3 action
 
 Continue with another independently implementable P3 product-body gap backed by an existing source contract. Do not infer order conversion, order ageing or historical trends from this status-only snapshot; those require authoritative event timestamps/period aggregates and separate acceptance.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-POLICY-PROMOTION-OVERLAP-REVIEW-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Section 55 gap addressed: the existing policy registry stored version, owner, source fingerprint, effective window and conflict priority, but did not identify clearly overlapping live promotion scopes for human review.
+
+### Implemented on main
+
+1. **Conservative deterministic overlap engine**
+   - Added `src/lib/intelligence/commerce-policy-overlap-review.ts`.
+   - Considers only active/effective or scheduled promotion sources whose recorded source fingerprint is unchanged.
+   - Requires valid current-source active status, valid policy and live-promotion date windows, and one explicit comparable scope dimension: the same product IDs or the same category IDs. Empty, malformed, mixed-dimension or missing scope is withheld; no scope is treated as a wildcard.
+   - Flags a pair only when the registry effective windows and live promotion windows overlap and the same explicit product/category IDs intersect.
+   - Pairs are labelled `POTENTIAL_OVERLAP_REVIEW`, not confirmed conflicts. It does not infer that discounts cannot stack, does not reorder priorities, and does not write policy/source rows.
+   - The result preserves PARTIAL for truncated catalog populations or withheld source/scope/date/status data, and caps display candidates at 50 while retaining the total candidate count.
+   - Engine commits: `279073a02c636475082bfb1e5f42257b66f50d74`; fail-closed scope/status hardening `29ab0ec2afa8353bc433e5e935ccf87ff52e5041`; final engine blob `12cfd82067a6c267e817b0225dae98cd92df7e1f`.
+
+2. **Existing governance panel integration**
+   - Integrated the review into the existing `CommercePolicyGovernancePanel`; no second policy workspace or route was created.
+   - Displays comparable-promotion count, total potential-overlap pairs, withheld-source/comparison count, two policy labels/versions, recorded priorities, shared scope dimension/count and overlapping period.
+   - Displays explicit limitations: overlapping scope/time does not prove discount stacking conflict and requires review of the actual promotion rules and test examples.
+   - Commits: panel `339a6abc51d193f3d34cd5ad8a749b3a4196d9cb`; withheld source-status label fix `0a8e43444891d34f1fbc9f3d715d9b48c9ae6b42`; final panel blob `628b6ba2668714f7e600c646b696ed5bc70f9b0f`.
+
+3. **Acceptance tracking**
+   - Updated existing `INT-POLICY-001` matrix leaf at `296c2b64973d9ad446b00ea2b08a95c010f953b2`; no duplicate requirement row created.
+
+### Acceptance boundary
+
+- Reads only the existing policy catalog DTO; no new RPC, migration, source query, provider, paid service or write operation was added.
+- Tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operation was NOT run. No PASS/runtime/production claim is made.
+- No promotion, pricing rule, customer credit, inventory balance or policy metadata was activated, changed, rolled back or reordered.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+Continue only with source-backed intelligence gaps. Additional collision resolution, discount stacking behavior, alert thresholds or automatic activation require an explicit executable rule contract and human approval; this review remains advisory and read-only.
