@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-050 — CUSTOMER QUOTE PIPELINE MOUNT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- P1 product-code commit: `3f5326c3cafbf6901a4c66e7882fb9e685a05e6e`.
+- P1 scope: mount the already-delivered customer quote lifecycle aggregate in the existing intelligence workspace; no duplicate quote workflow or new route.
+
+## BODY-050 — connect customer quote pipeline to the operating workspace
+
+- Mounted the existing P3 `fetchCustomerQuotePipeline()` client and `CustomerQuotePipelineSummary` presentation component inside `IntelligenceWorkspace`.
+- The panel reuses the workspace's existing UTC `processFrom/processTo` period controls. It reads the same explicit cohort window as process and supplier-performance reporting; no independent or implicit period is introduced.
+- The panel displays server-derived request-for-pricing, awaiting-customer-response, accepted, rejected and expired counts, plus the qualified acceptance rate. Existing warnings remain visible: current status is read at query time, customer acceptance is not an order conversion, and response-time metrics are unavailable without a source timestamp.
+- Added request-generation protection, unmount cancellation, role-gated request initiation, explicit DENIED/ERROR/UNAVAILABLE presentation and a dedicated refresh action. Authoritative active-profile, same-organization and staff authorization remains in `fetch_customer_quote_pipeline()`; the client supplies no tenant or actor identifiers.
+- No new RPC, SQL migration, table, quote status mutation, order creation or financial write was added. No P3-owned engine, client, component or migration was changed.
+- File changed: `src/components/intelligence/IntelligenceWorkspace.tsx`.
+- Runtime boundary: migration `20261106170000_customer_quote_pipeline_intelligence.sql` remains source-only until applied in the approved Bolt non-production workflow. Until then, the panel reports source unavailability and displays no synthetic metrics.
+
+## Delivery evidence boundary
+
+- Source integration is committed on `main`; no tests, build, lint, typecheck, CI, browser, database migration, Bolt sync, Preview or production operation was run in this delivery. No runtime PASS is claimed.
+- This is one mounted source-backed business capability, not a project-wide completion percentage.
+
+## Next P1 action
+
+Continue the next independent P1 customer/storefront workflow using an existing approved server contract. Returned-order edit-and-resubmit remains blocked until P2 publishes a tenant-scoped atomic amendment command that reprices current lines, persists the source-order relation and preserves idempotency; do not imitate that command with generic cart submission.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-046
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
