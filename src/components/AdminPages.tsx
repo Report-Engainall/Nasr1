@@ -433,6 +433,9 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   const [customerAmendmentError, setCustomerAmendmentError] = useState('');
   const [customerCancellation, setCustomerCancellation] = useState<CustomerOrderCancellationSummary | null>(null);
   const [customerCancellationError, setCustomerCancellationError] = useState('');
+  const [returnReason, setReturnReason] = useState('');
+  const [returnBusy, setReturnBusy] = useState(false);
+  const [returnFeedback, setReturnFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const loadCustomerAmendment = useCallback(async () => {
@@ -570,6 +573,41 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       onNotice(cause instanceof Error ? cause.message : 'تعذر تحديث حالة الطلب');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function returnOrderForCustomerAmendment() {
+    if (returnBusy || busy || order?.status !== 'pending' || hasStaged) return;
+    const reason = returnReason.trim();
+    if (reason.length < 3 || reason.length > 1000) {
+      setReturnFeedback({ kind: 'error', message: 'سبب الإعادة مطلوب من 3 إلى 1000 حرف.' });
+      return;
+    }
+    setReturnBusy(true);
+    setReturnFeedback(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc('return_order_for_customer_amendment', {
+        p_order_id: orderId,
+        p_reason: reason,
+      });
+      if (rpcError) throw rpcError;
+      if (!data || typeof data !== 'object' || Array.isArray(data)
+        || (data as Record<string, unknown>).order_id !== orderId
+        || (data as Record<string, unknown>).status !== 'returned_for_adjustment') {
+        throw new Error('لم يؤكد الخادم إعادة الطلب للعميل؛ لم تُعرض العملية كناجحة.');
+      }
+      setReturnReason('');
+      setReturnFeedback({ kind: 'success', message: 'أُعيد الطلب إلى العميل مع تسجيل السبب وإشعاره. لم يُحجز المخزون ولم تُصدر فاتورة.' });
+      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
+      onBlockedChange(false);
+      onNotice('أُعيد الطلب إلى العميل للتعديل مع حفظ السبب في سجل الحالة.');
+    } catch (cause) {
+      setReturnFeedback({
+        kind: 'error',
+        message: cause instanceof Error ? cause.message : 'تعذر إعادة الطلب؛ بقيت حالته كما هي.',
+      });
+    } finally {
+      setReturnBusy(false);
     }
   }
 
@@ -877,6 +915,28 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     </div>}
 
 
+    {order?.status === 'pending' && user?.roles.some((role) => ['admin','manager','staff'].includes(role)) &&
+      !blocked && !hasStaged && !isCustomerAmendmentReview && (
+      <section className="panel" style={{ marginTop: 16, padding: 16, borderColor: '#e6c98f' }} aria-labelledby="order-return-amendment-title">
+        <h2 id="order-return-amendment-title" style={{ margin: '0 0 7px' }}>إعادة الطلب إلى العميل للتعديل</h2>
+        <p style={{ margin: '0 0 10px', color: 'var(--muted-foreground, #64748b)', lineHeight: 1.8 }}>
+          استخدم هذا المسار عند وجود نقص أو تعارض في الأصناف أو الكميات. يلزم توضيح السبب للعميل؛ يبقى الطلب غير معتمد ولا ينتج عنه حجز مخزون أو فاتورة.
+        </p>
+        <label className="form-field">
+          <span>سبب إعادة الطلب (إلزامي)</span>
+          <textarea rows={3} maxLength={1000} required value={returnReason}
+            disabled={returnBusy || busy}
+            onChange={(event) => { setReturnReason(event.target.value); setReturnFeedback(null); }}
+            placeholder="مثال: الكمية المطلوبة تتجاوز المتاح؛ يرجى تعديل كمية الصنف المحدد..." />
+        </label>
+        {returnFeedback && <div className={returnFeedback.kind === 'error' ? 'form-error' : 'privacy-note'}
+          role={returnFeedback.kind === 'error' ? 'alert' : 'status'}>{returnFeedback.message}</div>}
+        <Button variant="outline" disabled={returnBusy || busy || returnReason.trim().length < 3 || blocked}
+          onClick={() => void returnOrderForCustomerAmendment()}>
+          {returnBusy ? 'جارٍ إعادة الطلب وإشعار العميل...' : 'إعادة الطلب إلى العميل للتعديل'}
+        </Button>
+      </section>
+    )}
     {customerCancellationError && order?.status==='cancelled' && <div role="alert" className="form-error">{customerCancellationError}</div>}
     {customerCancellation && order?.status==='cancelled' && <section className="panel" style={{ marginTop:12, padding:14, borderColor:'#e6b6a9' }}>
       <h3 style={{ margin:'0 0 7px' }}>إلغاء بطلب العميل</h3>
