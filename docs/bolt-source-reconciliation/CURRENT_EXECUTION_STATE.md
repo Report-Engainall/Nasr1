@@ -1926,3 +1926,20 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
+
+
+## P3 LIVE EXECUTION OVERRIDE — 2026-11-06 — DECISION LIFECYCLE + DEFERRED ASSISTANT
+
+- Main SHA at this cursor update: `90c8791458f08e46d0bd080890e381d8dcd5a291`; source-code cursor: `bfb053715498d4fb09a5e45247b35dc8ef8127d4`.
+- Latest P3 source delivery: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Detail: `docs/execution/P3_CHECKPOINT.md`, addendum `REF-DECISION-DEFERRAL-RESUME-AND-ASSISTANT-001`.
+- Section 52: repaired `20261105270000_intelligence_decision_memory.sql` at `fe035887434a417b6c8c95a163475348273a2eaf`; one save function, one fetch function, complete expected-receivables metric continuation and currency validation; unsafe variance arithmetic is withheld at `e61b5ed78f691cb231081f16736ed0630ef6f473`.
+- Decision lifecycle: reasoned manager/admin `IN_REVIEW → DEFERRED → IN_REVIEW` via separate versioned/idempotent commands, append-only event and audit history. Deferral/resubmission migrations are source-only and await authorized non-production database acceptance.
+- Section 57: `DECISIONS_DEFERRED` added to Arabic assistant planning/resolution and state-count display through existing `fetch_decision_outcomes`; historical windows remain unsupported.
+- Central matrix rows updated: `REF-DECISION-MEMORY-BOOK-001`, `REF-DECISION-OUTCOME-LIFECYCLE-001`, `REF-NL-DECISION-OUTCOMES-001`; matrix commit `b2b38323addd291156e8da03b064d2f1f69de632`.
+- No P1-owned workspace, app shell, task center or commerce route was changed. Section 61 quality-review form still requires P1's mount.
+- No test/build/lint/typecheck/CI/browser/Bolt/database application/Preview/Vercel/production operation was executed in this body-only pass. No PASS, runtime proof or production readiness is claimed.
+- No weighted remaining-P3 denominator was reconciled; no 95% claim is made. Prior P1/P2/Bolt dependencies remain open.
+
+### Current P3 next action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-002`: continue only independently implementable, source-backed P3 gaps from the canonical intelligence reference; do not rebuild existing Section 50–63 engines, do not change P1/P2-owned integration files, and preserve migrations as source-only until the authorized database workflow is available.
