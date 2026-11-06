@@ -251,8 +251,7 @@ export async function fetchOperationalShiftHandoverAcceptance(
   if (!raw || raw.current_shift_id !== currentShiftId || raw.required !== true ||
       !(raw.handover_id === null || (typeof raw.handover_id === "string" && UUID.test(raw.handover_id))) ||
       !(raw.accepted_at === null || (typeof raw.accepted_at === "string" && Number.isFinite(Date.parse(raw.accepted_at)))) ||
-      (raw.handover_id === null && raw.accepted_at !== null) ||
-      (raw.handover_id !== null && raw.accepted_at === null && typeof raw.accepted_at !== "undefined" && !Number.isFinite(Date.parse(String(raw.accepted_at))))) {
+      (raw.handover_id === null && raw.accepted_at !== null)) {
     return { ok: false, status: "ERROR", message: "استجابة مرجع قبول التسليم لا تطابق عقد الخدمة." };
   }
   return { ok: true, data: {
