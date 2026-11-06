@@ -120,3 +120,18 @@ P3 added the reusable `EvidenceSourceComparisonPanel` and deterministic engine e
 - UI states and no-data behavior are required; page/source scope must remain explicit.
 
 Source-only P3 delivery at the recorded code SHA. No test/build/browser/database runtime acceptance is claimed in this handoff.
+
+
+## AI Gateway Operations Panel — partial Section 23.8 / REF-AI-OPS-001 handoff
+
+- Import: `import { AiGatewayOperationsPanel } from "@/components/intelligence";`
+- Mount inside the existing admin AI view only. Do not create a second AI route, provider gateway, settings writer or deployment surface.
+- The component reads the existing `get_ai_gateway_budget()` RPC through `fetchAiGatewayBudget()`. The server requires an active authenticated admin/manager session and resolves organization scope from the session; no tenant, actor, role or capability is accepted from the browser.
+- The client strictly validates the returned configuration, limits, observed usage, active reservation totals and `keys_stored_in_database=false`. Malformed data is withheld. The UI never displays organization ID, provider base URL, API credentials or prompts.
+- The panel shows configured/enabled state, saved primary/fallback model labels, daily/monthly cost and token totals, active reservations and limit headroom. Cost figures are shown without a currency symbol because this read contract does not return a separately typed currency. They are gateway estimates/ledger aggregates, not provider invoices or settlement evidence.
+- This is read-only. It does not configure providers, reserve quota, call providers, change model selection or transmit user data.
+- **Scope is deliberately partial:** the current RPC does not return free-tier verification evidence, verified-zero provider rates, remaining provider quota, reset time, cooldown, privacy classification, last provider response, per-attempt errors or provider fallback counts. The component explicitly marks those values as unproven; do not infer them from a configured model or a zero cost aggregate.
+- Positive configured cost limits are flagged for owner review because this view alone cannot certify the product's required `paidSpendLimit=0`. A zero recorded estimate is not proof that a model is free.
+- States: loading, denied, unavailable, malformed/error and ready. No fallback fixtures or synthetic provider status are allowed.
+
+Source delivery: `src/lib/intelligence/ai-gateway-operations-client.ts`, `src/components/intelligence/AiGatewayOperationsPanel.tsx`, and the intelligence barrels. P1 mount remains pending. No test/build/typecheck/browser/DB/Bolt/CI/production acceptance is claimed.
