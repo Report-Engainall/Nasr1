@@ -43,7 +43,7 @@ export function transitionDecisionOutcome(outcome:DecisionOutcome,event:Decision
  const prior=outcome.history.find(item=>item.idempotencyKey===event.idempotencyKey);
  if(prior)return sameEvent(prior,event)?{ok:true,outcome,duplicate:true}:{ok:false,outcome,reason:"IDEMPOTENCY_CONFLICT"};
  if(!transitions[outcome.state].includes(event.type))return {ok:false,outcome,reason:"INVALID_TRANSITION"};
- if((event.type==="REJECT"||event.type==="APPROVE"||event.type==="DEFER")&&!event.reason?.trim())return {ok:false,outcome,reason:"MISSING_REASON"};
+ if((event.type==="REJECT"||event.type==="APPROVE"||event.type==="DEFER"||event.type==="RESUBMIT_FOR_REVIEW")&&!event.reason?.trim())return {ok:false,outcome,reason:"MISSING_REASON"};
  if(event.type==="ASSIGN"&&!event.owner?.trim())return {ok:false,outcome,reason:"MISSING_OWNER"};
  if(event.type==="MEASURE"&&!validMeasurement(event.measuredOutcome))return {ok:false,outcome,reason:"INVALID_MEASUREMENT"};
  const next:Record<DecisionOutcomeEventType,DecisionOutcomeState>={SUBMIT_FOR_REVIEW:"IN_REVIEW",APPROVE:"APPROVED",REJECT:"REJECTED",DEFER:"DEFERRED",
