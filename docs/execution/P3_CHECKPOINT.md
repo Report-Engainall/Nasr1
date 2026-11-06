@@ -987,3 +987,48 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; 
 ### Next P3 action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-004`: advance to the next genuinely unimplemented source-backed item in Sections 53–63. Preserve all page-scope and no-automatic-policy-change guarantees. Do not rebuild existing engines or alter P1/P2-owned routes, workspace or database runtime paths.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NOTIFICATION-DELIVERY-AUDIT-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA observed before checkpoint append: `546f26301354571cb4f09f31252791403512f0a1`.
+- Canonical area: Section 59 — privacy, consent and notification personalization.
+
+### Implemented on main
+
+1. **Payload-free delivery policy audit metadata**
+   - Added `createNotificationDeliveryAuditMetadata()` to `src/lib/intelligence/personalization-governance.ts`.
+   - The function recomputes the deterministic delivery decision and refuses caller-supplied decision drift. It returns an opaque attempt reference; server actor/recipient profile references; purpose, channel, severity and data class; policy version and preference timestamp; decision status/reason; display settings; and the exact external consent ID/version when one unique matching consent record exists.
+   - It deliberately excludes destination IDs/addresses, email/phone, message body/title, customer data and financial values. A revoked consent reference can still be recorded for a DENY decision, without treating it as authorization.
+   - This is a pure P3 audit projection for P2's transactional writer. It does not persist the audit row or dispatch a notification.
+   - Commit: `66396cffebeeabec964a66c325a6368930051170`.
+
+2. **Fail-closed malformed input handling**
+   - Malformed external consent collections return `REVIEW / EXTERNAL_CONSENT_INVALID`; they are not interpreted as consent absence or an authorization.
+   - Missing/invalid recipient tenant/profile context returns REVIEW.
+   - The audit projection returns null for malformed identities, missing decision objects or a result that differs from the recomputed policy decision.
+   - Hardening commits: `2ed055480c1f4c58aac538449aeb8d8d8423b235` and `ddd1666e72f6d4ad2329789560e5c717fc7bc864`.
+   - Final engine blob: `91697a41adae66f09506e079c95a832ef27bc96d`.
+
+3. **Focused source tests**
+   - Added tests for in-app allow metadata, external email consent references, revoked consent audit, payload/address exclusion, tampered decisions, malformed identities, malformed consent arrays and null audit decisions.
+   - Test commits: `357028bf17819a551a926afcecace454243789f7`, `a004a3b0ff7beff7582d2b1227da772c945dec90`, `58be8bf4b1155165f90f55c22d52cc2421962243`.
+   - Final test blob: `98780d383a3a4e2238aee6d522af6b11b06a1015`. Tests were authored but NOT run.
+
+4. **Central acceptance matrix**
+   - Added a separate row `REF-NOTIFICATION-DELIVERY-AUDIT-001` in the existing matrix; commit `fe331f264281f43c2710b4b4611c1d34724bd011`.
+   - This keeps Section 59 notification delivery audit distinct from `REF-AI-PRIVACY-001` (external AI egress).
+
+### Ownership and acceptance boundary
+
+- The existing `PersonalizationPrivacyPanel` remains a reusable P1 mount handoff; this batch did not edit P1 routes, app shell or workspace.
+- P2 still owns atomic audit persistence and sender enforcement. P2 must derive actor, tenant, recipient, capabilities and consent again at write/dispatch time; only ALLOW may reach a sender. Deny/suppress/review must not dispatch. Attempt replay must be idempotent.
+- The notification inbox remains a reader of already-persisted notifications. This P3 delivery-audit contract does not prove that the existing sender is wired through the policy.
+- No external email/WhatsApp/SMS send, provider receipt, preference persistence, consent grant/revoke persistence or audit DB write was attempted.
+- No tests, build, lint, typecheck, CI, browser, database, Bolt, Preview, Vercel or production operation was run. No PASS or runtime/production proof is claimed.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-005`: continue only another independently implementable Section 53–63 product-body gap. Preserve the sender/P2 boundary; do not enable external channels before the sender consumes this policy and the approved consent/audit path is proven.
