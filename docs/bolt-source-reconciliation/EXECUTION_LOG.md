@@ -2175,3 +2175,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Distinguishes sales orders from purchase orders, requests clarification for generic order questions, rejects historical windows unsupported by the current snapshot and keeps unknown status values PARTIAL.
 - Matrix leaf `REF-NL-ADMIN-ASSISTANT-057`: `eec22f0d982765afc40b3a7c7bdb55e79b8f237a`; P3 checkpoint `263928a9bff577c5d4684e0619c493ad78204377`; current state `361f86897472c954b5da461a1ddcefb79ef67319`.
 - No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. Migration remains source-only. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## 2026-11-06 — REF-POLICY-PROMOTION-OVERLAP-REVIEW-001 — conservative promotion overlap review
+
+- Added `src/lib/intelligence/commerce-policy-overlap-review.ts` (engine commits `279073a02c636475082bfb1e5f42257b66f50d74`, `29ab0ec2afa8353bc433e5e935ccf87ff52e5041`).
+- It reads the existing policy catalog DTO and detects only potential overlaps between active/scheduled promotion records when both registry/live source date windows overlap and an explicit same product or same category is shared. Both source fingerprints must be unchanged.
+- Empty/malformed/mixed product-category scope, unavailable source active status, changed source fingerprint and missing dates are withheld. Partial catalog remains PARTIAL. The review does not prove stacking is forbidden and performs no mutation.
+- Integrated into existing `CommercePolicyGovernancePanel` (commits `339a6abc51d193f3d34cd5ad8a749b3a4196d9cb`, `0a8e43444891d34f1fbc9f3d715d9b48c9ae6b42`). Matrix `INT-POLICY-001`: `296c2b64973d9ad446b00ea2b08a95c010f953b2`; P3 checkpoint `fdf7ea3e9887b6dbd70c0cf511082d08a304c83a`; execution state `50163d8e6a7e6ec70ba1cddab157ffdf61072de4`.
+- No tests/build/runtime/Bolt/DB/Preview/Vercel/production operation run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
