@@ -172,6 +172,105 @@ export async function fetchDecisionOutcomes(limit = 50, offset = 0): Promise<Dec
   }
 }
 
+
+/**
+ * Loads a bounded collection for decision-memory search.
+ * Every page uses the existing authenticated RPC. Complete coverage requires
+ * a stable total, exact page sizes, unique IDs and an unchanged first page.
+ */
+export interface DecisionOutcomeCollection {
+  items: DecisionOutcomeView[];
+  total: number;
+  loaded: number;
+  pageCount: number;
+  complete: boolean;
+  reason: "COMPLETE" | "SOURCE_TOTAL_CHANGED" | "PAGE_SIZE_MISMATCH" |
+    "DUPLICATE_RECORD" | "FIRST_PAGE_CHANGED" | "MAXIMUM_WINDOW_REACHED";
+}
+
+const DECISION_MEMORY_PAGE_SIZE = 100;
+const DECISION_MEMORY_MAX_OFFSET = 5000;
+
+function decisionPageFingerprint(items: DecisionOutcomeView[]): string {
+  return items.map(item => item.id + ":" + item.version + ":" + item.updatedAt).join("|");
+}
+
+export async function fetchDecisionOutcomeCollection(): Promise<
+  | { ok: true; collection: DecisionOutcomeCollection }
+  | { ok: false; status: DecisionOutcomeFailureStatus; message: string }
+> {
+  const first = await fetchDecisionOutcomes(DECISION_MEMORY_PAGE_SIZE, 0);
+  if (!first.ok) return first;
+
+  const total = first.total;
+  const items = [...first.items];
+  const seen = new Set(items.map(item => item.id));
+  let pageCount = 1;
+  let reason: DecisionOutcomeCollection["reason"] = "COMPLETE";
+
+  if (items.length !== Math.min(DECISION_MEMORY_PAGE_SIZE, total)) {
+    reason = "PAGE_SIZE_MISMATCH";
+  }
+
+  for (
+    let offset = DECISION_MEMORY_PAGE_SIZE;
+    reason === "COMPLETE" && offset <= DECISION_MEMORY_MAX_OFFSET && offset < total;
+    offset += DECISION_MEMORY_PAGE_SIZE
+  ) {
+    const page = await fetchDecisionOutcomes(DECISION_MEMORY_PAGE_SIZE, offset);
+    if (!page.ok) return page;
+    pageCount += 1;
+
+    if (page.total !== total) {
+      reason = "SOURCE_TOTAL_CHANGED";
+      break;
+    }
+
+    if (page.items.length !== Math.min(DECISION_MEMORY_PAGE_SIZE, total - offset)) {
+      reason = "PAGE_SIZE_MISMATCH";
+      break;
+    }
+
+    for (const item of page.items) {
+      if (seen.has(item.id)) {
+        reason = "DUPLICATE_RECORD";
+        break;
+      }
+      seen.add(item.id);
+      items.push(item);
+    }
+    if (reason !== "COMPLETE") break;
+  }
+
+  if (reason === "COMPLETE" && items.length < total) {
+    reason = "MAXIMUM_WINDOW_REACHED";
+  }
+
+  if (reason === "COMPLETE") {
+    const verification = await fetchDecisionOutcomes(DECISION_MEMORY_PAGE_SIZE, 0);
+    if (!verification.ok) return verification;
+    if (
+      verification.total !== total ||
+      decisionPageFingerprint(verification.items) !== decisionPageFingerprint(first.items)
+    ) {
+      reason = "FIRST_PAGE_CHANGED";
+    }
+  }
+
+  const complete = reason === "COMPLETE" && items.length === total;
+  return {
+    ok: true,
+    collection: {
+      items,
+      total,
+      loaded: items.length,
+      pageCount,
+      complete,
+      reason: complete ? "COMPLETE" : reason,
+    },
+  };
+}
+
 export async function createDecisionOutcomeProposal(input: {
   candidateId: string;
   ruleId: string;
