@@ -2140,3 +2140,13 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Source failure remains `UNAVAILABLE`; page drift/truncation remains `PARTIAL`. No zero values were fabricated.
 - Matrix update `dbc43cd1e3b7c0e6a1a69cdde314694f2082c671`; execution-state update `a342351c351d20fe31ce1bfe40c586b1e7cb5cdc`; P3 checkpoint `35a24e0200e1051fcc6ae8bc874a9b67659bb47a`.
 - No tests/build/runtime/DB/Bolt/Preview/Vercel/production operation run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## 2026-11-06 — REF-SHIFT-OPERATIONS-COMMANDS-UI-001 — Section 53 actions wired
+
+- Added migration `20261106180000_intelligence_shift_handover_acceptance_lookup.sql` (commit `dc492566a0c97e06b3389a7605a4b965b150dbc4`) returning only the recorded handover ID/acceptance timestamp to the verified incoming owner.
+- Added the typed lookup client in `src/lib/intelligence/shift-operations-client.ts` (commits `b1de680dd84170d924ad15430e7f1bedf508a2bd`, `44fd4cfb31c4cac312f8f924c2adb37c8ac92d9a`).
+- Wired `ShiftOperationsCenter` to existing RPC clients for OPENING/CLOSEOUT evidence snapshots, actual cash count by returned currency and phase, real open-source handover recording, and incoming-owner acceptance (commits `64c0b2d2223f0ad14b41dfdf1952357756aea761`, `adb06cda0bc8ecb3c8faac034af5676c1d74a312`, `233640c0e58e93baee375044d873947c742952d4`).
+- UI commands retain an idempotency key for an ambiguous retry, reset it when the payload changes and show success only from a validated RPC receipt. The database remains authoritative for authorization, tenant scope, source-reference validation, versioning and audit.
+- Existing matrix leaf `INT-SHIFT-001` updated at `3319c21e9919a5f9e5f8df0b85e2cb25e862d0b7`; P3 checkpoint `8cfaaa55352d1e1d07f00dd564839393b2ffeff0`; current execution state update follows.
+- Migrations are source-only. No tests/build/runtime/DB/Bolt/Preview/Vercel/production operation or live financial/inventory write was run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
