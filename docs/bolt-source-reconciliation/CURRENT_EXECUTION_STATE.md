@@ -2417,3 +2417,13 @@ Continue the next unimplemented intelligent product-body function from the lates
 1. Preserve the task-quality review form and centre; apply the five quality-review migrations only in approved non-production, then confirm manager save, customer denial, append-only event protection, stale/idempotent replay and aggregate denominators.
 2. Resume the remaining public-build parser issue in `SupplierQuoteWorkspace.tsx:380` using its actual current-main source path, without altering quote-engine behavior.
 3. Keep the three customer amendment migrations and open-PO ATP migration unapplied until approved database access is available; then run their documented runtime acceptance in sequence.
+
+## P3 hardening increment — Growth Radar source confidence — 2026-11-06
+
+- Exact code/test cursor: `f677a0abe6c6626907affb6bcdf3cac041392e6f`.
+- `buildGrowthOpportunityRadar` now requires an explicit `sourceSnapshotVerified === true` before publishing VERIFIED population status. Omitted coverage is unknown, not complete; active signals remain NEEDS_REVIEW and an empty unconfirmed population stays UNAVAILABLE.
+- Added warning codes for explicit incomplete versus unconfirmed population coverage.
+- Enforced `distinctSearchers <= searchCount` inside the reusable deterministic engine, in addition to the source-client validation.
+- Regression source test file covers omitted/true/false/empty coverage and impossible sample ratios. Tests are authored but NOT RUN.
+- Commits: `51cebd4a47c9cfaa23888e3d0b9799f96beab61c`, `13858915589ecbf990adf87a777f444a12bf87c8`, `d5d24e7879c1701c76310b0ec61a896bb7359a0b`, `f677a0abe6c6626907affb6bcdf3cac041392e6f`.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING; no build/CI/browser/DB/Bolt/production acceptance or PASS claim.
