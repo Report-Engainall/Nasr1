@@ -2698,3 +2698,31 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 1. P3 triage the seven failing `natural-language-assistant.test.ts` cases against its current engine/client commits; P1 should not alter P3-owned rule resolution.
 2. Run the focused test and existing mobile navigation test on a current exact main SHA after relevant owner fixes; then execute current-head P2 Playwright for the drawer, route remount, decision-board keyboard sequence and mobile overflow.
 3. Wait for the P2 immutable candidate snapshot DTO before adding priority/impact sorting. Until then the board remains ordered only by currently persisted due/state/verified-deviation facts.
+
+## P1 decision board deterministic order and isolated Chromium acceptance — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main` only. This increment continued the existing DailyDecisionBoard and did not create another production route/component or touch P2/P3-owned engines.
+- Deterministic ordering: `DailyDecisionBoard.tsx` now adds the immutable `decisionId` as the final tie-break after its supported due/state/verified-deviation ranking and creation timestamp. This prevents visually changing card order when the saved records tie on all displayed ranking fields. Code commit `0c28982c3812a6a0535c4fbecb4376334172e753`; the source-level regression test asserting A/Z ordering is `47ff507b16f073f044b7f4b6116ae40d870ab40b`.
+- Added an isolated Chromium fixture for the actual production `DailyDecisionBoard` component:
+  - `public/e2e/fixtures/daily-decision-board.html` — commit `9c511005dfce023575046f32b6495a1bd1730e16`.
+  - `src/test/daily-decision-board-harness.tsx` — commit `7c7b217a1fdf832cacf9f3c78b15ddccf72438a4`, then imported the production Tailwind stylesheet in `6c703f322f95c508a18b0d0de570575632e2b543`.
+  - `e2e/public-storefront-smoke.spec.ts` — commit `17e49830373aec2b9b8a7c8eb882cd530c00778a`; it checks the same React component at 360px and 1280px, RTL/language, document and board overflow, ordered decision titles (including the ID tie-break), real keyboard Tab sequence, and computed focus outline.
+- The fixture is deterministic, has no credentials, blocks no real external resource because it makes no backend request, and does not mutate an account or database. P2 public UI smoke already launches the isolated Vite harness at `E2E_PRICE_FIXTURE_BASE_URL` and runs `e2e/public-storefront-smoke.spec.ts`; the new test is included in that existing invocation without a new workflow.
+- The source-level board keyboard/responsive tests previously passed 2/2, and the existing drawer focus tests passed 4/4 on exact SHA `8ea8332941ddafbf3091f18b6314108d54806730` in run `42181984854`. These do not constitute a browser PASS for the new Chromium fixture.
+- P2 saved priority/impact contract remains absent in `DecisionMemoryRecord` / `DecisionOutcome`: no immutable P0–P3 priority or score, generic verified impact, risk or expiry fields. Board continues using only due/state/verified-deviation order, creation time and immutable decision ID; no values are inferred.
+- No change to the AghbariApp mobile drawer focus repair, returned-order amendment, executive liquidity, replenishment draft, account personalization, task-quality center, or P3 intent/decision engines.
+- Matrix rows `DLV-002` and `REF-DAILY-DECISIONS-001` were updated in place. DLV-002 and the daily-decision leaf remain acceptance-pending until the exact-head Chromium job and current authenticated P2 coverage complete.
+
+### Verification and handoff
+
+- Main SHA before this checkpoint documentation update: `57b19f73a7f793cedd045a2eca8740f8a3d4e1da`.
+- P1 Targeted TypeScript had passed on the preceding source SHA `b8c3431e3b613363e5da8f675a967b36d2373c1d`; the tie-break/fixture/spec changes are newer and require their own exact-head result.
+- The prior full Commerce unit suite failed globally (143 tests across 42 files failed, 256 test files passed); the new focused decision-board unit test and existing drawer test were green. Do not transfer that focused PASS or the predecessor TypeScript PASS to later SHAs.
+- P2 Playwright run `42182226394` was still running on older SHA `e4f8912995480d3cd933beae22a2427bf7eb7f38`, with its public smoke in progress and authenticated customer/tenant job skipped. New commits touching `e2e/**` trigger the same P2 workflow on this newer head; read its exact-head result before claiming browser acceptance.
+- No Supabase/Bolt database operation, production deployment, authenticated customer/tenant write, or live data mutation was made by this increment.
+
+## NEXT_ACTION
+
+1. Retrieve the P2 Playwright run triggered by the latest `e2e/public-storefront-smoke.spec.ts` update. Inspect the exact public UI smoke logs/artifact for the new 360/1280 decision-board keyboard/focus/overflow test. Fix only a reproduced defect and rerun on the new exact SHA.
+2. Retrieve P1 Targeted TypeScript and Commerce results for the resulting latest main SHA. If the seven P3-owned natural-language intent failures persist, hand their failing assertions to P3; do not change P3 rule resolution from P1.
+3. P2 must deliver the immutable saved candidate priority/impact/risk/expiry snapshot. Then P1 will render/sort by those saved fields in the already-mounted board.
