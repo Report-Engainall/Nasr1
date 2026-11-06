@@ -1,3 +1,29 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-039
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at this checkpoint base: `a6101171ee7fe3fe75b3240dbdc57a263cbd4e67`.
+- P1 product-code commit: `a6101171ee7fe3fe75b3240dbdc57a263cbd4e67`.
+- P1 scope: storefront feedback semantics for the BODY-036 alternate-unit selection flow.
+
+## BODY-039 — truthful success/error feedback for alternate-unit additions
+
+- Corrected the existing storefront action banner so successful package-to-base-unit additions render with a polite success status and positive visual treatment.
+- Quantity, stock, conversion and RPC failures continue to render as assertive error alerts. The selected package quantity and base-unit equivalent confirmation are no longer presented as a stock/error warning.
+- File changed: `src/components/Storefront.tsx`; no business rule, server payload, cart contract, pricing or stock state was changed.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no browser/runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-039.
+- The central acceptance matrix and general execution-state file remain unchanged.
+- Project-wide 95% P1 completion remains unclaimed.
+
+## Next P1 action
+
+Continue from the latest live `main` with the next concrete non-P3 workflow gap; do not repeat BODY-032 through BODY-039 absent a reproducible defect.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-038
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
