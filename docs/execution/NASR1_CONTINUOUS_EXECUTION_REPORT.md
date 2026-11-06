@@ -1,3 +1,14 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-060 — PWA UPDATE LIFECYCLE
+
+- Added user-controlled PWA update notification. A new Service Worker waits instead of automatically calling skipWaiting; the UI detects it and offers Update/Later.
+- Update sends the activation message and reloads only after controllerchange. The shell cache namespace advances to v4 and old shell caches are removed after activation.
+- Existing read-only cache boundary is unchanged: public shell/static assets only; no authenticated route or Supabase/price/order/finance/inventory response caching.
+- Commits: `a23066e40ac1abf899d9aac3a1f578927ef37e9b`, `d73e1d028699b41188f03970f261d245fe26c1f8`, `828065e3ca7450fc90cf5b2b4a282c3ff9bf6524`.
+- Acceptance leaf: `DLV-014-PWA-UPDATE-PROMPT-001`; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/offline lifecycle/Bolt/database/Preview/Vercel/production operation was run. No runtime PASS claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — CUSTOMER ORDER XLSX + CUSTOMER RETURN PRINT
 
 ## Customer order XLSX — BODY-058
