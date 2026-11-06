@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  ArrowLeft, BookOpen, ClipboardList, FileText, Headphones,
+  ArrowLeft, BookOpen, ClipboardList, FileText, Headphones, Lock,
   MapPin, MessageCircle, Package, Search, ShoppingBag, Users,
 } from "lucide-react";
 
@@ -74,6 +74,13 @@ const articles: HelpArticle[] = [
     keywords: "فاتورة فواتير كشف حساب رصيد حساب statement",
   },
   {
+    id: "password-change",
+    category: "الحساب والتوصيل",
+    question: "كيف أغيّر كلمة مرور حسابي؟",
+    answer: "بعد تسجيل الدخول افتح صفحة «كلمة المرور»، أدخل كلمة مرور جديدة وأكدها ثم احفظ. تنفذ المصادقة التحديث على الحساب الحالي؛ وإذا طلب موفر المصادقة إعادة التحقق، استخدم مسار استعادة كلمة المرور.",
+    keywords: "كلمة المرور تغيير تحديث تغييرها حساب أمان",
+  },
+  {
     id: "payment-history",
     category: "الفواتير والحساب",
     question: "أين أراجع الدفعات المسجلة؟",
@@ -106,6 +113,7 @@ const articles: HelpArticle[] = [
 const actions = [
   { to: "/orders", label: "متابعة طلباتي", detail: "عرض الطلبات وحالاتها المحفوظة", icon: ClipboardList },
   { to: "/payments", label: "دفعاتي", detail: "عرض حركات السداد المسجلة في الحساب", icon: FileText },
+  { to: "/account/password", label: "كلمة المرور", detail: "تحديث كلمة مرور الحساب الحالي", icon: Lock },
   { to: "/reorder", label: "إعادة الطلب", detail: "تطبيق القوالب ومراجعة السلة", icon: ShoppingBag },
   { to: "/addresses", label: "عناوين التوصيل", detail: "إدارة عناوين الحساب", icon: MapPin },
   { to: "/invoices", label: "الفواتير", detail: "عرض مستندات الحساب المتاحة", icon: FileText },
