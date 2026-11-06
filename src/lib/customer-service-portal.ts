@@ -129,6 +129,102 @@ export async function fetchMyCustomerServicePortalContext(): Promise<CustomerSer
   };
 }
 
+
+export interface CustomerServicePortalCursor {
+  created_at: string;
+  id: string;
+}
+export interface CustomerServicePortalPage {
+  asOf: string;
+  totalCount: number;
+  pageSize: number;
+  hasMore: boolean;
+  nextCursor: CustomerServicePortalCursor | null;
+  cases: CustomerServicePortalCase[];
+}
+
+export function readCustomerServicePortalPage(value: unknown): CustomerServicePortalPage {
+  const row = object(value, "صفحة حالات خدمة العملاء");
+  if (!Array.isArray(row.cases) || row.side_effects !== "NONE" ||
+      typeof row.has_more !== "boolean" ||
+      !Number.isSafeInteger(row.total_count) || (row.total_count as number) < 0 ||
+      !Number.isSafeInteger(row.page_size) || (row.page_size as number) < 1 || (row.page_size as number) > 50) {
+    throw new Error("أعاد الخادم صفحة حالات خدمة غير مكتملة.");
+  }
+  const asOf = date(row.as_of, "لقطة حالات الخدمة");
+  const pageSize = row.page_size as number;
+  const totalCount = row.total_count as number;
+  const rawCases = row.cases as unknown[];
+  if (rawCases.length > pageSize || rawCases.length > 50 || rawCases.length > totalCount ||
+      (row.has_more && rawCases.length !== pageSize)) {
+    throw new Error("عدد حالات الخدمة لا يطابق حدود الصفحة.");
+  }
+  const cases = rawCases.map((entry,index) => parsePortalCase(entry,index));
+  const seen = new Set<string>();
+  for (let index=0;index<cases.length;index+=1) {
+    const item=cases[index];
+    if (seen.has(item.id) || Date.parse(item.createdAt)>Date.parse(asOf)) {
+      throw new Error("سجل حالة خدمة مكرر أو أحدث من لقطة المصدر.");
+    }
+    seen.add(item.id);
+    if (index>0) {
+      const previous=cases[index-1];
+      const previousTime=Date.parse(previous.createdAt);
+      const currentTime=Date.parse(item.createdAt);
+      if (previousTime<currentTime ||
+          (previousTime===currentTime && previous.id.toLowerCase()<item.id.toLowerCase())) {
+        throw new Error("ترتيب صفحة حالات الخدمة لا يطابق مؤشر المصدر.");
+      }
+    }
+  }
+  let nextCursor: CustomerServicePortalCursor | null=null;
+  if (row.next_cursor!==null) {
+    const cursor=object(row.next_cursor,"مؤشر صفحة حالات الخدمة");
+    const id=text(cursor.id,"معرف مؤشر حالة الخدمة");
+    const createdAt=date(cursor.created_at,"تاريخ مؤشر حالة الخدمة");
+    if (!uuidPattern.test(id)) throw new Error("معرف مؤشر صفحة الخدمة غير صالح.");
+    nextCursor={created_at:createdAt,id};
+  }
+  if (row.has_more) {
+    if (!nextCursor || cases.length===0) throw new Error("صفحة الخدمة تعلن وجود صفحات تالية دون مؤشر.");
+    const last=cases[cases.length-1];
+    if (Date.parse(nextCursor.created_at)!==Date.parse(last.createdAt) || nextCursor.id!==last.id) {
+      throw new Error("مؤشر صفحة الخدمة لا يطابق آخر حالة معروضة.");
+    }
+  } else if (nextCursor!==null) {
+    throw new Error("أعاد مصدر الخدمة مؤشرًا رغم اكتمال السجل.");
+  }
+  return {asOf,totalCount,pageSize,hasMore:row.has_more,nextCursor,cases};
+}
+
+export async function fetchMyCustomerServiceCasesPage(input: {
+  limit?: number;
+  cursor?: CustomerServicePortalCursor | null;
+  search?: string | null;
+  status?: CustomerServiceCaseStatus | null;
+  caseType?: CustomerServiceCaseType | null;
+}): Promise<CustomerServicePortalPage> {
+  const limit=input.limit??50;
+  if (!Number.isInteger(limit)||limit<1||limit>50) throw new Error("حجم صفحة حالات الخدمة غير صالح.");
+  const cursor=input.cursor??null;
+  if (cursor && (!uuidPattern.test(cursor.id)||!Number.isFinite(Date.parse(cursor.created_at)))) {
+    throw new Error("مؤشر صفحة حالات الخدمة غير صالح.");
+  }
+  const search=(input.search??"").trim().slice(0,120);
+  if (input.status && !statuses.includes(input.status)) throw new Error("مرشح حالة الخدمة غير صالح.");
+  if (input.caseType && !caseTypes.includes(input.caseType)) throw new Error("مرشح نوع الخدمة غير صالح.");
+  const {data,error}=await supabase.rpc("get_my_customer_service_cases_page",{
+    p_after_created_at:cursor?.created_at??null,
+    p_after_id:cursor?.id??null,
+    p_limit:limit,
+    p_search:search||null,
+    p_status:input.status??null,
+    p_case_type:input.caseType??null,
+  });
+  if(error)throw error;
+  return readCustomerServicePortalPage(data);
+}
+
 export async function fetchMyCustomerServiceCases(limit = 50): Promise<CustomerServicePortalCase[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new Error("حجم قائمة حالات العميل غير صالح.");
