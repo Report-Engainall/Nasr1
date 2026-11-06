@@ -2401,3 +2401,19 @@ Continue the next unimplemented intelligent product-body function from the lates
 - It explicitly withholds free-tier verification, zero-rate proof, quota remaining/reset, cooldown, privacy classification, last response, per-attempt errors and fallback counts because the current RPC does not return them.
 - P1 mount handoff: `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`. Keep the mount within the existing admin AI view.
 - Status: `PARTIAL_P3_IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / P2_PROVIDER_STATUS_SOURCE_OPEN / ACCEPTANCE_PENDING`. No tests/build/CI/browser/DB/Bolt/Preview/Vercel/production execution was performed; no PASS or production claim.
+
+## P1 body update — centralized task-quality review center — 2026-11-06
+
+- P1 added `src/components/intelligence/TaskQualityReviewCenter.tsx` and mounted it in the existing manager/admin `TaskCenter`, above task summary counters. The panel consumes the existing `fetch_operational_task_quality_metrics` RPC through `fetchOperationalTaskQualityMetrics` and the strict `parseTaskQualityMetrics` contract; it does not add a second source, new database schema or new review engine.
+- The centre renders the existing metrics presentation with explicit RESTRICTED, UNAVAILABLE (including migration-pending), EMPTY and READY states. It never replaces missing evidence with zero. It has an explicit refresh action, suppresses stale async responses, and refreshes metrics after a review save while retaining the existing append-only per-task `TaskQualityReviewForm`.
+- Fixed the malformed JSX `detail` prop in `TaskQualityReviewMetrics.tsx` that produced the reported parser error at line 95. This corrects that source-level parser defect only; it is not evidence that the full public build now passes.
+- Main commits: quality panel `efa932da592aa4f0ca3e141144a64f189e72732e`; barrel export `0bac6dc4f78b3a064028616afb2169917c6261e9`; metrics JSX fix `b80ecf52c37ba9385ce671e9110900cc3ca76c9b`; TaskCenter mount and post-save refresh `7e447bb2e1fcf4d2e98601814ef0e4f2cf4da4ae`.
+- Verified main blobs: `TaskQualityReviewCenter.tsx=a30c3e7296e0ef540a584b9b066d9f212b976ead`; `intelligence/index.ts=7408f9626b95e0b59f1e063b617386d2cd61d09a`; `TaskQualityReviewMetrics.tsx=74699e3160afbb77266ce557ad9fd1c04d1ea205`; `TaskCenter.tsx=dd1a62ac0719cabb2b90c1bded3023139b75e79a`.
+- Acceptance remains pending: quality-review migrations `20261106060000`, `20261106070000`, `20261106080000`, `20261106081000` and `20261106090000` must be applied in approved non-production before confirming persisted reads/writes and exact aggregate counts. This session did not run tests/build/browser/CI, apply migrations, or access Bolt/Supabase; no runtime PASS is claimed.
+- The independent reported parser issue in `SupplierQuoteWorkspace.tsx:380` is not changed by this P1 task-quality work and remains an outstanding build blocker until its actual source path is repaired.
+
+## NEXT_ACTION — P1 body continuation
+
+1. Preserve the task-quality review form and centre; apply the five quality-review migrations only in approved non-production, then confirm manager save, customer denial, append-only event protection, stale/idempotent replay and aggregate denominators.
+2. Resume the remaining public-build parser issue in `SupplierQuoteWorkspace.tsx:380` using its actual current-main source path, without altering quote-engine behavior.
+3. Keep the three customer amendment migrations and open-PO ATP migration unapplied until approved database access is available; then run their documented runtime acceptance in sequence.
