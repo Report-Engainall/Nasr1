@@ -16,6 +16,11 @@ function historyFixture() {
     order_id: orderId,
     order_number: "AGH-2026-001",
     order_status: "returned_for_adjustment",
+    return_events: [{
+      changed_at: "2026-11-06T06:50:00.000Z",
+      changed_by: "مدير الإرجاع",
+      reason: "سبب إعادة الطلب للتعديل: يرجى تقليل كمية السكر",
+    }],
     amendments: [
       {
         amendment_id: firstVersionId,
@@ -75,6 +80,8 @@ describe("customer order amendment history UI", () => {
     expect(await screen.findByText("النسخة 1")).toBeInTheDocument();
     expect(screen.getByText("النسخة 2")).toBeInTheDocument();
     expect(screen.getAllByText("عميل الاختبار")).toHaveLength(2);
+    expect(screen.getByText("مدير الإرجاع")).toBeInTheDocument();
+    expect(screen.getByText(/يرجى تقليل كمية السكر/)).toBeInTheDocument();
     expect(screen.getByText("مدير الاختبار")).toBeInTheDocument();
     expect(screen.getAllByText("سكر أبيض")).toHaveLength(2);
     expect(screen.getByText("تم تحديث الكمية")).toBeInTheDocument();
