@@ -7,6 +7,7 @@ import type { InventoryIntelligenceData } from "@/lib/intelligence/inventory-int
 const mocks = vi.hoisted(() => ({
   user: { profileId: "admin-profile", name: "مدير المالية", roles: ["admin"] as string[] },
   fetchCashflow: vi.fn(),
+  fetchExecutiveLiquidity: vi.fn(),
   fetchOutcomes: vi.fn(),
   fetchInventory: vi.fn(),
   fetchShiftWorkspace: vi.fn(),
@@ -37,6 +38,9 @@ vi.mock("@/lib/intelligence/cashflow-schedule-client", () => ({
     asOf: "2026-10-31T09:00:00.000Z",
   })),
   fetchCashflowSchedule: mocks.fetchCashflow,
+}));
+vi.mock("@/lib/intelligence/executive-liquidity-client", () => ({
+  fetchExecutiveLiquidityWorkspace: mocks.fetchExecutiveLiquidity,
 }));
 vi.mock("@/lib/intelligence/inventory-intelligence-client", () => ({
   createInventoryIntelligencePeriod: vi.fn(() => ({ asOf: mocks.asOf, period: mocks.period })),
@@ -264,6 +268,9 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.fetchCashflow.mockReset().mockResolvedValue({
       ok: false, status: "UNAVAILABLE", message: "cashflow fixture deliberately unavailable",
     });
+    mocks.fetchExecutiveLiquidity.mockReset().mockResolvedValue({
+      ok: false, status: "UNAVAILABLE", message: "executive liquidity fixture deliberately unavailable",
+    });
     mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [], total: 0 });
     mocks.createProposal.mockReset().mockResolvedValue({ ok: true, duplicate: false });
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
@@ -413,4 +420,11 @@ describe("production intelligence workspace inventory screens", () => {
     expect(screen.getAllByText(/المصدر غير متاح/)).toHaveLength(4);
     expect(screen.queryByText("0 EA")).not.toBeInTheDocument();
   });
+  it("mounts the executive liquidity command center in the intelligence workspace", async () => {
+    render(<IntelligenceWorkspace />);
+    const commandCenter = await screen.findByRole("region", { name: "مركز القيادة المالية والسيولة" });
+    expect(commandCenter).toHaveTextContent("executive liquidity fixture deliberately unavailable");
+    expect(mocks.fetchExecutiveLiquidity).toHaveBeenCalledTimes(1);
+  });
+
 });
