@@ -64,4 +64,61 @@ describe("scheduled cash-flow forecast",()=>{
   expect(point?.warnings).toContain("PROJECTED_BALANCE_WITHHELD");
   expect(result.warnings).toContain("SCHEDULE_CURRENCY_WITHOUT_OPENING_BALANCE:YER");
  });
+ it("adds financial movements in exact cents without floating-point drift",()=>{
+  const result=buildCashflowForecast(base([
+   entry("in-tenth","INFLOW","2026-11-01",0.1),
+   entry("in-two-tenths","INFLOW","2026-11-02",0.2),
+   entry("out-tenth","OUTFLOW","2026-11-03",0.1),
+  ]));
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point?.knownInflows).toBe(0.3);
+  expect(point?.knownOutflows).toBe(0.1);
+  expect(point?.projectedBalance).toBe(100.2);
+ });
+ it("withholds sub-cent and over-precision source values",()=>{
+  const invalid={...entry("sub-cent","INFLOW","2026-11-01",10),amount:{...metric("sub-cent","sub-cent",10,"YER"),value:"10.001"}};
+  const result=buildCashflowForecast(base([invalid]));
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point?.knownInflows).toBeNull();
+  expect(point?.projectedBalance).toBeNull();
+  expect(point?.status).toBe("NEEDS_REVIEW");
+  expect(point?.warnings).toContain("SCHEDULE_ENTRY_NOT_VERIFIED");
+ });
+ it("withholds a currency aggregate that exceeds the safe minor-unit ceiling",()=>{
+  const result=buildCashflowForecast(base([
+   entry("large-in-a","INFLOW","2026-11-01",7_000_000_000_000),
+   entry("large-in-b","INFLOW","2026-11-02",7_000_000_000_000),
+   entry("outflow","OUTFLOW","2026-11-03",1),
+  ]));
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point?.knownInflows).toBeNull();
+  expect(point?.projectedBalance).toBeNull();
+  expect(point?.status).toBe("NEEDS_REVIEW");
+  expect(point?.warnings).toContain("SCHEDULE_AMOUNT_OUT_OF_RANGE");
+ });
+ it("uses the UTC calendar day of an offset-aware as-of timestamp",()=>{
+  const source=base([entry("utc-day-outflow","OUTFLOW","2026-10-30",5)]);
+  const offsetAsOf="2026-10-31T01:00:00+03:00";
+  const withAsOf=(m:MetricSnapshot):MetricSnapshot=>({...m,asOf:offsetAsOf,lineage:{...m.lineage,calculatedAt:offsetAsOf}});
+  const result=buildCashflowForecast({
+   ...source,
+   asOf:offsetAsOf,
+   openingBalances:source.openingBalances.map(withAsOf),
+   entries:source.entries.map(item=>({...item,amount:withAsOf(item.amount)})),
+   evidenceRecords:source.evidenceRecords.map(record=>({...record,asOf:offsetAsOf,sourceTimestamp:offsetAsOf})),
+  });
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point?.period.from).toBe("2026-10-30");
+  expect(point?.knownOutflows).toBe(5);
+ });
+ it("retains a verified negative opening balance without floating-point projection arithmetic",()=>{
+  const negativeOpening=metric("open","cash.opening",-25.5,"YER");
+  const result=buildCashflowForecast({
+   ...base([entry("inflow","INFLOW","2026-11-01",30),entry("outflow","OUTFLOW","2026-11-02",5)]),
+   openingBalances:[negativeOpening],
+  });
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point).toMatchObject({openingBalance:-25.5,knownInflows:30,knownOutflows:5,projectedBalance:-0.5,status:"VERIFIED"});
+ });
+
 });
