@@ -1,15 +1,15 @@
 # P3 INCREMENTAL PRODUCT BODY CHECKPOINT — 2026-11-06
 
 **Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
-**Verified source-code cursor:** `e75c85f07fa3633b225a4dfa85e5a6ce2cfaab40`  
-**Current documentation cursor at checkpoint update:** `4b17f498cfa5d12f4818dc29870f2f8ed2eb2d91`
+**Verified source-code cursor:** `80f5ad7a7709b0bbeaeaef1a35fd7ea2ca92f466`  
+**Current documentation cursor at checkpoint update:** `2d591801304e139840fbd5b7f1ab9e217c52327b`
 
 ## Implemented in this continuation
 
 - Added `fetchOperationalTaskQualityMetrics()` to the existing quality client. It reads `fetch_operational_task_quality_metrics` directly, validates with `parseTaskQualityMetrics`, and preserves `RESTRICTED` / `UNAVAILABLE` instead of inventing metrics.
 - Changed `fetchTaskPerformanceScorecard()` to read the base performance scorecard and quality RPC independently. A missing quality migration no longer suppresses an otherwise valid base scorecard.
 - Extracted the existing quality metrics panel into reusable `TaskQualityReviewMetrics`, exported through the intelligence component barrel, and reused it in the existing scorecard without touching P1's `IntelligenceWorkspace.tsx`.
-- Expanded the quality panel to report actionable-rate, recommendation approve/reject/defer counts, false-alarm rate, true-positive alerts, false-positive alerts, pending alert reviews, reason frequencies, affected-task counts and repeated causes.
+- Expanded the quality panel to report actionable-rate, recommendation approve/reject/defer counts, false-alarm rate, true-positive alerts, false-positive alerts, pending alert reviews and approved recommendation count, reason frequencies, affected-task counts and repeated causes.
 - Extended `TaskQualityReviewForm` with an optional, paginated selector backed by `fetch_decision_outcomes`. It can link only an exact ID returned by the source; without a selected ID, the quality review remains unlinked. The review RPC remains the tenant/authorization boundary and does not change decision state.
 - Extended the allow-listed Arabic assistant with `TASK_QUALITY_OVERVIEW`. It resolves quality/recommendation/alert-review questions through the same read-only RPC and displays the reusable panel. `queriedAt` is labelled as query time, not the last review/source update.
 - Updated the P1 handoff and added matrix leaf `REF-TASK-QUALITY-METRICS-ASSISTANT-001`.
@@ -26,7 +26,8 @@
 8. `40104d187359b1e75ca50402a2995ca4b8723d32` — Arabic quality intent planner.
 9. `8da3a4d61f64102d19518600eae0d0119bdc887a` — natural-language result contract.
 10. `9d67bc2a80d48c4bce04134db22445e5788369e7` — quality RPC resolver.
-11. `e75c85f07fa3633b225a4dfa85e5a6ce2cfaab40` — assistant result UI.
+11. `80f5ad7a7709b0bbeaeaef1a35fd7ea2ca92f466` — assistant result UI.
+12. `80f5ad7a7709b0bbeaeaef1a35fd7ea2ca92f466` — explicit approved recommendation count.
 
 Documentation commits:
 - `693adc7d069218073da9cd70c81bcca73f6bf165` — P1 integration handoff updated.
