@@ -22,10 +22,12 @@ import { FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
+import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 
 const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 
 type CartItem = { product: ProductWithInventory; quantity: number };
+type ProductUnitSelection = { unit_name: string; base_units_per_unit: number; selected_quantity: number };
 type StorefrontProductsSnapshot =
   | ({ mode: 'paged'; identityKey: string } & StorefrontCatalogPage)
   | { mode: 'full'; items: ProductWithInventory[]; identityKey: string; publicCacheable: boolean };
@@ -528,7 +530,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
-  function addToCart(product: ProductWithInventory, requestedQuantity?: number) {
+  function addToCart(product: ProductWithInventory, requestedQuantity?: number, unitSelection?: ProductUnitSelection) {
     const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
       ? Number(product.min_order_quantity) : 1;
     const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
@@ -552,8 +554,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       return;
     }
 
-    setCartActionNotice(null);
-    // Re-check stock inside the state update so rapid repeated clicks cannot overshoot it.
+    setCartActionNotice(unitSelection
+      ? `أُضيف ${formatNumber(unitSelection.selected_quantity)} ${unitSelection.unit_name} إلى السلة، بما يعادل ${formatNumber(requestedQuantity ?? 0)} ${product.unit}. تُراجع الكمية والأسعار والتوفر من الخادم قبل اعتماد الطلب.`
+      : null);
+    // The order/cart contract deliberately stores base units. Alternate-unit quantities
+    // are converted before this point and continue through the same stock/pricing RPCs.
     setCart((previous) => mergeProductIntoCart(previous, product, requestedQuantity, minimum, multiple, available));
   }
   function updateQty(productId: string, delta: number) {
@@ -835,7 +840,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         {savedListNotice && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>{savedListNotice}</div>}
         {user?.profileId && wishlistSyncState === 'pending' && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>بعض تغييرات المفضلة لم تصل إلى الخادم بعد؛ حُفظت في هذا الجهاز وستُعاد مزامنتها عند عودة الاتصال أو استقرار الجلسة.</div>}
         {view === 'product' && (selectedProduct
-          ? <ProductDetail product={selectedProduct} priceVisibilityPolicy={settings?.show_price_on_cards} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} initialQuantity={cart.find((item) => item.product.id === selectedProduct.id)?.quantity ?? null} onBack={() => void navigate({ to: '/' })} onAdd={(quantity) => addToCart(selectedProduct, quantity)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
+          ? <ProductDetail product={selectedProduct} priceVisibilityPolicy={settings?.show_price_on_cards} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} initialQuantity={cart.find((item) => item.product.id === selectedProduct.id)?.quantity ?? null} onBack={() => void navigate({ to: '/' })} onAdd={(quantity, unitSelection) => addToCart(selectedProduct, quantity, unitSelection)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
@@ -1013,7 +1018,7 @@ export function ProductDetail({
   inCompare: boolean;
   initialQuantity: number | null;
   onBack: () => void;
-  onAdd: (quantity: number) => void;
+  onAdd: (baseQuantity: number, selection: ProductUnitSelection) => void;
   onWishlist: () => void;
   onCompare: () => void;
 }) {
@@ -1026,27 +1031,117 @@ export function ProductDetail({
   const quantityMultiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
     ? Number(product.order_quantity_multiple) : 1;
   const belowMinimum = quantityKnown && availableQuantity > 0 && availableQuantity < minimumOrderQuantity;
-  const [requestedQuantity, setRequestedQuantity] = useState(minimumOrderQuantity);
+  const [alternateUnits, setAlternateUnits] = useState<ProductAlternateUnit[]>([]);
+  const [alternateUnitsLoading, setAlternateUnitsLoading] = useState(true);
+  const [alternateUnitsError, setAlternateUnitsError] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState<ProductAlternateUnit>({
+    unit_name: product.unit,
+    base_units_per_unit: 1,
+  });
+  const [requestedUnitQuantity, setRequestedUnitQuantity] = useState(minimumOrderQuantity);
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
-  const requestedQuantityValid = Number.isSafeInteger(requestedQuantity) &&
-    requestedQuantity >= minimumOrderQuantity &&
-    (requestedQuantity - minimumOrderQuantity) % quantityMultiple === 0 &&
-    requestedQuantity <= availableQuantity;
 
   useEffect(() => {
-    const startingQuantity = initialQuantity ?? minimumOrderQuantity;
-    const cappedQuantity = quantityKnown ? Math.min(availableQuantity, startingQuantity) : minimumOrderQuantity;
-    const steps = Math.max(0, Math.floor((cappedQuantity - minimumOrderQuantity) / quantityMultiple));
-    setRequestedQuantity(minimumOrderQuantity + steps * quantityMultiple);
-  }, [product.id, initialQuantity, minimumOrderQuantity, quantityMultiple, quantityKnown, availableQuantity]);
+    let active = true;
+    setAlternateUnits([]);
+    setAlternateUnitsLoading(true);
+    setAlternateUnitsError('');
+    void fetchProductUnitOptions(product.id)
+      .then((result) => {
+        if (result.base_unit !== product.unit) {
+          throw new Error('تغيرت الوحدة الأساسية للمنتج أثناء تحميل خيارات البيع.');
+        }
+        if (active) setAlternateUnits(result.units);
+      })
+      .catch((cause) => {
+        if (active) setAlternateUnitsError(cause instanceof Error ? cause.message : 'تعذر تحميل وحدات البيع البديلة.');
+      })
+      .finally(() => {
+        if (active) setAlternateUnitsLoading(false);
+      });
+    return () => { active = false; };
+  }, [product.id, product.unit]);
+
+  useEffect(() => {
+    setSelectedUnit({ unit_name: product.unit, base_units_per_unit: 1 });
+    const startingBaseQuantity = initialQuantity ?? minimumOrderQuantity;
+    const cappedBaseQuantity = quantityKnown
+      ? Math.min(availableQuantity, startingBaseQuantity)
+      : minimumOrderQuantity;
+    const steps = Math.max(0, Math.floor((cappedBaseQuantity - minimumOrderQuantity) / quantityMultiple));
+    setRequestedUnitQuantity(minimumOrderQuantity + steps * quantityMultiple);
+  }, [product.id, product.unit, initialQuantity, minimumOrderQuantity, quantityMultiple, quantityKnown, availableQuantity]);
+
+  const unitChoices: ProductAlternateUnit[] = [
+    { unit_name: product.unit, base_units_per_unit: 1 },
+    ...alternateUnits,
+  ];
+  const maximumDisplayQuantity = Math.min(
+    10000,
+    Math.floor(Math.min(availableQuantity, 10000) / selectedUnit.base_units_per_unit),
+  );
+
+  function isValidDisplayQuantity(displayQuantity: number, unit: ProductAlternateUnit = selectedUnit): boolean {
+    const baseQuantity = displayQuantity * unit.base_units_per_unit;
+    return Number.isSafeInteger(displayQuantity) &&
+      displayQuantity >= 1 &&
+      Number.isSafeInteger(baseQuantity) &&
+      baseQuantity >= minimumOrderQuantity &&
+      (baseQuantity - minimumOrderQuantity) % quantityMultiple === 0 &&
+      baseQuantity <= availableQuantity &&
+      baseQuantity <= 10000;
+  }
+
+  function minimumDisplayQuantityForUnit(unit: ProductAlternateUnit): number | null {
+    const maximum = Math.min(10000, Math.floor(Math.min(availableQuantity, 10000) / unit.base_units_per_unit));
+    for (let displayQuantity = 1; displayQuantity <= maximum; displayQuantity += 1) {
+      if (isValidDisplayQuantity(displayQuantity, unit)) return displayQuantity;
+    }
+    return null;
+  }
+
+  const minimumDisplayQuantity = minimumDisplayQuantityForUnit(selectedUnit);
+  const requestedBaseQuantity = requestedUnitQuantity * selectedUnit.base_units_per_unit;
+  const requestedQuantityValid = minimumDisplayQuantity !== null &&
+    isValidDisplayQuantity(requestedUnitQuantity);
+
+  function chooseUnit(unitName: string) {
+    const nextUnit = unitChoices.find((unit) => unit.unit_name === unitName);
+    if (!nextUnit) return;
+    setSelectedUnit(nextUnit);
+    setRequestedUnitQuantity(minimumDisplayQuantityForUnit(nextUnit) ?? 1);
+  }
+
+  function findAdjacentValidDisplayQuantity(direction: 1 | -1): number | null {
+    const minimum = minimumDisplayQuantity ?? 1;
+    const start = requestedUnitQuantity + direction;
+    for (
+      let candidate = start;
+      direction > 0 ? candidate <= maximumDisplayQuantity : candidate >= minimum;
+      candidate += direction
+    ) {
+      if (isValidDisplayQuantity(candidate)) return candidate;
+    }
+    return null;
+  }
 
   function normalizeRequestedQuantity(value: string) {
     const parsed = Number.parseInt(value, 10);
-    const safeValue = Number.isFinite(parsed) ? parsed : minimumOrderQuantity;
-    const capped = Math.min(availableQuantity, Math.max(minimumOrderQuantity, safeValue));
-    const steps = Math.floor((capped - minimumOrderQuantity) / quantityMultiple);
-    setRequestedQuantity(minimumOrderQuantity + Math.max(0, steps) * quantityMultiple);
+    const minimum = minimumDisplayQuantity ?? 1;
+    const start = Number.isFinite(parsed)
+      ? Math.max(minimum, Math.min(maximumDisplayQuantity, parsed))
+      : minimum;
+    for (let candidate = start; candidate <= maximumDisplayQuantity; candidate += 1) {
+      if (isValidDisplayQuantity(candidate)) {
+        setRequestedUnitQuantity(candidate);
+        return;
+      }
+    }
+    setRequestedUnitQuantity(minimum);
   }
+
+  const nextLowerQuantity = findAdjacentValidDisplayQuantity(-1);
+  const nextHigherQuantity = findAdjacentValidDisplayQuantity(1);
 
   return (
     <section className="sf-product-detail">
@@ -1080,24 +1175,49 @@ export function ProductDetail({
                   : `متوفر حالياً: ${formatNumber(availableQuantity)} ${product.unit}`}
           </div>
           {quantityKnown && availableQuantity > 0 && !belowMinimum ? (
-            <div className="sf-detail-quantity" role="group" aria-label="اختيار كمية الطلب" style={{ display: 'grid', gap: 7, maxWidth: 300, marginBottom: 16 }}>
-              <label htmlFor="sf-product-requested-quantity" style={{ fontSize: 13, fontWeight: 700 }}>الكمية المطلوبة ({product.unit})</label>
+            <div className="sf-detail-quantity" role="group" aria-label="اختيار كمية الطلب" style={{ display: 'grid', gap: 7, maxWidth: 340, marginBottom: 16 }}>
+              {unitChoices.length > 1 ? (
+                <label htmlFor="sf-product-order-unit" style={{ fontSize: 13, fontWeight: 700 }}>
+                  وحدة الشراء
+                  <select
+                    id="sf-product-order-unit"
+                    value={selectedUnit.unit_name}
+                    onChange={(event) => chooseUnit(event.currentTarget.value)}
+                    style={{ display: 'block', width: '100%', minHeight: 40, marginTop: 6, border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, padding: 7, background: 'var(--card, #fff)' }}
+                  >
+                    {unitChoices.map((unit) => (
+                      <option
+                        key={unit.unit_name}
+                        value={unit.unit_name}
+                        disabled={minimumDisplayQuantityForUnit(unit) === null}
+                      >
+                        {unit.unit_name}{unit.base_units_per_unit > 1
+                          ? ` — الوحدة الواحدة = ${formatNumber(unit.base_units_per_unit)} ${product.unit}`
+                          : ` — الوحدة الأساسية`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label htmlFor="sf-product-requested-quantity" style={{ fontSize: 13, fontWeight: 700 }}>
+                الكمية المطلوبة ({selectedUnit.unit_name})
+              </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   type="button"
                   className="sf-btn-secondary"
                   aria-label="تقليل كمية الطلب"
-                  disabled={requestedQuantity <= minimumOrderQuantity}
-                  onClick={() => setRequestedQuantity((value) => Math.max(minimumOrderQuantity, value - quantityMultiple))}
+                  disabled={nextLowerQuantity === null}
+                  onClick={() => { if (nextLowerQuantity !== null) setRequestedUnitQuantity(nextLowerQuantity); }}
                 ><Minus size={16} /></button>
                 <input
                   id="sf-product-requested-quantity"
                   type="number"
                   inputMode="numeric"
-                  min={minimumOrderQuantity}
-                  max={availableQuantity}
-                  step={quantityMultiple}
-                  value={requestedQuantity}
+                  min={minimumDisplayQuantity ?? 1}
+                  max={maximumDisplayQuantity}
+                  step={1}
+                  value={requestedUnitQuantity}
                   aria-label="كمية الطلب"
                   onChange={(event) => normalizeRequestedQuantity(event.currentTarget.value)}
                   style={{ width: 100, minHeight: 40, textAlign: 'center', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, padding: 6 }}
@@ -1106,22 +1226,41 @@ export function ProductDetail({
                   type="button"
                   className="sf-btn-secondary"
                   aria-label="زيادة كمية الطلب"
-                  disabled={requestedQuantity + quantityMultiple > availableQuantity}
-                  onClick={() => setRequestedQuantity((value) => Math.min(availableQuantity, value + quantityMultiple))}
+                  disabled={nextHigherQuantity === null}
+                  onClick={() => { if (nextHigherQuantity !== null) setRequestedUnitQuantity(nextHigherQuantity); }}
                 ><Plus size={16} /></button>
               </div>
-              <small className="text-muted">الحد الأدنى {formatNumber(minimumOrderQuantity)}، والزيادة بمضاعف {formatNumber(quantityMultiple)}، والمتاح {formatNumber(availableQuantity)}.</small>
+              <small className="text-muted">
+                يعادل الاختيار {formatNumber(requestedBaseQuantity)} {product.unit}. الحد الأدنى {formatNumber(minimumOrderQuantity)} {product.unit}،
+                ومضاعف الطلب {formatNumber(quantityMultiple)} {product.unit}، والمتاح {formatNumber(availableQuantity)} {product.unit}.
+              </small>
+              {minimumDisplayQuantity === null ? (
+                <small role="alert" style={{ color: '#9b3d34' }}>
+                  لا تتوافق هذه الوحدة مع حد الطلب ومضاعفه أو المخزون المتاح؛ اختر وحدة أخرى.
+                </small>
+              ) : null}
+              {alternateUnitsLoading ? <small role="status">جار تحميل وحدات البيع البديلة...</small> : null}
+              {alternateUnitsError ? <small role="status">تعذر تحميل الوحدات البديلة؛ يمكنك المتابعة بالوحدة الأساسية.</small> : null}
             </div>
           ) : null}
           <div className="sf-detail-actions">
-            <button type="button" className="sf-btn-primary" disabled={!requestedQuantityValid || !quantityKnown || belowMinimum} onClick={() => onAdd(requestedQuantity)}><ShoppingCart size={17} /> إضافة إلى السلة</button>
+            <button
+              type="button"
+              className="sf-btn-primary"
+              disabled={!requestedQuantityValid || !quantityKnown || belowMinimum}
+              onClick={() => onAdd(requestedBaseQuantity, {
+                unit_name: selectedUnit.unit_name,
+                base_units_per_unit: selectedUnit.base_units_per_unit,
+                selected_quantity: requestedUnitQuantity,
+              })}
+            ><ShoppingCart size={17} /> إضافة إلى السلة</button>
             <button type="button" className={`sf-icon-action ${inWishlist ? 'active' : ''}`} aria-pressed={inWishlist} onClick={onWishlist}>
               <Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}
             </button>
             <button type="button" className={`sf-icon-action ${inCompare ? 'active' : ''}`} aria-pressed={inCompare} onClick={onCompare}><GitCompare size={18} /> {inCompare ? 'في المقارنة' : 'مقارنة'}</button>
           </div>
           <div className="sf-detail-facts">
-            <div><strong>الوحدة</strong><span>{product.unit}</span></div>
+            <div><strong>الوحدة الأساسية</strong><span>{product.unit}</span></div>
             <div><strong>الحد الأدنى</strong><span>{formatNumber(product.min_order_quantity ?? 1)} {product.unit}</span></div>
             {(product.order_quantity_multiple ?? 1) > 1 && <div><strong>مضاعف الطلب</strong><span>{formatNumber(product.order_quantity_multiple ?? 1)} {product.unit}</span></div>}
             {pricePresentation.visible && <div><strong>السعر</strong><span>السعر الظاهر قبل تأكيد الطلب</span></div>}
