@@ -1,5 +1,11 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — source-neutral assistant read failures — 2026-11-06
+
+- Commit `95d8be1c29b96ddd65a6f67ab76dcf24bd38655a` removes the misleading generic denial message that referred to purchasing/finance roles for unrelated assistant queries.
+- Generic missing/unavailable RPC responses now state that the approved source is unavailable and no fallback/local data was substituted. Source-specific typed denials remain preserved.
+- Status: `IMPLEMENTED_ON_MAIN`; no test/build/CI/runtime claim.
+
 ## P3 body update — Arabic commerce policy catalog read — 2026-11-06
 
 - Commit `c94d2360b8e5db31fee3efdd43d813b515edc642` adds Arabic read intents for policy lifecycle overview and changed source fingerprints using the existing `fetch_commerce_policy_catalog` RPC/client.
