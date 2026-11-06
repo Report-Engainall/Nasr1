@@ -2087,3 +2087,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Code paths: `natural-language-assistant.ts`, `natural-language-assistant-client.ts`, `NaturalLanguageAssistant.tsx`, `natural-language-assistant.test.ts`. No new RPC/schema/migration/provider.
 - Tests authored but NOT run; no build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production action. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; matrix leaf `REF-NL-SHIFT-OPERATIONS-ASSISTANT-001`.
 
+## 2026-11-06 — REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001 — Arabic supplier quote comparison assistant
+
+- Parent `555bfe59a09d447d016df9d22c089815118f8b5d`; code commit `baad6f9f14caf792e109c86c6e99abda01634f85`.
+- Added an Arabic read-only comparison intent reusing `fetchSupplierQuotes()` / existing `fetch_purchase_supplier_quotes`, the strict same-product/quantity/UOM/currency engine, and a dedicated comparison component.
+- Only current received quotes; latest offer per supplier; awarded/expired excluded; incomparable product snapshots, units and line totals withheld. No currency conversion, supplier-quality inference, award or PO creation.
+- Exactly 200 returned quotes means PARTIAL because the server source has no total/cursor. The display caps groups/offers with omission disclosure.
+- Exact code paths are recorded in `docs/execution/P3_CHECKPOINT.md`. Tests authored but NOT RUN; no build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production action. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Matrix leaf `REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001`.
+

@@ -1,3 +1,46 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Code parent: `555bfe59a09d447d016df9d22c089815118f8b5d`.
+- Code commit: `baad6f9f14caf792e109c86c6e99abda01634f85`.
+- Feature: `SUPPLIER_QUOTE_COMPARISON_OVERVIEW` in the existing Arabic natural-language assistant.
+
+### Implemented on main
+
+- Added deterministic engine `buildSupplierQuoteComparisonAssistant()` and a dedicated `SupplierQuoteComparisonAssistant` presentation.
+- Reused the existing `fetchSupplierQuotes()` reader and its existing `fetch_purchase_supplier_quotes` RPC. The server contract requires an authenticated admin/manager with purchasing permission, resolves the organization from the active server profile, and returns up to the latest 200 saved offers. No tenant or role is supplied by the browser.
+- Comparisons include only `received` (current, unawarded) quotes. Awarded and expired quotes are counted but excluded from current-price ranking.
+- A comparison basis is exact: same product ID, quoted quantity, unit of measure and currency. No quantity normalization, UOM conversion, FX conversion or cross-currency aggregation occurs.
+- Only the latest saved quote per supplier is retained for a given comparison basis so one supplier cannot occupy multiple price positions through revisions.
+- Missing unit, inconsistent product snapshots, invalid line-total arithmetic, or fewer than two distinct suppliers are withheld with explicit reasons. The engine does not rank an incomparable offer.
+- Results report lowest and second-lowest recorded unit cost only. This is not a supplier-quality score, award recommendation, delivered-cost comparison or purchasing approval.
+- The source RPC exposes no count or continuation cursor. If exactly 200 offers are returned, the result is conservatively PARTIAL because older records may exist outside the source page. More than 200 source rows is rejected as an invalid client payload.
+- Presentation limits are explicit: up to 20 comparison groups and 10 supplier offers per group, with omitted counts and warnings.
+- The path is read-only: no quote award, purchase-order creation, supplier message, stock movement, payment or ledger action is invoked. No new RPC, SQL, migration, provider, permission path, route, or P1 procurement workspace file was changed.
+
+### Exact changed code paths
+
+- `src/lib/intelligence/supplier-quote-comparison-assistant.ts` (new)
+- `src/components/intelligence/SupplierQuoteComparisonAssistant.tsx` (new)
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+- `src/lib/intelligence/natural-language-assistant.test.ts`
+- `src/lib/intelligence/supplier-quote-comparison-assistant.test.ts` (new)
+
+### Acceptance boundary
+
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Focused planner and engine tests were authored but NOT run.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, migration application, Preview, Vercel or production operation was run. No PASS, runtime or production-readiness claim.
+- Bolt must later prove admin/manager authorization, purchasing capability and foreign-tenant denial; source status/200-row coverage; exact product/quantity/UOM/currency match; latest offer per supplier; exclusion of awarded/expired offers; withholding of missing/mismatched basis and invalid line totals; accurate cost differences; UI partial/omitted-count warnings; no quote award, PO creation or other write side effect.
+
+### Next P3 action
+
+Continue only with remaining P3-owned gaps backed by existing authenticated source contracts. Growth conversion, unavailable-product search demand, operational historical baselines, finance opening balances and policy-sender persistence remain blocked on upstream source contracts or P1/P2 ownership; do not infer them from quote prices or current snapshots.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SHIFT-OPERATIONS-ASSISTANT-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

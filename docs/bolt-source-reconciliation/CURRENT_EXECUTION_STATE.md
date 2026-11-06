@@ -1,5 +1,16 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — Arabic supplier quote comparison assistant — 2026-11-06
+
+- Code parent `555bfe59a09d447d016df9d22c089815118f8b5d`; code commit `baad6f9f14caf792e109c86c6e99abda01634f85`.
+- Added `SUPPLIER_QUOTE_COMPARISON_OVERVIEW` using the existing manager/admin purchasing-authorized `fetchSupplierQuotes()` / `fetch_purchase_supplier_quotes` source, deterministic exact-basis engine, and a dedicated Arabic comparison panel.
+- Current received offers only; compare exact product, quantity, UOM and currency; keep latest record per supplier; exclude awarded/expired; withhold incomparable or arithmetically inconsistent rows. No FX/UOM/quantity conversion and no supplier-quality or award claim.
+- Source cap is 200 without total/cursor; a returned page of 200 is marked PARTIAL. UI group/offer limits report omitted counts.
+- This addition is read-only: no quote award or purchase-order creation, no supplier contact, stock, payment or ledger side effect. No new RPC/SQL/migration/provider and no P1 procurement workspace changes.
+- Focused tests authored but NOT run; no build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production acceptance. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Exact evidence and Bolt gates are in the P3 checkpoint and matrix leaf `REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001`.
+
+
 ## P3 body update — Arabic shift readiness and closeout assistant — 2026-11-06
 
 - Code parent: `b662ef538d87f1d705d4d4517994b3f78025d7f6`; code commits: `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, `5f716ea481a0d07b7dbdf720faf7891331423ebe`, `d69c1ef4ed6ef433f16a78bea95f12d43f239870 and strict read-only guard c7a67c33c97996c0eebba5934a3afea1bcd7558d`.
