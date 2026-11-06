@@ -431,6 +431,13 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
      <tbody>{response.result.report.weeklyTrend.map(row=><tr key={row.weekStart} className="border-b"><td className="p-2">{row.weekStart}</td><td className="p-2">{count(row.createdCount)}</td><td className="p-2">{count(row.completedCount)}</td><td className="p-2">{count(row.reopenedTaskCount)}</td><td className="p-2">{count(row.reopenedEventCount)}</td><td className="p-2">{row.averageResolutionMinutes===null?"غير محسوب":count(Math.round(row.averageResolutionMinutes))}</td></tr>)}</tbody>
     </table></div>
    </div>:null}
+   {response.result.report.reportKind==="MANAGER"&&response.result.report.qualityReviewSnapshot!==null?<section className="space-y-2 rounded-lg border p-3">
+    <div>
+     <strong>ملخص مستقل لمراجعات جودة المهام</strong>
+     <p className="mt-1 text-xs text-muted-foreground">يعرض أحدث مراجعة محفوظة لكل مهمة ونوع مراجعة، ولا يقتصر على الفترة الزمنية للتقرير أعلاه. تبقى هذه الأرقام منفصلة عن المؤشرات اليومية أو الأسبوعية.</p>
+    </div>
+    <TaskQualityReviewMetrics quality={response.result.report.qualityReviewSnapshot}/>
+   </section>:null}
    {response.result.report.reportKind==="MANAGER"?<div className="space-y-2">
     <div className="flex flex-wrap justify-between gap-2">
      <strong>أهم خمس خطوات للمتابعة الإدارية</strong>
@@ -460,7 +467,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <div className="rounded-md border p-3 text-xs">
     <strong>تعريفات القياس وحدوده</strong>
     <p className="mt-1">الجديد = سجل أُنشئ في الفترة ولا يُعاد عده عند إعادة الفتح. الإكمال = أول انتقال موثق إلى completed. زمن الحل = من الإنشاء إلى أول إكمال. إعادة الفتح حدث مستقل؛ النسبة تقيس المهام التي اكتملت أول مرة ثم أعيد فتحها داخل الفترة نفسها.</p>
-    <p className="mt-1">الانتظار على طرف آخر، أسباب التأخير، الإنذارات الكاذبة، الأسباب المتكررة ونتائج التحسين غير مسجلة في عقد المصدر؛ لا تعرض كأصفار. الأولوية التشغيلية ليست أثراً مالياً.</p>
+    <p className="mt-1">الانتظار على طرف آخر وأسباب التأخير ونتائج التحسين غير متاحة في عقد التقرير الزمني؛ لا تعرض كأصفار. قد يظهر للمدير ملخص مستقل لمراجعات الجودة من أحدث السجلات، وليس من الفترة أعلاه. الأولوية التشغيلية ليست أثراً مالياً.</p>
     {response.result.report.limitations.length?<ul className="mt-2 list-disc space-y-1 ps-5">{response.result.report.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>:null}
    </div>
   </div>:null}
