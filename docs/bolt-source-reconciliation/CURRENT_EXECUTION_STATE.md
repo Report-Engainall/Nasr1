@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — customer payment history route — 2026-11-06
+
+- BODY-052 commits on `main`: CustomerPaymentsPage `a8f99af47f2f07f0ae2448595e60234116d1ac73`; route `0c8d1428c0b07e2fa00fdc3b23a1c127153a5844`; route-tree `2951fff959abe2f44d51c9b240f38ba83c465b25`; navigation `0df9b39d40adef06332397967b70f1a05c3875bf`; footer `3bbce03c22acadbc565aebfcad757551b6c41389`; help `c6bbf686e49a4e53365785cff591311428928af2`.
+- Added customer `/payments` as a read-only projection of the existing `get_customer_account_statement` RPC. Shows date/invoice/amount/currency only where the associated invoice is in the loaded detail set; preserves the 200-invoice and 500-payment bounds and withholds unresolved money fields.
+- No customer payment command, receipt, journal or balance mutation was created. Payment initiation remains contract-dependent on P2.
+- Added acceptance leaf `DLV-008-CUSTOMER-PAYMENT-HISTORY-001` to the sole acceptance matrix. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — searchable customer help center — 2026-11-06
 
 - BODY-051 source commits on `main`: help page `68f736b0b3adb7b136873aaac27001b4ce2dc467`; route registration `3e9290f6b2918777c78aeca25fbb967ceab0c7c7`; global navigation `1232f996abf312851698162e887b3222edf474ca`; footer `d81267e9e12ac3da5fc14b890cc3b5a0ba68ebf9`.
