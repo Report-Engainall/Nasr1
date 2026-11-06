@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./evidence-passport";
+export * from "./evidence-source-comparison";
 export * from "./daily-decisions";
 export * from "./aggregate-contract";
 export * from "./liquidity";
