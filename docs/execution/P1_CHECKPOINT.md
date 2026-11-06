@@ -1238,3 +1238,12 @@ P1 continues UI ownership and this checkpoint only. P2 owns backend/API/security
 - Files: `src/lib/api.ts`, `src/lib/types.ts`, `src/components/AghbariApp.tsx`, `src/components/Storefront.tsx`, `supabase/functions/_shared/product-image-upload-handler.ts`, `supabase/functions/product-image-upload/index.ts`, `supabase/migrations/20261106150000_product_gallery_images.sql`.
 - Existing image Edge test doubles were aligned to the caller-JWT RPC contract; tests were NOT executed. The migration remains source-only and has not been applied to Bolt/Supabase. No build/lint/typecheck/CI/browser/E2E/runtime PASS is claimed.
 - Next P1 action: continue the next uncovered commerce/operations capability without rebuilding existing catalog CRUD, category lifecycle, search or checkout idempotency.
+
+
+## P1 product-body correction — BODY-COMPLETION-ON-MAIN-049 — use canonical product_media storage
+
+- Reconciled the provisional BODY-048 image gallery with the original schema: `public.product_media` already exists and is the canonical multi-image table. The gallery UI now reads through this table and keeps `image_gallery_urls` only as a derived client DTO; it is not stored as a second product column.
+- Added tenant-scoped product-media SELECT policy for the public storefront organization and for authenticated staff in their current organization; removed the original broad product-media read/write policies and revoked direct browser INSERT/UPDATE/DELETE.
+- Replaced the provisional gallery-array persistence with an audited, row-locked `mutate_staff_product_gallery_image` RPC that adds/removes only non-primary media rows, enforces eight additional images, and records audit events. Existing primary `products.image_url` handling is unchanged.
+- Added `supabase/migrations/20261106160000_product_media_gallery_lifecycle.sql` to drop the provisional `products.image_gallery_urls` column introduced by BODY-048 after switching the client to `product_media`.
+- No tests/build/lint/typecheck/CI/browser/E2E/Bolt/Preview/Vercel/production operation was run. All migrations remain source-only until Bolt sync/apply; no runtime PASS is claimed.

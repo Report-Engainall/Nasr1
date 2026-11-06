@@ -86,7 +86,7 @@ export async function fetchResolvedProductPrices(
 export async function fetchProducts(): Promise<ProductWithInventory[]> {
   const scope = await getStorefrontDataScope();
   const { organizationId: orgId, warehouseId, isStaff } = scope;
-  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,image_gallery_urls,created_at,min_order_quantity,order_quantity_multiple';
+  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
   let products: Product[];
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
@@ -103,9 +103,32 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     products = (data ?? []) as unknown as Product[];
   }
 
+  const productIds = products.map((product) => product.id);
+  const galleryByProduct = new Map<string, string[]>();
+  for (let offset = 0; offset < productIds.length; offset += 200) {
+    const productIdBatch = productIds.slice(offset, offset + 200);
+    const mediaRows = await readWithRetry(async () => {
+      const { data, error } = await supabase
+        .from('product_media')
+        .select('product_id,url,sort_order,created_at')
+        .in('product_id', productIdBatch)
+        .eq('is_primary', false)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    });
+    for (const media of mediaRows) {
+      if (typeof media.product_id !== 'string' || typeof media.url !== 'string' || !/^https:\/\//i.test(media.url)) continue;
+      const urls = galleryByProduct.get(media.product_id) ?? [];
+      if (urls.length < 8) urls.push(media.url);
+      galleryByProduct.set(media.product_id, urls);
+    }
+  }
+
   const customerPriceMap = isStaff
     ? null
-    : await fetchResolvedProductPrices(((products ?? []) as Array<{ id: string }>).map((product) => product.id));
+    : await fetchResolvedProductPrices(productIds);
 
   const inventory = warehouseId
     ? await readWithRetry(() => supabase
@@ -163,7 +186,13 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
       created_at?: string;
     };
     const productFields: Record<string, unknown> = isStaff
-      ? { ...p, base_price: Number(p.base_price), min_order_quantity: Number(p.min_order_quantity ?? 1), order_quantity_multiple: Number(p.order_quantity_multiple ?? 1) }
+      ? {
+          ...p,
+          base_price: Number(p.base_price),
+          min_order_quantity: Number(p.min_order_quantity ?? 1),
+          order_quantity_multiple: Number(p.order_quantity_multiple ?? 1),
+          image_gallery_urls: galleryByProduct.get(p.id) ?? [],
+        }
       : {
           id: p.id,
           category_id: p.category_id,
@@ -178,9 +207,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
           order_quantity_multiple: Number(p.order_quantity_multiple ?? 1),
           status: staffProduct.status,
           image_url: p.image_url,
-          image_gallery_urls: Array.isArray(p.image_gallery_urls)
-            ? p.image_gallery_urls.filter((url): url is string => typeof url === 'string' && /^https:\/\//i.test(url)).slice(0, 8)
-            : [],
+          image_gallery_urls: galleryByProduct.get(p.id) ?? [],
           created_at: staffProduct.created_at,
         };
 
