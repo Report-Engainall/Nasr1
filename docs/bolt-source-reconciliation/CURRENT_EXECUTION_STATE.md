@@ -1,5 +1,12 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
 
+## P3 CODE UPDATE — REPLENISHMENT EVIDENCE-LINEAGE COMPLETION — 2026-11-06
+
+- Current P3 code SHA on `main`: `068eaa5455217e2659dd2072b28be76425eddea4`.
+- The replenishment recommendation's `evidenceIds` now include incoming open-PO commitments, closing a missing traceability link.
+- Formula identity is `inventory.replenishment-target@1.1.1`.
+- Tests authored but NOT RUN. P2 source migration/database acceptance remains pending.
+
 ## P3 CODE UPDATE — REPLENISHMENT EXACT DECIMAL QUANTITY MATH — 2026-11-06
 
 - Current P3 code SHA on `main`: `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361`.

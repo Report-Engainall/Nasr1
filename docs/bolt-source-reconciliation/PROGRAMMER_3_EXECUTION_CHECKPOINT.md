@@ -1,3 +1,16 @@
+## P3 REPLENISHMENT EVIDENCE-LINEAGE COMPLETION — 2026-11-06
+
+- Source/test commit: `068eaa5455217e2659dd2072b28be76425eddea4`.
+- Engine blob: `src/lib/intelligence/replenishment.ts` — `b7e4012e2690722f55db40dc2c877a565140afa1`.
+- Test blob: `src/lib/intelligence/replenishment.test.ts` — `872d055425e019daa65a034d70efffc3ca74c595`.
+- Closed a lineage omission: recommendation evidence IDs now include the verified incoming purchase commitment metric as well as ATP, reorder point, demand, lead time and configured MOQ/order-multiple metrics.
+- Formula identity advanced to `inventory.replenishment-target@1.1.1` so downstream evidence consumers can distinguish the complete lineage contract.
+- Added a regression assertion that the incoming PO evidence ID is present in the returned recommendation.
+- No source, SQL, tenant or role gate, PO workflow, inventory data or financial record was changed.
+- Regression tests authored but NOT RUN; source acceptance remains pending P2 migration/runtime proof and exact-SHA Bolt validation.
+
+---
+
 ## P3 INVENTORY ENGINE HARDENING — REPLENISHMENT EXACT DECIMAL QUANTITY MATH — 2026-11-06
 
 - Repository/branch: `Report-Engainall/Nasr1` / `main`.

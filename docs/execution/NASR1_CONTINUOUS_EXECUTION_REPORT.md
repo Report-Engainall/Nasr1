@@ -1,3 +1,12 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 REPLENISHMENT EVIDENCE LINEAGE
+
+- Commit `068eaa5455217e2659dd2072b28be76425eddea4` updates `src/lib/intelligence/replenishment.ts` to include the incoming open-PO commitment metric in each recommendation's evidence ID set. It advances the formula identity to `inventory.replenishment-target@1.1.1`.
+- Engine blob `b7e4012e2690722f55db40dc2c877a565140afa1`; regression blob `872d055425e019daa65a034d70efffc3ca74c595`.
+- The existing authenticated/tenant-scoped source query and explicit draft-only purchasing workflow are unchanged.
+- Tests authored but NOT RUN. Database/runtime acceptance remains pending; no build, Bolt or production operation was performed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 REPLENISHMENT EXACT DECIMAL QUANTITY MATH
 
 - Source/test commit `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361` hardens `src/lib/intelligence/replenishment.ts`; final engine blob `9a00769920fe795f7f98c5a09d922543ece95254`, regression blob `3ec14a579554b3c09ad96c7d1c50b606e08964b6`.
