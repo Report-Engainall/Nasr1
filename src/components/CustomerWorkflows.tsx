@@ -3044,6 +3044,9 @@ export function StaffQuotesPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [printDocument, setPrintDocument] = useState<CustomerQuotePrintDocument | null>(null);
+  const [dialogReady, setDialogReady] = useState(false);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const quoteOpenerRef = useRef<HTMLElement | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -3068,6 +3071,62 @@ export function StaffQuotesPage() {
     return () => window.removeEventListener("afterprint", clearAfterPrint);
   }, [printDocument]);
 
+  function closePricingDialog() {
+    setChosen(null);
+    setDialogReady(false);
+    const opener = quoteOpenerRef.current;
+    quoteOpenerRef.current = null;
+    opener?.focus();
+  }
+
+  useEffect(() => {
+    if (!chosen) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (dialogReady) {
+      const initialFocus = dialog.querySelector<HTMLElement>(
+        'input[type="number"]:not([disabled])',
+      ) ?? dialog.querySelector<HTMLElement>("button:not([disabled])") ?? dialog;
+      initialFocus.focus();
+    }
+
+    const focusableElements = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    )).filter((element) =>
+      !element.hasAttribute("hidden") && element.getAttribute("aria-hidden") !== "true"
+    );
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closePricingDialog();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = focusableElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => document.removeEventListener("keydown", handleDialogKeyDown);
+  }, [chosen, dialogReady]);
+
   function printSavedQuote() {
     if (!chosen) return;
     const document = projectCustomerQuotePrintDocument(chosen, lines);
@@ -3079,6 +3138,10 @@ export function StaffQuotesPage() {
     setPrintDocument(document);
   }
   async function open(q: Quote) {
+    quoteOpenerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    setDialogReady(false);
     setChosen(q);
     setLines([]);
     const r = await supabase
@@ -3090,7 +3153,7 @@ export function StaffQuotesPage() {
       .order("created_at");
     if (r.error) {
       setError("تعذر تحميل بنود العرض.");
-      setChosen(null);
+      closePricingDialog();
       return;
     }
     const rows = (r.data ?? []) as QuoteLine[];
@@ -3102,6 +3165,7 @@ export function StaffQuotesPage() {
     );
     setNote(q.response_note ?? "");
     setValid(q.valid_until?.slice(0, 10) ?? "");
+    setDialogReady(true);
   }
   async function send() {
     if (!chosen) return;
@@ -3121,7 +3185,7 @@ export function StaffQuotesPage() {
     if (r.error) setError("تعذر حفظ التسعير: " + r.error.message);
     else {
       setMessage("تم حفظ العرض وإرساله للعميل.");
-      setChosen(null);
+      closePricingDialog();
       await load();
     }
     setBusy(false);
@@ -3196,14 +3260,16 @@ export function StaffQuotesPage() {
       )}
       {chosen && (
         <section
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label="تسعير عرض"
+          aria-labelledby="staff-quote-pricing-dialog-title"
+          tabIndex={-1}
           style={{ ...card, display: "grid", gap: 12 }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 19 }}>تسعير {chosen.quote_number}</h2>
-            <button style={secondary} onClick={() => setChosen(null)}>
+            <h2 id="staff-quote-pricing-dialog-title" style={{ margin: 0, fontSize: 19 }}>تسعير {chosen.quote_number}</h2>
+            <button type="button" style={secondary} onClick={closePricingDialog}>
               إغلاق
             </button>
           </div>
