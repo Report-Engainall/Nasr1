@@ -1,3 +1,15 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-057 — MY RETURNS
+
+- Added authenticated customer route `/returns` as a consolidated, read-only history of saved return requests.
+- Reads the current customer's order page (20 orders at a time) under existing order RLS, then calls `list_my_customer_return_requests(p_order_id)` for each order. No direct customer return table query or new mutation is introduced.
+- Displays return status/reason, saved customer/review notes, returned line items and quantity, and link to original order. Any RPC or summary validation error fails the page rather than showing a partial result as complete. The page discloses page scope.
+- Route registered in TanStack tree, global navigation, footer, profile and Help Center.
+- Commits: `b54906d6452fc9e59119ae63b29acb3787c3cb8e`, `059e67277463f02d3c55b00fe011b1d75a14eb6d`, `4f6c9abc898ac84b6b0fb82f30e41224dfedd121`, `fa96fd9754589c395adf0e4315452c1ece56634f`, `8373a07c9feff4204d9fefb1b3274d224b412f77`, `c08f56f3b716f3eaa2dd4165a10ede6ffe63f7d7`, `6ae7a21b1d130ea77b7b1bcb02f7a9f6f3ebc7f6`, `b0736e47ceb9845c90e57b5fa9fba0b33deb0b36`, `b51acd3f8b4bb7e95679bf15aa1562ac0f2a4ceb`, `e849baa6f01c666d1706333d18201e8a45911ee3`.
+- Acceptance row: `DLV-006-CUSTOMER-RETURNS-HISTORY-001`; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation was run. No runtime PASS claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-056 — SESSION REVOCATION
 
 - Added `signOutOtherSessions()` and `signOutEverywhere()` methods in AuthContext using explicit Supabase scopes `others` and `global`; regular logout remains explicit `local`.
