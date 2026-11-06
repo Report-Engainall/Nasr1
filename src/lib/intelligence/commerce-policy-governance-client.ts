@@ -80,7 +80,7 @@ export interface CommercePolicySimulation {
 export interface CommercePolicySimulationHistoryItem {
   id: string;
   simulationType: CommercePolicySimulationType;
-  sourceRefs: unknown[];
+  sourceRefs: string[];
   inputFingerprint: string;
   sourceFingerprint: string;
   outcome: Row;
@@ -174,55 +174,90 @@ export async function registerCommercePolicyMetadata(
   } };
 }
 
+const SIMULATION_TYPES = [
+  "PROMOTION_PREVIEW", "CUSTOMER_CREDIT", "PRODUCT_ORDER_QUANTITY",
+  "INVENTORY_REORDER_POINT", "TASK_DEDUPLICATION",
+] as const;
+function validFingerprint(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{32}$/.test(value);
+}
+function validInstant(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+export function parseCommercePolicySimulation(
+  value: unknown,
+  expectedType: CommercePolicySimulationType,
+): PolicyRpcResult<CommercePolicySimulation> {
+  const row = object(value);
+  const outcome = object(row?.outcome);
+  if (!row || !uuid(row.simulationId) || row.simulationType !== expectedType ||
+      !validInstant(row.asOf) || !validFingerprint(row.inputFingerprint) ||
+      !validFingerprint(row.sourceFingerprint) || !outcome ||
+      outcome.simulationType !== expectedType || outcome.noWrite !== true || row.noWrite !== true) {
+    return { ok: false, status: "ERROR", message: "نتيجة المحاكاة ناقصة أو لا تطابق عقد الأدلة ومنع الكتابة." };
+  }
+  return { ok: true, data: row as unknown as CommercePolicySimulation };
+}
 export async function simulateCommercePolicy(
   simulationType: CommercePolicySimulationType,
   input: Row,
 ): Promise<PolicyRpcResult<CommercePolicySimulation>> {
-  if (!object(input) || Object.keys(input).length > 12) {
-    return { ok: false, status: "ERROR", message: "مدخلات المحاكاة يجب أن تكون كائناً محدود الحقول." };
+  if (!SIMULATION_TYPES.includes(simulationType) || !object(input) || Object.keys(input).length > 12) {
+    return { ok: false, status: "ERROR", message: "مدخلات المحاكاة يجب أن تكون نوعاً معتمداً وكائناً محدود الحقول." };
   }
   const { data, error } = await supabase.rpc("simulate_commerce_policy", {
     p_simulation_type: simulationType,
     p_input: input,
   });
   if (error) return rpcFailure(error);
-  const row = object(data);
-  const outcome = object(row?.outcome);
-  if (!row || !uuid(row.simulationId) || row.simulationType !== simulationType ||
-      typeof row.asOf !== "string" || typeof row.inputFingerprint !== "string" ||
-      !/^[0-9a-f]{32}$/.test(row.inputFingerprint) ||
-      typeof row.sourceFingerprint !== "string" || !/^[0-9a-f]{32}$/.test(row.sourceFingerprint) ||
-      !outcome || row.noWrite !== true) {
-    return { ok: false, status: "ERROR", message: "نتيجة المحاكاة ناقصة أو لا تطابق عقد الأدلة." };
-  }
-  return { ok: true, data: row as unknown as CommercePolicySimulation };
+  return parseCommercePolicySimulation(data, simulationType);
 }
 
-export async function fetchCommercePolicySimulationHistory(
-  simulationType?: CommercePolicySimulationType,
-  limit = 30,
-): Promise<PolicyRpcResult<CommercePolicySimulationHistoryItem[]>> {
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
-    return { ok: false, status: "ERROR", message: "حد سجل المحاكاة يجب أن يكون بين 1 و100." };
-  const { data, error } = await supabase.rpc("fetch_commerce_policy_simulation_history", {
-    p_simulation_type: simulationType ?? null, p_limit: limit,
-  });
-  if (error) return rpcFailure(error);
-  const row = object(data);
-  if (!row || !Array.isArray(row.items))
-    return { ok: false, status: "ERROR", message: "استجابة سجل المحاكاة لا تطابق عقد البيانات." };
+export function parseCommercePolicySimulationHistory(
+  value: unknown,
+  limit: number,
+): PolicyRpcResult<CommercePolicySimulationHistoryItem[]> {
+  const row = object(value);
+  if (!row || !validInstant(row.asOf) || !Number.isSafeInteger(row.returnedCount) ||
+      (row.returnedCount as number) < 0 || (row.returnedCount as number) > limit ||
+      !Array.isArray(row.items) || row.returnedCount !== row.items.length) {
+    return { ok: false, status: "ERROR", message: "سجل المحاكاة لا يطابق عدد النتائج وحدود المجتمع ووقت المصدر." };
+  }
+  const asOf = Date.parse(row.asOf);
   const items = row.items.map(value => {
     const item = object(value);
     const outcome = object(item?.outcome);
     if (!item || !uuid(item.id) || typeof item.simulationType !== "string" ||
-        !["PROMOTION_PREVIEW","CUSTOMER_CREDIT","PRODUCT_ORDER_QUANTITY","INVENTORY_REORDER_POINT","TASK_DEDUPLICATION"].includes(item.simulationType) ||
-        !Array.isArray(item.sourceRefs) || typeof item.inputFingerprint !== "string" ||
-        typeof item.sourceFingerprint !== "string" || !outcome || typeof item.createdAt !== "string") return null;
-    return item as unknown as CommercePolicySimulationHistoryItem;
+        !SIMULATION_TYPES.includes(item.simulationType as CommercePolicySimulationType) ||
+        !Array.isArray(item.sourceRefs) || item.sourceRefs.length > 20 ||
+        item.sourceRefs.some(ref => !uuid(ref)) ||
+        !validFingerprint(item.inputFingerprint) || !validFingerprint(item.sourceFingerprint) ||
+        !outcome || outcome.simulationType !== item.simulationType || outcome.noWrite !== true ||
+        !validInstant(item.createdAt) || Date.parse(item.createdAt) > asOf) return null;
+    const sourceRefs = item.sourceRefs as string[];
+    if (new Set(sourceRefs.map(ref => ref.toLowerCase())).size !== sourceRefs.length) return null;
+    return { ...item, sourceRefs } as unknown as CommercePolicySimulationHistoryItem;
   });
   if (items.some(item => item === null))
-    return { ok: false, status: "ERROR", message: "سجل المحاكاة يحتوي على عنصر غير صالح." };
-  return { ok: true, data: items as CommercePolicySimulationHistoryItem[] };
+    return { ok: false, status: "ERROR", message: "سجل المحاكاة يحتوي على عنصر غير صالح أو بلا دليل مصدر موثق." };
+  const parsed = items as CommercePolicySimulationHistoryItem[];
+  if (new Set(parsed.map(item => item.id)).size !== parsed.length)
+    return { ok: false, status: "ERROR", message: "سجل المحاكاة يحتوي على معرفات مكررة؛ تم حجب النتائج." };
+  return { ok: true, data: parsed };
+}
+export async function fetchCommercePolicySimulationHistory(
+  simulationType?: CommercePolicySimulationType,
+  limit = 30,
+): Promise<PolicyRpcResult<CommercePolicySimulationHistoryItem[]>> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 ||
+      (simulationType !== undefined && !SIMULATION_TYPES.includes(simulationType))) {
+    return { ok: false, status: "ERROR", message: "حد سجل المحاكاة أو نوعه غير صالح." };
+  }
+  const { data, error } = await supabase.rpc("fetch_commerce_policy_simulation_history", {
+    p_simulation_type: simulationType ?? null, p_limit: limit,
+  });
+  if (error) return rpcFailure(error);
+  return parseCommercePolicySimulationHistory(data, limit);
 }
 
 export interface CommercePolicyOwner {
