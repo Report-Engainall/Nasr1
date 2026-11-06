@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — user-controlled PWA update lifecycle — 2026-11-06
+
+- BODY-060 commits: service worker `a23066e40ac1abf899d9aac3a1f578927ef37e9b`; root update UI `d73e1d028699b41188f03970f261d245fe26c1f8`; cleanup `828065e3ca7450fc90cf5b2b4a282c3ff9bf6524`. Final blobs `public/sw.js=3af1b8508a1a1703ed51f1d314fdcaf31983bb1c`, `src/routes/__root.tsx=ce7ebd8a2abcc62d95a3d42e474039776f3c9a7d`.
+- New workers wait for explicit user approval; root notice supports Update/Later and reloads only after controllerchange. Shell cache namespace advanced to v4; no authenticated/business payloads added to service-worker caching.
+- Added acceptance leaf `DLV-014-PWA-UPDATE-PROMPT-001`. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/offline update/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — customer order XLSX and return request A4 print — 2026-11-06
 
 - Customer order XLSX: main commit `a8b093527c580ce2fde67248072f591b9b57729c`; builder blob `0e9784a8943ed0824378afa8a790dafbf9a94413`; UI blob `05c21aee4f76a2e7aff15eb8446fd8f190765576`. Four Arabic worksheets use the loaded customer order projection; excludes prices, costs, margins and identifiers. Added matrix leaf `DLV-011-CUSTOMER-ORDER-XLSX-001`.
