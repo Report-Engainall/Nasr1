@@ -1781,8 +1781,7 @@ function Reorder() {
       if (!draft.length) throw new Error("لا يحتوي القالب على أصناف صالحة لإضافتها إلى السلة.");
       const merged = mergeOfflineCartDraft(window.localStorage, user?.profileId, draft);
       if (!merged) throw new Error("تعذر حفظ السلة المعزولة لهذا الحساب على الجهاز.");
-      setNotice("تم تحميل القالب إلى السلة. ستُراجع الأسعار والتوفر الحاليان عند إتمام الطلب.");
-      void navigate({ to: "/" });
+      await navigate({ to: "/cart" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تطبيق قالب إعادة الطلب. لم تتغير السلة.");
     } finally {
