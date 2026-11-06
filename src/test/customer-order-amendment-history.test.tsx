@@ -80,9 +80,9 @@ describe("customer order amendment history UI", () => {
     expect(await screen.findByText("النسخة 1")).toBeInTheDocument();
     expect(screen.getByText("النسخة 2")).toBeInTheDocument();
     expect(screen.getAllByText(/أرسلها: عميل الاختبار/)).toHaveLength(2);
-    expect(screen.getByText("مدير الإرجاع")).toBeInTheDocument();
+    expect(screen.getByText(/أعاد الطلب:.*مدير الإرجاع/)).toBeInTheDocument();
     expect(screen.getByText(/يرجى تقليل كمية السكر/)).toBeInTheDocument();
-    expect(screen.getByText("مدير الاختبار")).toBeInTheDocument();
+    expect(screen.getByText(/راجعها:.*مدير الاختبار/)).toBeInTheDocument();
     expect(screen.getAllByText("سكر أبيض")).toHaveLength(2);
     expect(screen.getByText("تم تحديث الكمية")).toBeInTheDocument();
     expect(screen.getByText("أُعيد تقديم التعديل إلى الإدارة — بانتظار المراجعة")).toBeInTheDocument();
