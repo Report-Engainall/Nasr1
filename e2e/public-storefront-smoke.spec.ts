@@ -713,3 +713,69 @@ test("critical admin routes preserve direct navigation, RTL, and mobile viewport
   expect(pageErrors, "Critical admin routes must not throw uncaught browser errors.").toEqual([]);
 });
 
+
+
+test("daily decision board stays keyboard-operable and fits mobile and desktop Chromium viewports", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
+  const fixturePath = "/e2e/fixtures/daily-decision-board.html";
+  const fixtureBase = process.env.E2E_PRICE_FIXTURE_BASE_URL;
+  const fixtureUrl = fixtureBase ? new URL(fixturePath, fixtureBase).toString() : fixturePath;
+
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const response = await page.goto(fixtureUrl);
+    expect(response?.status(), "The isolated decision-board fixture must be served by the component harness.")
+      .toBe(200);
+
+    const board = page.getByRole("region", { name: "لوحة القرارات اليومية" });
+    await expect(board).toBeVisible();
+    await expect(board.getByRole("status").first()).toContainText("تغطية جزئية");
+    const savedDecisions = board.getByRole("list", { name: "قرارات محفوظة مرتبة للمتابعة" });
+    await expect(savedDecisions).toBeVisible();
+    await expect(savedDecisions.getByRole("listitem")).toHaveCount(2);
+    expect(await savedDecisions.locator("h3").allTextContents()).toEqual([
+      "قرار اختبار A — عنوان عربي طويل لا يتسبب في تجاوز عرض الشاشة على الهاتف.",
+      "قرار اختبار Z — الترتيب ثابت حتى عندما تتساوى حقول المتابعة والتاريخ والانحراف المثبت.",
+    ]);
+
+    const layout = await page.evaluate(() => ({
+      lang: document.documentElement.lang.toLowerCase(),
+      direction: getComputedStyle(document.documentElement).direction,
+      viewportWidth: window.innerWidth,
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      boardWidth: document.querySelector('[aria-labelledby="daily-decision-board-title"]')?.getBoundingClientRect().width ?? 0,
+    }));
+    expect(layout.lang).toMatch(/^ar(?:-|$)/);
+    expect(layout.direction).toBe("rtl");
+    expect(layout.documentWidth, "Decision board caused horizontal overflow at " + viewport.width + "px.")
+      .toBeLessThanOrEqual(layout.viewportWidth + 1);
+    expect(layout.boardWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+
+    const reason = board.getByRole("textbox", { name: "سبب الإجراء وسجل القرار" }).first();
+    const action = board.getByRole("button", { name: "إرسال للمراجعة" }).first();
+    await page.keyboard.press("Tab");
+    await expect(reason).toBeFocused();
+    const reasonFocus = await reason.evaluate(element => {
+      const style = getComputedStyle(element);
+      return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+    });
+    expect(reasonFocus.outlineStyle).not.toBe("none");
+    expect(reasonFocus.outlineWidth).toBeGreaterThan(0);
+
+    await page.keyboard.press("Tab");
+    await expect(action).toBeFocused();
+    const actionFocus = await action.evaluate(element => {
+      const style = getComputedStyle(element);
+      return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+    });
+    expect(actionFocus.outlineStyle).not.toBe("none");
+    expect(actionFocus.outlineWidth).toBeGreaterThan(0);
+  }
+
+  expect(pageErrors, "The real decision-board component must not throw browser errors in its isolated harness.")
+    .toEqual([]);
+});
