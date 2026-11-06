@@ -31,6 +31,7 @@ import type { LucideIcon } from 'lucide-react';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
+import { AdminAccessMatrix } from '@/components/AdminAccessMatrix';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 import { AiGatewayOperationsPanel } from '@/components/intelligence';
 type IconType = LucideIcon;
@@ -1207,6 +1208,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
       {tab === 'appearance' && <SettingsPanel title="ألوان النظام"><SettingColor label="اللون الأساسي" value={(map.theme_primary as string) ?? '#087f8d'} onSave={(v) => save('theme_primary', v, 'appearance')} saving={saving} /><SettingColor label="لون التمييز" value={(map.theme_accent as string) ?? '#0eaa97'} onSave={(v) => save('theme_accent', v, 'appearance')} saving={saving} /></SettingsPanel>}
       {tab === 'announcements' && canManageStorefrontContent && <StorefrontAnnouncementManager onNotice={onNotice} />}
       {tab === 'access' && canManageRoles && user && <>
+        <AdminAccessMatrix />
         <OrganizationRoleManagement currentProfileId={user.profileId} onNotice={onNotice} />
         <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={onNotice} />
       </>}
