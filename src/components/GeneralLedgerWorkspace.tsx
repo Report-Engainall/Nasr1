@@ -11,6 +11,7 @@ import { SupplierCreditNoteWorkspace } from "@/components/SupplierCreditNoteWork
 import { SupplierInvoiceWorkspace } from "@/components/SupplierInvoiceWorkspace";
 import { SupplierAccountActivityWorkspace } from "@/components/SupplierAccountActivityWorkspace";
 import { SupplierPaymentWorkspace } from "@/components/SupplierPaymentWorkspace";
+import { CashAccountReconciliationWorkspace } from "@/components/intelligence/CashAccountReconciliationWorkspace";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { GeneralJournalReversalAction } from "@/components/GeneralJournalReversalAction";
 import { GeneralLedgerPrintSheet } from "@/components/GeneralLedgerPrintSheet";
@@ -459,6 +460,8 @@ export function GeneralLedgerWorkspace() {
         </div>
         <p style={{ ...muted, fontSize: 12 }}>لا يُنشئ النظام أرصدة افتتاحية أو قيودًا تاريخية تلقائية. لا تُربط الفواتير أو الدفعات القديمة بقيود مصطنعة.</p>
       </header>
+
+      <CashAccountReconciliationWorkspace />
 
       {error && <div role="alert" style={{ ...card, color: "#9b2828" }}>{error}</div>}
       {notice && <div role="status" style={{ ...card, color: "#17684d" }}>{notice}</div>}
