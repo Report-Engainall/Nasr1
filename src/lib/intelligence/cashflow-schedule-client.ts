@@ -181,6 +181,10 @@ function completeness(value: unknown): value is IntelligenceCompleteness {
 function quality(value: unknown): value is IntelligenceQuality {
   return value === "ACCEPTABLE" || value === "WARNINGS" || value === "INVALID" || value === "UNKNOWN";
 }
+
+function safeCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
 function warnings(value: unknown): string[] | null {
   const list = stringList(value, 100);
   return list?.map((item) => item.slice(0, 300)) ?? null;
@@ -414,6 +418,138 @@ export function parseCashflowScheduleResponse(
   };
 }
 
+export interface SupplierPayableScheduleSlice {
+  status: "OK" | "PARTIAL";
+  completeness: IntelligenceCompleteness;
+  quality: IntelligenceQuality;
+  entries: CashflowScheduleRow[];
+  evidenceRecords: EvidenceRecord[];
+  warnings: string[];
+}
+
+export function parseSupplierPayableScheduleResponse(
+  value: unknown,
+  request: IntelligenceAggregateRequest,
+): SupplierPayableScheduleSlice | null {
+  const raw = record(value);
+  const period = record(raw?.period);
+  const rawWarnings = warnings(raw?.warnings);
+  const rawEvidence = raw?.evidenceRecords;
+  if (
+    !raw || (raw.status !== "OK" && raw.status !== "PARTIAL") ||
+    raw.sideEffects !== "NONE" || raw.asOf !== request.asOf ||
+    !period || period.from !== request.period.from || period.to !== request.period.to ||
+    (raw.currency !== null && raw.currency !== request.currency && raw.currency !== undefined) ||
+    !Array.isArray(raw.entries) || raw.entries.length > 10000 ||
+    !Array.isArray(rawEvidence) || rawEvidence.length > 20000 || !rawWarnings
+  ) return null;
+
+  const evidence = rawEvidence.map((item) => parseEvidenceRecord(item, request.asOf));
+  if (evidence.some((item) => item === null)) return null;
+  const evidenceRecords = evidence as EvidenceRecord[];
+  const evidenceIds = new Set<string>();
+  for (const item of evidenceRecords) {
+    if (evidenceIds.has(item.id)) return null;
+    evidenceIds.add(item.id);
+  }
+
+  const entries: CashflowScheduleRow[] = [];
+  const entryIds = new Set<string>();
+  for (const item of raw.entries) {
+    const row = record(item);
+    const amount = parseAmount(row?.amount, request.asOf, evidenceIds);
+    if (
+      !row || !nonEmptyString(row.id, 150) || entryIds.has(row.id) ||
+      row.direction !== "OUTFLOW" || !isoDay(row.dueDate) || !amount ||
+      amount.key !== "supplier.payable.outstanding" ||
+      amount.lineage.formulaId !== "nasr1.supplier-posted-payable-after-settlements" ||
+      amount.lineage.formulaVersion !== "1"
+    ) return null;
+    entryIds.add(row.id);
+    entries.push({ id: row.id, direction: "OUTFLOW", dueDate: row.dueDate, amount });
+  }
+
+  const unresolved = safeCount(raw.unresolvedReceiptCount);
+  const overdue = safeCount(raw.overdueReceiptCount);
+  if (unresolved === null || overdue === null) return null;
+  const complete = raw.status === "OK" && unresolved === 0 && overdue === 0;
+  if (complete && (raw.completeness !== "COMPLETE" || raw.quality !== "ACCEPTABLE")) return null;
+  if (!complete && raw.completeness !== "PARTIAL" && raw.completeness !== "UNKNOWN") return null;
+  if (!complete && raw.quality !== "WARNINGS" && raw.quality !== "UNKNOWN") return null;
+  return {
+    status: complete ? "OK" : "PARTIAL",
+    completeness: complete ? "COMPLETE" : "PARTIAL",
+    quality: complete ? "ACCEPTABLE" : "WARNINGS",
+    entries,
+    evidenceRecords,
+    warnings: rawWarnings,
+  };
+}
+
+function combineSupplierOutflows(
+  base: CashflowScheduleResult,
+  slice: SupplierPayableScheduleSlice | null,
+): CashflowScheduleResult {
+  if (!base.ok) return base;
+  const warningsOut = [...base.data.warnings];
+  if (!slice) {
+    return {
+      ok: true,
+      data: {
+        ...base.data,
+        status: "PARTIAL",
+        completeness: "PARTIAL",
+        quality: "WARNINGS",
+        schedule: {
+          ...base.data.schedule,
+          status: base.data.schedule.status === "UNVERIFIED" ? "UNVERIFIED" : "NEEDS_REVIEW",
+          completeness: "PARTIAL",
+          quality: "WARNINGS",
+          warnings: [...base.data.schedule.warnings, "Supplier payable schedule is unavailable; zero outflows are not assumed."],
+        },
+        warnings: [...warningsOut, "SUPPLIER_OUTFLOW_SOURCE_UNAVAILABLE"],
+      },
+    };
+  }
+
+  const allEntries = [...base.data.schedule.entries, ...slice.entries];
+  const entryIds = new Set<string>();
+  for (const entry of allEntries) {
+    if (entryIds.has(entry.id)) return combineSupplierOutflows(base, null);
+    entryIds.add(entry.id);
+  }
+  const evidenceRecords = [...base.data.evidenceRecords, ...slice.evidenceRecords];
+  const evidenceIds = new Set<string>();
+  for (const item of evidenceRecords) {
+    if (evidenceIds.has(item.id)) return combineSupplierOutflows(base, null);
+    evidenceIds.add(item.id);
+  }
+  const complete = base.data.schedule.status === "VERIFIED" &&
+    base.data.schedule.completeness === "COMPLETE" &&
+    base.data.schedule.quality === "ACCEPTABLE" &&
+    slice.status === "OK";
+  const mergedWarnings = [...base.data.schedule.warnings, ...slice.warnings];
+  return {
+    ok: true,
+    data: {
+      ...base.data,
+      status: complete ? "OK" : "PARTIAL",
+      completeness: complete ? "COMPLETE" : "PARTIAL",
+      quality: complete ? "ACCEPTABLE" : "WARNINGS",
+      evidenceRecords,
+      schedule: {
+        status: complete ? "VERIFIED" :
+          (base.data.schedule.status === "UNVERIFIED" ? "UNVERIFIED" : "NEEDS_REVIEW"),
+        completeness: complete ? "COMPLETE" : "PARTIAL",
+        quality: complete ? "ACCEPTABLE" : "WARNINGS",
+        entries: allEntries,
+        warnings: mergedWarnings,
+      },
+      warnings: [...warningsOut, ...slice.warnings],
+    },
+  };
+}
+
 export async function fetchCashflowSchedule(
   request: IntelligenceAggregateRequest,
 ): Promise<CashflowScheduleResult> {
@@ -427,7 +563,16 @@ export async function fetchCashflowSchedule(
       }
       return { ok: false, status: "UNAVAILABLE", message: "تعذر تحميل التدفق النقدي من قاعدة البيانات؛ لم تُعرض أرقام بديلة." };
     }
-    return parseCashflowScheduleResponse(data, request);
+    const base = parseCashflowScheduleResponse(data, request);
+    if (!base.ok) return base;
+    const supplier = await supabase.rpc("fetch_supplier_payable_cashflow_schedule", {
+      p_from: request.period.from,
+      p_to: request.period.to,
+      p_as_of: request.asOf,
+      p_currency: request.currency ?? null,
+    });
+    if (supplier.error) return combineSupplierOutflows(base, null);
+    return combineSupplierOutflows(base, parseSupplierPayableScheduleResponse(supplier.data, request));
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بخدمة التدفق النقدي؛ لم تُعرض أرقام تقديرية." };
   }

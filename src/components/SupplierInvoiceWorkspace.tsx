@@ -9,6 +9,9 @@ import {
   fetchSupplierInvoiceAccountingStatus,
   prepareSupplierInvoiceAccountingDraft,
   fetchSupplierInvoiceEvidence,
+  fetchSupplierInvoiceDueDates,
+  recordSupplierInvoiceDueDate,
+  type SupplierInvoiceDueDate,
   type SupplierInvoiceAccountingStatus,
   uploadSupplierInvoiceEvidence,
   createSupplierInvoiceEvidenceSignedUrl,
@@ -78,6 +81,7 @@ function eventLabel(action: string): string {
   if (action === "recorded_variance_pending") return "تسجيل فرق سعر";
   if (action === "variance_approved") return "اعتماد فرق السعر";
   if (action === "variance_rejected") return "رفض فرق السعر";
+  if (action === "due_date_recorded") return "تسجيل تاريخ استحقاق موثق";
   return action;
 }
 function unavailableMessage(cause: unknown): string {
@@ -125,6 +129,14 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
   const [taxAccountId, setTaxAccountId] = useState("");
   const [varianceAccountId, setVarianceAccountId] = useState("");
   const [evidenceRows, setEvidenceRows] = useState<SupplierInvoiceEvidence[]>([]);
+  const [dueDateRows, setDueDateRows] = useState<SupplierInvoiceDueDate[]>([]);
+  const [dueDateDraft, setDueDateDraft] = useState(localToday());
+  const [dueDateEvidenceId, setDueDateEvidenceId] = useState("");
+  const [dueDateSourceReference, setDueDateSourceReference] = useState("");
+  const [dueDateReason, setDueDateReason] = useState("");
+  const [dueDateLoading, setDueDateLoading] = useState(false);
+  const [dueDateBusy, setDueDateBusy] = useState(false);
+  const [dueDateError, setDueDateError] = useState("");
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState(false);
   const [evidenceError, setEvidenceError] = useState("");
@@ -142,12 +154,36 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
     previousPrintMode.current = null;
   }
 
+  const refreshDueDates = useCallback(async () => {
+    if (!canUseFinance) {
+      setDueDateRows([]);
+      setDueDateError("");
+      return;
+    }
+    setDueDateLoading(true);
+    setDueDateError("");
+    try {
+      setDueDateRows(await fetchSupplierInvoiceDueDates());
+    } catch (cause) {
+      setDueDateError(cause instanceof Error ? cause.message : "تعذر تحميل تواريخ استحقاق الموردين.");
+    } finally {
+      setDueDateLoading(false);
+    }
+  }, [canUseFinance]);
+
+  useEffect(() => {
+    void refreshDueDates();
+  }, [refreshDueDates]);
+
   const refreshEvidence = useCallback(async (invoiceId: string | null) => {
     if (!canUseFinance || !invoiceId) {
       setEvidenceRows([]);
       setEvidenceError("");
+      setDueDateEvidenceId("");
       return;
     }
+    setEvidenceRows([]);
+    setDueDateEvidenceId("");
     setEvidenceLoading(true);
     setEvidenceError("");
     try {
@@ -162,6 +198,12 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
     setEvidenceLinks({});
     void refreshEvidence(selectedInvoiceId);
   }, [selectedInvoiceId, refreshEvidence]);
+
+  useEffect(() => {
+    if (evidenceRows.length > 0 && !evidenceRows.some((item) => item.id === dueDateEvidenceId)) {
+      setDueDateEvidenceId(evidenceRows[0].id);
+    }
+  }, [evidenceRows, dueDateEvidenceId]);
 
   useEffect(() => {
     if (!printDocument || typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") return;
@@ -210,6 +252,46 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
       setEvidenceError(cause instanceof Error ? cause.message : "تعذر رفع مستند الفاتورة.");
     } finally {
       setEvidenceBusy(false);
+    }
+  }
+
+  async function saveDueDate() {
+    if (!selectedInvoice || dueDateBusy) return;
+    if (selectedInvoice.matchStatus !== "matched" || Number(selectedInvoice.taxAmount) !== 0) {
+      setDueDateError("لا يُسجل استحقاق التدفق النقدي قبل اكتمال مطابقة الفاتورة وتسوية الضريبة.");
+      return;
+    }
+    if (!evidenceRows.some((item) => item.id === dueDateEvidenceId)) {
+      setDueDateError("ارفع مستند فاتورة المورد واختر مرفقًا محفوظًا قبل تسجيل تاريخ الاستحقاق.");
+      return;
+    }
+    if (dueDateDraft < selectedInvoice.invoiceDate) {
+      setDueDateError("تاريخ الاستحقاق لا يمكن أن يسبق تاريخ فاتورة المورد.");
+      return;
+    }
+    setDueDateBusy(true);
+    setDueDateError("");
+    setError("");
+    setNotice("");
+    try {
+      if (!globalThis.crypto?.randomUUID) throw new Error("المتصفح لا يدعم مفتاح منع التكرار الآمن؛ لم يُرسل تاريخ الاستحقاق.");
+      const result = await recordSupplierInvoiceDueDate({
+        invoiceId: selectedInvoice.id,
+        dueDate: dueDateDraft,
+        sourceEvidenceId: dueDateEvidenceId,
+        sourceReference: dueDateSourceReference.trim() || selectedInvoice.invoiceNumber,
+        reason: dueDateReason,
+        idempotencyKey: globalThis.crypto.randomUUID(),
+      });
+      await refreshDueDates();
+      setDueDateReason("");
+      setNotice(result.replayed
+        ? "تاريخ الاستحقاق محفوظ مسبقًا بنفس مستند المصدر."
+        : "حُفظ تاريخ الاستحقاق مع ربطه بمرفق الفاتورة وسجل التدقيق؛ لم تُنشأ دفعة أو حركة نقدية.");
+    } catch (cause) {
+      setDueDateError(cause instanceof Error ? cause.message : "تعذر حفظ تاريخ استحقاق المورد.");
+    } finally {
+      setDueDateBusy(false);
     }
   }
 
@@ -301,6 +383,9 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
     () => workspace?.invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null,
     [workspace?.invoices, selectedInvoiceId],
   );
+  const selectedDueDate = selectedInvoice
+    ? dueDateRows.find((item) => item.invoiceId === selectedInvoice.id) ?? null
+    : null;
   const availableInvoiceLines = receivableLines.filter((line) =>
     Number(line.remainingToInvoice) > 0 && line.sourceCostComplete &&
     line.orderedUnitCost !== null && line.receivedUnitCost !== null
@@ -676,6 +761,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
                 <span style={{ color: statusColor(invoice.matchStatus), fontWeight: 700 }}>{statusLabel(invoice.matchStatus)}</span>
               </div>
               <p style={mutedStyle}>أمر {invoice.purchaseOrderNumber} · {invoice.invoiceDate} · {moneyText(invoice.invoiceTotalAmount, invoice.currency)}</p>
+              <p style={mutedStyle}>استحقاق المصدر: {dueDateRows.find((item) => item.invoiceId === invoice.id)?.dueDate ?? "غير مسجل — لا يُفترض من تاريخ الفاتورة"}</p>
             </button>)}
           </div>
         )}
@@ -692,6 +778,49 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
             <div><h3 style={{ margin: 0 }}>تفاصيل الفاتورة {selectedInvoice.invoiceNumber}</h3><p style={mutedStyle}>{selectedInvoice.supplierName} · أمر {selectedInvoice.purchaseOrderNumber} · {selectedInvoice.invoiceDate}</p></div>
             <strong style={{ color: statusColor(selectedInvoice.matchStatus) }}>{statusLabel(selectedInvoice.matchStatus)}</strong>
           </div>
+          <section style={{ ...cardStyle, background: "var(--muted, #f8fafb)" }} aria-label="تاريخ استحقاق فاتورة المورد">
+            <div>
+              <h4 style={{ margin: 0 }}>استحقاق المورد من المستند الأصلي</h4>
+              <p style={mutedStyle}>لا تُستخدم شروط ائتمان افتراضية. التاريخ يُسجل مرة واحدة بعد رفع مرفق الفاتورة، ويغذي التدفقات الخارجة فقط عندما تكون المطابقة والكمية المستلمة والدفعات المرحلة متحققة.</p>
+            </div>
+            {dueDateLoading ? <p role="status" style={mutedStyle}>جار تحميل أدلة الاستحقاق...</p> : null}
+            {selectedDueDate ? (
+              <div role="status" style={{ display: "grid", gap: 4 }}>
+                <strong>تاريخ الاستحقاق: {selectedDueDate.dueDate}</strong>
+                <p style={mutedStyle}>مرجع المصدر: {selectedDueDate.sourceReference} · سجل في {selectedDueDate.recordedAt}</p>
+                <p style={mutedStyle}>سبب التسجيل: {selectedDueDate.reason} · مرفق الإثبات: {selectedDueDate.sourceEvidenceId}</p>
+                <p style={mutedStyle}>السجل غير قابل للاستبدال. لتصحيح مصدر خاطئ، يجب إنشاء مستند تصحيحي مستقل لاحقًا؛ لا يُمحى التاريخ التاريخي.</p>
+              </div>
+            ) : selectedInvoice.matchStatus !== "matched" || Number(selectedInvoice.taxAmount) !== 0 ? (
+              <p role="status" style={{ ...mutedStyle, color: "#854d0e" }}>مؤجل: لا تُقبل جدولة الالتزام قبل مطابقة السعر بالكامل وإزالة حالة الضريبة المعلقة.</p>
+            ) : evidenceRows.length === 0 ? (
+              <p role="status" style={mutedStyle}>ارفع أولًا نسخة الفاتورة أو مستند الاستحقاق في قسم مستندات الإثبات أدناه؛ لن يقبل الخادم تاريخًا بلا مرفق محفوظ.</p>
+            ) : (
+              <form onSubmit={(event) => { event.preventDefault(); void saveDueDate(); }} style={{ display: "grid", gap: 9 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+                  <label style={{ display: "grid", gap: 5 }}>تاريخ الاستحقاق كما ورد في المستند
+                    <input required type="date" min={selectedInvoice.invoiceDate} value={dueDateDraft} onChange={(event) => setDueDateDraft(event.target.value)} disabled={dueDateBusy} style={fieldStyle} />
+                  </label>
+                  <label style={{ display: "grid", gap: 5 }}>مرفق المستند
+                    <select required value={dueDateEvidenceId} onChange={(event) => setDueDateEvidenceId(event.target.value)} disabled={dueDateBusy} style={fieldStyle}>
+                      <option value="">اختر مرفق الفاتورة</option>
+                      {evidenceRows.map((item) => <option key={item.id} value={item.id}>{item.fileName} · {item.contentSha256.slice(0, 12)}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 5 }}>مرجع الاستحقاق في المستند
+                    <input required minLength={3} maxLength={200} value={dueDateSourceReference} onChange={(event) => setDueDateSourceReference(event.target.value)} placeholder={selectedInvoice.invoiceNumber} disabled={dueDateBusy} style={fieldStyle} />
+                  </label>
+                </div>
+                <label style={{ display: "grid", gap: 5 }}>سبب/ملاحظة استخراج تاريخ الاستحقاق
+                  <textarea required minLength={3} maxLength={500} rows={2} value={dueDateReason} onChange={(event) => setDueDateReason(event.target.value)} disabled={dueDateBusy} style={fieldStyle} placeholder="مثال: التاريخ مطبوع في خانة موعد السداد بفاتورة المورد." />
+                </label>
+                <button className="btn primary" type="submit" disabled={dueDateBusy || dueDateLoading || !dueDateEvidenceId || !dueDateReason.trim()}>
+                  {dueDateBusy ? "جار حفظ دليل الاستحقاق..." : "حفظ تاريخ الاستحقاق من المستند"}
+                </button>
+              </form>
+            )}
+            {dueDateError && <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>{dueDateError}</p>}
+          </section>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
             <div><p style={mutedStyle}>إجمالي البنود</p><strong>{moneyText(selectedInvoice.merchandiseSubtotal, selectedInvoice.currency)}</strong></div>
             <div><p style={mutedStyle}>الضريبة الموثقة</p><strong>{moneyText(selectedInvoice.taxAmount, selectedInvoice.currency)}</strong></div>

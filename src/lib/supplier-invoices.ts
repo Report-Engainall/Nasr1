@@ -58,7 +58,7 @@ export interface SupplierInvoiceLine {
   priceMatch: boolean;
 }
 export interface SupplierInvoiceEvent {
-  action: "recorded_matched" | "recorded_variance_pending" | "variance_approved" | "variance_rejected";
+  action: "recorded_matched" | "recorded_variance_pending" | "variance_approved" | "variance_rejected" | "due_date_recorded";
   actorProfileId: string;
   reason: string | null;
   createdAt: string;
@@ -232,7 +232,9 @@ function parseEvent(value: unknown): SupplierInvoiceEvent {
   const row = object(value, "حدث مراجعة فاتورة المورد");
   const action = row.action;
   if (action !== "recorded_matched" && action !== "recorded_variance_pending" &&
-      action !== "variance_approved" && action !== "variance_rejected") throw new Error("حدث فاتورة المورد غير معروف.");
+      action !== "variance_approved" && action !== "variance_rejected" && action !== "due_date_recorded") {
+    throw new Error("حدث فاتورة المورد غير معروف.");
+  }
   return {
     action,
     actorProfileId: uuid(row.actor_profile_id, "منفذ الحدث"),
@@ -377,6 +379,83 @@ export async function recordSupplierInvoice(input: {
     throw new Error("أعاد الخادم فاتورة لا تطابق المبالغ المصدرية المرسلة.");
   }
   return result;
+}
+
+export interface SupplierInvoiceDueDate {
+  id: string;
+  invoiceId: string;
+  dueDate: string;
+  sourceEvidenceId: string;
+  sourceReference: string;
+  reason: string;
+  recordedByProfileId: string;
+  recordedAt: string;
+}
+
+function parseSupplierInvoiceDueDate(value: unknown): SupplierInvoiceDueDate {
+  const row = object(value, "دليل تاريخ استحقاق المورد");
+  return {
+    id: uuid(row.id, "دليل تاريخ الاستحقاق"),
+    invoiceId: uuid(row.invoice_id, "فاتورة المورد"),
+    dueDate: date(row.due_date, "استحقاق المورد"),
+    sourceEvidenceId: uuid(row.source_evidence_id, "مرفق إثبات الاستحقاق"),
+    sourceReference: text(row.source_reference, "مرجع مصدر الاستحقاق"),
+    reason: text(row.reason, "سبب تسجيل الاستحقاق"),
+    recordedByProfileId: uuid(row.recorded_by_profile_id, "مسجل الاستحقاق"),
+    recordedAt: text(row.recorded_at, "وقت تسجيل الاستحقاق"),
+  };
+}
+
+export async function fetchSupplierInvoiceDueDates(invoiceId?: string | null): Promise<SupplierInvoiceDueDate[]> {
+  if (invoiceId && !UUID_PATTERN.test(invoiceId)) throw new Error("معرّف فاتورة المورد غير صالح.");
+  const { data, error } = await supabase.rpc("fetch_purchase_supplier_invoice_due_dates", {
+    p_invoice_id: invoiceId ?? null,
+  });
+  if (error) throw error;
+  if (!Array.isArray(data)) throw new Error("أعاد الخادم قائمة استحقاقات المورد بصيغة غير صالحة.");
+  const rows = data.map(parseSupplierInvoiceDueDate);
+  const seenInvoices = new Set<string>();
+  for (const row of rows) {
+    if (seenInvoices.has(row.invoiceId)) throw new Error("يوجد أكثر من تاريخ استحقاق محفوظ للفاتورة نفسها.");
+    seenInvoices.add(row.invoiceId);
+  }
+  return rows;
+}
+
+export async function recordSupplierInvoiceDueDate(input: {
+  invoiceId: string;
+  dueDate: string;
+  sourceEvidenceId: string;
+  sourceReference: string;
+  reason: string;
+  idempotencyKey: string;
+}): Promise<SupplierInvoiceDueDate & { replayed: boolean }> {
+  const sourceReference = input.sourceReference.trim();
+  const reason = input.reason.trim();
+  if (!UUID_PATTERN.test(input.invoiceId) || !UUID_PATTERN.test(input.sourceEvidenceId) ||
+      !UUID_PATTERN.test(input.idempotencyKey) || sourceReference.length < 3 ||
+      sourceReference.length > 200 || reason.length < 3 || reason.length > 500) {
+    throw new Error("بيانات تاريخ استحقاق المورد أو مرجع الدليل أو سبب التسجيل غير صالحة.");
+  }
+  date(input.dueDate, "استحقاق المورد");
+  const { data, error } = await supabase.rpc("record_purchase_supplier_invoice_due_date", {
+    p_invoice_id: input.invoiceId,
+    p_due_date: input.dueDate,
+    p_source_evidence_id: input.sourceEvidenceId,
+    p_source_reference: sourceReference,
+    p_reason: reason,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (error) throw error;
+  const row = object(data, "نتيجة حفظ تاريخ استحقاق المورد");
+  const parsed = parseSupplierInvoiceDueDate(row);
+  if (parsed.invoiceId !== input.invoiceId || parsed.dueDate !== input.dueDate ||
+      parsed.sourceEvidenceId !== input.sourceEvidenceId ||
+      parsed.sourceReference !== sourceReference || parsed.reason !== reason ||
+      typeof row.replayed !== "boolean") {
+    throw new Error("لم يؤكد الخادم حفظ تاريخ الاستحقاق بنفس مستند المصدر والبيانات.");
+  }
+  return { ...parsed, replayed: row.replayed };
 }
 
 export async function reviewSupplierInvoiceVariance(input: {

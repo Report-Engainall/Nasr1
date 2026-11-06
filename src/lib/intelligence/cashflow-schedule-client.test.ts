@@ -93,6 +93,41 @@ const request = () => ({
   currency: "YER",
 });
 
+function supplierOutflowResponse(overrides: Record<string, unknown> = {}) {
+  const asOf = request().asOf;
+  const invoiceId = "33333333-3333-4333-8333-333333333333";
+  const dueId = "44444444-4444-4444-8444-444444444444";
+  const receiptId = "55555555-5555-4555-8555-555555555555";
+  const evidenceRecords = [
+    { id: "supplier-invoice:" + invoiceId, source: { kind: "TABLE", name: "purchase_supplier_invoices", recordId: invoiceId }, sourceTimestamp: asOf, asOf, period: request().period, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+    { id: "supplier-invoice-due-date:" + dueId, source: { kind: "TABLE", name: "purchase_supplier_invoice_due_dates", recordId: dueId }, sourceTimestamp: asOf, asOf, period: request().period, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+    { id: "supplier-receipt-open-payable:" + receiptId, source: { kind: "RPC", name: "supplier_payment_open_receipts", recordId: receiptId }, sourceTimestamp: asOf, asOf, period: request().period, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+  ];
+  return {
+    status: "OK", completeness: "COMPLETE", quality: "ACCEPTABLE",
+    asOf, period: request().period, currency: "YER", sideEffects: "NONE",
+    unresolvedReceiptCount: 0, overdueReceiptCount: 0,
+    entries: [{
+      id: "supplier-invoice-outflow:" + invoiceId,
+      direction: "OUTFLOW",
+      dueDate: "2026-11-20",
+      amount: {
+        id: "metric:supplier-payable:" + invoiceId,
+        key: "supplier.payable.outstanding",
+        value: "80.25",
+        unit: "CURRENCY", currency: "YER",
+        status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", asOf,
+        lineage: {
+          evidenceIds: evidenceRecords.map((item) => item.id),
+          formulaId: "nasr1.supplier-posted-payable-after-settlements",
+          formulaVersion: "1",
+        },
+      },
+    }],
+    evidenceRecords, warnings: [], ...overrides,
+  };
+}
+
 describe("tenant-bound cashflow aggregate client", () => {
   beforeEach(() => rpc.mockReset());
 
@@ -108,18 +143,58 @@ describe("tenant-bound cashflow aggregate client", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("calls only the server-derived aggregate RPC and projects a safe response", async () => {
-    rpc.mockResolvedValue({ data: response(), error: null });
+  it("combines tenant-scoped customer inflows with receipt-backed supplier outflows without leaking raw rows", async () => {
+    rpc.mockImplementation(async (name: string) => name === "get_intelligence_aggregate"
+      ? { data: response(), error: null }
+      : { data: supplierOutflowResponse(), error: null });
     const result = await fetchCashflowSchedule(request());
-    expect(rpc).toHaveBeenCalledWith("get_intelligence_aggregate", { p_request: request() });
+    expect(rpc).toHaveBeenNthCalledWith(1, "get_intelligence_aggregate", { p_request: request() });
+    expect(rpc).toHaveBeenNthCalledWith(2, "fetch_supplier_payable_cashflow_schedule", {
+      p_from: request().period.from,
+      p_to: request().period.to,
+      p_as_of: request().asOf,
+      p_currency: "YER",
+    });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.schedule.entries[0].amount.value).toBe(375);
+    expect(result.data.schedule.entries.map((entry) => [entry.direction, entry.amount.value])).toEqual([
+      ["INFLOW", 375], ["OUTFLOW", 80.25],
+    ]);
+    expect(result.data.schedule.status).toBe("VERIFIED");
+    expect(result.data.evidenceRecords).toHaveLength(5);
     expect(JSON.stringify(result.data)).not.toContain("should-not-escape@example.test");
-    expect(result.data.evidenceCount).toBe(2);
-    expect(result.data.evidenceRecords).toHaveLength(2);
-    expect(result.data.evidenceRecords[0]).toMatchObject({ source: { name: "customer_invoices" }, currency: "YER", status: "VERIFIED" });
     expect(result.data.measurementMetrics).toMatchObject([{ value: 375, currency: "YER", status: "VERIFIED" }]);
+  });
+
+  it("keeps verified supplier outflows visible but downgrades coverage when any open receipt is unresolved", async () => {
+    rpc.mockImplementation(async (name: string) => name === "get_intelligence_aggregate"
+      ? { data: response(), error: null }
+      : { data: supplierOutflowResponse({
+          status: "PARTIAL", completeness: "PARTIAL", quality: "WARNINGS", unresolvedReceiptCount: 1,
+          warnings: ["One open receipt has no uniquely evidenced invoice due date."],
+        }), error: null });
+    const result = await fetchCashflowSchedule(request());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.schedule.entries.some((entry) => entry.direction === "OUTFLOW")).toBe(true);
+    expect(result.data.schedule.completeness).toBe("PARTIAL");
+    expect(result.data.schedule.status).toBe("NEEDS_REVIEW");
+    expect(result.data.schedule.warnings).toContain("One open receipt has no uniquely evidenced invoice due date.");
+  });
+
+  it("withholds supplier outflows rather than assuming zero when source evidence linkage is missing", async () => {
+    const invalid = supplierOutflowResponse();
+    (invalid.entries[0].amount.lineage as Record<string, unknown>).evidenceIds = ["supplier-invoice:not-in-response"];
+    rpc.mockImplementation(async (name: string) => name === "get_intelligence_aggregate"
+      ? { data: response(), error: null }
+      : { data: invalid, error: null });
+    const result = await fetchCashflowSchedule(request());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.schedule.entries.map((entry) => entry.direction)).toEqual(["INFLOW"]);
+    expect(result.data.schedule.status).toBe("NEEDS_REVIEW");
+    expect(result.data.schedule.completeness).toBe("PARTIAL");
+    expect(result.data.schedule.warnings).toContain("Supplier payable schedule is unavailable; zero outflows are not assumed.");
   });
 
   it("converts SQLSTATE 42501 to a safe financial permission denial", async () => {

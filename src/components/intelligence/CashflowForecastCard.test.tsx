@@ -34,5 +34,7 @@ describe("CashflowForecastCard", () => {
     expect(within(usd).getByText(/proof-USD-7/)).toBeInTheDocument();
 
     expect(screen.queryByText(formatEvidenceNumber(210) + " YER")).not.toBeInTheDocument();
+    expect(screen.getByText(/التدفقات الخارجة لا تُدرج إلا من التزامات إيصالات موردين/)).toBeInTheDocument();
+    expect(screen.getByText(/الرصيد الافتتاحي النقدي\/المصرفي يظل غير متاح/)).toBeInTheDocument();
   });
 });
