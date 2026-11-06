@@ -106,8 +106,8 @@ export function summarizeAiOperations(asOf:string,events:AiOpsEvent[]):AiOpsSumm
      typeof event.reasonCode!=="string"||!aiReasonCodePattern.test(event.reasonCode)||
      typeof event.occurredAt!=="string"||!Number.isFinite(Date.parse(event.occurredAt))||
      Date.parse(event.occurredAt)>asOfMs||
-     !(event.elapsedMs===null||(Number.isSafeInteger(event.elapsedMs)&&
-       (event.elapsedMs as number)>=0&&(event.elapsedMs as number)<=600000))){
+     !(event.elapsedMs===null || (typeof event.elapsedMs==="number" &&
+       Number.isSafeInteger(event.elapsedMs) && event.elapsedMs>=0 && event.elapsedMs<=600000))) {
    throw new Error("ai_ops_event_invalid");
   }
   ids.add(event.id);
