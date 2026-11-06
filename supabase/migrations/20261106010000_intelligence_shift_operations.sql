@@ -111,7 +111,7 @@ SECURITY DEFINER
 SET search_path=''
 AS $function$
 BEGIN
-  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='operational shift evidence is append-only';
+  RAISE SQLSTATE '55000' USING MESSAGE = 'operational shift evidence is append-only';
 END;
 $function$;
 REVOKE ALL ON FUNCTION public.reject_operational_shift_history_mutation() FROM PUBLIC,anon,authenticated;
@@ -1095,7 +1095,7 @@ SECURITY DEFINER
 SET search_path=''
 AS $function$
 BEGIN
-  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='operational shift evidence is append-only';
+  RAISE SQLSTATE '55000' USING MESSAGE = 'operational shift evidence is append-only';
 END;
 $function$;
 REVOKE ALL ON FUNCTION public.reject_operational_shift_history_mutation() FROM PUBLIC,anon,authenticated;
@@ -1737,7 +1737,7 @@ SECURITY DEFINER
 SET search_path=''
 AS $function$
 BEGIN
-  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='operational shift evidence is append-only';
+  RAISE SQLSTATE '55000' USING MESSAGE = 'operational shift evidence is append-only';
 END;
 $function$;
 REVOKE ALL ON FUNCTION public.reject_operational_shift_history_mutation() FROM PUBLIC,anon,authenticated;
