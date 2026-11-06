@@ -706,3 +706,46 @@ Documentation commits:
 - Commits: `51cebd4a47c9cfaa23888e3d0b9799f96beab61c`, `13858915589ecbf990adf87a777f444a12bf87c8`, `d5d24e7879c1701c76310b0ec61a896bb7359a0b`, `f677a0abe6c6626907affb6bcdf3cac041392e6f`.
 - Blobs: engine `740a9913715181927d9e402fd395f3e5e551cc62`; tests `ab89ce9ec5aeda4331c79af93f79eb5ec4738464`.
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No test/build/typecheck/lint/CI/browser/Bolt/DB/production execution was run; no PASS claim.
+
+
+## P3 cross-workstream reconciliation — 2026-11-06 — six requested body areas
+
+- Source review cursor before this documentation reconciliation: `3b985599bd4940a467f1277861f29855bad65606`. Matrix synchronization commit: `764f2cd2768206eca01855329a6532991a727996`.
+- This is a source/status reconciliation only. No feature code, P1-owned route, P2 migration, or database was changed by this reconciliation. No test, build, typecheck, browser, CI, Bolt, Supabase, Preview or production operation was run.
+
+### 1. Customer returned-order amendment — SOURCE IMPLEMENTED / MIGRATION APPLY PENDING
+- P1 source includes the reasoned staff return command, customer quantity-only resubmission, admin review/approval/rejection, append-only before/after line snapshots and same-order version history.
+- The current actor-history reader returns submitter, reviewer and returning staff names/timestamps plus the original return reason. Pending-before-staff-review amendments are also supported.
+- Required migration sequence for non-production acceptance: `20261106230000`, `20261106250000`, `20261106260000`, `20261106270000`, `20261106280000`, `20261106290000`. Apply in timestamp order, preserving the cumulative status guard. The exact active database application state is not proven here.
+- Legacy submitted proposals whose staged line values had already been cleared cannot be reconstructed; new snapshots are captured going forward.
+
+### 2. Executive liquidity — P1 MOUNT PRESENT / P2 SOURCE PARTIAL
+- `ExecutiveLiquidityCommandCenter` is mounted in the existing IntelligenceWorkspace (P1 commit `d11cbead3b363c6325065b2223dae4203fa44f4b`; mount test source commit `137d81ef7249738a1f29b3df73316860ebfefeeb`).
+- The P2 migration `20261106233000_executive_liquidity_command_center.sql` and strict client return shift cash counts, registered cash/bank account identities, source-linked posted period movements, posted supplier payables, and receivable/partial-payment ageing by currency.
+- The current DTO deliberately leaves account balances null and supplier due-date status unavailable. It has no reconciled opening cash/bank balance or complete future supplier/expense outflow schedule. Therefore net available liquidity and projected closing cash remain withheld. Do not reinterpret shift cash counts or period movements as an account balance.
+- Existing 7/30/90 forecast is scheduled receivable collections only, not complete inflow/outflow cashflow. Dead-stock capital remains withheld without verified acquisition-cost/currency basis and suitable snapshots. Migration application/runtime acceptance remains pending.
+
+### 3. Replenishment — UI AND DRAFT WORKFLOW PRESENT / SOURCE APPLY PENDING
+- Existing IntelligenceWorkspace mounts ReplenishmentCard. The card displays ATP, reorder point, confirmed open-PO remainder, coverage after incoming, demand/lead-time, target and recommended quantity/UOM.
+- Manager/admin may select only VERIFIED positive recommendations; the existing ReplenishmentPurchaseDraft requires active supplier/warehouse selection and creates an idempotent purchase-order draft. It does not auto-submit, notify suppliers, move stock or post GL.
+- `20261105230000_intelligence_replenishment_open_purchase_orders.sql` is present on main but application/runtime acceptance is pending. Keep unit-mismatched or partial source evidence withheld.
+
+### 4. Daily decisions — BOARD/LIFECYCLE PRESENT / PRIORITY-IMPACT PERSISTENCE GAP
+- DailyDecisionBoard is rendered through the existing Arabic assistant in IntelligenceWorkspace and shows reason, risk text, evidence, owner, review date, lifecycle, and verified expected-versus-measured comparison; existing controls reuse the audited review/approve/reject/defer/resubmit/assign/execute/measure RPC workflow.
+- Persisted DecisionMemory/DecisionOutcome does not currently retain the originating P0–P3 priority/priority score or a general verified impact snapshot. Current ordering is supported follow-up order (overdue date, lifecycle state, verified deviation), not the requested complete priority-impact ranking.
+- P2 must extend the immutable same-tenant proposal/outcome snapshot and RPC read DTO with the verified candidate priority/impact/risk/expiry lineage. P1 then renders that server snapshot and completes the mobile/keyboard focus acceptance. No rank or impact is inferred in the client.
+
+### 5. Account privacy and personalization — PROFILE MOUNT/PREFERENCE SAVE PRESENT / SENDER ENFORCEMENT OPEN
+- `AccountPersonalizationSettings` is mounted in authenticated `/profile`; preferences load/save through account-scoped RPCs with optimistic concurrency. Severity/detail, timezone-aware quiet hours, reduced motion (root effect), personalization and external-processing gate are present. Consent status is read-only/masked and external channels stay disabled.
+- P2 still owns the transactional sender/outbox enforcement and verified destination/explicit consent capture. Preference values alone do not prove that messages are suppressed or delivered correctly. Preference migration `20261107000000` remains source-only until database acceptance.
+
+### 6. Task quality review — PER-TASK FORM/CENTRE MOUNTED / MIGRATION APPLY PENDING
+- `TaskCenter` mounts `TaskQualityReviewCenter` for manager/admin and `TaskQualityReviewForm` on eligible per-task cards, using task ID and updated-at concurrency evidence.
+- The source RPC stores append-only same-tenant events with role authorization, optional same-tenant decision link, idempotency/replay protection, optimistic task version and audit. The centre refreshes metrics after saved reviews and distinguishes restricted/unavailable/empty states.
+- Apply prerequisites `20261106060000`, `20261106070000`, `20261106080000`, `20261106081000`, then `20261106090000_operational_task_quality_reviews.sql` in approved non-production and perform the full negative-role/replay/stale-version acceptance before marking operational.
+
+### Ownership/next actions
+- P1: preserve existing mounts and finish responsive/keyboard interaction acceptance for the decision/finance surfaces; do not rebuild the returned-order, replenishment, privacy or task-quality UI.
+- P2: apply the above migrations in approved non-production, supply the missing liquidity opening-balance/future-outflow sources, extend immutable decision priority/impact persistence, and connect preference/consent policy to the transactional notification sender.
+- P3: retain fail-closed currency/evidence semantics and deterministic engines; do not infer missing values or mark any workstream accepted from source presence alone.
+- The central acceptance matrix rows for these nine affected IDs were updated in place. Status remains source-implemented/partial with runtime acceptance pending; no PASS/production claim.
