@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import {
   buildShiftOperationsCenter,
+  isSafeShiftCashAmount,
   parseShiftOperationsSnapshot,
   type ShiftOperationsCenterResult,
   type ShiftOperationsSnapshot,
@@ -145,8 +146,7 @@ export async function recordOperationalShiftCashCount(
 ): Promise<RpcResult<ShiftCommandReceipt>> {
   const currency = input.currency.trim().toUpperCase();
   if (!UUID.test(input.shiftId) || !["OPENING", "CLOSING"].includes(input.phase) ||
-      !CURRENCY.test(currency) || !Number.isFinite(input.countedAmount) ||
-      input.countedAmount < 0 || input.countedAmount >= 10_000_000_000_000_000 ||
+      !CURRENCY.test(currency) || !isSafeShiftCashAmount(input.countedAmount) ||
       (input.note?.length ?? 0) > 1000 || (input.correctionReason?.length ?? 0) > 500) {
     return { ok: false, status: "ERROR", message: "بيانات العد النقدي غير صالحة." };
   }

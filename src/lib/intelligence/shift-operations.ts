@@ -172,6 +172,26 @@ const itemStates = new Set<ShiftItemState>(["OPEN", "IN_PROGRESS", "BLOCKED", "R
 const severities = new Set<ShiftItemSeverity>(["CRITICAL", "WARNING", "INFO"]);
 const currencyPattern = /^[A-Z]{3}$/;
 
+/**
+ * A cash amount must be representable as an exact, safe integer number of minor
+ * currency units (two decimal places). Values with sub-cent precision or an
+ * unsafe cent count are withheld instead of being rounded silently.
+ */
+export function isSafeShiftCashAmount(value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return false;
+  const scaled = value * 100;
+  const cents = Math.round(scaled);
+  return Number.isSafeInteger(cents) && Math.abs(scaled - cents) < 1e-7;
+}
+
+/** Returns null rather than reporting a cash variance outside safe cent precision. */
+export function calculateShiftCashVariance(expected: number, counted: number): number | null {
+  if (!isSafeShiftCashAmount(expected) || !isSafeShiftCashAmount(counted)) return null;
+  const varianceCents = Math.round(counted * 100) - Math.round(expected * 100);
+  if (!Number.isSafeInteger(varianceCents)) return null;
+  return varianceCents / 100;
+}
+
 function record(value: unknown): UnknownRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as UnknownRecord : null;
@@ -194,7 +214,7 @@ function amountValue(value: unknown): value is number | null {
   return value === null || (typeof value === "number" && Number.isFinite(value));
 }
 function cashAmountValue(value: unknown): value is number | null {
-  return value === null || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+  return value === null || isSafeShiftCashAmount(value);
 }
 function countValue(value: unknown): value is number | null {
   return value === null || (Number.isInteger(value) && (value as number) >= 0);
@@ -512,7 +532,8 @@ function cashPoint(
       !verifiedEvidence(input.countEvidenceIds, index, snapshot.asOf, coverage?.period ?? null)) {
     return { expected: null, counted: null, variance: null, state: "UNKNOWN" };
   }
-  const variance = Math.round((input.counted - input.expected) * 100) / 100;
+  const variance = calculateShiftCashVariance(input.expected, input.counted);
+  if (variance === null) return { expected: null, counted: null, variance: null, state: "UNKNOWN" };
   return {
     expected: input.expected,
     counted: input.counted,
