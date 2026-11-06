@@ -1073,7 +1073,7 @@ export function ProductGrid({
 
 export function ProductDetail({
   product,
-  relatedProducts,
+  relatedProducts = [],
   priceVisibilityPolicy,
   inWishlist,
   inCompare,

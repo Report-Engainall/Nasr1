@@ -50,7 +50,7 @@ export function buildCustomerRetentionReport(input:{
   coverageSafeInteger(input.coverage.expectedSalesRecordCount),coverageSafeInteger(input.coverage.returnedSalesRecordCount)].every(Boolean);
  const coverage=input.coverage;
  const coverageEvidenceIds=coverage.evidenceIds;
- const coverageEvidenceMap=new Map<string,EvidenceRecord[]>(),asOfTime=Date.parse(input.asOf);
+ const coverageEvidenceMap=new Map<string,EvidenceRecord[]>();
  for(const e of input.evidenceRecords){const group=coverageEvidenceMap.get(e.id)??[];group.push(e);coverageEvidenceMap.set(e.id,group);}
  const coverageEvidenceValid=coverageEvidenceIds.length>0&&new Set(coverageEvidenceIds).size===coverageEvidenceIds.length&&
   Number.isFinite(asOfTime)&&coverageEvidenceIds.every(id=>{

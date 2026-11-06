@@ -246,7 +246,7 @@ function PurchaseOrderRecordCard({ order, selected, onSelect }: { order: Purchas
   );
 }
 
-function PurchaseOrderRecordsPanel({ loading, orders, selectedId, selectedOrder, statusFilter, busy, cancelReason, receiveDrafts, receiptNotes, onStatusFilterChange, onSelect, onCancelReasonChange, onSubmit, onCancel, onReceiveQuantityChange, onReceiptNotesChange, onPostReceipt, onPrint }: {
+function PurchaseOrderRecordsPanel({ loading, orders, selectedId, selectedOrder, statusFilter, busy, cancelReason, receiveDrafts, batchDrafts, expiryDrafts, receiptNotes, onStatusFilterChange, onSelect, onCancelReasonChange, onSubmit, onCancel, onReceiveQuantityChange, onBatchChange, onExpiryChange, onReceiptNotesChange, onPostReceipt, onPrint }: {
   loading: boolean; orders: PurchaseOrder[]; selectedId: string | null; selectedOrder: PurchaseOrder | null; statusFilter: PurchaseOrderFilter; busy: boolean;
   cancelReason: string; receiveDrafts: Record<string, string>;
   batchDrafts: Record<string, string>; expiryDrafts: Record<string, string>; receiptNotes: string;
