@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { IntelligenceAggregateRequest } from "./aggregate-contract";
-import type { EvidenceRecord, EvidenceSourceKind } from "./types";
+import type { EvidencePeriod, EvidenceRecord, EvidenceSourceKind } from "./types";
 
 export type IntelligenceEvidenceStatus = "VERIFIED" | "NEEDS_REVIEW" | "UNVERIFIED" | "UNAVAILABLE";
 export type IntelligenceCompleteness = "COMPLETE" | "PARTIAL" | "UNKNOWN";
@@ -144,6 +144,28 @@ export function createCashflowScheduleRequest(options: {
     period: { from, to: addDays(from, options.horizonDays) },
     asOf,
     ...(options.currency ? { currency: options.currency.toUpperCase() } : {}),
+  };
+  validRequest(request);
+  return request;
+}
+
+/** Builds a read-only cashflow request for the exact future period captured by an existing decision baseline. */
+export function createCashflowScheduleRequestForPeriod(options: {
+  period: EvidencePeriod;
+  currency: string;
+  now?: Date;
+  requestId?: string;
+}): IntelligenceAggregateRequest {
+  const now = options.now ?? new Date();
+  if (!Number.isFinite(now.getTime()) || !ISO_CURRENCY.test(options.currency)) {
+    throw new Error("عملة أو وقت القياس غير صالح.");
+  }
+  const request: IntelligenceAggregateRequest = {
+    requestId: options.requestId ?? crypto.randomUUID(),
+    metricKeys: ["cashflow.schedule"],
+    period: { from: options.period.from, to: options.period.to },
+    asOf: now.toISOString(),
+    currency: options.currency,
   };
   validRequest(request);
   return request;

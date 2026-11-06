@@ -1,5 +1,11 @@
 import { useState } from "react";
 import {
+  createCashflowScheduleRequestForPeriod,
+  fetchCashflowSchedule,
+  type CashflowMeasurementProof,
+} from "@/lib/intelligence/cashflow-schedule-client";
+import type { DecisionMemoryMetricResult } from "@/lib/intelligence/decision-memory";
+import {
   commandDecisionOutcome,
   type DecisionOutcomeEventType,
   type DecisionOutcomeState,
@@ -10,6 +16,7 @@ export interface DecisionOutcomeLifecycleControlsProps {
   state: DecisionOutcomeState;
   version: number;
   ownerProfileId: string | null;
+  expectedMetric: DecisionMemoryMetricResult | null;
   onChanged?: () => void;
 }
 
@@ -19,6 +26,7 @@ interface PendingCommand {
   reason: string;
   eventId: string;
   idempotencyKey: string;
+  measuredOutcome?: CashflowMeasurementProof & { measuredAt: string };
 }
 
 const labels: Partial<Record<DecisionOutcomeEventType, string>> = {
@@ -44,6 +52,7 @@ export function DecisionOutcomeLifecycleControls({
   state,
   version,
   ownerProfileId,
+  expectedMetric,
   onChanged,
 }: DecisionOutcomeLifecycleControlsProps) {
   const [reason, setReason] = useState("");
@@ -51,9 +60,88 @@ export function DecisionOutcomeLifecycleControls({
   const [pending, setPending] = useState<PendingCommand | null>(null);
   const [feedback, setFeedback] = useState("");
   const [feedbackError, setFeedbackError] = useState(false);
+  const [measurementProof, setMeasurementProof] = useState<CashflowMeasurementProof | null>(null);
+  const [proofStatus, setProofStatus] = useState<"IDLE" | "LOADING" | "READY" | "DENIED" | "UNAVAILABLE" | "ERROR" | "WITHHELD">("IDLE");
   const events = allowedEvents(state, ownerProfileId);
 
-  async function submit(eventType: DecisionOutcomeEventType) {
+  async function loadMeasurementProof() {
+    if (busy || pending || state !== "EXECUTED") return;
+    setProofStatus("LOADING");
+    setMeasurementProof(null);
+    setFeedback("");
+    setFeedbackError(false);
+    if (!expectedMetric ||
+        expectedMetric.metricKey !== "cashflow.expected_collections" ||
+        expectedMetric.unit !== "CURRENCY" ||
+        !expectedMetric.currency ||
+        expectedMetric.formulaId !== "nasr1.receivables-outstanding" ||
+        expectedMetric.formulaVersion !== "1") {
+      setProofStatus("WITHHELD");
+      setFeedback("لا يوجد خط أساس موثوق لمقياس التحصيلات المتوقعة بهذه المعادلة والعملة؛ بقي القياس محجوباً.");
+      setFeedbackError(true);
+      return;
+    }
+    try {
+      const request = createCashflowScheduleRequestForPeriod({
+        period: expectedMetric.period,
+        currency: expectedMetric.currency,
+      });
+      if (Date.parse(request.asOf) <= Date.parse(expectedMetric.asOf)) {
+        setProofStatus("WITHHELD");
+        setFeedback("وقت القياس الحالي لا يتجاوز وقت خط الأساس؛ لا يمكن احتساب نتيجة لاحقة.");
+        setFeedbackError(true);
+        return;
+      }
+      const result = await fetchCashflowSchedule(request);
+      if (!result.ok) {
+        setProofStatus(result.status);
+        setFeedback(result.message);
+        setFeedbackError(true);
+        return;
+      }
+      const snapshot = result.data;
+      const matches = snapshot.measurementMetrics.filter(metric =>
+        metric.metricKey === "cashflow.expected_collections" &&
+        metric.currency === expectedMetric.currency);
+      if (snapshot.status !== "OK" ||
+          snapshot.completeness !== "COMPLETE" ||
+          snapshot.quality !== "ACCEPTABLE" ||
+          snapshot.schedule.status !== "VERIFIED" ||
+          snapshot.schedule.completeness !== "COMPLETE" ||
+          snapshot.schedule.quality !== "ACCEPTABLE" ||
+          matches.length !== 1) {
+        setProofStatus("WITHHELD");
+        setFeedback("لم يُرجع مصدر التدفق النقدي دليلاً كاملاً ومقبول الجودة لهذه الفترة والعملة؛ لا يمكن تسجيل القياس.");
+        setFeedbackError(true);
+        return;
+      }
+      const metric = matches[0];
+      const uniqueEvidence = new Set(metric.evidenceIds);
+      if (metric.asOf !== request.asOf ||
+          metric.period.from !== expectedMetric.period.from ||
+          metric.period.to !== expectedMetric.period.to ||
+          metric.formulaId !== expectedMetric.formulaId ||
+          metric.formulaVersion !== expectedMetric.formulaVersion ||
+          metric.evidenceIds.length === 0 ||
+          uniqueEvidence.size !== metric.evidenceIds.length ||
+          metric.evidenceIds.some(id => !snapshot.evidenceRecords.some(evidence => evidence.id === id))) {
+        setProofStatus("WITHHELD");
+        setFeedback("رفض التحقق المحلي تطابق الفترة أو المعادلة أو مراجع الأدلة؛ لم يُنشأ أمر قياس.");
+        setFeedbackError(true);
+        return;
+      }
+      setMeasurementProof(metric);
+      setProofStatus("READY");
+      setFeedback("تم جلب إثبات مصدر التحصيلات للفترة والعملة وخط الأساس نفسيهما. سيعيد الخادم مطابقة مجموعة الفواتير والمدفوعات بالكامل قبل الحفظ.");
+      setFeedbackError(false);
+    } catch {
+      setProofStatus("WITHHELD");
+      setFeedback("لا يمكن قراءة إثبات لهذه الفترة؛ قد يكون خط الأساس قديماً أو خارج نافذة المصدر المسموحة.");
+      setFeedbackError(true);
+    }
+  }
+
+  async function submit(eventType: DecisionOutcomeEventType, suppliedMeasurement?: CashflowMeasurementProof) {
     if (busy) return;
     const normalizedReason = reason.trim();
     if (normalizedReason.length < 3) {
@@ -68,12 +156,23 @@ export function DecisionOutcomeLifecycleControls({
       return;
     }
 
+    const selectedMeasurement = pending?.eventType === "MEASURE"
+      ? pending.measuredOutcome
+      : suppliedMeasurement;
+    if (eventType === "MEASURE" && !selectedMeasurement) {
+      setFeedback("لا يوجد إثبات قياس كامل؛ اقرأ المصدر أولاً.");
+      setFeedbackError(true);
+      return;
+    }
     const command = pending ?? {
       eventType,
       expectedVersion: version,
       reason: normalizedReason,
       eventId: crypto.randomUUID(),
       idempotencyKey: crypto.randomUUID(),
+      ...(eventType === "MEASURE" && selectedMeasurement
+        ? { measuredOutcome: { ...selectedMeasurement, measuredAt: new Date().toISOString() } }
+        : {}),
     };
     setPending(command);
     setBusy(true);
@@ -88,10 +187,13 @@ export function DecisionOutcomeLifecycleControls({
         ...(command.eventType === "ASSIGN" && ownerProfileId ? { ownerProfileId } : {}),
         eventId: command.eventId,
         idempotencyKey: command.idempotencyKey,
+        ...(command.measuredOutcome ? { measuredOutcome: command.measuredOutcome } : {}),
       });
       if (result.ok) {
         setPending(null);
         setReason("");
+        setMeasurementProof(null);
+        setProofStatus("IDLE");
         setFeedback(result.duplicate
           ? "أكد الخادم أن الأمر السابق محفوظ بالفعل؛ يجري تحديث السجل."
           : "أكد الخادم حفظ انتقال القرار؛ يجري تحديث السجل.");
@@ -150,7 +252,47 @@ export function DecisionOutcomeLifecycleControls({
       </> : state === "APPROVED" && !ownerProfileId ? (
         <p className="text-sm text-muted-foreground">لا يمكن تثبيت الإسناد: لم يرجع المصدر معرف مسؤول موثوقاً لهذا القرار.</p>
       ) : state === "EXECUTED" ? (
-        <p className="text-sm text-muted-foreground">اكتمل التنفيذ بانتظار قياس فعلي. لا يتاح تسجيل القياس من هذه الواجهة حتى يصل إثبات مصدر مكتمل ومتوافق مع الفترة والمعادلة والعملة/وحدة القياس.</p>
+        <div className="space-y-2 rounded-lg border p-3">
+          <h5 className="text-sm font-semibold">قياس النتيجة الفعلية — تحصيلات العملاء فقط</h5>
+          {expectedMetric?.metricKey === "cashflow.expected_collections" ? (
+            <p className="text-xs text-muted-foreground">
+              خط الأساس: {expectedMetric.value.toLocaleString("ar-YE")} {expectedMetric.currency} ·
+              الفترة: {expectedMetric.period.from} — {expectedMetric.period.to} ·
+              المعادلة: {expectedMetric.formulaId}@{expectedMetric.formulaVersion}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">لا يوجد خط أساس معتمد من مقياس التحصيلات لهذه الدورة؛ ستظل النتيجة غير مقاسة.</p>
+          )}
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={busy || pending !== null || !expectedMetric} onClick={() => void loadMeasurementProof()}>
+            {proofStatus === "LOADING" ? "جارٍ قراءة المصدر..." : "قراءة إثبات التحصيلات من المصدر"}
+          </button>
+          {proofStatus === "READY" && measurementProof ? (
+            <div className="rounded-md border p-2 text-xs">
+              <p>النتيجة المصدرية: <strong>{measurementProof.value.toLocaleString("ar-YE")} {measurementProof.currency}</strong></p>
+              <p>وقت المصدر: {measurementProof.asOf} · الأدلة: {measurementProof.evidenceIds.length}</p>
+              <p>الفترة: {measurementProof.period.from} — {measurementProof.period.to}</p>
+            </div>
+          ) : null}
+          <label className="block space-y-1 text-sm">
+            سبب إقفال القياس
+            <textarea className="w-full rounded-lg border bg-background p-2" rows={2} maxLength={2000}
+              value={reason} disabled={busy || pending !== null}
+              onChange={event => setReason(event.target.value)}
+              placeholder="اشرح نتيجة القياس أو سبب اختلافها عن خط الأساس..." />
+          </label>
+          {pending?.eventType === "MEASURE" ? (
+            <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={busy} onClick={() => void submit("MEASURE", pending.measuredOutcome)}>
+              {busy ? "جارٍ إعادة المحاولة..." : "إعادة محاولة حفظ القياس بنفس الدليل"}
+            </button>
+          ) : (
+            <button type="button" className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
+              disabled={busy || proofStatus !== "READY" || !measurementProof || reason.trim().length < 3}
+              onClick={() => void submit("MEASURE", measurementProof ?? undefined)}>
+              {busy ? "جارٍ حفظ القياس..." : "اعتماد النتيجة المصدرية"}
+            </button>
+          )}
+          <p className="text-xs text-muted-foreground">الخادم يعيد احتساب كامل مجموعة الفواتير والمدفوعات داخل المؤسسة، ويرفض أي فرق في الإجمالي أو العملة أو الفترة أو الأدلة. لا يُرسل هذا الأمر دفعة أو قيداً مالياً.</p>
+        </div>
       ) : state === "MEASURED" ? (
         <p className="text-sm text-muted-foreground">اكتملت دورة القرار والقياس مسجل من مصدره. أي تصحيح لاحق يجب أن يبقى إلحاقياً في دفتر الذاكرة.</p>
       ) : state === "REJECTED" ? (
