@@ -766,7 +766,7 @@ function Customer360Interactions({
   );
 }
 
-export function AdminCustomer360({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+export function AdminCustomer360({ customer, onClose }: { customer: Pick<Customer, "id">; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

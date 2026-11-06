@@ -62,7 +62,7 @@ const formatDay = (value: string) => new Date(value + "T00:00:00.000Z").toLocale
 const formatMoney = (value: number, currency: string) => new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 2 }).format(value) + " " + currency;
 const stateLabels: Record<DecisionOutcomeView["state"], string> = {
   PROPOSED: "مقترح", IN_REVIEW: "قيد المراجعة", APPROVED: "معتمد", REJECTED: "مرفوض",
-  ASSIGNED: "مُعيّن", EXECUTING: "قيد التنفيذ", EXECUTED: "بانتظار القياس", MEASURED: "مقاس",
+  DEFERRED: "مؤجل", ASSIGNED: "مُعيّن", EXECUTING: "قيد التنفيذ", EXECUTED: "بانتظار القياس", MEASURED: "مقاس",
 };
 function currencyFromCandidate(candidateId: string): string | null {
   const parts = candidateId.split(":");
@@ -718,7 +718,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         note: shiftHandoverNote.trim() || undefined,
         idempotencyKey,
       });
-      if (response.ok) setShiftHandoverId(response.data.handoverId);
+      if (response.ok) setShiftHandoverId(response.data.handoverId ?? null);
       return response;
     }, "تم تسجيل محضر التسليم؛ يمكن للمستلم قبول المحضر من الجلسة الحالية.");
   };
@@ -996,7 +996,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     if (!inventoryData || !deadStockReport) return [];
     return deadStockReport.items.flatMap((item) => {
       if (!["STAGNANT","ZERO_MOVEMENT"].includes(item.classification) ||
-          item.movementStatus !== "VERIFIED" || !(item.availableQuantity > 0) ||
+          item.movementStatus !== "VERIFIED" || item.availableQuantity === null || item.availableQuantity <= 0 ||
           !item.evidenceIds.length) return [];
       const source = inventoryData.deadStockProducts.find(product => product.productRef === item.productRef);
       if (!source) return [];
@@ -1087,7 +1087,8 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     ? "loading"
     : businessHealthMap
       ? "ready"
-      : inventoryResult?.status === "DENIED" || inventoryResult?.status === "ERROR"
+      : inventoryResult && !inventoryResult.ok &&
+        (inventoryResult.status === "DENIED" || inventoryResult.status === "ERROR")
         ? "error"
         : "unavailable";
   const decisionMemoryBook = useMemo(() => {
@@ -1201,7 +1202,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
 
   const runTransition = async (
     outcome: DecisionOutcomeView,
-    eventType: DecisionOutcomeEventType,
+    eventType: Exclude<DecisionOutcomeEventType, "DEFER" | "RESUBMIT_FOR_REVIEW">,
     options: { reason?: string; ownerProfileId?: string; proof?: CashflowMeasurementProof } = {},
   ) => {
     if (outcomeBusyId) return;

@@ -251,7 +251,8 @@ function CustomerAgingDecisionSection({
     if (!userProfileId || busyKey) return;
     const evidenceIds=[...new Set(item.agingBuckets.filter(bucket=>bucket.bucket.startsWith("OVERDUE_")).flatMap(bucket=>bucket.evidenceIds))].slice(0,500);
     if (!evidenceIds.length) { setMessage("لا يمكن حفظ قرار تحصيل دون مراجع فواتير/دفعات مثبتة."); return; }
-    const priority = (item.oldestAgeDays??0)>=90 ? "P0" : (item.oldestAgeDays??0)>=60 ? "P1" : (item.oldestAgeDays??0)>=30 ? "P2" : "P3";
+    const priority: "P0" | "P1" | "P2" | "P3" =
+      (item.oldestAgeDays??0)>=90 ? "P0" : (item.oldestAgeDays??0)>=60 ? "P1" : (item.oldestAgeDays??0)>=30 ? "P2" : "P3";
     const priorityScore = priority==="P0"?400:priority==="P1"?300:priority==="P2"?200:100;
     const candidateId = ("receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)).slice(0,150);
     const expectedOutcome="خفض الرصيد المتأخر للعميل وتسجيل نتيجة التحصيل في مستندات المؤسسة.";

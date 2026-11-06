@@ -96,7 +96,11 @@ function parseCaseEvent(value: unknown, index: number): CustomerServiceCaseEvent
     created_at: date(row.created_at, "وقت الحدث"),
   };
 }
-function parseCase(value: unknown, index: number): CustomerServiceCase {
+type CustomerServiceCaseBase = Omit<CustomerServiceCase,
+  "assigned_to_id" | "response_due_at" | "resolution_due_at" | "first_response_at" |
+  "escalated_at" | "escalation_level" | "can_manage">;
+
+function parseCase(value: unknown, index: number): CustomerServiceCaseBase {
   const row = object(value, "الحالة " + (index + 1));
   const events = row.events;
   if (!Array.isArray(events)) throw new Error("سجل أحداث الحالة غير صالح.");

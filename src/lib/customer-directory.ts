@@ -1,4 +1,3 @@
-import type { Customer } from './types';
 import { getCurrentTenantScope, supabase } from './supabase';
 
 export type CustomerDirectoryRequest = {
@@ -7,8 +6,23 @@ export type CustomerDirectoryRequest = {
   pageSize?: number;
 };
 
+export interface CustomerDirectoryRow {
+  id: string;
+  business_name: string;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  customer_code: string | null;
+  tier: string | null;
+  current_balance?: number | null;
+  credit_limit?: number | null;
+  status: string;
+  created_at: string;
+  profile_id?: string | null;
+}
+
 export type CustomerDirectoryPage = {
-  rows: Customer[];
+  rows: CustomerDirectoryRow[];
   totalCount: number;
   page: number;
   pageSize: number;
@@ -16,7 +30,7 @@ export type CustomerDirectoryPage = {
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
-const CUSTOMER_DIRECTORY_COLUMNS = 'id,business_name,contact_name,phone,email,customer_code,tier,current_balance,credit_limit,status,created_at';
+const CUSTOMER_DIRECTORY_COLUMNS = 'id,business_name,contact_name,phone,email,customer_code,tier,current_balance,credit_limit,status,created_at,profile_id';
 
 /**
  * The customer-manager RPC is expected to return a non-financial projection.
@@ -28,24 +42,44 @@ const CUSTOMER_MANAGER_DIRECTORY_FIELDS = [
   'contact_name', 'phone', 'email', 'customer_code', 'tier', 'status', 'created_at',
 ] as const;
 
-function sanitizeCustomerManagerDirectoryRow(value: unknown): Customer | null {
+function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryRow | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   if (typeof row.id !== 'string' || typeof row.business_name !== 'string' ||
       typeof row.status !== 'string') return null;
 
-  const safe: Record<string, unknown> = {
+  if (row.contact_name !== null && typeof row.contact_name !== "string") return null;
+  if (row.phone !== null && typeof row.phone !== "string") return null;
+  if (row.email !== null && typeof row.email !== "string") return null;
+  if (row.customer_code !== null && typeof row.customer_code !== "string") return null;
+  if (row.tier !== null && typeof row.tier !== "string") return null;
+  if (typeof row.created_at !== "string" || !Number.isFinite(Date.parse(row.created_at))) return null;
+  if (row.current_balance !== undefined && row.current_balance !== null &&
+      (typeof row.current_balance !== "number" || !Number.isFinite(row.current_balance))) return null;
+  if (row.credit_limit !== undefined && row.credit_limit !== null &&
+      (typeof row.credit_limit !== "number" || !Number.isFinite(row.credit_limit))) return null;
+  if (row.profile_id !== undefined && row.profile_id !== null && typeof row.profile_id !== "string") return null;
+
+  const safe: CustomerDirectoryRow = {
     id: row.id,
     business_name: row.business_name,
+    contact_name: typeof row.contact_name === "string" ? row.contact_name : null,
+    phone: typeof row.phone === "string" ? row.phone : null,
+    email: typeof row.email === "string" ? row.email : null,
+    customer_code: typeof row.customer_code === "string" ? row.customer_code : null,
+    tier: typeof row.tier === "string" ? row.tier : null,
     status: row.status,
+    created_at: row.created_at,
+    ...(typeof row.current_balance === "number" || row.current_balance === null ? { current_balance: row.current_balance } : {}),
+    ...(typeof row.credit_limit === "number" || row.credit_limit === null ? { credit_limit: row.credit_limit } : {}),
+    ...(typeof row.profile_id === "string" || row.profile_id === null ? { profile_id: row.profile_id } : {}),
   };
   for (const field of CUSTOMER_MANAGER_DIRECTORY_FIELDS) {
     const fieldValue = row[field];
     if (typeof fieldValue === 'string' || fieldValue === null) safe[field] = fieldValue;
   }
-  // The row is intentionally a partial Customer projection for customer-manager callers;
-  // callers must keep all finance-only views behind their existing server-backed role gates.
-  return safe as unknown as Customer;
+  // The manager projection intentionally omits finance-only fields.
+  return safe;
 }
 
 
@@ -162,8 +196,14 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
       throw new Error('تعذر تأكيد إجمالي العملاء. أعد المحاولة قبل الاعتماد على القائمة.');
     }
 
+    const rows: CustomerDirectoryRow[] = [];
+    for (const [index, value] of (data ?? []).entries()) {
+      const row = sanitizeCustomerManagerDirectoryRow(value);
+      if (!row) throw new Error('أعاد دليل العملاء سجلاً لا يطابق عقد العرض المصرح به (' + (index + 1) + ').');
+      rows.push(row);
+    }
     return {
-      rows: (data ?? []) as Customer[],
+      rows,
       totalCount: count,
       page: pageToRead,
       pageSize,

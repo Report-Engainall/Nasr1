@@ -43,6 +43,13 @@ function priorityRank(record: DecisionMemoryRecord): number {
   return priority === "P0" ? 0 : priority === "P1" ? 1 : priority === "P2" ? 2 : priority === "P3" ? 3 : 4;
 }
 
+function followUpOrder(record: DecisionMemoryRecord, now: number): number[] {
+  const terminal = record.state === "REJECTED" || record.state === "MEASURED";
+  const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
+  const dueRank = terminal ? 2 : Number.isFinite(due) && due <= now ? 0 : 1;
+  return [dueRank, stateOrder[record.state], Number.isFinite(due) ? due : Number.MAX_SAFE_INTEGER];
+}
+
 function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, now: number): number {
   const leftRank = priorityRank(left);
   const rightRank = priorityRank(right);

@@ -19,7 +19,7 @@ import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCat
 import { useFetch } from '@/lib/useFetch';
 import { ADMIN_NAV_GROUPS } from '@/lib/admin-access-matrix';
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
-import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
+import { fetchCustomerDirectoryPage, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
@@ -1567,10 +1567,10 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
   }, [initialSearch]);
   const [reloadKey, setReloadKey] = useState(0);
   const [modal, setModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerDirectoryRow | null>(null);
   const [activationCustomer, setActivationCustomer] = useState<CustomerActivationCandidate | null>(null);
-  const [tierCustomer, setTierCustomer] = useState<Customer | null>(null);
-  const [statusCustomer, setStatusCustomer] = useState<Customer | null>(null);
+  const [tierCustomer, setTierCustomer] = useState<CustomerDirectoryRow | null>(null);
+  const [statusCustomer, setStatusCustomer] = useState<CustomerDirectoryRow | null>(null);
   const requestIdRef = useRef(0);
 
   const load = useCallback(async (): Promise<boolean> => {
@@ -1658,10 +1658,10 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
                 {canManageCustomerRecords && <Button variant="outline" onClick={() => setTierCustomer(c)}>تغيير الشريحة</Button>}
                 {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer({
                   id: c.id,
-                  business_name: c.business_name?.trim() || c.company_name?.trim() || c.full_name,
+                  business_name: c.business_name.trim(),
                   status: c.status,
                   email: c.email,
-                  profile_id: c.user_id,
+                  profile_id: c.profile_id ?? null,
                   customer_code: c.customer_code,
                 })}>دعوة تفعيل</Button>}
                 {canManageCustomerLifecycle && <Button variant="outline" onClick={() => setStatusCustomer(c)}>إدارة دورة الحياة</Button>}
@@ -1704,7 +1704,7 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
 
 
 export function CustomerTierDialog({ customer, onClose, onSaved }: {
-  customer: Customer; onClose: () => void; onSaved: () => void;
+  customer: Pick<CustomerDirectoryRow, "id" | "business_name" | "tier">; onClose: () => void; onSaved: () => void;
 }) {
   const currentTier = typeof customer.tier === 'string' ? customer.tier.trim().toLowerCase() : '';
   const supportedTiers = ['retail', 'wholesale', 'vip'] as const;
@@ -1785,7 +1785,7 @@ const CUSTOMER_LIFECYCLE_TRANSITIONS: Record<string, { value: CustomerLifecycleC
 };
 
 export function CustomerLifecycleDialog({ customer, onClose, onSaved }: {
-  customer: Customer;
+  customer: Pick<CustomerDirectoryRow, "id" | "business_name" | "status">;
   onClose: () => void;
   onSaved: (status: string) => void;
 }) {
