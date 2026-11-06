@@ -2680,3 +2680,21 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 1. Retrieve the completed workflow result for exact test SHA `8ea8332941ddafbf3091f18b6314108d54806730`; inspect only any failed job affecting the new test, and run the current-head P2 mobile Playwright acceptance when a supported current-head run is available.
 2. P2: add the immutable saved candidate priority/impact/risk/expiry snapshot to the tenant-authorized DecisionOutcome read contract. Then P1 will rank/render using those exact persisted fields without recreating the board.
 3. Preserve all listed already-mounted surfaces. Do not rebuild them; proceed only on a concrete source-field handoff or a reproduced keyboard/mobile defect.
+
+## P1 exact-SHA focused UI verification update — 2026-11-06
+
+- The completed `Aghbari Commerce checks` run `42181984854` on exact test SHA `8ea8332941ddafbf3091f18b6314108d54806730` completed with overall conclusion `failure` in its Unit tests step.
+- Focused results extracted from that exact run:
+  - `src/test/daily-decision-board-accessibility.test.tsx`: **2/2 passed**.
+  - `src/test/admin-mobile-navigation-acceptance.test.tsx`: **4/4 passed**.
+  - The full unit run: **143 failed tests across 42 files; 256 test files passed out of 298**. The build, lint, PostgreSQL migration/core and smoke steps were skipped after the unit-test failure; this is not a full CI PASS.
+  - `src/lib/intelligence/natural-language-assistant.test.ts` reported **7/22 failed** in the P3-owned intent/engine test file. P1 did not change that engine/client logic; keep the underlying P3 failures separate for owner triage.
+- `Free Static Analysis` run `42181984925` on the same SHA was cancelled. Vercel status remained `failure` with the `build-rate-limit` target URL; no source build/deployment success is inferred from it.
+- The focused keyboard/responsive and existing mobile drawer tests are therefore verified as passing on their exact SHA, but the repository-wide suite, P2 current-head Playwright and full route/viewport browser acceptance remain open.
+- Matrix rows `DLV-002` and `REF-DAILY-DECISIONS-001` were updated in place with these exact test results. This result does not supply the missing P2 persisted P0–P3 priority/impact snapshot and does not authorize any inferred ranking.
+
+### Verification next action
+
+1. P3 triage the seven failing `natural-language-assistant.test.ts` cases against its current engine/client commits; P1 should not alter P3-owned rule resolution.
+2. Run the focused test and existing mobile navigation test on a current exact main SHA after relevant owner fixes; then execute current-head P2 Playwright for the drawer, route remount, decision-board keyboard sequence and mobile overflow.
+3. Wait for the P2 immutable candidate snapshot DTO before adding priority/impact sorting. Until then the board remains ordered only by currently persisted due/state/verified-deviation facts.
