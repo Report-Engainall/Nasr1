@@ -454,7 +454,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   const suppliedConcentration = input.productRevenueConcentration ?? null;
   const concentrationAligned = Boolean(
     suppliedConcentration &&
-    suppliedConcentration.asOf === input.asOf &&
+    Date.parse(suppliedConcentration.asOf) === Date.parse(input.asOf) &&
     suppliedConcentration.period.from === input.period.from &&
     suppliedConcentration.period.to === input.period.to
   );
