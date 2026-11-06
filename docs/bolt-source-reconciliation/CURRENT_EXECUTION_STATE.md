@@ -2569,3 +2569,37 @@ Continue with a separate existing-source intelligent capability; do not expand t
 
 ### Next P3 action
 Continue only from source-backed intelligence gaps in Sections 45–64; do not add a second policy engine or infer discount-stacking semantics.
+
+
+## P3 ENGINE HARDENING — TYPED POLICY SIMULATION AND HISTORY EVIDENCE — 2026-11-06
+
+- Exact parent main SHA: `10f674255e15ab5b0e7cb4d8433405ad566f7366`.
+- Code commit: `e2bb8d269b4e379b7f1bf6d6e45c05966277ca8c`.
+- This increment extends the existing Section 55 simulation client; it does not create another simulator or change SQL/business policy semantics.
+
+### Delivered
+- Added pure strict parser `parseCommercePolicySimulation()` and routed `simulateCommercePolicy()` through it.
+- The parser now requires:
+  - run UUID and exact requested allow-listed simulation type;
+  - valid as-of instant;
+  - 32-character lowercase hexadecimal input and source fingerprints;
+  - object outcome carrying the same simulation type;
+  - explicit `noWrite:true` on both outer result and nested outcome.
+- Added strict `parseCommercePolicySimulationHistory()` and routed the history RPC reader through it.
+- History validates source as-of, returned count versus actual items and requested cap, each item UUID/type, source reference UUID array (unique and bounded), fingerprints, nested no-write outcome, valid creation instant not later than the response as-of, and unique history IDs.
+- Tightened `CommercePolicySimulationHistoryItem.sourceRefs` to `string[]` after validating UUID references.
+- Invalid or contradictory simulation evidence is withheld as an error; it is not displayed as a successful preview. NoWrite is a contract boundary, not proof of live runtime acceptance.
+
+### Exact files/blobs
+- `src/lib/intelligence/commerce-policy-governance-client.ts` — `07b540fdaeb0a4cab6f116a465176d7931de8960`
+- `src/lib/intelligence/commerce-policy-simulation-evidence.test.ts` — `c825e0d7a8f77fbe6a2cec43193b0b7c93b2bfe7`
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression tests are authored but NOT RUN. No build, typecheck, lint, CI, browser, Supabase migration, database, Bolt, Preview, Vercel or production operation was run.
+- Existing manager/pricing authorization and finance-only restriction for customer credit simulation history remain server enforced by the existing RPC. This client validation does not replace the server check.
+- The simulation migration `20261106030000_intelligence_commerce_policy_governance.sql` remains subject to approved non-production application and authorization/no-write acceptance.
+- No PASS or runtime/production proof is claimed.
+
+### Next P3 action
+Continue with another source-backed Section 45–64 gap; keep the simulator read-only and do not turn simulation outcomes into live policy writes.
