@@ -1,6 +1,8 @@
 export { ActionCard } from "./ActionCard";
 export type { ActionCardProps, ActionCardState } from "./ActionCard";
 export { EvidencePassport } from "./EvidencePassport";
+export { EvidenceSourceComparisonPanel } from "./EvidenceSourceComparisonPanel";
+export type { EvidenceSourceComparisonPanelProps, EvidenceSourceComparisonPanelState } from "./EvidenceSourceComparisonPanel";
 export type { EvidencePassportProps, EvidencePassportState } from "./EvidencePassport";
 export { LiquiditySummary } from "./LiquiditySummary";
 export type { LiquiditySummaryProps } from "./LiquiditySummary";
