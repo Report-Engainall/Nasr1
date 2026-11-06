@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — phone/password sign-in — 2026-11-06
+
+- BODY-055 commits: Auth base `9386f10d699ba3cde1e827e1e1c9d26f212a958e`; E.164 normalizer correction `750580d67a91acc006546eff643c6037f6ccbd50`; Login UI `4067958f8bf80f39220b5338173a4f59cc3a9406`; Help `8030278a8a6ffe040328fcab144722fdbfa5c218`; profile phone-only label `c551fb3bf31d599b7c5b257f551884109878c24a`; password screen phone-only label `de77468477d804aae910f43c4b09389947cce804`.
+- Login supports email/password or phone/password; Yemen local, +967/00967 and general E.164 phone normalizing. Uses Supabase Auth phone credential path. Existing email login, email registration and email recovery remain unchanged.
+- Phone Auth activation and confirmed phone identities are still external configuration prerequisites. New phone OTP sign-up is not implemented; no SMS provider or paid service was enabled.
+- Acceptance leaf `DLV-006-PHONE-PASSWORD-SIGNIN-001` appended. State: `IMPLEMENTED_ON_MAIN / AUTH_PROVIDER_CONFIGURATION_AND_ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/Auth provider/SMS/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — authenticated profile overview — 2026-11-06
 
 - BODY-054 commits: profile route/page `6607901b4b65e9a2471f66ce03463d1cf6029c93`; route-tree `3bc60712c7549033c00b1453e7e4133a67934ea8`; account navigation `88b17e4de227f1ac36f9eb37765cffc3abcb7d88`; footer `48ed9df9ad1dc7f4b286082401d646617347eee0`; Help Center `9f24fd1ec8a649abba57834529b613e5e8ec7710`.
