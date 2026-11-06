@@ -1,3 +1,12 @@
+# CHECKPOINT ADDENDUM — 2026-11-06 — RETURN ACTOR TIMELINE
+
+- Implementation head observed before this documentation refresh: `bf036c85d6246f61d4f38bf34a2328489f04d783` on `main`.
+- Follow-up `main` changes: `f13bd9f847d53fc3a28d00c64a50af9cc646207c` extends `list_customer_order_amendment_history` with every `returned_for_adjustment` event from `order_status_history`, including `changed_by` profile name, timestamp and reason; `6c3e8af1e6a074c66694ee1d340d48b730a41f59` renders that timeline in the shared customer/staff history component; `2c3a9476b4f97b26e450a5d7ae5a2077abb1fe4c` adds UI evidence for the return actor/reason; `0934b6d04815425877914bdb66aba6f9a7918d83` adds migration-source assertions for this timeline.
+- The customer history now shows who returned the request, when and why; each amendment separately shows submitter/time, reviewer/time, decision, customer/admin notes and immutable before/proposed quantities.
+- Existing customer request rejection/discard still clears mutable staging fields, but no longer removes submitted history because snapshots are held in a separate append-only table.
+- P1 targeted TypeScript assurance previously passed at `a5767ffe72a0b38e80f772b25d32bc725557de42`; this was before the return-event addition. The latest targeted TypeScript run for the subsequent head is pending/unknown at this checkpoint; do not reuse the earlier pass as evidence for the newer code.
+- No Supabase/Bolt database applied the new migrations in this session. The order-return flow remains `SOURCE_IMPLEMENTED / DB_APPLY_AND_RUNTIME_ACCEPTANCE_PENDING`.
+
 # P1 BODY EXECUTION — 2026-11-06 — CUSTOMER ORDER AMENDMENT VERSIONS / INTELLIGENCE UI RECONCILIATION
 
 ## BODY-071 — customer order return, resubmission and immutable version history
