@@ -25,6 +25,8 @@ export interface GrowthOpportunitySignal {
   baselineSampleMetricId?: string;
   /** Optional actual source amount. It is displayed as source evidence, never as predicted profit. */
   sourceAmountMetricId?: string;
+  /** Display label from the authenticated source, e.g. a product name; never a person/customer name. */
+  subjectLabel?: string;
 }
 
 export interface GrowthOpportunity {
@@ -271,6 +273,8 @@ export function buildGrowthOpportunityRadar(input: {
   evidenceRecords: EvidenceRecord[];
   metrics: MetricSnapshot[];
   signals: GrowthOpportunitySignal[];
+  /** True only when every source population required for this radar was complete. */
+  sourceSnapshotVerified?: boolean;
 }): GrowthOpportunityRadarResult {
   if (!input.id.trim() || !validTime(input.generatedAt) || !validTime(input.asOf) ||
       Date.parse(input.generatedAt) < Date.parse(input.asOf)) {
@@ -311,6 +315,8 @@ export function buildGrowthOpportunityRadar(input: {
   for (const signal of input.signals) {
     if (!signal || typeof signal.id !== "string" || !signal.id.trim() ||
         typeof signal.subjectRef !== "string" || !signal.subjectRef.trim() || signal.subjectRef.length > 160 ||
+        (signal.subjectLabel !== undefined && (typeof signal.subjectLabel !== "string" ||
+          !signal.subjectLabel.trim() || signal.subjectLabel.length > 240)) ||
         !["QUOTE_UNCONVERTED", "PRODUCT_UNAVAILABLE_DEMAND", "CUSTOMER_ACTIVITY_DECLINE", "REPEAT_PURCHASE", "PRODUCT_PERFORMANCE_CHANGE"].includes(signal.kind)) {
       addWithheld(signal ?? ({} as GrowthOpportunitySignal), "INVALID_SIGNAL");
       continue;
@@ -383,12 +389,20 @@ export function buildGrowthOpportunityRadar(input: {
           baselineSample = baselineSampleResult.read;
           const supportedPerformanceUnit = observed.metric.unit === "CURRENCY" || observed.metric.unit === "QUANTITY";
           const compatibleUnit = supportedPerformanceUnit && baseline.metric.unit === observed.metric.unit &&
+            baseline.metric.key === observed.metric.key &&
+            baseline.metric.lineage.formulaId === observed.metric.lineage.formulaId &&
+            baseline.metric.lineage.formulaVersion === observed.metric.lineage.formulaVersion &&
             (observed.metric.unit !== "CURRENCY" || baseline.metric.currency === observed.metric.currency) &&
             (observed.metric.unit !== "QUANTITY" || baseline.metric.unitOfMeasure === observed.metric.unitOfMeasure);
+          const enoughCurrentSample = observed.value === 0
+            ? sample.value === 0
+            : sample.value >= MIN_PRODUCT_PERIOD_TRANSACTIONS;
+          const enoughBaselineSample = baseline.value === 0
+            ? baselineSample.value === 0
+            : baselineSample.value >= MIN_PRODUCT_PERIOD_TRANSACTIONS;
           if (!compatibleUnit || !periodLengthMetric(baseline) ||
               !comparablePeriods(baseline.metric.period, observed.metric.period) ||
-              sample.value < MIN_PRODUCT_PERIOD_TRANSACTIONS ||
-              baselineSample.value < MIN_PRODUCT_PERIOD_TRANSACTIONS) {
+              !enoughCurrentSample || !enoughBaselineSample) {
             reason = "INVALID_COMPARISON";
           } else if (baseline.value === 0 && observed.value > 0) {
             direction = "NEW_ACTIVITY";
@@ -465,7 +479,7 @@ export function buildGrowthOpportunityRadar(input: {
       signalId: signal.id,
       kind: signal.kind,
       subjectRef: signal.subjectRef,
-      title: titles[signal.kind],
+      title: signal.subjectLabel ? titles[signal.kind] + " · " + signal.subjectLabel : titles[signal.kind],
       classification: copy.classification,
       direction,
       priority,
@@ -503,8 +517,8 @@ export function buildGrowthOpportunityRadar(input: {
     return rank[a.priority] - rank[b.priority] || a.kind.localeCompare(b.kind) || a.subjectRef.localeCompare(b.subjectRef);
   });
 
-  let status: EvidenceStatus = "VERIFIED";
-  if (input.signals.length === 0) status = "UNAVAILABLE";
+  let status: EvidenceStatus = input.sourceSnapshotVerified === false ? "NEEDS_REVIEW" : "VERIFIED";
+  if (input.signals.length === 0) status = input.sourceSnapshotVerified === true ? "VERIFIED" : "UNAVAILABLE";
   else if (withheld.length > 0) status = opportunities.length > 0 ? "NEEDS_REVIEW" :
     withheld.some(item => item.reason === "METRIC_NOT_VERIFIED" || item.reason === "METRIC_AMBIGUOUS") ? "UNVERIFIED" : "NEEDS_REVIEW";
 
