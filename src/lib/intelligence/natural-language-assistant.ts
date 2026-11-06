@@ -877,7 +877,7 @@ export function resolveExpectedCollectionsIntent(
   ?"مصدر الاستحقاقات أو أدلة المبالغ غير مكتملة؛ حُجبت جميع الإجماليات ولم تُعرض أرقام جزئية على أنها نهائية."
   :data.schedule.entries.length===0
    ?"لا توجد فواتير عملاء مستحقة ضمن نافذة "+data.period.from+" إلى "+data.period.to+"."
-   ?"توجد "+invoiceCount+" فاتورة مستحقة للتحصيل ضمن "+totalCurrencies+" عملة في الفترة "+data.period.from+" إلى "+data.period.to+". المبالغ هي أرصدة فواتير بعد طرح الدفعات المسجلة، وليست توقعاً لاحتمال التحصيل.";
+   :"توجد "+invoiceCount+" فاتورة مستحقة للتحصيل ضمن "+totalCurrencies+" عملة في الفترة "+data.period.from+" إلى "+data.period.to+". المبالغ هي أرصدة فواتير بعد طرح الدفعات المسجلة، وليست توقعاً لاحتمال التحصيل.";
  return {
   kind:"EXPECTED_COLLECTIONS",state,intent:"EXPECTED_CUSTOMER_COLLECTIONS",answer,
   sourceRpc:"get_intelligence_aggregate",asOf:data.asOf,period:data.period,invoiceCount,
