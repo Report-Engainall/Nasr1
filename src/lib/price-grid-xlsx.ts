@@ -114,7 +114,7 @@ export function buildPriceGridXlsx(rows: readonly ProductPriceGridRow[]): Blob {
     {name:'xl/_rels/workbook.xml.rels',text:workbookRels},
     {name:'xl/worksheets/sheet1.xml',text:worksheet},
   ]);
-  return new Blob([bytes],{type:XLSX_MIME});
+  return new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer],{type:XLSX_MIME});
 }
 export function downloadPriceGridXlsx(rows: readonly ProductPriceGridRow[]): void {
   if(!rows.length||typeof document==='undefined'||typeof URL.createObjectURL!=='function') return;

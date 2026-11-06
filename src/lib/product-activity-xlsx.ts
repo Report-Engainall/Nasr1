@@ -101,7 +101,7 @@ export function buildProductActivityWorkbookXlsx(report: StoreProductActivityRep
 export function downloadProductActivityWorkbookXlsx(report: StoreProductActivityReport): void {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return;
   const bytes = buildProductActivityWorkbookXlsx(report);
-  const blob = new Blob([bytes], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

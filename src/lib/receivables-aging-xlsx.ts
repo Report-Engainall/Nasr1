@@ -288,7 +288,7 @@ export function downloadReceivablesAgingWorkbookXlsx(value: unknown, generatedAt
     throw new Error("تنزيل ملفات Excel غير متاح في هذا المتصفح.");
   }
   const bytes = buildReceivablesAgingWorkbookXlsx(value, generatedAt);
-  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

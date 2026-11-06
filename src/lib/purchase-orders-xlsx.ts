@@ -149,10 +149,10 @@ export function buildPurchaseOrdersWorkbookXlsx(
 ): Uint8Array {
   validateOrders(orders, filterLabel);
   const exportedAt = new Date().toISOString();
-  const statusCounts = (Object.keys(STATUS_LABELS) as PurchaseOrderStatus[]).map((status) => [
+  const statusCounts: CellValue[][] = (Object.keys(STATUS_LABELS) as PurchaseOrderStatus[]).map((status) => [
     STATUS_LABELS[status],
     orders.filter((order) => order.status === status).length,
-  ] as const);
+  ]);
   const lineCount = orders.reduce((sum, order) => sum + order.items.length, 0);
   const summary: CellValue[][] = [
     ['المؤشر', 'القيمة'],
@@ -205,7 +205,7 @@ export function downloadPurchaseOrdersWorkbookXlsx(
 ): boolean {
   if (typeof document === 'undefined' || typeof URL.createObjectURL !== 'function') return false;
   const bytes = buildPurchaseOrdersWorkbookXlsx(orders, filterLabel);
-  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
