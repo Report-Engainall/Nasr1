@@ -1048,10 +1048,11 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   </AdminPage>;
 }
 
-export function Suppliers({ onNotice }: { onNotice: (m: string) => void }) {
+export function Suppliers({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
   const { data, loading, error, refetch } = useFetch(fetchSuppliers);
   const [modal, setModal] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialSearch ?? '');
+  useEffect(() => { if (initialSearch?.trim()) setQuery(initialSearch); }, [initialSearch]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const visibleSuppliers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('ar');
