@@ -79,7 +79,7 @@ describe("customer order amendment history UI", () => {
     render(<CustomerOrderAmendmentHistory orderId={orderId} />);
     expect(await screen.findByText("النسخة 1")).toBeInTheDocument();
     expect(screen.getByText("النسخة 2")).toBeInTheDocument();
-    expect(screen.getAllByText("عميل الاختبار")).toHaveLength(2);
+    expect(screen.getAllByText(/أرسلها: عميل الاختبار/)).toHaveLength(2);
     expect(screen.getByText("مدير الإرجاع")).toBeInTheDocument();
     expect(screen.getByText(/يرجى تقليل كمية السكر/)).toBeInTheDocument();
     expect(screen.getByText("مدير الاختبار")).toBeInTheDocument();
