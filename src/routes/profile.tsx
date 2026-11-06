@@ -1,6 +1,6 @@
 import { ClientOnly, Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Bell, Building2, FileText, KeyRound, LogOut, MapPin, Package, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
+import { ArrowLeft, Bell, Building2, FileText, KeyRound, LogOut, MapPin, Package, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 
@@ -95,6 +95,7 @@ export function CustomerAccountProfilePage() {
       ]
     : [
         { to: "/orders", title: "طلباتي", description: "متابعة الطلبات وحالاتها", icon: Package },
+        { to: "/returns", title: "مرتجعاتي", description: "متابعة طلبات الإرجاع وقراراتها", icon: RotateCcw },
         { to: "/payments", title: "دفعاتي", description: "عرض حركات السداد المسجلة", icon: Wallet },
         { to: "/statement", title: "كشف الحساب", description: "الأرصدة والفواتير والمدفوعات حسب العملة", icon: FileText },
         { to: "/addresses", title: "عناوين التوصيل", description: "إدارة عناوين حسابك", icon: MapPin },
