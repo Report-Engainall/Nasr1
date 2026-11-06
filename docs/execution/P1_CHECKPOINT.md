@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-036
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at this checkpoint base: `45c59af758b5032fb7d891c92a57d41d8018d453`.
+- P1 product-code commit: `90c8791458f08e46d0bd080890e381d8dcd5a291` (parent `b2b38323addd291156e8da03b064d2f1f69de632`).
+- P1 owns the storefront presentation and unit-selection integration. No P3 intelligence files, engines, DTOs, RPCs or migrations were changed.
+
+## BODY-036 — storefront alternate-unit selection and base-unit conversion
+
+- Integrated the existing `fetchProductUnitOptions()` read client into the customer product-detail workflow. The page loads the same-tenant product's saved base/alternate-unit list through the existing `get_product_unit_conversions` RPC; no alternate catalog source was introduced.
+- Added a customer-facing unit selector for the base unit and configured alternate units. The selector displays the exact integer conversion factor (for example, one carton equals N base units).
+- The selected displayed quantity is converted to its exact base-unit quantity before it enters the existing cart. The UI evaluates the converted quantity against the persisted product minimum, order multiple, available stock and the existing 10,000-unit order bound. Choices that cannot satisfy the current quantity policy and available stock are disabled.
+- The existing server-side cart, `validate_checkout_cart`, pricing preview and `submit_customer_order` paths remain unchanged and continue receiving base-unit quantities. This matches the existing `product_unit_conversions` contract: stock, price and order quantities remain denominated in `products.unit`. The selected alternate-unit label is shown in the add confirmation; it is not persisted as a separate order-line unit selection.
+- If the unit read is unavailable, the customer can still use the base unit; no fake alternate options or success states are shown.
+- File changed: `src/components/Storefront.tsx`. Existing read contract/source reused: `src/lib/product-unit-conversions.ts`; migration `supabase/migrations/20261106113000_product_alternate_unit_conversions.sql` was not modified or applied.
+- Scope: one concrete customer purchase-flow capability implemented on main. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. The new selection/conversion UI was not tested or run in Bolt during this source-only delivery; no runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, migration application, Bolt sync, Preview, production or Vercel operation was run for BODY-036.
+- No new dependency, direct table access, alternate cart/order path, paid provider or P3-owned change was introduced.
+- The requested project-wide 95% P1 completion target remains unclaimed; this delivery does not establish a complete denominator of outstanding P1 functions.
+
+## Next P1 action
+
+Continue from the latest live `main` with the next concrete non-P3 commerce/administration workflow gap. Do not repeat BODY-032 through BODY-036 absent a reproducible defect, and leave the central execution state and acceptance matrix to their designated owner.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-035
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
