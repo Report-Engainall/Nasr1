@@ -368,13 +368,18 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
      <strong>رادار فرص النمو</strong>
-     <span className="rounded-full border px-2 py-1 text-xs">{response.result.completePopulation?"مجتمع العملاء مكتمل":"تغطية جزئية — فرص السجلات المثبتة فقط"}</span>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.completePopulation?"مجتمع العملاء والمنتجات مكتمل":"تغطية جزئية — راجع مصادر العملاء والمنتجات"}</span>
     </div>
     <p className="mt-2">{response.result.answer}</p>
     <p className="mt-1 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · كما في {response.result.asOf} · نافذة التحليل: {response.result.periodDays} يوماً، ومقارنتها بفترة سابقة مساوية.</p>
+    <div className="grid gap-2 sm:grid-cols-3">
+      <article className="rounded-lg border p-2 text-xs"><p className="text-muted-foreground">مصدر أداء المنتجات</p><strong>{response.result.productSourceStatus==="READY"?"مكتمل":response.result.productSourceStatus==="PARTIAL"?"جزئي":"غير متاح"}</strong></article>
+      <article className="rounded-lg border p-2 text-xs"><p className="text-muted-foreground">مجموعات المنتج/الوحدة</p><strong>{response.result.productCoverage?count(response.result.productCoverage.returnedCount)+" من "+count(response.result.productCoverage.totalCount):"غير متاح"}</strong></article>
+      <article className="rounded-lg border p-2 text-xs"><p className="text-muted-foreground">وحدات قياس غير قابلة للمقارنة</p><strong>{response.result.productCoverage?count(response.result.productCoverage.uncomparableUnitCount):"غير متاح"}</strong></article>
+    </div>
    </div>
    <GrowthOpportunityRadar result={response.result.radar} state="ready"/>
-   <p className="text-xs text-muted-foreground">العقد الحالي ينتج إشارات تكرار الشراء وتراجع نشاط العميل من أدلة الطلبات فقط. تحويل عرض السعر إلى طلب والبحث عن منتج غير متاح لا يدخلان في هذا المصدر، ولا يُفسَّر غيابهما على أنه صفر طلب. الفرص المعروضة ليست توقعاً للربح أو وعداً بالشراء ولا تنفذ إجراءً تلقائياً.</p>
+   <p className="text-xs text-muted-foreground">مؤشر أداء المنتج يقيس كمية سطور الطلبات المؤكدة أو قيد المعالجة أو المشحونة أو المسلّمة، لا الإيراد أو الكمية المستلمة فعلياً ولا الربح المتوقع. ويظل تحويل عرض السعر إلى طلب والبحث عن منتج غير متاح خارج التغطية حتى تتوفر علاقة طلب موثقة وسجل بحث محفوظ. لا يُفسر غياب هذه المصادر على أنه صفر طلب، ولا ينفذ الرادار شراءً أو تسعيراً أو متابعة تلقائية.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="CUSTOMER_RETENTION"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
