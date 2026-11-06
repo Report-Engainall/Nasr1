@@ -24,7 +24,7 @@ const missingLabels: Record<DecisionMemoryMissingField,string> = {
   ACTION_TAKEN:"الإجراء التنفيذي الناتج عن القرار",REVIEW_DISPOSITION:"تحديد حالة المراجعة",REVIEW_DATE:"موعد المراجعة المجدول",
   EXPECTED_METRIC:"خط الأساس/الهدف المتوقع",ACTUAL_METRIC:"النتيجة الفعلية ودليلها",LESSONS_REVIEWED:"مراجعة الدروس المستفادة",
 };
-const states={PROPOSED:"مقترح",IN_REVIEW:"قيد المراجعة",APPROVED:"معتمد",REJECTED:"مرفوض",ASSIGNED:"مُعيّن",EXECUTING:"قيد التنفيذ",EXECUTED:"بانتظار القياس",MEASURED:"تم القياس"};
+const states={PROPOSED:"مقترح",IN_REVIEW:"قيد المراجعة",APPROVED:"معتمد",REJECTED:"مرفوض",DEFERRED:"مؤجل",ASSIGNED:"مُعيّن",EXECUTING:"قيد التنفيذ",EXECUTED:"بانتظار القياس",MEASURED:"تم القياس"};
 const number=(value:number)=>new Intl.NumberFormat("ar-YE",{maximumFractionDigits:2}).format(value);
 function metricLine(title:string,metric:NonNullable<DecisionMemoryRecord["metricComparison"]["expected"]>){
   return <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{title}</p>
