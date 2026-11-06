@@ -91,7 +91,7 @@ export interface DecisionMemoryRecord {
   precedents: Array<{ decisionId: string; ruleVersion: string; state: DecisionOutcomeView["state"]; createdAt: string; measured: boolean }>;
 }
 export interface DecisionMemoryBookResult {
-  generatedAt: string; policyVersion: string; status: "VERIFIED" | "PARTIAL" | "UNAVAILABLE";
+  generatedAt: string; policyVersion: string; status: "VERIFIED" | "PARTIAL" | "EMPTY" | "UNAVAILABLE";
   loadedCount: number; totalCount: number; completeCount: number; partialCount: number;
   measuredCount: number; verifiedMeasurementCount: number; correctionCount: number;
   records: DecisionMemoryRecord[]; warnings: string[];
@@ -646,7 +646,9 @@ export function buildDecisionMemoryBook(input: {
   ]);
   return {
     generatedAt:input.generatedAt,policyVersion:DECISION_MEMORY_POLICY_VERSION,
-    status:!records.length?"UNAVAILABLE":partialCount>0||totalCount>input.outcomes.length||!sourceCoverageComplete?"PARTIAL":"VERIFIED",
+    status:!records.length
+      ?totalCount===0&&sourceCoverageComplete?"EMPTY":"UNAVAILABLE"
+      :partialCount>0||totalCount>input.outcomes.length||!sourceCoverageComplete?"PARTIAL":"VERIFIED",
     loadedCount:records.length,totalCount,completeCount,partialCount,measuredCount,verifiedMeasurementCount,
     correctionCount,records,warnings,
   };
