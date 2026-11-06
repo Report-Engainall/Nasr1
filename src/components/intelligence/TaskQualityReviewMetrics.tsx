@@ -1,4 +1,5 @@
 import type { TaskQualityMetrics, TaskQualityReasonCode } from "@/lib/intelligence/task-quality-reviews";
+import { TaskQualityInsightsPanel } from "./TaskQualityInsightsPanel";
 
 export interface TaskQualityReviewMetricsProps {
   quality: TaskQualityMetrics;
@@ -104,6 +105,7 @@ export function TaskQualityReviewMetrics({ quality }: TaskQualityReviewMetricsPr
         </div>
       </div>
       <p className="text-xs text-muted-foreground">هذه النسب تقيس أحكام المراجعين المحفوظة، لا نجاح الإجراء أو سببيته. قياس التحسن التشغيلي يحتاج خط أساس ونتيجة فعلية موثقة ومقارنة متوافقة.</p>
+      <TaskQualityInsightsPanel quality={quality} />
     </section>
   );
 }

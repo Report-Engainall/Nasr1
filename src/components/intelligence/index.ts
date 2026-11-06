@@ -41,3 +41,5 @@ export { TaskIntelligenceInsights } from "./TaskIntelligenceInsights";
 export { AiGatewayOperationsPanel } from "./AiGatewayOperationsPanel";
 export { TaskQualityReviewCenter } from "./TaskQualityReviewCenter";
 export type { TaskQualityReviewCenterProps } from "./TaskQualityReviewCenter";
+
+export { TaskQualityInsightsPanel } from "./TaskQualityInsightsPanel";

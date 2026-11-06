@@ -39,3 +39,5 @@ export * from "./task-quality-reviews-client";
 export * from "./unavailable-product-search-demand-client";
 
 export * from "./task-intelligence-insights";
+
+export * from "./task-quality-insights";
