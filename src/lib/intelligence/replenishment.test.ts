@@ -12,7 +12,9 @@ const build=(overrides:Partial<{atp:MetricSnapshot;rop:MetricSnapshot;sold:Metri
 describe("replenishment recommendations",()=>{
  it("calculates demand from the full inclusive lookback period and preserves the lead-time basis",()=>{
   const result=build(),r=result.recommendations[0];
-  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",quantityUnit:"EA",availableToPromise:5,reorderPoint:20,dailyDemand:1/3,leadTimeDemand:5,targetStock:20,recommendedQuantity:15,formulaVersion:"1.1.0",automaticPurchase:false});
+  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",quantityUnit:"EA",availableToPromise:5,reorderPoint:20,dailyDemand:1/3,leadTimeDemand:5,targetStock:20,recommendedQuantity:15,formulaVersion:"1.1.1",automaticPurchase:false});
+  expect(r.evidenceIds).toContain("incoming");
+  expect(r.evidenceIds).toEqual(expect.arrayContaining(["atp","rop","sold","lead","incoming"]));
  });
  it("withholds when a required evidence field is unverified",()=>{
   const lead={...metric("lead",15,"DAYS",null),status:"UNVERIFIED" as const};
@@ -72,12 +74,12 @@ describe("replenishment recommendations",()=>{
    incoming:metric("incoming",0,"QUANTITY"),
    orderMultiple:metric("multiple",0.1,"QUANTITY"),
   }).recommendations[0];
-  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",recommendedQuantity:0.3,formulaVersion:"1.1.0"});
+  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",recommendedQuantity:0.3,formulaVersion:"1.1.1"});
  });
 
  it("withholds quantity inputs beyond supported decimal precision",()=>{
   const r=build({sold:metric("sold","30.0000001","QUANTITY")}).recommendations[0];
-  expect(r).toMatchObject({status:"NEEDS_REVIEW",action:"WITHHELD",recommendedQuantity:null,formulaVersion:"1.1.0"});
+  expect(r).toMatchObject({status:"NEEDS_REVIEW",action:"WITHHELD",recommendedQuantity:null,formulaVersion:"1.1.1"});
   expect(r.warnings).toContain("METRIC_DECIMAL_PRECISION_OR_RANGE_INVALID");
  });
 
