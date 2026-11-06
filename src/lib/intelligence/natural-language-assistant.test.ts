@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planNaturalLanguageQuery } from "./natural-language-assistant";
+import { planNaturalLanguageQuery, resolveCustomerServiceIntent } from "./natural-language-assistant";
 
 describe("customer service natural-language intents", () => {
   it("routes open customer service case questions to the aggregate-only source", () => {
@@ -44,5 +44,36 @@ describe("customer service natural-language intents", () => {
       status: "READY",
       intent: "CUSTOMER_SERVICE_UNASSIGNED",
     });
+  });
+
+  it("keeps overlapping response and resolution breaches as separate counts", () => {
+    const snapshot = {
+      asOf: "2026-11-06T00:00:00.000Z",
+      scope: "ALL_ACTIVE_CASES_IN_CURRENT_ORGANIZATION" as const,
+      completePopulation: true as const,
+      summary: {
+        openCount: 8,
+        responseOverdueCount: 3,
+        resolutionOverdueCount: 4,
+        unassignedCount: 2,
+        urgentCount: 1,
+        highCount: 3,
+      },
+    };
+    const result = resolveCustomerServiceIntent(
+      "CUSTOMER_SERVICE_OVERVIEW",
+      snapshot,
+      "2026-11-06T00:00:01.000Z",
+    );
+    expect(result).toMatchObject({
+      kind: "CUSTOMER_SERVICE",
+      state: "READY",
+      primaryCount: 8,
+      summary: {
+        responseOverdueCount: 3,
+        resolutionOverdueCount: 4,
+      },
+    });
+    expect(result.answer).not.toContain("7 حالة متأخرة");
   });
 });
