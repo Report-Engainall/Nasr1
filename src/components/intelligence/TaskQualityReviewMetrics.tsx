@@ -85,6 +85,7 @@ export function TaskQualityReviewMetrics({ quality }: TaskQualityReviewMetricsPr
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard title="قابلية التنفيذ" value={percent(quality.actionability.actionableRatePercent)} detail={number(quality.actionability.actionableCount) + " من " + number(quality.actionability.rateDenominator) + " تقييم حاسم"} />
+        <MetricCard title="التوصيات المقبولة" value={number(quality.disposition.approvedCount)} detail="قرارات قبول محفوظة من المراجعين المخولين." />
         <MetricCard title="رفض التوصيات" value={number(quality.disposition.rejectedCount)} detail={number(quality.disposition.reviewedCount) + " مراجعة قرار"} />
         <MetricCard title="تأجيل التوصيات" value={number(quality.disposition.deferredCount)} detail={number(quality.actionability.deferredCount) + " مهام مؤجلة أيضاً"} />
         <MetricCard title="الإنذارات الكاذبة" value={percent(quality.alerts.falseAlarmRatePercent)} detail={number(quality.alerts.falsePositiveCount) + " من " + number(quality.alerts.falseAlarmDenominator) + " تنبيه صحيح/كاذب تمت مراجعته"} />
