@@ -162,6 +162,24 @@ describe("process bottleneck before/after comparison windows", () => {
     })).toBeNull();
   });
 
+  it("collects current- and baseline low-sample comparison caveats", () => {
+    const s = snapshot(equalBaselinePeriod);
+    s.metrics = [
+      metric("CURRENT", 30, { stageKey: "LOW_CURRENT", sampleCount: 2 }),
+      metric("BASELINE", 45, { stageKey: "LOW_CURRENT", sampleCount: 5 }),
+      metric("CURRENT", 15, { stageKey: "LOW_BASELINE", sampleCount: 5 }),
+      metric("BASELINE", 20, { stageKey: "LOW_BASELINE", sampleCount: 2 }),
+    ];
+    const result = buildProcessBottlenecks(s);
+    expect(result.comparisons).toEqual([]);
+    expect(result.withheldReasons).toContain(
+      "مقارنة المرحلة ORDERS/LOW_CURRENT محجوبة: عينة الفترة الحالية أقل من 3 (n=2).",
+    );
+    expect(result.withheldReasons).toContain(
+      "مقارنة المرحلة ORDERS/LOW_BASELINE محجوبة: عينة فترة الأساس أقل من 3 (n=2).",
+    );
+  });
+
   it("does not claim a before/after comparison when no baseline was supplied", () => {
     const result = buildProcessBottlenecks(snapshot(null));
     expect(result.comparisons).toEqual([]);
