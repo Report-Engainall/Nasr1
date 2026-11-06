@@ -4,9 +4,9 @@ import type {CustomerRetentionRecord,CustomerRetentionSaleRecord} from "./custom
 import type {EvidenceRecord,MetricSnapshot} from "./types";
 const asOf="2026-10-30T07:00:00Z",period={from:"2026-10-01",to:"2026-10-30"},previousPeriod={from:"2026-09-01",to:"2026-09-30"};
 const evidence=(id:string,currency?:string,p=period):EvidenceRecord=>({id,source:{kind:"RPC",name:"analytics.full_customer_retention",version:"v1"},sourceTimestamp:asOf,asOf,period:p,currency,status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",warnings:[]});
-const metric=(id:string,value:number,unit:MetricSnapshot["unit"],p=period,currency?:string):MetricSnapshot=>({id,key:id,value,unit,currency,status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:p,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id,formulaVersion:"1",transformations:[]},warnings:[]});
+const metric=(id:string,value:number|string,unit:MetricSnapshot["unit"],p=period,currency?:string):MetricSnapshot=>({id,key:id,value,unit,currency,status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:p,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id,formulaVersion:"1",transformations:[]},warnings:[]});
 const customer=(ref:string,current:number,previous:number,lastOrderAt:string|null):CustomerRetentionRecord=>({customerRef:ref,ordersCurrentPeriod:metric(ref+"-current",current,"COUNT"),ordersPreviousPeriod:metric(ref+"-previous",previous,"COUNT",previousPeriod),lastOrderAt});
-const sale=(ref:string,currency:string,value:number):CustomerRetentionSaleRecord=>({customerRef:ref,currency,sales:metric(ref+"-"+currency,value,"CURRENCY",period,currency)});
+const sale=(ref:string,currency:string,value:number|string):CustomerRetentionSaleRecord=>({customerRef:ref,currency,sales:metric(ref+"-"+currency,value,"CURRENCY",period,currency)});
 const data=(customers:CustomerRetentionRecord[],salesByCurrency:CustomerRetentionSaleRecord[])=>({
  id:"r",asOf,period,previousPeriod,
  evidenceRecords:[...customers.flatMap(c=>[evidence(c.ordersCurrentPeriod.id),evidence(c.ordersPreviousPeriod.id,undefined,previousPeriod)]),...salesByCurrency.map(s=>evidence(s.sales.id,s.currency))],
@@ -66,4 +66,54 @@ describe("customer retention full aggregate",()=>{
   expect(result.customers[0].activity).toBe("NO_ORDER_DATE");
   expect(result.customers[0].status).toBe("VERIFIED");
  });
+ it("rejects fractional order counts instead of treating them as completed orders",()=>{
+  const input=data([customer("C1",1,1,"2026-10-20T00:00:00Z")],[sale("C1","YER",100)]);
+  input.customers[0].ordersCurrentPeriod=metric("C1-current",1.5,"COUNT",period);
+  const result=buildCustomerRetentionReport(input);
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.customers[0].orderCountCurrent).toBeNull();
+  expect(result.retentionRate).toBeNull();
+  expect(result.warnings).toContain("CUSTOMER_COUNT_METRIC_INVALID_OR_UNVERIFIED");
+ });
+
+ it("sums customer currency sales as integer cents without floating-point drift",()=>{
+  const result=buildCustomerRetentionReport(data([
+   customer("C1",1,0,"2026-10-20T00:00:00Z"),
+   customer("C2",1,0,"2026-10-21T00:00:00Z"),
+   customer("C3",1,0,"2026-10-22T00:00:00Z"),
+  ],[sale("C1","YER","0.10"),sale("C2","YER","0.10"),sale("C3","YER","0.10")]));
+  expect(result.status).toBe("VERIFIED");
+  expect(result.focusByCurrency).toEqual([{
+   currency:"YER",totalSales:0.3,top5SalesConcentration:100,customerCount:3,status:"VERIFIED",
+  }]);
+ });
+
+ it("withholds currency focus for sub-cent values instead of silently rounding",()=>{
+  const result=buildCustomerRetentionReport(data([
+   customer("C1",1,0,"2026-10-20T00:00:00Z"),
+  ],[sale("C1","YER","0.001")]));
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.focusByCurrency[0]).toMatchObject({totalSales:null,top5SalesConcentration:null,status:"NEEDS_REVIEW"});
+  expect(result.warnings).toContain("CUSTOMER_CURRENCY_PRECISION_INVALID");
+ });
+
+ it("uses the UTC day of an offset-aware as-of instant for customer activity age",()=>{
+  const input=data([customer("C1",1,0,"2026-10-29T20:00:00Z")],[sale("C1","YER",100)]);
+  const asOf="2026-10-30T00:30:00+03:00";
+  input.asOf=asOf;
+  input.evidenceRecords=input.evidenceRecords.map(item=>({...item,asOf,sourceTimestamp:"2026-10-29T21:00:00Z"}));
+  input.customers=input.customers.map(item=>({
+   ...item,
+   lastOrderAt:"2026-10-29T20:00:00Z",
+   ordersCurrentPeriod:{...item.ordersCurrentPeriod,asOf,lineage:{...item.ordersCurrentPeriod.lineage,calculatedAt:"2026-10-29T21:00:00Z"}},
+   ordersPreviousPeriod:{...item.ordersPreviousPeriod,asOf,lineage:{...item.ordersPreviousPeriod.lineage,calculatedAt:"2026-10-29T21:00:00Z"}},
+  }));
+  input.salesByCurrency=input.salesByCurrency.map(item=>({
+   ...item,
+   sales:{...item.sales,asOf,lineage:{...item.sales.lineage,calculatedAt:"2026-10-29T21:00:00Z"}},
+  }));
+  const result=buildCustomerRetentionReport(input);
+  expect(result.customers[0]).toMatchObject({daysSinceLastOrder:0,activity:"ACTIVE",status:"VERIFIED"});
+ });
+
 });
