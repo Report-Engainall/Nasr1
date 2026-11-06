@@ -680,3 +680,16 @@ Documentation commits:
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored, NOT run. No SQL/build/runtime/Bolt/DB/production acceptance.
 - Exact blobs: a999aef73f201b5c242eb8fa4761143a3ebeb4a8; e7ac0eca0df3e1713922cff6cd62ecd60ade3870.
 - Next: keep wait-vs-work and employee attribution unavailable until authorized source events support them.
+
+
+## P3 source increment — 2026-11-06 — AI gateway operations panel (partial REF-AI-OPS-001)
+
+- Exact code cursor: `91bee9d04cd5ea80f4d6f99228a798529fd1e769`; docs handoff/checkpoint descendants: `f6cb4537f1a9e9faed23766ecd361e9039fd896d`, `2a1881146fb9d4d348eba2f8361d23bda73ec226`.
+- Added `fetchAiGatewayBudget()` and strict DTO parser using the existing `get_ai_gateway_budget()` admin/manager RPC. No organization ID, role or actor is passed by the browser; no base URL/secret is displayed.
+- Added exported Arabic `AiGatewayOperationsPanel` showing server-returned enablement, primary/fallback provider/model, daily/monthly cost and token aggregates, active reservation totals and configured ceilings. It is read-only and fail-closed.
+- Added an explicit cost governance warning; positive cost ceilings and recorded estimates are not silently called free. The DTO does not certify zero paid spend or free-tier status.
+- P1 handoff appended to `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`; P1 must mount only in the existing admin AI view.
+- Source commits: `befd0017595d987723331280b29dadad7d072f0f`, `819a8faf06b431897c9021e0a0336ad605fad269`, `50c60626332ab48c2bc6bfb0e6fb54ade4bbb1e6`, `91bee9d04cd5ea80f4d6f99228a798529fd1e769`.
+- Exact new source blobs at code cursor: client `15d8db41e3fbc351821ea8450ab55370f524d165`; component `498a568c7cc3da8c6ad748d668e15039a2bfe4f6`; library barrel `b4926fae4aef7518b824b37396c22236d5b30d7c`; component barrel `b8939d2b3dd76138b635525d178a3e0e174d989e`.
+- Status: `PARTIAL_P3_IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / P2_PROVIDER_STATUS_SOURCE_OPEN / ACCEPTANCE_PENDING`.
+- Remaining: source RPC lacks free-tier/zero-rate evidence, quota remaining/reset, cooldown, privacy class, last response, error counts and provider fallback counts. P2 must publish those safely; no parallel RPC was created. No test/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. No PASS claim.
