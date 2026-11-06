@@ -32,6 +32,7 @@ import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
+import { AiGatewayOperationsPanel } from '@/components/intelligence';
 type IconType = LucideIcon;
 
 function NotificationRow({
@@ -388,6 +389,7 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
         {gatewayError && <ErrorBox message={gatewayError} />}
       </>}
     </section>}
+    {canManageGateway && <AiGatewayOperationsPanel />}
     <div className="ai-tabs"><button className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><AlertTriangle size={16} /> التنبيهات</button><button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}><Check size={16} /> المهام</button></div>
     {tab === 'alerts' ? (
       <AiAlertsPanel alerts={alerts} loading={aLoading} error={aError} onResolve={resolve} />
