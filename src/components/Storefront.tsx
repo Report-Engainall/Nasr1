@@ -1197,6 +1197,7 @@ export function ProductDetail({
           <span className="sf-detail-code">
             {product.sku ? <span dir="ltr">SKU: {product.sku}</span> : <>رمز المنتج: <bdi>{product.item_code}</bdi></>}
             {product.sku && product.item_code ? <> · رمز المنتج: <bdi>{product.item_code}</bdi></> : null}
+            {product.barcode ? <> · الباركود: <bdi>{product.barcode}</bdi></> : null}
           </span>
         </div>
         <div className="sf-detail-content">
