@@ -496,4 +496,59 @@ describe("customer quotes real route acceptance", () => {
       .some((button) => button.textContent?.includes("طباعة الأسعار المحفوظة"))).toBe(false);
   });
 
+  it("keeps keyboard focus inside staff quote pricing dialog and restores the opener on Escape", async () => {
+    mocks.user = { ...CUSTOMER, roles: ["admin"], isStaff: true };
+    mocks.quoteRows = [{
+      id: "33333333-3333-4333-8333-333333333333",
+      quote_number: "QT-FOCUS-001",
+      status: "requested",
+      notes: null, response_note: null,
+      created_at: "2026-10-31T09:00:00.000Z",
+      quoted_at: null, valid_until: null,
+    }];
+    mocks.quoteItemRows = [{
+      id: "PRIVATE-LINE-ID", quote_id: "33333333-3333-4333-8333-333333333333",
+      product_id: PRODUCT_ID, item_code: "000041", product_name_snapshot: "سكر",
+      unit_snapshot: "كرتون", requested_quantity: 5, target_unit_price: 500,
+      quoted_unit_price: null,
+    }];
+
+    await mountStaffQuotesPage();
+    const openButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("فتح / تسعير"));
+    expect(openButton).toBeTruthy();
+    openButton!.focus();
+
+    await act(async () => {
+      fireEvent.click(openButton!);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+
+    const dialog = host?.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
+    const firstPriceInput = dialog?.querySelector<HTMLInputElement>('input[type="number"]');
+    expect(dialog).toBeTruthy();
+    expect(dialog?.getAttribute("aria-labelledby")).toBe("staff-quote-pricing-dialog-title");
+    expect(document.activeElement).toBe(firstPriceInput);
+
+    const buttons = Array.from(dialog?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []);
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+    const closeButton = buttons[0];
+    const saveButton = buttons[buttons.length - 1];
+
+    closeButton.focus();
+    fireEvent.keyDown(closeButton, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(saveButton);
+
+    fireEvent.keyDown(saveButton, { key: "Tab" });
+    expect(document.activeElement).toBe(closeButton);
+
+    fireEvent.keyDown(closeButton, { key: "Escape" });
+    await flush();
+
+    expect(host?.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(openButton);
+  });
+
+
 });
