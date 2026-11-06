@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   acceptOperationalShiftHandover,
@@ -206,7 +206,7 @@ export function ShiftOperationsCenter({
     return ()=>{active=false;};
   },[result?.shiftId,result?.handover.recordedAt,result?.handover.acceptedAt,isIncomingOwner]);
 
-  async function saveCashCount(event: React.FormEvent<HTMLFormElement>){
+  async function saveCashCount(event: FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!result || commandBusy)return;
     const parsedAmount=Number(cashAmount);
@@ -235,7 +235,7 @@ export function ShiftOperationsCenter({
     }finally{setCommandBusy(null);}
   }
 
-  async function saveHandover(event: React.FormEvent<HTMLFormElement>){
+  async function saveHandover(event: FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!result || commandBusy)return;
     const refs=[...new Set(selectedHandoverRefs)];
