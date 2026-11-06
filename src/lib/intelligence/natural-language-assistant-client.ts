@@ -7,10 +7,11 @@ import { fetchProcessBottlenecks } from "./process-bottlenecks-client";
 import { fetchTaskIntelligenceReport } from "./task-intelligence-reports-client";
 import { createCashflowScheduleRequest,fetchCashflowSchedule } from "./cashflow-schedule-client";
 import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-client";
+import { fetchCustomerServiceIntelligenceSummary } from "./customer-service-intelligence-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -27,6 +28,12 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="get_customer_service_work_queue_summary"){
+   const snapshot=await fetchCustomerServiceIntelligenceSummary();
+   if(!snapshot.ok)return {status:snapshot.status,message:snapshot.message};
+   return {status:"RESULT",plan,result:resolveCustomerServiceIntent(
+    plan.intent as CustomerServiceIntent,snapshot.data,new Date().toISOString())};
+  }
   if(plan.sourceRpc==="fetch_operational_task_quality_metrics"){
    const quality=await fetchOperationalTaskQualityMetrics();
    const answer=quality.status==="READY"
