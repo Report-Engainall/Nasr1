@@ -306,10 +306,22 @@ function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetr
     <DecisionMemoryCapture record={record} onRetry={onRetry}/>
   </article>;
 }
+const DECISION_MEMORY_DISPLAY_PAGE_SIZE = 25;
+
 export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionMemoryBookProps){
   const [precedentTargetId,setPrecedentTargetId]=useState("");
   const [precedentQuery,setPrecedentQuery]=useState("");
-  const searchTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??result?.records[0]??null;
+  const [recordPage,setRecordPage]=useState(0);
+  const pageCount=Math.max(1,Math.ceil((result?.records.length??0)/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
+  const currentPage=Math.min(recordPage,pageCount-1);
+  const pageRecords=result?.records.slice(
+    currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
+    (currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,
+  )??[];
+  const selectedTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??null;
+  const referenceOptions=selectedTarget&&!pageRecords.some(record=>record.decisionId===selectedTarget.decisionId)
+    ?[selectedTarget,...pageRecords]:pageRecords;
+  const searchTarget=selectedTarget??pageRecords[0]??null;
   const policyReviewSuggestions=result?buildDecisionPolicyReviewSuggestions(result.records):[];
   const precedentMatches=searchTarget&&result
     ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:8})
@@ -329,7 +341,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block space-y-1 text-sm">القرار المرجعي
           <select className="w-full rounded-lg border bg-background p-2" value={searchTarget?.decisionId??""} onChange={event=>setPrecedentTargetId(event.target.value)}>
-            {result.records.map(record=><option key={record.decisionId} value={record.decisionId}>{record.proposedResult.slice(0,100)} · {record.createdAt.slice(0,10)}</option>)}
+            {referenceOptions.map(record=><option key={record.decisionId} value={record.decisionId}>{record.proposedResult.slice(0,100)} · {record.createdAt.slice(0,10)}</option>)}
           </select>
         </label>
         <label className="block space-y-1 text-sm">مصطلحات إضافية (اختياري)
@@ -404,7 +416,17 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <article className="rounded-lg border p-3"><p className="text-xs">بانتظار الاستكمال</p><strong className="text-xl">{result.partialCount}</strong></article>
       <article className="rounded-lg border p-3"><p className="text-xs">قياسات مثبتة قابلة للمقارنة</p><strong className="text-xl">{result.verifiedMeasurementCount}</strong></article>
     </div>
-    {result.records.length?result.records.map(record=><DecisionMemoryCard key={record.decisionId} record={record} onRetry={onRetry}/>):<p className="text-sm">لا توجد قرارات محفوظة بعد.</p>}
+    {result.records.length?<>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span>عرض {currentPage*DECISION_MEMORY_DISPLAY_PAGE_SIZE+1}–{Math.min((currentPage+1)*DECISION_MEMORY_DISPLAY_PAGE_SIZE,result.records.length)} من {result.records.length} قراراً</span>
+        {pageCount>1?<div className="flex items-center gap-2">
+          <button type="button" className="rounded-lg border px-3 py-1.5" disabled={currentPage===0} onClick={()=>setRecordPage(value=>Math.max(0,value-1))}>الأحدث</button>
+          <span>{currentPage+1} / {pageCount}</span>
+          <button type="button" className="rounded-lg border px-3 py-1.5" disabled={currentPage>=pageCount-1} onClick={()=>setRecordPage(value=>Math.min(pageCount-1,value+1))}>الأقدم</button>
+        </div>:null}
+      </div>
+      {pageRecords.map(record=><DecisionMemoryCard key={record.decisionId} record={record} onRetry={onRetry}/>)}
+    </>:<p className="text-sm">لا توجد قرارات محفوظة بعد.</p>}
     {result.warnings.length?<section className="rounded-lg border p-3"><h3 className="text-sm font-semibold">حدود البيانات الحالية</h3>{result.warnings.map(warning=><p key={warning} className="text-xs">{warning}</p>)}</section>:null}
   </section>;
 }
