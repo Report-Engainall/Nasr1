@@ -81,6 +81,26 @@ describe("growth opportunity source population confidence", () => {
     expect(result.warnings).toContain("SOURCE_POPULATION_INCOMPLETE");
   });
 
+  it("withholds unavailable demand when distinct searchers exceed total search events", () => {
+    const result = buildGrowthOpportunityRadar({
+      ...input(true),
+      metrics: [
+        metric("unavailable-searches", "storefront.unavailable_product_searches", 5),
+        metric("distinct-searchers", "storefront.distinct_unavailable_product_searchers", 6),
+      ],
+      signals: [{
+        id: "unavailable-demand-signal",
+        kind: "PRODUCT_UNAVAILABLE_DEMAND",
+        subjectRef: "opaque-product-reference",
+        observedMetricId: "unavailable-searches",
+        sampleMetricId: "distinct-searchers",
+      }],
+    });
+    expect(result.opportunities).toEqual([]);
+    expect(result.withheld[0]?.reason).toBe("SAMPLE_INSUFFICIENT");
+    expect(result.status).toBe("NEEDS_REVIEW");
+  });
+
   it("does not call an empty unconfirmed population a verified absence of opportunities", () => {
     const result = buildGrowthOpportunityRadar({
       id: "empty-growth-radar-test",
