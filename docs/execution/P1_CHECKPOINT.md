@@ -1,8 +1,8 @@
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-041
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
-- Main SHA at checkpoint base: `d9ff1efd198337aa3a8be8bc776b255152dd1562`.
-- P1 code commits: `67d8eb9a0712721b7d43462abf289111cc2926f2` and `d9ff1efd198337aa3a8be8bc776b255152dd1562`.
+- Main SHA at checkpoint base: `abceb79f990af5d7d43a1fe744aabf14216354c8`.
+- P1 code commits: `67d8eb9a0712721b7d43462abf289111cc2926f2`, `d9ff1efd198337aa3a8be8bc776b255152dd1562`, and `6d188f6bed2801cdef241453ba5d23acf86011f4`.
 - Files changed: `src/components/Storefront.tsx`, `src/aghbari.css`.
 
 ## BODY-041 — product-detail image enlargement and same-category discovery
@@ -11,6 +11,7 @@
 - Added up to four related-product cards filtered strictly by the same persisted `category_id`, excluding the current product. They are sourced only from products already loaded into the storefront catalogue; no fixtures, invented recommendations, secondary query or new route were introduced.
 - Selecting a related item uses the existing `openProduct` route navigation. Its displayed price is rendered through the same `StorefrontPricePresentation` and server-provided `display_price` under the existing customer price-visibility policy; no other-tier prices or cost data are added.
 - Added responsive, RTL-compatible layout and focus-visible styling for the zoom action, dialog and related-product cards.
+- Product detail also renders the saved barcode as text alongside SKU and item code, preserving leading zeros.
 - Scoped gap count: 2 concrete product-detail requirements from the original specification (enlarged image and same-category related products) now have UI behavior wired to existing catalog data. This is a bounded DLV-003 slice, not a project-wide completion percentage.
 - State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No browser/runtime acceptance is claimed.
 
