@@ -1673,32 +1673,29 @@ function Reorder() {
     });
     if (!tenantScope || requestRevision !== loadRevisionRef.current) return;
     const { organizationId: orgId } = tenantScope;
-    let p: Awaited<ReturnType<typeof supabase.from>> | null = null;
-    let t: Awaited<ReturnType<typeof supabase.from>> | null = null;
-    let publicSettings: Record<string, unknown> | null = null;
-    try {
-      [p, t, publicSettings] = await Promise.all([
-        supabase
-          .from("products")
-          .select("id,name,item_code,barcode,unit,status")
-          .eq("organization_id", orgId)
-          .eq("status", "active")
-          .order("name")
-          .limit(500),
-        supabase
-          .from("reorder_templates")
-          .select("id,name,created_at,updated_at,source_order_id")
-          .order("updated_at", { ascending: false })
-          .limit(100),
-        fetchSettingsMap().catch(() => null),
-      ]);
-    } catch {
+    const responses = await Promise.all([
+      supabase
+        .from("products")
+        .select("id,name,item_code,barcode,unit,status")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .order("name")
+        .limit(500),
+      supabase
+        .from("reorder_templates")
+        .select("id,name,created_at,updated_at,source_order_id")
+        .order("updated_at", { ascending: false })
+        .limit(100),
+      fetchSettingsMap().catch(() => null),
+    ]).catch(() => null);
+    if (!responses) {
       if (requestRevision === loadRevisionRef.current) {
         setError("تعذر تحميل المنتجات أو قوالب إعادة الطلب. تحقق من الاتصال ثم حاول مجددًا.");
       }
       return;
     }
-    if (requestRevision !== loadRevisionRef.current || !p || !t) return;
+    if (requestRevision !== loadRevisionRef.current) return;
+    const [p, t, publicSettings] = responses;
     setPriceVisibilityPolicy(publicSettings?.show_price_on_cards);
     if (p.error || t.error)
       setError("تعذر تحميل المنتجات أو قوالب إعادة الطلب. تحقق من الاتصال وإعدادات الحساب.");
@@ -1717,7 +1714,7 @@ function Reorder() {
         setTemplates((t.data ?? []) as ReorderTemplate[]);
       }
     }
-  }, [user?.id, user?.profileId]);
+  }, [user?.profileId]);
   useEffect(() => {
     setProducts([]);
     setTemplates([]);
