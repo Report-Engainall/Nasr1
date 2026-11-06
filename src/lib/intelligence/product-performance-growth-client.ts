@@ -86,7 +86,10 @@ export async function fetchProductPerformanceGrowthContext(
         typeof raw.completePopulation !== "boolean" || !Array.isArray(raw.products) ||
         raw.products.length > 2000 || raw.returnedCount !== raw.products.length ||
         raw.totalCount < raw.returnedCount || raw.uncomparableUnitCount > raw.totalCount ||
-        raw.sourceTables === null || !Array.isArray(raw.sourceTables) ||
+        !Array.isArray(raw.sourceTables) ||
+        raw.sourceTables.length !== 3 ||
+        !["orders","order_items","products"].every(table => raw.sourceTables.includes(table)) ||
+        raw.returnedCount !== Math.min(raw.totalCount,2000) ||
         !["EMPTY","VERIFIED","PARTIAL"].includes(String(raw.status)) || raw.sideEffects !== "NONE") {
       return { ok: false, status: "ERROR", message: "استجابة أداء المنتجات ناقصة أو لا تطابق عقد المصدر؛ حُجبت الإشارات." };
     }
@@ -131,9 +134,10 @@ export async function fetchProductPerformanceGrowthContext(
       }
       seen.add(key);
 
-      const evidenceId = typeof product.evidenceId === "string" &&
-        product.evidenceId === "product-performance:" + productRef + ":" + product.evidenceId.split(":").at(-1)
-        ? product.evidenceId : "";
+      const evidencePrefix = "product-performance:" + productRef + ":";
+      const evidenceSuffix = typeof product.evidenceId === "string" && product.evidenceId.startsWith(evidencePrefix)
+        ? product.evidenceId.slice(evidencePrefix.length) : "";
+      const evidenceId = /^[0-9a-f]{32}$/.test(evidenceSuffix) ? product.evidenceId as string : "";
       if (!evidenceId || evidenceId.length > 180) {
         return { ok: false, status: "ERROR", message: "مرجع إثبات أداء المنتج غير صالح." };
       }
