@@ -32,6 +32,7 @@ import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/busine
 import { dashboardAverageOrderDisplay, dashboardSalesDisplay } from '@/lib/dashboard-metrics';
 import { getInventoryAvailabilityStatus } from '@/lib/inventory-metrics';
 import { PricingGrid } from '@/components/PricingGrid';
+import { ProductUnitConversionsEditor } from '@/components/ProductUnitConversionsEditor';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { CustomerServiceDesk } from '@/components/CustomerServiceDesk';
@@ -1108,6 +1109,7 @@ export function ProductModal({
           ))}
         </select>
       </Field>
+      {product && canManageLifecycle && <ProductUnitConversionsEditor productId={product.id} />}
       <Field label="صورة المنتج (JPG / PNG / WebP، بحد أقصى 8 ميغابايت)">
         <input
           type="file"
