@@ -6,14 +6,14 @@ import {
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
-  createCustomer, createPricingRule, deletePricingRule, fetchAiAlerts,
+  createCustomer, createProduct, createPricingRule, deletePricingRule, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
-import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
+import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -982,7 +982,8 @@ export function ProductModal({
     function parsePriceValue(raw: string, label: string): number {
       if (raw.trim() === '') throw new Error(label + ' مطلوب.');
       const value = Number(raw);
-      if (!Number.isFinite(value) || value < 0 || value > 999999999999 || Math.round(value * 100) !== value * 100) {
+      if (!Number.isFinite(value) || value < 0 || value > 999999999999
+        || Math.abs(Math.round(value * 100) - value * 100) > 1e-7) {
         throw new Error(label + ' يجب أن يكون مبلغًا صحيحًا حتى خانتين عشريتين.');
       }
       return value;
@@ -1036,15 +1037,12 @@ export function ProductModal({
         if (vipPriceValue === null || wholesalePriceValue === null || retailPriceValue === null) {
           throw new Error('أدخل أسعار الشرائح الثلاث قبل إنشاء المنتج.');
         }
-        const created = await saveAdminCatalogProduct(null, {
+        const created = await createProduct({
           ...payload,
           price_wholesale_of_wholesale: vipPriceValue,
           price_wholesale: wholesalePriceValue,
           price_retail: retailPriceValue,
         });
-        if (!created.created || !created.id) {
-          throw new Error('لم يؤكد الخادم إنشاء المنتج؛ لم يتم إعلان النجاح.');
-        }
         savedProductId = created.id;
       }
       productSaved = true;
@@ -1067,7 +1065,7 @@ export function ProductModal({
       }}
     >
       <Field label="اسم المنتج">
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} disabled={saving} />
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} disabled={saving} />
       </Field>
       <Field label="اسم المنتج بالإنجليزية (اختياري)">
         <input value={nameEn} onChange={(e) => setNameEn(e.target.value)} maxLength={240} disabled={saving} dir="auto" />
@@ -1083,7 +1081,8 @@ export function ProductModal({
           <input value={unit} onChange={(e) => setUnit(e.target.value)} maxLength={40} disabled={saving} placeholder="أدخل وحدة القياس الأساسية" />
         </Field>
       </div>
-      <Field label="السعر الأساسي">
+      <div className="form-grid">
+        <Field label="السعر الأساسي">
           <input
             type="number"
             min="0"
@@ -1121,7 +1120,7 @@ export function ProductModal({
           <input value={sku} onChange={(e) => setSku(e.target.value)} maxLength={80} disabled={saving} dir="auto" />
         </Field>
         <Field label="الباركود (اختياري)">
-          <input value={barcode} onChange={(e) => setBarcode(e.target.value)} maxLength={120} disabled={saving} dir="auto" />
+          <input value={barcode} onChange={(e) => setBarcode(e.target.value)} maxLength={100} disabled={saving} dir="auto" />
         </Field>
       </div>
       <div className="form-grid">
