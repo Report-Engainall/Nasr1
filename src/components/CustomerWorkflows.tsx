@@ -3034,6 +3034,8 @@ function Offline() {
 export function StaffQuotesPage() {
   const { user } = useAuth();
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [loadingMoreQuotes, setLoadingMoreQuotes] = useState(false);
+  const [hasMoreQuotes, setHasMoreQuotes] = useState(true);
   const [chosen, setChosen] = useState<Quote | null>(null);
   const [lines, setLines] = useState<QuoteLine[]>([]);
   const [prices, setPrices] = useState<Record<string, string>>({});
@@ -3054,14 +3056,61 @@ export function StaffQuotesPage() {
       .from("sales_quotes")
       .select("id,quote_number,status,notes,response_note,created_at,quoted_at,valid_until")
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(100);
-    if (r.error) setError("تعذر تحميل عروض الأسعار. تأكد من نشر ترحيل قاعدة البيانات.");
-    else setQuotes((r.data ?? []) as Quote[]);
+    if (r.error) {
+      setError("تعذر تحميل عروض الأسعار. تأكد من نشر ترحيل قاعدة البيانات.");
+      setHasMoreQuotes(false);
+    } else {
+      const rows = (r.data ?? []) as Quote[];
+      setQuotes(rows);
+      setHasMoreQuotes(rows.length === 100);
+    }
     setLoading(false);
   }, []);
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function loadMoreQuotes() {
+    if (loadingMoreQuotes || loading || !hasMoreQuotes || quotes.length === 0) return;
+    const cursor = quotes[quotes.length - 1];
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidPattern.test(cursor.id) || !Number.isFinite(Date.parse(cursor.created_at))) {
+      setError("تعذر التحقق من مؤشر سجل العروض؛ لم يتم تحميل صفحة غير موثوقة.");
+      return;
+    }
+    setLoadingMoreQuotes(true);
+    setError("");
+    try {
+      const cursorAt = new Date(cursor.created_at).toISOString();
+      const { data, error: quoteError } = await supabase
+        .from("sales_quotes")
+        .select("id,quote_number,status,notes,response_note,created_at,quoted_at,valid_until")
+        .or("created_at.lt." + cursorAt + ",and(created_at.eq." + cursorAt + ",id.lt." + cursor.id + ")")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(100);
+      if (quoteError) throw new Error("تعذر تحميل عروض الأسعار الأقدم من الخادم.");
+      const rows = (data ?? []) as Quote[];
+      if (rows.some((row) => !uuidPattern.test(row.id) || !Number.isFinite(Date.parse(row.created_at)))) {
+        throw new Error("أعاد الخادم مؤشر عرض غير صالح؛ لم تُضف الصفحة إلى السجل.");
+      }
+      const existingIds = new Set(quotes.map((quote) => quote.id));
+      const additions = rows.filter((quote) => !existingIds.has(quote.id));
+      if (additions.length > 0) {
+        setQuotes((current) => {
+          const currentIds = new Set(current.map((quote) => quote.id));
+          return [...current, ...additions.filter((quote) => !currentIds.has(quote.id))];
+        });
+      }
+      setHasMoreQuotes(rows.length === 100 && additions.length > 0);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل عروض الأسعار الأقدم.");
+    } finally {
+      setLoadingMoreQuotes(false);
+    }
+  }
 
   useEffect(() => {
     if (!printDocument) return;
@@ -3258,6 +3307,14 @@ export function StaffQuotesPage() {
           ))}
         </div>
       )}
+      {!loading && hasMoreQuotes ? (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
+          <button type="button" style={secondary}
+            disabled={loadingMoreQuotes || busy} onClick={() => void loadMoreQuotes()}>
+            {loadingMoreQuotes ? "جارٍ تحميل العروض الأقدم..." : "تحميل عروض أقدم"}
+          </button>
+        </div>
+      ) : null}
       {chosen && (
         <section
           ref={dialogRef}
