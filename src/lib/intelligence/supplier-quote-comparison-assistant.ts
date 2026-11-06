@@ -255,7 +255,11 @@ export function buildSupplierQuoteComparisonAssistant(
   };
 
   const quoteCounts = { received: 0, awarded: 0, expired: 0 };
-  for (const quote of quotes) quoteCounts[quote.status] += 1;
+  for (const quote of quotes) {
+    if (quote.status === "received") quoteCounts.received += 1;
+    else if (quote.status === "awarded") quoteCounts.awarded += 1;
+    else if (quote.status === "expired") quoteCounts.expired += 1;
+  }
 
   const byProduct = new Map<string, Candidate[]>();
   for (const quote of quotes) {

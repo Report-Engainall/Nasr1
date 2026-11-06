@@ -105,13 +105,13 @@ export async function fetchSupplierPostedPayableActivity(input: {
       const debit=debitMinor===null?null:minorUnitsToNumber(debitMinor,2);
       const net=netMinor===null?null:minorUnitsToNumber(netMinor,2);
       const top5=top5Minor===null?null:minorUnitsToNumber(top5Minor,2);
-      const percent=percentMinor===null?null:percentMinor===undefined?undefined:Number(percentMinor)/100;
+      const percent=percentMinor===null || percentMinor===undefined?null:Number(percentMinor)/100;
       if(grossMinor===null || debitMinor===null || netMinor===null || top5Minor===null ||
          gross===null || debit===null || net===null || top5===null ||
          (row.top5GrossPayableCreditPercent!==null && percentMinor===undefined) ||
          netMinor!==grossMinor-debitMinor ||
          (row.status==="VERIFIED" && (grossMinor<=0n || top5Minor>grossMinor ||
-           percentMinor===null || percentMinor<=0n || percentMinor!==expectedPercentMinor)) ||
+           percentMinor===null || percentMinor===undefined || percentMinor<=0n || percentMinor!==expectedPercentMinor)) ||
          (row.status==="NEEDS_REVIEW" && (grossMinor!==0n || top5Minor!==0n || percentMinor!==null)))
         return {ok:false,status:"ERROR",message:"حركة عملة الموردين لا تتطابق حسابياً مع قيودها المنشورة."};
       seen.add(row.currency);

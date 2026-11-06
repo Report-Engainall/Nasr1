@@ -257,6 +257,8 @@ export function parseTaskIntelligenceReport(
     !Array.isArray(row.limitations) ||
     row.limitations.some(item => typeof item !== "string")) return null;
 
+  const periodFrom = period.from as string;
+  const periodTo = period.to as string;
   const roleSummaries = row.roleSummaries.map(parseRoleSummary);
   const sourceBreakdown = row.sourceBreakdown.map(parseSourceSummary);
   const weeklyTrend = row.weeklyTrend.map(parseWeeklyPoint);
@@ -291,13 +293,13 @@ export function parseTaskIntelligenceReport(
     weekStarts.some((value, index) => {
       const date = new Date(value + "T00:00:00.000Z");
       return date.getUTCDay() !== 1 ||
-        value < dateOfWeek(period.from) || value > dateOfWeek(period.to) ||
+        value < dateOfWeek(periodFrom) || value > dateOfWeek(periodTo) ||
         (index > 0 && value <= weekStarts[index - 1]);
     })) return null;
 
   return {
     status: "VERIFIED", reportKind: expectedKind, asOf: row.asOf,
-    period: { from: period.from, to: period.to, timeZone: "UTC" },
+    period: { from: periodFrom, to: periodTo, timeZone: "UTC" },
     scope: {
       visibleRoles: scope.visibleRoles as TaskIntelligenceRole[],
       completePopulation: true, visibleTaskCount: scope.visibleTaskCount,

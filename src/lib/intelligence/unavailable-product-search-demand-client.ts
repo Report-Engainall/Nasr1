@@ -112,6 +112,7 @@ export async function fetchUnavailableProductSearchDemand(
     const raw = object(data);
     const rawPeriod = object(raw?.period);
     const coverageStartedOn = raw?.coverageStartedOn === null ? null : raw?.coverageStartedOn;
+    const sourceTables = raw?.sourceTables;
     if (!raw || !rawPeriod || !timestamp(raw.asOf) || Date.parse(raw.asOf) !== asOfTime ||
         !day(rawPeriod.from) || !day(rawPeriod.to) ||
         rawPeriod.from !== from || rawPeriod.to !== to ||
@@ -120,10 +121,10 @@ export async function fetchUnavailableProductSearchDemand(
         typeof raw.completePopulation !== "boolean" ||
         !Array.isArray(raw.products) || raw.products.length > 500 ||
         raw.returnedCount !== raw.products.length || raw.totalCount < raw.returnedCount ||
-        !Array.isArray(raw.sourceTables) ||
-        raw.sourceTables.length !== 2 ||
+        !Array.isArray(sourceTables) ||
+        sourceTables.length !== 2 ||
         !["storefront_unavailable_product_search_observations", "products"].every(
-          name => raw.sourceTables.includes(name),
+          name => sourceTables.includes(name),
         ) ||
         raw.sideEffects !== "NONE" ||
         !["EMPTY", "VERIFIED", "PARTIAL"].includes(String(raw.status)) ||
@@ -170,7 +171,7 @@ export async function fetchUnavailableProductSearchDemand(
       const complete = expectedComplete;
       const evidenceStatus = complete ? "VERIFIED" as const : "NEEDS_REVIEW" as const;
       const completeness = complete ? "COMPLETE" as const : "PARTIAL" as const;
-      const quality = complete ? "ACCEPTABLE" as const : "NEEDS_REVIEW" as const;
+      const quality = complete ? "ACCEPTABLE" as const : "WARNINGS" as const;
 
       evidenceRecords.push({
         id: evidenceId,

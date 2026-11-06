@@ -146,7 +146,7 @@ export function parseTaskQualityMetrics(value: unknown): TaskQualityMetrics {
       alerts.reviewedCount!==alerts.truePositiveCount+alerts.falsePositiveCount+alerts.needsReviewCount ||
       alerts.falseAlarmDenominator!==alertDenominator ||
       alerts.falseAlarmRatePercent!==exactPercent(alerts.falsePositiveCount,alertDenominator) ||
-      repeatedCauses.some(cause=>cause.affectedTaskCount>scope.reviewedTaskCount) ||
+      repeatedCauses.some(cause=>cause.affectedTaskCount>(scope.reviewedTaskCount as number)) ||
       new Set(repeatedCauses.map(cause=>cause.reasonCode)).size!==repeatedCauses.length ||
       repeatedCauses.reduce((total,cause)=>total+cause.reviewCount,0)>row.causeReviewCount) {
     return {status:"UNAVAILABLE",reasonCode:"QUALITY_REVIEW_SOURCE_INVALID"};
