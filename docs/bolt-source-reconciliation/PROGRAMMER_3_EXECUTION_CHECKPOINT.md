@@ -132,3 +132,38 @@ Documentation commits:
 - **NEXT_ACTION:** Verify Core and P2 CI on this branch after synchronization to latest main `557103c71ffa001e76ab78f75cd3f25a200c173d`; merge the documentation PR only after both reach terminal SUCCESS, then verify the actual merge SHA. Separately obtain an approved non-production Onyx Pro endpoint, credentials and API contract, then run a real provider round-trip with request/response hashes, external IDs, tenant scope, idempotency, timeout/retry, concurrency and failure-state verification. Until an actual provider response is captured, keep external sync labelled NOT_PROVEN. Keep hosted customer/tenant E2E SKIPPED/BLOCKED_EXTERNAL unless its separate authorized credential gate is met.
 - **BLOCKERS:** Missing approved Onyx Pro API contract/credentials; hosted customer/tenant E2E external credential gate. These do not invalidate successful local-Supabase acceptance.
 - **UPDATED_AT:** 2026-10-25 05:10 +03:00.
+
+
+## P3 incremental product-body checkpoint — decision outcome lifecycle controls — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commit:** `ee5bba71952b899c6bb86bad9accec70b785ff9e`  
+**Parent observed before this delivery:** `bb59a109e7bc46138e07149db9d27ac106327df1`
+
+### Delivered on main
+
+- Added `DecisionOutcomeLifecycleControls` and mounted it inside the existing `DecisionMemoryBook` card; no P1 workspace or commerce/admin route was modified.
+- Added legal state-specific commands for proposal submission, approval/rejection, assignment, execution start and execution completion, all through the existing `command_decision_outcome` RPC client.
+- Added server-version display and mandatory reason capture at the UI boundary; the server remains authoritative for transition legality, tenant, permission and immutable audit.
+- Carried the server-returned `ownerProfileId` into the memory read model. Assignment is withheld when the trusted owner ID is absent; it never accepts a free-text identity.
+- Extended the existing command client to accept validated caller-supplied event/idempotency UUIDs. The UI retains the same IDs and frozen payload after an ambiguous unavailable response so the user can retry the exact command without issuing a second logical event.
+- Kept measurement unavailable from this UI until an actual source-backed measurement proof is supplied. No manual amount, scenario output or what-if result is promoted to an operational outcome.
+- The component is re-exported from the intelligence component barrel for reuse without editing `IntelligenceWorkspace.tsx`.
+
+### Exact changed files
+
+- `src/components/intelligence/DecisionOutcomeLifecycleControls.tsx` (new)
+- `src/components/intelligence/DecisionMemoryBook.tsx`
+- `src/components/intelligence/index.ts`
+- `src/lib/intelligence/decision-memory.ts`
+- `src/lib/intelligence/decision-outcome-client.ts`
+
+### State and limits
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, lint, typecheck, CI, browser, database migration, Bolt, Preview, Vercel or production action was run for this product-build batch, per the execution constraint. No PASS or runtime proof is claimed.
+- The existing decision-outcome and decision-memory RPC migrations still require the approved non-production database sync/acceptance. Server-side tenant/role denial, stale-version behavior, same-key replay/conflict, and event reload need exact-SHA database acceptance.
+- The actual-measurement transition remains intentionally blocked in the component while the UI has no general verified measurement source; the current cashflow measurement proof is limited to `cashflow.expected_collections`.
+- Existing growth-radar source gaps, Business Health source completeness, shift/process/policy and task-quality migration application remain unchanged and are not marked accepted by this commit.
+
+**Next P3 action:** resume from the latest `main` SHA; close another independent source-backed Section 57/52 gap only where a current RPC and evidence contract already exist, otherwise retain the explicit withheld state for Bolt/source dependencies.

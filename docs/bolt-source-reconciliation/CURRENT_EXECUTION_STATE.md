@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 product-body update — decision outcome lifecycle controls — 2026-11-06
+
+- Code is committed on `main`: `ee5bba71952b899c6bb86bad9accec70b785ff9e` (parent `bb59a109e7bc46138e07149db9d27ac106327df1`). It adds state-specific decision lifecycle controls inside the existing Decision Memory Book, stable caller-supplied event/idempotency IDs for ambiguous retries, and the trusted owner profile ID in the memory DTO.
+- The UI can submit for review, approve/reject with a reason, assign only to the trusted owner already returned by the server, start execution and record completion; it does not post financial or stock mutations.
+- Measurement stays withheld until a verified, source-backed proof is available. The existing cashflow measurement contract is narrow and is not generalized by user-entered values.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/database/Bolt/Preview/Vercel/production verification was run in this body-only batch.
+- Do not infer 95% closure from this commit: the weighted remaining P3 requirement denominator is not yet computed, and multiple source/Bolt-owned gaps remain open.
+
 ## P3 body update — 2026-11-06
 
 - P3 latest code-bearing delivery is `eabde4b160cab74b1856ca80a178e88968fc5dc0`; the latest P3 checkpoint refresh immediately before this state refresh is commit `b6f4e7d6ec413b3e0a091b94d9d5e93c2d630fde`.
