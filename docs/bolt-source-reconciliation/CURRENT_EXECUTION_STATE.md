@@ -2918,3 +2918,27 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Acceptance boundary: implementation and regression sources only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
 - NEXT_ACTION_ID: `REF-BUSINESS-HEALTH-MAP-001` — Bolt exact-SHA non-production acceptance for source-aligned decimal/percentage arithmetic, finance authorization, tenant isolation, source completeness and no financial side effects.
 
+
+
+## P3 BUSINESS HEALTH TREND ENGINE — SOURCE POPULATION PARITY — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Starting source head: `b663351e54d8fb7e3b6577f2f04743093a5e27ee`.
+- Exact code/test commit: `cef56b2e730d0e15da458e6933fba22da0a142d8`.
+- Hardened the existing `buildSupplierPayableConcentrationTrend()` in `src/lib/intelligence/supplier-payable-concentration-trend.ts` so its pure engine boundary independently validates both current and baseline snapshots before creating currency maps:
+  - `currencyCount` must reconcile exactly with the currency rows.
+  - Currency codes must be valid and unique; duplicate rows can no longer be silently overwritten by `new Map()`.
+  - Sum of per-currency `sourceEntryCount` must match the snapshot total using BigInt.
+  - Formula ID/version, activity scope, complete aggregation marker and VERIFIED/NEEDS_REVIEW/EMPTY population semantics must reconcile.
+  - Every row's exact cents must satisfy net movement = gross posted payable credits − supplier credit-note debits.
+  - Top-five amount must not exceed gross amount and the percentage must equal the exact PostgreSQL two-decimal rounding of top5/gross.
+  - A malformed current or baseline source returns `NOT_COMPARABLE` with `SUPPLIER_TREND_SOURCE_CONTRACT_INVALID`; no partial or overwritten currency result is produced.
+- The engine reuses `financial-precision.ts`; no duplicate decimal arithmetic implementation was added.
+- Regression source in `src/lib/intelligence/supplier-payable-concentration-trend.test.ts` now covers duplicate currency rows, inconsistent currency count/source-entry totals, one-cent net movement mismatch, one-hundredth percentage-point mismatch, in addition to existing equal-window, as-of, currency-missing and supplier-diversity cases.
+- Exact blobs:
+  - `src/lib/intelligence/supplier-payable-concentration-trend.ts`: `a2364998b9e0a0a041eba21a4f8f09393b605a6a`.
+  - `src/lib/intelligence/supplier-payable-concentration-trend.test.ts`: `1b92c29cff24cdf98bd8580f89adb61a81054dce`.
+- No SQL migration, RPC, accounting entry, payment, supplier balance, purchase order, inventory or external provider behavior changed.
+- Acceptance boundary: code and regression sources only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
+- NEXT_ACTION_ID: `REF-BUSINESS-HEALTH-MAP-001` — exact-SHA Bolt non-production acceptance for current/prior snapshot population parity, per-currency exact cent and percentage arithmetic, same asOf/equal adjacent windows, sample diversity, finance authorization, tenant isolation and no side effects.
+
