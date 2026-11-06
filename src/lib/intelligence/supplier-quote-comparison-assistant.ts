@@ -132,7 +132,7 @@ function supplierQuoteLineTotalMatchesSourceRounding(candidate: Candidate): bool
   ) return false;
 
   const scaledInteger = (value: number, scale: number): bigint | null => {
-    const match = /^(\\d+)(?:\\.(\\d+))?$/.exec(value.toString());
+    const match = /^(\d+)(?:\.(\d+))?$/.exec(value.toString());
     if (!match) return null;
     const fraction = match[2] ?? "";
     if (fraction.length > scale) return null;
