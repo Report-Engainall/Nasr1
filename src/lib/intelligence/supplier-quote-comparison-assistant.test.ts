@@ -74,6 +74,16 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
     expect(result.withheld[0].reason).toBe("LINE_TOTAL_MISMATCH");
   });
 
+  it("withholds historical price movement when one saved quote line total fails source rounding", () => {
+    const result = buildSupplierQuoteComparisonAssistant([
+      quote({ id: "history-valid", supplierId: suppliers[0], supplierName: "مورد أ", number: "OLD",
+        quantity: 1.005, unitCost: 1, lineTotal: 1.01, createdAt: "2026-10-01T09:00:00.000Z" }),
+      quote({ id: "history-invalid", supplierId: suppliers[0], supplierName: "مورد أ", number: "NEW",
+        quantity: 1.005, unitCost: 1, lineTotal: 1.00, createdAt: "2026-11-01T09:00:00.000Z" }),
+    ], "2026-11-06T00:00:00.000Z");
+    expect(result.priceHistory).toHaveLength(0);
+  });
+
   it("keeps the latest offer per supplier so one supplier cannot occupy multiple comparison ranks",()=>{
     const result=buildSupplierQuoteComparisonAssistant([
       quote({id:"q-old",supplierId:suppliers[0],supplierName:"مورد أ",number:"A-old",unitCost:7,updatedAt:"2026-11-01T08:00:00.000Z"}),
