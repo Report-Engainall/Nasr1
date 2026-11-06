@@ -2638,3 +2638,14 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Acceptance boundary: code and regression sources only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
 - NEXT_ACTION_ID: `REF-BUSINESS-HEALTH-MAP-001` — exact-SHA Bolt non-production acceptance for current/prior snapshot population parity, per-currency exact cent and percentage arithmetic, same asOf/equal adjacent windows, sample diversity, finance authorization, tenant isolation and no side effects.
 
+## 2026-11-06 — P1 Cash Opening Balances and Bank Statement Reconciliation — DLV-010-CASH-OPENING-BANK-RECONCILIATION-001
+
+- Direct-main source delivery. New migration `20261106320000_finance_cash_opening_and_bank_reconciliation.sql`; TypeScript client/parser; Arabic finance workspace mounted inside the authenticated GeneralLedgerWorkspace.
+- Opening balance evidence is tenant/account scoped and immutable. Independent reviewer approval requires exact equality with the posted GL account balance through the opening date. No opening journal is invented or posted.
+- Bank statement opening balances must continue an approved previous-day opening or previous VERIFIED statement. Statement lines are append-only and exact-match only to balanced posted GL lines for the same account/currency/period.
+- Reconciliation compares the closing-minus-opening statement movement to all statement lines and to the full posted GL account movement. Unmatched lines or nonzero arithmetic/account movement differences produce NEEDS_REVIEW. No automatic adjustment is created.
+- Ledger-sum SQL correction: `62f4311b3b0001bd6c63f06df244343dbe072f81` counts unmatched GL rows separately while summing all posted GL account rows. Strict parser and test source guard currency/account-kind/period/line-count and side-effect boundaries.
+- Acceptance: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Test source added; test suite NOT RUN. Migration NOT applied in Bolt/Supabase; no runtime PASS or accepted cash balance claimed.
+- Main commits: `e7bdb8578559198e8f7991f7a0844d69bfc37929`, `ad9c9a0a0a037fe30b7211a2c45e765b63cf7478`, `becc7cba5d386285973c301ebb8690a2f5b3cd50`, `03f5fe128df2420223ba25b0fd4697af672ceaa7`, `62f4311b3b0001bd6c63f06df244343dbe072f81`, `e2d14639bbbca85e11473133f8ab57d5ae042e17`, `5d8345ff0bc409ddc088e0ddb8f0344cf5d3a308`.
+- NEXT_ACTION_ID: `DLV-010-CASH-OPENING-BANK-RECONCILIATION-001` — deploy the ordered migrations in non-production and execute the documented DB/browser acceptance matrix before any balance is surfaced.
+
