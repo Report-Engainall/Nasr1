@@ -2194,3 +2194,13 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Combined product and verified customer-retention growth inputs in the existing radar: `79ee40119bd306b29044ca51fe7c1ba167327390`, `a5656010c4f719fc498b70375a00ec4c578bd208`, `4fb9da37286ccd1757a45aacdc1683a5f0b7106f`, `3a3d98a0767345eb7c40c7e8c514bdda141b5f11`; UI coverage/no-false-zero display commits `b367eb50c2cf2f1183f25c60218c1efd966ea74d`, `22cfe6fdcd78f81de65ff8f555734617ea8febac`.
 - Matrix `REF-NL-GROWTH-RADAR-READ-001` update: `71793af7877ecceb0641a0f858a130bfeb130116`; P3 checkpoint: `080319dd2608765853c762363b8cb8929cb5005a`; execution state: `8c4adbb8170e9147adc6be2ebaec0effb6974657`.
 - Migration remains source-only. No tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operation run. No PASS/runtime claim. Quote-to-order and unavailable-product search demand remain unsupported until immutable source links/search events exist. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## 2026-11-06 — REF-BUSINESS-HEALTH-PRODUCT-CONCENTRATION-001 — per-currency invoice-line concentration
+
+- Added `fetch_business_health_product_revenue_concentration(date,date,timestamptz)` in migration `20261106210000_business_health_product_revenue_concentration.sql` (commit `bbd8255bffe167cfa967ed7a4096748bd62a3fe5`). It requires finance authorization and same-tenant active profile. It groups issued/partially_paid/paid invoice lines by currency; subtracts only same-line/same-invoice/same-product/same-tenant posted credit memo subtotals; no currency mixing or financial writes.
+- Incomplete product mapping, mismatched/over-credited memo links, invoices without lines and zero net denominators withhold the concentration ratio. Counter partition and zero-net guards: `cccf643182face731eac3fff115f35b79f5ae7fa`, `841e5d5833ceea93260ec9a3b2acf14a0e3ddb7a`.
+- Strict client commits `c0c3659e705a25ff24e848c818b5ca574f48cf70`, `da0d0dcd6083b7dfac064d6a36dbef402a3d2848`, `0a5969993e5047e501602c22dfa82352e05e59d7`.
+- Existing BusinessHealthMap integration `38ad8b3476f7da603cb251e9c0adad6a620eb50f`, timestamp alignment `279065411c40c83488a760500aade3223226f5e3`; assistant source composer `3a34cd32a77bed51d4cbc0a0ecb1624aaec2146c`; map UI `dc8f0d3936df3f0b60c674bf5ad8486c61c11bfb`.
+- Existing matrix leaves updated at `3e754b58984fddbc546f9a4d3218441253df458d`; P3 checkpoint `103599e30692d6114ec0dc44409807c207bd81ed`; current state appended below.
+- Migration is source-only. No tests/build/CI/browser/DB/Bolt/Preview/Vercel/production acceptance run; no PASS/runtime claim. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
