@@ -306,7 +306,7 @@ export function AdminAuditLog({ initialSearch }: { initialSearch?: string } = {}
     return rows.filter((row) => {
       if (actionFilter !== 'all' && row.action !== actionFilter) return false;
       if (!needle) return true;
-      return [row.action, row.entity_type ?? '', row.entity_id ?? '', row.actor_id ?? '']
+      return [row.id, row.action, row.entity_type ?? '', row.entity_id ?? '', row.actor_id ?? '']
         .some((value) => value.toLocaleLowerCase('ar').includes(needle));
     });
   }, [rows, search, actionFilter]);
