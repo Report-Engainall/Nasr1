@@ -116,11 +116,88 @@ export function BusinessHealthMap({ result = null, state = "ready", onRetry }: B
           <span className="w-full text-xs text-muted-foreground">فترة المصدر: {item.sourcePeriod.from} — {item.sourcePeriod.to}</span>
         </article>) : <p className="text-sm text-muted-foreground">تركيز العملاء غير متاح من مصدر مكتمل.</p>}
       </section>
+      <section className="space-y-3">
+        <div>
+          <h3 className="font-semibold">تركيز قيمة سطور الفواتير حسب المنتج والعملة</h3>
+          <p className="text-xs text-muted-foreground">
+            صافي قيمة السطور = قيمة سطور فواتير العملاء الصادرة − الإشعارات الدائنة المنشورة والمرتبطة بسطر الفاتورة نفسه.
+            كل عملة مستقلة؛ هذا ليس ربحاً صافياً ولا إجمالي المقبوضات، ولا يضم الضرائب أو التحصيلات.
+          </p>
+        </div>
+        {result.productRevenueConcentration ? <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              الفترة {result.productRevenueConcentration.period.from} — {result.productRevenueConcentration.period.to}
+              · كما في {new Date(result.productRevenueConcentration.asOf).toLocaleString("ar-YE")}
+            </span>
+            <EvidenceStatusLabel status={
+              result.productRevenueConcentration.status === "VERIFIED" ? "VERIFIED" :
+              result.productRevenueConcentration.status === "EMPTY" ? "UNAVAILABLE" : "NEEDS_REVIEW"
+            } />
+          </div>
+          {result.productRevenueConcentration.status === "EMPTY" ?
+            <p role="status" className="rounded-lg border p-3 text-sm">لا توجد فواتير صادرة ضمن الفترة المختارة؛ لذلك لا يوجد مجتمع قيمة سطور لحساب التركّز.</p> : null}
+          {result.productRevenueConcentration.currencies.length ?
+            <div className="grid gap-3 xl:grid-cols-2">
+              {result.productRevenueConcentration.currencies.map(item=><article key={item.currency} className="space-y-2 rounded-lg border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong>{item.currency}</strong>
+                  <EvidenceStatusLabel status={item.status === "VERIFIED" ? "VERIFIED" : "NEEDS_REVIEW"} />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-md bg-muted/30 p-2">
+                    <p className="text-xs text-muted-foreground">إجمالي قيمة سطور الفواتير</p>
+                    <strong>{money(item.grossInvoiceLineAmount,item.currency)}</strong>
+                  </div>
+                  <div className="rounded-md bg-muted/30 p-2">
+                    <p className="text-xs text-muted-foreground">صافي قيمة السطور بعد الإشعارات الدائنة</p>
+                    <strong>{money(item.netInvoiceLineAmount,item.currency)}</strong>
+                  </div>
+                  <div className="rounded-md bg-muted/30 p-2">
+                    <p className="text-xs text-muted-foreground">قيمة أعلى خمسة منتجات</p>
+                    <strong>{money(item.top5NetInvoiceLineAmount,item.currency)}</strong>
+                  </div>
+                  <div className="rounded-md bg-muted/30 p-2">
+                    <p className="text-xs text-muted-foreground">تركيز أعلى خمسة منتجات</p>
+                    <strong>{item.top5ConcentrationPercent===null?"غير متاح":formatEvidenceNumber(item.top5ConcentrationPercent)+"%"}</strong>
+                  </div>
+                </div>
+                <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
+                  <span>الفواتير: {formatEvidenceNumber(item.invoiceCount)}</span>
+                  <span>سطور الفواتير: {formatEvidenceNumber(item.invoiceLineCount)}</span>
+                  <span>المنتجات المرتبطة: {formatEvidenceNumber(item.productCount)}</span>
+                  <span>سطور مربوطة: {formatEvidenceNumber(item.mappedLineCount)}</span>
+                  <span>سطور محجوبة: {formatEvidenceNumber(item.unmappedLineCount)}</span>
+                  <span>تعارضات إشعار دائن: {formatEvidenceNumber(item.invalidCreditLineCount)}</span>
+                  <span>فواتير بلا سطور: {formatEvidenceNumber(item.invoicesWithoutLines)}</span>
+                </div>
+                {item.status!=="VERIFIED"?<p role="status" className="text-xs text-muted-foreground">
+                  حُجبت نسبة التركّز وصافي القيمة لهذه العملة لأن بعض سطور الفواتير لا تملك منتجاً موثوقاً أو لأن ربط الإشعار الدائن غير مكتمل؛ لم تُقدّر القيم الناقصة.
+                </p>:null}
+              </article>)}
+            </div>
+          :null}
+          <p className="text-xs text-muted-foreground">{result.productRevenueConcentration.formulaDescription}</p>
+        </> : <div role="status" className="rounded-lg border p-3 text-sm">
+          <strong>مصدر تركّز قيمة الفواتير غير متاح لهذه اللقطة.</strong>
+          <p className="mt-1 text-xs text-muted-foreground">
+            لا تعرض الخريطة أصفاراً بديلة أو نسباً تقديرية. قد تتطلب القراءة صلاحية مالية أو تطبيق ترحيل المصدر في قاعدة البيانات.
+          </p>
+        </div>}
+      </section>
       <section className="space-y-2">
         <h3 className="font-semibold">مؤشرات لا يمكن حسابها بالمدخلات الحالية</h3>
         {Object.entries(result.calculations).map(([key,item]) => <article key={key} className="rounded-lg border p-3 text-sm">
-          <h4 className="font-semibold">{key}</h4><p>{item.reason}</p>
-          <p className="text-xs text-muted-foreground">المدخلات المطلوبة: {item.missingInputs.join("، ")}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-semibold">{key}</h4>
+            <span className="text-xs">{item.status==="VERIFIED"?"محسوب بأدلة مكتملة":
+              item.status==="PARTIAL"?"جزئي":
+              item.status==="NEEDS_REVIEW"?"يحتاج مراجعة":
+              item.status==="EMPTY"?"لا توجد سجلات":
+              "غير قابل للحساب"}</span>
+          </div>
+          <p>{item.reason}</p>
+          {item.missingInputs.length?<p className="text-xs text-muted-foreground">المدخلات المطلوبة/المحجوبة: {item.missingInputs.join("، ")}</p>:null}
         </article>)}
       </section>
       <section className="space-y-2">
