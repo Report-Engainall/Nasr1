@@ -906,3 +906,42 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. This checkpoint records sour
 - No 95% completion percentage is claimed: the weighted remaining P3 denominator across all sections was not reconciled against a canonical weighted acceptance matrix during this implementation pass.
 
 Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; hosted acceptance remains pending.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DECISION-PRECEDENT-SEARCH-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main source head before this checkpoint append: `eefa523f01fdcfb2ba9a09c43470ca1f1d149e6e`.
+- Canonical requirement: merchant-intelligence Section 52 — search prior similar decisions and show their context and changed conditions, while preserving historical evidence and preventing an old precedent from becoming a blind rule.
+
+### Implemented on main
+
+1. Added `searchSimilarDecisionMemory()` to `src/lib/intelligence/decision-memory.ts`.
+   - Deterministic Arabic-normalized token matching across saved decision context, evidence-backed facts, opinions/hypotheses, alternatives, action and lessons.
+   - Ranks same-rule precedents first, then shared-context matches; excludes the selected decision itself and all decisions created later.
+   - Compares actual outcome metric context by metric key, unit, currency, UOM, exact period, formula ID and formula version. Returns `COMPARABLE`, `NOT_COMPARABLE`, or `OUTCOME_UNVERIFIED`; it does not invent a score, probability or causal claim.
+   - Search is read-only and limited to records supplied by the already-authorized source; no new RPC, provider, dependency or table was added.
+   - Commit: `6a118fba165848b78cdf7eef26680622c0e8ec85`; blob: `f2a87c0c7fa376ee538dfedfed6908f589ae557b`.
+
+2. Added the Arabic search and context-comparison surface to the existing `DecisionMemoryBook`.
+   - Selects a loaded reference decision, allows bounded extra search terms, shows older matches with recorded problem/action/lessons and expected/actual metric snapshots, and explains context differences.
+   - Explicitly warns when the source is paginated; absence of a result is not treated as proof that no older precedent exists.
+   - No P1 route/workspace or P2 source/client file was modified.
+   - Commit: `489b76fa0608699b14726d39cecba57526c1a60c`; blob: `adde0b6450518565a54f9fb3d2732672b24b8022`.
+
+3. Added focused source tests in `src/lib/intelligence/decision-memory-search.test.ts`.
+   - Covers earlier-only results, Arabic context matches, same-rule ranking, period/currency/formula incompatibility, absent actual evidence and bounded input.
+   - Commit: `6ab23d33663cd263711f321def900da8b20082d4`; blob: `36f6c35e04b58cea1915dfe1ffb555451d50e2ff`.
+   - Tests were authored but NOT run.
+
+### Acceptance and remaining limits
+
+- Central row `REF-DECISION-MEMORY-BOOK-001` updated in the existing acceptance matrix; documentation commit `eefa523f01fdcfb2ba9a09c43470ca1f1d149e6e`.
+- The search sees only the supplied decision page, currently capped by the existing caller at 100 records. A backend-authorized bounded search/pagination contract is still needed for complete historical retrieval; until then, the UI labels the scope explicitly.
+- No tests, build, lint, typecheck, CI, browser, database, Bolt, Preview, Vercel or production operation was executed. No PASS, runtime proof or production readiness is claimed.
+- Decision-memory and defer/resume migrations remain source-only pending the authorized non-production database workflow.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-003`: continue the next source-backed Section 52–63 gap after precedent search. Preserve the page-scope disclosure; do not silently claim complete history until the read API supplies a tenant-authorized bounded search contract.
