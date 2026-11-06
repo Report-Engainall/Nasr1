@@ -78,17 +78,19 @@ export function CashAccountReconciliationWorkspace() {
   );
   const selectedStatement = workspace?.statements.find((item) => item.id === selectedStatementId) ?? null;
 
-  async function perform(action: () => Promise<void>, success: string) {
+  async function perform(action: () => Promise<void>, success: string | ((result: unknown) => string)) {
     if (busy) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await action();
+      const result = await action();
       await refresh();
-      setNotice(success);
+      setNotice(typeof success === "function" ? success(result) : success);
+      return result;
     } catch (cause) {
       setError(errorMessage(cause));
+      throw cause;
     } finally {
       setBusy(false);
     }
@@ -193,13 +195,10 @@ export function CashAccountReconciliationWorkspace() {
   async function finalizeStatement(statementId: string) {
     const reason = window.prompt("ملاحظة المراجعة وسبب إقفال محاولة المطابقة");
     if (!reason || reason.trim().length < 3) return;
-    await perform(async () => {
-      const result = await finalizeBankStatementReconciliation({ statementId, reason: reason.trim() });
-      const outcome = result.outcome === "VERIFIED" ? "VERIFIED" : "NEEDS_REVIEW";
-      setNotice(outcome === "VERIFIED"
+    await perform(async () => await finalizeBankStatementReconciliation({ statementId, reason: reason.trim() }),
+      (result) => result && typeof result === "object" && "outcome" in result && result.outcome === "VERIFIED"
         ? "اكتملت المطابقة: رصيد الإقفال يساوي رصيد الافتتاح والحركات، وكل حركات الكشف ودفتر الأستاذ متطابقة."
         : "سُجلت نتيجة NEEDS_REVIEW مع فروق الكشف والأستاذ والسطور غير المطابقة؛ لم يُعتمد الرصيد.");
-    }, "تم تسجيل نتيجة المطابقة.");
   }
 
   const evidenceLabel = (item: CashAccountEvidence) => item.fileName + " · " + item.evidenceKind + " · " + item.createdAt.slice(0, 10);
