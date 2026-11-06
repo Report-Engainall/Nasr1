@@ -1,7 +1,10 @@
 import { supabase } from "@/lib/supabase";
 
+export type CustomerAccountStatus = "pending" | "approved" | "rejected" | "frozen" | "blocked" | "archived";
+
 export type CustomerAccountProfile = {
   customer_code: string;
+  status: CustomerAccountStatus;
   business_name: string;
   contact_name: string | null;
   phone: string | null;
@@ -23,6 +26,8 @@ function parseCustomerAccountProfile(value: unknown): CustomerAccountProfile {
   const row = value as Record<string, unknown>;
   if (
     typeof row.customer_code !== "string" ||
+    typeof row.status !== "string" ||
+    !["pending", "approved", "rejected", "frozen", "blocked", "archived"].includes(row.status) ||
     typeof row.business_name !== "string" ||
     !(row.contact_name === null || typeof row.contact_name === "string") ||
     !(row.phone === null || typeof row.phone === "string") ||
@@ -34,6 +39,7 @@ function parseCustomerAccountProfile(value: unknown): CustomerAccountProfile {
   }
   return {
     customer_code: row.customer_code,
+    status: row.status as CustomerAccountStatus,
     business_name: row.business_name,
     contact_name: row.contact_name,
     phone: row.phone,

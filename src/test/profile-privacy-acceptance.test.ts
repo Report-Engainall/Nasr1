@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 const profileClient = read("src/lib/customer-account-profile.ts");
+const profileSql = read("supabase/migrations/20261106210100_customer_account_profile_command.sql");
 const profilePage = read("src/routes/profile.tsx");
 const preferenceUi = read("src/components/AccountPersonalizationSettings.tsx");
 const preferenceSql = read("supabase/migrations/20261107000000_profile_personalization_preferences.sql");
@@ -20,6 +21,12 @@ describe("P1 account profile and notification consent boundaries", () => {
     expect(profileClient).not.toContain("unit_price");
     expect(profileClient).not.toContain("credit_limit");
     expect(profileClient).not.toContain("organization_id");
+    expect(profileSql).toContain("'status', v_customer.status");
+    expect(profileClient).toContain("status: row.status as CustomerAccountStatus");
+    expect(profilePage).toContain("حالة اعتماد حساب العميل");
+    expect(profilePage).toContain("بانتظار موافقة الإدارة");
+    expect(profilePage).toContain('to: "/help"');
+    expect(profilePage).toContain('title: "مركز المساعدة"');
   });
 
   it("keeps external delivery disabled until destination-scoped explicit consent and a provider path exist", () => {

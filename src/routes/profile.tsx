@@ -1,6 +1,6 @@
 import { ClientOnly, Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Bell, Building2, FileText, KeyRound, LogOut, MapPin, Package, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
+import { ArrowLeft, Bell, Building2, FileText, Headphones, KeyRound, LogOut, MapPin, Package, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
 import { Login } from "@/components/Login";
 import { AccountPersonalizationSettings } from "@/components/AccountPersonalizationSettings";
 import { useAuth } from "@/lib/auth";
@@ -20,6 +20,15 @@ export const Route = createFileRoute("/profile")({
     </ClientOnly>
   ),
 });
+
+const customerApprovalLabels: Record<CustomerAccountProfile["status"], string> = {
+  pending: "بانتظار موافقة الإدارة",
+  approved: "الحساب معتمد",
+  rejected: "طلب الحساب مرفوض",
+  frozen: "الحساب مجمّد",
+  blocked: "الحساب محظور",
+  archived: "الحساب مؤرشف",
+};
 
 const roleLabels: Record<string, string> = {
   admin: "مدير النظام",
@@ -121,6 +130,21 @@ function CustomerAccountProfileEditor() {
         </div>
         {profile?.customer_code ? <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground">رقم العميل: {profile.customer_code}</span> : null}
       </div>
+      {profile ? (
+        <div className="mt-3 rounded-lg border p-3" aria-label="حالة اعتماد حساب العميل">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground">حالة اعتماد الحساب</span>
+            <strong className="text-sm">{customerApprovalLabels[profile.status]}</strong>
+          </div>
+          {profile.status === "pending" ? (
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">طلب حسابك قيد انتظار مراجعة الإدارة واعتمادها. لا يمكن للعميل اعتماد الحساب أو تغيير هذه الحالة من صفحة الملف الشخصي.</p>
+          ) : profile.status === "rejected" ? (
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">لم يُعتمد طلب الحساب. تواصل مع إدارة المتجر لمراجعة الطلب؛ لا يمكن إعادة تفعيله من هذه الشاشة.</p>
+          ) : profile.status === "frozen" || profile.status === "blocked" ? (
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">الوصول التشغيلي للحساب مقيّد بقرار الإدارة. راجع إدارة المتجر لمعرفة الإجراء المسموح.</p>
+          ) : null}
+        </div>
+      ) : null}
       {loading ? <p role="status" className="mt-3 text-sm text-muted-foreground">جار تحميل بيانات الشركة...</p> : null}
       {error ? <p role="alert" className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
       {notice ? <p role="status" className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p> : null}
@@ -216,6 +240,7 @@ export function CustomerAccountProfilePage() {
         { to: "/statement", title: "كشف الحساب", description: "الأرصدة والفواتير والمدفوعات حسب العملة", icon: FileText },
         { to: "/addresses", title: "عناوين التوصيل", description: "إدارة عناوين حسابك", icon: MapPin },
         { to: "/notifications", title: "التنبيهات", description: "تحديثات الطلبات وخدمة العملاء", icon: Bell },
+        { to: "/help", title: "مركز المساعدة", description: "إرشادات الحساب والطلبات والتوصيل وخدمة العملاء", icon: Headphones },
         { to: "/company/contacts", title: "جهات اتصال الشركة", description: "إدارة جهات الاتصال التشغيلية", icon: Building2 },
         { to: "/account/password", title: "كلمة المرور", description: "تحديث كلمة مرور الحساب الحالي", icon: KeyRound },
       ];

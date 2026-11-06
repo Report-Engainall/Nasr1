@@ -29,6 +29,19 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api", () => ({
   fetchStaffCustomer360Summary: mocks.fetchSummary,
   fetchOperationalTaskAssignees: mocks.fetchOperationalTaskAssignees,
+  fetchCustomerInteractions: vi.fn(async () => []),
+  recordCustomerInteraction: vi.fn(async () => undefined),
+  manageCustomerInteractionFollowUp: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/lib/customer-service-cases", () => ({
+  createCustomerServiceCase: vi.fn(),
+  fetchCustomerServiceCases: vi.fn(async () => []),
+  fetchCustomerServiceSlaPolicies: vi.fn(async () => []),
+  manageCustomerServiceCaseOperations: vi.fn(),
+  randomCaseRequestKey: vi.fn(() => "customer_case_test_idempotency_key"),
+  setCustomerServiceSlaPolicy: vi.fn(),
+  updateCustomerServiceCase: vi.fn(),
 }));
 
 vi.mock("@/lib/customer-retention-client", () => ({
@@ -151,6 +164,7 @@ describe("Admin Customer 360 source-lineage display", () => {
     mocks.scopedCustomerId = "customer-360-1";
     mocks.fetchSummary.mockReset().mockResolvedValue(summary);
     mocks.fetchRetention.mockReset().mockRejectedValue(new Error("synthetic retention-source failure"));
+    mocks.fetchOperationalTaskAssignees.mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => {

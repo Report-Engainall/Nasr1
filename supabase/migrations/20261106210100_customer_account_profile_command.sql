@@ -37,6 +37,7 @@ BEGIN
     'contact_name', v_customer.contact_name,
     'phone', v_customer.phone,
     'email', v_customer.email,
+    'status', v_customer.status,
     'updated_at', v_customer.updated_at
   );
 END;
