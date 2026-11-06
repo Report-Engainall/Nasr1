@@ -2123,3 +2123,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Labels preserve source semantics and do not infer employee error or missing inventory. Existing supplier comparison matrix leaf updated in place.
 - Source tests authored but NOT RUN; no build/CI/browser/Bolt/DB/Preview/Vercel/production operation; no PASS/runtime claim.
 
+
+
+## 2026-11-06 — REF-DECISION-MEMORY-PAGED-READ-001 — bounded decision-memory pagination
+
+- Main code lineage: `fd8e4f3d5cf35bdcc4ced4e6378913c40414f12d` → `2aa90f254aa4d8b05ad18f4a926a858f4072d492` → `a630a85b813e586f4ecd613c5efb95fe24c8a10b` → `22dd4ed30c4d08e4290d94cc6e6abc1dc2a6343c` → `4763dae8c959efa304f388d1aee52d982c4f8ebb` → `0e436a9734b04e55010915aee266ca3407b9a17b` → `23be2d51ce0c6cab19fad18ff0be16ca058e70b0`.
+- The Arabic decision-memory read now uses the existing authenticated decision RPC page-by-page, 100 records per page, bounded to 5,100. It requires stable source total, exact page counts, unique IDs and an unchanged first-page fingerprint. Inconsistent pages and source totals above the bound remain PARTIAL.
+- The memory engine preserves PARTIAL when source coverage is uncertain. DecisionMemoryBook renders 25 cards per page while its precedent engine sees the full loaded bounded set.
+- Matrix update: `4805bff266e815cf6335d31694af25bc3ae7610c`. P3 checkpoint: `3633af43382ec91a9e98ec08960ad317d530de23`. Current execution state: `bb150804206119d42d29dc53d5f0baafcf3d0745`.
+- No tests or runtime acceptance were run. No migration/RPC/schema, P1 shell/workspace, P2 persistence, provider, Vercel, hosted DB or production operation was changed. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
