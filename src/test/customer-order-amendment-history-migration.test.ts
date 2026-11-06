@@ -52,7 +52,10 @@ describe("customer order amendment version history", () => {
       "'previous_quantity', s.previous_quantity",
       "'proposed_quantity', s.proposed_quantity",
       "'review_note', a.review_note",
+      "'changed_by', actor.full_name",
+      "'reason', h.notes",
     ]) expect(historyMigration).toContain(field);
+    expect(historyMigration).toMatch(/h\.to_status = 'returned_for_adjustment'/);
     expect(historyMigration).toMatch(/GRANT EXECUTE ON FUNCTION public\.list_customer_order_amendment_history\(uuid\) TO authenticated/i);
   });
 });
