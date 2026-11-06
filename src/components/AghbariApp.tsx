@@ -41,6 +41,7 @@ import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { CustomerServiceDesk } from '@/components/CustomerServiceDesk';
 import { CustomerActivationInvitationDialog } from '@/components/CustomerActivationInvitationDialog';
+import type { CustomerActivationCandidate } from '@/components/CustomerActivationInvitationDialog';
 import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
 import { DeviceManagement } from '@/components/DeviceManagement';
 import { TaskCenter } from '@/components/TaskCenter';
@@ -1567,7 +1568,7 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
   const [reloadKey, setReloadKey] = useState(0);
   const [modal, setModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
+  const [activationCustomer, setActivationCustomer] = useState<CustomerActivationCandidate | null>(null);
   const [tierCustomer, setTierCustomer] = useState<Customer | null>(null);
   const [statusCustomer, setStatusCustomer] = useState<Customer | null>(null);
   const requestIdRef = useRef(0);

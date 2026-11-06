@@ -80,7 +80,7 @@ export function evaluateCanonicalCapability(input:{snapshot:CanonicalRbacSnapsho
   const e=evidence.get(id);return Boolean(e&&e.status==="VERIFIED"&&e.completeness==="COMPLETE"&&e.quality==="ACCEPTABLE"&&e.asOf===input.snapshot.asOf);
  });
  const status:EvidenceStatus=input.snapshot.status==="UNVERIFIED"?"UNVERIFIED":input.snapshot.status==="VERIFIED"&&validEvidence&&role?"VERIFIED":"NEEDS_REVIEW";
- if(status!=="VERIFIED")return {allowed:false,status,capabilityId:input.capabilityId,actorRole:input.snapshot.actorRole,reason:"CATALOG_NOT_VERIFIED",sourceVersion:role?.sourceVersion??null};
+ if(status!=="VERIFIED" || !role)return {allowed:false,status,capabilityId:input.capabilityId,actorRole:input.snapshot.actorRole,reason:"CATALOG_NOT_VERIFIED",sourceVersion:role?.sourceVersion??null};
  if(!input.capabilityId.trim())return {allowed:false,status,capabilityId:input.capabilityId,actorRole:input.snapshot.actorRole,reason:"CAPABILITY_UNKNOWN",sourceVersion:role.sourceVersion};
  if(!role.capabilityIds.includes(input.capabilityId))return {allowed:false,status,capabilityId:input.capabilityId,actorRole:input.snapshot.actorRole,reason:"CAPABILITY_NOT_GRANTED",sourceVersion:role.sourceVersion};
  const allowed=input.snapshot.actorCapabilities.includes(input.capabilityId);

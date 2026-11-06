@@ -78,6 +78,7 @@ export async function fetchProductPerformanceGrowthContext(
     if (error) return mapFailure(error);
 
     const raw = object(data);
+    const sourceTables = raw?.sourceTables;
     const currentPeriod = period(raw?.period);
     const baselinePeriod = period(raw?.baselinePeriod);
     if (!raw || !currentPeriod || !baselinePeriod || !timestamp(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(asOf) ||
@@ -86,9 +87,9 @@ export async function fetchProductPerformanceGrowthContext(
         typeof raw.completePopulation !== "boolean" || !Array.isArray(raw.products) ||
         raw.products.length > 2000 || raw.returnedCount !== raw.products.length ||
         raw.totalCount < raw.returnedCount || raw.uncomparableUnitCount > raw.totalCount ||
-        !Array.isArray(raw.sourceTables) ||
-        raw.sourceTables.length !== 3 ||
-        !["orders","order_items","products"].every(table => raw.sourceTables.includes(table)) ||
+        !Array.isArray(sourceTables) ||
+        sourceTables.length !== 3 ||
+        !["orders","order_items","products"].every(table => sourceTables.includes(table)) ||
         raw.returnedCount !== Math.min(raw.totalCount,2000) ||
         !["EMPTY","VERIFIED","PARTIAL"].includes(String(raw.status)) || raw.sideEffects !== "NONE") {
       return { ok: false, status: "ERROR", message: "استجابة أداء المنتجات ناقصة أو لا تطابق عقد المصدر؛ حُجبت الإشارات." };

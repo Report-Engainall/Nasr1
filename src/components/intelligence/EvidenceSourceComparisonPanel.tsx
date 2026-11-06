@@ -1,7 +1,7 @@
 import type {
   EvidenceSourceComparison,
   EvidenceSourceComparisonReason,
-  EvidenceSourceComparisonSide,
+  EvidenceMetricComparisonSide,
 } from "@/lib/intelligence/evidence-source-comparison";
 
 export type EvidenceSourceComparisonPanelState =
@@ -32,6 +32,7 @@ const reasonLabels: Record<EvidenceSourceComparisonReason, string> = {
   LEFT_EVIDENCE_NOT_VERIFIED: "أدلة المصدر الأول غير مكتملة أو غير مقبولة.",
   RIGHT_EVIDENCE_NOT_VERIFIED: "أدلة المصدر الثاني غير مكتملة أو غير مقبولة.",
   METRIC_VALUE_NOT_NUMERIC: "إحدى القيم ليست رقماً صالحاً للمقارنة.",
+  METRIC_VALUE_PRECISION_INVALID: "إحدى القيم تتجاوز دقة العملة أو تحتوي على كسور غير مقبولة.",
   METRIC_VALUE_OUT_OF_RANGE: "إحدى القيم تتجاوز الحدود الرقمية الآمنة.",
   ZERO_BASELINE_PERCENT_UNDEFINED: "خط الأساس يساوي صفراً؛ الفرق المطلق متاح لكن النسبة غير معرفة.",
   METRIC_UNIT_MISMATCH: "وحدة المؤشر مختلفة.",
@@ -66,7 +67,7 @@ function SourceSide({
   side,
 }: {
   label: string;
-  side: EvidenceSourceComparisonSide | null;
+  side: EvidenceMetricComparisonSide | null;
 }) {
   if (!side) {
     return (
