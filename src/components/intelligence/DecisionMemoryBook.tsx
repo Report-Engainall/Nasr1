@@ -25,6 +25,11 @@ const missingLabels: Record<DecisionMemoryMissingField,string> = {
   EXPECTED_METRIC:"خط الأساس/الهدف المتوقع",ACTUAL_METRIC:"النتيجة الفعلية ودليلها",LESSONS_REVIEWED:"مراجعة الدروس المستفادة",
 };
 const states={PROPOSED:"مقترح",IN_REVIEW:"قيد المراجعة",APPROVED:"معتمد",REJECTED:"مرفوض",DEFERRED:"مؤجل",ASSIGNED:"مُعيّن",EXECUTING:"قيد التنفيذ",EXECUTED:"بانتظار القياس",MEASURED:"تم القياس"};
+const eventLabels:Record<string,string>={
+  CREATE:"إنشاء المقترح",SUBMIT_FOR_REVIEW:"إرسال للمراجعة",APPROVE:"اعتماد القرار",
+  REJECT:"رفض القرار",DEFER:"تأجيل القرار",RESUBMIT_FOR_REVIEW:"إعادة القرار للمراجعة",
+  ASSIGN:"إسناد المسؤول",START_EXECUTION:"بدء التنفيذ",COMPLETE_EXECUTION:"إكمال التنفيذ",MEASURE:"قياس النتيجة",
+};
 const number=(value:number)=>new Intl.NumberFormat("ar-YE",{maximumFractionDigits:2}).format(value);
 function metricLine(title:string,metric:NonNullable<DecisionMemoryRecord["metricComparison"]["expected"]>){
   return <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{title}</p>
@@ -249,6 +254,15 @@ function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetr
       <p className="text-xs">الحالة: {states[record.state]} · الإصدار: {record.version} · المسؤول: {record.owner}</p>
     </div><span className="text-xs"><EvidenceStatusLabel status={record.memoryStatus==="VERIFIED"?"VERIFIED":record.memoryStatus==="PARTIAL"?"NEEDS_REVIEW":"UNVERIFIED"}/></span></header>
     <DecisionOutcomeLifecycleControls outcomeId={record.decisionId} state={record.state} version={record.version} ownerProfileId={record.ownerProfileId} expectedMetric={record.expectedMetric} onChanged={onRetry}/>
+    {record.events.length?<section className="space-y-2 rounded-lg border p-3">
+      <h4 className="text-sm font-semibold">التاريخ الإلحاقي للقرار ({record.events.length} حدث)</h4>
+      <ol className="space-y-2">
+        {record.events.map(event=><li key={event.id} className="border-s-2 ps-3 text-xs">
+          <p><strong>{eventLabels[event.type]??event.type}</strong> · الإصدار {event.version} · {event.at} · {event.actorRole}</p>
+          <p className="text-muted-foreground">{event.reason ? "السبب: " + event.reason : "لم يسجل سبب لهذا الحدث."}</p>
+        </li>)}
+      </ol>
+    </section>:null}
     {record.problem?<section><h4 className="text-sm font-semibold">المشكلة المسجلة</h4><p className="text-sm">{record.problem}</p></section>:null}
     {record.decisionReason?<section><h4 className="text-sm font-semibold">مبرر القرار — سياق إداري لا يُعامل كحقيقة مستقلة</h4><p className="text-sm">{record.decisionReason}</p></section>:null}
     <div className="grid gap-2 sm:grid-cols-2">
