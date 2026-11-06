@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1/P2 body update — customer-wide paged return history — 2026-11-06
+
+- Added `supabase/migrations/20261106232000_customer_return_history_paged_reader.sql` with `list_my_customer_return_history`: server-derived active customer/org scope, direct customer-only row filtering, strict bounded 1–50 page size, paired `(created_at,id)` cursor, descending keyset page plus one, exact search-wide total, item snapshots and cancellation evidence. Server search covers order/request numbers, status/reason, customer/review/cancellation notes, product snapshots and item code; LIKE wildcards are stripped. Read-only, no business side effects.
+- Added `readCustomerReturnHistoryPage` and related typed contracts to `src/lib/customer-returns.ts`. The parser rejects malformed totals, unsupported page sizes, duplicate IDs, invalid/future timestamps, non-descending rows, and any next cursor not equal to the oldest returned request.
+- Replaced `src/components/CustomerReturnsPage.tsx` per-order (20 orders × multiple RPC calls) fan-out with a single server page read of 50 return requests. Search is server-side across the whole account history; cursor stack powers previous/next; refresh, original-order links, A4 print, strict cancellation readback and cancellation reason/time remain available.
+- Main commits: RPC `022ba07872766be6cf1ff150be641df8cbc6dfba`; typed page parser `7e7e2555b2e4b0506fcdba170f978c42ea14b4d7`; snapshot/cursor hardening `33d8c664f65744e64e4d8dfeb2657a53ee33f758`; page UI `e2b810deb871117b27e0a20142cc58c06369520a`.
+- Added acceptance leaf `DLV-008-CUSTOMER-RETURN-HISTORY-KEYSET-001`. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, typecheck, lint, CI, browser, database migration application, Bolt, Preview or production operation was run. No PASS/runtime claim is made.
+
 ## P1/P2 body update — customer return self-cancellation before review — 2026-11-06
 
 - Added `supabase/migrations/20261106230000_customer_return_request_customer_cancellation.sql`: authenticated approved customer can cancel only their own `submitted` return request. The function locks the request and linked review task; refuses if review has started; atomically marks the request cancelled, stores a 3–500 character reason and timestamp, cancels the pending review task, and records a tenant-scoped audit event. The read RPC returns cancellation evidence and the existing returnable-quantity calculation excludes cancelled requests. No inventory, invoice, credit memo, payment or refund effect.
