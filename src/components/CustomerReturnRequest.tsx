@@ -49,6 +49,76 @@ const statusLabels: Record<string, string> = {
 
 type IdempotentAttempt = { fingerprint: string; key: string };
 
+const RETURN_ATTEMPT_STORAGE_PREFIX = "aghbari:return-attempt:v1:";
+const RETURN_ATTEMPT_KEY_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+
+async function fingerprintReturnAttempt(value: unknown): Promise<string | null> {
+  try {
+    if (typeof globalThis.crypto?.subtle?.digest !== "function") return null;
+    const bytes = new TextEncoder().encode(JSON.stringify(value));
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+}
+
+function readPersistedReturnAttempt(orderId: string, fingerprint: string): IdempotentAttempt | null {
+  try {
+    const raw = window.sessionStorage.getItem(RETURN_ATTEMPT_STORAGE_PREFIX + orderId);
+    if (!raw || raw.length > 512) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const value = parsed as Record<string, unknown>;
+    if (value.fingerprint !== fingerprint || typeof value.key !== "string" ||
+        !RETURN_ATTEMPT_KEY_PATTERN.test(value.key)) return null;
+    return { fingerprint, key: value.key };
+  } catch {
+    return null;
+  }
+}
+
+function persistReturnAttempt(orderId: string, attempt: IdempotentAttempt): void {
+  if (!/^[0-9a-f-]{36}$/i.test(orderId) || !/^[0-9a-f]{64}$/i.test(attempt.fingerprint) ||
+      !RETURN_ATTEMPT_KEY_PATTERN.test(attempt.key)) return;
+  try {
+    window.sessionStorage.setItem(
+      RETURN_ATTEMPT_STORAGE_PREFIX + orderId,
+      JSON.stringify({ fingerprint: attempt.fingerprint, key: attempt.key }),
+    );
+  } catch {
+    // Storage can be disabled or full. The in-memory key still protects retries until reload.
+  }
+}
+
+function clearPersistedReturnAttempt(orderId: string, key?: string): void {
+  try {
+    const storageKey = RETURN_ATTEMPT_STORAGE_PREFIX + orderId;
+    if (key) {
+      const current = readPersistedReturnAttemptByKey(orderId);
+      if (current?.key !== key) return;
+    }
+    window.sessionStorage.removeItem(storageKey);
+  } catch {
+    // The server idempotency contract remains authoritative when browser storage is unavailable.
+  }
+}
+
+function readPersistedReturnAttemptByKey(orderId: string): IdempotentAttempt | null {
+  try {
+    const raw = window.sessionStorage.getItem(RETURN_ATTEMPT_STORAGE_PREFIX + orderId);
+    if (!raw || raw.length > 512) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const value = parsed as Record<string, unknown>;
+    if (typeof value.fingerprint !== "string" || !/^[0-9a-f]{64}$/i.test(value.fingerprint) ||
+        typeof value.key !== "string" || !RETURN_ATTEMPT_KEY_PATTERN.test(value.key)) return null;
+    return { fingerprint: value.fingerprint, key: value.key };
+  } catch {
+    return null;
+  }
+}
+
 export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: string; orderStatus: string }) {
   const [summary, setSummary] = useState<CustomerReturnSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,16 +166,19 @@ export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: strin
       return;
     }
     const trimmedNotes = notes.trim();
-    const fingerprint = JSON.stringify({ orderId, reason, notes: trimmedNotes, lines });
-    if (!attemptRef.current || attemptRef.current.fingerprint !== fingerprint) {
-      attemptRef.current = { fingerprint, key: createReturnIdempotencyKey() };
-    }
+    const payload = { orderId, reason, notes: trimmedNotes, lines };
+    const fingerprint = await fingerprintReturnAttempt(payload);
+    const inMemoryAttempt = attemptRef.current?.fingerprint === (fingerprint ?? JSON.stringify(payload))
+      ? attemptRef.current
+      : null;
+    const persistedAttempt = fingerprint ? readPersistedReturnAttempt(orderId, fingerprint) : null;
+    const attempt = inMemoryAttempt ?? persistedAttempt ?? {
+      fingerprint: fingerprint ?? JSON.stringify(payload),
+      key: createReturnIdempotencyKey(),
+    };
+    attemptRef.current = attempt;
+    if (fingerprint) persistReturnAttempt(orderId, attempt);
 
-    const attempt = attemptRef.current;
-    if (!attempt) {
-      setError("تعذر تأمين مفتاح طلب الإرجاع؛ حاول مرة أخرى.");
-      return;
-    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -124,6 +197,7 @@ export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: strin
         result.request_number + ". سيظهر القرار بعد المراجعة.",
       );
       attemptRef.current = null;
+      clearPersistedReturnAttempt(orderId, attempt.key);
       setDrafts({});
       setReason("");
       setNotes("");
@@ -498,7 +572,9 @@ function CustomerReturnPolicyNote() {
             setReason("");
             setNotes("");
             setError("");
+            const previousKey = attemptRef.current?.key;
             attemptRef.current = null;
+            clearPersistedReturnAttempt(orderId, previousKey);
           }}
         />
       ) : null}
