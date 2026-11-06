@@ -1,4 +1,36 @@
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-031
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-033
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Latest branch SHA at checkpoint: `86cdb16459cb65b28ca88d45749f751e23557fbf`.
+- P1 owns product UI/workspace and workflow integration; P3 retains its intelligence engines, evidence contracts, RPCs and persistence.
+
+## BODY-033 — purchase receipt batch and expiry traceability
+
+- Added `batch_number` and `expiry_date` to saved purchase receipt lines and extended the existing atomic `receive_purchase_order` RPC rather than adding an alternate stock-write path.
+- The existing purchase-order receiving UI now captures supplier batch number and expiry date per received line. The API validates trimmed batch length and strict real ISO calendar dates; an expiry date requires a batch number. The database independently validates both and rejects an already-expired batch from being posted into available stock.
+- The same-tenant manager/admin saved receipt history and print projection now return batch/expiry values. The receipt history UI shows item-level batch and expiry metadata, and saved receipt A4 print includes both columns.
+- The stock movement and aggregate `inventory_balances` update remain in the existing transaction. This delivery stores receipt-line traceability; it does not claim lot-level remaining balance, FEFO/FIFO consumption, or expiry-aware ATP because the current stock reservation/movement model does not supply a lot-allocation ledger.
+- Files: `supabase/migrations/20261106101500_purchase_receipt_batch_expiry_traceability.sql`; `src/lib/api.ts`; `src/components/PurchaseOrdersPage.tsx`; `src/lib/purchase-receipt-print.ts`; `src/components/PurchaseReceiptPrintActions.tsx`.
+- Commits: migration `08bc08660f0e3a2562e6a8c69be10031980a168c`; API `bb59a109e7bc46138e07149db9d27ac106327df1`; PO UI `7e0ba866fa31db066ad0e5141f4adb740aa9d1af`; receipt projection `ccbb65df213520aa28de9f3f06cf8e815873796e`; print/history UI `6e26470b9fc8b9d6d3f6ed87dd12ea1c21aa26a9`; SQL date-pattern correction `86cdb16459cb65b28ca88d45749f751e23557fbf`.
+- Acceptance leaf `DLV-007-PURCHASE-RECEIPT-BATCH-EXPIRY-TRACEABILITY-001`: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. The migration is source-only until Bolt applies it.
+
+## BODY-032 — P3 Task Quality Review Form mount
+
+- Mounted the existing `TaskQualityReviewForm` in each current Task Center card with `key={task.id}`, the real `task.id` and persisted `task.updated_at`, behind the existing manager/admin UI gate. Reuses `loadTasks` after a confirmed save, and remains available for closed tasks.
+- No P3 engine, client, DTO, migration or scorecard logic was modified. P3 remains the owner of review evidence, authorization, idempotency and persistence.
+- P1 UI commit: `4eb080d6ee44a74a36086a6cb9014e8d0fb4004b`. Source state: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; quality migration remains source-only until Bolt applies it.
+
+## Delivery boundary
+
+- No tests, build, lint, CI, Playwright, E2E, database application, Bolt sync, Preview, production or Vercel operation was performed for BODY-032/033. No runtime PASS is claimed.
+- No new package, paid provider, or Vercel credit was used.
+
+## Next P1 action
+Continue the next uncovered non-intelligence product capability. Do not reopen BODY-032/033 absent a reproducible issue. Preserve P3 ownership.
+
+---
+
+# Historical P1 checkpoint — BODY-COMPLETION-ON-MAIN-031
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Latest P1 code delivery: `51daf271923dc89a654b35890b2f2faf3997dbd7`.
