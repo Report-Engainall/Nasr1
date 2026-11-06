@@ -2,8 +2,8 @@
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main` only  
-**Current documentation/source head at this override:** `9b70d56c1502e679698e65e576289dd5b1e9a3a8`  
-**Latest P3 code-bearing commit:** `82899058fac253bdaafe5de4ad754b60e7c637ec`  
+**Current documentation/source head at this override:** `990476392b22f97e68397ce969c2d71dddf0a0f7`  
+**Latest P3 code-bearing commit:** `990476392b22f97e68397ce969c2d71dddf0a0f7`  
 **Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
 **Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
 
@@ -193,4 +193,32 @@ P1 يملك UI؛ P2 backend/data/security؛ P3 intelligence/evidence/release. W0
 - Acceptance boundary: source and tests only. Tests NOT RUN. No build/typecheck/CI/DB/Bolt/browser/Preview/production operation or test PASS is claimed.
 - No AI model training, automatic policy change, pricing change, credit change, stock movement or financial posting was added.
 - NEXT_ACTION_ID: `REF-NL-DECISION-MEMORY-ASSISTANT-001` — exact-SHA acceptance of comparable/non-comparable expected-versus-actual evidence, then continue only with the next source-backed P3 gap.
+
+
+
+## P3 FINANCIAL HARDENING — SECTION 53 SHIFT CASH CENT PRECISION — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Starting source head for this increment: `9591f074d6266a3f2fca626d419bcf99ca9346b5`; the cash-cent implementation was extended on top of the intervening documentation-only main head `c647c6c608d2bfdb0e2595c2cb12a345aa22ff3b`.
+- Source commits:
+  - `2b12c1337f1ae9020dc186896d14611cb32ccc23` — safe two-decimal cent parsing and pre-RPC client validation.
+  - `f2ae87962989fee6fcc9a904234220a6746ac083` — safe integer count parsing and helper/client regression source.
+  - `990476392b22f97e68397ce969c2d71dddf0a0f7` — exact cash-variance classification; a one-cent difference is no longer silently called matched.
+- Hardened the existing Section 53 source in `src/lib/intelligence/shift-operations.ts`:
+  - `isSafeShiftCashAmount()` accepts only finite, non-negative amounts represented at two decimal places whose minor-unit count is a safe integer.
+  - `calculateShiftCashVariance()` computes the difference in integer cents and withholds unsafe/non-cent values.
+  - `classifyShiftCashVariance()` returns MATCHED only for an exact zero-cent difference; +0.01/-0.01 remain VARIANCE, and null/non-finite values are UNKNOWN.
+  - Snapshot count fields use `Number.isSafeInteger` rather than accepting every JavaScript integer representation.
+- Hardened `src/lib/intelligence/shift-operations-client.ts`: `recordOperationalShiftCashCount()` now rejects unsafe/sub-cent input before calling the existing authenticated RPC. Valid exact-cent input is sent unchanged. Server-derived organization/actor authorization, idempotency and append-only cash count contract remain unchanged.
+- Regression source:
+  - `src/lib/intelligence/shift-operations-cash-precision.test.ts` — accepted cent values, negative/non-finite/sub-cent/unsafe values, integer-cent arithmetic, and exact-zero/one-cent classification.
+  - `src/lib/intelligence/shift-operations-client.test.ts` — pre-RPC rejection and unchanged exact-cent RPC payload.
+- Exact final blobs:
+  - `src/lib/intelligence/shift-operations.ts` — `fa1a39894e30a023b9ef03c35acdb00c286aec51`.
+  - `src/lib/intelligence/shift-operations-client.ts` — `f52e925a488b2d2c0471b1bdae55296450aadd4c`.
+  - `src/lib/intelligence/shift-operations-cash-precision.test.ts` — `c4d61543ea2aaa3636fe27dae2ba893074eb7afd`.
+  - `src/lib/intelligence/shift-operations-client.test.ts` — `b02b02d3b1b4a7f9915aeea8cfc8112eff443a7c`.
+- Acceptance boundary: source implementation and regression tests only. Tests NOT RUN. No build, typecheck, CI, browser, database migration apply, Bolt, Preview, Vercel, production database write or live shift/cash operation was run. No PASS/runtime acceptance is claimed.
+- Existing migration `supabase/migrations/20261106010000_intelligence_shift_operations.sql` and the separate incoming-owner lookup migration remain source-only until approved Bolt non-production acceptance. No new SQL migration was added by this increment.
+- NEXT_ACTION_ID: `INT-SHIFT-001` — Bolt non-production: apply existing shift migrations; verify role/tenant scope, same-key replay/conflict, immutable source evidence, per-currency opening/closing counts, exact cent comparison including one-cent variance, append-only corrections, and incoming-owner-only handover acceptance.
 
