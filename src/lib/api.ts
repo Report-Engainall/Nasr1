@@ -1,4 +1,5 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+import { saveAdminCatalogProduct } from './admin-catalog-commands';
 import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
 import { parseStoreProductActivityReport, type StoreProductActivityReport } from './product-activity-report';
 import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './customer-360-summary';
@@ -198,19 +199,39 @@ async function fetchStaffProductById(id: string): Promise<Product> {
 }
 
 export async function createProduct(p: Partial<Product>): Promise<Product> {
-  const { organizationId: orgId } = await getCurrentTenantScope();
-  const productId = typeof p.id === 'string' && p.id ? p.id : crypto.randomUUID();
-  // Only the non-sensitive id is returned by the write. Resolve product fields through the staff-only RPC.
-  const { data: inserted, error } = await supabase
-    .from('products')
-    .insert({ ...p, id: productId, organization_id: orgId })
-    .select('id')
-    .single();
-  if (error) throw error;
-  if (!inserted?.id || inserted.id !== productId) {
-    throw new Error('تعذر تأكيد إنشاء الصنف من قاعدة البيانات.');
+  const prices = [
+    p.base_price,
+    p.price_wholesale_of_wholesale,
+    p.price_wholesale,
+    p.price_retail,
+  ];
+  if (!prices.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+    throw new Error('أدخل السعر الأساسي وأسعار شرائح العملاء الثلاث قبل إنشاء المنتج.');
   }
-  return fetchStaffProductById(inserted.id);
+
+  const saved = await saveAdminCatalogProduct(null, {
+    name: p.name ?? '',
+    item_code: p.item_code ?? '',
+    barcode: p.barcode ?? null,
+    unit: p.unit ?? '',
+    description: p.description ?? null,
+    category_id: p.category_id ?? null,
+    base_price: p.base_price as number,
+    price_wholesale_of_wholesale: p.price_wholesale_of_wholesale as number,
+    price_wholesale: p.price_wholesale as number,
+    price_retail: p.price_retail as number,
+    status: p.is_active === false ? 'inactive' : 'active',
+    name_en: p.name_en ?? null,
+    sku: p.sku ?? null,
+    is_featured: p.is_featured ?? false,
+    sort_order: p.sort_order ?? 0,
+    min_order_quantity: p.min_order_quantity ?? 1,
+    order_quantity_multiple: p.order_quantity_multiple ?? 1,
+  });
+  if (!saved.created) {
+    throw new Error('لم يؤكد الخادم إنشاء المنتج؛ حدّث الكتالوج قبل إعادة المحاولة.');
+  }
+  return fetchStaffProductById(saved.id);
 }
 
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
