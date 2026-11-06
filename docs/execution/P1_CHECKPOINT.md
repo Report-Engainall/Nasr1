@@ -1,3 +1,22 @@
+# P1 SOURCE DELIVERY — 2026-11-06 — SUPPLIER DUE DATE EVIDENCE + CASHFLOW OUTFLOWS
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Parent main SHA: `c27c80caf1f905d4bc346ff8997d27e0396782b0`; code SHA: `2c02290c7ec43c9f9bc7b78a111bcaf174487926`.
+- Added `supabase/migrations/20261106310000_supplier_invoice_due_date_cashflow_outflows.sql`: tenant-scoped, append-only supplier invoice due-date evidence tied to an existing private invoice attachment; exact-payload idempotency; source reference and reason; immutable event/audit history; and a future supplier-payable OUTFLOW read.
+- The due-date command rejects variance-pending/rejected invoices, unresolved non-zero tax, attachment mismatch across invoice/tenant, dates before the invoice, changed idempotency payload and a second different date.
+- The OUTFLOW resolver uses the existing full-history receipt payable source after posted credit notes and posted supplier payments. It requires full received-line coverage by one matched zero-tax invoice with attached due-date evidence, and refuses receipts with unposted/reserved payment allocation. Rejected invoice lines are excluded from receipt coverage.
+- Added authenticated finance service methods and mounted due-date capture in `SupplierInvoiceWorkspace`. The due date is displayed as source evidence; it is never inferred from invoice date or default payment terms.
+- Extended the existing cashflow reader to combine receivables INFLOW with supplier OUTFLOW. Missing/invalid supplier evidence or unresolved open receipts downgrade the schedule to PARTIAL/NEEDS_REVIEW; missing outflows are never zero. Existing opening-balance gate remains.
+- Added tests: `src/lib/supplier-invoice-due-date-client.test.ts`, expanded `src/lib/intelligence/cashflow-schedule-client.test.ts` and `src/components/intelligence/CashflowForecastCard.test.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source and tests committed; tests/build/typecheck/lint/CI/browser/DB/Bolt were NOT run. No runtime PASS claimed.
+- New acceptance leaf: `DLV-010-SUPPLIER-DUE-DATE-CASHFLOW-OUTFLOW-001`.
+
+## Next P1 action
+
+Continue the remaining liquidity source gap: establish a tenant-scoped opening cash/bank balance and statement reconciliation path tied to immutable statement evidence and explicit finance review. Do not derive balances from movements or combine currencies. Keep net/projected balances unavailable until opening balance and reconciliation coverage are verified.
+
+---
+
 # P1 SOURCE DELIVERY — 2026-11-06 — FINANCE / SUPPLIER WORKSPACE MOUNT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.

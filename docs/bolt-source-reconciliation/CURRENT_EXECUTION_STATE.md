@@ -1,4 +1,15 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
+## P1 SOURCE DELIVERY — 2026-11-06 — SUPPLIER DUE DATE EVIDENCE + VERIFIED CASHFLOW OUTFLOWS
+
+- Parent main SHA: `c27c80caf1f905d4bc346ff8997d27e0396782b0`; code SHA: `2c02290c7ec43c9f9bc7b78a111bcaf174487926`.
+- Added `20261106310000_supplier_invoice_due_date_cashflow_outflows.sql`: append-only same-tenant supplier due-date evidence tied to an attached invoice document, source reference/reason, audit event and exact-payload idempotency.
+- Mounted invoice due-date capture on the existing supplier invoice view and added tenant/finance-scoped read/write methods.
+- Supplier cashflow OUTFLOW is derived only from full receipt-line coverage, one matched zero-tax invoice, a saved attachment-backed due date, and receipt payable after posted credits/payments. Unposted payment allocations, rejected/variance invoices and incomplete due-date sources make coverage partial.
+- Existing cashflow client joins OUTFLOW to customer receivables INFLOW only after validating as-of, period, currency and every evidence lineage. Unavailable source is PARTIAL, never zero.
+- Acceptance leaf: `DLV-010-SUPPLIER-DUE-DATE-CASHFLOW-OUTFLOW-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Source and regression tests committed; tests NOT RUN. Migration remains unapplied in Bolt; no DB/browser/runtime PASS claimed.
+- Opening cash/bank balance and bank statement reconciliation remain open. No projected cash balance is manufactured.
+
 ## P1 SOURCE DELIVERY — 2026-11-06 — FINANCE / SUPPLIER WORKSPACE REACHABILITY
 
 - Parent main SHA: `32e0c31aaff5a51a122be31a18dfa8d51ec69822`; code SHA: `afc14bd83b7eaaa18e9736fd0dd18d9d911b6876`.
@@ -74,7 +85,10 @@
 - No Supabase/Bolt database has applied the three order-amendment migrations or the open-PO replenishment migration in this execution. No live order was mutated. Runtime acceptance, Playwright order acceptance and production deployment are not claimed.
 
 ## Next action
-Apply the order amendment migrations `20261106270000`, `20261106280000`, `20261106290000` in sequence; execute end-to-end return → edit → resubmit → reject → resubmit → approve against the deployed schema. Then apply/accept `20261105230000_intelligence_replenishment_open_purchase_orders.sql`. P2 must supply verified opening cash/bank balances, partial allocations/receivables, confirmed supplier liabilities and actual/forecast outflows before net liquidity is exposed. Keep all currencies separate absent approved FX.
+1. Continue the source-body gap for verified opening cash/bank balances and statement reconciliation: attach same-tenant statement evidence, record explicit opening balances with independent finance review, reconcile posted movements, and withhold any unsupported balance. Do not derive balances from period movements or combine currencies.
+2. Apply supplier prerequisites in order (`20261105235000` supplier payment settlement, `20261105240000` supplier invoice matching, `20261105250000` invoice evidence attachments) followed by `20261106310000_supplier_invoice_due_date_cashflow_outflows.sql`; run exact-SHA tests for attachment binding, idempotency, receipt coverage, rejected/variance invoice exclusion, supplier credits/payments, overdue/missing dates, currency separation and merged OUTFLOW.
+3. Preserve the open customer amendment sequence: apply `20261106270000`, `20261106280000`, `20261106290000` in order and accept return → edit → resubmit → reject → resubmit → approve against the deployed schema. Then apply/accept `20261105230000_intelligence_replenishment_open_purchase_orders.sql`.
+4. Keep opening/projected cash unavailable until a verified opening source and reconciled same-currency schedule are proven. Keep currencies separate absent approved FX.
 
 # P1 BODY EXECUTION — 2026-11-06 — CUSTOMER ORDER AMENDMENT VERSIONS / INTELLIGENCE UI RECONCILIATION
 
