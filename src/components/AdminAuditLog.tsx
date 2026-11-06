@@ -239,13 +239,14 @@ function auditLogStatusNote(input: {
     " — الصفحة " + input.page + " من " + input.pageCount;
 }
 
-export function AdminAuditLog() {
+export function AdminAuditLog({ initialSearch }: { initialSearch?: string } = {}) {
   const { user } = useAuth();
   const canReadAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch ?? '');
+  useEffect(() => { if (initialSearch?.trim()) setSearch(initialSearch); }, [initialSearch]);
   const [actionFilter, setActionFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState<number | null>(null);
