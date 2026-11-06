@@ -4,6 +4,7 @@ import {
   type TaskIntelligenceReport,
   type TaskIntelligenceReportKind,
 } from "./task-intelligence-reports";
+import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-client";
 
 export type TaskIntelligenceReportFetchResult =
   | { ok: true; report: TaskIntelligenceReport }
@@ -55,5 +56,10 @@ export async function fetchTaskIntelligenceReport(
       message: "استجابة تقرير المهام ناقصة أو لا تطابق عقد المصدر؛ لم تُنشأ بيانات بديلة.",
     };
   }
-  return { ok: true, report };
+  // The manager-only quality reader is a separate latest-review snapshot,
+  // not part of the report's daily task window.
+  const qualityReviewSnapshot = kind === "MANAGER"
+    ? await fetchOperationalTaskQualityMetrics()
+    : null;
+  return { ok: true, report: { ...report, qualityReviewSnapshot } };
 }
