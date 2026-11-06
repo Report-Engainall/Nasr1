@@ -66,6 +66,25 @@ describe("per-currency liquidity",()=>{
   expect(r.positions[0].completeness).toBe("PARTIAL");
   expect(r.positions[0].warnings).toContain("LIQUIDITY_ARITHMETIC_OVERFLOW");
  });
+ it("retains source, calculation, period and currency provenance for each liquidity indicator",()=>{
+  const cash=metric("cash","cash.available",50,"YER");
+  const collections=metric("collections","receivables.expected",10,"YER");
+  const result=buildLiquiditySnapshot({
+   id:"metric-provenance",generatedAt:asOf,asOf,period,
+   evidenceRecords:[evidence("cash","YER"),evidence("collections","YER")],
+   currencies:[{currency:"YER",availableBalance:cash,expectedCollections:collections,dueObligations:null}],
+  });
+  const position=result.positions[0];
+  expect(position.metricEvidence.find(item=>item.key==="availableBalance")).toMatchObject({
+   metricId:"cash",metricKey:"cash.available",status:"VERIFIED",currency:"YER",sourceCurrency:"YER",
+   sourceAsOf:asOf,sourcePeriod:period,calculatedAt:asOf,formulaId:"cash.available.v1",formulaVersion:"1.0",
+   evidenceIds:["cash"],sources:[{id:"cash",source:{kind:"RPC",name:"finance.tenant_liquidity",version:"v1"},sourceTimestamp:asOf}],
+  });
+  expect(position.metricEvidence.find(item=>item.key==="dueObligations")).toMatchObject({
+   metricId:null,status:"UNAVAILABLE",currency:"YER",evidenceIds:[],sources:[],
+   warnings:["METRIC_NOT_SUPPLIED"],
+  });
+ });
  it("preserves UNVERIFIED severity when a currency position is duplicated",()=>{
   const first=[metric("a1","cash",50,"YER"),metric("b1","collections",10,"YER"),metric("c1","payables",5,"YER")];
   const second=[metric("a2","cash",40,"YER",{status:"UNVERIFIED"}),metric("b2","collections",10,"YER"),metric("c2","payables",5,"YER")];

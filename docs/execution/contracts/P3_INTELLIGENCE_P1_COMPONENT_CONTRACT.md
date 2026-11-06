@@ -24,7 +24,9 @@ Preserves VERIFIED, NEEDS_REVIEW, UNVERIFIED and UNAVAILABLE. Null stays "غير
 - `state?: loading | empty | error | unavailable | ready`
 - `onRetry?: () => void`
 
-Renders one section per currency. Available balance, expected collections, overdue receivables, due obligations and net liquidity retain their source currency and nullable value. Stagnant inventory cost is displayed separately and never subtracted from cash. Aging buckets, formula ID/version, period, as-of, evidence IDs and warnings are retained. The component never combines currencies or performs FX.
+Renders one section per currency. Available balance, expected collections, overdue receivables, due obligations and net liquidity retain their source currency and nullable value. Stagnant inventory cost is displayed separately and never subtracted from cash. Aging buckets, formula ID/version, period, as-of, evidence IDs and warnings are retained. Each input metric now carries its own metricEvidence record (metric ID/key, independent status, source currency/as-of/period, calculatedAt, formula/version, evidence IDs, resolved source kind/name/record/version/timestamp and source warnings); the component exposes this in a per-indicator «مصدر واحتساب المؤشر» disclosure. Missing inputs remain visibly UNAVAILABLE with no synthetic source. The component never combines currencies or performs FX.
+- P1 mount remains in the existing IntelligenceWorkspace; do not add a parallel route or duplicate dashboard.
+- CashflowForecastCard explicitly states that the current data is scheduled customer-invoice receivables, not actual cashbox/bank receipts or movements. The projected closing balance stays unavailable until a verified cash/bank opening balance and complete same-currency schedules arrive.
 
 ## CashflowForecastCard
 - `forecast?: CashflowForecast | null`

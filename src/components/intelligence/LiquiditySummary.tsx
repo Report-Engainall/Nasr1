@@ -1,4 +1,4 @@
-import type { LiquidityPosition, LiquiditySnapshot } from "@/lib/intelligence/liquidity";
+import type { LiquidityMetricEvidence, LiquidityPosition, LiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import {
   EvidenceReferences,
   EvidenceStatusLabel,
@@ -19,24 +19,58 @@ const amount = (value: number | null, currency: string) =>
 
 type LiquidityMetricStatus = LiquidityPosition["status"];
 
+function LiquidityMetricEvidenceDetails({ evidence }: { evidence?: LiquidityMetricEvidence }) {
+  if (!evidence) return null;
+  return (
+    <details className="mt-1 text-xs text-muted-foreground">
+      <summary className="cursor-pointer">مصدر واحتساب المؤشر</summary>
+      <div className="mt-2 space-y-1 rounded-md bg-muted/30 p-2">
+        <p>حالة المصدر: <EvidenceStatusLabel status={evidence.status} /> · العملة المطلوبة: {evidence.currency} · عملة سجل المصدر: {evidence.sourceCurrency ?? "غير متاحة"}</p>
+        <p>وقت احتساب المؤشر: {evidence.calculatedAt ?? "غير متاح"} · تاريخ اللقطة المصدرية: {evidence.sourceAsOf ?? "غير متاح"}</p>
+        <p>فترة المصدر: {evidence.sourcePeriod ? evidence.sourcePeriod.from + " — " + evidence.sourcePeriod.to : "غير محددة"}</p>
+        <p>المعادلة المصدرية: {evidence.formulaId && evidence.formulaVersion ? evidence.formulaId + "@" + evidence.formulaVersion : "غير متاحة"}</p>
+        <p>معرّف القياس: {evidence.metricId ?? "لا يوجد قياس مربوط"}</p>
+        <p>مراجع الإثبات: <EvidenceReferences ids={evidence.evidenceIds} /></p>
+        {evidence.sources.length ? (
+          <ul className="list-disc space-y-1 ps-5">
+            {evidence.sources.map((source) => (
+              <li key={source.id}>
+                {source.source.name} ({source.source.kind})
+                {source.source.recordId ? " · سجل " + source.source.recordId : ""}
+                {source.source.version ? " · إصدار " + source.source.version : ""}
+                {" · وقت المصدر " + source.sourceTimestamp}
+                {" · حالة الدليل "}<EvidenceStatusLabel status={source.status} />
+              </li>
+            ))}
+          </ul>
+        ) : <p>لا يوجد سجل مصدر موثّق مربوط بهذا المؤشر في اللقطة الحالية.</p>}
+        <EvidenceWarnings warnings={evidence.warnings} />
+      </div>
+    </details>
+  );
+}
+
 function LiquidityMetric({
   label,
   value,
   currency,
   status,
   emphasized = false,
+  evidence,
 }: {
   label: string;
   value: number | null;
   currency: string;
   status: LiquidityMetricStatus;
   emphasized?: boolean;
+  evidence?: LiquidityMetricEvidence;
 }) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={emphasized ? "font-semibold" : undefined}>
         {amount(value, currency)} · <EvidenceStatusLabel status={status} />
+        <LiquidityMetricEvidenceDetails evidence={evidence} />
       </dd>
     </div>
   );
@@ -51,6 +85,7 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         currency={position.currency}
         status={position.availableBalanceStatus}
         emphasized
+        evidence={position.metricEvidence.find((item) => item.key === "availableBalance")}
       />
       <LiquidityMetric
         label="التحصيلات المتوقعة"
@@ -58,6 +93,7 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         currency={position.currency}
         status={position.expectedCollectionsStatus}
         emphasized
+        evidence={position.metricEvidence.find((item) => item.key === "expectedCollections")}
       />
       <LiquidityMetric
         label="المبالغ المستحقة"
@@ -65,12 +101,14 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         currency={position.currency}
         status={position.dueObligationsStatus}
         emphasized
+        evidence={position.metricEvidence.find((item) => item.key === "dueObligations")}
       />
       <LiquidityMetric
         label="الذمم المتأخرة"
         value={position.overdueReceivables}
         currency={position.currency}
         status={position.overdueReceivablesStatus}
+        evidence={position.metricEvidence.find((item) => item.key === "overdueReceivables")}
       />
       <LiquidityMetric
         label="صافي السيولة المتاحة"
@@ -78,12 +116,14 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
         currency={position.currency}
         status={position.status}
         emphasized
+        evidence={undefined}
       />
       <LiquidityMetric
         label="تكلفة المخزون الراكد المثبتة (خارج صافي السيولة)"
         value={position.stagnantStockExposure}
         currency={position.currency}
         status={position.stagnantStockExposureStatus}
+        evidence={position.metricEvidence.find((item) => item.key === "stagnantStockCost")}
       />
     </dl>
   );
@@ -92,14 +132,17 @@ function LiquidityMetricsGrid({ position }: { position: LiquidityPosition }) {
 function ReceivableAgingRow({
   bucket,
   currency,
+  evidence,
 }: {
   bucket: LiquidityPosition["receivableAging"][number];
   currency: string;
+  evidence?: LiquidityMetricEvidence;
 }) {
   return (
     <li className="flex justify-between gap-3 text-sm">
       <span>{bucket.bucket}</span>
       <span>{amount(bucket.amount, currency)} · <EvidenceStatusLabel status={bucket.status} /></span>
+      <LiquidityMetricEvidenceDetails evidence={evidence} />
     </li>
   );
 }
@@ -116,6 +159,7 @@ function ReceivableAgingPanel({ position }: { position: LiquidityPosition }) {
             key={bucket.bucket + ":" + index}
             bucket={bucket}
             currency={position.currency}
+            evidence={position.metricEvidence.find((item) => item.key === "receivableAging:" + index)}
           />
         ))}
       </ul>

@@ -8,6 +8,11 @@ export interface LiquidityCurrencyInput {
 }
 export interface BuildLiquidityInput {id:string;generatedAt:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];currencies:LiquidityCurrencyInput[]}
 export interface LiquidityLineage {metricIds:string[];evidenceIds:string[];formulaVersions:string[]}
+export interface LiquidityMetricEvidence {
+ key:string;label:string;metricId:string|null;metricKey:string|null;status:EvidenceStatus;currency:string;
+ sourceCurrency:string|null;sourceAsOf:string|null;sourcePeriod:EvidencePeriod|null;calculatedAt:string|null;
+ formulaId:string|null;formulaVersion:string|null;evidenceIds:string[];sources:EvidenceRecord[];warnings:string[];
+}
 export interface LiquidityPosition {
  currency:string;asOf:string;period:EvidencePeriod;
  /** Status/completeness describe netAvailableLiquidity only; field statuses below govern each component amount. */
@@ -17,7 +22,8 @@ export interface LiquidityPosition {
  overdueReceivables:number|null;overdueReceivablesStatus:EvidenceStatus;
  dueObligations:number|null;dueObligationsStatus:EvidenceStatus;
  netAvailableLiquidity:number|null;stagnantStockExposure:number|null;stagnantStockExposureStatus:EvidenceStatus;
- receivableAging:Array<{bucket:string;amount:number|null;status:EvidenceStatus}>;
+ receivableAging:Array<{bucket:string;amount:number|null;status:EvidenceStatus;warnings:string[]}>;
+ metricEvidence:LiquidityMetricEvidence[];
  formulaId:string;formulaVersion:string;lineage:LiquidityLineage;warnings:string[];
 }
 export interface LiquiditySnapshot {id:string;generatedAt:string;asOf:string;period:EvidencePeriod;positions:LiquidityPosition[];warnings:string[]}
@@ -52,6 +58,33 @@ function allMetricInputs(p:LiquidityCurrencyInput):MetricSnapshot[] {
  return [p.availableBalance,p.expectedCollections,p.dueObligations,p.overdueReceivables,p.stagnantStockCost,...(p.receivableAging??[]).map(x=>x.amount)]
   .filter((metric):metric is MetricSnapshot=>metric!==null&&metric!==undefined);
 }
+function buildMetricEvidence(args:{
+ key:string;label:string;metric:MetricSnapshot|null|undefined;status:EvidenceStatus;warnings:string[];
+ currency:string;index:Map<string,MetricSnapshot>;evidenceRecords:EvidenceRecord[];evidenceCounts:Map<string,number>;
+}):LiquidityMetricEvidence {
+ const {key,label,metric,status,warnings,currency,index,evidenceRecords,evidenceCounts}=args;
+ if(!metric)return {
+  key,label,metricId:null,metricKey:null,status,currency,sourceCurrency:null,sourceAsOf:null,sourcePeriod:null,
+  calculatedAt:null,formulaId:null,formulaVersion:null,evidenceIds:[],sources:[],
+  warnings:[...new Set(warnings)],
+ };
+ const sourceMetric=index.get(metric.id)??metric;
+ const evidenceIds=[...new Set(sourceMetric.lineage?.evidenceIds??[])];
+ const sources=evidenceIds.flatMap(id=>{
+  if(evidenceCounts.get(id)!==1)return [];
+  const record=evidenceRecords.find(item=>item.id===id);
+  return record?[record]:[];
+ });
+ const unresolved=evidenceIds.some(id=>evidenceCounts.get(id)!==1);
+ return {
+  key,label,metricId:sourceMetric.id,metricKey:sourceMetric.key,status,currency,
+  sourceCurrency:sourceMetric.currency??null,sourceAsOf:sourceMetric.asOf??null,
+  sourcePeriod:sourceMetric.period??null,calculatedAt:sourceMetric.lineage?.calculatedAt??null,
+  formulaId:sourceMetric.lineage?.formulaId??null,formulaVersion:sourceMetric.lineage?.formulaVersion??null,
+  evidenceIds,sources,
+  warnings:[...new Set([...warnings,...(sourceMetric.warnings??[]),...(unresolved?["SOURCE_EVIDENCE_REFERENCE_UNRESOLVED_OR_AMBIGUOUS"]:[])])],
+ };
+}
 /** Computes reconciled liquidity independently by currency; this engine contains no FX conversion. */
 export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnapshot {
  if(!Number.isFinite(Date.parse(input.generatedAt))||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
@@ -59,6 +92,7 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
  const passport=buildEvidencePassport({id:"liquidity:"+input.asOf,generatedAt:input.generatedAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:all});
  const idCounts=new Map<string,number>();for(const m of passport.metrics)idCounts.set(m.id,(idCounts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(idCounts.get(m.id)===1)index.set(m.id,m);
+ const evidenceCounts=new Map<string,number>();for(const record of input.evidenceRecords)evidenceCounts.set(record.id,(evidenceCounts.get(record.id)??0)+1);
  const currencyCounts=new Map<string,number>();for(const p of input.currencies)currencyCounts.set(p.currency,(currencyCounts.get(p.currency)??0)+1);
  const warnings:string[]=[];
  const positions=input.currencies.map(position=>{
@@ -76,8 +110,19 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
   const stock=metricValue(position.stagnantStockCost,index,position.currency,input.asOf,input.period);
   const aging=(position.receivableAging??[]).map(item=>{
    const value=metricValue(item.amount,index,position.currency,input.asOf,input.period);
-   return {bucket:item.bucket,amount:value.value,status:value.status};
+   return {bucket:item.bucket,amount:value.value,status:value.status,warnings:value.warnings};
   });
+  const metricEvidence=[
+   buildMetricEvidence({key:"availableBalance",label:"الرصيد النقدي/المصرفي المتاح",metric:position.availableBalance,status:available.status,warnings:available.warnings,currency:position.currency,index,evidenceRecords:passport.evidenceRecords,evidenceCounts}),
+   buildMetricEvidence({key:"expectedCollections",label:"التحصيلات المتوقعة",metric:position.expectedCollections,status:collections.status,warnings:collections.warnings,currency:position.currency,index,evidenceRecords:passport.evidenceRecords,evidenceCounts}),
+   buildMetricEvidence({key:"dueObligations",label:"الالتزامات المستحقة",metric:position.dueObligations,status:obligations.status,warnings:obligations.warnings,currency:position.currency,index,evidenceRecords:passport.evidenceRecords,evidenceCounts}),
+   buildMetricEvidence({key:"overdueReceivables",label:"الذمم المتأخرة",metric:position.overdueReceivables,status:overdue.status,warnings:overdue.warnings,currency:position.currency,index,evidenceRecords:passport.evidenceRecords,evidenceCounts}),
+   buildMetricEvidence({key:"stagnantStockCost",label:"تكلفة المخزون الراكد المثبتة",metric:position.stagnantStockCost,status:stock.status,warnings:stock.warnings,currency:position.currency,index,evidenceRecords:passport.evidenceRecords,evidenceCounts}),
+   ...(position.receivableAging??[]).map((item,i)=>buildMetricEvidence({
+    key:"receivableAging:"+i,label:"أعمار الذمم · "+item.bucket,metric:item.amount,status:aging[i].status,warnings:aging[i].warnings,
+    currency:position.currency,index,evidenceRecords:passport.evidenceRecords,evidenceCounts,
+   })),
+  ];
   const metricList=allMetricInputs(position),metricIds=[...new Set(metricList.map(m=>m.id))];
   const evidenceIds=[...new Set(metricList.flatMap(m=>m.lineage.evidenceIds))];
   const formulaVersions=[...new Set(metricList.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];
@@ -94,7 +139,7 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
    overdueReceivables:overdue.value,overdueReceivablesStatus:overdue.status,
    dueObligations:obligations.value,dueObligationsStatus:obligations.status,
    netAvailableLiquidity:duplicate?null:net,stagnantStockExposure:stock.value,stagnantStockExposureStatus:stock.status,
-   receivableAging:aging,
+   receivableAging:aging,metricEvidence,
    formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,lineage:{metricIds,evidenceIds,formulaVersions},warnings:positionWarnings,
   };
  });
