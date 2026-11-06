@@ -6,7 +6,8 @@ CREATE OR REPLACE FUNCTION public.list_my_customer_return_history(
   p_after_created_at timestamptz DEFAULT NULL,
   p_after_id uuid DEFAULT NULL,
   p_limit integer DEFAULT 50,
-  p_search text DEFAULT NULL
+  p_search text DEFAULT NULL,
+  p_status text DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -19,6 +20,7 @@ DECLARE
   v_org uuid;
   v_customer public.customers%ROWTYPE;
   v_search text:=pg_catalog.lower(pg_catalog.btrim(coalesce(p_search,'')));
+  v_status text:=nullif(pg_catalog.lower(pg_catalog.btrim(coalesce(p_status,''))),'');
   v_total_count integer:=0;
   v_requests jsonb:='[]'::jsonb;
   v_has_more boolean:=false;
@@ -66,6 +68,12 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='22023',
       MESSAGE='return history search must contain 120 characters or fewer';
   END IF;
+  IF v_status IS NOT NULL AND v_status NOT IN (
+    'submitted','under_review','approved','rejected','received','closed','cancelled'
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='return history status filter is invalid';
+  END IF;
 
   -- Treat LIKE metacharacters as ordinary input, not as caller-controlled wildcards.
   v_search:=pg_catalog.replace(v_search,pg_catalog.chr(92),'');
@@ -79,6 +87,7 @@ BEGIN
      AND o.organization_id=r.organization_id
    WHERE r.organization_id=v_org
      AND r.customer_id=v_customer.id
+     AND (v_status IS NULL OR r.status=v_status)
      AND (
        v_search IS NULL
        OR o.order_number ILIKE '%' || v_search || '%'
@@ -110,6 +119,7 @@ BEGIN
        AND o.organization_id=r.organization_id
      WHERE r.organization_id=v_org
        AND r.customer_id=v_customer.id
+       AND (v_status IS NULL OR r.status=v_status)
        AND (
          v_search IS NULL
          OR o.order_number ILIKE '%' || v_search || '%'
@@ -205,11 +215,11 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.list_my_customer_return_history(timestamptz,uuid,integer,text)
+REVOKE ALL ON FUNCTION public.list_my_customer_return_history(timestamptz,uuid,integer,text,text)
   FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.list_my_customer_return_history(timestamptz,uuid,integer,text)
+GRANT EXECUTE ON FUNCTION public.list_my_customer_return_history(timestamptz,uuid,integer,text,text)
   TO authenticated;
-COMMENT ON FUNCTION public.list_my_customer_return_history(timestamptz,uuid,integer,text) IS
-  'Authenticated active approved customer reads their same-tenant return requests directly, with stable descending created_at/id keyset pages and server-side search across request/order/item evidence. Returns no unrelated customer data and performs no writes.';
+COMMENT ON FUNCTION public.list_my_customer_return_history(timestamptz,uuid,integer,text,text) IS
+  'Authenticated active approved customer reads their same-tenant return requests directly, with stable descending created_at/id keyset pages, validated source-status filter and server-side search across request/order/item evidence. Returns no unrelated customer data and performs no writes.';
 
 COMMIT;
