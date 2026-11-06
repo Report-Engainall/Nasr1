@@ -165,6 +165,8 @@ export function CustomerOrderAmendmentHistory({
     void load();
   }, [load, refreshKey, retry]);
 
+  const latestVersion = history?.versions[history.versions.length - 1];
+
   return (
     <section className="mt-4 rounded-xl border bg-card p-4 text-card-foreground" dir="rtl"
       aria-labelledby={"customer-order-amendment-history-" + orderId}>
@@ -175,7 +177,9 @@ export function CustomerOrderAmendmentHistory({
           </h2>
           {history && (
             <p className="mt-1 text-xs text-muted-foreground">
-              الحالة الحالية للطلب: {ORDER_STATUS_LABEL[history.orderStatus] ?? history.orderStatus}
+              حالة الطلب: {latestVersion?.status === "pending_review"
+                ? "أُعيد تقديم التعديل إلى الإدارة — بانتظار المراجعة"
+                : ORDER_STATUS_LABEL[history.orderStatus] ?? history.orderStatus}
             </p>
           )}
         </div>
