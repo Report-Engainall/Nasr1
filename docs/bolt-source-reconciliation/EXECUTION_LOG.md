@@ -2028,3 +2028,20 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - No external send, provider receipt, consent persistence, audit DB write, migration apply, test/build/typecheck/lint/CI/browser/Bolt/Preview/Vercel/production action was run. No PASS/runtime/production claim.
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no external channel may be claimed active.
 - Next: `P3-SECTION-52-63-INDEPENDENT-GAPS-005`; continue another independent source-backed Section 53–63 product requirement without editing P1 routes or P2 sender/persistence paths.
+
+
+## 2026-11-06 — REF-EVIDENCE-SOURCE-COMPARISON-001 — Section 56 dual-source evidence comparison
+
+- Main source head at this delivery: `d09f7ba540efdf74874e6a9af9f77f598a7ca920`.
+- Canonical requirement: show both conflicting source values, each source/date and comparison key; never average without an approved rule.
+- Added `src/lib/intelligence/evidence-source-comparison.ts`: deterministic comparison normalizes/revalidates both Evidence Passports, requires an explicit join key and one unique metric on both sides, preserves source name/kind/version/time/as-of, and calculates a difference only for exact metric/unit/currency/UOM/period/as-of/formula context with complete verified evidence. Returns MATCHED/VARIANCE/NOT_COMPARABLE/WITHHELD. Unverified values are hidden; mismatched but individually trusted values are shown separately without delta. No average or source write.
+- Engine code commits: `e71e4562c924af9b0c4be3184019fb3c0bc6bd34`, `a3089b9ec6786a4c48d2e17c25b364156f081938`, `17bdd9065698f28e2ef46b7ff908a0c8b48ef0d7`, `5963ee490af24188d7399d8eff97ff78c5192333`; final engine blob `455b05d48c81f430efcad118bbde8179b22ce9e5`.
+- Added `EvidenceSourceComparisonPanel.tsx` with Arabic comparison sides/reasons and loading/empty/error/unavailable/ready states. Commit `255e7e540fa52ceb3b3e04b794e2c7eaee227e28`; final blob `066119a863c9d4d16ea193a25645ca6504ee5f98`.
+- Added source tests: engine test blob `6a268fc838eb8d2298c495db8939daebcd0661ef` (commit `4cf57836c8465a7d3ecaf804ae01f835f3985556`); panel test blob `56e0ef43c8bdcd2d282c69485defabefb1b16a6a` (commits `c7c2821b1c641653552224d8bce88ab228bbdc94`, `1cce100c83af78100c3a221461ed5e4ec8782069`). Tests authored, NOT run.
+- Added engine/component barrel exports: `2ff9958c4f8f6750838897a5f8009bde2cc54123`, `9dc03531d7266e1fa93da7b42607349f4a44081b`.
+- Added P1 mount contract to existing `P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`: `52e4c1804e9f0291ef0a19e659e43b117fa2770d`. P1 still owns mounting beside existing Evidence Passport; no P1 route/workspace was edited.
+- Updated existing acceptance row `REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001`: `4e8b58bf1d496ec5880a649802c9c36fbef3d808`.
+- P3 checkpoint `d09f7ba540efdf74874e6a9af9f77f598a7ca920`; global state `e4c53fc5e70ab3392cb38caece39aec16af06179`.
+- Runtime boundary: caller must supply two same-tenant, already-authorized snapshots and a stable join key from the authorized source. Persistence of matched/variance/ignored/review/settled disposition, owner/reason and audit remains P2-owned. No new RPC/table/migration or provider.
+- No test/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production action was run. No PASS/runtime/production claim. Status: `IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / ACCEPTANCE_PENDING`.
+- Next: `P3-SECTION-52-63-INDEPENDENT-GAPS-007`.
