@@ -11,6 +11,8 @@ import { fetchCustomerServiceIntelligenceSummary } from "./customer-service-inte
 import { fetchDecisionOutcomes } from "./decision-outcome-client";
 import { buildDecisionMemoryBook } from "./decision-memory";
 import { fetchOperationalShiftWorkspace } from "./shift-operations-client";
+import { fetchSupplierQuotes } from "@/lib/supplier-quotes";
+import { buildSupplierQuoteComparisonAssistant } from "./supplier-quote-comparison-assistant";
 import { fetchTaskPerformanceScorecard } from "./task-performance-scorecard-client";
 import { fetchCommercePolicyCatalog } from "./commerce-policy-governance-client";
 import { buildDeadStockReport } from "./dead-stock";
@@ -87,6 +89,11 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     sourceRpc:"fetch_task_performance_scorecard",
     queriedAt:new Date().toISOString(),scorecard,
    }};
+  }
+  if(plan.sourceRpc==="fetch_purchase_supplier_quotes"){
+   const quotes=await fetchSupplierQuotes();
+   const result=buildSupplierQuoteComparisonAssistant(quotes,new Date().toISOString());
+   return {status:"RESULT",plan,result};
   }
   if(plan.sourceRpc==="fetch_operational_shift_workspace"){
    if(!plan.businessDate)return {status:"ERROR",message:"تاريخ العمل مطلوب قبل قراءة مركز الوردية."};

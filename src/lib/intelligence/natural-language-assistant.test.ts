@@ -210,3 +210,25 @@ describe("shift operations assistant intent", () => {
     });
   });
 });
+
+describe("supplier quote comparison assistant intent", () => {
+  it("routes Arabic supplier-quote comparison questions to the server-authorized reader", () => {
+    for (const question of [
+      "قارن عروض الموردين",
+      "مقارنة أسعار الموردين",
+      "ما أقل تكلفة للوحدة بين الموردين؟",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({
+        status: "READY",
+        intent: "SUPPLIER_QUOTE_COMPARISON_OVERVIEW",
+        sourceRpc: "fetch_purchase_supplier_quotes",
+      });
+    }
+  });
+
+  it("does not present the latest bounded quote inbox as historical analysis", () => {
+    expect(planNaturalLanguageQuery("قارن عروض الموردين خلال الشهر الماضي")).toMatchObject({
+      status: "UNSUPPORTED",
+    });
+  });
+});
