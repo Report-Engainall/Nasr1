@@ -14,6 +14,12 @@ type AuthClient = {
   auth: {
     getUser(token: string): Promise<{ data: { user: AuthUser | null }; error: unknown | null }>;
   };
+  setProductImageUrl(
+    token: string,
+    productId: string,
+    expectedImageUrl: string | null,
+    nextImageUrl: string | null,
+  ): Promise<{ data: unknown; error: unknown | null }>;
 };
 type ProductImageStorage = {
   upload(
@@ -47,7 +53,7 @@ export type ProductImageUploadDependencies = {
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "POST, OPTIONS",
-  "access-control-allow-headers": "authorization, apikey, x-client-info, content-type, x-product-id",
+  "access-control-allow-headers": "authorization, apikey, x-client-info, content-type, x-product-id, x-expected-image-url",
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
 };
@@ -119,7 +125,8 @@ async function readBoundedBytes(request: Request, limit: number): Promise<Uint8A
 
 type ProductImageCommand =
   | { action: "delete"; productId: string; objectPath: string }
-  | { action: "upload"; productId: string; bytes: Uint8Array };
+  | { action: "unlink"; productId: string; expectedImageUrl: string | null; objectPath: string | null }
+  | { action: "upload"; productId: string; expectedImageUrl: string | null; bytes: Uint8Array };
 
 type ProductImageCommandResult =
   | { ok: true; command: ProductImageCommand }
@@ -129,7 +136,7 @@ function commandFailure(error: string, status: number): ProductImageCommandResul
   return { ok: false, response: reply({ error }, status) };
 }
 
-async function parseDeleteCommand(request: Request): Promise<ProductImageCommandResult> {
+async function parseJsonCommand(request: Request): Promise<ProductImageCommandResult> {
   const bodyRead = await readBoundedTextBody(
     request.body,
     2048,
@@ -155,16 +162,41 @@ async function parseDeleteCommand(request: Request): Promise<ProductImageCommand
   }
 
   const value = body as Record<string, unknown>;
-  if (value.action !== "delete") return commandFailure("invalid_action", 400);
+  const productId = typeof value.product_id === "string" ? value.product_id : "";
+  if (value.action === "delete") {
+    return {
+      ok: true,
+      command: {
+        action: "delete",
+        productId,
+        objectPath: typeof value.object_path === "string" ? value.object_path : "",
+      },
+    };
+  }
 
-  return {
-    ok: true,
-    command: {
-      action: "delete",
-      productId: typeof value.product_id === "string" ? value.product_id : "",
-      objectPath: typeof value.object_path === "string" ? value.object_path : "",
-    },
-  };
+  if (value.action === "unlink") {
+    const expectedImageUrl = value.expected_image_url;
+    const objectPath = value.object_path;
+    if (
+      !(expectedImageUrl === null || (typeof expectedImageUrl === "string" && expectedImageUrl.length <= 2048))
+      || !(objectPath === null || (typeof objectPath === "string" && objectPath.length <= 512))
+      || !Object.prototype.hasOwnProperty.call(value, "expected_image_url")
+      || !Object.prototype.hasOwnProperty.call(value, "object_path")
+    ) {
+      return commandFailure("invalid_request", 400);
+    }
+    return {
+      ok: true,
+      command: {
+        action: "unlink",
+        productId,
+        expectedImageUrl,
+        objectPath,
+      },
+    };
+  }
+
+  return commandFailure("invalid_action", 400);
 }
 
 async function parseUploadCommand(
@@ -185,7 +217,20 @@ async function parseUploadCommand(
   if (bytes.byteLength < 1) return commandFailure("invalid_image", 400);
   if (!isWebpPayload(bytes)) return commandFailure("webp_signature_required", 415);
 
-  return { ok: true, command: { action: "upload", productId, bytes } };
+  const expectedHeader = request.headers.get("x-expected-image-url");
+  if (expectedHeader !== null && expectedHeader.length > 2048) {
+    return commandFailure("invalid_expected_image_url", 400);
+  }
+
+  return {
+    ok: true,
+    command: {
+      action: "upload",
+      productId,
+      expectedImageUrl: expectedHeader || null,
+      bytes,
+    },
+  };
 }
 
 async function parseProductImageCommand(
@@ -194,7 +239,7 @@ async function parseProductImageCommand(
   organizationId: string,
 ): Promise<ProductImageCommandResult> {
   const contentType = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-  if (contentType === "application/json") return parseDeleteCommand(request);
+  if (contentType === "application/json") return parseJsonCommand(request);
   if (contentType !== "image/webp") return commandFailure("webp_required", 415);
   return parseUploadCommand(request, admin, organizationId);
 }
@@ -217,22 +262,100 @@ async function executeDeleteCommand(
   return reply({ deleted: true });
 }
 
+function rpcErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const code = (error as Record<string, unknown>).code;
+  return typeof code === "string" ? code : null;
+}
+
 async function executeUploadCommand(
   admin: AdminClient,
+  auth: AuthClient,
+  token: string,
   organizationId: string,
   command: Extract<ProductImageCommand, { action: "upload" }>,
   randomUUID: () => string,
 ): Promise<Response> {
   const objectPath = organizationId + "/" + command.productId + "/" + randomUUID() + ".webp";
-  const { error } = await admin.storage.upload(objectPath, command.bytes, {
+  const { error: uploadError } = await admin.storage.upload(objectPath, command.bytes, {
     contentType: "image/webp",
     cacheControl: "31536000",
     upsert: false,
   });
-  if (error) return reply({ error: "image_upload_failed" }, 502);
+  if (uploadError) return reply({ error: "image_upload_failed" }, 502);
 
   const publicUrl = admin.storage.getPublicUrl(objectPath).data.publicUrl;
-  return reply({ public_url: publicUrl, object_path: objectPath });
+  const { data, error } = await auth.setProductImageUrl(
+    token,
+    command.productId,
+    command.expectedImageUrl,
+    publicUrl,
+  );
+  if (error) {
+    let cleanupFailed = false;
+    try {
+      const cleanup = await admin.storage.remove([objectPath]);
+      cleanupFailed = Boolean(cleanup.error);
+    } catch {
+      cleanupFailed = true;
+    }
+    const stale = rpcErrorCode(error) === "40001";
+    return reply({
+      error: stale
+        ? "image_link_changed"
+        : cleanupFailed ? "image_link_failed_cleanup_pending" : "image_link_failed",
+    }, stale ? 409 : 502);
+  }
+
+  const saved = data && typeof data === "object" ? data as Record<string, unknown> : null;
+  if (!saved || saved.id !== command.productId || saved.image_url !== publicUrl) {
+    // An unrecognized acknowledgement is ambiguous: keep the object so a possibly
+    // committed database link is never left pointing to a deleted file.
+    return reply({ error: "image_link_state_unconfirmed" }, 503);
+  }
+
+  return reply({ public_url: publicUrl, object_path: objectPath, image_linked: true });
+}
+
+async function executeUnlinkCommand(
+  admin: AdminClient,
+  auth: AuthClient,
+  token: string,
+  organizationId: string,
+  command: Extract<ProductImageCommand, { action: "unlink" }>,
+): Promise<Response> {
+  if (!uuid(command.productId)) return reply({ error: "invalid_product" }, 400);
+  const { data: product, error: productError } = await admin.productExists(command.productId, organizationId);
+  if (productError || !product) return reply({ error: "product_not_in_organization" }, 404);
+  if (command.objectPath && !isValidProductImageObjectPath(command.objectPath, organizationId, command.productId)) {
+    return reply({ error: "invalid_object_path" }, 400);
+  }
+
+  const { data, error } = await auth.setProductImageUrl(
+    token,
+    command.productId,
+    command.expectedImageUrl,
+    null,
+  );
+  if (error) {
+    const stale = rpcErrorCode(error) === "40001";
+    return reply({ error: stale ? "image_link_changed" : "image_unlink_failed" }, stale ? 409 : 502);
+  }
+
+  const saved = data && typeof data === "object" ? data as Record<string, unknown> : null;
+  if (!saved || saved.id !== command.productId || saved.image_url !== null) {
+    return reply({ error: "image_unlink_state_unconfirmed" }, 503);
+  }
+
+  if (command.objectPath) {
+    try {
+      const { error: cleanupError } = await admin.storage.remove([command.objectPath]);
+      if (cleanupError) return reply({ unlinked: true, cleaned: false });
+    } catch {
+      return reply({ unlinked: true, cleaned: false });
+    }
+  }
+  return reply({ unlinked: true, cleaned: true });
 }
 
 /**
@@ -274,9 +397,16 @@ export function createProductImageUploadHandler(deps: ProductImageUploadDependen
       if (parsed.command.action === "delete") {
         return executeDeleteCommand(admin, profile.organization_id, parsed.command);
       }
+      if (parsed.command.action === "unlink") {
+        return executeUnlinkCommand(
+          admin, authClient, token, profile.organization_id, parsed.command,
+        );
+      }
 
       return executeUploadCommand(
         admin,
+        authClient,
+        token,
         profile.organization_id,
         parsed.command,
         deps.randomUUID ?? (() => crypto.randomUUID()),

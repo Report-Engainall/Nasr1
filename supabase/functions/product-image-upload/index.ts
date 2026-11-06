@@ -24,7 +24,21 @@ function createProductImageAuthClient(url: string, anonKey: string): ProductImag
   const auth = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  return { auth: { getUser: (token) => auth.auth.getUser(token) } };
+  return {
+    auth: { getUser: (token) => auth.auth.getUser(token) },
+    setProductImageUrl: async (token, productId, expectedImageUrl, nextImageUrl) => {
+      const command = createClient(url, anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        global: { headers: { Authorization: "Bearer " + token } },
+      });
+      const { data, error } = await command.rpc("set_staff_product_image", {
+        p_product_id: productId,
+        p_expected_image_url: expectedImageUrl,
+        p_image_url: nextImageUrl,
+      });
+      return { data, error };
+    },
+  };
 }
 
 function lookupProfile(admin: SupabaseClient): ProductImageAdminClient["getProfileByAuthUserId"] {

@@ -337,13 +337,29 @@ export async function uploadProductImage(
 
   const { data, error } = await supabase.functions.invoke("product-image-upload", {
     body: image,
-    headers: { "content-type": "image/webp", "x-product-id": productId },
+    headers: {
+      "content-type": "image/webp",
+      "x-product-id": productId,
+      "x-expected-image-url": previousImageUrl ?? "",
+    },
   });
-  if (error) throw new Error("تعذر رفع صورة المنتج آمنًا. تحقق من إعداد دالة product-image-upload.");
-  const publicUrl = typeof data?.public_url === "string" ? data.public_url : "";
-  const objectPath = typeof data?.object_path === "string" ? data.object_path : "";
+  if (error || data?.image_linked !== true) {
+    const code = typeof data?.error === "string" ? data.error : "";
+    if (code === "image_link_changed") {
+      throw new Error("تغيرت صورة المنتج منذ فتح النموذج؛ حدّث بيانات المنتج ثم أعد المحاولة.");
+    }
+    if (code === "image_link_state_unconfirmed") {
+      throw new Error("حالة ربط الصورة غير مؤكدة؛ حدّث المنتج قبل أي محاولة رفع أخرى.");
+    }
+    if (code === "image_link_failed_cleanup_pending") {
+      throw new Error("تعذر ربط الصورة، وتعذر تأكيد تنظيف الملف المرفوع؛ لا تكرر الرفع قبل تحديث المنتج.");
+    }
+    throw new Error("تعذر رفع صورة المنتج وربطها ذرياً بسجل المنتج. تحقق من خدمة الصور ثم حدّث القائمة.");
+  }
+  const publicUrl = typeof data.public_url === "string" ? data.public_url : "";
+  const objectPath = typeof data.object_path === "string" ? data.object_path : "";
   if (!/^https:\/\//i.test(publicUrl) || !objectPath) {
-    throw new Error("لم تُرجع خدمة الصور مسارًا ورابطًا صالحين؛ لم يُربط المنتج بالصورة.");
+    throw new Error("أكد الخادم ربط الصورة لكن أعاد مرجعاً غير صالح؛ حدّث المنتج قبل المتابعة.");
   }
 
   const previousObjectPath = extractOwnedProductImageObjectPath(
@@ -351,23 +367,6 @@ export async function uploadProductImage(
     scope.organizationId,
     productId,
   );
-  try {
-    const { data: updated, error: updateError } = await supabase
-      .from("products")
-      .update({ image_url: publicUrl })
-      .eq("id", productId)
-      .eq("organization_id", scope.organizationId)
-      .select("id")
-      .maybeSingle();
-    if (updateError || updated?.id !== productId) {
-      throw new Error("product_image_link_not_confirmed");
-    }
-  } catch {
-    try {
-      await deleteProductImageObject(productId, objectPath);
-    } catch { /* preserve the original image-link failure */ }
-    throw new Error("تعذر ربط صورة المنتج بالسجل؛ طُلب تنظيف الملف المؤقت.");
-  }
 
   // The new URL is committed before the old object is removed; a cleanup failure must
   // never delete the newly linked image or be reported as an upload/link failure.
@@ -399,28 +398,26 @@ export async function removeProductImage(
     scope.organizationId,
     productId,
   );
-  const { data: updated, error } = await supabase
-    .from("products")
-    .update({ image_url: null })
-    .eq("id", productId)
-    .eq("organization_id", scope.organizationId)
-    .select("id")
-    .maybeSingle();
-  if (error || updated?.id !== productId) {
-    throw new Error("تعذر إزالة صورة المنتج من السجل؛ لم يُؤكد الخادم التعديل.");
-  }
-
-  // The record is now safely unlinked. If object cleanup fails, report that precise
-  // partial state so the UI does not claim that the image is still linked.
-  if (objectPath) {
-    try {
-      await deleteProductImageObject(productId, objectPath);
-    } catch {
-      throw new ProductImageCleanupError(
-        "أُزيلت الصورة من سجل المنتج، لكن تعذر تنظيف ملفها من التخزين.",
-        false,
-      );
+  const { data, error } = await supabase.functions.invoke("product-image-upload", {
+    body: {
+      action: "unlink",
+      product_id: productId,
+      expected_image_url: currentImageUrl ?? null,
+      object_path: objectPath ?? null,
+    },
+  });
+  if (error || data?.unlinked !== true) {
+    const code = typeof data?.error === "string" ? data.error : "";
+    if (code === "image_link_changed") {
+      throw new Error("تغيرت صورة المنتج منذ فتح النموذج؛ حدّث بيانات المنتج قبل إزالة الصورة.");
     }
+    throw new Error("تعذر فصل الصورة من سجل المنتج؛ لم يُؤكد الخادم العملية.");
+  }
+  if (data.cleaned !== true) {
+    throw new ProductImageCleanupError(
+      "أُزيل رابط الصورة من سجل المنتج، لكن تعذر تنظيف ملفها من التخزين.",
+      false,
+    );
   }
 }
 

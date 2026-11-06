@@ -1215,3 +1215,15 @@ P1 continues UI ownership and this checkpoint only. P2 owns backend/API/security
 - Official CodeInspector TS0002 (2) / TS0003 (5) remains OPEN / IMPLEMENTED_PENDING_FRESH_SCAN. AST proxy and tsc are not CodeInspector.
 - Do not mark Hosted E2E, official analyzer, independent review or overall production readiness PASS without their own evidence.
 
+
+
+## P1 product-body delivery — BODY-COMPLETION-ON-MAIN-047 — atomic product image linking
+
+- Parent main SHA: `c7a67c33c97996c0eebba5934a3afea1bcd7558d`.
+- Fixed the product image path that previously uploaded to the Edge Storage boundary and then attempted a browser-side `UPDATE public.products`, despite the catalog migration revoking authenticated `UPDATE` on that table.
+- Added `set_staff_product_image(uuid,text,text)` as a tenant-scoped, authenticated RPC. It verifies the active profile and admin/manager/staff role, locks the product row, compares the expected prior image URL, accepts only a same-tenant product-images WebP URL, writes the new URL and an append-only `catalog.product_image_updated` audit event in one transaction.
+- The existing `product-image-upload` Edge Function now uses the caller JWT for the RPC and retains the service-role client for Storage operations only. New uploads are removed when the DB link definitively fails; ambiguous DB acknowledgements do not delete a potentially referenced object. Unlinking clears the DB URL first and then cleans the owned object.
+- Client-side direct `products.image_url` DML was removed from `src/lib/api.ts`. Existing role checks, tenant checks, WebP validation, size bound, storage path validation and old-image cleanup order are preserved.
+- Files: `src/lib/api.ts`, `supabase/functions/_shared/product-image-upload-handler.ts`, `supabase/functions/product-image-upload/index.ts`, `supabase/migrations/20261106140000_staff_product_image_atomic_link.sql`.
+- Migration is source-only for Bolt New; it has not been applied to a connected database. No tests, build, lint, typecheck, CI, browser, E2E, Bolt, Preview, Vercel or production operation was run. Runtime acceptance is pending; no PASS is claimed.
+- Next P1 action: continue the next concrete product-body gap without rebuilding completed catalog CRUD, category lifecycle, product search or storefront routes.
