@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
   cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles, rollbackImportSnapshot,
