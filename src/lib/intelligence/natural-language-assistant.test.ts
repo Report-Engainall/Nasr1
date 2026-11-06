@@ -76,4 +76,25 @@ describe("customer service natural-language intents", () => {
     });
     expect(result.answer).not.toContain("7 حالة متأخرة");
   });
+
+describe("deferred decision assistant intent", () => {
+  it("routes deferred-decision questions to the authorized decision read RPC", () => {
+    expect(planNaturalLanguageQuery("ما القرارات المؤجلة؟")).toMatchObject({
+      status: "READY",
+      intent: "DECISIONS_DEFERRED",
+      sourceRpc: "fetch_decision_outcomes",
+    });
+    expect(planNaturalLanguageQuery("اعرض القرارات التي تم تأجيلها")).toMatchObject({
+      status: "READY",
+      intent: "DECISIONS_DEFERRED",
+      sourceRpc: "fetch_decision_outcomes",
+    });
+  });
+
+  it("does not present a current deferred-decision snapshot as historical data", () => {
+    expect(planNaturalLanguageQuery("القرارات المؤجلة خلال الشهر الماضي")).toMatchObject({
+      status: "UNSUPPORTED",
+    });
+  });
+});
 });
