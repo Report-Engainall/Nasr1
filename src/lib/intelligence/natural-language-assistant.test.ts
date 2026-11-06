@@ -238,3 +238,28 @@ describe("supplier quote comparison assistant intent", () => {
     }
   });
 });
+
+describe("customer quote pipeline intent", () => {
+  it("routes Arabic quote funnel questions to the aggregate-only server source", () => {
+    for (const question of [
+      "اعرض مسار عروض العملاء",
+      "ملخص طلبات التسعير خلال آخر 30 يوماً",
+      "ما معدل قبول عروض العملاء؟",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({
+        status: "READY",
+        intent: "CUSTOMER_QUOTE_PIPELINE_OVERVIEW",
+        sourceRpc: "fetch_customer_quote_pipeline",
+      });
+    }
+  });
+
+  it("rejects relative calendar and free-date requests rather than silently changing the period", () => {
+    for (const question of [
+      "مسار عروض العملاء خلال الشهر الماضي",
+      "مسار عروض العملاء اليوم",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({ status: "UNSUPPORTED" });
+    }
+  });
+});

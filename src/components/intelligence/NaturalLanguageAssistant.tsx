@@ -8,6 +8,7 @@ import { BusinessHealthMap } from "./BusinessHealthMap";
 import { DecisionMemoryBook } from "./DecisionMemoryBook";
 import { ShiftOperationsCenter } from "./ShiftOperationsCenter";
 import { SupplierQuoteComparisonAssistant } from "./SupplierQuoteComparisonAssistant";
+import { CustomerQuotePipelineSummary } from "./CustomerQuotePipelineSummary";
 import type { TaskIntelligenceManagerRisk, TaskIntelligenceRole } from "@/lib/intelligence/task-intelligence-reports";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
@@ -88,7 +89,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة ودفتر ذاكرة القرارات والتعلم من نتائجها، ومركز الوردية بتاريخ عمل محدد، ومقارنة عروض الموردين حسب الصنف والكمية والوحدة والعملة مع مؤشرات الأداء الفعلي للتوريد، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة ودفتر ذاكرة القرارات والتعلم من نتائجها، ومركز الوردية بتاريخ عمل محدد، ومسار عروض أسعار العملاء ومعدل القبول الصريح، ومقارنة عروض الموردين حسب الصنف والكمية والوحدة والعملة مع مؤشرات الأداء الفعلي للتوريد، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","NOT_FOUND","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -113,6 +114,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <p className="text-xs text-muted-foreground">النتيجة قراءة تجميعية لحالة القرار الحالية وليست سجلاً تاريخياً للأحداث. عند ظهور «نتيجة جزئية» لا تُفسر أعداد الحالات أو عدم العثور على قرارات مطابقة على أنها تغطي كامل السجل. لا يعرض هذا المسار أسماء المسؤولين أو بيانات مالية أو تفاصيل حساسة.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="SUPPLIER_QUOTE_COMPARISON"?<SupplierQuoteComparisonAssistant result={response.result}/>:null}
+  {response?.status==="RESULT"&&response.result.kind==="CUSTOMER_QUOTE_PIPELINE"?<CustomerQuotePipelineSummary result={response.result}/>:null}
   {response?.status==="RESULT"&&response.result.kind==="SHIFT_OPERATIONS"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
