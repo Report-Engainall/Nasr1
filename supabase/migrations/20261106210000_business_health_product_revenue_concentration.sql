@@ -158,7 +158,8 @@ BEGIN
            CASE
              WHEN c.unmapped_line_count=0 AND c.invalid_credit_line_count=0
               AND c.invoices_without_lines=0 AND c.invoice_line_count>0
-             THEN coalesce(t.total_net_line_amount,0)::numeric
+              AND coalesce(t.total_net_line_amount,0)>0
+             THEN t.total_net_line_amount::numeric
              ELSE NULL
            END AS net_invoice_line_amount,
            CASE
