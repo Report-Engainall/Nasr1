@@ -291,7 +291,7 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
      ?"رادار النمو قيّم "+radar.evaluatedSignals+" إشارة من أدلة العملاء والمنتجات المكتملة، وأظهر "+radar.opportunities.length+" فرصة تجاوزت العتبات و"+radar.withheld.length+" إشارة محجوبة. يشمل تغير كميات الطلبات المؤكدة أو قيد المعالجة أو المشحونة أو المسلّمة مقارنة بفترة سابقة مساوية."
      :"تغطية رادار النمو جزئية: مجتمع العملاء "+(customerPopulationComplete?"مكتمل":"غير مكتمل")+"، ومصدر أداء المنتجات "+(productSourceStatus==="READY"?"مكتمل":productSourceStatus==="PARTIAL"?"جزئي":"غير متاح")+". تُعرض فقط الإشارات ذات الأدلة الصالحة، ولا يُفسَّر غياب فرصة أو نقص مصدر على أنه عدم وجود طلب.";
     return {status:"RESULT",plan,result:{
-     kind:"GROWTH_RADAR",state:completePopulation?"READY":"PARTIAL",
+     kind:"GROWTH_RADAR",state:completePopulation&&radar.status==="VERIFIED"?"READY":"PARTIAL",
      intent:plan.intent as GrowthRadarIntent,answer,
      sourceRpc:"get_customer_retention_aggregate+fetch_product_performance_growth_aggregate",
      asOf:radar.asOf,periodDays,completePopulation,radar,
