@@ -19,6 +19,26 @@ describe("learning outcome measurement",()=>{
    expectedRuleId:"r",expectedRuleVersion:"1",currentRuleId:"r",currentRuleVersion:"1"});
   expect(result.variance).toBeNull();expect(result.warnings).toContain("MEASUREMENT_AS_OF_MISMATCH");
  });
+ it("withholds variance when expected and actual formula IDs differ",()=>{
+  const expected=metric("e",10,"COUNT");
+  const actual=metric("a",8,"COUNT");
+  actual.lineage={...actual.lineage,formulaId:"orders.completed.alternate"};
+  const result=run(expected,actual);
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.expectedValue).toBeNull();
+  expect(result.actualValue).toBeNull();
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("FORMULA_MISMATCH");
+ });
+ it("withholds variance when expected and actual formula versions differ",()=>{
+  const expected=metric("e",10,"COUNT");
+  const actual=metric("a",8,"COUNT");
+  actual.lineage={...actual.lineage,formulaVersion:"2"};
+  const result=run(expected,actual);
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.variance).toBeNull();
+  expect(result.warnings).toContain("FORMULA_MISMATCH");
+ });
  it("does not divide percentage variance by zero",()=>expect(run(metric("e",0,"COUNT"),metric("a",5,"COUNT")).variancePercent).toBeNull());
 
  it("withholds arithmetic overflow rather than returning an unsafe variance",()=>{

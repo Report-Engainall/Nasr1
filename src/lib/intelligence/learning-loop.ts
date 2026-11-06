@@ -25,6 +25,8 @@ export function evaluateDecisionLearning(input:LearningEvaluationInput):Learning
  if(expected.unit!==actual.unit)warnings.push("UNIT_MISMATCH");
  if(expected.currency!==actual.currency)warnings.push("CURRENCY_MISMATCH");
  if(JSON.stringify(expected.period)!==JSON.stringify(actual.period))warnings.push("PERIOD_MISMATCH");
+ if(expected.lineage.formulaId!==actual.lineage.formulaId||
+   expected.lineage.formulaVersion!==actual.lineage.formulaVersion)warnings.push("FORMULA_MISMATCH");
  if(!input.expectedRuleId.trim()||!input.expectedRuleVersion.trim()||!input.currentRuleId.trim()||!input.currentRuleVersion.trim())warnings.push("RULE_VERSION_MISSING");
  const left=numberValue(expected.value),right=numberValue(actual.value);
  if(left===null||right===null)warnings.push("UNKNOWN_EXPECTED_OR_ACTUAL_VALUE");
