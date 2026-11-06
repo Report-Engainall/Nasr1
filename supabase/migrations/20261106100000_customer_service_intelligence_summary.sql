@@ -54,22 +54,22 @@ BEGIN
     'scope', 'ALL_ACTIVE_CASES_IN_CURRENT_ORGANIZATION',
     'complete_population', true,
     'summary', pg_catalog.jsonb_build_object(
-      'open_count', count(*)::integer,
+      'open_count', count(*),
       'response_overdue_count', count(*) FILTER (
         WHERE first_response_at IS NULL AND response_due_at < v_as_of
-      )::integer,
+      ),
       'resolution_overdue_count', count(*) FILTER (
         WHERE resolution_due_at < v_as_of
-      )::integer,
+      ),
       'unassigned_count', count(*) FILTER (
         WHERE assigned_to IS NULL
-      )::integer,
+      ),
       'urgent_count', count(*) FILTER (
         WHERE priority = 'urgent'
-      )::integer,
+      ),
       'high_count', count(*) FILTER (
         WHERE priority = 'high'
-      )::integer
+      )
     )
   )
     INTO v_result
