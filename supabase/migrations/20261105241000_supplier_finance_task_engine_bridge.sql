@@ -148,12 +148,18 @@ DECLARE
   v_supplier_name text;
   v_journal_number text;
 BEGIN
-  SELECT p,s.name INTO v_payment,v_supplier_name
+  SELECT p.* INTO v_payment
   FROM public.purchase_supplier_payments p
-  JOIN public.suppliers s ON s.id=p.supplier_id AND s.organization_id=p.organization_id
   WHERE p.id=NEW.payment_id AND p.organization_id=NEW.organization_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier payment task source is unavailable';
+  END IF;
+
+  SELECT s.name INTO v_supplier_name
+  FROM public.suppliers s
+  WHERE s.id=v_payment.supplier_id AND s.organization_id=v_payment.organization_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier payment supplier source is unavailable';
   END IF;
 
   IF NEW.action='recorded' THEN
@@ -238,12 +244,18 @@ DECLARE
   v_priority text;
   v_type text;
 BEGIN
-  SELECT p,s.name INTO v_payment,v_supplier_name
+  SELECT p.* INTO v_payment
   FROM public.purchase_supplier_payments p
-  JOIN public.suppliers s ON s.id=p.supplier_id AND s.organization_id=p.organization_id
   WHERE p.id=NEW.payment_id AND p.organization_id=NEW.organization_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier payment reconciliation task source is unavailable';
+  END IF;
+
+  SELECT s.name INTO v_supplier_name
+  FROM public.suppliers s
+  WHERE s.id=v_payment.supplier_id AND s.organization_id=v_payment.organization_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier payment reconciliation supplier source is unavailable';
   END IF;
 
   IF NEW.action='exception' THEN
@@ -305,11 +317,17 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT p,s.name INTO v_payment,v_supplier_name
+  SELECT p.* INTO v_payment
   FROM public.purchase_supplier_payments p
-  JOIN public.suppliers s ON s.id=p.supplier_id AND s.organization_id=p.organization_id
   WHERE p.organization_id=NEW.organization_id
     AND p.payment_number::text=NEW.source_reference;
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT s.name INTO v_supplier_name
+  FROM public.suppliers s
+  WHERE s.id=v_payment.supplier_id AND s.organization_id=v_payment.organization_id;
   IF NOT FOUND THEN
     RETURN NEW;
   END IF;
