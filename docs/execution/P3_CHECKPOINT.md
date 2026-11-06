@@ -1519,3 +1519,13 @@ Continue with the next independently implementable Section 50–63 P3 gap. Bolt 
 - Starting a next shift creates a new linked shift record; it does not close the prior shift, capture a cash count, close a ledger or mutate inventory.
 - UI commit: `c7b52a0eb4f6b2b6c49aa0bb10710de63aa67c78`; final component blob `bee0642ccad9d38f73312450fb8dba527a87a7c5`. Existing matrix leaf `INT-SHIFT-001` updated at `57655ad7c359ace1747aa4990b28daca36e71509`.
 - No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. Migrations remain source-only; no PASS/runtime/production claim.
+
+
+### P3 follow-up — first-shift bootstrap from assistant NOT_FOUND — 2026-11-06
+
+- Added `StartFirstOperationalShiftForm` for the existing Arabic assistant's `fetch_operational_shift_workspace` NOT_FOUND result. The form requires an explicit business date, shift label and IANA organization time zone; it never guesses the time zone from the browser/device.
+- Preserved the original authorized plan in the typed `NOT_FOUND` response so only the shift-workspace missing-record case can show the form. DENIED, UNAVAILABLE and malformed-source states remain separate and do not offer a bypass.
+- The form reuses the existing `start_operational_shift` client/RPC with `previousShiftId: null`; PostgreSQL derives the current actor and tenant, validates the IANA time zone and chooses the previous shift when one exists. The component keeps the same idempotency key across ambiguous retries and calls the same question again only after the server confirms creation.
+- Commits: `42c953e5f38764eff2e51a8a1acf8ee2440b01f4` (form; blob `70fbcfa52fa536cfb37d22c7ae9ecad4dd167e2b`), `ea3d0fb1c3a931b3cf5367404926b6123ad5a998` (typed NOT_FOUND plan; blob `12144439aa083d590b9b9b5688356aea89ab120f`), `b855a403b7040a8fe9cd55fa17917418dee17847` (existing assistant mount; blob `f1fa8dbfea254f2b074bc594e210bb744d4369be`).
+- Existing matrix leaf `INT-SHIFT-001` updated in place at `76ed7934bfc6de85d3fd30ffa881cee54e94db7a`.
+- No database migration was needed for this form; it reuses the existing source-only Section 53 `start_operational_shift` contract. No test/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production claim.
