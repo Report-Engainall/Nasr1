@@ -1,5 +1,16 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — Arabic decision memory and evidence-backed learning — 2026-11-06
+
+- Code commits `e654903224ca378dc7862cf5e195e9a8abc079d6` and `5f0d3b67fd94fceea766ccdad4db187b9e053c0f`; code-bearing parent was `541b3902fe08eb65c39781b04b315027710a2478`.
+- Added allow-listed Arabic `DECISION_MEMORY_OVERVIEW` and connected the existing decision outcomes reader (first 100) to `buildDecisionMemoryBook`, the existing evidence-gated `buildDecisionPolicyReviewSuggestions`, and the existing `DecisionMemoryBook` component in the Arabic assistant.
+- The loaded/total boundary stays visible and a paginated source remains PARTIAL. Review drafts require measured decisions, verified complete memory, reviewed lessons, comparable verified expected/actual metrics and matching source evidence. No causal attribution or automatic policy/price/credit/inventory change.
+- Existing memory capture and lifecycle controls are separate explicit user actions through existing authenticated server RPCs; this addition adds no new write API, schema, migration, provider or permission path.
+- Changed code paths: `natural-language-assistant.ts`, `natural-language-assistant-client.ts`, `NaturalLanguageAssistant.tsx`, `natural-language-assistant.test.ts`.
+- Source tests were authored but NOT run. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation was run. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Exact limitations and Bolt proof requirements are in `docs/execution/P3_CHECKPOINT.md`, `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md` and matrix leaf `REF-NL-DECISION-MEMORY-ASSISTANT-001`.
+
+
 ## P3 body update — Arabic Business Health assistant — 2026-11-06
 
 - P3 code commits: `3cde36503c7e7b8de406755de81c4cee25c7203d` and `a66abc8475f0b0faf722218a9128051081855210`; latest documentation checkpoint commit before this update: `e8b9241be11bf84f8d385ecda7c74fae5180bdcb`.

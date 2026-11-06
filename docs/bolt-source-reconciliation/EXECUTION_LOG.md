@@ -2069,3 +2069,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Docs: matrix leaf `REF-NL-BUSINESS-HEALTH-ASSISTANT-001`; canonical P3 checkpoint and live two-implementer command refreshed in this documentation commit (see latest main).
 - No tests/build/typecheck/lint/CI/browser/database/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production claim. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 
+## 2026-11-06 — REF-NL-DECISION-MEMORY-ASSISTANT-001 — Arabic decision memory and measured-learning assistant
+
+- Code parent: `541b3902fe08eb65c39781b04b315027710a2478`; commits: `e654903224ca378dc7862cf5e195e9a8abc079d6` and Arabic phrase correction `5f0d3b67fd94fceea766ccdad4db187b9e053c0f`.
+- Added Arabic `DECISION_MEMORY_OVERVIEW` using the existing authenticated `fetch_decision_outcomes` page (maximum 100 records), `buildDecisionMemoryBook`, `buildDecisionPolicyReviewSuggestions` and the existing `DecisionMemoryBook` in the Arabic assistant.
+- Review drafts remain constrained to measured decisions, verified complete memory, reviewed lessons, comparable verified metrics and source evidence. Paginated history remains visibly PARTIAL; no older-history completeness is inferred.
+- Existing save/lifecycle actions require explicit user interaction and retain their current server authorization. The query itself makes no write; no automatic policy/business side effect, SQL/RPC/migration or provider was added.
+- Exact paths: `src/lib/intelligence/natural-language-assistant.ts`, `natural-language-assistant-client.ts`, `src/components/intelligence/NaturalLanguageAssistant.tsx`, `src/lib/intelligence/natural-language-assistant.test.ts`.
+- Source tests authored but NOT run. No build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production action was run. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Matrix leaf: `REF-NL-DECISION-MEMORY-ASSISTANT-001`; canonical P3 checkpoint documents the exact Bolt acceptance gates.
+

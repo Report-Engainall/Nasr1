@@ -1,3 +1,40 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-DECISION-MEMORY-ASSISTANT-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Code parent before this increment: `541b3902fe08eb65c39781b04b315027710a2478`.
+- Code commits: `e654903224ca378dc7862cf5e195e9a8abc079d6` and Arabic intent correction `5f0d3b67fd94fceea766ccdad4db187b9e053c0f`.
+- Feature: Arabic assistant route for the existing decision-memory and measured-learning body. Intent: `DECISION_MEMORY_OVERVIEW`.
+
+### Implemented on main
+
+- Added allow-listed Arabic questions for the decision memory book, learning from decision results, decision lessons and policy-review drafts. Historical date/window requests are explicitly UNSUPPORTED because this query reads a current bounded page, not a historical event feed.
+- Reused the existing authenticated `fetch_decision_outcomes` reader through `fetchDecisionOutcomes(100, 0)`. The memory builder consumes only server-returned outcomes and their embedded parsed memory snapshots; it does not fabricate, backfill or independently join decision records.
+- Composed the existing `buildDecisionMemoryBook` and `buildDecisionPolicyReviewSuggestions` engines, then rendered the already-existing `DecisionMemoryBook` component within the existing Arabic `NaturalLanguageAssistant`.
+- Review drafts are generated only by the established engine's gates: MEASURED decision, VERIFIED complete memory, reviewed lessons, verified expected/actual metrics, matching metric key/unit/currency/UOM/period/formula/version, and source evidence that passes the evidence checks. No causal impact is inferred and no draft changes a policy, price, credit limit or inventory position.
+- The assistant exposes loaded/total counts and the DecisionMemoryBook page warning. The reader loads at most the first 100 decisions. When `total > loaded`, the book is PARTIAL; absence of a precedent or draft on this page is not proof that none exists in older pages.
+- Existing memory-capture and decision-lifecycle actions remain explicit user-triggered controls backed by their existing authenticated server RPCs. The natural-language query itself is read-only; this addition creates no automatic save, approval, execution or policy change.
+- No new RPC, SQL, migration, route, provider, paid service, schema, permission path or P1 workspace/shell/commerce-page change was introduced.
+
+### Exact changed code paths
+
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+- `src/lib/intelligence/natural-language-assistant.test.ts`
+
+### Acceptance boundary
+
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Arabic planner tests were authored for the decision-memory phrases and historical-window refusal; they were NOT run.
+- No test, build, typecheck, lint, CI, browser, Bolt, database, migration application, Preview, Vercel or production operation was run. No PASS, runtime or production-readiness claim.
+- Bolt must later import the exact code-bearing SHA (or its documentation-only descendant) and prove role authorization/denial, tenant isolation, first-page loaded/total reconciliation, PARTIAL indication, evidence and memory eligibility gates, explicit save/lifecycle RPC persistence, idempotent replay, stale-version handling, refresh after save and absence of automatic policy/business side effects.
+
+### Next P3 action
+
+Continue the next independent P3-owned, source-backed gap. Do not infer missing operational baselines or financial measures; preserve P1 mounts and P2 sender/persistence ownership.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-BUSINESS-HEALTH-ASSISTANT-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
