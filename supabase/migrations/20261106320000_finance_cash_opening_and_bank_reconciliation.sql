@@ -331,6 +331,7 @@ DECLARE
   v_object jsonb;
   v_existing public.finance_cash_account_evidence%ROWTYPE;
   v_row public.finance_cash_account_evidence%ROWTYPE;
+  v_mapping_kind text;
   v_actual_size bigint;
 BEGIN
   SELECT p.organization_id INTO v_org FROM public.profiles p
@@ -339,7 +340,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance permission required to register cash account evidence';
   END IF;
   IF p_settlement_account_mapping_id IS NULL
-     OR p_evidence_kind NOT IN ('opening_balance','cash_count','bank_statement')
+     OR p_evidence_kind IS NULL OR p_evidence_kind NOT IN ('opening_balance','cash_count','bank_statement')
      OR p_file_name IS NULL OR char_length(btrim(p_file_name)) NOT BETWEEN 1 AND 180
      OR p_file_name ~ '[[:cntrl:]/]' OR position(chr(92) in p_file_name)>0
      OR p_mime_type IS NULL OR p_mime_type NOT IN ('application/pdf','image/jpeg','image/png','image/webp')
@@ -355,11 +356,14 @@ BEGIN
      OR (p_mime_type='image/webp' AND p_storage_path !~ '[.]webp$') THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='cash account evidence extension does not match MIME type';
   END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.purchase_supplier_payment_settlement_accounts m
-    WHERE m.id=p_settlement_account_mapping_id AND m.organization_id=v_org AND m.is_active
-  ) THEN
+  SELECT m.settlement_kind INTO v_mapping_kind FROM public.purchase_supplier_payment_settlement_accounts m
+  WHERE m.id=p_settlement_account_mapping_id AND m.organization_id=v_org AND m.is_active;
+  IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='cash or bank account is not active in this organization';
+  END IF;
+  IF (p_evidence_kind='bank_statement' AND v_mapping_kind<>'bank')
+     OR (p_evidence_kind='cash_count' AND v_mapping_kind<>'cash') THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='cash count and bank statement evidence must use the matching account kind';
   END IF;
   SELECT o.metadata INTO v_object FROM storage.objects o
   WHERE o.bucket_id='finance-cash-account-evidence' AND o.name=p_storage_path;
@@ -549,6 +553,7 @@ DECLARE
   v_mapping public.purchase_supplier_payment_settlement_accounts%ROWTYPE;
   v_evidence public.finance_cash_account_evidence%ROWTYPE;
   v_row public.finance_bank_statements%ROWTYPE;
+  v_previous_verified boolean:=false;
 BEGIN
   SELECT p.organization_id INTO v_org FROM public.profiles p
   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
@@ -578,6 +583,28 @@ BEGIN
       AND daterange(s.period_from,s.period_to,'[]') && daterange(p_period_from,p_period_to,'[]')
   ) THEN
     RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='bank statement period overlaps an existing statement for this account';
+  END IF;
+  -- Every statement must continue either an independently approved opening balance (prior day)
+  -- or the immediately preceding verified statement. A new chain cannot begin from an unproved amount.
+  SELECT EXISTS (
+    SELECT 1 FROM public.finance_cash_opening_balance_proposals p
+    JOIN public.finance_cash_opening_balance_reviews r
+      ON r.organization_id=p.organization_id AND r.proposal_id=p.id AND r.decision='approved'
+    WHERE p.organization_id=v_org AND p.settlement_account_mapping_id=p_settlement_account_mapping_id
+      AND p.as_of_date=p_period_from-1 AND p.opening_balance=p_opening_balance AND p.currency=v_mapping.currency
+  ) OR EXISTS (
+    SELECT 1 FROM public.finance_bank_statements previous
+    JOIN LATERAL (
+      SELECT r.outcome FROM public.finance_bank_statement_reconciliation_runs r
+      WHERE r.organization_id=previous.organization_id AND r.statement_id=previous.id
+      ORDER BY r.run_number DESC LIMIT 1
+    ) proof ON proof.outcome='VERIFIED'
+    WHERE previous.organization_id=v_org AND previous.settlement_account_mapping_id=p_settlement_account_mapping_id
+      AND previous.period_to=p_period_from-1 AND previous.statement_closing_balance=p_opening_balance
+      AND previous.currency=v_mapping.currency
+  ) INTO v_previous_verified;
+  IF NOT v_previous_verified THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='bank statement opening balance must equal an independently approved prior-day opening balance or the previous verified statement closing balance';
   END IF;
   INSERT INTO public.finance_bank_statements(
     organization_id,settlement_account_mapping_id,evidence_id,statement_reference,period_from,period_to,
