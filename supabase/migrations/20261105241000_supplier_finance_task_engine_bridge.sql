@@ -14,16 +14,23 @@ DECLARE
   v_po_number text;
   v_supplier_name text;
 BEGIN
-  SELECT i,po.purchase_order_number,s.name
-  INTO v_invoice,v_po_number,v_supplier_name
+  SELECT i.*
+  INTO v_invoice
   FROM public.purchase_supplier_invoices i
-  JOIN public.purchase_orders po
-    ON po.id=i.purchase_order_id AND po.organization_id=i.organization_id
-  JOIN public.suppliers s
-    ON s.id=i.supplier_id AND s.organization_id=i.organization_id
   WHERE i.id=NEW.invoice_id AND i.organization_id=NEW.organization_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier invoice task source is unavailable';
+  END IF;
+
+  SELECT po.purchase_order_number,s.name
+  INTO v_po_number,v_supplier_name
+  FROM public.purchase_orders po
+  JOIN public.suppliers s
+    ON s.id=v_invoice.supplier_id AND s.organization_id=v_invoice.organization_id
+  WHERE po.id=v_invoice.purchase_order_id
+    AND po.organization_id=v_invoice.organization_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='supplier invoice purchase order or supplier source is unavailable';
   END IF;
 
   IF NEW.action='recorded_variance_pending' THEN
