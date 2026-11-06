@@ -82,6 +82,17 @@ async function main() {
     grant usage on schema auth to anon, authenticated, service_role;
     grant execute on all functions in schema auth to anon, authenticated, service_role;
     create schema if not exists storage;
+    -- Match the immutable path helper provided by Supabase Storage for RLS policies.
+    create or replace function storage.foldername(name text)
+      returns text[]
+      language sql
+      immutable
+      parallel safe
+      as $storage_foldername$
+        select coalesce(array_agg(part order by ord), array[]::text[])
+        from unnest(string_to_array(coalesce(name, ''), '/')) with ordinality as path_segments(part, ord)
+        where ord < cardinality(string_to_array(coalesce(name, ''), '/'))
+      $storage_foldername$;
     create table if not exists storage.buckets(
       id text primary key, name text not null, public boolean not null default false,
       file_size_limit bigint, allowed_mime_types text[]
@@ -94,6 +105,14 @@ async function main() {
     grant select, insert, delete on storage.objects to anon, authenticated;
     grant select on storage.buckets to anon, authenticated;
   `);
+
+  const storageFolderFixture = await db.unsafe(
+    "select storage.foldername('folder/subfolder/evidence.pdf') as nested, storage.foldername('evidence.pdf') as root_file",
+  );
+  assert.deepEqual(storageFolderFixture[0].nested, ["folder", "subfolder"],
+    "Supabase Storage foldername returns parent path segments without the object filename");
+  assert.deepEqual(storageFolderFixture[0].root_file, [],
+    "Supabase Storage foldername returns an empty array for an object at the bucket root");
 
   const migrationDir = resolve(process.cwd(), "supabase/migrations");
   const migrations = (await readdir(migrationDir))
