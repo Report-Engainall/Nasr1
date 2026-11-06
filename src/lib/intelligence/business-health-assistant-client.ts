@@ -8,6 +8,7 @@ import { buildDeadStockReport } from "./dead-stock";
 import { buildLiquiditySnapshot, type LiquidityCurrencyInput } from "./liquidity";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import type { MetricSnapshot } from "./types";
+import { fetchProductRevenueConcentration } from "./product-revenue-concentration-client";
 
 export type BusinessHealthAssistantSource =
   | { status: "READY"; asOf: string; period: { from: string; to: string } }
@@ -34,6 +35,9 @@ export interface BusinessHealthAssistantSources {
     populationComplete: boolean;
     customerCount: number | null;
   } | { status: "UNAVAILABLE"; message: string };
+  productRevenueConcentration:
+    | { status: "READY"; invoiceCount: number; currencyCount: number; completePopulation: boolean; asOf: string }
+    | { status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
 }
 
 export interface BusinessHealthAssistantData {
@@ -152,10 +156,15 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
   try {
     const inventoryRequest = createInventoryIntelligencePeriod(now, 92);
     const cashflowRequest = createCashflowScheduleRequest({ horizonDays: 90, now });
-    const [inventory, cashflow, retention] = await Promise.all([
+    const [inventory, cashflow, retention, productRevenueConcentration] = await Promise.all([
       fetchInventoryIntelligence(inventoryRequest.period, inventoryRequest.asOf),
       fetchCashflowSchedule(cashflowRequest),
       fetchCustomerRetentionAggregate(90, inventoryRequest.asOf),
+      fetchProductRevenueConcentration({
+        from: inventoryRequest.period.from,
+        to: inventoryRequest.period.to,
+        asOf: inventoryRequest.asOf,
+      }),
     ]);
 
     if (inventory.ok === false) {
@@ -201,6 +210,10 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
       cashflow: forecast,
       deadStock,
       retention: retention.ok ? retention.data : null,
+      productRevenueConcentration: productRevenueConcentration.ok
+        ? productRevenueConcentration.snapshot : null,
+      productRevenueConcentrationUnavailableReason: productRevenueConcentration.ok
+        ? undefined : productRevenueConcentration.message,
       replenishment: {
         id: "business-health-replenishment-source:" + inventory.data.asOf,
         asOf: inventory.data.asOf,
@@ -236,11 +249,25 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
             customerCount: retention.data.population.total,
           }
         : { status: "UNAVAILABLE", message: retention.message },
+      productRevenueConcentration: productRevenueConcentration.ok
+        ? {
+            status: "READY",
+            invoiceCount: productRevenueConcentration.snapshot.invoiceCount,
+            currencyCount: productRevenueConcentration.snapshot.currencyCount,
+            completePopulation: productRevenueConcentration.snapshot.completePopulation,
+            asOf: productRevenueConcentration.snapshot.asOf,
+          }
+        : {
+            status: productRevenueConcentration.status,
+            message: productRevenueConcentration.message,
+          },
     };
     const allSourcesReady =
       sources.inventory.status === "READY" &&
       sources.cashflow.status === "READY" &&
-      sources.retention.status === "READY";
+      sources.retention.status === "READY" &&
+      sources.productRevenueConcentration.status === "READY" &&
+      sources.productRevenueConcentration.completePopulation;
     const state = allSourcesReady && map.status === "VERIFIED" ? "READY" : "PARTIAL";
     const answer = state === "READY"
       ? "اكتملت قراءة مصادر خريطة صحة الأعمال عند " + map.asOf + "؛ عُرضت المؤشرات المثبتة فقط، مع إبقاء العملات منفصلة ومنع جمع المكونات المتداخلة."
