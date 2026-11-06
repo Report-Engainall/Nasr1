@@ -293,9 +293,6 @@ export function parseCashReconciliationWorkspace(value: unknown): CashReconcilia
   const openings = list(row.openingBalances, "طلبات الأرصدة الافتتاحية", 2000).map(opening);
   const statements = list(row.statements, "كشوف البنوك", 500).map(bankStatement);
   const accountIds = new Set(accounts.map((item) => item.id));
-  if (accounts.some((item) => !itemIdsEvidence(item.id, evidenceRows, openings, statements))) {
-    // The helper intentionally does not require every account to have evidence; no-op marker is removed below.
-  }
   if (evidenceRows.some((item) => !accountIds.has(item.mappingId)) ||
       openings.some((item) => !accountIds.has(item.mappingId)) ||
       statements.some((item) => !accountIds.has(item.mappingId))) {
@@ -309,15 +306,6 @@ export function parseCashReconciliationWorkspace(value: unknown): CashReconcilia
     statements,
   };
 }
-function itemIdsEvidence(
-  _accountId: string,
-  _evidence: CashAccountEvidence[],
-  _openings: CashOpeningBalanceProposal[],
-  _statements: FinanceBankStatement[],
-): boolean {
-  return true;
-}
-
 export async function fetchCashReconciliationWorkspace(): Promise<CashReconciliationWorkspace> {
   const { data, error } = await supabase.rpc("fetch_finance_cash_reconciliation_workspace");
   if (error) throw error;
