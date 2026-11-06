@@ -235,7 +235,8 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
   if (!canManage) return null;
 
   return (
-    <section className="panel" dir="rtl" style={{ display: "grid", gap: 14 }}>
+    <>
+      <section className="panel" dir="rtl" style={{ display: "grid", gap: 14 }}>
       <header className="panel-head">
         <div>
           <h2><ClipboardList size={18} style={{ verticalAlign: "middle", marginInlineEnd: 7 }} /> عروض الموردين ومقارنة الأسعار</h2>
@@ -376,9 +377,10 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
         })}
         {!warehouses.length && <p className="po-muted">لا يوجد مخزن نشط؛ لا يمكن تحويل العرض إلى أمر شراء قبل تهيئة المخزن.</p>}
       </div>
-    </section>
-    {printDocument && typeof document !== "undefined"
-      ? createPortal(<SupplierQuoteComparisonPrintSheet document={printDocument} />, document.body)
-      : null}
+      </section>
+      {printDocument && typeof document !== "undefined"
+        ? createPortal(<SupplierQuoteComparisonPrintSheet document={printDocument} />, document.body)
+        : null}
+    </>
   );
 }
