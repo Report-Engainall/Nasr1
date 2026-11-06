@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 sequential body update — BODY-COMPLETION-ON-MAIN-030
+
+- Latest P1 product-code SHA: `61c40c123b2116ac1b6d149ccb94bcc194417dff`.
+- Added an Arabic five-sheet XLSX download to the existing customer account statement using the same `get_customer_account_statement()` payload. Full-ledger per-currency balances remain distinct from bounded invoice/payment/posted-credit details (200/500/500); unknown amounts remain blank and the export requires the source summary/as-of/credit details to be present.
+- New acceptance leaf `DLV-011-CUSTOMER-ACCOUNT-STATEMENT-XLSX-001` is `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No test/runtime PASS is claimed; no migration or dependency was added.
+- Builder commit `61c40c123b2116ac1b6d149ccb94bcc194417dff`; UI commit `6e8a0ccec58587d47e5e278a42b6fe2d4f2a4fb3`.
+
 ## P1 sequential body update — BODY-COMPLETION-ON-MAIN-029
 
 - Latest P1 product-code SHA: `82424db8079c512f84e87b69715453fe24b6330b`.
