@@ -204,7 +204,7 @@ const ROOT_NAV_ITEMS = [
   ["/payments", "دفعاتي"],
   ["/help", "المساعدة"],
   ["/admin", "لوحة الإدارة"],
-  ["/login", "الحساب"],
+  ["/profile", "الحساب"],
 ] as const;
 
 type RootNavigationItem = typeof ROOT_NAV_ITEMS[number];
