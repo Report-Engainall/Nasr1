@@ -24,6 +24,7 @@ import { formatCurrency, formatDateShort, formatNumber, timeAgo } from '@/lib/fo
 import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem, StorefrontAnnouncement, StorefrontAnnouncementAudience, StorefrontAnnouncementInput } from '@/lib/types';
 import { buildOnyxOrderWorkbook, onyxOrderWorkbookFilename } from '@/lib/onyx-export';
 import { projectAdminSalesOrderPrintDocument } from '@/lib/admin-sales-order-print';
+import { downloadAdminSalesOrderWorkbookXlsx } from '@/lib/admin-sales-order-xlsx';
 
 import type { LucideIcon } from 'lucide-react';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
@@ -707,6 +708,18 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     icon={Package} note="" toolbar={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <Button variant="secondary" onClick={goBack} disabled={blocked || busy}><ChevronLeft size={16} /> رجوع</Button>
       <Button variant="secondary" onClick={() => window.print()} disabled={!printDocument || loading || busy || blocked}><Printer size={16} /> طباعة أمر البيع</Button>
+      <Button variant="secondary" onClick={() => {
+        if (!printDocument || loading || error || busy || blocked) {
+          onNotice('أكمل تحميل الطلب واحفظ أو ألغِ تعديلات المراجعة قبل تصدير النسخة المحفوظة.');
+          return;
+        }
+        try {
+          downloadAdminSalesOrderWorkbookXlsx(printDocument);
+          onNotice('تم إعداد كشف أمر البيع الداخلي بصيغة Excel من البيانات المحفوظة.');
+        } catch (cause) {
+          onNotice(cause instanceof Error ? cause.message : 'تعذر إعداد ملف Excel لأمر البيع.');
+        }
+      }} disabled={!printDocument || loading || Boolean(error) || busy || blocked}><Download size={16} /> تنزيل Excel داخلي</Button>
       <Button disabled={!canExportOnyxOrder || exportBusy || exportSnapshotsLoading || Boolean(exportSnapshotsError)} onClick={downloadOnyxWorkbook}><Download size={16} /> {exportBusy ? 'جارٍ تسجيل حدث التصدير...' : 'تنزيل XLSX للأونكس'}</Button>
     </div>}>
     <style>{`
