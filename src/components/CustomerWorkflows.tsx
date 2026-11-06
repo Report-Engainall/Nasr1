@@ -45,6 +45,7 @@ import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
+import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
@@ -2946,6 +2947,21 @@ export function StaffFinancePage() {
   const [agingOffset, setAgingOffset] = useState(0);
   const [agingLoading, setAgingLoading] = useState(false);
   const [agingError, setAgingError] = useState("");
+  const [agingExportBusy, setAgingExportBusy] = useState(false);
+  const [agingExportError, setAgingExportError] = useState("");
+
+  function exportReceivablesAgingWorkbook() {
+    if (!agingReport || agingLoading || agingError) return;
+    setAgingExportBusy(true);
+    setAgingExportError("");
+    try {
+      downloadReceivablesAgingWorkbookXlsx(agingReport);
+    } catch (cause) {
+      setAgingExportError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لأعمار الذمم.");
+    } finally {
+      setAgingExportBusy(false);
+    }
+  }
 
   function printReceivablesAgingReport() {
     const root = document.documentElement;
@@ -3496,9 +3512,15 @@ export function StaffFinancePage() {
             <button
               type="button"
               style={secondary}
+              disabled={agingLoading || !agingReport || Boolean(agingError) || agingExportBusy}
+              onClick={exportReceivablesAgingWorkbook}
+            ><FileSpreadsheet size={15} /> {agingExportBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel للملخص والصفحة المعروضة"}</button>
+            <button
+              type="button"
+              style={secondary}
               disabled={agingLoading || !agingReport || Boolean(agingError)}
               onClick={printReceivablesAgingReport}
-            >طباعة كشف أعمار الذمم (الملخص والصفحة المعروضة)</button>
+            ><Printer size={15} /> طباعة كشف أعمار الذمم (الملخص والصفحة المعروضة)</button>
           </div>
           {agingReport && (
             <p style={{ ...quiet, marginTop: 8 }}>
@@ -3507,6 +3529,7 @@ export function StaffFinancePage() {
           )}
         </header>
         {agingError && <ErrorBox message={agingError} retry={() => void loadAging(agingOffset)} />}
+        {agingExportError && <ErrorBox message={agingExportError} retry={exportReceivablesAgingWorkbook} />}
         {agingLoading && <p role="status">جارٍ تحميل تقرير الذمم من الخادم...</p>}
         {!agingLoading && !agingError && agingReport && (
           <>
