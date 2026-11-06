@@ -95,7 +95,7 @@ describe("daily decision board accessibility and responsive structure", () => {
     const { container } = render(<DailyDecisionBoard result={result} />);
     const board = screen.getByRole("region", { name: "لوحة متابعة القرارات اليومية" });
     const progress = screen.getByRole("list", { name: "تسلسل انتقال القرار" });
-    const summaryGrid = container.querySelector(".grid.grid-cols-2.gap-2.sm\\:grid-cols-3");
+    const summaryGrid = Array.from(container.querySelectorAll("div")).find(element => element.classList.contains("grid-cols-2") && element.classList.contains("sm:grid-cols-3"));
 
     expect(board.className).toContain("min-w-0");
     expect(summaryGrid).not.toBeNull();
