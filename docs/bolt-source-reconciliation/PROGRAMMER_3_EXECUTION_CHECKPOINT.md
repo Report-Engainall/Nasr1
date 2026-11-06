@@ -1,3 +1,56 @@
+# P3 INCREMENTAL PRODUCT BODY CHECKPOINT — CUSTOMER SERVICE INTELLIGENCE — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Verified code-bearing SHA:** `eabde4b160cab74b1856ca80a178e88968fc5dc0`  
+**Verified latest main/documentation SHA at checkpoint update:** `f3760c03b35bb4d4ebcdb9f920a3b6f7ab28a046`
+
+## Implemented in this continuation
+
+- Added `public.get_customer_service_work_queue_summary()` in `supabase/migrations/20261106100000_customer_service_intelligence_summary.sql`. It is a SECURITY DEFINER, empty-search-path, authenticated active same-organization staff read. It uses one server timestamp and emits only an aggregate snapshot. It does not return customer/case/employee identities, descriptions, subjects, messages or financial data.
+- Added a strict client DTO in `src/lib/intelligence/customer-service-intelligence-client.ts`. The parser accepts exactly four root keys and exactly six summary keys; it rejects detail-bearing payloads, partial populations, invalid timestamps, negative/fractional/unsafe counts and any counter greater than the complete active-case population.
+- Added four allow-listed Arabic intents to the existing natural-language assistant: active customer-service overview, first-response SLA overdue, resolution SLA overdue and unassigned cases. The planner explicitly rejects historical/date-window requests because the source is a current snapshot only.
+- Added a resolver that keeps response-overdue and resolution-overdue as distinct counts. They may overlap; no combined overdue total is calculated.
+- Connected the query client to the existing `NaturalLanguageAssistant` and added a six-metric Arabic aggregate panel showing server as-of separately from client query time. The panel explicitly states that it contains aggregate counts only and exposes no case/customer/employee detail.
+- Added focused source tests for parser completeness, exact aggregate key allowlist, impossible counts, detail-payload rejection, Arabic intent selection, historical-window refusal and non-additive SLA overlap.
+- Added migration/runtime acceptance handoff: `docs/execution/contracts/P3_CUSTOMER_SERVICE_INTELLIGENCE_HANDOFF.md`.
+- Added matrix leaf `REF-NL-CUSTOMER-SERVICE-INTELLIGENCE-001`, and refreshed the existing Section 61 rows to reflect P1's actual mounts.
+
+## Code commits in this continuation
+
+1. `c98b7323c6ae07d2459055616a008d0b01a2027b` — aggregate-only tenant-scoped customer service RPC.
+2. `34f856e720cd4a31e69b56781b45e5e397c82096` — strict customer service intelligence DTO/client.
+3. `59f4a7d9df865c57c66a6835dfa902a4ffc8510b` — Arabic intent planner and deterministic resolver.
+4. `354ee175c7e142f3bd9921e37943a72997f91b2d` — assistant RPC resolver.
+5. `8288385014a780169170f188dc7f18902228ec02` — Arabic aggregate metrics display.
+6. `8fd781b2917e162f15a5a2edf158cc236cdde3c5` — exact payload-key and privacy fail-closed parser.
+7. `d837dcc4f9aa0072dad8b398079749ac06b5a0eb` — query synonym and current-snapshot boundary refinement.
+8. `9ec5a35b6db2358ed8a271d31ea6255341b2975e` — preserve wide aggregate counts (remove 32-bit narrowing).
+9. `11b37346413606760f1fef1323b07f65f90f4db1` — parser contract test source.
+10. `fc444315eb736a612c96630d810916216691fc75` — unassigned-case phrase recognition.
+11. `ff69dfb7250cb9e1d73559cabc871d8c1c969db2` — Arabic intent test source.
+12. `eabde4b160cab74b1856ca80a178e88968fc5dc0` — projection/overlap test source.
+
+Documentation commits:
+- `4b175ea851f7672c2802eae01f4f42aacf378ee7` — P3 customer-service intelligence handoff.
+- `f3760c03b35bb4d4ebcdb9f920a3b6f7ab28a046` — updated acceptance matrix and P1 mount status.
+
+## P1 integration status refresh
+
+P1 has now mounted `TaskQualityReviewForm` in `TaskCenter.tsx` using the actual `task.id` and `task.updated_at`, the existing `canManage` gate, `key={task.id}` and `onSaved={loadTasks}` (P1 commit `4eb080d6ee44a74a36086a6cb9014e8d0fb4004b`). The existing `IntelligenceWorkspace.tsx` also mounts `NaturalLanguageAssistant` with its authorized supplier-invoice and purchase-order callbacks. These mounts are present on current main; do not redo them.
+
+## Remaining / boundary
+
+- Migration `20261106100000_customer_service_intelligence_summary.sql` is source-only. It depends on customer-service case/SLA/work-queue migrations `20261105190000`, `20261105200000`, and `20261105210000` being applied first in the approved non-production workflow.
+- No migration, test, build, lint, typecheck, CI, browser, Bolt, Preview, Vercel or production operation was run in this continuation. The tests are committed but unexecuted. No runtime PASS is claimed.
+- Existing aggregate queue source is current-snapshot only. Historical SLA trends remain unsupported until an audited time-series source exists.
+- Section 52's comparable baselines for order lateness, receiving, supplier settlement and inventory variance remain withheld until exact tenant-scoped source evidence, formula and period contracts exist.
+- The assistant is mounted by P1 but the new customer-service query remains acceptance-pending until the migration is applied and role/tenant/no-detail behavior is proven on the exact SHA.
+
+**Next P3 action:** add historical SLA trend intelligence only after a tenant-scoped append-only SLA event source and full-period aggregation contract are grounded; otherwise continue the next true P3-owned matrix gap without inventing history.  
+**Status:** `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no release or production readiness is asserted.
+
+---
+
 # P3 INCREMENTAL PRODUCT BODY CHECKPOINT — 2026-11-06
 
 **Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
@@ -36,7 +89,7 @@ Documentation commits:
 ## Remaining / boundary
 
 - P1 still needs to mount `TaskQualityReviewForm` in its existing `TaskCenter.tsx` card using the actual `task.id` and `task.updated_at`, existing manager/admin presentation gate, current refresh callback and `key={task.id}`. P3 did not edit P1-owned files.
-- P1 still needs to mount `NaturalLanguageAssistant` in the existing intelligence workspace with the established authorized navigation callbacks. P3 did not edit `IntelligenceWorkspace.tsx`.
+- P1's existing `NaturalLanguageAssistant` mount is present in `IntelligenceWorkspace.tsx` with the authorized existing supplier-invoice and purchase-order callbacks; P3 did not edit that workspace.
 - The quality migration `20261106090000_operational_task_quality_reviews.sql` and prerequisite task scorecard/audit migrations remain source-only pending the approved Bolt non-production workflow.
 - Section 52 is not fully closed: the current persisted expected-baseline selector is limited to `cashflow.expected_collections`. Comparable operational baselines/actuals for order lateness, receiving, supplier settlement and inventory variance remain unimplemented until their exact source tables, metric formulas, tenant scopes and evidence IDs are grounded. Do not estimate those values.
 - No weighted denominator is defined for all remaining P3 requirements in the matrix; a truthful 95% closure percentage cannot be certified from this delivery. Do not substitute file counts or number of commits.
