@@ -28,3 +28,6 @@ export type { TaskPerformanceScorecardProps, TaskPerformanceScorecardState } fro
 
 export { TaskQualityReviewForm } from "./TaskQualityReviewForm";
 export type { TaskQualityReviewFormProps } from "./TaskQualityReviewForm";
+
+export { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
+export type { TaskQualityReviewMetricsProps } from "./TaskQualityReviewMetrics";
