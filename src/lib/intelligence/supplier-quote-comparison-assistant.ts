@@ -10,6 +10,9 @@ export interface SupplierQuoteComparisonOffer {
   supplierName: string;
   quoteNumber: string;
   unitCost: number;
+  deliveryDays: number | null;
+  paymentTerms: string | null;
+  validUntil: string | null;
   updatedAt: string;
 }
 
@@ -26,6 +29,8 @@ export interface SupplierQuoteProductComparison {
   lowestUnitCost: number;
   secondLowestUnitCost: number | null;
   differenceToNextUnitCost: number | null;
+  deliveryProfile: { shortestDays: number | null; longestDays: number | null; withDays: number; withoutDays: number; fastestCount: number };
+  paymentTermsCoverage: { recorded: number; missing: number };
 }
 
 export interface SupplierQuoteComparisonWithheld {
@@ -165,8 +170,13 @@ export function buildSupplierQuoteComparisonAssistant(
         supplierName: item.quote.supplier_name,
         quoteNumber: item.quote.quote_number,
         unitCost: item.line.unit_cost,
+        deliveryDays: item.quote.delivery_days,
+        paymentTerms: item.quote.payment_terms?.trim() || null,
+        validUntil: item.quote.valid_until,
         updatedAt: item.quote.updated_at,
       })).sort(compareOffers);
+      const days = offers.map(offer => offer.deliveryDays).filter((value): value is number => value !== null && Number.isInteger(value) && value >= 0);
+      const shortestDays = days.length ? Math.min(...days) : null;
       const lowestUnitCost = offers[0].unitCost;
       const secondLowestUnitCost = offers[1]?.unitCost ?? null;
       comparisons.push({
@@ -184,6 +194,17 @@ export function buildSupplierQuoteComparisonAssistant(
         differenceToNextUnitCost: secondLowestUnitCost === null
           ? null
           : Number((secondLowestUnitCost - lowestUnitCost).toFixed(2)),
+        deliveryProfile: {
+          shortestDays,
+          longestDays: days.length ? Math.max(...days) : null,
+          withDays: days.length,
+          withoutDays: offers.length - days.length,
+          fastestCount: shortestDays === null ? 0 : offers.filter(offer => offer.deliveryDays === shortestDays).length,
+        },
+        paymentTermsCoverage: {
+          recorded: offers.filter(offer => offer.paymentTerms !== null).length,
+          missing: offers.filter(offer => offer.paymentTerms === null).length,
+        },
       });
     }
   }
