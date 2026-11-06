@@ -1,4 +1,5 @@
 import type { SupplierQuote } from "@/lib/supplier-quotes";
+import type { SupplierPerformanceSnapshot } from "./supplier-performance";
 
 export type SupplierQuoteComparisonWithheldReason =
   | "UNIT_MISSING"
@@ -6,7 +7,31 @@ export type SupplierQuoteComparisonWithheldReason =
   | "LINE_TOTAL_MISMATCH"
   | "INSUFFICIENT_DISTINCT_SUPPLIERS";
 
+export interface SupplierQuoteSupplierPerformance {
+  state: "AVAILABLE" | "NO_ACTIVITY_IN_PERIOD" | "NOT_IN_RETURNED_PAGE" | "SOURCE_UNAVAILABLE";
+  purchaseOrderCount: number | null;
+  completedOrderCount: number | null;
+  openOrderCount: number | null;
+  inconsistentReceivedCount: number | null;
+  backlogLineCount: number | null;
+  leadTimeSampleCount: number | null;
+  medianLeadDays: number | null;
+  promisedDeliverySampleCount: number | null;
+  onTimePercent: number | null;
+}
+
+export interface SupplierQuotePerformanceSource {
+  status: "NOT_REQUESTED" | "READY" | "PARTIAL" | "DENIED" | "UNAVAILABLE" | "ERROR";
+  asOf: string | null;
+  period: { from: string; to: string } | null;
+  totalSupplierCount: number | null;
+  returnedSupplierCount: number | null;
+  completePopulation: boolean | null;
+  message: string | null;
+}
+
 export interface SupplierQuoteComparisonOffer {
+  supplierPerformance?: SupplierQuoteSupplierPerformance;
   supplierName: string;
   quoteNumber: string;
   unitCost: number;
@@ -62,6 +87,7 @@ export interface SupplierQuoteComparisonAssistantResult {
   intent: "SUPPLIER_QUOTE_COMPARISON_OVERVIEW";
   sourceRpc: "fetch_purchase_supplier_quotes";
   queriedAt: string;
+  supplierPerformance: SupplierQuotePerformanceSource;
   quoteCount: number;
   completePopulation: boolean;
   quoteCounts: { received: number; awarded: number; expired: number };
@@ -78,6 +104,9 @@ export interface SupplierQuoteComparisonAssistantResult {
 }
 
 type Candidate = { quote: SupplierQuote; productId: string; line: SupplierQuote["items"][number] };
+type SupplierPerformanceInput =
+  | { ok: true; snapshot: SupplierPerformanceSnapshot }
+  | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
 const SOURCE_LIMIT = 200;
 const MAX_RENDERED_COMPARISONS = 20;
 const MAX_RENDERED_OFFERS = 10;
@@ -108,10 +137,84 @@ function compareOffers(a: SupplierQuoteComparisonOffer, b: SupplierQuoteComparis
 export function buildSupplierQuoteComparisonAssistant(
   quotes: readonly SupplierQuote[],
   queriedAt: string,
+  supplierPerformance?: SupplierPerformanceInput,
 ): SupplierQuoteComparisonAssistantResult {
   if (!Array.isArray(quotes) || quotes.length > SOURCE_LIMIT || !validTime(queriedAt)) {
     throw new Error("supplier_quote_comparison_input_invalid");
   }
+  const performanceMap = new Map<string, SupplierPerformanceSnapshot["suppliers"][number]>();
+  const performanceSnapshot = supplierPerformance?.ok ? supplierPerformance.snapshot : null;
+  if (performanceSnapshot) {
+    for (const item of performanceSnapshot.suppliers) performanceMap.set(item.supplierId, item);
+  }
+  const performanceSource: SupplierQuotePerformanceSource = performanceSnapshot ? {
+    status: performanceSnapshot.completePopulation ? "READY" : "PARTIAL",
+    asOf: performanceSnapshot.asOf,
+    period: { from: performanceSnapshot.period.from, to: performanceSnapshot.period.to },
+    totalSupplierCount: performanceSnapshot.totalSupplierCount,
+    returnedSupplierCount: performanceSnapshot.returnedSupplierCount,
+    completePopulation: performanceSnapshot.completePopulation,
+    message: performanceSnapshot.completePopulation ? null : "قائمة أداء الموردين جزئية؛ قد لا تظهر جميع الموردين في الصفحة المعادة.",
+  } : supplierPerformance && !supplierPerformance.ok ? {
+    status: supplierPerformance.status,
+    asOf: null,
+    period: null,
+    totalSupplierCount: null,
+    returnedSupplierCount: null,
+    completePopulation: null,
+    message: supplierPerformance.message,
+  } : {
+    status: "NOT_REQUESTED",
+    asOf: null,
+    period: null,
+    totalSupplierCount: null,
+    returnedSupplierCount: null,
+    completePopulation: null,
+    message: null,
+  };
+  const performanceFor = (supplierId: string): SupplierQuoteSupplierPerformance | undefined => {
+    if (!supplierPerformance) return undefined;
+    if (!performanceSnapshot) return {
+      state: "SOURCE_UNAVAILABLE",
+      purchaseOrderCount: null,
+      completedOrderCount: null,
+      openOrderCount: null,
+      inconsistentReceivedCount: null,
+      backlogLineCount: null,
+      leadTimeSampleCount: null,
+      medianLeadDays: null,
+      promisedDeliverySampleCount: null,
+      onTimePercent: null,
+    };
+    const supplier = performanceMap.get(supplierId);
+    if (!supplier) {
+      const state = performanceSnapshot.completePopulation ? "NO_ACTIVITY_IN_PERIOD" : "NOT_IN_RETURNED_PAGE";
+      return {
+        state,
+        purchaseOrderCount: null,
+        completedOrderCount: null,
+        openOrderCount: null,
+        inconsistentReceivedCount: null,
+        backlogLineCount: null,
+        leadTimeSampleCount: 0,
+        medianLeadDays: null,
+        promisedDeliverySampleCount: 0,
+        onTimePercent: null,
+      };
+    }
+    return {
+      state: "AVAILABLE",
+      purchaseOrderCount: supplier.purchaseOrderCount,
+      completedOrderCount: supplier.completedOrderCount,
+      openOrderCount: supplier.openOrderCount,
+      inconsistentReceivedCount: supplier.inconsistentReceivedCount,
+      backlogLineCount: supplier.backlogLineCount,
+      leadTimeSampleCount: supplier.leadTimeSampleCount,
+      medianLeadDays: supplier.leadTimeSampleCount >= 3 ? supplier.medianLeadDays : null,
+      promisedDeliverySampleCount: supplier.promisedDeliverySampleCount,
+      onTimePercent: supplier.promisedDeliverySampleCount >= 3 ? supplier.onTimePercent : null,
+    };
+  };
 
   const quoteCounts = { received: 0, awarded: 0, expired: 0 };
   for (const quote of quotes) quoteCounts[quote.status] += 1;
@@ -186,6 +289,7 @@ export function buildSupplierQuoteComparisonAssistant(
       }
 
       const offers = distinctOffers.map(item => ({
+        supplierPerformance: performanceFor(item.quote.supplier_id),
         supplierName: item.quote.supplier_name,
         quoteNumber: item.quote.quote_number,
         unitCost: item.line.unit_cost,
@@ -317,13 +421,16 @@ export function buildSupplierQuoteComparisonAssistant(
   const completePopulation = quotes.length < SOURCE_LIMIT;
   const state: SupplierQuoteComparisonAssistantResult["state"] = quotes.length === 0
     ? "EMPTY"
-    : completePopulation ? "READY" : "PARTIAL";
+    : completePopulation && ["READY", "NOT_REQUESTED"].includes(performanceSource.status) ? "READY" : "PARTIAL";
   const warnings: string[] = [];
   if (!completePopulation) {
     warnings.push("SOURCE_LIMIT_REACHED: تعرض الخدمة أحدث 200 عرض فقط ولا تعيد total أو cursor؛ قد توجد عروض أقدم لم تدخل المقارنة.");
   }
   if (withheld.length > 0) {
     warnings.push("NON_COMPARABLE_OFFERS_WITHHELD: لا تقارن العروض عند اختلاف الوحدة أو الكمية أو العملة أو لقطة الصنف أو سلامة إجمالي السطر.");
+  }
+  if (!["READY", "NOT_REQUESTED"].includes(performanceSource.status)) {
+    warnings.push("SUPPLIER_PERFORMANCE_NOT_COMPLETE: بيانات الأداء الفعلي للموردين غير مكتملة أو غير متاحة؛ بقيت مقارنة الأسعار وشروط العرض مستقلة.");
   }
   if (comparisons.length > MAX_RENDERED_COMPARISONS) {
     warnings.push("COMPARISON_RENDER_LIMIT: عُرضت أول 20 مجموعة مقارنة فقط.");
@@ -346,6 +453,7 @@ export function buildSupplierQuoteComparisonAssistant(
     intent: "SUPPLIER_QUOTE_COMPARISON_OVERVIEW",
     sourceRpc: "fetch_purchase_supplier_quotes",
     queriedAt,
+    supplierPerformance: performanceSource,
     quoteCount: quotes.length,
     completePopulation,
     quoteCounts,
