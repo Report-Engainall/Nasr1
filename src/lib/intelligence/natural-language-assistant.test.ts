@@ -98,3 +98,41 @@ describe("deferred decision assistant intent", () => {
   });
 });
 });
+
+describe("task quality assistant scope and Arabic synonyms", () => {
+  it("routes repeated causes, recommendation rejection and false-alarm questions to reviewed quality evidence", () => {
+    for (const question of [
+      "ما أكثر الأسباب المتكررة؟",
+      "ما أسباب رفض التوصيات؟",
+      "ما أسباب تأجيل التوصيات؟",
+      "ما نسبة الإنذارات الكاذبة؟",
+      "ما دقة التنبيهات الصحيحة؟",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({
+        status: "READY",
+        intent: "TASK_QUALITY_OVERVIEW",
+        sourceRpc: "fetch_operational_task_quality_metrics",
+      });
+    }
+  });
+
+  it("does not misrepresent the latest-review aggregate as a historical period report", () => {
+    for (const question of [
+      "ما نسبة الإنذارات الكاذبة خلال الأسبوع الماضي؟",
+      "ما أسباب رفض التوصيات في آخر 30 يوم؟",
+      "كم عدد التنبيهات الخاطئة اليوم؟",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({ status: "UNSUPPORTED" });
+    }
+  });
+
+  it("does not claim role or department quality breakdowns absent from the source DTO", () => {
+    for (const question of [
+      "ما جودة التوصيات في المخزن؟",
+      "ما أسباب رفض التوصيات حسب الدور؟",
+      "ما معدل الإنذارات الكاذبة لدى المبيعات؟",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({ status: "UNSUPPORTED" });
+    }
+  });
+});
