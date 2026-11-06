@@ -439,7 +439,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const workspaceSearchRequest = useRef(0);
   const [recordContext, setRecordContext] = useState<AdminRecordContext | null>(() => readAdminRecordContext());
   const [notice, setNotice] = useState<string | null>(null);
-  const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
+  const [orderDetailId, setOrderDetailId] = useState<string | null>(() => { const context = readAdminRecordContext(); return context?.kind === "order" ? context.id : null; });
   const [navigationBlocked, setNavigationBlocked] = useState(false);
   const showNotice = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(null), 2800); };
   useEffect(() => {
@@ -624,6 +624,10 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       item.kind === "product" ? "products" :
       item.kind === "customer" ? "customers" :
       item.kind === "order" ? "orders" :
+      item.kind === "supplier" ? "suppliers" :
+      item.kind === "purchase_order" ? "purchase-orders" :
+      item.kind === "task" ? "tasks" :
+      item.kind === "import" ? "data" :
       item.kind === "invoice" ? "finance" :
       item.kind === "decision" ? "intelligence" : "audit";
     if (!visibleNav.some((entry) => entry.id === destination)) {
@@ -647,8 +651,9 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   };
 
   const searchKindLabel: Record<AdminWorkspaceSearchItem["kind"], string> = {
-    product: "منتج", customer: "عميل", order: "طلب", invoice: "فاتورة",
-    decision: "قرار", audit: "أثر تدقيق",
+    product: "منتج", customer: "عميل", order: "طلب", supplier: "مورد",
+    invoice: "فاتورة", decision: "قرار", audit: "أثر تدقيق",
+    purchase_order: "أمر شراء", task: "مهمة", import: "دفعة استيراد",
   };
 
   if (!ready) return <div className="login-screen" dir="rtl"><div style={{ margin: 'auto' }}><Loading /></div></div>;
