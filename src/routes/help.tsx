@@ -74,6 +74,13 @@ const articles: HelpArticle[] = [
     keywords: "فاتورة فواتير كشف حساب رصيد حساب statement",
   },
   {
+    id: "payment-history",
+    category: "الفواتير والحساب",
+    question: "أين أراجع الدفعات المسجلة؟",
+    answer: "افتح صفحة «دفعاتي» لعرض حركات السداد التي أعادها دفتر حسابك المصرّح به. تُربط العملة بالفاتورة عند وجودها ضمن تفاصيل القراءة؛ وتظهر القيمة أو العملة «غير متاحة» عندما لا يثبت المصدر المرجع اللازم. الصفحة للعرض فقط ولا تسجل دفعة جديدة.",
+    keywords: "دفعاتي دفعة سداد إيصال قبض مدفوعات",
+  },
+  {
     id: "prices",
     category: "الفواتير والحساب",
     question: "لماذا لا تظهر الأسعار أو الإجماليات؟",
@@ -98,6 +105,7 @@ const articles: HelpArticle[] = [
 
 const actions = [
   { to: "/orders", label: "متابعة طلباتي", detail: "عرض الطلبات وحالاتها المحفوظة", icon: ClipboardList },
+  { to: "/payments", label: "دفعاتي", detail: "عرض حركات السداد المسجلة في الحساب", icon: FileText },
   { to: "/reorder", label: "إعادة الطلب", detail: "تطبيق القوالب ومراجعة السلة", icon: ShoppingBag },
   { to: "/addresses", label: "عناوين التوصيل", detail: "إدارة عناوين الحساب", icon: MapPin },
   { to: "/invoices", label: "الفواتير", detail: "عرض مستندات الحساب المتاحة", icon: FileText },
