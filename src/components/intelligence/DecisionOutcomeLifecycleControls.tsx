@@ -249,7 +249,7 @@ export function DecisionOutcomeLifecycleControls({
             value={reason}
             disabled={busy || pending !== null}
             onChange={event => setReason(event.target.value)}
-            placeholder="اكتب مبرر المراجعة أو الاعتماد أو الرفض أو التنفيذ..."
+            placeholder="اكتب مبرر المراجعة أو الاعتماد أو الرفض أو التأجيل أو إعادة المراجعة أو التنفيذ..."
           />
         </label>
         <div className="flex flex-wrap gap-2">
