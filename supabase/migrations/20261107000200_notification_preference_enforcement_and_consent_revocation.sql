@@ -68,11 +68,19 @@ BEGIN
   END IF;
   NEW.organization_id := v_profile_org;
 
+  v_severity := CASE pg_catalog.lower(coalesce(NEW.type,''))
+    WHEN 'critical' THEN 'CRITICAL'
+    WHEN 'security' THEN 'CRITICAL'
+    WHEN 'warning' THEN 'HIGH'
+    WHEN 'error' THEN 'HIGH'
+    WHEN 'order' THEN 'HIGH'
+    ELSE 'NORMAL'
+  END;
+
   SELECT p.*
     INTO v_preferences
     FROM public.profile_personalization_preferences p
-   WHERE p.organization_id=v_profile_org
-     AND p.profile_id=NEW.profile_id;
+   WHERE p.profile_id=NEW.profile_id;
 
   v_found := FOUND;
 
@@ -82,14 +90,19 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  v_severity := CASE pg_catalog.lower(coalesce(NEW.type,''))
-    WHEN 'critical' THEN 'CRITICAL'
-    WHEN 'security' THEN 'CRITICAL'
-    WHEN 'warning' THEN 'HIGH'
-    WHEN 'error' THEN 'HIGH'
-    WHEN 'order' THEN 'HIGH'
-    ELSE 'NORMAL'
-  END;
+  -- Preferences are unique by profile. A stale organization link is not treated as no settings.
+  IF v_preferences.organization_id IS DISTINCT FROM v_profile_org THEN
+    INSERT INTO public.notification_delivery_suppressions(
+      notification_id,organization_id,profile_id,notification_type,severity,reason
+    )
+    VALUES(
+      NEW.id::text,v_profile_org,NEW.profile_id,
+      pg_catalog.left(coalesce(NEW.type,'unknown'),80),
+      v_severity,'PREFERENCES_INVALID'
+    )
+    ON CONFLICT(notification_id) DO NOTHING;
+    RETURN NULL;
+  END IF;
 
   IF NOT ('IN_APP'=ANY(v_preferences.notification_channels)) THEN
     v_reason := 'CHANNEL_DISABLED';
