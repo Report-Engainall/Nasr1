@@ -14,6 +14,8 @@ type AuthContextType = {
   signUp: (email: string, password: string, fullName: string) => Promise<{ needsConfirmation: boolean }>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signOutOtherSessions: () => Promise<void>;
+  signOutEverywhere: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -158,9 +160,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw new Error(translateAuthError(error.message));
   }, []);
 
-  const signOut = useCallback(async () => { await supabase.auth.signOut({ scope: 'local' }); setUser(null); }, []);
+  const signOut = useCallback(async () => {
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) throw new Error(translateAuthError(error.message));
+    setUser(null);
+  }, []);
 
-  return <AuthContext.Provider value={{ user, sessionRevision, loading, ready, configurationError, signIn, signUp, resetPassword, signOut }}>{children}</AuthContext.Provider>;
+  const signOutOtherSessions = useCallback(async () => {
+    const { error } = await supabase.auth.signOut({ scope: 'others' });
+    if (error) throw new Error(translateAuthError(error.message));
+  }, []);
+
+  const signOutEverywhere = useCallback(async () => {
+    const { error } = await supabase.auth.signOut({ scope: 'global' });
+    if (error) throw new Error(translateAuthError(error.message));
+    setUser(null);
+  }, []);
+
+  return <AuthContext.Provider value={{ user, sessionRevision, loading, ready, configurationError, signIn, signUp, resetPassword, signOut, signOutOtherSessions, signOutEverywhere }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
