@@ -40,6 +40,22 @@ export interface SupplierQuoteComparisonWithheld {
   reason: SupplierQuoteComparisonWithheldReason;
 }
 
+export interface SupplierQuotePriceHistory {
+  key: string;
+  productName: string;
+  itemCode: string;
+  supplierName: string;
+  quantity: number;
+  unit: string;
+  currency: string;
+  quoteCount: number;
+  first: { quoteNumber: string; createdAt: string; unitCost: number; status: SupplierQuote["status"] };
+  latest: { quoteNumber: string; createdAt: string; unitCost: number; status: SupplierQuote["status"] };
+  changeAmount: number;
+  changePercent: number | null;
+  direction: "INCREASED" | "DECREASED" | "UNCHANGED";
+}
+
 export interface SupplierQuoteComparisonAssistantResult {
   kind: "SUPPLIER_QUOTE_COMPARISON";
   state: "READY" | "PARTIAL" | "EMPTY";
@@ -52,6 +68,9 @@ export interface SupplierQuoteComparisonAssistantResult {
   comparisonGroupCount: number;
   comparisons: SupplierQuoteProductComparison[];
   comparisonsTruncated: boolean;
+  priceHistory: SupplierQuotePriceHistory[];
+  priceHistoryGroupCount: number;
+  priceHistoryTruncated: boolean;
   withheldGroupCount: number;
   withheld: SupplierQuoteComparisonWithheld[];
   warnings: string[];
@@ -222,6 +241,79 @@ export function buildSupplierQuoteComparisonAssistant(
     a.reason.localeCompare(b.reason)
   );
 
+  // Historical quote observations include received, awarded and expired records.
+  // They remain separate from the live-offer comparison above and use created_at,
+  // never updated_at, as the source observation time.
+  const historyByBasis = new Map<string, Candidate[]>();
+  for (const quote of quotes) {
+    for (const line of quote.items) {
+      const basis = JSON.stringify([quote.supplier_id, line.product_id, line.quantity_quoted, line.unit, quote.currency]);
+      const rows = historyByBasis.get(basis) ?? [];
+      rows.push({ quote, productId: line.product_id, line });
+      historyByBasis.set(basis, rows);
+    }
+  }
+  const priceHistory: SupplierQuotePriceHistory[] = [];
+  const queryTime = Date.parse(queriedAt);
+  for (const [basis, rows] of historyByBasis) {
+    if (rows.length < 2) continue;
+    const firstRow = rows[0];
+    const productName = firstRow.line.product_name;
+    const itemCode = firstRow.line.item_code;
+    if (!firstRow.line.unit?.trim() ||
+        new Set(rows.map(row => row.line.product_name.trim())).size !== 1 ||
+        new Set(rows.map(row => row.line.item_code.trim())).size !== 1 ||
+        rows.some(row => !validTime(row.quote.created_at) ||
+          Date.parse(row.quote.created_at) > queryTime ||
+          !Number.isFinite(row.line.quantity_quoted) || row.line.quantity_quoted <= 0 ||
+          !Number.isFinite(row.line.unit_cost) || row.line.unit_cost < 0 ||
+          !Number.isFinite(row.line.line_total) || row.line.line_total < 0 ||
+          Math.abs(row.line.quantity_quoted * row.line.unit_cost - row.line.line_total) > 0.011)) continue;
+    const ordered = [...rows].sort((a, b) =>
+      Date.parse(a.quote.created_at) - Date.parse(b.quote.created_at) ||
+      a.quote.id.localeCompare(b.quote.id)
+    );
+    const first = ordered[0];
+    const latest = ordered[ordered.length - 1];
+    if (Date.parse(first.quote.created_at) === Date.parse(latest.quote.created_at)) continue;
+    const changeAmount = Number((latest.line.unit_cost - first.line.unit_cost).toFixed(2));
+    const changePercent = first.line.unit_cost > 0
+      ? Number((changeAmount / first.line.unit_cost * 100).toFixed(2))
+      : null;
+    priceHistory.push({
+      key: basis,
+      productName,
+      itemCode,
+      supplierName: first.quote.supplier_name,
+      quantity: first.line.quantity_quoted,
+      unit: first.line.unit as string,
+      currency: first.quote.currency,
+      quoteCount: rows.length,
+      first: {
+        quoteNumber: first.quote.quote_number,
+        createdAt: first.quote.created_at,
+        unitCost: first.line.unit_cost,
+        status: first.quote.status,
+      },
+      latest: {
+        quoteNumber: latest.quote.quote_number,
+        createdAt: latest.quote.created_at,
+        unitCost: latest.line.unit_cost,
+        status: latest.quote.status,
+      },
+      changeAmount,
+      changePercent,
+      direction: changeAmount > 0 ? "INCREASED" : changeAmount < 0 ? "DECREASED" : "UNCHANGED",
+    });
+  }
+  priceHistory.sort((a, b) =>
+    a.productName.localeCompare(b.productName, "ar") ||
+    a.supplierName.localeCompare(b.supplierName, "ar") ||
+    a.quantity - b.quantity ||
+    a.unit.localeCompare(b.unit) ||
+    a.currency.localeCompare(b.currency)
+  );
+
   const completePopulation = quotes.length < SOURCE_LIMIT;
   const state: SupplierQuoteComparisonAssistantResult["state"] = quotes.length === 0
     ? "EMPTY"
@@ -235,6 +327,9 @@ export function buildSupplierQuoteComparisonAssistant(
   }
   if (comparisons.length > MAX_RENDERED_COMPARISONS) {
     warnings.push("COMPARISON_RENDER_LIMIT: عُرضت أول 20 مجموعة مقارنة فقط.");
+  }
+  if (priceHistory.length > 40) {
+    warnings.push("PRICE_HISTORY_RENDER_LIMIT: عُرضت أول 40 مجموعة سجل سعري فقط.");
   }
 
   const answer = quotes.length === 0
@@ -257,6 +352,9 @@ export function buildSupplierQuoteComparisonAssistant(
     comparisonGroupCount: comparisons.length,
     comparisons: comparisons.slice(0, MAX_RENDERED_COMPARISONS),
     comparisonsTruncated: comparisons.length > MAX_RENDERED_COMPARISONS,
+    priceHistory: priceHistory.slice(0, 40),
+    priceHistoryGroupCount: priceHistory.length,
+    priceHistoryTruncated: priceHistory.length > 40,
     withheldGroupCount: withheld.length,
     withheld: withheld.slice(0, MAX_RENDERED_WITHHELD),
     warnings,
