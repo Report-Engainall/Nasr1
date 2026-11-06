@@ -652,5 +652,38 @@ describe("notification delivery policy audit metadata", () => {
       deliveryAttemptId: "x".repeat(129),
     }, decision)).toBeNull();
   });
+  it("reviews malformed consent collections and rejects missing audit decisions without throwing", () => {
+    const request = input({
+      channel: "EMAIL",
+      event: {
+        severity: "HIGH",
+        dataClass: "ACCOUNT_STATEMENT",
+        purpose: "account-statement-delivery",
+      },
+      recipient: {
+        organizationId: "org-a",
+        profileId: "profile-a",
+        destinationId: "verified-email-destination",
+        destinationVerified: true,
+        authorizedForData: true,
+      },
+      preferences: preferences({ notificationChannels: ["IN_APP", "EMAIL"] }),
+      channelCapabilities: { EMAIL: true },
+      externalConsents: [null as unknown as ExternalChannelConsent],
+    });
+    expect(resolveNotificationDelivery(request)).toMatchObject({
+      status: "REVIEW",
+      reason: "EXTERNAL_CONSENT_INVALID",
+    });
+    expect(createNotificationDeliveryAuditMetadata({
+      ...input(),
+      deliveryAttemptId: "attempt-invalid-result",
+      actorProfileId: "profile-a",
+    }, null as unknown as ReturnType<typeof resolveNotificationDelivery>)).toBeNull();
+    expect(createNotificationDeliveryAuditMetadata(
+      null as unknown as NotificationDeliveryInput & { deliveryAttemptId: string; actorProfileId: string },
+      resolveNotificationDelivery(input()),
+    )).toBeNull();
+  });
 });
 });
