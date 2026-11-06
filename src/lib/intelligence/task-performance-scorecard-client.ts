@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-client";
 import {
   parseTaskPerformanceScorecard,
   type TaskPerformanceScorecard,
@@ -33,23 +34,30 @@ function mapFailure(error: unknown): TaskPerformanceScorecardFetchResult {
   };
 }
 
-/** The wrapper adds manager-only review evidence; legacy fallback keeps quality explicitly unavailable. */
+/**
+ * Loads the base scorecard and manager-reviewed quality evidence independently.
+ * A pending quality migration never fabricates zero metrics or hides the base scorecard.
+ */
 export async function fetchTaskPerformanceScorecard(): Promise<TaskPerformanceScorecardFetchResult> {
   try {
-    let response = await supabase.rpc("fetch_task_performance_scorecard_with_quality");
-    if (response.error && (
-      response.error.code === "PGRST202" || response.error.code === "42883" ||
-      /function .* does not exist|could not find the function/i.test(response.error.message ?? "")
-    )) {
-      response = await supabase.rpc("fetch_task_performance_scorecard");
-    }
+    const [response, quality] = await Promise.all([
+      supabase.rpc("fetch_task_performance_scorecard"),
+      fetchOperationalTaskQualityMetrics(),
+    ]);
     if (response.error) return mapFailure(response.error);
-    const scorecard = parseTaskPerformanceScorecard(response.data);
+    const raw = response.data;
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+      return { ok: false, status: "ERROR", message: "استجابة بطاقة الأداء غير صالحة؛ لم تُستخدم بيانات بديلة." };
+    }
+    const scorecard = parseTaskPerformanceScorecard({
+      ...(raw as Record<string, unknown>),
+      quality,
+    });
     if (!scorecard) {
       return { ok: false, status: "ERROR", message: "استجابة بطاقة الأداء لا تطابق عقد المصدر أو لا تتوازن أعدادها؛ لم تُستخدم بيانات بديلة." };
     }
     return { ok: true, scorecard };
   } catch {
-    return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بقراءة بطاقة الأداء؛ لم تُستخدم بيانات محلية بديلة." };
+    return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بمصادر بطاقة الأداء؛ لم تُستخدم بيانات محلية بديلة." };
   }
 }
