@@ -1,3 +1,31 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-059 — CUSTOMER RETURN REQUEST A4 PRINT/PDF
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product source commit: `6ac5bd9bee33de74cee0bbe15358f0b80337f814`.
+- Final `src/components/CustomerReturnsPage.tsx` blob: `e4f3001096acd5ce4f3b529406bf2301c84a6cf2`.
+- Scope: add customer-facing A4 print/Save-as-PDF to each saved return request in the existing `/returns` history view.
+
+## BODY-059 — print saved return request
+
+- Added a per-request «طباعة / حفظ PDF» action.
+- The document is built from the validated server-returned `CustomerReturnRequestRecord` and the order header already authorized for the current customer. No alternate query or data source is introduced.
+- The Arabic RTL A4 print sheet shows company identity, customer display name, request number/date, original order number, request state/reason, item names/codes/quantities/UOM, customer note and saved review note.
+- The projection excludes internal request/order/item UUIDs, prices, totals, costs, margins and payment data.
+- The document explicitly states that it proves only that a return request was recorded; it is not proof of physical receipt, final acceptance, credit memo issuance or refund.
+- Print lifecycle scopes its own body print mode, restores the previous mode after printing, and removes the print sheet on `afterprint` or handled failure.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- GitHub source re-read on `main`: blob `e4f3001096acd5ce4f3b529406bf2301c84a6cf2`. Source contains the per-request trigger, A4 page rule, portal print sheet and request-only disclaimer.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue uncovered customer/account and role-specific output functions. Physical return receipt, credit memo and refund remain separate server transactions; the customer request print must never be presented as any of those documents.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-058 — CUSTOMER ORDER XLSX EXPORT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
