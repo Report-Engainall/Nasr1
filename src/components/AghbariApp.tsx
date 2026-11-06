@@ -1926,6 +1926,8 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const [section, setSection] = useState<'categories' | 'import' | 'onyx'>('categories');
   const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
   const [name, setName] = useState('');
+  const [categoryCode, setCategoryCode] = useState('');
+  const [parentCategoryId, setParentCategoryId] = useState('');
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -1933,12 +1935,19 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
 
   async function add() {
-    if (!name.trim()) return;
+    const categoryName = name.trim();
+    const code = categoryCode.trim();
+    if (!canManageImports || !categoryName || code.length > 64) return;
     try {
-      await createAdminCatalogCategory(name);
+      const result = await createAdminCatalogCategory(categoryName, parentCategoryId || null, code || null);
+      if (!result || typeof result.id !== 'string' || result.name !== categoryName || typeof result.created !== 'boolean') {
+        throw new Error('لم يؤكد الخادم حفظ التصنيف.');
+      }
       setName('');
+      setCategoryCode('');
+      setParentCategoryId('');
       await refetch();
-      onNotice('تمت إضافة التصنيف');
+      onNotice(result.created ? 'تمت إضافة التصنيف' : 'التصنيف موجود بالفعل ضمن الأب المحدد');
     } catch (cause) {
       onNotice(cause instanceof Error ? cause.message : 'تعذر إضافة التصنيف');
     }
@@ -2044,9 +2053,26 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
     <div className="data-layout">
       <section className="panel">
         <div className="panel-head"><div><h2>التصنيفات</h2><p>تستخدم لتنظيم المنتجات والتقارير</p></div></div>
-        {canManageImports && <div className="inline-form">
-          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="اسم التصنيف الجديد" />
-          <Button onClick={() => void add()} disabled={!name.trim()}><Plus size={16} /> إضافة</Button>
+        {canManageImports && <div className="form-grid">
+          <Field label="اسم التصنيف">
+            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} placeholder="اسم التصنيف الجديد" />
+          </Field>
+          <Field label="رمز التصنيف (اختياري)">
+            <input value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} maxLength={64} placeholder="رمز داخلي للتصنيف" dir="auto" />
+          </Field>
+          <Field label="التصنيف الأب (اختياري)">
+            <select aria-label="التصنيف الأب" value={parentCategoryId} onChange={(event) => setParentCategoryId(event.target.value)}>
+              <option value="">تصنيف رئيسي</option>
+              {(categories ?? []).filter((candidate) => candidate.is_active !== false).map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+              ))}
+            </select>
+          </Field>
+          <div style={{ display: 'flex', alignItems: 'end' }}>
+            <Button onClick={() => void add()} disabled={!name.trim() || categoryCode.trim().length > 64}>
+              <Plus size={16} /> إضافة التصنيف
+            </Button>
+          </div>
         </div>}
         {loading ? <Loading /> : error ? <ErrorBox message={error} /> : categories?.length
           ? <div className="category-list">{categories.map((category: Category) =>
@@ -2065,6 +2091,7 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
                   <Button variant="outline" disabled={renamingId !== null} onClick={cancelRename}>إلغاء</Button>
                 </> : <>
                   <span>{category.name}</span>
+                  {category.parent_id && <small className="text-muted">التصنيف الأب: {(categories ?? []).find((parent) => parent.id === category.parent_id)?.name ?? 'غير متاح'}</small>}
                   {canManageImports && category.is_active !== false && <Button variant="outline" disabled={renamingId !== null || archivingId !== null || restoringId !== null} onClick={() => beginRename(category)}>
                     <Pencil size={16} /> تعديل الاسم
                   </Button>}
