@@ -352,3 +352,14 @@ Documentation commits:
 - Approved non-production acceptance must prove manager authorization and denial for other roles, full/partial count reconciliation, lifecycle counts reconcile to returned items, changed-source count is page-scoped under partial coverage, raw owner/source/rule details are not displayed, and no policy write side effect occurs.
 
 **Next P3 action:** resume from live `main`; keep Section 53 shift workspace on its explicit business-date input rather than deriving a timezone-sensitive date in the assistant. Continue only where the caller can provide or the server can resolve the business date safely.
+
+
+## P3 incremental assistant reliability note — source-neutral read errors — 2026-11-06
+
+**Code commit:** `95d8be1c29b96ddd65a6f67ab76dcf24bd38655a`
+
+- Corrected the natural-language assistant's generic thrown-RPC failure mapping: authorization denial no longer incorrectly cites purchasing/finance roles for unrelated task, decision, service, growth or policy reads.
+- Missing/unavailable RPC errors now explicitly say the approved read source is unavailable and that no local/fallback data was substituted.
+- Source-specific clients continue to preserve their own denial/unavailable messages when they return typed failures.
+- Status: `IMPLEMENTED_ON_MAIN`; no tests/build/lint/typecheck/CI/runtime action was performed.
+
