@@ -10,17 +10,18 @@ import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-clien
 import { fetchCustomerServiceIntelligenceSummary } from "./customer-service-intelligence-client";
 import { fetchDecisionOutcomes } from "./decision-outcome-client";
 import { buildDecisionMemoryBook } from "./decision-memory";
+import { fetchOperationalShiftWorkspace } from "./shift-operations-client";
 import { fetchTaskPerformanceScorecard } from "./task-performance-scorecard-client";
 import { fetchCommercePolicyCatalog } from "./commerce-policy-governance-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { fetchBusinessHealthAssistantSummary } from "./business-health-assistant-client";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent,type CommercePolicyIntent,resolveDecisionMemoryIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type ShiftOperationsIntent,resolveShiftOperationsIntent,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent,type CommercePolicyIntent,resolveDecisionMemoryIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
- |{status:"DENIED"|"UNAVAILABLE"|"ERROR";message:string};
+ |{status:"DENIED"|"UNAVAILABLE"|"NOT_FOUND"|"ERROR";message:string};
 function mapFailure(error:unknown):NaturalLanguageAssistantResponse {
  const failure=error as {code?:string;message?:string};
  if(failure?.code==="42501"||failure?.code==="28000"||failure?.code==="PGRST301")
@@ -86,6 +87,12 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     sourceRpc:"fetch_task_performance_scorecard",
     queriedAt:new Date().toISOString(),scorecard,
    }};
+  }
+  if(plan.sourceRpc==="fetch_operational_shift_workspace"){
+   if(!plan.businessDate)return {status:"ERROR",message:"تاريخ العمل مطلوب قبل قراءة مركز الوردية."};
+   const workspace=await fetchOperationalShiftWorkspace({businessDate:plan.businessDate});
+   if(!workspace.ok)return {status:workspace.status,message:workspace.message};
+   return {status:"RESULT",plan,result:resolveShiftOperationsIntent(workspace.data.result)};
   }
   if(plan.sourceRpc==="fetch_decision_outcomes"){
    const outcomes=await fetchDecisionOutcomes(100,0);

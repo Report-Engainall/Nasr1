@@ -11,6 +11,7 @@ import type { DecisionOutcomeState, DecisionOutcomeView } from "./decision-outco
 import type { GrowthOpportunityRadarResult } from "./growth-opportunities";
 import type { TaskPerformanceScorecard } from "./task-performance-scorecard";
 import type { BusinessHealthMapResult } from "./business-health-map";
+import type { ShiftOperationsCenterResult } from "./shift-operations";
 import { buildDecisionPolicyReviewSuggestions, type DecisionMemoryBookResult } from "./decision-memory";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
@@ -28,15 +29,16 @@ export type BusinessHealthIntent="BUSINESS_HEALTH_OVERVIEW";
 export type CommercePolicyIntent="COMMERCE_POLICY_OVERVIEW"|"COMMERCE_POLICY_SOURCE_CHANGES";
 export type DecisionOutcomesIntent="DECISION_OUTCOMES_OVERVIEW"|"DECISIONS_PENDING_REVIEW"|"DECISIONS_AWAITING_EXECUTION"|"DECISIONS_DEFERRED";
 export type DecisionMemoryIntent="DECISION_MEMORY_OVERVIEW";
+export type ShiftOperationsIntent="SHIFT_OPERATIONS_OVERVIEW";
 export type CustomerServiceIntent=
  |"CUSTOMER_SERVICE_OVERVIEW"
  |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
  |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
  |"CUSTOMER_SERVICE_UNASSIGNED";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|DecisionMemoryIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent|BusinessHealthIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard"|"fetch_commerce_policy_catalog";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|DecisionMemoryIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent|BusinessHealthIntent|ShiftOperationsIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard"|"fetch_commerce_policy_catalog"|"fetch_operational_shift_workspace";
 export type NaturalLanguagePlanResult=
- |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
+ |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind;businessDate?:string}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
 function normalizeArabic(value:string):string {
  return value.normalize("NFKC").replace(/[\u064B-\u065F\u0670\u0640]/g,"")
@@ -336,6 +338,29 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"لقطة حالية لمراجعات المدير المحفوظة عبر نطاق المهام المصرح به؛ أحدث مراجعة لكل كيان ونوع. تعرض أسباب رفض/تأجيل التوصيات والإنذارات الكاذبة والأسباب المتكررة بعد المراجعة، ولا تدعم فترة تاريخية أو توزيعاً حسب الدور."
   };
  }
+ const shiftOperationsQuestion=/(مركز الورديه|مركز اقفال اليوم|بدء الوردية|استلام الوردية|تسليم الوردية|جاهزيه الافتتاح|جاهزيه الاغلاق|الاقفال التشغيلي|تقرير الوردية)/.test(normalizedQuestion);
+ if(shiftOperationsQuestion){
+  const dates=[...normalizedQuestion.matchAll(/20\\d{2}-\\d{2}-\\d{2}/g)].map(match=>match[0]);
+  const uniqueDates=[...new Set(dates)];
+  if(uniqueDates.length!==1)return {
+   status:"CLARIFICATION",normalizedQuestion,
+   explanation:"مركز الوردية يرتبط بتاريخ العمل المحلي للمؤسسة؛ لن أفترض تاريخ جهاز المستخدم أو أحوّل «اليوم» تلقائياً إلى تاريخ UTC.",
+   clarification:"أرسل تاريخ العمل المطلوب بصيغة YYYY-MM-DD."
+  };
+  const businessDate=uniqueDates[0];
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(businessDate)||
+     !Number.isFinite(Date.parse(businessDate+"T00:00:00.000Z"))||
+     new Date(businessDate+"T00:00:00.000Z").toISOString().slice(0,10)!==businessDate)return {
+   status:"CLARIFICATION",normalizedQuestion,
+   explanation:"تاريخ العمل المرسل ليس تاريخاً تقويمياً صالحاً.",
+   clarification:"أرسل تاريخاً صحيحاً بصيغة YYYY-MM-DD."
+  };
+  return {
+   status:"READY",intent:"SHIFT_OPERATIONS_OVERVIEW",normalizedQuestion,
+   sourceRpc:"fetch_operational_shift_workspace",businessDate,
+   filterDescription:"لقطة الوردية لمؤسسة المستخدم بتاريخ العمل المحدد. تاريخ العمل صريح، والمنطقة الزمنية وتغطية المصادر وتوقيت asOf تأتي من الخادم؛ قراءة فقط لا تفتح وردية ولا تسجل عدّاً أو تسليماً أو إقفالاً."
+  };
+ }
  const businessHealthQuestion=/(خريطه صحه الاعمال|صحه الاعمال|ملخص صحه الاعمال|راس المال المحجوز|الصحه الماليه والتشغيليه|الخريطه الماليه والتشغيليه)/.test(normalizedQuestion);
  if(businessHealthQuestion){
   if(/(الاسبوع الماضي|الشهر الماضي|السنه الماضيه|من تاريخ|بين تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
@@ -464,6 +489,11 @@ export interface NaturalLanguageDecisionMemoryResult {
  kind:"DECISION_MEMORY";state:DecisionMemoryBookResult["status"];intent:DecisionMemoryIntent;
  answer:string;sourceRpc:"fetch_decision_outcomes";queriedAt:string;memory:DecisionMemoryBookResult;
 }
+export interface NaturalLanguageShiftOperationsResult {
+ kind:"SHIFT_OPERATIONS";state:ShiftOperationsCenterResult["status"];intent:ShiftOperationsIntent;
+ answer:string;sourceRpc:"fetch_operational_shift_workspace";businessDate:string;
+ asOf:string;result:ShiftOperationsCenterResult;
+}
 export interface NaturalLanguageDecisionOutcomesResult {
  kind:"DECISION_OUTCOMES";state:"READY"|"EMPTY"|"PARTIAL";intent:DecisionOutcomesIntent;
  answer:string;sourceRpc:"fetch_decision_outcomes";queriedAt:string;
@@ -484,7 +514,7 @@ export interface NaturalLanguageBusinessHealthResult {
  };
 }
 
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageDecisionMemoryResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult|NaturalLanguageBusinessHealthResult;
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageDecisionMemoryResult|NaturalLanguageShiftOperationsResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult|NaturalLanguageBusinessHealthResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -824,6 +854,33 @@ export function resolveDecisionOutcomesIntent(
  return {
   kind:"DECISION_OUTCOMES",state,intent,answer,sourceRpc:"fetch_decision_outcomes",queriedAt,
   totalCount,inspectedCount:items.length,primaryCount:selected.length,completePopulation,countsByState,
+ };
+}
+
+/** Projects the existing server-authorized shift decision packet without creating or changing a shift. */
+export function resolveShiftOperationsIntent(
+ result:ShiftOperationsCenterResult,
+):NaturalLanguageShiftOperationsResult {
+ const requiredOpening=result.openingChecks.filter(item=>item.state==="ACTION_REQUIRED").length;
+ const requiredClosing=result.closingChecks.filter(item=>item.state==="ACTION_REQUIRED").length;
+ const unknownChecks=[...result.openingChecks,...result.closingChecks].filter(item=>item.state==="UNKNOWN").length;
+ const incompleteSources=result.sourceCoverage.filter(source=>
+  source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||!source.completePopulation
+ ).length;
+ const financial=result.financialClose.state==="ELIGIBLE"?"مؤهل للمراجعة":
+  result.financialClose.state==="BLOCKED"?"محجوب بوجود موانع":
+  result.financialClose.state==="NOT_RECORDED"?"لم يسجل":"غير متحقق";
+ const answer="وردية "+result.shiftLabel+" بتاريخ "+result.businessDate+
+  ": جاهزية الافتتاح "+(result.openingReadiness==="READY"?"جاهز":result.openingReadiness==="ATTENTION"?"تحتاج معالجة":"غير متحقق")+
+  "، والإقفال التشغيلي "+(result.operationalClose==="COMPLETE"?"مكتمل":result.operationalClose==="PARTIAL"?"جزئي":"غير متحقق")+
+  "، والإقفال المالي "+financial+". عناصر افتتاح تتطلب إجراء: "+requiredOpening+
+  "، عناصر إقفال تتطلب إجراء: "+requiredClosing+
+  "، فحوص غير متحققة: "+unknownChecks+
+  "، ومصادر غير مكتملة أو غير مثبتة: "+incompleteSources+".";
+ return {
+  kind:"SHIFT_OPERATIONS",state:result.status,intent:"SHIFT_OPERATIONS_OVERVIEW",
+  answer,sourceRpc:"fetch_operational_shift_workspace",businessDate:result.businessDate,
+  asOf:result.asOf,result,
  };
 }
 

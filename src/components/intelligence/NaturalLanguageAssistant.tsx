@@ -6,6 +6,7 @@ import { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
 import { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
 import { BusinessHealthMap } from "./BusinessHealthMap";
 import { DecisionMemoryBook } from "./DecisionMemoryBook";
+import { ShiftOperationsCenter } from "./ShiftOperationsCenter";
 import type { TaskIntelligenceManagerRisk, TaskIntelligenceRole } from "@/lib/intelligence/task-intelligence-reports";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
@@ -86,11 +87,11 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة ودفتر ذاكرة القرارات والتعلم من نتائجها، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة ودفتر ذاكرة القرارات والتعلم من نتائجها، ومركز الوردية بتاريخ عمل محدد، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
-  {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
-   {response.status==="DENIED"?"غير مصرح":response.status==="UNAVAILABLE"?"المصدر غير متاح":"تعذر الاستعلام"}: {response.message}</div>:null}
+  {response&&["DENIED","UNAVAILABLE","NOT_FOUND","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
+   {response.status==="DENIED"?"غير مصرح":response.status==="UNAVAILABLE"?"المصدر غير متاح":response.status==="NOT_FOUND"?"لا توجد وردية مطابقة":"تعذر الاستعلام"}: {response.message}</div>:null}
   {response?.status==="RESULT"&&response.result.kind==="DECISION_OUTCOMES"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -109,6 +110,18 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     </article>)}
    </div>
    <p className="text-xs text-muted-foreground">النتيجة قراءة تجميعية لحالة القرار الحالية وليست سجلاً تاريخياً للأحداث. عند ظهور «نتيجة جزئية» لا تُفسر أعداد الحالات أو عدم العثور على قرارات مطابقة على أنها تغطي كامل السجل. لا يعرض هذا المسار أسماء المسؤولين أو بيانات مالية أو تفاصيل حساسة.</p>
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="SHIFT_OPERATIONS"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <strong>مركز بدء الوردية والإقفال</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="VERIFIED"?"الأدلة مثبتة":response.result.state==="NEEDS_REVIEW"?"تحتاج مراجعة":response.result.state==="UNVERIFIED"?"غير متحقق":"المصادر غير متاحة"}</span>
+    </div>
+    <p className="mt-2">{response.result.answer}</p>
+    <p className="mt-1 text-xs text-muted-foreground">تاريخ العمل: {response.result.businessDate} · المنطقة الزمنية: {response.result.result.organizationTimeZone} · آخر قراءة للمصادر: {response.result.asOf} · وردية: {response.result.result.shiftId}</p>
+   </div>
+   <ShiftOperationsCenter result={response.result.result} state="ready" onRetry={()=>void submit()}/>
+   <p className="text-xs text-muted-foreground">هذه قراءة لقرار الافتتاح والإقفال فقط. لا تفتح الوردية ولا تسجل عدّ الصندوق أو التسليم أو إقفالاً مالياً، ولا تنفذ حركة مخزون أو ترحيلاً محاسبياً. المصدر المفقود أو غير المكتمل يبقى ظاهراً كغير متحقق.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="DECISION_MEMORY"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">

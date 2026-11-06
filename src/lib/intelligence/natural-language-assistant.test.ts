@@ -162,3 +162,32 @@ describe("decision memory assistant intent", () => {
     }
   });
 });
+
+describe("shift operations assistant intent", () => {
+  it("requires an explicit valid organization business date before reading the shift packet", () => {
+    expect(planNaturalLanguageQuery("اعرض مركز الوردية")).toMatchObject({
+      status: "CLARIFICATION",
+    });
+    expect(planNaturalLanguageQuery("جاهزية إقفال الوردية اليوم")).toMatchObject({
+      status: "CLARIFICATION",
+    });
+    expect(planNaturalLanguageQuery("مركز الوردية بتاريخ 2026-02-31")).toMatchObject({
+      status: "CLARIFICATION",
+    });
+  });
+
+  it("routes explicit business-date shift questions to the existing authorized workspace reader", () => {
+    expect(planNaturalLanguageQuery("اعرض مركز الوردية بتاريخ 2026-11-06")).toMatchObject({
+      status: "READY",
+      intent: "SHIFT_OPERATIONS_OVERVIEW",
+      sourceRpc: "fetch_operational_shift_workspace",
+      businessDate: "2026-11-06",
+    });
+  });
+
+  it("does not invent a business date from a relative user-local expression", () => {
+    expect(planNaturalLanguageQuery("مركز إقفال اليوم")).toMatchObject({
+      status: "CLARIFICATION",
+    });
+  });
+});
