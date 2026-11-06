@@ -254,7 +254,7 @@ function CustomerAgingDecisionSection({
     if (!evidenceIds.length) { setMessage("لا يمكن حفظ قرار تحصيل دون مراجع فواتير/دفعات مثبتة."); return; }
     const priority = (item.oldestAgeDays??0)>=90 ? "P0" : (item.oldestAgeDays??0)>=60 ? "P1" : (item.oldestAgeDays??0)>=30 ? "P2" : "P3";
     const priorityScore = priority==="P0"?400:priority==="P1"?300:priority==="P2"?200:100;
-    const candidateId = ("receivables.collection:"+item.currency+":"+item.customerName+":"+item.asOf.slice(0,10)).slice(0,150);
+    const candidateId = ("receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)).slice(0,150);
     const expectedOutcome="خفض الرصيد المتأخر للعميل وتسجيل نتيجة التحصيل في مستندات المؤسسة.";
     const impactVerified=item.status==="VERIFIED" && item.overdueAmount>=0;
     const candidateSnapshot={
@@ -306,7 +306,7 @@ function CustomerAgingDecisionSection({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground"><EvidenceStatusLabel status={item.status}/>: <EvidenceReferences ids={item.agingBuckets.flatMap(bucket=>bucket.evidenceIds).slice(0,12)}/></span>
             <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
-              {busyKey==="receivables.collection:"+item.currency+":"+item.customerName+":"+item.asOf.slice(0,10)?"جارٍ الحفظ...":"حفظ قرار متابعة التحصيل"}
+              {busyKey==="receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)?"جارٍ الحفظ...":"حفظ قرار متابعة التحصيل"}
             </button>
           </div>
         </article>
