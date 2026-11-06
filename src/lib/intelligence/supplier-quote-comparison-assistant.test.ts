@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SupplierQuote } from "@/lib/supplier-quotes";
+import type { SupplierPerformanceSnapshot } from "./supplier-performance";
 import { buildSupplierQuoteComparisonAssistant } from "./supplier-quote-comparison-assistant";
 
 const productId="10000000-0000-4000-8000-000000000001";
@@ -137,5 +138,74 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
     expect(future.priceHistory).toHaveLength(0);
   });
 
+
+  it("enriches a quote with verified same-supplier delivery performance and independent sample gates",()=>{
+    const snapshot:SupplierPerformanceSnapshot={
+      asOf:"2026-11-06T00:00:00.000Z",
+      period:{from:"2026-08-09",to:"2026-11-06",timeZone:"UTC"},
+      source:"purchase_orders + purchase_order_items + purchase_receipts + awarded supplier quote delivery terms",
+      totalSupplierCount:1,returnedSupplierCount:1,resultLimit:200,completePopulation:true,
+      suppliers:[{
+        supplierId:suppliers[0],supplierName:"مورد أ",supplierCode:"A",
+        purchaseOrderCount:6,completedOrderCount:4,openOrderCount:2,
+        inconsistentReceivedCount:0,backlogLineCount:3,leadTimeSampleCount:4,
+        averageLeadDays:5,medianLeadDays:4,p90LeadDays:8,promisedDeliverySampleCount:2,
+        onTimeCount:1,onTimePercent:50,completedWithoutPromiseCount:2,
+        latestSubmittedAt:"2026-11-05T10:00:00.000Z",recentOrders:[],
+      }],
+    };
+    const result=buildSupplierQuoteComparisonAssistant([
+      quote({id:"q-a",supplierId:suppliers[0],supplierName:"مورد أ",number:"A-1",unitCost:12}),
+      quote({id:"q-b",supplierId:suppliers[1],supplierName:"مورد ب",number:"B-1",unitCost:10}),
+    ],"2026-11-06T00:00:00.000Z",{ok:true,snapshot});
+    expect(result.supplierPerformance).toMatchObject({status:"READY",period:{from:"2026-08-09",to:"2026-11-06"},completePopulation:true});
+    expect(result.state).toBe("READY");
+    const offerA=result.comparisons[0].offers.find(item=>item.supplierName==="مورد أ");
+    expect(offerA?.supplierPerformance).toMatchObject({
+      state:"AVAILABLE",purchaseOrderCount:6,completedOrderCount:4,openOrderCount:2,
+      backlogLineCount:3,leadTimeSampleCount:4,medianLeadDays:4,
+      promisedDeliverySampleCount:2,onTimePercent:null,
+    });
+    const offerB=result.comparisons[0].offers.find(item=>item.supplierName==="مورد ب");
+    expect(offerB?.supplierPerformance).toMatchObject({
+      state:"NO_ACTIVITY_IN_PERIOD",purchaseOrderCount:null,medianLeadDays:null,onTimePercent:null,
+    });
+  });
+
+  it("does not infer missing supplier performance when the returned supplier page is partial",()=>{
+    const snapshot:SupplierPerformanceSnapshot={
+      asOf:"2026-11-06T00:00:00.000Z",
+      period:{from:"2026-08-09",to:"2026-11-06",timeZone:"UTC"},
+      source:"purchase_orders + purchase_order_items + purchase_receipts + awarded supplier quote delivery terms",
+      totalSupplierCount:3,returnedSupplierCount:1,resultLimit:1,completePopulation:false,
+      suppliers:[{
+        supplierId:suppliers[0],supplierName:"مورد أ",supplierCode:"A",
+        purchaseOrderCount:3,completedOrderCount:3,openOrderCount:0,
+        inconsistentReceivedCount:0,backlogLineCount:0,leadTimeSampleCount:3,
+        averageLeadDays:4,medianLeadDays:4,p90LeadDays:6,promisedDeliverySampleCount:3,
+        onTimeCount:2,onTimePercent:66.7,completedWithoutPromiseCount:0,
+        latestSubmittedAt:"2026-11-05T10:00:00.000Z",recentOrders:[],
+      }],
+    };
+    const result=buildSupplierQuoteComparisonAssistant([
+      quote({id:"q-a",supplierId:suppliers[0],supplierName:"مورد أ",number:"A-1",unitCost:12}),
+      quote({id:"q-b",supplierId:suppliers[1],supplierName:"مورد ب",number:"B-1",unitCost:10}),
+    ],"2026-11-06T00:00:00.000Z",{ok:true,snapshot});
+    expect(result.state).toBe("PARTIAL");
+    expect(result.supplierPerformance.status).toBe("PARTIAL");
+    expect(result.comparisons[0].offers.find(item=>item.supplierName==="مورد ب")?.supplierPerformance?.state)
+      .toBe("NOT_IN_RETURNED_PAGE");
+  });
+
+  it("preserves price comparison when the performance reader is denied",()=>{
+    const result=buildSupplierQuoteComparisonAssistant([
+      quote({id:"q-a",supplierId:suppliers[0],supplierName:"مورد أ",number:"A-1",unitCost:12}),
+      quote({id:"q-b",supplierId:suppliers[1],supplierName:"مورد ب",number:"B-1",unitCost:10}),
+    ],"2026-11-06T00:00:00.000Z",{ok:false,status:"DENIED",message:"performance read denied"});
+    expect(result.state).toBe("PARTIAL");
+    expect(result.comparisonGroupCount).toBe(1);
+    expect(result.supplierPerformance.status).toBe("DENIED");
+    expect(result.comparisons[0].offers.every(item=>item.supplierPerformance?.state==="SOURCE_UNAVAILABLE")).toBe(true);
+  });
 
 });
