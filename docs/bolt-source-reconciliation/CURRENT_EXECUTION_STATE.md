@@ -2118,3 +2118,11 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - UI commit: `c7b52a0eb4f6b2b6c49aa0bb10710de63aa67c78`, component blob `bee0642ccad9d38f73312450fb8dba527a87a7c5`.
 - Matrix `INT-SHIFT-001` updated at `57655ad7c359ace1747aa4990b28daca36e71509`; P3 checkpoint follow-up `3c6aeaefc980c295e43354c286a789d8bac13563`.
 - No tests/build/runtime/database/Bolt/Preview/Vercel/production operation was run; migration application and exact-SHA acceptance remain pending.
+
+
+## P3 follow-up — first-shift bootstrap from empty workspace — 2026-11-06
+
+- The Arabic assistant now preserves the typed shift query plan on a confirmed shift-workspace `NOT_FOUND` result and renders `StartFirstOperationalShiftForm`; it does not show this action for denied, unavailable or malformed-source responses.
+- The form requires explicit IANA organization time zone, shift label and business date, reuses the existing tenant-scoped `start_operational_shift` command with an idempotency key, and refreshes the same assistant query only after a server receipt. No device time zone is inferred and no prior shift is closed.
+- Commits: `42c953e5f38764eff2e51a8a1acf8ee2440b01f4`, `ea3d0fb1c3a931b3cf5367404926b6123ad5a998`, `b855a403b7040a8fe9cd55fa17917418dee17847`. Matrix `INT-SHIFT-001` updated at `76ed7934bfc6de85d3fd30ffa881cee54e94db7a`; P3 checkpoint at `37762f2e4a1d649ad4a1de9c2c8fd337c089d5b5`.
+- No new database contract was introduced for the form; existing Section 53 source migration remains unapplied pending authorized non-production acceptance. No tests/build/runtime/DB/Bolt/Preview/Vercel/production operation was run.
