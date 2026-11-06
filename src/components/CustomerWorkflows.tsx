@@ -48,6 +48,7 @@ import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-acc
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { downloadCustomerQuoteWorkbookXlsx } from "@/lib/customer-quote-xlsx";
+import { downloadCustomerInvoiceWorkbookXlsx } from "@/lib/customer-invoice-xlsx";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
@@ -496,6 +497,7 @@ function Invoices() {
   const loadOlderInvoicesInFlightRef = useRef(false);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState("");
+  const [xlsxError, setXlsxError] = useState("");
   const load = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -696,6 +698,47 @@ function Invoices() {
       setPdfBusyId(null);
     }
   }
+  function downloadInvoiceXlsx() {
+    setXlsxError("");
+    try {
+      if (!chosen || detailBusy || items.length === 0) {
+        throw new Error("حمّل تفاصيل الفاتورة أولًا قبل إنشاء ملف Excel.");
+      }
+      downloadCustomerInvoiceWorkbookXlsx({
+        invoiceNumber: chosen.invoice_number,
+        status: chosen.status,
+        issuedAt: chosen.issued_at,
+        dueAt: chosen.due_at,
+        currency: chosen.currency,
+        customer: {
+          code: chosenCustomer?.customer_code ?? "",
+          businessName: chosenCustomer?.business_name ?? "",
+          contactName: chosenCustomer?.contact_name ?? null,
+          tierLabel: chosenCustomer?.tier_label ?? null,
+        },
+        items: items.map((line) => ({
+          itemCode: line.item_code ?? null,
+          description: line.description,
+          unit: line.unit ?? null,
+          quantity: line.quantity,
+          ...(financialDetailsVisible && line.unit_price !== undefined && line.line_total !== undefined
+            ? { unitPrice: line.unit_price, lineTotal: line.line_total }
+            : {}),
+        })),
+        financialDetailsVisible,
+        financials: chosenFinancials
+          ? {
+              subtotal: chosenFinancials.subtotal,
+              taxAmount: chosenFinancials.tax_amount,
+              totalAmount: chosenFinancials.total_amount,
+            }
+          : null,
+      });
+    } catch (cause) {
+      setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel للفاتورة.");
+    }
+  }
+
   return (
     <WorkspaceShell
       title="فواتيري"
@@ -811,11 +854,19 @@ function Invoices() {
               <FileText size={16} />
               {pdfBusyId === chosen.id ? "جارٍ إنشاء PDF..." : "تنزيل PDF عربي"}
             </button>
+            <button
+              style={secondary}
+              onClick={downloadInvoiceXlsx}
+              disabled={detailBusy || items.length === 0}
+            >
+              <FileSpreadsheet size={15} /> تنزيل Excel
+            </button>
             <button style={secondary} onClick={() => window.print()}>
               <Printer size={16} /> طباعة من المتصفح
             </button>
           </div>
           {pdfError && <ErrorBox message={pdfError} retry={() => void downloadInvoicePdf(chosen.id)} />}
+          {xlsxError && <ErrorBox message={xlsxError} retry={downloadInvoiceXlsx} />}
           <header
             style={{
               borderBottom: "2px solid #087f8d",

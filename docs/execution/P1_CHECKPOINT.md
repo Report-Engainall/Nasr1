@@ -1,3 +1,21 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-063 — CUSTOMER INVOICE XLSX EXPORT
+
+- Repository: \`Report-Engainall/Nasr1\`; branch: \`main\`.
+- Parent/base SHA: \`6743295da891b3898782aa75cab07eaa2a2775ba\`.
+- Added \`src/lib/customer-invoice-xlsx.ts\`: a three-sheet Arabic XLSX for invoice identity, invoice lines, and document scope/limits.
+- Added «تنزيل Excel» to the existing customer invoice detail panel. It consumes the invoice details already loaded through the existing customer-authorized \`get_customer_invoice_pdf\` RPC; it introduces no new query or endpoint.
+- Financial columns and totals are included only when the existing customer invoice projection explicitly authorizes them and supplies complete valid values. When hidden, the workbook receives and emits no line prices or financial totals. It excludes UUIDs, customer/order/tenant identifiers, paid/outstanding values, costs, margins, and any non-projected data.
+- The file states that an invoice export is not a payment receipt and does not infer taxes, discounts, payments, or balances that are absent from the invoice projection.
+- Files changed: \`src/lib/customer-invoice-xlsx.ts\` (new), \`src/components/CustomerWorkflows.tsx\`.
+- State: \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`.
+- Evidence boundary: source-only commit; no tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue the next uncovered customer and commerce workflow from its existing server-owned contract. Do not reimplement existing address, contact, membership, cart, quote, order, invoice PDF, or statement exports. Do not alter P3 engines or introduce paid external services.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-062 — CUSTOMER QUOTE XLSX EXPORT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
