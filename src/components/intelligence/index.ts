@@ -34,3 +34,5 @@ export type { TaskQualityReviewFormProps } from "./TaskQualityReviewForm";
 
 export { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
 export type { TaskQualityReviewMetricsProps } from "./TaskQualityReviewMetrics";
+
+export { TaskIntelligenceInsights } from "./TaskIntelligenceInsights";

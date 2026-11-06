@@ -2,6 +2,7 @@ import { useState } from "react";
 import { runNaturalLanguageAssistantQuery,type NaturalLanguageAssistantResponse } from "@/lib/intelligence/natural-language-assistant-client";
 import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@/lib/intelligence/natural-language-assistant";
 import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
+import { TaskIntelligenceInsights } from "./TaskIntelligenceInsights";
 import { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
 import { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
 import { BusinessHealthMap } from "./BusinessHealthMap";
@@ -413,6 +414,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="EMPTY"?"لا توجد سجلات مهام":"تغطية كاملة ضمن الأدوار المصرح بها"}</span>
    </div>
    <p className="font-medium">{response.result.answer}</p>
+   <TaskIntelligenceInsights report={response.result.report}/>
    <p className="text-xs text-muted-foreground">المصدر: ai_tasks + audit_logs · كما في {new Date(response.result.report.asOf).toLocaleString("ar",{timeZone:"UTC"})} UTC · الفترة: {response.result.report.period.from} — {response.result.report.period.to} UTC · الأدوار المصرح بها: {response.result.report.scope.visibleRoles.join("، ")}</p>
    {response.result.report.reportKind!=="MANAGER"?<div className="overflow-x-auto">
     <table className="w-full min-w-[720px] text-start text-xs">

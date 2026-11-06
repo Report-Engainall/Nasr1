@@ -36,3 +36,5 @@ export * from "./task-performance-scorecard-client";
 export * from "./task-quality-reviews";
 export * from "./task-quality-reviews-client";
 export * from "./unavailable-product-search-demand-client";
+
+export * from "./task-intelligence-insights";
