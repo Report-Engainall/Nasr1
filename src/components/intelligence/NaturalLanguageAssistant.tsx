@@ -9,6 +9,7 @@ import { DecisionMemoryBook } from "./DecisionMemoryBook";
 import { ShiftOperationsCenter } from "./ShiftOperationsCenter";
 import { SupplierQuoteComparisonAssistant } from "./SupplierQuoteComparisonAssistant";
 import { CustomerQuotePipelineSummary } from "./CustomerQuotePipelineSummary";
+import { StartFirstOperationalShiftForm } from "./StartFirstOperationalShiftForm";
 import type { TaskIntelligenceManagerRisk, TaskIntelligenceRole } from "@/lib/intelligence/task-intelligence-reports";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
@@ -94,6 +95,8 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","NOT_FOUND","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
    {response.status==="DENIED"?"غير مصرح":response.status==="UNAVAILABLE"?"المصدر غير متاح":response.status==="NOT_FOUND"?"لا توجد وردية مطابقة":"تعذر الاستعلام"}: {response.message}</div>:null}
+  {response?.status==="NOT_FOUND"&&response.plan.sourceRpc==="fetch_operational_shift_workspace"?
+    <StartFirstOperationalShiftForm businessDate={response.plan.businessDate??""} onStarted={()=>void submit()}/>:null}
   {response?.status==="RESULT"&&response.result.kind==="DECISION_OUTCOMES"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
