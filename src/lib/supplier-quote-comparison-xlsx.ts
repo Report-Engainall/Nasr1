@@ -128,7 +128,7 @@ export function downloadSupplierQuoteComparisonWorkbookXlsx(
     throw new Error("تنزيل ملف Excel غير متاح في هذه البيئة.");
   }
   const bytes = buildSupplierQuoteComparisonWorkbookXlsx(document);
-  const blob = new Blob([bytes], {
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   const url = URL.createObjectURL(blob);

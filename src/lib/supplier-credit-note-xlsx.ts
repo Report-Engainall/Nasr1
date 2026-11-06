@@ -92,7 +92,7 @@ export function downloadSupplierCreditNoteWorkbookXlsx(
 ): boolean {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return false;
   const bytes = buildSupplierCreditNoteWorkbookXlsx(source);
-  const blob = new Blob([bytes], {
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   const url = URL.createObjectURL(blob);
