@@ -2789,3 +2789,21 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - No AI model training, automatic policy change, pricing change, credit change, stock movement or financial posting was added.
 - NEXT_ACTION_ID: `REF-NL-DECISION-MEMORY-ASSISTANT-001` — exact-SHA acceptance of comparable/non-comparable expected-versus-actual evidence, then continue only with the next source-backed P3 gap.
 
+## P1 staff customer-quote backlog and keyboard-safe pricing — 2026-11-06
+
+- Continued on `Report-Engainall/Nasr1` / `main`; no new branch or alternate repository.
+- `src/components/CustomerWorkflows.tsx`: staff quote requests now use stable server keyset pagination ordered by `created_at DESC, id DESC`, with bounded 100-row pages, UUID/timestamp cursor validation, composite timestamp+UUID continuation, duplicate suppression, and an explicit Arabic “تحميل عروض أقدم” control with a busy state.
+- The existing staff pricing dialog now moves initial focus to the first price input after line data arrives, traps Tab/Shift+Tab within the modal, closes on Escape, exposes an accessible labelled dialog, and restores focus to the originating quote action after close, successful save, or line-load failure.
+- `src/test/customer-quotes-route-acceptance.test.tsx` adds regression coverage for the complete dialog focus lifecycle and a 101-row backlog proving the 100-row page boundary, stable cursor continuation, no duplicate rows, and last-page control removal.
+- Code commits: modal focus `542b75f2ed62e6a147c192775b6be85a85d7750c`; stable callback/effect lifecycle `2199ebf05bbd824ccebed057852dab7c324160e8`; pagination `2ea8af2f50d40459cfa329642a3f3cb68e7566bc`; regression tests `bbcd6d7647abd84a183bb8ebc779ecef88830c94`. Current source blob: `9930816b860e9785ad84dc4e833dc473e353519b`; current test blob: `ca3408fce63c52ba3ec84cb8e8a09cc44381eb22`.
+- Focused unit evidence: `customer-quotes-route-acceptance.test.tsx` reports 10/10 tests passing in Commerce run `42185902498` on exact code/test SHA `bbcd6d7647abd84a183bb8ebc779ecef88830c94`. The repository-wide Commerce unit step on that SHA nevertheless failed in other suites; the whole Commerce pipeline is not green. A newer exact-main Commerce run `42186211708` on `9591f074d6266a3f2fca626d419bcf99ca9346b5` was still in progress at last retrieval.
+- P1 targeted assurance run `42186211644` SUCCESS on exact main SHA `9591f074d6266a3f2fca626d419bcf99ca9346b5`: TypeScript project check, supplemental AST structural check, and the two P1-owned focused suites completed. This is not a repository-wide test PASS.
+- P1 Secret Scan run `42186211757` SUCCESS on the same exact main SHA after adding three verified historical commit-hash findings to root `.gitleaksignore`. Each was independently confirmed as a Git commit SHA. Entries are exact commit:path:rule:line fingerprints, not broad rule/path suppressions; full fetched history reported no remaining leaks and the synthetic-secret canary passed.
+- P2 Playwright run `42185902622` on code/test SHA `bbcd6d7647abd84a183bb8ebc779ecef88830c94` remained in progress at last retrieval; authenticated infrastructure gate SUCCESS, customer/tenant E2E SKIPPED by the explicit external-write gate. Earlier public smoke run `42183688281` had fixture failures including missing `fixture-ready`; do not claim decision-board Chromium acceptance.
+- No database migration, hosted write, tenant-isolation run, Bolt/Preview/production operation, price mutation, customer message, purchase order, or financial/stock mutation was performed by this increment.
+
+### NEXT_ACTION
+
+1. Retrieve terminal outcome of exact-main Commerce run `42186211708`; separate the customer quote 10-test result from other suites and fix only reproduced P1-owned failures.
+2. Retrieve P2 public job `127786605965` / run `42185902622`. Keep authenticated customer/tenant path marked SKIPPED_EXTERNAL until the explicit credentials/write gate is available.
+3. Keep DLV-002 OPEN and DLV-011 PARTIAL; this staff quote increment does not establish complete route-wide or role-wide acceptance.
