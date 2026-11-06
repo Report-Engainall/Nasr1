@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-046
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main head observed immediately before this checkpoint update: `3fac1f179af623c964f637fb109c91a1f2e96fb5`.
+- P1 product-code commit: `c4f734bc9501b102519be585a77d1a8319fc19fd`.
+- P1 scope: prevent in-flight reorder-template operations from crossing authenticated profile boundaries.
+
+## BODY-046 — bind reorder actions to the initiating customer profile
+
+- Template save captures the initiating `profileId`; after the RPC returns, an operation belonging to an old profile is ignored if the active profile has changed.
+- Template apply captures the initiating profile, reads/normalizes the saved lines, and merges them only into that profile's isolated cart key. It refuses to navigate or surface old-account errors in the new profile's workspace after an identity switch.
+- Busy/error state updates from an old operation are ignored after a profile change. The existing load-revision guard and state reset from BODY-045 remain in place.
+- No new RPC, order creation, pricing source, cart format, server authorization rule or P3-owned code was introduced.
+- File changed: `src/components/CustomerWorkflows.tsx`.
+- Code commit: `c4f734bc9501b102519be585a77d1a8319fc19fd`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-046.
+- No P3-owned file, engine, DTO, RPC or migration was changed. No dependency, paid service or parallel business-write path was added.
+- Project-wide 95% P1 completion remains unclaimed because the complete denominator and weighting of remaining executable requirements are not established by the acceptance record.
+
+## Next P1 action
+
+Implement customer edit-and-resubmit for returned orders only after confirming an approved tenant-scoped server transaction contract that validates ownership and returned status, reprices current lines, preserves idempotency, and persists the origin-order relation. Continue remaining role-specific DLV-011 outputs without duplicating existing reports.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-045
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
