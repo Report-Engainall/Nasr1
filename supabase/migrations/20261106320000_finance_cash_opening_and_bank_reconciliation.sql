@@ -881,7 +881,8 @@ BEGIN
   SELECT coalesce(max(r.run_number),0)+1 INTO v_run_number
   FROM public.finance_bank_statement_reconciliation_runs r
   WHERE r.organization_id=v_org AND r.statement_id=v_statement.id;
-  v_outcome:=CASE WHEN v_statement_count>0 AND v_statement_count=v_matched_count
+  -- A zero-activity statement is valid when both opening/closing and ledger movements reconcile to zero.
+  v_outcome:=CASE WHEN v_statement_count=v_matched_count
     AND v_unmatched_ledger=0 AND v_statement_difference=0 AND v_ledger_difference=0
     THEN 'VERIFIED' ELSE 'NEEDS_REVIEW' END;
   INSERT INTO public.finance_bank_statement_reconciliation_runs(
