@@ -1,4 +1,5 @@
 import { createCashflowScheduleRequest, fetchCashflowSchedule } from "./cashflow-schedule-client";
+import type { CashflowScheduleSnapshot } from "./cashflow-schedule-client";
 import { createInventoryIntelligencePeriod, fetchInventoryIntelligence } from "./inventory-intelligence-client";
 import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "./business-health-map";
@@ -46,7 +47,7 @@ export type BusinessHealthAssistantFetchResult =
   | { ok: true; data: BusinessHealthAssistantData }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
 
-function metricSnapshots(data: NonNullable<Awaited<ReturnType<typeof fetchCashflowSchedule>> extends { ok: true; data: infer T } ? T : never>): MetricSnapshot[] {
+function metricSnapshots(data: CashflowScheduleSnapshot): MetricSnapshot[] {
   const scheduled: MetricSnapshot[] = data.schedule.entries.map(entry => ({
     id: entry.amount.id,
     key: entry.amount.key,
@@ -90,7 +91,7 @@ function metricSnapshots(data: NonNullable<Awaited<ReturnType<typeof fetchCashfl
   return [...scheduled, ...collections];
 }
 
-function buildCashflow(data: Awaited<ReturnType<typeof fetchCashflowSchedule>> extends { ok: true; data: infer T } ? T : never) {
+function buildCashflow(data: CashflowScheduleSnapshot) {
   const metrics = metricSnapshots(data);
   const byId = new Map(metrics.map(metric => [metric.id, metric]));
   const forecast = buildCashflowForecast({
