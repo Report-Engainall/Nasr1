@@ -1114,3 +1114,39 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; 
 ### Next P3 action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-007`: continue to another genuinely missing P3-owned, source-backed Section 53–63 requirement. Preserve exact source comparison rules and do not create a second evidence workspace or reconciliation writer.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-PROCESS-COMPARABLE-WINDOWS-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA before checkpoint append: `780f1ea0622972e4e622e397bda4e2ca11eec44f`.
+- Canonical requirement: Section 54 — compare before/after cycle times using equivalent periods when possible and avoid attributing change to a single intervention without evidence.
+
+### Implemented on main
+
+1. **Equal-length, preceding comparison window guard**
+   - Added a pure `comparableBeforeAfterPeriods()` check in `src/lib/intelligence/process-bottlenecks.ts`.
+   - A baseline must end strictly before the current period, use the same time zone, and have the same inclusive UTC day count.
+   - When the periods are unequal, overlap or baseline follows current, current-window findings and queue metrics remain available, but before/after comparisons are withheld with an explicit Arabic reason. The engine does not silently normalize or annualize the values.
+   - Existing minimum sample size and stage/wait-class matching remain unchanged.
+   - Commit: `043e1697489b8d6ecc1af7a8c64bb7898f53b823`; final blob: `597ac5476df3b9be0f04b4ba06317df9db1b9431`.
+
+2. **Focused source tests**
+   - Added `src/lib/intelligence/process-bottlenecks.test.ts` covering equal-length preceding windows, unequal lengths, overlap/non-preceding windows and no-baseline behavior.
+   - Commit: `a8a3b0c2923eba508723d3cfc984f20a1eca4317`; final blob: `111bf261a0727e1354c1fdb3090ca235d5873855`.
+   - Tests were authored but NOT run.
+
+3. **Acceptance matrix**
+   - Updated existing `INT-PROCESS-001` row; commit `780f1ea0622972e4e622e397bda4e2ca11eec44f`.
+   - No duplicate requirement row created.
+
+### Acceptance boundary
+
+- No SQL migration/source query, P1 workspace, P2 API, route or database behavior was changed.
+- No test/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was executed. No PASS or runtime proof is claimed.
+- Existing wait attribution remains mixed/unattributed where source evidence cannot distinguish internal versus external waiting. This change does not infer a cause or employee performance.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-008`: continue another independent, source-backed Section 53–63 requirement; do not rebuild the process engine or relax the equal-window guard.
