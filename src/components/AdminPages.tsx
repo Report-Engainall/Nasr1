@@ -1496,7 +1496,21 @@ export function AdminPage({ eyebrow, title, description, icon: Icon, note, toolb
 export function Loading() { return <div className="loading"><RefreshCw size={20} className="spin" /> جار تحميل البيانات...</div>; }
 export function ErrorBox({ message }: { message: string }) { return <div className="error-box" role="alert"><AlertTriangle size={19} /> تعذر تحميل البيانات. {message}</div>; }
 export function Empty({ text }: { text: string }) { return <div className="empty"><Database size={26} /><span>{text}</span></div>; }
-export function Button({ children, variant = 'primary', onClick, disabled }: { children: React.ReactNode; variant?: 'primary' | 'secondary' | 'outline' | 'danger'; onClick?: () => void; disabled?: boolean }) { return <button className={`btn ${variant}`} onClick={onClick} disabled={disabled}>{children}</button>; }
+export function Button({
+  children,
+  variant = 'primary',
+  onClick,
+  disabled,
+  type = 'button',
+}: {
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
+  onClick?: () => void;
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+}) {
+  return <button type={type} className={`btn ${variant}`} onClick={onClick} disabled={disabled}>{children}</button>;
+}
 export function TableWrap({ children }: { children: React.ReactNode }) { return <div className="table-wrap">{children}</div>; }
 export function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
 export function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) { return <div className="modal-backdrop" onClick={onClose}><div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}><div className="modal-head"><h2>{title}</h2><button type="button" aria-label="إغلاق النافذة" onClick={onClose}><X size={19} /></button></div>{children}</div></div>; }
