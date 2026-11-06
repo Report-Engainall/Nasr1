@@ -1,11 +1,21 @@
 import { supabase } from "@/lib/supabase";
 import { isPurchaseOrderUuid } from "@/lib/purchase-orders";
 
+export type PurchaseReceiptHistoryItem = {
+  item_code: string;
+  product_name: string;
+  unit: string | null;
+  quantity_received: string;
+  batch_number: string | null;
+  expiry_date: string | null;
+};
+
 export type PurchaseReceiptHistoryRow = {
   id: string;
   receipt_number: string;
   received_at: string;
   item_count: number;
+  items: PurchaseReceiptHistoryItem[];
 };
 
 export type PurchaseReceiptHistoryPage = {
@@ -21,6 +31,8 @@ export type PurchaseReceiptPrintItem = {
   product_name: string;
   unit: string | null;
   quantity_received: string;
+  batch_number: string | null;
+  expiry_date: string | null;
   unit_cost: string | null;
   line_total: string | null;
 };
@@ -75,6 +87,47 @@ function parsePositiveQuantity(value: unknown): string | null {
   }
 }
 
+function parseBatchNumber(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" || value.trim() !== value || value.length > 100) return null;
+  return value;
+}
+
+function parseExpiryDate(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value ? value : null;
+}
+
+function parseReceiptHistoryItems(value: unknown, itemCount: number): PurchaseReceiptHistoryItem[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length !== itemCount || value.length > 100) {
+    throw new Error("تفاصيل الدفعات في إيصال الاستلام غير مكتملة.");
+  }
+  return value.map((candidate, index) => {
+    if (!isRecord(candidate)) throw new Error("تفاصيل بند إيصال الاستلام رقم " + (index + 1) + " غير صالحة.");
+    const quantity = parsePositiveQuantity(candidate.quantity_received);
+    const batch = parseBatchNumber(candidate.batch_number);
+    const expiry = parseExpiryDate(candidate.expiry_date);
+    if (
+      quantity === null ||
+      !(candidate.unit === null || typeof candidate.unit === "string") ||
+      (candidate.batch_number !== null && candidate.batch_number !== undefined && batch === null) ||
+      (candidate.expiry_date !== null && candidate.expiry_date !== undefined && candidate.expiry_date !== "" && expiry === null) ||
+      (expiry !== null && batch === null)
+    ) throw new Error("كمية أو رقم دفعة أو تاريخ انتهاء غير صالح في تفاصيل إيصال الاستلام.");
+    return {
+      item_code: requiredText(candidate.item_code, "رمز الصنف"),
+      product_name: requiredText(candidate.product_name, "اسم الصنف"),
+      unit: candidate.unit as string | null,
+      quantity_received: quantity,
+      batch_number: batch,
+      expiry_date: expiry,
+    };
+  });
+}
+
 export function parsePurchaseReceiptHistoryPage(value: unknown): PurchaseReceiptHistoryPage {
   if (!isRecord(value) || !Array.isArray(value.receipts)) {
     throw new Error("أعاد الخادم سجل إيصالات استلام غير صالح.");
@@ -105,6 +158,7 @@ export function parsePurchaseReceiptHistoryPage(value: unknown): PurchaseReceipt
       receipt_number: requiredText(candidate.receipt_number, "رقم الإيصال"),
       received_at: candidate.received_at,
       item_count: count as number,
+      items: parseReceiptHistoryItems(candidate.items, count as number),
     };
   });
 
@@ -138,9 +192,14 @@ export function parsePurchaseReceiptPrintDocument(value: unknown): PurchaseRecei
   const items: PurchaseReceiptPrintItem[] = value.items.map((candidate, index) => {
     if (!isRecord(candidate)) throw new Error("بند الإيصال رقم " + (index + 1) + " غير صالح.");
     const quantity = parsePositiveQuantity(candidate.quantity_received);
+    const batch = parseBatchNumber(candidate.batch_number);
+    const expiry = parseExpiryDate(candidate.expiry_date);
     if (
       quantity === null ||
       !(candidate.unit === null || typeof candidate.unit === "string") ||
+      (candidate.batch_number !== null && candidate.batch_number !== undefined && batch === null) ||
+      (candidate.expiry_date !== null && candidate.expiry_date !== undefined && candidate.expiry_date !== "" && expiry === null) ||
+      (expiry !== null && batch === null) ||
       (candidate.unit_cost !== null && parseMoneyCents(candidate.unit_cost) === null) ||
       (candidate.line_total !== null && parseMoneyCents(candidate.line_total) === null)
     ) {
@@ -151,6 +210,8 @@ export function parsePurchaseReceiptPrintDocument(value: unknown): PurchaseRecei
       product_name: requiredText(candidate.product_name, "اسم الصنف"),
       unit: candidate.unit as string | null,
       quantity_received: quantity,
+      batch_number: batch,
+      expiry_date: expiry,
       unit_cost: candidate.unit_cost as string | null,
       line_total: candidate.line_total as string | null,
     };
