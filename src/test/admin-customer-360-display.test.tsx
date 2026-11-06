@@ -9,6 +9,7 @@ import type { Customer } from "@/lib/types";
 const mocks = vi.hoisted(() => ({
   fetchSummary: vi.fn(),
   fetchRetention: vi.fn(),
+  fetchOperationalTaskAssignees: vi.fn(),
   scopedCustomerId: "customer-360-1" as string | null,
   createQuery: (scopedCustomerId: string | null) => {
     const query = {
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => ({
   fetchStaffCustomer360Summary: mocks.fetchSummary,
+  fetchOperationalTaskAssignees: mocks.fetchOperationalTaskAssignees,
 }));
 
 vi.mock("@/lib/customer-retention-client", () => ({

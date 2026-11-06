@@ -244,6 +244,12 @@ const markdown = [
 writeFileSync(markdownPath, markdown, "utf8");
 
 writeStdout(JSON.stringify(report.totals, null, 2));
+if (parseErrors.length > 0) {
+  writeStderr("Parse/read error details:\\n" + JSON.stringify(parseErrors, null, 2));
+}
+if (findings.length > 0) {
+  writeStderr("Depth violation details:\\n" + JSON.stringify(findings, null, 2));
+}
 writeStdout(`JSON: ${relative(process.cwd(), jsonPath)}`);
 writeStdout(`Markdown: ${relative(process.cwd(), markdownPath)}`);
 
