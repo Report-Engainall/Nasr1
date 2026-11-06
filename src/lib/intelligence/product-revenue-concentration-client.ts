@@ -121,19 +121,19 @@ export async function fetchProductRevenueConcentration(input: {
         return { ok: false, status: "ERROR", message: "يوجد صف عملة ناقص أو مكرر في تركّز الفواتير." };
       }
       const grossMinor = decimalToMinorUnits(row.grossInvoiceLineAmount, 2);
-      const netMinor = row.netInvoiceLineAmount === null ? null : decimalToMinorUnits(row.netInvoiceLineAmount, 2);
-      const top5Minor = row.top5NetInvoiceLineAmount === null ? null : decimalToMinorUnits(row.top5NetInvoiceLineAmount, 2);
-      const percentMinor = row.top5ConcentrationPercent === null ? null : percentageToHundredths(row.top5ConcentrationPercent);
+      const netMinor = row.netInvoiceLineAmount === null ? null : decimalToMinorUnits(row.netInvoiceLineAmount, 2) ?? undefined;
+      const top5Minor = row.top5NetInvoiceLineAmount === null ? null : decimalToMinorUnits(row.top5NetInvoiceLineAmount, 2) ?? undefined;
+      const percentMinor = row.top5ConcentrationPercent === null ? null : percentageToHundredths(row.top5ConcentrationPercent) ?? undefined;
       const expectedPercentMinor = netMinor !== null && top5Minor !== null && netMinor > 0n
         ? roundedPercentageHundredths(top5Minor, netMinor) : null;
       const gross = grossMinor === null ? null : minorUnitsToNumber(grossMinor, 2);
-      const net = netMinor === null ? null : minorUnitsToNumber(netMinor, 2);
-      const top5 = top5Minor === null ? null : minorUnitsToNumber(top5Minor, 2);
-      const percent = percentMinor === null ? null : Number(percentMinor) / 100;
+      const net = netMinor === null ? null : netMinor === undefined ? undefined : minorUnitsToNumber(netMinor, 2);
+      const top5 = top5Minor === null ? null : top5Minor === undefined ? undefined : minorUnitsToNumber(top5Minor, 2);
+      const percent = percentMinor === null ? null : percentMinor === undefined ? undefined : Number(percentMinor) / 100;
       if (grossMinor === null || gross === null ||
-          (row.netInvoiceLineAmount !== null && (netMinor === null || net === null)) ||
-          (row.top5NetInvoiceLineAmount !== null && (top5Minor === null || top5 === null)) ||
-          (row.top5ConcentrationPercent !== null && percentMinor === null) ||
+          netMinor === undefined || net === undefined ||
+          top5Minor === undefined || top5 === undefined ||
+          percentMinor === undefined ||
           (row.status === "VERIFIED" &&
             (row.unmappedLineCount !== 0 || row.invalidCreditLineCount !== 0 || row.invoicesWithoutLines !== 0 ||
              row.invoiceLineCount === 0 || row.productCount === 0 || netMinor === null || netMinor <= 0n ||

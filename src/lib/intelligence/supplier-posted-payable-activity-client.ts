@@ -98,17 +98,17 @@ export async function fetchSupplierPostedPayableActivity(input: {
       const netMinor=decimalToMinorUnits(row.netPayableMovementAmount,2,true);
       const top5Minor=decimalToMinorUnits(row.top5GrossPayableCreditAmount,2);
       const percentMinor=row.top5GrossPayableCreditPercent===null
-        ?null:percentageToHundredths(row.top5GrossPayableCreditPercent);
+        ?null:percentageToHundredths(row.top5GrossPayableCreditPercent)??undefined;
       const expectedPercentMinor=grossMinor!==null&&top5Minor!==null&&grossMinor>0n
         ?roundedPercentageHundredths(top5Minor,grossMinor):null;
       const gross=grossMinor===null?null:minorUnitsToNumber(grossMinor,2);
       const debit=debitMinor===null?null:minorUnitsToNumber(debitMinor,2);
       const net=netMinor===null?null:minorUnitsToNumber(netMinor,2);
       const top5=top5Minor===null?null:minorUnitsToNumber(top5Minor,2);
-      const percent=percentMinor===null?null:Number(percentMinor)/100;
+      const percent=percentMinor===null?null:percentMinor===undefined?undefined:Number(percentMinor)/100;
       if(grossMinor===null || debitMinor===null || netMinor===null || top5Minor===null ||
          gross===null || debit===null || net===null || top5===null ||
-         (row.top5GrossPayableCreditPercent!==null && percentMinor===null) ||
+         (row.top5GrossPayableCreditPercent!==null && percentMinor===undefined) ||
          netMinor!==grossMinor-debitMinor ||
          (row.status==="VERIFIED" && (grossMinor<=0n || top5Minor>grossMinor ||
            percentMinor===null || percentMinor<=0n || percentMinor!==expectedPercentMinor)) ||
