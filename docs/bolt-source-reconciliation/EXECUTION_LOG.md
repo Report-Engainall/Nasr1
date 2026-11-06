@@ -2012,3 +2012,19 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Verification: source files and migration structure re-read on main. No tests, build, lint, typecheck, CI, browser, DB, Bolt, Preview, Vercel or production operation was run; no PASS/runtime/production claim.
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No weighted denominator was reconciled; no 95% claim.
 - Next action: `P3-SECTION-52-63-INDEPENDENT-GAPS-002` — continue only independently implementable source-backed P3 gaps without rebuilding completed engines or touching P1/P2-owned files.
+
+
+## 2026-11-06 — REF-NOTIFICATION-DELIVERY-AUDIT-001 — deterministic payload-free notification audit decision
+
+- Main source context observed: Section 59 privacy/consent governance and existing notification routes/triggers; no external channel delivery was invoked.
+- Added `createNotificationDeliveryAuditMetadata()` to `src/lib/intelligence/personalization-governance.ts` (commit `66396cffebeeabec964a66c325a6368930051170`). It recomputes the exact `resolveNotificationDelivery()` result and refuses a caller-supplied decision mismatch.
+- The audit projection contains an opaque delivery attempt ID, actor and recipient profile references, purpose, channel, severity/data class, policy version, preference timestamp, decision status/reason, UI preferences and unique consent ID/version when available. It omits destination ID/address, email/phone, title/body, customer data and financial payload. It handles allowed, suppressed, denied and review decisions as outcomes to be audited, without authorizing a send.
+- Source hardening: reject malformed recipient context and malformed consent collections as REVIEW; safely return null for malformed audit identity/decision; safely omit ambiguous/unavailable consent references. Commits `2ed055480c1f4c58aac538449aeb8d8d8423b235`, `ddd1666e72f6d4ad2329789560e5c717fc7bc864`.
+- Focused source test commits `357028bf17819a551a926afcecace454243789f7`, `a004a3b0ff7beff7582d2b1227da772c945dec90`, `58be8bf4b1155165f90f55c22d52cc2421962243`; final test blob `98780d383a3a4e2238aee6d522af6b11b06a1015`. Tests added, NOT executed.
+- Final engine blob at this delivery: `91697a41adae66f09506e079c95a832ef27bc96d`.
+- Matrix leaf `REF-NOTIFICATION-DELIVERY-AUDIT-001) appended to the existing acceptance CSV; commit `fe331f264281f43c2710b4b4611c1d34724bd011`.
+- P3 checkpoint addendum `REF-NOTIFICATION-DELIVERY-AUDIT-001`: `41626b93cbb32fc2e52cb32133c8e8065cb6e35b). Global execution-state addendum: `c8d141c301b237dfe02021e7155c65dd9c4faaf9).
+- Ownership boundary preserved: P1 route/workspace/settings mounting not edited. P2 atomic audit persistence, actor/tenant/capability/consent re-derivation and sender enforcement are not implemented by this P3 source contract. Existing notification inbox only reads persisted notifications; the new contract does not prove sender integration.
+- No external send, provider receipt, consent persistence, audit DB write, migration apply, test/build/typecheck/lint/CI/browser/Bolt/Preview/Vercel/production action was run. No PASS/runtime/production claim.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no external channel may be claimed active.
+- Next: `P3-SECTION-52-63-INDEPENDENT-GAPS-005`; continue another independent source-backed Section 53–63 product requirement without editing P1 routes or P2 sender/persistence paths.
