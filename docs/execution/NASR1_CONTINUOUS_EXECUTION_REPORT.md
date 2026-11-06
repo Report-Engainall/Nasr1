@@ -1,3 +1,13 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 REPLENISHMENT EXACT DECIMAL QUANTITY MATH
+
+- Source/test commit `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361` hardens `src/lib/intelligence/replenishment.ts`; final engine blob `9a00769920fe795f7f98c5a09d922543ece95254`, regression blob `3ec14a579554b3c09ad96c7d1c50b606e08964b6`.
+- Quantity/day source inputs now parse at exact six-decimal micro-unit scale; lead-time demand is conservatively rounded upward, ATP + incoming and reorder/target values are compared as integer quantities, and minimum/order multiples use integer ceiling division. Formula `inventory.replenishment-target@1.1.0`.
+- Unsupported precision/range is withheld. Existing UOM, period, evidence, tenant-scoped RPC and no-auto-PO boundaries remain unchanged.
+- Regression source covers fractional order multiple and seventh-decimal withholding.
+- Tests authored but NOT RUN. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation or runtime PASS claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 DEAD-STOCK EXACT-CENT EXPOSURE
 
 - Code commits `36983d8a0e4e3e53d02c40f5de73cd5176344035`, `31d51c6c8cda71c7a9e0cbd2fbf9a0d2510e350d` and `d8e78cb93dd137ab02405bc420ec1ce370e145ca` harden `src/lib/intelligence/dead-stock.ts`; final blobs are engine `3cf255f4d7d4a9372eb0b702a91d766643161291` and tests `c687242088efd25bf3a7af7dfcf6dda703550aee`.

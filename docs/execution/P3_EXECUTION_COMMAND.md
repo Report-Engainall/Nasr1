@@ -2,8 +2,8 @@
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main` only  
-**Current code-bearing main SHA at this override:** `d8e78cb93dd137ab02405bc420ec1ce370e145ca`  
-**Latest P3 code-bearing commit:** `d8e78cb93dd137ab02405bc420ec1ce370e145ca`  
+**Current code-bearing main SHA at this override:** `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361`  
+**Latest P3 code-bearing commit:** `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361`  
 **Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
 **Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
 
@@ -20,6 +20,7 @@
 The Section 61 task-quality system, persisted decision lifecycle, constrained cashflow measurement, Arabic decision assistant, Growth Radar reader, task performance/manager shortlist, policy catalog reader, notification delivery policy audit, evidence source comparison, process equal-window comparison and current Business Health assistant composition already exist in the live source tree. Read their current checkpoints/matrix rows before changing them; do not recreate them.
 
 Latest P3 delivery in this session:
+- `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361` — replenishment now calculates in exact BigInt micro-units, rounds lead demand conservatively and applies minimum/order multiples with integer ceiling; formula `inventory.replenishment-target@1.1.0`. Source/test: `replenishment.ts` / `replenishment.test.ts`. Tests authored but NOT RUN.
 - `e4d97cf68f95531b0a33c2e3a4800355d6c6c5e6` / `ea0545d6e4d9a6b75cb3e250190dc42ba818c989` — cashflow movements now use exact cents; formula v1.1.0.
 - `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e` — Evidence Source Comparison uses exact-cent currency text parsing/deltas and withholds sub-cent/unsafe values.
 - `f84222e46946d79f64a756036740980b93c6f618` — task scorecard coverage/reopen-rate percentages use BigInt half-up rounding with a large-count boundary regression.

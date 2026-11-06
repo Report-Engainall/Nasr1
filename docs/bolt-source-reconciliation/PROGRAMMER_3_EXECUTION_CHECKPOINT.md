@@ -1,3 +1,31 @@
+## P3 INVENTORY ENGINE HARDENING — REPLENISHMENT EXACT DECIMAL QUANTITY MATH — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Source/test commit: `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361`.
+- Engine blob: `src/lib/intelligence/replenishment.ts` — `9a00769920fe795f7f98c5a09d922543ece95254`.
+- Regression source blob: `src/lib/intelligence/replenishment.test.ts` — `3ec14a579554b3c09ad96c7d1c50b606e08964b6`.
+
+### Implemented
+- Replaced Number-based decimal parsing and replenishment target arithmetic with exact BigInt micro-unit quantities at a six-decimal supported scale. The SQL source aggregate currently emits quantity/day values at scale three; this preserves those values without binary floating-point conversion.
+- Lead-time demand is calculated from sold quantity × lead days ÷ the inclusive period-day count using integer arithmetic and is rounded upward to one supported micro-unit so the target cannot understate lead-time need.
+- ATP plus confirmed open-PO incoming quantities, reorder point and target are compared in exact integer micro-units.
+- Minimum order quantity and order multiple are applied using integer ceiling division; fractional multiples no longer produce an accidental extra multiple due to floating-point division drift.
+- Unsupported source precision or values beyond the safe conversion boundary are withheld as `NEEDS_REVIEW` with `METRIC_DECIMAL_PRECISION_OR_RANGE_INVALID`.
+- Formula identity advanced to `inventory.replenishment-target@1.1.0`.
+- Added regression source for a fractional 0.1 quantity multiple, preserving the exact 0.3 recommendation, and for withholding over-precision source quantity.
+
+### Boundaries retained
+- Existing migration/RPC remains the source of ATP and confirmed incoming order quantities. No query, tenant scope, permission, migration, PO creation, purchase approval, stock update or ledger operation was added.
+- Existing UOM and period evidence gates remain in place. No mixed UOM aggregation or automatic purchase is allowed.
+- The P1 replenishment card and draft approval workflow are unchanged. P2 database migration application and exact runtime proof remain pending.
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression tests authored but NOT RUN. No build, typecheck, lint, CI, browser, Bolt, database, Preview, Vercel or production operation was run. No PASS/runtime acceptance claim.
+- Later exact-SHA acceptance must cover numeric string inputs, three-decimal SQL scale, six-decimal supported boundary, rejected seventh decimal, exact lead-demand ceiling, ATP + incoming arithmetic, minimum order quantity and fractional order multiples, overflow, UOM mismatch, period mismatch, open-PO filtering and no automatic purchase.
+
+---
+
 ## P3 INVENTORY FINANCIAL PRECISION — DEAD-STOCK EXPOSURE IN EXACT CENTS — 2026-11-06
 
 - Repository/branch: `Report-Engainall/Nasr1` / `main`.

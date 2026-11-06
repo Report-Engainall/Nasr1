@@ -1,5 +1,12 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
 
+## P3 CODE UPDATE — REPLENISHMENT EXACT DECIMAL QUANTITY MATH — 2026-11-06
+
+- Current P3 code SHA on `main`: `009fa7dd2cc92ad87891d2e5e14d1c263d8e7361`.
+- Replenishment inputs now parse with exact BigInt micro-units; lead-time need is rounded upward to the supported precision, and minimum/order-multiple rounding is integer-based.
+- Unsupported source precision/range is withheld as `NEEDS_REVIEW`; formula is `inventory.replenishment-target@1.1.0`.
+- Tests authored but NOT RUN. The existing tenant/role source RPC, P1 card and explicit draft workflow remain unchanged; P2 migration application/runtime acceptance is still pending.
+
 ## P3 CODE UPDATE — DEAD-STOCK EXACT-CENT EXPOSURE — 2026-11-06
 
 - Current P3 code SHA on `main`: `d8e78cb93dd137ab02405bc420ec1ce370e145ca`.
