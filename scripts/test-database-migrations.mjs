@@ -5511,6 +5511,8 @@ async function main() {
   assert.ok(!combinedQualityRows[0].result.unavailableMetrics.includes("FALSE_ALARM_RATE"),
     "wrapper removes false-alarm metric from unavailable only when reviewed true/false verdicts exist");
   assert.ok(!combinedQualityRows[0].result.unavailableMetrics.includes("REPEATED_CAUSE_RATE"),
+    "wrapper removes repeated-cause metric from unavailable only after a negative reason sample exists");
+  assert.ok(!combinedQualityRows[0].result.unavailableMetrics.includes("REPEATED_CAUSE_RATE"),
     "wrapper marks repeated causes available only after a negative reason sample exists");
 
   const accountantManual = await db.unsafe(

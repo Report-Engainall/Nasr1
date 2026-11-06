@@ -518,7 +518,7 @@ BEGIN
      AND (
        (metric='ACTIONABILITY_RATE' AND pg_catalog.jsonb_typeof(v_quality->'actionability'->'actionableRatePercent')='number')
        OR (metric='FALSE_ALARM_RATE' AND pg_catalog.jsonb_typeof(v_quality->'alerts'->'falseAlarmRatePercent')='number')
-       OR (metric='REPEATED_CAUSE_RATE' AND coalesce((v_quality->>'causeReviewCount')::integer,0)>0)
+       OR (metric='REPEATED_CAUSE_RATE' AND coalesce((v_quality->>'causeReviewCount')::numeric,0)>0)
      )
    );
 
