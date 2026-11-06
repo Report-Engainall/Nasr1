@@ -167,3 +167,33 @@ Documentation commits:
 - Existing growth-radar source gaps, Business Health source completeness, shift/process/policy and task-quality migration application remain unchanged and are not marked accepted by this commit.
 
 **Next P3 action:** resume from the latest `main` SHA; close another independent source-backed Section 57/52 gap only where a current RPC and evidence contract already exist, otherwise retain the explicit withheld state for Bolt/source dependencies.
+
+
+## P3 incremental product-body checkpoint — Arabic decision outcome assistant — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commit:** `a259462c29feb3b3407f3c159aa4ce3af3adabc4`  
+**Parent:** `a259462c29feb3b3407f3c159aa4ce3af3adabc4`
+
+### Delivered on main
+
+- Extended the existing Arabic intent planner with three narrow read-only intents: `DECISION_OUTCOMES_OVERVIEW`, `DECISIONS_PENDING_REVIEW`, and `DECISIONS_AWAITING_EXECUTION`.
+- The client calls the existing `fetch_decision_outcomes` RPC through `fetchDecisionOutcomes(100, 0)`; it does not add SQL, direct table access, or a new RPC.
+- The resolver emits only current-state counts for the eight known decision states. It does not expose owner labels, proposal content, finance values, or event payloads.
+- The response includes server total, inspected count, query timestamp and completeness. If total exceeds the first 100 rows, state is `PARTIAL`; filtered counts are explicitly limited to the inspected page. Historical/date-window questions are refused because the RPC is a current list, not an event time-series.
+- The existing Arabic assistant UI now renders the state distribution and partial-coverage disclosure; no P1 workspace mount or route was changed.
+
+### Exact changed files
+
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+
+### State and limits
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- The RPC remains server-authorized; permission denial is preserved. No historic event interpretation or unbounded scan is claimed.
+- No tests, build, lint, typecheck, CI, browser, database migration, Bolt, Preview, Vercel or production action was run for this body-only batch. No PASS or runtime proof is claimed.
+- Current main includes both code commits `ee5bba71952b899c6bb86bad9accec70b785ff9e` and `a259462c29feb3b3407f3c159aa4ce3af3adabc4`; the next checkpoint is the authoritative source cursor.
+
+**Next P3 action:** continue only with independent missing product behavior backed by existing tenant-scoped source contracts. Keep growth-radar quote conversion/product demand and Business Health completeness withheld where the source DTO/evidence pairing remains absent; do not synthesize figures to satisfy the target ratio.

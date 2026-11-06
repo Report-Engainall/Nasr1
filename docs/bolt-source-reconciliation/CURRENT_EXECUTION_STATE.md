@@ -1,5 +1,11 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 product-body update — Arabic decision outcome assistant — 2026-11-06
+
+- Code commit `a259462c29feb3b3407f3c159aa4ce3af3adabc4` adds three read-only Arabic decision intents on the existing `fetch_decision_outcomes` RPC: overview, pending review, and awaiting execution.
+- Output is aggregate-only, permission-denial preserving, and explicitly `PARTIAL` when the first 100 rows do not cover the total. It does not interpret history from a current snapshot or expose owner/decision details.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/database/Bolt/Preview/Vercel/production proof was generated in this body-only batch.
+
 ## P3 product-body update — decision outcome lifecycle controls — 2026-11-06
 
 - Code is committed on `main`: `ee5bba71952b899c6bb86bad9accec70b785ff9e` (parent `bb59a109e7bc46138e07149db9d27ac106327df1`). It adds state-specific decision lifecycle controls inside the existing Decision Memory Book, stable caller-supplied event/idempotency IDs for ambiguous retries, and the trusted owner profile ID in the memory DTO.
