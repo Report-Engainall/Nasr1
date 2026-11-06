@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-043
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main head observed immediately before this checkpoint update: `3edec167db82495b5933dfe89f1516a0bc1c2779`.
+- P1 product-code commits: `535c053454977bb7d8587f357d3ef0aeceae6ecb` and `3edec167db82495b5933dfe89f1516a0bc1c2779`.
+- P1 scope: reliable error recovery for the existing customer reorder-template save and apply actions.
+
+## BODY-043 — make reorder-template actions recoverable
+
+- Wrapped template creation and template application in explicit `try/catch/finally` handling so a rejected network/RPC/storage operation cannot leave the workspace permanently busy.
+- Template creation now requires the existing `save_reorder_template` RPC to return a syntactically valid template UUID before the UI reports success or clears the draft. Invalid/missing acknowledgements remain an error.
+- Applying a saved template now catches failed item reads, invalid template-line normalization and local cart-storage failures; it only shows the success notice after the existing isolated-cart merge succeeds.
+- Backend error details are not echoed to the customer; the UI presents actionable generic messages. Existing server RPCs, ownership rules, cart line format, quantity validation, current-price/stock checkout validation and order-idempotency behavior are unchanged.
+- File changed: `src/components/CustomerWorkflows.tsx`.
+- Code commits: `535c053454977bb7d8587f357d3ef0aeceae6ecb`, `3edec167db82495b5933dfe89f1516a0bc1c2779`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-043.
+- No P3-owned file, engine, DTO, RPC or migration was changed. No dependency, paid service or parallel business-write path was added.
+- Project-wide 95% P1 completion remains unclaimed because the complete denominator and weighting of remaining executable P1 requirements are not established by the current acceptance record.
+
+## Next P1 action
+
+Continue from the latest live `main` with the next independently confirmed P1 customer/admin workflow gap. Preserve all current source contracts and the P1/P3 ownership boundary.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-042
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
@@ -17,7 +46,7 @@
 
 ## Delivery boundary
 
-- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-041.
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-042.
 - No P3-owned file, engine, DTO, RPC or migration was changed. The concurrent P3 commit `46546d358cb729d775d1a8af125241e7a00cd136` remains preserved on `main`.
 - No new dependency or paid service was added.
 - Project-wide 95% P1 completion remains unclaimed because the complete denominator and weighting of remaining executable P1 requirements are not established by the current acceptance record.
