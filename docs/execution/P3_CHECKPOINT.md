@@ -1422,3 +1422,42 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; 
 ### Next P3 action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-008`: continue another independent, source-backed Section 53–63 requirement; do not rebuild the process engine or relax the equal-window guard.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DECISION-MEMORY-PAGED-READ-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main code delivery head: `23be2d51ce0c6cab19fad18ff0be16ca058e70b0`.
+- Canonical requirement: Section 52 (decision-memory precedent search and learning) and Section 57 (bounded Arabic assistant read).
+
+### Implemented on main
+
+1. **Bounded authenticated page collection**
+   - Added `fetchDecisionOutcomeCollection()` in `src/lib/intelligence/decision-outcome-client.ts`.
+   - Reuses only the existing authenticated `fetch_decision_outcomes` RPC and its server-derived finance-role/tenant scope; no direct table access or alternate query path.
+   - Reads sequential pages of 100, up to offset 5,000 (maximum 5,100 records).
+   - Requires a stable server total, exact expected page sizes, unique decision IDs across and within pages, and an unchanged first-page fingerprint (`id + version + updatedAt`) after collection.
+   - Reports explicit partial reasons for changing totals, page-size mismatch, duplicate rows, first-page drift, or reaching the bounded maximum. Authorization and source failures remain failures; no partial result is presented as authorized when the RPC denies access.
+   - Code commits: `fd8e4f3d5cf35bdcc4ced4e6378913c40414f12d`, `0e436a9734b04e55010915aee266ca3407b9a17b`.
+
+2. **Decision-memory composition and assistant route**
+   - `buildDecisionMemoryBook()` now accepts source-coverage certainty and preserves `PARTIAL` even if loaded count happens to equal the reported total when the page consistency guard failed.
+   - The Arabic `DECISION_MEMORY_OVERVIEW` intent uses the bounded collection. Other decision-count intents retain their existing one-page aggregate scope.
+   - Planner and response copy now disclose the 5,100-record bound and the actual partial-coverage reasons; historical event queries remain unsupported.
+   - Commits: `2aa90f254aa4d8b05ad18f4a926a858f4072d492`, `a630a85b813e586f4ecd613c5efb95fe24c8a10b`, `22dd4ed30c4d08e4290d94cc6e6abc1dc2a6343c`, `4763dae8c959efa304f388d1aee52d982c4f8ebb`.
+
+3. **Bounded UI rendering**
+   - `DecisionMemoryBook` renders 25 decision cards per view with previous/next page navigation; precedent selection follows the visible page while preserving a previously selected reference.
+   - The similarity engine and evidence gates operate over the loaded collection, not only the 25 visible cards.
+   - Final component blob: `e4464c9670ebf0db5c11315caf7dc37f9be40acb`; commit `23be2d51ce0c6cab19fad18ff0be16ca058e70b0`.
+
+### Acceptance boundary
+
+- No P1-owned workspace, shell, TaskCenter, commerce route or P2 persistence path was changed.
+- No SQL migration, RPC, schema, role policy, paid provider, AI quota, Vercel deployment/credit, live database or production operation was used.
+- No tests, build, typecheck, lint, CI, browser or E2E check was run for this body-only increment. No PASS/runtime/production claim is made.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+Continue only with an independently implementable P3 requirement backed by a real source contract. Additional Section 52 operational measurement (orders, receiving, settlement and inventory variance) remains withheld until same-tenant persisted pre-change baselines and matching post-change evidence/formulas exist. Bolt must later accept page completeness, authorization/tenant denial, older-page precedent search and UI paging on this exact source lineage.
