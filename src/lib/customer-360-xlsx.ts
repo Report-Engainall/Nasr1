@@ -218,7 +218,7 @@ export function downloadStaffCustomer360WorkbookXlsx(
 ): void {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return;
   const bytes = buildStaffCustomer360WorkbookXlsx(summary, interactions);
-  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   const safeCode = summary.customer.customer_code.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 60) || "customer";
