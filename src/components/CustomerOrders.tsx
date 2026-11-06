@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatNumber } from '@/lib/format';
-import type { Order, OrderItem } from '@/lib/types';
+import { ORDER_STATUS_LABELS, type Order, type OrderItem } from '@/lib/types';
 import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
@@ -54,10 +54,48 @@ import { Login } from '@/components/Login';
 import { CustomerReturnRequest } from '@/components/CustomerReturnRequest';
 
 export const STATUS_LABELS: Record<string, string> = {
-  draft: 'مسودة', pending: 'بانتظار المراجعة', confirmed: 'مؤكد', processing: 'قيد التجهيز',
-  shipped: 'تم الشحن', delivered: 'تم التسليم', cancelled: 'ملغي',
-  needs_customer_amendment: 'بانتظار تعديل العميل', returned_for_adjustment: 'أُعيد للتعديل', awaiting_customer_payment: 'بانتظار إبلاغ السداد',
+  ...ORDER_STATUS_LABELS,
+  draft: 'مسودة',
+  pending: 'بانتظار المراجعة',
+  confirmed: 'مؤكد',
+  processing: 'قيد التجهيز',
+  shipped: 'تم الشحن',
+  needs_customer_amendment: 'بانتظار تعديل العميل',
+  returned_for_adjustment: 'أُعيد للتعديل',
+  awaiting_customer_payment: 'بانتظار إبلاغ السداد',
 };
+
+const CUSTOMER_ORDER_PROGRESS_STEPS = [
+  { id: 'received', label: 'تم استلام الطلب' },
+  { id: 'reviewed', label: 'تمت المراجعة' },
+  { id: 'preparing', label: 'قيد التجهيز' },
+  { id: 'dispatched', label: 'تم الشحن' },
+  { id: 'delivered', label: 'تم التسليم' },
+] as const;
+
+const CUSTOMER_ORDER_PROGRESS_STAGE: Record<string, number> = {
+  new: 0,
+  pending: 0,
+  received: 1,
+  reviewing: 1,
+  returned: 1,
+  needs_customer_amendment: 1,
+  returned_for_adjustment: 1,
+  approved: 1,
+  confirmed: 1,
+  awaiting_customer_payment: 1,
+  preparing: 2,
+  processing: 2,
+  prepared: 3,
+  dispatched: 3,
+  shipped: 3,
+  delivered: 4,
+  invoiced: 4,
+};
+
+function customerOrderProgressStage(status: string): number {
+  return CUSTOMER_ORDER_PROGRESS_STAGE[status] ?? -1;
+}
 
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: '0 auto', padding: '32px 20px 60px' };
 const card: React.CSSProperties = { background: 'var(--card, #fff)', border: '1px solid #e0ecee', borderRadius: 16, padding: 20 };
@@ -509,19 +547,33 @@ function OrderInvoiceInner({ id }: { id: string }) {
         {printDocument.customerNotes && <p style={{ marginTop: 14 }}>ملاحظات: {printDocument.customerNotes}</p>}
         <section style={{ marginTop: 18 }}>
           <h3 style={{ fontSize: 15 }}>متابعة الطلب</h3>
-          <div aria-label="مسار حالة الطلب" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 6, margin: '14px 0' }}>
-            {[
-              ['pending','تم استلام الطلب'],
-              ['confirmed','تمت المراجعة'],
-              ['processing','قيد التجهيز'],
-              ['shipped','تم الشحن'],
-              ['delivered','تم التسليم'],
-            ].map(([status,label], index, all) => {
-              const current = all.findIndex((item) => item[0] === printDocument.status);
-              const complete = current >= index || printDocument.status === 'delivered';
-              return <div key={status} style={{ textAlign: 'center', color: complete ? '#087f8d' : '#9aabad', fontSize: 11 }}>
-                <div aria-label={complete ? 'مكتمل' : 'لم يكتمل'} style={{ width: 25, height: 25, borderRadius: 999, margin: '0 auto 6px', display: 'grid', placeItems: 'center', background: complete ? '#dff5ed' : '#edf1f2', color: complete ? '#087f8d' : '#84979b', fontWeight: 900 }}>{complete ? '✓' : index + 1}</div>
-                <span>{label}</span>
+          {['returned', 'needs_customer_amendment', 'returned_for_adjustment'].includes(printDocument.status) && (
+            <p role="alert" style={{ margin: '10px 0', padding: 10, borderRadius: 9, background: '#fff4df', color: '#80520d', fontWeight: 750 }}>
+              الطلب معاد للتعديل. راجع الملاحظة أعلاه وحدّث طلبك وفق توجيه الإدارة.
+            </p>
+          )}
+          {['cancelled', 'rejected'].includes(printDocument.status) && (
+            <p role="alert" style={{ margin: '10px 0', padding: 10, borderRadius: 9, background: '#fff0ef', color: '#8a2525', fontWeight: 750 }}>
+              انتهى مسار هذا الطلب بحالة: {printDocument.statusLabel}.
+            </p>
+          )}
+          <div aria-label="مسار حالة الطلب" aria-live="polite" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 6, margin: '14px 0' }}>
+            {CUSTOMER_ORDER_PROGRESS_STEPS.map((step, index) => {
+              const currentStage = customerOrderProgressStage(printDocument.status);
+              const complete = currentStage >= index && currentStage >= 0;
+              const current = currentStage === index;
+              return <div key={step.id} style={{ textAlign: 'center', color: complete ? '#087f8d' : '#9aabad', fontSize: 11 }}>
+                <div
+                  aria-label={current ? 'الحالة الحالية' : complete ? 'مكتمل' : 'لم يكتمل'}
+                  style={{
+                    width: 25, height: 25, borderRadius: 999, margin: '0 auto 6px', display: 'grid', placeItems: 'center',
+                    background: complete ? '#dff5ed' : '#edf1f2',
+                    color: complete ? '#087f8d' : '#84979b',
+                    border: current ? '2px solid #087f8d' : '2px solid transparent',
+                    fontWeight: 900,
+                  }}
+                >{complete ? '✓' : index + 1}</div>
+                <span>{step.label}</span>
               </div>;
             })}
           </div>

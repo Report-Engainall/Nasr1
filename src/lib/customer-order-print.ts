@@ -1,3 +1,5 @@
+import { ORDER_STATUS_LABELS as CANONICAL_ORDER_STATUS_LABELS } from '@/lib/types';
+
 export type CustomerOrderPrintAddressSource = {
   label?: string | null; recipient_name?: string | null; phone?: string | null;
   address_line1?: string | null; address_line2?: string | null; city?: string | null;
@@ -35,9 +37,14 @@ export type CustomerOrderPrintDocument = {
   history: Array<{ status: string; statusLabel: string; createdAt: string }>;
 };
 const ORDER_STATUS_LABELS: Record<string, string> = {
-  draft: 'مسودة', pending: 'بانتظار المراجعة', confirmed: 'مؤكد', processing: 'قيد التجهيز',
-  shipped: 'تم الشحن', delivered: 'تم التسليم', cancelled: 'ملغي',
-  needs_customer_amendment: 'بانتظار تعديل العميل', returned_for_adjustment: 'أُعيد للتعديل',
+  ...CANONICAL_ORDER_STATUS_LABELS,
+  draft: 'مسودة',
+  pending: 'بانتظار المراجعة',
+  confirmed: 'مؤكد',
+  processing: 'قيد التجهيز',
+  shipped: 'تم الشحن',
+  needs_customer_amendment: 'بانتظار تعديل العميل',
+  returned_for_adjustment: 'أُعيد للتعديل',
   awaiting_customer_payment: 'بانتظار إبلاغ السداد',
 };
 function textOrNull(value: unknown): string | null {
