@@ -9,7 +9,7 @@ import { fetchTaskIntelligenceReport } from "./task-intelligence-reports-client"
 import { createCashflowScheduleRequest,fetchCashflowSchedule } from "./cashflow-schedule-client";
 import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-client";
 import { fetchCustomerServiceIntelligenceSummary } from "./customer-service-intelligence-client";
-import { fetchDecisionOutcomes } from "./decision-outcome-client";
+import { fetchDecisionOutcomes, fetchDecisionOutcomeCollection } from "./decision-outcome-client";
 import { buildDecisionMemoryBook } from "./decision-memory";
 import { fetchOperationalShiftWorkspace } from "./shift-operations-client";
 import { fetchSupplierQuotes } from "@/lib/supplier-quotes";
@@ -119,15 +119,23 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
    return {status:"RESULT",plan,result:resolveShiftOperationsIntent(workspace.data.result)};
   }
   if(plan.sourceRpc==="fetch_decision_outcomes"){
-   const outcomes=await fetchDecisionOutcomes(100,0);
-   if(!outcomes.ok)return {status:outcomes.status,message:outcomes.message};
    const queriedAt=new Date().toISOString();
    if(plan.intent==="DECISION_MEMORY_OVERVIEW"){
+    const collection=await fetchDecisionOutcomeCollection();
+    if(!collection.ok)return {status:collection.status,message:collection.message};
     const memory=buildDecisionMemoryBook({
-     generatedAt:queriedAt,outcomes:outcomes.items,snapshots:[],totalOutcomes:outcomes.total,
+     generatedAt:queriedAt,
+     outcomes:collection.collection.items,
+     snapshots:[],
+     totalOutcomes:collection.collection.total,
+     sourceCoverageComplete:collection.collection.complete,
+     sourceCoverageWarning:collection.collection.complete
+      ?undefined:"DECISION_HISTORY_PAGE_COVERAGE_"+collection.collection.reason,
     });
     return {status:"RESULT",plan,result:resolveDecisionMemoryIntent(memory,queriedAt)};
    }
+   const outcomes=await fetchDecisionOutcomes(100,0);
+   if(!outcomes.ok)return {status:outcomes.status,message:outcomes.message};
    return {status:"RESULT",plan,result:resolveDecisionOutcomesIntent(
     plan.intent as DecisionOutcomesIntent,outcomes.items,outcomes.total,queriedAt)};
   }
