@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { parseTaskIntelligenceReport } from "./task-intelligence-reports";
+import type { TaskIntelligenceManagerRisk, TaskIntelligenceReport, TaskIntelligenceRoleSummary } from "./task-intelligence-reports";
+type RawTaskIntelligenceReport = Omit<TaskIntelligenceReport, "state" | "qualityReviewSnapshot">;
 
 const AS_OF = "2026-11-06T12:00:00.000Z";
 const ID_1 = "11111111-1111-4111-8111-111111111111";
 const ID_2 = "22222222-2222-4222-8222-222222222222";
 const PROFILE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
-const roleSummary = () => ({
+const roleSummary = (): TaskIntelligenceRoleSummary => ({
   taskRole: "sales",
   newCount: 1,
   openCount: 1,
@@ -21,7 +23,7 @@ const roleSummary = () => ({
   waitingOnOtherPartyCount: null,
   financialImpactAmount: null,
 });
-const managerRisk = (id = ID_1) => ({
+const managerRisk = (id = ID_1): TaskIntelligenceManagerRisk => ({
   id,
   title: "مراجعة طلب متأخر",
   taskType: "ORDER_REVIEW",
@@ -39,7 +41,7 @@ const managerRisk = (id = ID_1) => ({
   delayReason: null,
   requiredManagementDecision: null,
 });
-const report = () => ({
+const report = (): RawTaskIntelligenceReport => ({
   status: "VERIFIED",
   reportKind: "DAILY",
   asOf: AS_OF,
