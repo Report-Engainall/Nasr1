@@ -4,10 +4,10 @@ import { parseDecisionMemorySnapshot } from "./decision-memory-client";
 import type { DecisionMemorySnapshot } from "./decision-memory";
 
 export type DecisionOutcomeState =
-  | "PROPOSED" | "IN_REVIEW" | "APPROVED" | "REJECTED"
+  | "PROPOSED" | "IN_REVIEW" | "APPROVED" | "REJECTED" | "DEFERRED"
   | "ASSIGNED" | "EXECUTING" | "EXECUTED" | "MEASURED";
 export type DecisionOutcomeEventType =
-  | "SUBMIT_FOR_REVIEW" | "APPROVE" | "REJECT" | "ASSIGN"
+  | "SUBMIT_FOR_REVIEW" | "APPROVE" | "REJECT" | "DEFER" | "ASSIGN"
   | "START_EXECUTION" | "COMPLETE_EXECUTION" | "MEASURE";
 
 export interface DecisionOutcomeEventView {
@@ -50,7 +50,7 @@ export type DecisionOutcomeListResult =
 type UnknownRecord = Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states = new Set<DecisionOutcomeState>([
-  "PROPOSED","IN_REVIEW","APPROVED","REJECTED","ASSIGNED","EXECUTING","EXECUTED","MEASURED",
+  "PROPOSED","IN_REVIEW","APPROVED","REJECTED","DEFERRED","ASSIGNED","EXECUTING","EXECUTED","MEASURED",
 ]);
 function record(value: unknown): UnknownRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -202,7 +202,7 @@ export async function createDecisionOutcomeProposal(input: {
 export async function commandDecisionOutcome(input: {
   outcomeId: string;
   expectedVersion: number;
-  eventType: DecisionOutcomeEventType;
+  eventType: Exclude<DecisionOutcomeEventType, "DEFER">;
   reason?: string;
   ownerProfileId?: string;
   eventId?: string;
@@ -239,5 +239,36 @@ export async function commandDecisionOutcome(input: {
     return parseCommandResult(data);
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر إرسال أمر القرار إلى الخادم." };
+  }
+}
+
+/** Persists a reasoned deferral through its dedicated manager-only RPC. */
+export async function deferDecisionOutcome(input: {
+  outcomeId: string;
+  expectedVersion: number;
+  reason: string;
+  eventId?: string;
+  idempotencyKey?: string;
+}): Promise<DecisionOutcomeCommandResult> {
+  const reason = input.reason.trim();
+  if (!UUID.test(input.outcomeId) ||
+      !Number.isInteger(input.expectedVersion) || input.expectedVersion < 1 ||
+      reason.length < 3 || reason.length > 2000 ||
+      (input.eventId !== undefined && !UUID.test(input.eventId)) ||
+      (input.idempotencyKey !== undefined && !UUID.test(input.idempotencyKey))) {
+    return { ok: false, status: "ERROR", message: "أدخل سبب التأجيل وتحقق من إصدار القرار." };
+  }
+  try {
+    const { data, error } = await supabase.rpc("defer_decision_outcome", {
+      p_outcome_id: input.outcomeId,
+      p_event_id: input.eventId ?? crypto.randomUUID(),
+      p_idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+      p_expected_version: input.expectedVersion,
+      p_reason: reason,
+    });
+    if (error) return { ok: false, ...safeFailure(error) };
+    return parseCommandResult(data);
+  } catch {
+    return { ok: false, status: "UNAVAILABLE", message: "تعذر إرسال تأجيل القرار إلى الخادم." };
   }
 }
