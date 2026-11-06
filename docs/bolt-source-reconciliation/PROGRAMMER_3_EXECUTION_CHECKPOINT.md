@@ -291,3 +291,33 @@ Documentation commits:
 - Approved non-production acceptance must prove: same-tenant task-role scope; hidden roles excluded; denied user remains denied; EMPTY differs from no access; all aggregate task-role counts reconcile; audit reopen rate remains withheld when baseline incomplete; employee comparison query remains unsupported; no task IDs, task names, assignee identity or private task payloads leak into the assistant response.
 
 **Next P3 action:** resume from live `main`; only pursue source-backed role-task attention queries if the current source exposes the authenticated visible task list without expanding role visibility. Do not create a second task query or bypass TaskCenter guards.
+
+
+## P3 incremental product-body checkpoint — manager task action shortlist — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commit:** `e9aa25e237377e446fcf1a62bfd09f288e87ad69`  
+**Parent observed for code:** `3f7c1a85e5ee8c92a62c278d7f8fda11b4a51569`
+
+### Delivered on main
+
+- Expanded the existing Arabic manager task-risk query synonyms to include “أهم خطوات الإدارة” and “أولويات الإدارة اليوم”; it continues to call the existing server-authorized `fetch_task_intelligence_report(MANAGER)` path. No raw `ai_tasks` browser query or new RPC was introduced.
+- The assistant now presents the first five items in the server-ranked manager risk result as a shortlist, retaining the server order (priority, due date and age). Each item gets a deterministic explanation based only on source priority, `isOverdue`, `overdueMinutes`, `dueAt` and report `asOf`.
+- It supplies a next step based on persisted task status and whether an assignee exists: review/claim or confirm assignment for pending tasks; review progress and record outcome for in-progress tasks. It does not assign or mutate tasks.
+- Partial manager-risk coverage is disclosed separately from the full population of visible roles; the UI states that the five displayed are from the returned result and does not imply that omitted tasks are lower priority.
+- Removed raw `assignedProfileId` and `sourceEntityId` UUID display from the manager shortlist. The UI shows only whether an assignee exists and, where present, the source entity type.
+- The existing TaskCenter role-attention engine remains unchanged. The raw TaskCenter `fetchOperationalTasks()` API is not reused by the assistant because it selects tenant rows and relies on a client-side role filter in TaskCenter; the manager shortlist therefore stays on the existing manager-only server report contract.
+
+### Exact changed files
+
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+
+### State and limits
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- The query is management-only as enforced by the existing RPC. Regular users do not receive manager-risk rows through this path.
+- No tests, build, lint, typecheck, CI, browser, database, Bolt, Preview, Vercel or production operation was run for this body-only batch. No PASS or runtime proof is claimed.
+- The shortlist is limited to up to five high/critical items returned by the authorized manager report (the source currently has a bounded result); it is not an exhaustive task list and has no automatic navigation/action callback. Use the existing TaskCenter to open and act on the original task.
+
+**Next P3 action:** preserve the server-only manager boundary; do not broaden to ordinary roles until an authenticated role-scoped task-list RPC exists. Continue with source-backed analytics only.
