@@ -77,6 +77,42 @@ export function SupplierQuoteComparisonAssistant({
         </article>
       ))}
 
+      {result.priceHistoryGroupCount > 0 ? (
+        <section className="space-y-2 rounded-lg border p-3">
+          <h4 className="font-semibold">سجل تغير أسعار الموردين المحفوظ</h4>
+          <p className="text-xs text-muted-foreground">
+            مقارنة أول وآخر عرض مؤرخ في الصفحة المعادة، لنفس المورد والصنف والكمية والوحدة والعملة. يشمل العروض المستلمة والمرساة والمنتهية كسجل تاريخي، ولا يمثل سعراً حالياً أو توقعاً.
+          </p>
+          {result.priceHistory.map(item => (
+            <article key={item.key} className="rounded-md border p-2 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <strong>{item.productName} · {item.supplierName}</strong>
+                <span>{item.currency} · {count.format(item.quantity)} {item.unit}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {item.first.quoteNumber} ({new Date(item.first.createdAt).toLocaleDateString("ar-YE")})
+                {" "}→{" "}
+                {item.latest.quoteNumber} ({new Date(item.latest.createdAt).toLocaleDateString("ar-YE")})
+              </p>
+              <p>
+                {amount(item.first.unitCost, item.currency)} → {amount(item.latest.unitCost, item.currency)}
+                {" · "}
+                {item.direction === "INCREASED" ? "ارتفاع مسجل" : item.direction === "DECREASED" ? "انخفاض مسجل" : "دون تغير"}
+                {" · "}
+                {amount(Math.abs(item.changeAmount), item.currency)}
+                {item.changePercent === null ? " · لا تحسب النسبة لأن سعر البداية صفر" : " · " + number.format(Math.abs(item.changePercent)) + "%"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                عدد العروض المؤرخة: {count.format(item.quoteCount)} · الحالة الأخيرة:
+                {" "}{item.latest.status === "awarded" ? "مرسى" : item.latest.status === "expired" ? "منتهي" : "مستلم"}
+              </p>
+            </article>
+          ))}
+          {result.priceHistoryTruncated ? (
+            <p className="text-xs text-muted-foreground">عُرضت أول 40 مجموعة من سجل تغير الأسعار.</p>
+          ) : null}
+        </section>
+      ) : null}
       {result.comparisonGroupCount === 0 ? (
         <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد مجموعة سعرية مؤهلة للمقارنة حالياً؛ لم تُعرض عروض غير متوافقة كأنها قابلة للمقارنة.</p>
       ) : null}
