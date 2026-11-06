@@ -1,3 +1,20 @@
+# P1 SOURCE DELIVERY — 2026-11-06 — FINANCE / SUPPLIER WORKSPACE MOUNT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Parent SHA: `32e0c31aaff5a51a122be31a18dfa8d51ec69822`; source commit: `afc14bd83b7eaaa18e9736fd0dd18d9d911b6876`.
+- Mounted the existing tenant-scoped `GeneralLedgerWorkspace` into the actual `/admin/finance` screen for `admin`, `manager`, and `accountant`; the separate customer receivables/collection screen remains intact above it.
+- Exposed the existing supplier invoice capture mode alongside its independent review mode. The finance screen now reaches receipt-linked invoice entry, variance approval/rejection, supplier credit-note matching, supplier payment allocation/reconciliation, supplier account activity, and the controlled accounting-draft handoff.
+- Reused the existing General Ledger account payload, tenant-scoped RPCs, permission checks and refresh chain. Supplier mutations refresh ledger/statements and supplier activity. No new RPC, table, migration, provider, or direct-table write was introduced.
+- Source files: `src/components/AghbariApp.tsx`, `src/components/GeneralLedgerWorkspace.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. This delivery closes route reachability and capture-mode mounting only. Existing supplier migrations still require ordered application in Bolt; no tests, build, CI, browser, DB, or runtime PASS is claimed.
+- Acceptance leaf: `DLV-008-SUPPLIER-FINANCE-WORKSPACE-MOUNT-001`.
+
+## Next P1 action
+
+Continue the next source-only business-body gap without rebuilding customer order amendment/cancellation, customer service portal, or supplier RPC workflows already present. Keep the Bolt migration/runtime handoff separate and evidence-bound.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-068 — CUSTOMER PRE-REVIEW ORDER QUANTITY AMENDMENT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

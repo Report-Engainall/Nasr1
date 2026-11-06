@@ -1,3 +1,14 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — SUPPLIER FINANCE WORKSPACE REACHABILITY
+
+- Source commit: `afc14bd83b7eaaa18e9736fd0dd18d9d911b6876`; parent: `32e0c31aaff5a51a122be31a18dfa8d51ec69822`.
+- Mounted `GeneralLedgerWorkspace` inside the actual `/admin/finance` route for admin/manager/accountant roles. The existing customer receivables screen remains available; the General Ledger and supplier workflows now render on the same finance surface.
+- The General Ledger retains its tenant-scoped account payload and supplier refresh chain. It exposes supplier credit-note matching, invoice variance review, supplier payment recording/allocation/reconciliation and supplier account activity. This change additionally mounts supplier invoice capture from saved receipt lines.
+- No supplier accounting RPC, table, migration, journal-posting behavior, tax inference, FX conversion, or external provider was altered. Existing service contracts and their idempotency/authorization controls are reused.
+- Matrix leaf: `DLV-008-SUPPLIER-FINANCE-WORKSPACE-MOUNT-001`.
+- Source-only status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No test/build/typecheck/lint/CI/browser/Bolt/database/Preview/production execution or PASS is claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 REPLENISHMENT EVIDENCE LINEAGE
 
 - Commit `068eaa5455217e2659dd2072b28be76425eddea4` updates `src/lib/intelligence/replenishment.ts` to include the incoming open-PO commitment metric in each recommendation's evidence ID set. It advances the formula identity to `inventory.replenishment-target@1.1.1`.

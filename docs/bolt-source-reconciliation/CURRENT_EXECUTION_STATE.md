@@ -1,4 +1,13 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
+## P1 SOURCE DELIVERY — 2026-11-06 — FINANCE / SUPPLIER WORKSPACE REACHABILITY
+
+- Parent main SHA: `32e0c31aaff5a51a122be31a18dfa8d51ec69822`; code SHA: `afc14bd83b7eaaa18e9736fd0dd18d9d911b6876`.
+- The real `/admin/finance` route now mounts the existing finance-authorized General Ledger workspace for admin/manager/accountant after the customer receivables page.
+- Supplier invoice capture is mounted beside invoice review; the same surface exposes supplier credit-note matching, supplier payment allocation/reconciliation, supplier account activity and the controlled accounting-draft workflow.
+- Acceptance leaf: `DLV-008-SUPPLIER-FINANCE-WORKSPACE-MOUNT-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Supplier migrations, role-denial/browser journey, idempotency/reconciliation and source-linked journal acceptance remain pending exact-SHA Bolt/local acceptance. No runtime PASS is claimed.
+- Do not rebuild already-present order return/amendment/cancellation, customer service portal, ATP/replenishment, task-quality review or customer account workflows.
+
 
 ## P3 CODE UPDATE — REPLENISHMENT EVIDENCE-LINEAGE COMPLETION — 2026-11-06
 
