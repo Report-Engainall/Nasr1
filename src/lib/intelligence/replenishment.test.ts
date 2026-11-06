@@ -3,15 +3,16 @@ import {buildReplenishmentRecommendations} from "./replenishment";
 import type {EvidenceRecord,MetricSnapshot} from "./types";
 const asOf="2026-10-30T07:00:00Z",period={from:"2026-08-02",to:"2026-10-30"};
 const evidence=(id:string):EvidenceRecord=>({id,source:{kind:"RPC",name:"inventory.replenishment_inputs",version:"v1"},sourceTimestamp:asOf,asOf,period,currency:undefined,status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",warnings:[]});
-const metric=(id:string,value:number,unit:MetricSnapshot["unit"],p:MetricSnapshot["period"]=period,uom:string|null="EA"):MetricSnapshot=>({id,key:id,value,unit,...(unit==="QUANTITY"&&uom?{unitOfMeasure:uom}:{}),status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:p,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id,formulaVersion:"1",transformations:[]},warnings:[]});
-const build=(overrides:Partial<{atp:MetricSnapshot;rop:MetricSnapshot;sold:MetricSnapshot;lead:MetricSnapshot;incoming:MetricSnapshot}>={},quantityUnit="EA")=>{
+const metric=(id:string,value:number|string,unit:MetricSnapshot["unit"],p:MetricSnapshot["period"]=period,uom:string|null="EA"):MetricSnapshot=>({id,key:id,value,unit,...(unit==="QUANTITY"&&uom?{unitOfMeasure:uom}:{}),status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:p,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id,formulaVersion:"1",transformations:[]},warnings:[]});
+const build=(overrides:Partial<{atp:MetricSnapshot;rop:MetricSnapshot;sold:MetricSnapshot;lead:MetricSnapshot;incoming:MetricSnapshot;minimumOrderQuantity:MetricSnapshot;orderMultiple:MetricSnapshot}>={},quantityUnit="EA")=>{
  const rows={atp:metric("atp",5,"QUANTITY"),rop:metric("rop",20,"QUANTITY"),sold:metric("sold",30,"QUANTITY"),lead:metric("lead",15,"DAYS",null),incoming:metric("incoming",0,"QUANTITY"),...overrides};
- return buildReplenishmentRecommendations({id:"r",asOf,period,evidenceRecords:[evidence("atp"),evidence("rop"),evidence("sold"),evidence("lead"),evidence("incoming")],products:[{productRef:"SKU-1",availableToPromise:rows.atp,reorderPoint:rows.rop,soldQuantityWindow:rows.sold,supplierLeadTimeDays:rows.lead,incomingPurchaseQuantity:rows.incoming,quantityUnit}]});
+ const optional=[rows.minimumOrderQuantity,rows.orderMultiple].filter((item):item is MetricSnapshot=>Boolean(item));
+ return buildReplenishmentRecommendations({id:"r",asOf,period,evidenceRecords:[evidence("atp"),evidence("rop"),evidence("sold"),evidence("lead"),evidence("incoming"),...optional.map(item=>evidence(item.id))],products:[{productRef:"SKU-1",availableToPromise:rows.atp,reorderPoint:rows.rop,soldQuantityWindow:rows.sold,supplierLeadTimeDays:rows.lead,incomingPurchaseQuantity:rows.incoming,...(rows.minimumOrderQuantity?{minimumOrderQuantity:rows.minimumOrderQuantity}:{}),...(rows.orderMultiple?{orderMultiple:rows.orderMultiple}:{}),quantityUnit}]});
 };
 describe("replenishment recommendations",()=>{
  it("calculates demand from the full inclusive lookback period and preserves the lead-time basis",()=>{
   const result=build(),r=result.recommendations[0];
-  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",quantityUnit:"EA",availableToPromise:5,reorderPoint:20,dailyDemand:1/3,leadTimeDemand:5,targetStock:20,recommendedQuantity:15,automaticPurchase:false});
+  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",quantityUnit:"EA",availableToPromise:5,reorderPoint:20,dailyDemand:1/3,leadTimeDemand:5,targetStock:20,recommendedQuantity:15,formulaVersion:"1.1.0",automaticPurchase:false});
  });
  it("withholds when a required evidence field is unverified",()=>{
   const lead={...metric("lead",15,"DAYS",null),status:"UNVERIFIED" as const};
@@ -62,4 +63,22 @@ describe("replenishment recommendations",()=>{
   expect(r).toMatchObject({status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,recommendedQuantity:null});
   expect(r.warnings).toContain("QUANTITY_UOM_MISSING");
  });
+ it("applies fractional order multiples without floating-point over-ordering",()=>{
+  const r=build({
+   atp:metric("atp",10,"QUANTITY"),
+   rop:metric("rop",10.3,"QUANTITY"),
+   sold:metric("sold",30,"QUANTITY"),
+   lead:metric("lead",15,"DAYS",null),
+   incoming:metric("incoming",0,"QUANTITY"),
+   orderMultiple:metric("multiple",0.1,"QUANTITY"),
+  }).recommendations[0];
+  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",recommendedQuantity:0.3,formulaVersion:"1.1.0"});
+ });
+
+ it("withholds quantity inputs beyond supported decimal precision",()=>{
+  const r=build({sold:metric("sold","30.0000001","QUANTITY")}).recommendations[0];
+  expect(r).toMatchObject({status:"NEEDS_REVIEW",action:"WITHHELD",recommendedQuantity:null,formulaVersion:"1.1.0"});
+  expect(r.warnings).toContain("METRIC_DECIMAL_PRECISION_OR_RANGE_INVALID");
+ });
+
 });

@@ -1,4 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
+import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
 import type {EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
 export interface ReplenishmentProductInput {
@@ -11,11 +12,10 @@ export interface ReplenishmentRecommendation {
  formulaId:string;formulaVersion:string;evidenceIds:string[];warnings:string[];automaticPurchase:false;
 }
 const FORMULA_ID="inventory.replenishment-target";
-const FORMULA_VERSION="1.0.0";
-function numeric(value:number|string|null):number|null {
- if(typeof value==="number")return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER?value:null;
- if(typeof value!=="string"||! /^-?\d+(?:\.\d+)?$/.test(value.trim()))return null;
- const n=Number(value);return Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER?n:null;
+const FORMULA_VERSION="1.1.0";
+function ceilDivNonNegative(numerator:bigint,denominator:bigint):bigint {
+ if(numerator<=0n)return 0n;
+ return (numerator+denominator-1n)/denominator;
 }
 function dayCount(period:EvidencePeriod):number {
  const from=Date.parse(period.from+"T00:00:00Z"),to=Date.parse(period.to+"T00:00:00Z");
@@ -23,7 +23,7 @@ function dayCount(period:EvidencePeriod):number {
  return Math.floor((to-from)/86400000)+1;
 }
 
-type ReplenishmentMetricRead = { value: number | null; status: EvidenceStatus; metric: MetricSnapshot | null };
+type ReplenishmentMetricRead = { value: number | null; minorUnits: bigint | null; status: EvidenceStatus; metric: MetricSnapshot | null };
 
 function readReplenishmentMetric(args: {
   metric: MetricSnapshot;
@@ -37,7 +37,7 @@ function readReplenishmentMetric(args: {
 }): ReplenishmentMetricRead {
   const { metric, unit, expectedQuantityUnit, asOf, period, soldQuantityMetricId, index, warnings } = args;
   const source = index.get(metric.id);
-  if (!source) return { value: null, status: "UNVERIFIED", metric: null };
+  if (!source) return { value: null, minorUnits: null, status: "UNVERIFIED", metric: null };
   if (
     source.status !== "VERIFIED" ||
     source.completeness !== "COMPLETE" ||
@@ -46,16 +46,21 @@ function readReplenishmentMetric(args: {
     source.unit !== unit ||
     !source.lineage.evidenceIds.length
   ) {
-    return { value: null, status: source.status === "VERIFIED" ? "NEEDS_REVIEW" : source.status, metric: source };
+    return {
+      value: null,
+      minorUnits: null,
+      status: source.status === "VERIFIED" ? "NEEDS_REVIEW" : source.status,
+      metric: source,
+    };
   }
   if (unit === "QUANTITY") {
     if (!expectedQuantityUnit || !source.unitOfMeasure?.trim()) {
       warnings.push("QUANTITY_UOM_MISSING");
-      return { value: null, status: "NEEDS_REVIEW", metric: source };
+      return { value: null, minorUnits: null, status: "NEEDS_REVIEW", metric: source };
     }
     if (source.unitOfMeasure.trim() !== expectedQuantityUnit) {
       warnings.push("QUANTITY_UOM_MISMATCH");
-      return { value: null, status: "UNVERIFIED", metric: source };
+      return { value: null, minorUnits: null, status: "UNVERIFIED", metric: source };
     }
   }
   const hasWrongSoldPeriod = metric.id === soldQuantityMetricId &&
@@ -64,12 +69,17 @@ function readReplenishmentMetric(args: {
     (source.period!.from !== period.from || source.period!.to !== period.to);
   const hasPeriodOnDayMetric = unit === "DAYS" && source.period !== null;
   if (hasWrongSoldPeriod || hasWrongQuantityPeriod || hasPeriodOnDayMetric) {
-    return { value: null, status: "NEEDS_REVIEW", metric: source };
+    return { value: null, minorUnits: null, status: "NEEDS_REVIEW", metric: source };
   }
-  const value = numeric(source.value);
-  return value === null || value < 0
-    ? { value: null, status: "NEEDS_REVIEW", metric: source }
-    : { value, status: "VERIFIED", metric: source };
+  // The source aggregate is NUMERIC(18,3); six fractional places preserve it
+  // without float conversion and leave deterministic headroom for calculations.
+  const minorUnits = decimalToMinorUnits(source.value, 6);
+  const value = minorUnits === null ? null : minorUnitsToNumber(minorUnits, 6);
+  if (minorUnits === null || value === null) {
+    warnings.push("METRIC_DECIMAL_PRECISION_OR_RANGE_INVALID");
+    return { value: null, minorUnits: null, status: "NEEDS_REVIEW", metric: source };
+  }
+  return { value, minorUnits, status: "VERIFIED", metric: source };
 }
 
 export function buildReplenishmentRecommendations(input:{
@@ -111,20 +121,31 @@ export function buildReplenishmentRecommendations(input:{
    productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
-  const dailyDemand=(sold.value as number)/periodDays,leadDemand=dailyDemand*(lead.value as number),target=Math.max(rop.value as number,leadDemand);
-  const coveredAfterIncoming=(atp.value as number)+(incoming.value as number);
-  let recommended=Math.max(0,target-coveredAfterIncoming);
-  const min=optional[0]?.value??0,multiple=optional[1]?.value??null;
-  if(min>0&&recommended>0)recommended=Math.max(recommended,min);
-  if(multiple!==null&&multiple>0&&recommended>0)recommended=Math.ceil(recommended/multiple)*multiple;
-  const safe=[dailyDemand,leadDemand,target,coveredAfterIncoming,recommended].every(n=>Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER);
+  const atpMinor=atp.minorUnits as bigint,ropMinor=rop.minorUnits as bigint,soldMinor=sold.minorUnits as bigint,
+   leadDaysMinor=lead.minorUnits as bigint,incomingMinor=incoming.minorUnits as bigint;
+  const soldValue=minorUnitsToNumber(soldMinor,6);
+  const dailyDemand=soldValue===null?null:soldValue/periodDays;
+  // Round demand upward to the source precision before subtracting stock, so the recommendation cannot understate lead-time need.
+  const leadDemandMinor=ceilDivNonNegative(soldMinor*leadDaysMinor,BigInt(periodDays)*1_000_000n);
+  const targetMinor=ropMinor>leadDemandMinor?ropMinor:leadDemandMinor;
+  const coveredMinor=atpMinor+incomingMinor;
+  let recommendedMinor=targetMinor>coveredMinor?targetMinor-coveredMinor:0n;
+  const minimumMinor=optional[0]?.minorUnits??0n,multipleMinor=optional[1]?.minorUnits??null;
+  if(minimumMinor>0n&&recommendedMinor>0n&&recommendedMinor<minimumMinor)recommendedMinor=minimumMinor;
+  if(multipleMinor!==null&&multipleMinor>0n&&recommendedMinor>0n)
+   recommendedMinor=ceilDivNonNegative(recommendedMinor,multipleMinor)*multipleMinor;
+  const leadDemand=minorUnitsToNumber(leadDemandMinor,6);
+  const target=minorUnitsToNumber(targetMinor,6);
+  const coveredAfterIncoming=minorUnitsToNumber(coveredMinor,6);
+  const recommended=minorUnitsToNumber(recommendedMinor,6);
+  const safe=[dailyDemand,leadDemand,target,coveredAfterIncoming,recommended].every(n=>n!==null&&Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER);
   if(!safe){warnings.push("RECOMMENDED_QUANTITY_OVERFLOW");return {
    productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:null,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
   return {
-   productRef:product.productRef,status:"VERIFIED",action:recommended>0?"RECOMMEND":"NO_ACTION",
-   quantityUnit:expectedQuantityUnit,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming,reorderPoint:rop.value,dailyDemand,leadTimeDemand:leadDemand,targetStock:target,recommendedQuantity:recommended,
+   productRef:product.productRef,status:"VERIFIED",action:(recommended as number)>0?"RECOMMEND":"NO_ACTION",
+   quantityUnit:expectedQuantityUnit,availableToPromise:atp.value,incomingPurchaseQuantity:incoming.value,coveredAfterIncoming:coveredAfterIncoming as number,reorderPoint:rop.value,dailyDemand:dailyDemand as number,leadTimeDemand:leadDemand as number,targetStock:target as number,recommendedQuantity:recommended as number,
    formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   };
  });
