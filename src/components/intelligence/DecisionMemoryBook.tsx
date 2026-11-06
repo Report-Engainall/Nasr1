@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
+import { searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
 import type {
   DecisionMemoryBookResult,
   DecisionMemoryRecord,
@@ -306,6 +307,12 @@ function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetr
   </article>;
 }
 export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionMemoryBookProps){
+  const [precedentTargetId,setPrecedentTargetId]=useState("");
+  const [precedentQuery,setPrecedentQuery]=useState("");
+  const searchTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??result?.records[0]??null;
+  const precedentMatches=searchTarget&&result
+    ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:8})
+    :[];
   const effective=state==="ready"&&!result?"unavailable":state;
   if(effective!=="ready")return <IntelligenceStatePanel state={effective} onRetry={onRetry} errorMessage="تعذر تحميل دفتر ذاكرة القرارات." />;
   if(!result)return <IntelligenceStatePanel state="unavailable" unavailableMessage="مصدر ذاكرة القرارات غير متاح؛ لم تُنشأ سجلات افتراضية." />;
@@ -314,6 +321,51 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
       <p className="text-xs text-muted-foreground">سياسة {result.policyVersion} · لقطة {result.generatedAt} · الصفحة {result.loadedCount} من {result.totalCount}</p></div>
       <span className="text-xs"><EvidenceStatusLabel status={result.status==="VERIFIED"?"VERIFIED":result.status==="PARTIAL"?"NEEDS_REVIEW":"UNAVAILABLE"}/></span></header>
     <p className="text-sm text-muted-foreground">يوثق المشكلة والبدائل والافتراضات والإجراء والمراجعة على إصدارات غير قابلة للاستبدال. لا تتحول الوقائع إلى أدلة إلا بعد تحقق الخادم من مصدرها داخل المؤسسة؛ ولا تتغير القواعد أو الأسعار أو الصلاحيات تلقائياً.</p>
+    {result.records.length?<section className="space-y-3 rounded-xl border p-3" aria-label="البحث في القرارات السابقة المشابهة">
+      <div><h3 className="font-semibold">البحث في القرارات السابقة المشابهة</h3>
+        <p className="mt-1 text-xs text-muted-foreground">اختر قراراً مرجعياً. يرتب البحث السوابق الأقدم حسب تطابق قاعدة القرار والمصطلحات المحفوظة، ثم يوضح اختلاف الفترة والعملة والمعادلة. لا يستخدم نموذجاً احتماليًا ولا ينشئ توصية أو تغييراً تجارياً.</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block space-y-1 text-sm">القرار المرجعي
+          <select className="w-full rounded-lg border bg-background p-2" value={searchTarget?.decisionId??""} onChange={event=>setPrecedentTargetId(event.target.value)}>
+            {result.records.map(record=><option key={record.decisionId} value={record.decisionId}>{record.proposedResult.slice(0,100)} · {record.createdAt.slice(0,10)}</option>)}
+          </select>
+        </label>
+        <label className="block space-y-1 text-sm">مصطلحات إضافية (اختياري)
+          <input className="w-full rounded-lg border bg-background p-2" maxLength={500} value={precedentQuery} onChange={event=>setPrecedentQuery(event.target.value)} placeholder="مثال: نفاد مخزون، تأخر توريد، تحصيل"/>
+        </label>
+      </div>
+      {searchTarget?<div className="rounded-lg bg-muted/40 p-2 text-xs">
+        <p><strong>السياق المرجعي:</strong> {searchTarget.proposedResult} · {searchTarget.ruleId}@{searchTarget.ruleVersion}</p>
+        {searchTarget.problem?<p className="mt-1">المشكلة: {searchTarget.problem}</p>:null}
+        <p className="mt-1">تاريخ القرار: {searchTarget.createdAt} · فترة لقطة القرار: {searchTarget.snapshot?.period.from??"غير متاحة"} — {searchTarget.snapshot?.period.to??"غير متاحة"} · كما في {searchTarget.snapshot?.asOf??"غير متاح"}</p>
+      </div>:null}
+      {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">تنبيه: البحث مقصور على {result.loadedCount} قراراً محملاً من أصل {result.totalCount}. قد توجد سوابق أقدم خارج هذه الصفحة؛ عدم ظهور نتيجة لا يثبت عدم وجودها.</p>:null}
+      {precedentMatches.length?<ol className="space-y-2">
+        {precedentMatches.map(match=><li key={match.record.decisionId} className="rounded-lg border p-3 space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div><h4 className="font-semibold text-sm">{match.record.proposedResult}</h4>
+              <p className="text-xs text-muted-foreground" dir="ltr">{match.record.ruleId}@{match.record.ruleVersion} · {match.record.decisionId.slice(0,8)}</p>
+              <p className="text-xs">الحالة: {states[match.record.state]} · تاريخ القرار: {match.record.createdAt}</p>
+            </div>
+            <span className="text-xs">{match.comparisonStatus==="COMPARABLE"?"المقياس الفعلي قابل للمقارنة":match.comparisonStatus==="NOT_COMPARABLE"?"سياق القياس مختلف":"النتيجة غير مثبتة للمقارنة"}</span>
+          </div>
+          <p className="text-xs"><strong>أساس التشابه:</strong> {match.matchReasons.join("، ")}{match.matchedTerms.length?" · المصطلحات: "+match.matchedTerms.join("، "):""}</p>
+          {match.record.problem?<p className="text-sm"><strong>المشكلة المسجلة:</strong> {match.record.problem}</p>:null}
+          {match.record.actionTaken?<p className="text-sm"><strong>الإجراء المسجل:</strong> {match.record.actionTaken}</p>:null}
+          {match.record.lessons.length?<p className="text-sm"><strong>الدروس المحفوظة:</strong> {match.record.lessons.join("؛ ")}</p>:null}
+          {match.record.metricComparison.expected||match.record.metricComparison.actual?<div className="grid gap-2 sm:grid-cols-2">
+            {match.record.metricComparison.expected?metricLine("الخط الأساس المتوقع",match.record.metricComparison.expected):null}
+            {match.record.metricComparison.actual?metricLine("النتيجة الفعلية",match.record.metricComparison.actual):null}
+          </div>:null}
+          {match.contextDifferences.length?<div className="rounded-md border p-2">
+            <p className="text-xs font-semibold">اختلافات السياق وحدود المقارنة</p>
+            {match.contextDifferences.map((difference,index)=><p key={index} className="text-xs text-muted-foreground">{difference}</p>)}
+          </div>:null}
+          <p className="text-xs text-muted-foreground">هذه سابقة تاريخية للمراجعة وليست قاعدة ملزمة أو دليلاً على أن الظروف الحالية مماثلة بالكامل.</p>
+        </li>)}
+      </ol>:<p className="text-sm text-muted-foreground">لا توجد سابقة أقدم مطابقة ضمن السجلات المحملة حالياً. جرّب مصطلحات أوسع أو تحقق من نطاق الصفحة.</p>}
+    </section>:null}
     <div className="grid gap-2 sm:grid-cols-4">
       <article className="rounded-lg border p-3"><p className="text-xs">قرارات محمّلة</p><strong className="text-xl">{result.loadedCount}</strong></article>
       <article className="rounded-lg border p-3"><p className="text-xs">ذاكرة مكتملة</p><strong className="text-xl">{result.completeCount}</strong></article>
