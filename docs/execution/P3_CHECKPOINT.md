@@ -1461,3 +1461,11 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; 
 ### Next P3 action
 
 Continue only with an independently implementable P3 requirement backed by a real source contract. Additional Section 52 operational measurement (orders, receiving, settlement and inventory variance) remains withheld until same-tenant persisted pre-change baselines and matching post-change evidence/formulas exist. Bolt must later accept page completeness, authorization/tenant denial, older-page precedent search and UI paging on this exact source lineage.
+
+
+### P3 follow-up — decision memory empty-state semantics — 2026-11-06
+
+- Commits: `abbcb4701bde27621abd26a72466b36404bf20fc` (engine contract) and `3528578d591d27329234c515b2ffdc16db91392e` (DecisionMemoryBook presentation).
+- `buildDecisionMemoryBook()` now returns `EMPTY` only when the authorized source confirms zero outcomes and page coverage is complete. A failed, malformed or inconsistent read remains `UNAVAILABLE` or `PARTIAL`; zero records are no longer conflated with a missing source.
+- The existing Arabic DecisionMemoryBook renders an explicit empty label while retaining unavailable/partial evidence states.
+- No RPC, migration, database, P1-owned route/workspace or financial/inventory operation changed. No tests/build/typecheck/lint/CI/browser/DB/Bolt runtime operation was run; no PASS/runtime claim.
