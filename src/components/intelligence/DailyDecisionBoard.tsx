@@ -38,19 +38,21 @@ function metricValue(metric: DecisionMemoryMetricResult | null): string {
   return [amount, metric.currency ?? metric.unit, metric.unitOfMeasure].filter(Boolean).join(" ");
 }
 
-function followUpOrder(record: DecisionMemoryRecord, now: number): [number, number, number, number] {
-  const terminal = record.state === "REJECTED" || record.state === "MEASURED";
-  const due = record.reviewAt ? Date.parse(record.reviewAt) : Number.NaN;
-  const overdue = !terminal && Number.isFinite(due) && due < now;
-  const dueRank = overdue ? 0 : Number.isFinite(due) ? 1 : 2;
-  const variance = record.metricComparison.status === "VERIFIED" &&
-    record.metricComparison.difference !== null
-    ? Math.abs(record.metricComparison.difference)
-    : -1;
-  return [terminal ? 1 : 0, dueRank, stateOrder[record.state], -variance];
+function priorityRank(record: DecisionMemoryRecord): number {
+  const priority = record.candidateSnapshot?.priority;
+  return priority === "P0" ? 0 : priority === "P1" ? 1 : priority === "P2" ? 2 : priority === "P3" ? 3 : 4;
 }
 
 function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, now: number): number {
+  const leftRank = priorityRank(left);
+  const rightRank = priorityRank(right);
+  if (leftRank !== rightRank) return leftRank - rightRank;
+  const leftImpact = left.candidateSnapshot?.impact;
+  const rightImpact = right.candidateSnapshot?.impact;
+  if (leftImpact && rightImpact && leftImpact.unit === rightImpact.unit && leftImpact.currency === rightImpact.currency) {
+    const byImpact = Math.abs(rightImpact.value) - Math.abs(leftImpact.value);
+    if (byImpact !== 0) return byImpact;
+  }
   const a = followUpOrder(left, now);
   const b = followUpOrder(right, now);
   for (let index = 0; index < a.length; index += 1) {
@@ -119,6 +121,7 @@ function DecisionCard({
     record.state !== "REJECTED" && record.state !== "MEASURED";
   const facts = record.facts.filter(item => item.text.trim());
   const hypotheses = record.hypotheses.filter(item => item.text.trim());
+  const candidate = record.candidateSnapshot;
 
   return (
     <article className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby={"daily-decision-" + record.decisionId}>
@@ -148,10 +151,31 @@ function DecisionCard({
           </strong>
         </div>
         <div className="rounded-lg bg-muted/40 p-3">
-          <p className="text-xs text-muted-foreground">أولوية P0–P3</p>
-          <strong className="mt-1 block break-words text-sm">غير محفوظة في عقد القرار الحالي</strong>
+          <p className="text-xs text-muted-foreground">أولوية القرار</p>
+          <strong className="mt-1 block break-words text-sm">{candidate ? candidate.priority + " · " + candidate.priorityScore : "غير محفوظة في السجل التاريخي"}</strong>
         </div>
       </div>
+
+      {candidate ? (
+        <section className="grid gap-3 rounded-lg border p-3 md:grid-cols-2">
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold">المشكلة وسبب القرار</h4>
+            <p className="text-sm">{candidate.what}</p>
+            <p className="text-sm text-muted-foreground">{candidate.why}</p>
+            <p className="text-sm">المصدر: {candidate.proof.evidenceIds.join("، ")}</p>
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold">الأثر والمسؤول والإجراء</h4>
+            <p className="text-sm">{candidate.impactStatus === "CALCULATED" && candidate.impact
+              ? Math.abs(candidate.impact.value).toLocaleString("ar-YE", { maximumFractionDigits: 2 }) + " " + (candidate.impact.currency ?? candidate.impact.unit)
+              : "الأثر المالي محجوب: " + (candidate.impactReason ?? "لم يثبت المصدر")}</p>
+            <p className="text-sm text-muted-foreground">المخاطر: {candidate.risk}</p>
+            <p className="text-sm">المسؤول: {candidate.owner}</p>
+            <p className="text-sm">الإجراء المطلوب: {candidate.whatNext}</p>
+            <p className="text-xs text-muted-foreground">النتيجة المتوقعة: {candidate.expectedOutcome}</p>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-lg border p-3">
         <h4 className="text-sm font-semibold">سبب التوصية</h4>
@@ -274,14 +298,16 @@ export function DailyDecisionBoard({
   onRetry?: () => void;
 }) {
   const now = Date.now();
-  const records = [...result.records].sort((left, right) => compareOrder(left, right, now));
+  const sortedRecords = [...result.records].sort((left, right) => compareOrder(left, right, now));
+  const records = sortedRecords.slice(0, 10);
+  const omittedCount = Math.max(0, sortedRecords.length - records.length);
   return (
     <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="daily-decision-board-title" className="text-lg font-semibold">لوحة متابعة القرارات اليومية</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            قرارات محفوظة من مصدر الخادم؛ ترتيب المتابعة يبدأ بالموعد المتأخر ثم حالة دورة القرار ثم مقدار الانحراف المثبت.
+            أعلى عشرة قرارات محفوظة؛ الأولوية المحفوظة أولاً ثم الأثر القابل للمقارنة داخل العملة والوحدة، ثم الاستحقاق وحالة التنفيذ.
           </p>
         </div>
         <span role="status" aria-live="polite" className="w-fit max-w-full rounded-full border px-3 py-1 text-xs break-words">
@@ -289,9 +315,11 @@ export function DailyDecisionBoard({
         </span>
       </header>
 
-      <div className="min-w-0 break-words rounded-lg border p-3 text-xs text-muted-foreground">
-        لا يحتوي عقد القرارات المحفوظة حالياً على درجة الأولوية P0–P3 أو أثر متوقع مستقل عن خط الأساس؛ لذلك لا نختلق ترتيب أولوية أو أثراً مالياً. تظهر هذه الحقول صراحة كغير محفوظة، وتُعرض المقارنة فقط عندما تكون الفترة والمعادلة والأدلة متوافقة.
-      </div>
+      {result.records.some(record => !record.candidateSnapshot) ? (
+        <div className="min-w-0 break-words rounded-lg border p-3 text-xs text-muted-foreground">
+          بعض القرارات القديمة لا تملك لقطة أولوية وأثر محفوظة؛ تبقى ظاهرة كسجل تاريخي ولا يُستنتج لها تصنيف بأثر رجعي.
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <article className="min-w-0 rounded-lg bg-muted/40 p-3">
@@ -324,6 +352,9 @@ export function DailyDecisionBoard({
           ))}
         </ol>
       )}
+      {omittedCount > 0 ? (
+        <p className="text-xs text-muted-foreground" role="status">يُعرض أعلى 10 من {sortedRecords.length} قراراً في الصفحة الحالية؛ {omittedCount} قراراً آخر ضمن بقية السجل.</p>
+      ) : null}
       {result.status === "PARTIAL" || result.loadedCount < result.totalCount ? (
         <p className="text-xs text-muted-foreground" role="status">
           لا تشمل هذه اللوحة كامل تاريخ القرارات. النتائج المعروضة محدودة بالسجلات المحملة والمتحقق منها فقط.
