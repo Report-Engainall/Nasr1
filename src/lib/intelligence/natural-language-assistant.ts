@@ -217,7 +217,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  }
  const customerServiceQuestion=/(خدمات العملاء|خدمه العملاء|حالات خدمه العملاء|حالات العملاء|حاله عميل|شكاوي العملاء|شكاوي|بلاغات العملاء|طلبات الخدمه|مركز الخدمه|دعم العملاء|حالات الدعم)/.test(normalizedQuestion);
  const customerServiceSlaQuestion=/(sla|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد|موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات)/.test(normalizedQuestion);
- const customerServiceUnassignedQuestion=/(حالات غير مسنده|الحالات غير المسنده|حالات بلا مسؤول|حالات بدون مسؤول|حالات لم تسند|حالات غير موزعه)/.test(normalizedQuestion);
+ const customerServiceUnassignedQuestion=/(غير المسنده|بلا مسؤول|بدون مسؤول|لم تسند|غير موزعه)/.test(normalizedQuestion);
  if(customerServiceQuestion||customerServiceSlaQuestion||customerServiceUnassignedQuestion){
   if(/(اخر|الماضي|الماضيه|السابقة|السابقه|من تاريخ|بين تاريخ|خلال|منذ|هذا الشهر|هذا الاسبوع|الشهر الحالي|الاسبوع الحالي|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
    status:"UNSUPPORTED",normalizedQuestion,
