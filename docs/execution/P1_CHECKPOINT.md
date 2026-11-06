@@ -1,3 +1,29 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-054 — CUSTOMER PROFILE OVERVIEW ROUTE
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product commits: profile page `6607901b4b65e9a2471f66ce03463d1cf6029c93`; route-tree registration `3bc60712c7549033c00b1453e7e4133a67934ea8`; account navigation `88b17e4de227f1ac36f9eb37765cffc3abcb7d88`; footer `48ed9df9ad1dc7f4b286082401d646617347eee0`; Help Center `9f24fd1ec8a649abba57834529b613e5e8ec7710`.
+- Scope: provide a first-class authenticated customer/staff account overview at `/profile`, sourced from the existing authenticated identity context.
+
+## BODY-054 — profile overview and account navigation
+
+- Added `/profile` showing the signed-in user's server-resolved display name, email and assigned roles. It does not expose internal profile UUIDs or query other users' profile rows.
+- Customer and staff views receive different workflow shortcuts based on the existing `isStaff` and role context: customer orders/payments/statement/addresses/notifications/company contacts/password; staff admin workspace/password/notifications.
+- Changed the global «الحساب» navigation destination from `/login` to `/profile`; added the same entry in the storefront footer and Help Center.
+- The page is deliberately read-only. The historical `own_profile_update` policy was created alongside broad authenticated table UPDATE grants, and no current narrow update command for customer identity/business fields was found. No direct profile-row write or Auth metadata write was added.
+- Files changed: `src/routes/profile.tsx`, `src/routeTree.gen.ts`, `src/routes/__root.tsx`, `src/components/store/StoreFooter.tsx`, `src/routes/help.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Editing business name/contact phone/company details remains a separate backend-contract gap.
+
+## Delivery evidence boundary
+
+- GitHub source references were re-read for route registration, profile view, navigation, footer and Help Center link.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue account/company functions that can be bound to current approved source contracts. Do not enable profile/business edits until P2 supplies a server-owned, tenant-bound, field-allowlisted mutation and the overbroad legacy direct UPDATE grant is removed or narrowed.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-053 — AUTHENTICATED ACCOUNT PASSWORD CHANGE
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
