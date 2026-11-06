@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Bell, Check, ExternalLink, RefreshCw, Search, X } from 'lucide-react';
-import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
+import { fetchNotifications, fetchOlderNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
@@ -74,8 +74,20 @@ export function CustomerNotificationCenter() {
   const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [query, setQuery] = useState('');
+  const [olderNotifications, setOlderNotifications] = useState<Notification[]>([]);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
 
-  const notifications = data ?? [];
+  useEffect(() => {
+    setOlderNotifications([]);
+    setHasMoreOlder(true);
+    setFilter('all');
+    setQuery('');
+  }, [user?.profileId]);
+
+  const latestNotifications = data ?? [];
+  const knownNotificationIds = new Set(latestNotifications.map((item) => item.id));
+  const notifications = [...latestNotifications, ...olderNotifications.filter((item) => !knownNotificationIds.has(item.id))];
   const unread = notifications.filter((item) => !item.is_read).length;
   const normalizedQuery = query.trim().toLocaleLowerCase('ar');
   const filteredNotifications = notifications.filter((item) => {
@@ -94,11 +106,30 @@ export function CustomerNotificationCenter() {
     return () => window.clearInterval(timer);
   }, [refetch]);
 
+  async function loadOlder() {
+    if (loadingOlder || !hasMoreOlder || notifications.length === 0) return;
+    const cursor = notifications[notifications.length - 1];
+    setLoadingOlder(true);
+    setActionError('');
+    try {
+      const page = await fetchOlderNotifications({ createdAt: cursor.created_at, id: cursor.id });
+      const loadedIds = new Set(notifications.map((item) => item.id));
+      const additions = page.filter((item) => !loadedIds.has(item.id));
+      setOlderNotifications((current) => [...current, ...additions]);
+      setHasMoreOlder(page.length === 30);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'تعذر تحميل التنبيهات الأقدم.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
   async function markAllRead() {
     setBusyId('__all__');
     setActionError('');
     try {
       await markAllNotificationsRead();
+      setOlderNotifications((current) => current.map((item) => ({ ...item, is_read: true })));
       await refetch();
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'تعذر تعليم التنبيهات كمقروءة.');
@@ -112,6 +143,7 @@ export function CustomerNotificationCenter() {
     setActionError('');
     try {
       await markNotificationRead(notificationId);
+      setOlderNotifications((current) => current.map((item) => item.id === notificationId ? { ...item, is_read: true } : item));
       await refetch();
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'تعذر تحديث حالة التنبيه.');
@@ -126,7 +158,10 @@ export function CustomerNotificationCenter() {
     setBusyId(notification.id);
     setActionError('');
     try {
-      if (!notification.is_read) await markNotificationRead(notification.id);
+      if (!notification.is_read) {
+        await markNotificationRead(notification.id);
+        setOlderNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, is_read: true } : item));
+      }
       if (destination === 'order') {
         await navigate({ to: '/orders/$id', params: { id: notification.entity_id } });
       } else if (destination === 'task') {
@@ -160,7 +195,7 @@ export function CustomerNotificationCenter() {
         <div>
           <h1 style={{ margin: 0, fontSize: 23, fontWeight: 900 }}>التنبيهات</h1>
           <p style={{ margin: '6px 0 0', color: 'var(--muted-foreground)', fontSize: 13 }}>
-            {notifications.length.toLocaleString('ar-YE')} تنبيه — {unread.toLocaleString('ar-YE')} غير مقروء
+            {notifications.length.toLocaleString('ar-YE')} محمّل — {unread.toLocaleString('ar-YE')} غير مقروء
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -208,7 +243,7 @@ export function CustomerNotificationCenter() {
             المعروض: {filteredNotifications.length.toLocaleString('ar-YE')} من {notifications.length.toLocaleString('ar-YE')}
           </span>
         </div>
-        <p className="text-xs text-muted-foreground">يعرض المصدر أحدث 30 تنبيهًا للحساب الحالي فقط؛ البحث والتصفية يعملان ضمن هذه العناصر، ولا يمثلان سجلًا تاريخيًا كاملًا.</p>
+        <p className="text-xs text-muted-foreground">تُحمّل التنبيهات بصفحات متتابعة من 30 عنصرًا للحساب الحالي. استخدم «تحميل الأقدم» للوصول إلى بقية السجل المتاح.</p>
       </section>
 
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
@@ -245,8 +280,19 @@ export function CustomerNotificationCenter() {
           ))}
         </div>
       )}
+      {notifications.length > 0 && hasMoreOlder ? (
+        <div className="mt-4 flex justify-center">
+          <button type="button" className="btn btn-secondary" onClick={() => { void loadOlder(); }} disabled={loadingOlder}>
+            <RefreshCw size={15} className={loadingOlder ? 'animate-spin' : ''} />
+            {loadingOlder ? 'جار تحميل التنبيهات الأقدم...' : 'تحميل التنبيهات الأقدم'}
+          </button>
+        </div>
+      ) : null}
+      {notifications.length > 0 && !hasMoreOlder ? (
+        <p role="status" className="mt-4 text-center text-xs text-muted-foreground">وصلت إلى نهاية سجل التنبيهات المتاح لهذا الحساب.</p>
+      ) : null}
       <p style={{ marginTop: 14, color: 'var(--muted-foreground)', fontSize: 11 }}>
-        تظهر التنبيهات التي أرسلها النظام إلى حسابك الحالي فقط. بيانات العملاء الآخرين غير متاحة من هذه الصفحة.
+        تظهر التنبيهات التي أرسلها النظام إلى ملف الحساب الحالي فقط. بيانات العملاء الآخرين غير متاحة من هذه الصفحة.
       </p>
     </main>
   );
