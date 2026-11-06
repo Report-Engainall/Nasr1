@@ -30,6 +30,7 @@ import type { LucideIcon } from 'lucide-react';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
+import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 type IconType = LucideIcon;
 
 function NotificationRow({
@@ -892,6 +893,13 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       {order.delivery_address_snapshot.delivery_instructions && <p style={{ margin: '7px 0 0', color: '#536b70' }}>تعليمات المندوب: {order.delivery_address_snapshot.delivery_instructions}</p>}
     </section>}
 
+    {order && (customerAmendment || returnedOrderStatuses.includes(order.status)) ? (
+      <CustomerOrderAmendmentHistory
+        orderId={orderId}
+        refreshKey={[customerAmendment?.created_at ?? '', customerAmendment?.status ?? '', customerAmendment?.review_note ?? ''].join(':')}
+      />
+    ) : null}
+    
     {editable && <section className="panel table-panel" style={{ marginTop: 16 }}>
       {customerAmendmentError && <div role="alert" className="form-error">{customerAmendmentError}</div>}
       {isCustomerAmendmentReview && <div style={{ padding:14, marginBottom:14, border:'1px solid #e6c98f', borderRadius:10, background:'#fff9ed' }}>
