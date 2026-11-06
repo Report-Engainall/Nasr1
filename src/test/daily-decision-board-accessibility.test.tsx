@@ -91,6 +91,15 @@ describe("daily decision board accessibility and responsive structure", () => {
     expect(document.activeElement).toBe(action);
   });
 
+  it("keeps a stable ID-based order when saved decisions tie on every displayed ranking field", () => {
+    const laterId = { ...record, decisionId: "decision-z", proposedResult: "قرار Z" };
+    const earlierId = { ...record, decisionId: "decision-a", proposedResult: "قرار A" };
+    render(<DailyDecisionBoard result={{ ...result, records: [laterId, earlierId] }} />);
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map(heading => heading.textContent))
+      .toEqual(["قرار A", "قرار Z"]);
+  });
+
   it("uses mobile-first grids and announces partial coverage without inventing priority", () => {
     const { container } = render(<DailyDecisionBoard result={result} />);
     const board = screen.getByRole("region", { name: "لوحة متابعة القرارات اليومية" });
