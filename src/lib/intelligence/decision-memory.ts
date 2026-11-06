@@ -440,8 +440,8 @@ function finiteNumber(value: number | string | null): number | null {
     typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
   return Number.isFinite(parsed) && Math.abs(parsed) <= Number.MAX_SAFE_INTEGER ? parsed : null;
 }
-function unique(values: string[]): string[] {
-  return [...new Set(values.filter(value => typeof value === "string" && value.trim().length > 0))];
+function unique<T extends string>(values: T[]): T[] {
+  return [...new Set(values.filter(value => value.trim().length > 0))];
 }
 function evidenceIndex(records: EvidenceRecord[]): Map<string, EvidenceRecord[]> {
   const result = new Map<string, EvidenceRecord[]>();

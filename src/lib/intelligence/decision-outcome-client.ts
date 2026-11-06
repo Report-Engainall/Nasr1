@@ -170,7 +170,7 @@ function parseCandidateSnapshot(value: unknown): DecisionCandidateSnapshot | nul
     ? { value: impactRaw.value, unit: impactRaw.unit, currency: typeof impactRaw.currency === "string" ? impactRaw.currency : null,
         formulaId: impactRaw.formulaId, formulaVersion: impactRaw.formulaVersion, sourceMetricIds: impactRaw.sourceMetricIds as string[] }
     : raw.impact === null ? null : undefined;
-  if (score === null || raw.schemaVersion !== "1.0.0" || !str(raw.candidateId,150) ||
+  if (priority === null || score === null || raw.schemaVersion !== "1.0.0" || !str(raw.candidateId,150) ||
       !str(raw.ruleId,150) || !str(raw.ruleVersion,80) || raw.priorityScore !== score ||
       !str(raw.what,500) || !str(raw.why,2000) || !str(raw.risk,2000) || !str(raw.soWhat,2000) ||
       !str(raw.whatNext,2000) || !str(raw.owner,150) || !str(raw.expectedOutcome,2000) ||

@@ -79,6 +79,32 @@ const measuredOutcome = {
 };
 
 describe("persisted decision outcome client", () => {
+  const rankedCandidateSnapshot = {
+    schemaVersion: "1.0.0" as const,
+    candidateId: outcome.candidateId,
+    ruleId: outcome.ruleId,
+    ruleVersion: outcome.ruleVersion,
+    priority: "P0" as const,
+    priorityScore: 400,
+    what: "تحصيل مستحقات العميل",
+    why: "يوجد رصيد مثبت متأخر",
+    risk: "تأخر التحصيل يؤخر السيولة",
+    soWhat: "تتطلب الحالة متابعة موثقة",
+    whatNext: "راجع الفواتير وسجل نتيجة التواصل",
+    owner: "مسؤول التحصيل",
+    expectedOutcome: outcome.expectedOutcome,
+    impact: null,
+    impactStatus: "WITHHELD" as const,
+    impactReason: "لم يثبت الأثر",
+    proof: {
+      evidenceIds: ["customer-invoice:11111111-1111-4111-8111-111111111111"],
+      metricKeys: ["receivables.customer_overdue"],
+      asOf: "2026-10-31T10:00:00.000Z",
+      formulaVersions: ["receivables.customer-invoice-aging@1.0.0"],
+    },
+    createdAt: outcome.createdAt,
+    expiresAt: null,
+  };
   beforeEach(() => rpc.mockReset());
 
   it("fetches only the server-authorized outcome list and strictly projects records", async () => {
@@ -219,6 +245,45 @@ describe("persisted decision outcome client", () => {
     }));
     expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_organization_id");
     expect(result).toMatchObject({ ok: true, outcome: { state: "DEFERRED", version: 2, reason } });
+  });
+
+  it("parses only valid immutable candidate-priority snapshots", async () => {
+    rpc.mockResolvedValueOnce({
+      data: { items: [{ ...outcome, candidateSnapshot: rankedCandidateSnapshot }], total: 1 },
+      error: null,
+    });
+    const valid = await fetchDecisionOutcomes();
+    expect(valid).toMatchObject({
+      ok: true,
+      items: [{ candidateSnapshot: { priority: "P0", priorityScore: 400, impact: null } }],
+    });
+
+    rpc.mockResolvedValueOnce({
+      data: { items: [{ ...outcome, candidateSnapshot: { ...rankedCandidateSnapshot, priority: "P4" } }], total: 1 },
+      error: null,
+    });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("sends ranked snapshots through the atomic snapshot RPC", async () => {
+    rpc.mockResolvedValueOnce({
+      data: { ok: true, duplicate: false, outcome: { ...outcome, candidateSnapshot: rankedCandidateSnapshot } },
+      error: null,
+    });
+    const result = await createDecisionOutcomeProposal({
+      candidateId: outcome.candidateId,
+      ruleId: outcome.ruleId,
+      ruleVersion: outcome.ruleVersion,
+      ownerProfileId: "22222222-2222-4222-8222-222222222222",
+      expectedOutcome: outcome.expectedOutcome,
+      reason: "مطلوب متابعة",
+      candidateSnapshot: rankedCandidateSnapshot,
+    });
+    expect(rpc).toHaveBeenCalledWith("create_decision_outcome_proposal_with_snapshot", expect.objectContaining({
+      p_candidate_id: outcome.candidateId,
+      p_candidate_snapshot: rankedCandidateSnapshot,
+    }));
+    expect(result).toMatchObject({ ok: true, outcome: { candidateSnapshot: { priority: "P0" } } });
   });
 
   it("does not send a deferral without a meaningful reason", async () => {

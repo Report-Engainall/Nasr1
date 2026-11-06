@@ -138,7 +138,7 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
    const queriedAt=new Date().toISOString();
    if(plan.intent==="DECISION_MEMORY_OVERVIEW"){
     const collection=await fetchDecisionOutcomeCollection();
-    if(!collection.ok)return {status:collection.status,message:collection.message};
+    if(!collection.ok)return {status:collection.status==="DENIED"?"DENIED":collection.status==="UNAVAILABLE"?"UNAVAILABLE":"ERROR",message:collection.message};
     const memory=buildDecisionMemoryBook({
      generatedAt:queriedAt,
      outcomes:collection.collection.items,
@@ -151,7 +151,7 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     return {status:"RESULT",plan,result:resolveDecisionMemoryIntent(memory,queriedAt)};
    }
    const outcomes=await fetchDecisionOutcomes(100,0);
-   if(!outcomes.ok)return {status:outcomes.status,message:outcomes.message};
+   if(!outcomes.ok)return {status:outcomes.status==="DENIED"?"DENIED":outcomes.status==="UNAVAILABLE"?"UNAVAILABLE":"ERROR",message:outcomes.message};
    return {status:"RESULT",plan,result:resolveDecisionOutcomesIntent(
     plan.intent as DecisionOutcomesIntent,outcomes.items,outcomes.total,queriedAt)};
   }

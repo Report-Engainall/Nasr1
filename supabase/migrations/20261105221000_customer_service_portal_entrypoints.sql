@@ -78,7 +78,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.create_my_customer_service_case(text,text,text,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.create_my_customer_service_case(text,text,text,text,text) TO authenticated;
 
-COMMENT ON FUNCTION public.create_my_customer_service_portal_context() IS
+COMMENT ON FUNCTION public.get_my_customer_service_portal_context() IS
   'Returns current authenticated customer company context and permitted case capabilities without accepting a customer identifier from the browser.';
 COMMENT ON FUNCTION public.create_my_customer_service_case(text,text,text,text,text) IS
   'Creates a customer service case for the caller current_customer_id only; customer identity is derived server-side.';
