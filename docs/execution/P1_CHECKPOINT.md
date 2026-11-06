@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-037
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at this checkpoint base: `c52bfaf88de3313f3b3f2a16fc7dd1f5241e15b7`.
+- P1 product-code commit: `c52bfaf88de3313f3b3f2a16fc7dd1f5241e15b7` (parent `0287ffd14dda6f2d41ad4984f615e66d11dc5a31`).
+- P1 scope: customer order history, order-detail lifecycle display and customer print projection. No database command, P3 engine, RPC or migration was changed.
+
+## BODY-037 — customer order lifecycle labels and progress
+
+- Reused the canonical `ORDER_STATUS_LABELS` map from `src/lib/types.ts` in both the customer order list and the customer order print-document projection; retained the legacy status aliases already used by older orders.
+- Expanded the detail progress mapping to cover the active lifecycle values: `new`, `received`, `reviewing`, `approved`, `preparing`, `prepared`, `dispatched`, `delivered`, and `invoiced`, while preserving legacy `pending`, `confirmed`, `processing`, and `shipped` values.
+- The current step is now marked distinctly. Returned-for-adjustment states produce an explicit customer notice; `cancelled` and `rejected` are shown as terminal outcomes rather than leaving every progress indicator silently unfinished.
+- Files changed: `src/components/CustomerOrders.tsx`, `src/lib/customer-order-print.ts`. No order state is mutated and no status is inferred from dates or history beyond the current server status.
+- Scope: one confirmed status/progress-display gap closed in source. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no browser/runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-037.
+- The central acceptance matrix and general execution-state file were not changed.
+- The project-wide 95% P1 target remains unclaimed; no complete denominator of remaining P1 functions has been established.
+
+## Next P1 action
+
+Continue from the latest live `main` with the next concrete non-P3 workflow gap. Do not repeat BODY-032 through BODY-037 absent a reproducible defect.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-036
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
