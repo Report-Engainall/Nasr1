@@ -61,7 +61,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وجودة المهام والتوصيات والإنذارات بعد المراجعة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -73,6 +73,24 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     <p className="mt-1 text-xs text-muted-foreground">تاريخ الاستعلام لا يمثل تاريخ آخر مراجعة؛ المؤشرات محسوبة من أحدث مراجعة محفوظة لكل نوع.</p>
    </div>
    <TaskQualityReviewMetrics quality={response.result.quality}/>
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="CUSTOMER_SERVICE"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <strong>{response.result.answer}</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="EMPTY"?"لا توجد حالات ضمن هذا المؤشر":"ملخص كامل للحالات النشطة"}</span>
+    </div>
+    <p className="mt-2 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · وقت القياس الخادمي: {new Date(response.result.asOf).toLocaleString("ar-YE")} · وقت الاستعلام: {new Date(response.result.queriedAt).toLocaleString("ar-YE")}</p>
+   </div>
+   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">الحالات النشطة</p><strong className="text-xl tabular-nums">{qty.format(response.result.summary.openCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">تجاوز موعد أول استجابة</p><strong className="text-xl tabular-nums">{qty.format(response.result.summary.responseOverdueCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">تجاوز موعد الحل</p><strong className="text-xl tabular-nums">{qty.format(response.result.summary.resolutionOverdueCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">غير مسندة</p><strong className="text-xl tabular-nums">{qty.format(response.result.summary.unassignedCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">أولوية عاجلة</p><strong className="text-xl tabular-nums">{qty.format(response.result.summary.urgentCount)}</strong></article>
+    <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">أولوية عالية</p><strong className="text-xl tabular-nums">{qty.format(response.result.summary.highCount)}</strong></article>
+   </div>
+   <p className="text-xs text-muted-foreground">النطاق: جميع الحالات النشطة في المؤسسة الحالية، محسوبة عند وقت خادمي واحد. هذه أعداد مجمعة؛ لا يعيد هذا المسار أسماء العملاء أو أرقام الحالات أو أوصافها أو أسماء الموظفين. قد تتداخل حالات تأخر الاستجابة وتأخر الحل، لذلك لا تُجمع في رقم إجمالي واحد.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="PURCHASE_ORDER"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm"><p className="font-semibold">{response.result.answer}</p>
