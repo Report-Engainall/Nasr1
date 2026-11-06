@@ -19,6 +19,21 @@ type OrderReturns = CustomerOrderRow & {
   requests: CustomerReturnRequestRecord[];
 };
 
+const orderStatusLabels: Record<string, string> = {
+  pending: "بانتظار المراجعة",
+  draft: "مسودة",
+  confirmed: "مؤكد",
+  processing: "قيد التجهيز",
+  prepared: "جاهز للشحن",
+  shipped: "تم الشحن",
+  delivered: "تم التسليم",
+  returned: "معاد للمراجعة",
+  needs_customer_amendment: "بانتظار تعديل العميل",
+  returned_for_adjustment: "أُعيد للتعديل",
+  cancelled: "ملغى",
+  rejected: "مرفوض",
+};
+
 const statusLabels: Record<string, string> = {
   submitted: "مرسل للمراجعة",
   under_review: "قيد المراجعة",
@@ -204,7 +219,7 @@ export function CustomerReturnsPage() {
               </header>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div><span className="text-xs text-muted-foreground">سبب الإرجاع</span><p className="mt-1 text-sm font-medium">{reasonLabels[request.reason] ?? request.reason}</p></div>
-                <div><span className="text-xs text-muted-foreground">حالة الطلب الأصلي</span><p className="mt-1 text-sm font-medium">{order.status}</p></div>
+                <div><span className="text-xs text-muted-foreground">حالة الطلب الأصلي</span><p className="mt-1 text-sm font-medium">{orderStatusLabels[order.status] ?? "الحالة غير متاحة"}</p></div>
               </div>
               {request.notes ? <p className="mt-3 text-sm leading-6"><strong>ملاحظتك: </strong>{request.notes}</p> : null}
               {request.review_note ? <p className="mt-3 rounded-lg border bg-muted/30 p-3 text-sm leading-6"><strong>رد المراجعة: </strong>{request.review_note}</p> : null}
