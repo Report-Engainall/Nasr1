@@ -2100,3 +2100,12 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Retry keys stay stable across ambiguous outcomes; edited payloads reset the key. UI does not post a journal, payment, inventory mutation, task-status change or financial close.
 - P3 checkpoint: `8cfaaa55352d1e1d07f00dd564839393b2ffeff0`; existing matrix leaf `INT-SHIFT-001` updated at `3319c21e9919a5f9e5f8df0b85e2cb25e862d0b7`.
 - Migrations `20261106010000_intelligence_shift_operations.sql` and `20261106180000_intelligence_shift_handover_acceptance_lookup.sql` remain source-only. No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production proof is claimed.
+
+
+## P3 follow-up — Section 53 start-next-shift action — 2026-11-06
+
+- Extended the P3 `ShiftOperationsCenter` with a role-gated start-next-shift form using the organization time zone and current authorized shift ID from the source DTO; business date and label are explicit user inputs.
+- Calls the existing `start_operational_shift` RPC with `previousShiftId` and a retained caller-side idempotency key. It creates a linked next shift but does not close the previous shift or post any financial/inventory movement.
+- UI commit: `c7b52a0eb4f6b2b6c49aa0bb10710de63aa67c78`, component blob `bee0642ccad9d38f73312450fb8dba527a87a7c5`.
+- Matrix `INT-SHIFT-001` updated at `57655ad7c359ace1747aa4990b28daca36e71509`; P3 checkpoint follow-up `3c6aeaefc980c295e43354c286a789d8bac13563`.
+- No tests/build/runtime/database/Bolt/Preview/Vercel/production operation was run; migration application and exact-SHA acceptance remain pending.
