@@ -1,8 +1,9 @@
 import { ClientOnly, Link, createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Bell, Building2, FileText, KeyRound, LogOut, MapPin, Package, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
+import { fetchMyCustomerAccountProfile, saveMyCustomerAccountProfile, type CustomerAccountProfile, type CustomerAccountProfileInput } from "@/lib/customer-account-profile";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -48,6 +49,120 @@ function ProfileLink({ to, title, description, icon: Icon }: {
     </Link>
   );
 }
+
+function CustomerAccountProfileEditor() {
+  const [profile, setProfile] = useState<CustomerAccountProfile | null>(null);
+  const [draft, setDraft] = useState<CustomerAccountProfileInput>({
+    businessName: "",
+    contactName: "",
+    phone: "",
+    email: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetchMyCustomerAccountProfile()
+      .then((value) => {
+        if (!active) return;
+        setProfile(value);
+        setDraft({
+          businessName: value.business_name,
+          contactName: value.contact_name ?? "",
+          phone: value.phone ?? "",
+          email: value.email ?? "",
+        });
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : "تعذر تحميل بيانات الشركة.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!profile || loading || saving) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const saved = await saveMyCustomerAccountProfile(draft, profile.updated_at);
+      setProfile(saved);
+      setDraft({
+        businessName: saved.business_name,
+        contactName: saved.contact_name ?? "",
+        phone: saved.phone ?? "",
+        email: saved.email ?? "",
+      });
+      setNotice("تم حفظ بيانات الشركة في الحساب.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر حفظ بيانات الشركة.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputClass = "mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm";
+  return (
+    <section className="mt-4 rounded-xl border p-4" aria-labelledby="customer-account-business-heading">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 id="customer-account-business-heading" className="text-base font-bold">بيانات الشركة والتواصل</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            بيانات الملف التجاري المرتبط بحسابك. لا يغيّر هذا النموذج بريد تسجيل الدخول أو الصلاحيات أو شروط الائتمان.
+          </p>
+        </div>
+        {profile?.customer_code ? <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground">رقم العميل: {profile.customer_code}</span> : null}
+      </div>
+      {loading ? <p role="status" className="mt-3 text-sm text-muted-foreground">جار تحميل بيانات الشركة...</p> : null}
+      {error ? <p role="alert" className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
+      {notice ? <p role="status" className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p> : null}
+      {profile ? (
+        <form onSubmit={(event) => void submit(event)} className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-medium">
+            اسم الشركة
+            <input className={inputClass} value={draft.businessName} minLength={2} maxLength={200}
+              required disabled={loading || saving}
+              onChange={(event) => setDraft((current) => ({ ...current, businessName: event.target.value }))} />
+          </label>
+          <label className="text-sm font-medium">
+            اسم مسؤول الحساب
+            <input className={inputClass} value={draft.contactName} minLength={2} maxLength={120}
+              required disabled={loading || saving}
+              onChange={(event) => setDraft((current) => ({ ...current, contactName: event.target.value }))} />
+          </label>
+          <label className="text-sm font-medium">
+            هاتف التواصل
+            <input className={inputClass} type="tel" dir="auto" value={draft.phone} minLength={7} maxLength={40}
+              required disabled={loading || saving} autoComplete="tel"
+              onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} />
+          </label>
+          <label className="text-sm font-medium">
+            بريد التواصل التجاري
+            <input className={inputClass} type="email" dir="ltr" value={draft.email} maxLength={254}
+              disabled={loading || saving} autoComplete="email"
+              onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} />
+          </label>
+          <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+            <button type="submit" className="btn primary" disabled={loading || saving}>
+              {saving ? "جار حفظ البيانات..." : "حفظ بيانات الشركة"}
+            </button>
+            {profile.updated_at ? <span className="text-xs text-muted-foreground">آخر تحديث: {new Date(profile.updated_at).toLocaleString("ar-YE")}</span> : null}
+          </div>
+        </form>
+      ) : !loading && !error ? (
+        <p role="status" className="mt-3 text-sm text-muted-foreground">لا يوجد ملف عميل أساسي مرتبط بهذا الحساب.</p>
+      ) : null}
+    </section>
+  );
+}
+
 
 export function CustomerAccountProfilePage() {
   const { user, ready, signOutOtherSessions, signOutEverywhere } = useAuth();
@@ -128,6 +243,8 @@ export function CustomerAccountProfilePage() {
             <strong className="mt-2 block text-base" dir="ltr">{user.email.trim() || "لا يوجد بريد إلكتروني مرتبط بهذا الحساب"}</strong>
           </article>
         </section>
+        {!user.isStaff ? <CustomerAccountProfileEditor /> : null}
+
         <section className="mt-4 rounded-xl border p-4">
           <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={17}/> الصلاحيات المرتبطة بالجلسة</div>
           <div className="mt-3 flex flex-wrap gap-2">

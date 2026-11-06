@@ -1,3 +1,21 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-065 — CUSTOMER BUSINESS PROFILE EDIT
+
+- Repository: \`Report-Engainall/Nasr1\`; branch: \`main\`.
+- Parent/base SHA: \`52ec6f87e651eeff88dc449fad8a1f51822ea16a\`.
+- Added \`get_my_customer_account_profile()\` and \`update_my_customer_account_profile(...)\` in \`supabase/migrations/20261106210000_customer_account_profile_command.sql\`.
+- Added \`src/lib/customer-account-profile.ts\` and mounted an editable business-profile form in the customer \`/profile\` screen.
+- The RPC resolves the primary customer profile and organization from the authenticated session and matching \`customers.profile_id\`; the browser cannot supply customer/profile/tenant identifiers. The write is row-locked and optimistic-concurrency guarded by the prior \`updated_at\` revision.
+- Editable fields are limited to business name, contact name, business contact phone and business contact email. It does not update auth login email, profile roles, tenant, customer code, tier, approval state, credit limit, balance, pricing or order data. It writes a field-name-only audit record.
+- Files changed: \`supabase/migrations/20261106210000_customer_account_profile_command.sql\` (new), \`src/lib/customer-account-profile.ts\` (new), \`src/routes/profile.tsx\`, \`docs/execution/P1_CHECKPOINT.md\`.
+- State: \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`; database deployment and browser acceptance are pending.
+- Evidence boundary: source-only commit; no tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue the next uncovered core commerce/account workflow from the current server-owned schema. Prioritize the return-for-amendment command path next; do not bypass order status triggers or alter P3 engines.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-064 — CUSTOMER PAYMENT HISTORY XLSX
 
 - Repository: \`Report-Engainall/Nasr1\`; branch: \`main\`.
