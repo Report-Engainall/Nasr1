@@ -1,5 +1,6 @@
 import { ClientOnly, Link, createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Bell, Building2, FileText, KeyRound, MapPin, Package, ShieldCheck, UserRound, Wallet } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Bell, Building2, FileText, KeyRound, LogOut, MapPin, Package, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 
@@ -49,9 +50,42 @@ function ProfileLink({ to, title, description, icon: Icon }: {
 }
 
 export function CustomerAccountProfilePage() {
-  const { user, ready } = useAuth();
+  const { user, ready, signOutOtherSessions, signOutEverywhere } = useAuth();
+  const [sessionAction, setSessionAction] = useState<"others" | "global" | null>(null);
+  const [sessionError, setSessionError] = useState("");
+  const [sessionNotice, setSessionNotice] = useState("");
   if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
   if (!user) return <Login />;
+
+  async function revokeOtherSessions() {
+    if (sessionAction) return;
+    if (!window.confirm("سيتم إنهاء جلسات الحساب على الأجهزة والمتصفحات الأخرى مع إبقاء هذا الجهاز متصلاً. هل تريد المتابعة؟")) return;
+    setSessionAction("others");
+    setSessionError("");
+    setSessionNotice("");
+    try {
+      await signOutOtherSessions();
+      setSessionNotice("أُرسل طلب إبطال الجلسات الأخرى بنجاح. قد تبقى رموز الوصول الصادرة سابقاً صالحة حتى انتهاء مدتها.");
+    } catch (cause) {
+      setSessionError(cause instanceof Error ? cause.message : "تعذر إبطال الجلسات الأخرى.");
+    } finally {
+      setSessionAction(null);
+    }
+  }
+
+  async function signOutEverywhereNow() {
+    if (sessionAction) return;
+    if (!window.confirm("سيتم إنهاء الجلسة الحالية وجميع جلسات هذا الحساب على الأجهزة والمتصفحات الأخرى. ستحتاج إلى تسجيل الدخول مجدداً. هل تريد المتابعة؟")) return;
+    setSessionAction("global");
+    setSessionError("");
+    setSessionNotice("");
+    try {
+      await signOutEverywhere();
+    } catch (cause) {
+      setSessionError(cause instanceof Error ? cause.message : "تعذر إنهاء جميع الجلسات.");
+      setSessionAction(null);
+    }
+  }
 
   const links = user.isStaff
     ? [
@@ -113,6 +147,43 @@ export function CustomerAccountProfilePage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {links.map(item => <ProfileLink key={item.to} {...item}/>)}
         </div>
+      </section>
+
+      <section className="mt-7 rounded-2xl border bg-card p-5 sm:p-6" aria-labelledby="profile-sessions-heading">
+        <div className="flex items-start gap-3">
+          <span className="rounded-xl bg-primary/10 p-3 text-primary"><Smartphone size={22}/></span>
+          <div>
+            <h2 id="profile-sessions-heading" className="text-lg font-bold">الجلسات والأجهزة</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              يمكنك إنهاء جلسات الحساب الأخرى مع إبقاء هذا الجهاز، أو إنهاء جميع الجلسات بما فيها الجلسة الحالية.
+            </p>
+          </div>
+        </div>
+        {sessionError ? <p role="alert" className="mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{sessionError}</p> : null}
+        {sessionNotice ? <p role="status" className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{sessionNotice}</p> : null}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => void revokeOtherSessions()}
+            disabled={sessionAction !== null}
+          >
+            <Smartphone size={16}/>
+            {sessionAction === "others" ? "جارٍ إنهاء الجلسات الأخرى..." : "إنهاء جلسات الأجهزة الأخرى"}
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => void signOutEverywhereNow()}
+            disabled={sessionAction !== null}
+          >
+            <LogOut size={16}/>
+            {sessionAction === "global" ? "جارٍ إنهاء جميع الجلسات..." : "تسجيل الخروج من جميع الأجهزة"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs leading-6 text-muted-foreground">
+          ملاحظة أمنية: إبطال جلسات المصادقة يمنع استخدام رموز التجديد لاحقاً، لكن رموز الوصول التي صدرت بالفعل قد تظل صالحة حتى وقت انتهائها.
+        </p>
       </section>
     </main>
   );
