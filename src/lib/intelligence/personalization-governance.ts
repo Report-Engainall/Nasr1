@@ -169,7 +169,9 @@ export function createNotificationDeliveryAuditMetadata(
   let consentId: string | null = null;
   let consentVersion: string | null = null;
   if (input.channel !== "IN_APP") {
-    const matches = (input.externalConsents ?? []).filter(consent =>
+    const consentRows = Array.isArray(input.externalConsents) ? input.externalConsents : [];
+    const matches = consentRows.filter(consent =>
+      consent !== null && typeof consent === "object" &&
       consent.organizationId === input.recipient.organizationId &&
       consent.profileId === input.recipient.profileId &&
       consent.channel === input.channel &&
@@ -455,6 +457,11 @@ export function resolveNotificationDelivery(
   }
 
   const preferences = input.preferences;
+  if (!input.recipient || typeof input.recipient !== "object" ||
+      !isNonEmptyString(input.recipient.organizationId) ||
+      !isNonEmptyString(input.recipient.profileId)) {
+    return decision(input, "REVIEW", "RECIPIENT_CONTEXT_INVALID", preferences);
+  }
   if (preferences.organizationId !== input.recipient.organizationId ||
       preferences.profileId !== input.recipient.profileId) {
     return decision(input, "DENY", "PREFERENCES_SCOPE_MISMATCH", preferences);
