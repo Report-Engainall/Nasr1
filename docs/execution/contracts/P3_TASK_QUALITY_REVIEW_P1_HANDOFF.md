@@ -72,3 +72,22 @@ P3 source migration: `supabase/migrations/20261106090000_operational_task_qualit
 - `20261106090000_operational_task_quality_reviews.sql`
 
 Bolt/DB acceptance is separate from P1 mounting. No production operation or paid service is authorized.
+
+
+## P3 follow-on delivery — 2026-11-06
+
+P3 extended the existing implementation on `main` without changing `IntelligenceWorkspace.tsx` or the P1-owned `TaskCenter.tsx`:
+
+- `fetchOperationalTaskQualityMetrics()` in `@/lib/intelligence/task-quality-reviews-client` reads `fetch_operational_task_quality_metrics` directly and passes the response through the strict `parseTaskQualityMetrics` contract. Manager-only denial and migration/source unavailability remain explicit; no zero metrics are substituted.
+- `fetchTaskPerformanceScorecard()` now reads the base scorecard and quality metrics independently. A missing quality migration does not suppress a valid base scorecard.
+- `TaskQualityReviewMetrics` is a reusable exported component. The existing scorecard consumes it; it shows actionability, recommendation dispositions, correct/false/pending alerts, reason counts and repeated causes.
+- `TaskQualityReviewForm` can optionally load `fetch_decision_outcomes` and attach a selected, server-returned decision ID. The selection is optional, paginated in 50-row pages, and never generated locally. If the decision list is unavailable, the reviewer can still submit without a link; the write RPC remains the same-tenant authorization boundary.
+- Section 57 Arabic assistant now recognizes quality/recommendation/alert-review questions and reads the same quality RPC. Its displayed `queriedAt` is explicitly labelled as the query time, not as the last review timestamp.
+
+### P1 mount still required
+
+P1 must still mount `TaskQualityReviewForm` inside the existing `TaskCenter.tsx` task card using the actual `task.id` and `task.updated_at`, behind its existing manager/admin gate, with the current task-list refresh callback. Keep `key={task.id}` to isolate per-task idempotency state. Do not add a route or change task status from the review form.
+
+### Evidence boundary
+
+The source changes are `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. The 20261106090000 migration and preceding task-scorecard/audit migrations remain unapplied in Bolt/Supabase. No tests, build, lint, CI, browser, database, Preview, Vercel or production operation was run for this delivery; no runtime PASS is claimed.
