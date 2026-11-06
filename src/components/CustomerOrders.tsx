@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, FileText, Package, Printer, RefreshCw } from 'lucide-react';
+import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatNumber } from '@/lib/format';
 import { ORDER_STATUS_LABELS, type Order, type OrderItem } from '@/lib/types';
 import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
+import { downloadCustomerOrderWorkbookXlsx } from '@/lib/customer-order-xlsx';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
 
@@ -396,6 +397,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateSaved, setTemplateSaved] = useState(false);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const templateSaveInFlightRef = useRef(false);
   const { data, loading, error, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
@@ -420,6 +422,16 @@ function OrderInvoiceInner({ id }: { id: string }) {
   if (!data?.order) return <Shell><div style={card}>الطلب غير موجود أو لا تملك صلاحية عرضه. <Link to="/orders" className="sf-link">طلباتي</Link></div></Shell>;
   const { order, items, history, customer } = data;
   const printDocument = projectCustomerOrderPrintDocument(order, items, history, customer, user?.name ?? null);
+
+  function exportOrderWorkbook() {
+    setExportFeedback(null);
+    try {
+      downloadCustomerOrderWorkbookXlsx(printDocument);
+      setExportFeedback({ kind: 'success', message: 'تم تجهيز كشف الطلب بصيغة Excel للتنزيل. لا يحتوي الملف على أسعار أو تكاليف أو معرفات داخلية.' });
+    } catch (cause) {
+      setExportFeedback({ kind: 'error', message: cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel للطلب.' });
+    }
+  }
 
   async function saveAsReorderTemplate() {
     if (templateSaveInFlightRef.current || templateSaving || templateSaved) return;
@@ -497,8 +509,14 @@ function OrderInvoiceInner({ id }: { id: string }) {
         >
           {templateSaving ? 'جارٍ حفظ قالب إعادة الطلب...' : templateSaved ? 'تم حفظ قالب إعادة الطلب' : 'حفظ كقالب إعادة الطلب'}
         </button>
+        <button type="button" className="sf-btn-secondary" aria-label="تنزيل كشف الطلب بصيغة Excel" onClick={exportOrderWorkbook}><Download size={16} /> تنزيل Excel</button>
         <button className="sf-btn-primary" onClick={() => window.print()}><Printer size={16} /> طباعة / حفظ PDF</button>
       </div>
+      {exportFeedback && (
+        <div className="no-print" role={exportFeedback.kind === 'error' ? 'alert' : 'status'} style={{ ...card, marginBottom: 16, borderColor: exportFeedback.kind === 'error' ? '#dfb5ad' : '#b7d9ce' }}>
+          <p style={{ margin: 0 }}>{exportFeedback.message}</p>
+        </div>
+      )}
       {templateFeedback && (
         <div
           className="no-print"

@@ -1,3 +1,22 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-058 — CUSTOMER ORDER XLSX EXPORT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Base SHA: `6ac5bd9bee33de74cee0bbe15358f0b80337f814`.
+- Feature: authenticated customer order detail exports an Excel workbook from the existing validated `CustomerOrderPrintDocument` projection.
+- Added `src/lib/customer-order-xlsx.ts`: four Arabic worksheets (order metadata, items/quantities, saved delivery snapshot, and returned status history); text cells are emitted as literal inline strings through the shared OOXML writer.
+- Added a download action to `src/components/CustomerOrders.tsx` beside the existing print/PDF action. It uses the exact same already-loaded customer-owned order data and projection; no duplicate query or database mutation was added.
+- The workbook intentionally excludes prices, invoice totals, costs, margins, UUIDs, tenant/profile/user keys, and admin-only notes. It does not expose Onyx template data or internal operational data.
+- UI reports download preparation errors instead of presenting a success state if workbook creation or browser download setup throws.
+- Files changed: `src/lib/customer-order-xlsx.ts` (new), `src/components/CustomerOrders.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Evidence boundary: source was authored and committed only; no test, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue the next genuinely uncovered role/template pair from DLV-011, then proceed with independent commerce/UI workflows that have an approved existing server contract. Keep customer onboarding, profile/business writes and returned-order amendments blocked until their tenant-bound server commands exist. Do not alter P3-owned intelligence engines or apply migrations. Bolt database connection, migration application, route startup and E2E acceptance remain the separate owner-run integration phase.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-057 — CUSTOMER RETURNS HISTORY ROUTE
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
