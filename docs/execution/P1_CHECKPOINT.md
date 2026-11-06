@@ -1,7 +1,7 @@
 # P1 SOURCE DELIVERY — 2026-11-06 — SUPPLIER DUE DATE EVIDENCE + CASHFLOW OUTFLOWS
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only.
-- Parent main SHA: `c27c80caf1f905d4bc346ff8997d27e0396782b0`; code SHA: `2c02290c7ec43c9f9bc7b78a111bcaf174487926`.
+- Parent main SHA: `c27c80caf1f905d4bc346ff8997d27e0396782b0`; code SHA: `d6950064f8b799518858c885c15495dacd4187cf`.
 - Added `supabase/migrations/20261106310000_supplier_invoice_due_date_cashflow_outflows.sql`: tenant-scoped, append-only supplier invoice due-date evidence tied to an existing private invoice attachment; exact-payload idempotency; source reference and reason; immutable event/audit history; and a future supplier-payable OUTFLOW read.
 - The due-date command rejects variance-pending/rejected invoices, unresolved non-zero tax, attachment mismatch across invoice/tenant, dates before the invoice, changed idempotency payload and a second different date.
 - The OUTFLOW resolver uses the existing full-history receipt payable source after posted credit notes and posted supplier payments. It requires full received-line coverage by one matched zero-tax invoice with attached due-date evidence, and refuses receipts with unposted/reserved payment allocation. Rejected invoice lines are excluded from receipt coverage.

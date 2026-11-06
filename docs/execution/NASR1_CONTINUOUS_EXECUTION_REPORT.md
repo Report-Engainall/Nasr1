@@ -1,10 +1,10 @@
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — SUPPLIER INVOICE DUE DATES + VERIFIED PAYABLE OUTFLOWS
 
-- Code commit: `2c02290c7ec43c9f9bc7b78a111bcaf174487926`; parent: `c27c80caf1f905d4bc346ff8997d27e0396782b0`.
+- Code commit: `d6950064f8b799518858c885c15495dacd4187cf`; parent: `c27c80caf1f905d4bc346ff8997d27e0396782b0`.
 - New append-only table `purchase_supplier_invoice_due_dates` records one due date per tenant-bound supplier invoice, links a saved private attachment row, retains source reference/reason/actor/time, and rejects mutation/deletion. The RPC is finance-gated, same-tenant and exact-payload idempotent.
 - Due date capture is allowed only for an exactly matched invoice with no unresolved tax and an already uploaded invoice attachment. The UI does not infer payment terms.
 - New `fetch_supplier_payable_cashflow_schedule` builds OUTFLOW entries from the canonical posted supplier receipt payable resolver after posted credit notes and supplier payments. It requires full receipt-line coverage by one matched invoice, due-date evidence and attachment agreement, and fully posted payment allocations. Rejected invoice lines are excluded.
-- Cashflow client validates source references, formula, as-of, period, currency and unique entry/evidence IDs before joining OUTFLOW to the existing receivables INFLOW. Unresolved/overdue/unavailable supplier coverage sets PARTIAL/NEEDS_REVIEW; source absence never becomes zero. The 7/30/90-day forecast retains the verified-opening-balance gate.
+- Cashflow client validates source references, formula, as-of, period, currency and unique entry/evidence IDs before joining OUTFLOW to the existing receivables INFLOW. Unresolved/overdue/unavailable supplier coverage sets PARTIAL/NEEDS_REVIEW; source absence never becomes zero. If the supplier RPC fails or throws, the client retains independently verified receivables INFLOW and downgrades the total schedule instead of discarding the base response. A regression test covers this fail-closed partial-preservation path. The 7/30/90-day forecast retains the verified-opening-balance gate.
 - Tests added/expanded: supplier due-date RPC client, cashflow supplier-outflow parsing/merging, unresolved-coverage withholding and CashflowForecastCard source explanation.
 - Acceptance leaf: `DLV-010-SUPPLIER-DUE-DATE-CASHFLOW-OUTFLOW-001`.
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests, build/typecheck/lint/CI, database migration, Bolt sync, browser or production operation was run. No runtime PASS claimed.

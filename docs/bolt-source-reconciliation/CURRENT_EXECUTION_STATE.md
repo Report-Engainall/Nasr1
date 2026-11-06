@@ -1,11 +1,11 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
 ## P1 SOURCE DELIVERY — 2026-11-06 — SUPPLIER DUE DATE EVIDENCE + VERIFIED CASHFLOW OUTFLOWS
 
-- Parent main SHA: `c27c80caf1f905d4bc346ff8997d27e0396782b0`; code SHA: `2c02290c7ec43c9f9bc7b78a111bcaf174487926`.
+- Parent main SHA: `c27c80caf1f905d4bc346ff8997d27e0396782b0`; code SHA: `d6950064f8b799518858c885c15495dacd4187cf`.
 - Added `20261106310000_supplier_invoice_due_date_cashflow_outflows.sql`: append-only same-tenant supplier due-date evidence tied to an attached invoice document, source reference/reason, audit event and exact-payload idempotency.
 - Mounted invoice due-date capture on the existing supplier invoice view and added tenant/finance-scoped read/write methods.
 - Supplier cashflow OUTFLOW is derived only from full receipt-line coverage, one matched zero-tax invoice, a saved attachment-backed due date, and receipt payable after posted credits/payments. Unposted payment allocations, rejected/variance invoices and incomplete due-date sources make coverage partial.
-- Existing cashflow client joins OUTFLOW to customer receivables INFLOW only after validating as-of, period, currency and every evidence lineage. Unavailable source is PARTIAL, never zero.
+- Existing cashflow client joins OUTFLOW to customer receivables INFLOW only after validating as-of, period, currency and every evidence lineage. If the supplier source is unavailable, verified receivables INFLOW remains visible and the total schedule becomes PARTIAL/NEEDS_REVIEW; missing outflow is never zero.
 - Acceptance leaf: `DLV-010-SUPPLIER-DUE-DATE-CASHFLOW-OUTFLOW-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - Source and regression tests committed; tests NOT RUN. Migration remains unapplied in Bolt; no DB/browser/runtime PASS claimed.
 - Opening cash/bank balance and bank statement reconciliation remain open. No projected cash balance is manufactured.
