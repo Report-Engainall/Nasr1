@@ -107,6 +107,12 @@ function isDay(value: unknown): value is string {
 function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+function closeNumber(actual: number, expected: number): boolean {
+  return Number.isFinite(actual) && Math.abs(actual - expected) <= 0.01;
+}
 function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
@@ -127,7 +133,11 @@ function parseRoleSummary(value: unknown): TaskIntelligenceRoleSummary | null {
     !isNumberOrNull(row.reopenRatePercent) || !isCount(row.resolvedTaskCount) ||
     !isNumberOrNull(row.averageResolutionMinutes) ||
     row.waitingOnOtherPartyCount !== null || row.financialImpactAmount !== null) return null;
-  if (row.reopenRatePercent !== null && row.reopenRatePercent > 100) return null;
+  if ((row.reopenRatePercent !== null && row.reopenRatePercent > 100) ||
+    row.overdueOpenCount > row.openCount || row.highImpactOpenCount > row.openCount ||
+    row.reopenedEventCount < row.reopenedTaskCount || row.resolvedTaskCount !== row.completedCount ||
+    (row.resolvedTaskCount === 0 && (row.reopenRatePercent !== null || row.averageResolutionMinutes !== null)) ||
+    (row.resolvedTaskCount > 0 && (row.reopenRatePercent === null || row.averageResolutionMinutes === null))) return null;
   return {
     taskRole: row.taskRole as TaskIntelligenceRole, newCount: row.newCount,
     openCount: row.openCount, overdueOpenCount: row.overdueOpenCount,
@@ -146,7 +156,10 @@ function parseSourceSummary(value: unknown): TaskIntelligenceSourceSummary | nul
     !isCount(row.createdCount) || !isCount(row.completedCount) ||
     !isCount(row.reopenedEventCount) || !isCount(row.reopenedTaskCount) ||
     !isNumberOrNull(row.reopenRatePercent) || (row.reopenRatePercent !== null && row.reopenRatePercent > 100) ||
-    !isCount(row.resolvedTaskCount) || !isNumberOrNull(row.averageResolutionMinutes)) return null;
+    !isCount(row.resolvedTaskCount) || !isNumberOrNull(row.averageResolutionMinutes) ||
+    row.reopenedEventCount < row.reopenedTaskCount || row.resolvedTaskCount !== row.completedCount ||
+    (row.resolvedTaskCount === 0 && (row.reopenRatePercent !== null || row.averageResolutionMinutes !== null)) ||
+    (row.resolvedTaskCount > 0 && (row.reopenRatePercent === null || row.averageResolutionMinutes === null))) return null;
   return {
     sourceKey: row.sourceKey, taskRole: row.taskRole as TaskIntelligenceRole,
     priority: row.priority as TaskIntelligencePriority, createdCount: row.createdCount,
@@ -159,7 +172,8 @@ function parseWeeklyPoint(value: unknown): TaskIntelligenceWeeklyPoint | null {
   const row = record(value);
   if (!row || !isDay(row.weekStart) || !isCount(row.createdCount) ||
     !isCount(row.completedCount) || !isCount(row.reopenedTaskCount) ||
-    !isCount(row.reopenedEventCount) || !isNumberOrNull(row.averageResolutionMinutes)) return null;
+    !isCount(row.reopenedEventCount) || row.reopenedEventCount < row.reopenedTaskCount ||
+    !isNumberOrNull(row.averageResolutionMinutes)) return null;
   return {
     weekStart: row.weekStart, createdCount: row.createdCount,
     completedCount: row.completedCount, reopenedTaskCount: row.reopenedTaskCount,
@@ -167,20 +181,34 @@ function parseWeeklyPoint(value: unknown): TaskIntelligenceWeeklyPoint | null {
     averageResolutionMinutes: row.averageResolutionMinutes as number | null,
   };
 }
-function parseManagerRisk(value: unknown): TaskIntelligenceManagerRisk | null {
+function parseManagerRisk(value: unknown, asOf: string): TaskIntelligenceManagerRisk | null {
   const row = record(value);
-  if (!row || typeof row.id !== "string" || typeof row.title !== "string" ||
-    typeof row.taskType !== "string" || (row.sourceEntityType !== null && typeof row.sourceEntityType !== "string") ||
-    (row.sourceEntityId !== null && typeof row.sourceEntityId !== "string") ||
+  const asOfMs = Date.parse(asOf);
+  if (!row || !isUuid(row.id) || typeof row.title !== "string" || !row.title.trim() ||
+    typeof row.taskType !== "string" || !row.taskType.trim() ||
+    (row.sourceEntityType !== null && typeof row.sourceEntityType !== "string") ||
+    (row.sourceEntityId !== null && !isUuid(row.sourceEntityId)) ||
     typeof row.taskRole !== "string" || !ROLES.has(row.taskRole as TaskIntelligenceRole) ||
     (row.priority !== "high" && row.priority !== "critical") ||
     (row.status !== "pending" && row.status !== "in_progress") ||
-    !isTimestamp(row.createdAt) || (row.dueAt !== null && !isTimestamp(row.dueAt)) ||
+    !isTimestamp(row.createdAt) || Date.parse(row.createdAt) > asOfMs ||
+    (row.dueAt !== null && !isTimestamp(row.dueAt)) ||
     !isNumberOrNull(row.ageMinutes) || row.ageMinutes === null ||
     !isNumberOrNull(row.overdueMinutes) ||
-    (row.assignedProfileId !== null && typeof row.assignedProfileId !== "string") ||
+    (row.assignedProfileId !== null && !isUuid(row.assignedProfileId)) ||
     typeof row.isOverdue !== "boolean" || row.delayReason !== null ||
     row.requiredManagementDecision !== null) return null;
+  const createdAt = Date.parse(row.createdAt);
+  const expectedAge = Math.round(Math.max(asOfMs - createdAt, 0) / 60000 * 100) / 100;
+  if (!closeNumber(row.ageMinutes, expectedAge)) return null;
+  const expectedOverdue = row.dueAt !== null && Date.parse(row.dueAt) < asOfMs;
+  const expectedOverdueMinutes = expectedOverdue
+    ? Math.round((asOfMs - Date.parse(row.dueAt as string)) / 60000 * 100) / 100
+    : null;
+  if (row.isOverdue !== expectedOverdue ||
+      (expectedOverdueMinutes === null
+        ? row.overdueMinutes !== null
+        : row.overdueMinutes === null || !closeNumber(row.overdueMinutes, expectedOverdueMinutes))) return null;
   return {
     id: row.id, title: row.title, taskType: row.taskType,
     sourceEntityType: row.sourceEntityType as string | null,
@@ -191,6 +219,13 @@ function parseManagerRisk(value: unknown): TaskIntelligenceManagerRisk | null {
     overdueMinutes: row.overdueMinutes, assignedProfileId: row.assignedProfileId as string | null,
     isOverdue: row.isOverdue, delayReason: null, requiredManagementDecision: null,
   };
+}
+
+function dateOfWeek(value: string): string {
+  const date = new Date(value + "T00:00:00.000Z");
+  const offset = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - offset);
+  return date.toISOString().slice(0, 10);
 }
 
 export function parseTaskIntelligenceReport(
@@ -225,14 +260,40 @@ export function parseTaskIntelligenceReport(
   const roleSummaries = row.roleSummaries.map(parseRoleSummary);
   const sourceBreakdown = row.sourceBreakdown.map(parseSourceSummary);
   const weeklyTrend = row.weeklyTrend.map(parseWeeklyPoint);
-  const managerRisks = row.managerRisks.map(parseManagerRisk);
+  const managerRisks = row.managerRisks.map(item => parseManagerRisk(item, row.asOf as string));
   if (roleSummaries.some(item => item === null) ||
     sourceBreakdown.some(item => item === null) ||
     weeklyTrend.some(item => item === null) ||
     managerRisks.some(item => item === null) ||
     roleSummaries.length !== scope.visibleRoles.length ||
-    (expectedKind === "MANAGER" && !scope.managerViewAvailable) ||
-    (expectedKind !== "MANAGER" && managerRisks.length > 0)) return null;
+    new Set((roleSummaries as TaskIntelligenceRoleSummary[]).map(item => item.taskRole)).size !== roleSummaries.length ||
+    (expectedKind === "MANAGER" && !scope.managerViewAvailable)) return null;
+
+  const riskTotal = scope.managerRiskTotalCount;
+  const riskReturned = scope.managerRiskReturnedCount;
+  if (scope.managerViewAvailable) {
+    if (!isCount(riskTotal) || !isCount(riskReturned) ||
+      riskReturned !== Math.min(riskTotal, 25) ||
+      riskReturned !== managerRisks.length ||
+      scope.managerRiskCompletePopulation !== (riskTotal <= 25) ||
+      new Set((managerRisks as TaskIntelligenceManagerRisk[]).map(item => item.id)).size !== managerRisks.length) return null;
+  } else if (riskTotal !== null || riskReturned !== null ||
+    scope.managerRiskCompletePopulation !== false || managerRisks.length !== 0) {
+    return null;
+  }
+
+  const sourceIdentities = (sourceBreakdown as TaskIntelligenceSourceSummary[])
+    .map(item => item.sourceKey + ":" + item.taskRole + ":" + item.priority);
+  if (new Set(sourceIdentities).size !== sourceIdentities.length) return null;
+
+  const weekStarts = (weeklyTrend as TaskIntelligenceWeeklyPoint[]).map(item => item.weekStart);
+  if (new Set(weekStarts).size !== weekStarts.length ||
+    weekStarts.some((value, index) => {
+      const date = new Date(value + "T00:00:00.000Z");
+      return date.getUTCDay() !== 1 ||
+        value < dateOfWeek(period.from) || value > dateOfWeek(period.to) ||
+        (index > 0 && value <= weekStarts[index - 1]);
+    })) return null;
 
   return {
     status: "VERIFIED", reportKind: expectedKind, asOf: row.asOf,
