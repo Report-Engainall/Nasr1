@@ -45,8 +45,17 @@ export function chooseFreeAiRoute(input:{
  question:unknown;sanitize:(question:unknown)=>SanitizedQuestion;asOf:string;providers:FreeProviderQuota[];
  quotaEvidence:FreeQuotaEvidence[];ruleEngineAvailable:boolean;
 }):AiRouteDecision {
- const sanitized=input.sanitize(input.question),fallback=input.ruleEngineAvailable?"RULE_BASED":"MODEL_UNAVAILABLE";
- if(!sanitized.ok||!sanitized.question?.trim())return {mode:fallback,provider:null,model:null,
+ const fallback=input.ruleEngineAvailable?"RULE_BASED":"MODEL_UNAVAILABLE";
+ let sanitized:SanitizedQuestion;
+ try {
+  sanitized=input.sanitize(input.question);
+ } catch {
+  sanitized={ok:false};
+ }
+ const safeQuestion=sanitized?.ok===true&&typeof sanitized.question==="string"&&
+  sanitized.question.trim().length>0&&sanitized.question.length<=1200
+   ?sanitized.question.trim():null;
+ if(!safeQuestion)return {mode:fallback,provider:null,model:null,
   reason:"UNSAFE_QUESTION",attemptedProviders:[],paidSpendLimit:0,question:null};
  const now=Date.parse(input.asOf);if(!Number.isFinite(now))throw new Error("asOf must be valid");
  const attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>=[];
@@ -61,21 +70,56 @@ export function chooseFreeAiRoute(input:{
   return reason==="ELIGIBLE";
  });
  if(!selected)return {mode:fallback,provider:null,model:null,reason:input.ruleEngineAvailable?"ALL_FREE_QUOTAS_UNAVAILABLE":"NO_RULE_ENGINE",
-  attemptedProviders,paidSpendLimit:0,question:sanitized.question};
+  attemptedProviders,paidSpendLimit:0,question:safeQuestion};
  return {mode:"MODEL",provider:selected.provider,model:selected.model,reason:"FREE_PROVIDER_AVAILABLE",
-  attemptedProviders,paidSpendLimit:0,question:sanitized.question};
+  attemptedProviders,paidSpendLimit:0,question:safeQuestion};
 }
 export interface AiOpsEvent {id:string;provider:AiProvider|null;mode:AiExecutionMode;status:"SUCCEEDED"|"FAILED"|"FALLBACK";reasonCode:string;occurredAt:string;elapsedMs:number|null}
 export interface AiOpsSummary {
  asOf:string;total:number;successful:number;failed:number;fallbacks:number;byProvider:Array<{provider:AiProvider;count:number}>;
  lastEventAt:string|null;errorCodes:string[];containsPrompts:false;containsSecrets:false;
 }
+const aiProviderValues = new Set<AiProvider>(["openai_compatible", "gemini"]);
+const aiModeValues = new Set<AiExecutionMode>(["MODEL", "RULE_BASED", "MODEL_UNAVAILABLE"]);
+const aiStatusValues = new Set<AiOpsEvent["status"]>(["SUCCEEDED", "FAILED", "FALLBACK"]);
+const aiReasonCodePattern = /^[a-z0-9_]{1,80}$/;
+
+/**
+ * Strictly summarizes only bounded, unique, source-time-valid telemetry.
+ * Prompts, provider payloads, credentials and arbitrary event properties are never projected.
+ */
 export function summarizeAiOperations(asOf:string,events:AiOpsEvent[]):AiOpsSummary {
- if(!Number.isFinite(Date.parse(asOf)))throw new Error("asOf must be valid");
- const counts=new Map<AiProvider,number>();for(const e of events)if(e.provider)counts.set(e.provider,(counts.get(e.provider)??0)+1);
- const stamps=events.map(e=>e.occurredAt).filter(v=>Number.isFinite(Date.parse(v))).sort();
- return {asOf,total:events.length,successful:events.filter(e=>e.status==="SUCCEEDED").length,failed:events.filter(e=>e.status==="FAILED").length,
-  fallbacks:events.filter(e=>e.status==="FALLBACK").length,byProvider:[...counts].map(([provider,count])=>({provider,count})).sort((a,b)=>a.provider.localeCompare(b.provider)),
-  lastEventAt:stamps.length?stamps[stamps.length-1]:null,errorCodes:[...new Set(events.filter(e=>e.status==="FAILED").map(e=>e.reasonCode).filter(Boolean))],
+ const asOfMs=Date.parse(asOf);
+ if(!Number.isFinite(asOfMs))throw new Error("asOf must be valid");
+ if(!Array.isArray(events)||events.length>5000)throw new Error("ai_ops_event_population_invalid");
+ const ids=new Set<string>();
+ const counts=new Map<AiProvider,number>();
+ const errorCodes=new Set<string>();
+ let successful=0,failed=0,fallbacks=0,lastEventAt:string|null=null,lastEventMs=-1;
+ for(const value of events as unknown[]){
+  if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("ai_ops_event_invalid");
+  const event=value as Record<string,unknown>;
+  if(typeof event.id!=="string"||!event.id.trim()||event.id.length>120||ids.has(event.id)||
+     !(event.provider===null||aiProviderValues.has(event.provider as AiProvider))||
+     typeof event.mode!=="string"||!aiModeValues.has(event.mode as AiExecutionMode)||
+     typeof event.status!=="string"||!aiStatusValues.has(event.status as AiOpsEvent["status"])||
+     typeof event.reasonCode!=="string"||!aiReasonCodePattern.test(event.reasonCode)||
+     typeof event.occurredAt!=="string"||!Number.isFinite(Date.parse(event.occurredAt))||
+     Date.parse(event.occurredAt)>asOfMs||
+     !(event.elapsedMs===null||(Number.isSafeInteger(event.elapsedMs)&&
+       (event.elapsedMs as number)>=0&&(event.elapsedMs as number)<=600000)){
+   throw new Error("ai_ops_event_invalid");
+  }
+  ids.add(event.id);
+  const occurredMs=Date.parse(event.occurredAt);
+  if(occurredMs>lastEventMs){lastEventMs=occurredMs;lastEventAt=event.occurredAt;}
+  if(event.provider)counts.set(event.provider as AiProvider,(counts.get(event.provider as AiProvider)??0)+1);
+  if(event.status==="SUCCEEDED")successful+=1;
+  else if(event.status==="FAILED"){failed+=1;errorCodes.add(event.reasonCode);}
+  else fallbacks+=1;
+ }
+ return {asOf,total:events.length,successful,failed,fallbacks,
+  byProvider:[...counts].map(([provider,count])=>({provider,count})).sort((a,b)=>a.provider.localeCompare(b.provider)),
+  lastEventAt,errorCodes:[...errorCodes].sort(),
   containsPrompts:false,containsSecrets:false};
 }

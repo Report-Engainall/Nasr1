@@ -37,6 +37,31 @@ describe("free quota AI router",()=>{
    attemptedProviders:[{reason:"DUPLICATE_PROVIDER_QUOTA_RECORD"},{reason:"DUPLICATE_PROVIDER_QUOTA_RECORD"}]});
   expect(route([conflicting,first])).toMatchObject({mode:"RULE_BASED",provider:null,paidSpendLimit:0});
  });
+ it("falls back safely when the sanitizer throws or returns a malformed question",()=>{
+  const base={question:"public question",asOf:at,providers:[provider()],quotaEvidence,ruleEngineAvailable:true};
+  const throwing=chooseFreeAiRoute({...base,sanitize:()=>{throw new Error("sanitizer failed");}});
+  expect(throwing).toMatchObject({mode:"RULE_BASED",reason:"UNSAFE_QUESTION",question:null,provider:null,paidSpendLimit:0});
+  const malformed=chooseFreeAiRoute({...base,sanitize:()=>({ok:true,question:123} as unknown as {ok:boolean;question?:string})});
+  expect(malformed).toMatchObject({mode:"RULE_BASED",reason:"UNSAFE_QUESTION",question:null,provider:null});
+  const tooLong=chooseFreeAiRoute({...base,sanitize:()=>({ok:true,question:"x".repeat(1201)})});
+  expect(tooLong).toMatchObject({mode:"RULE_BASED",reason:"UNSAFE_QUESTION",question:null});
+ });
+ it("withholds telemetry summaries for future, duplicate or malformed operations events",()=>{
+  const event={id:"event-1",provider:"gemini" as const,mode:"MODEL" as const,status:"FAILED" as const,
+   reasonCode:"provider_timeout",occurredAt:at,elapsedMs:200};
+  expect(()=>summarizeAiOperations(at,[event,{...event,id:"event-2",occurredAt:"2026-10-30T07:00:01Z"}])).toThrow("ai_ops_event_invalid");
+  expect(()=>summarizeAiOperations(at,[event,{...event}])).toThrow("ai_ops_event_invalid");
+  expect(()=>summarizeAiOperations(at,[{...event,elapsedMs:-1}])).toThrow("ai_ops_event_invalid");
+  expect(()=>summarizeAiOperations(at,[{...event,reasonCode:"prompt contains private data"}])).toThrow("ai_ops_event_invalid");
+ });
+ it("uses the latest valid event instant and returns sorted bounded error codes",()=>{
+  const summary=summarizeAiOperations("2026-10-30T08:00:00Z",[
+   {id:"event-b",provider:"gemini",mode:"MODEL",status:"FAILED",reasonCode:"provider_timeout",occurredAt:"2026-10-30T07:30:00Z",elapsedMs:200},
+   {id:"event-a",provider:null,mode:"RULE_BASED",status:"FALLBACK",reasonCode:"quota_exhausted",occurredAt:"2026-10-30T07:45:00Z",elapsedMs:null},
+  ]);
+  expect(summary).toMatchObject({total:2,failed:1,fallbacks:1,lastEventAt:"2026-10-30T07:45:00Z",
+   errorCodes:["provider_timeout"],containsPrompts:false,containsSecrets:false});
+ });
  it("rejects ambiguous duplicate quota evidence IDs even when one copy is verified",()=>{
   const conflictingEvidence=[...quotaEvidence,{...quotaEvidence[0],status:"UNVERIFIED" as const}];
   const result=chooseFreeAiRoute({question:"public question",sanitize,asOf:at,providers:[provider()],quotaEvidence:conflictingEvidence,ruleEngineAvailable:true});
