@@ -61,6 +61,8 @@ export function CustomerReturnsPage() {
   const [page, setPage] = useState(0);
   const [queryDraft, setQueryDraft] = useState("");
   const [appliedQuery, setAppliedQuery] = useState("");
+  const [statusDraft, setStatusDraft] = useState("");
+  const [appliedStatus, setAppliedStatus] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -118,6 +120,7 @@ export function CustomerReturnsPage() {
         p_after_id: cursor?.id ?? null,
         p_limit: PAGE_SIZE,
         p_search: appliedQuery || null,
+        p_status: appliedStatus || null,
       });
       if (rpcError) throw new Error(rpcError.message || "تعذر تحميل سجل المرتجعات من حسابك.");
       const result = readCustomerReturnHistoryPage(data);
@@ -140,7 +143,7 @@ export function CustomerReturnsPage() {
     } finally {
       if (generation === requestGeneration.current) setLoading(false);
     }
-  }, [page, appliedQuery]);
+  }, [page, appliedQuery, appliedStatus]);
 
   useEffect(() => {
     if (!ready || !user || user.isStaff) return;
@@ -211,6 +214,7 @@ export function CustomerReturnsPage() {
           setRecords([]);
           setTotalCount(0);
           setAppliedQuery(normalized);
+          setAppliedStatus(statusDraft);
         }}
       >
         <label className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border bg-background px-3 py-2">
@@ -225,8 +229,21 @@ export function CustomerReturnsPage() {
           />
         </label>
         <div className="flex items-center gap-2">
-          <button type="submit" className="btn secondary" disabled={loading}>بحث</button>
-          {queryDraft || appliedQuery ? (
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            الحالة
+            <select
+              value={statusDraft}
+              onChange={event => setStatusDraft(event.target.value)}
+              disabled={loading}
+              className="rounded-lg border bg-background px-2 py-2 text-sm text-foreground"
+              aria-label="تصفية المرتجعات حسب الحالة"
+            >
+              <option value="">كل الحالات</option>
+              {Object.entries(statusLabels).map(([status,label]) => <option key={status} value={status}>{label}</option>)}
+            </select>
+          </label>
+          <button type="submit" className="btn secondary" disabled={loading}>تطبيق</button>
+          {queryDraft || appliedQuery || statusDraft || appliedStatus ? (
             <button
               type="button"
               className="btn secondary"
@@ -238,12 +255,14 @@ export function CustomerReturnsPage() {
                 setTotalCount(0);
                 setQueryDraft("");
                 setAppliedQuery("");
+                setStatusDraft("");
+                setAppliedStatus("");
               }}
             >مسح</button>
           ) : null}
         </div>
         <span className="w-full text-xs text-muted-foreground">
-          {totalCount.toLocaleString("ar-YE")} نتيجة في سجل حسابك{appliedQuery ? " مطابقة للبحث" : ""} · البحث يشمل السجل كله لا الصفحة الظاهرة فقط.
+          {totalCount.toLocaleString("ar-YE")} نتيجة في سجل حسابك{appliedQuery ? " مطابقة للبحث" : ""}{appliedStatus ? " بالحالة: " + (statusLabels[appliedStatus] ?? appliedStatus) : ""} · التصفية والبحث يشملان السجل كله لا الصفحة الظاهرة فقط.
         </span>
       </form>
 
@@ -252,7 +271,7 @@ export function CustomerReturnsPage() {
       ) : error ? null : records.length === 0 ? (
         <section className="rounded-xl border bg-card p-8 text-center" role="status">
           <RotateCcw size={30} className="mx-auto text-muted-foreground"/>
-          <h2 className="mt-3 font-semibold">{appliedQuery ? "لا توجد نتائج مطابقة" : "لا توجد طلبات إرجاع مسجلة على حسابك"}</h2>
+          <h2 className="mt-3 font-semibold">{appliedQuery || appliedStatus ? "لا توجد نتائج مطابقة للبحث والحالة" : "لا توجد طلبات إرجاع مسجلة على حسابك"}</h2>
           <p className="mt-2 text-sm text-muted-foreground">يمكن تقديم طلب إرجاع من تفاصيل الطلب بعد تأكيد تسليمه.</p>
           <Link to="/orders" className="mt-4 inline-flex items-center gap-2 text-primary">عرض طلباتي <ArrowLeft size={15}/></Link>
         </section>
