@@ -873,3 +873,36 @@
 4. Keep P1's quality-review component mount as a handoff; do not modify P1-owned workspace or task-center files.
 
 Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. This checkpoint records source changes only.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DECISION-DEFERRAL-RESUME-AND-ASSISTANT-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Exact source head before this checkpoint update: `bfb053715498d4fb09a5e45247b35dc8ef8127d4`.
+- This addendum supersedes the earlier statement in `REF-DECISION-DEFERRAL-001` that `DEFERRED` is terminal.
+
+### Additional implementation
+
+1. **Decision deferral is now a reversible, reasoned lifecycle**
+   - New migration: `supabase/migrations/20261106133000_intelligence_decision_deferral_resume.sql`.
+   - New RPC: `resume_deferred_decision_outcome`. It only accepts `DEFERRED → IN_REVIEW`, requires a new reason, checks same-organization manager/admin authorization, expected version and idempotency under a row lock, appends `RESUBMIT_FOR_REVIEW` plus audit old/new snapshots atomically, and revokes PUBLIC/anon execution.
+   - The original `DEFER` event remains in append-only history. The pure transition model, client RPC, Arabic lifecycle controls, event timeline and tests now include resubmission.
+   - Commits: migration `aed333b49dd3f395d172887e18d50041bdf23400`; pure/client/UI `ee49460b2a5bd1c70710cae41254a26b79f064bd`, `63a8ebabcc55c4f1c6d01b46e8d4fbb20126f22d`, `f7137c9ac7d89550692239e39731c24d329d6902`, `b7f92589ea611f5c3008301781b2f9f233d44e96`, `dada510dc5420a664beea0ca7e7e33113a9c10ea`; source tests `fe73383c84cc5264122d92582d02cdf57d06e393`, `fef08584d002df307814c1867ae40215569b5ea5`, `186b9be3c1bc669fde04b5d8fecfc065b87a347d`.
+
+2. **Section 57 merchant assistant supports deferred-decision questions**
+   - Added `DECISIONS_DEFERRED` to the deterministic Arabic intent planner and resolver, using the existing authorized `fetch_decision_outcomes` read RPC; it counts the new `DEFERRED` state without creating a separate query path.
+   - The assistant rejects unsupported historical-window claims, displays the deferred-state count, and includes Arabic examples for asking about postponed decisions.
+   - Added focused planner source tests for deferred questions and the unsupported historical-window boundary. Tests were authored but not run.
+   - Commits: planner/resolver `25064bf04917e92b1d1a3c88f5e38e47df097b82`, UI `08ada9a3aa594b2a497285ab33fb47a283a6974d`, tests `8d0d0e03b9845d829331b71b926b2d2b2757c482`, phrase coverage `bfb053715498d4fb09a5e45247b35dc8ef8127d4`.
+
+### Source consistency and acceptance boundary
+
+- Final decision-memory migration at this source head: 899 lines; one save function, one fetch function, complete three-letter currency validation and no detached `THEN` block. Blob: `3b2c36cba1517fee154eb96d3a73e63f7027a24d`.
+- Deferral and resume migrations are source-only and have NOT been applied to Supabase/Bolt. Decision-memory migration remains source-only too.
+- Source tests were added to pure transition, RPC client and assistant planner suites, but no tests/build/lint/typecheck/CI/browser/DB command was run in this execution pass. No PASS, runtime proof or production readiness is claimed.
+- Section 61 manager-review form remains a P1 mount handoff in the existing task center; no P1-owned route/workspace/task-center file was changed.
+- The assistant's new deferred intent reuses the authorized decision read path; it does not expose names, amounts, or execute a write command.
+- Remaining measurement coverage for Section 52 is limited to the existing source-backed receivables/collections formula. Additional operating metrics require authoritative server formula and evidence contracts.
+- No 95% completion percentage is claimed: the weighted remaining P3 denominator across all sections was not reconciled against a canonical weighted acceptance matrix during this implementation pass.
+
+Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; hosted acceptance remains pending.
