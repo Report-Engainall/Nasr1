@@ -2653,3 +2653,30 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - Regression tests are authored/typed but NOT RUN. No build, typecheck, lint, CI, browser, DB, Supabase migration, Bolt, Preview, Vercel or production operation was run.
 - No test PASS or authenticated manager/non-manager runtime proof is claimed.
+
+## P1 decision board and mobile keyboard/responsive coverage — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main` only. The work resumed from the current main history and preserved concurrent P2/P3 updates.
+- P1 changed the existing `src/components/intelligence/DailyDecisionBoard.tsx`; it did not create a new board or route. The board now has a labelled region and decision headings, an ordered semantic list for saved decisions, live status for source coverage, mobile-first two-column summary metrics, a 2/4/7-column progress layout, safe wrapping/min-width handling, and explicit unavailable priority text.
+- P1 improved the existing `NaturalLanguageAssistant.tsx` query surface with a labelled region, `aria-busy`, mobile-safe form sizing, minimum touch height and visible keyboard focus outlines. The existing assistant remains the sole mount for the decision board.
+- Added `src/test/daily-decision-board-accessibility.test.tsx` for keyboard DOM order/focusability, visible focus classes, mobile grid structure, progress-grid breakpoints, partial-coverage announcement, and the no-invented-priority state. This is test source; do not count it as PASS until an exact-SHA completed run reports it.
+- Code commits: `b7984c75f792970482b639436206b9ae4b63af25` (DailyDecisionBoard); `9e721686d60aab6a2af6d448ac4dde6c9706fbac` (NaturalLanguageAssistant); `317064549b7cdb158cd9419bbac6ddbb70c00da8`, `701ec6185d6568977c0c45e62f2ac7015408000e`, `8ea8332941ddafbf3091f18b6314108d54806730` (new focused test and assertion corrections).
+- Preserved the existing `AghbariApp.tsx` drawer focus repair (commit `05148d4683878e4b9c9b178a9261c21d88135433`) and its four behavioral test cases in `src/test/admin-mobile-navigation-acceptance.test.tsx`. No rewrite or replacement of that fix occurred.
+- Decision-priority contract boundary: current `DecisionMemoryRecord` / `DecisionOutcome` read DTO still does not persist originating immutable P0–P3 priority/score or generic verified impact fields. The board therefore retains only its existing supported due/state/verified-deviation ordering and displays priority as unavailable. P2 must supply tenant-scoped immutable priority, impact value/unit/currency/formula/source references, risk/expiry and impact status before P1 implements that rank; no values are inferred from labels or amounts.
+- Liquidity, returned-order amendment, replenishment/purchase draft, privacy settings and task-quality review surfaces were not rebuilt or duplicated.
+
+### Acceptance matrix updates
+
+- Updated existing rows `DLV-002` and `REF-DAILY-DECISIONS-001` in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` in place. They now include the new decision-board source-level accessibility/responsive changes and retain OPEN / acceptance-pending state until current-head browser evidence and the missing P2 snapshot contract are delivered.
+
+### Verification boundary
+
+- Latest main SHA observed immediately before this checkpoint update: `8d4b1d0673d48b1918295f8fbf18781c7383082e`.
+- GitHub Actions results for the exact new test commit must be checked before any PASS claim. Vercel returned `failure` with the `build-rate-limit` target URL; this is a deployment/build-quota blocker, not a source-code PASS or a verified source build failure.
+- No live DB migration, Supabase/Bolt runtime, production operation or Playwright browser acceptance was performed by this P1 UI increment. The focused test was authored but not executed locally in this session.
+
+## NEXT_ACTION
+
+1. Retrieve the completed workflow result for exact test SHA `8ea8332941ddafbf3091f18b6314108d54806730`; inspect only any failed job affecting the new test, and run the current-head P2 mobile Playwright acceptance when a supported current-head run is available.
+2. P2: add the immutable saved candidate priority/impact/risk/expiry snapshot to the tenant-authorized DecisionOutcome read contract. Then P1 will rank/render using those exact persisted fields without recreating the board.
+3. Preserve all listed already-mounted surfaces. Do not rebuild them; proceed only on a concrete source-field handoff or a reproduced keyboard/mobile defect.
