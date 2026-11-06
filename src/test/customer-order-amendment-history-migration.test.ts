@@ -10,6 +10,10 @@ const returnMigration = readFileSync(join(
   process.cwd(),
   "supabase/migrations/20261106280000_customer_order_return_command.sql",
 ), "utf8");
+const returnEventMigration = readFileSync(join(
+  process.cwd(),
+  "supabase/migrations/20261106290000_customer_order_amendment_return_actor_history.sql",
+), "utf8");
 const adminSource = readFileSync(join(process.cwd(), "src/components/AdminPages.tsx"), "utf8");
 const customerSource = readFileSync(join(process.cwd(), "src/components/CustomerOrders.tsx"), "utf8");
 
@@ -52,11 +56,13 @@ describe("customer order amendment version history", () => {
       "'previous_quantity', s.previous_quantity",
       "'proposed_quantity', s.proposed_quantity",
       "'review_note', a.review_note",
-      "'changed_by', actor.full_name",
-      "'reason', h.notes",
     ]) expect(historyMigration).toContain(field);
-    expect(historyMigration).toMatch(/h\.to_status = 'returned_for_adjustment'/);
     expect(historyMigration).toMatch(/GRANT EXECUTE ON FUNCTION public\.list_customer_order_amendment_history\(uuid\) TO authenticated/i);
+    expect(returnEventMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.list_customer_order_amendment_history\(p_order_id uuid\)/i);
+    expect(returnEventMigration).toContain("'changed_by', actor.full_name");
+    expect(returnEventMigration).toContain("'reason', h.notes");
+    expect(returnEventMigration).toMatch(/h\.to_status = 'returned_for_adjustment'/);
+    expect(returnEventMigration).toMatch(/actor\.organization_id = v_org/);
   });
 });
 
