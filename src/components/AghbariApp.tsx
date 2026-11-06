@@ -1493,13 +1493,13 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(initialSearch ?? '');
   const [appliedSearch, setAppliedSearch] = useState(initialSearch ?? '');
+  const [page, setPage] = useState(1);
   useEffect(() => {
     if (!initialSearch?.trim()) return;
     setQuery(initialSearch);
     setAppliedSearch(initialSearch);
     setPage(1);
   }, [initialSearch]);
-  const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [modal, setModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
