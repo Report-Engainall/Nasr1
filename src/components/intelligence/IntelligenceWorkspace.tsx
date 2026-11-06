@@ -43,6 +43,7 @@ import {
   CommercePolicyGovernancePanel,
   BusinessHealthMap,
   DecisionMemoryBook,
+  ExecutiveLiquidityCommandCenter,
   CashflowForecastCard,
   DeadStockCard,
   EvidencePassport,
@@ -1610,9 +1611,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             state={loading || inventoryLoading || retentionLoading ? "loading" : businessHealthMapState}
             onRetry={() => setRefreshKey((value) => value + 1)}
           />
+          <ExecutiveLiquidityCommandCenter refreshKey={refreshKey} />
           <section className="panel space-y-3">
-            <h2>السيولة والأدلة والقرارات المقترحة الأخرى</h2>
-            <p className="report-note">التحصيلات المجدولة تظهر فقط بأدلتها. الرصيد النقدي الافتتاحي والالتزامات النقدية/الموردية غير متاحين في مصدر موحد موثق؛ لذلك يبقى صافي السيولة محجوباً ولا تُحسبه الشاشة من الذمم.</p>
+            <h2>التحصيلات المجدولة والتوقع النقدي</h2>
+            <p className="report-note">تعرض لوحة القيادة أعلاه الحركات الفعلية والالتزامات المثبتة والذمم كلّاً حسب عملته. تعرض هذه البطاقة التحصيلات المدينة المجدولة فقط؛ لا يوجد رصيد افتتاحي موثق أو جدول مكتمل لمواعيد دفع التزامات الموردين والمصروفات المستقبلية، ولذلك تبقى الأرصدة المتوقعة وصافي السيولة محجوبة. لا تُستبدل الذمم برصيد نقدي، ولا يُفترض أن غياب الحركة يساوي صفراً.</p>
             <div className="grid gap-3 lg:grid-cols-2">
               <EvidencePassport
                 passport={evidencePassport}
