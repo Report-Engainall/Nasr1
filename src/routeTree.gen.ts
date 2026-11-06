@@ -27,6 +27,7 @@ import { Route as SearchAdvancedRouteImport } from './routes/search.advanced'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as HelpRouteImport } from './routes/help'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OfflineRouteImport } from './routes/offline'
@@ -116,6 +117,11 @@ const CompareRoute = CompareRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvoicesRoute = InvoicesRouteImport.update({
@@ -400,6 +406,7 @@ export interface FileRoutesByFullPath {
   '/checkout': typeof CheckoutRoute
   '/compare': typeof CompareRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/help': typeof HelpRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/offline': typeof OfflineRoute
@@ -465,6 +472,7 @@ export interface FileRoutesByTo {
   '/checkout': typeof CheckoutRoute
   '/compare': typeof CompareRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/help': typeof HelpRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/offline': typeof OfflineRoute
@@ -528,6 +536,7 @@ export interface FileRoutesById {
   '/checkout': typeof CheckoutRoute
   '/compare': typeof CompareRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/help': typeof HelpRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/offline': typeof OfflineRoute
@@ -594,6 +603,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/compare'
+    | '/help'
     | '/invoices'
     | '/login'
     | '/offline'
@@ -654,6 +664,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/compare'
+    | '/help'
     | '/invoices'
     | '/login'
     | '/offline'
@@ -712,6 +723,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/compare'
+    | '/help'
     | '/invoices'
     | '/login'
     | '/offline'
@@ -764,6 +776,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  HelpRoute: typeof HelpRoute
   IndexRoute: typeof IndexRoute
   AddressesRoute: typeof AddressesRoute
   AdminRoute: typeof AdminRoute
@@ -883,6 +896,13 @@ declare module '@tanstack/react-router' {
       path: '/compare'
       fullPath: '/compare'
       preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invoices': {
@@ -1302,6 +1322,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutRoute: CheckoutRoute,
   CompareRoute: CompareRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  HelpRoute: HelpRoute,
   InvoicesRoute: InvoicesRoute,
   LoginRoute: LoginRoute,
   OfflineRoute: OfflineRoute,
