@@ -2172,3 +2172,14 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Engine commits: `279073a02c636475082bfb1e5f42257b66f50d74`, hardening `29ab0ec2afa8353bc433e5e935ccf87ff52e5041`; existing policy panel integration `339a6abc51d193f3d34cd5ad8a749b3a4196d9cb`, label hardening `0a8e43444891d34f1fbc9f3d715d9b48c9ae6b42`.
 - Matrix `INT-POLICY-001` updated at `296c2b64973d9ad446b00ea2b08a95c010f953b2`; P3 checkpoint appended at `fdf7ea3e9887b6dbd70c0cf511082d08a304c83a`.
 - No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## P3 body update — 2026-11-06 — Section 50 product performance added to existing growth radar
+
+- Added source-only tenant staff RPC `fetch_product_performance_growth_aggregate()` in migration `20261106200000_product_performance_growth_aggregate.sql` (commit `bbd487b4025d3eb302c6caa952d42073677234c2`). It measures same-tenant order-line quantities and distinct qualifying orders by product/UOM across current and immediately preceding equal-length UTC periods. No customer/order identity, amount, price or row-level detail leaves the aggregate source.
+- Added strict client `src/lib/intelligence/product-performance-growth-client.ts`: commits `224af6d3b6d777c999a4439aa430b445f08f14f9`, `9854f7e73e088b47ad048bb39cc2f3d6e77b6ea3`, `58f2bd52d9611019fb0a455bb39a0b8750d31323`, `0558c2b1f5a5f0da854e4b243326a3590b523c8e`.
+- Strengthened the existing growth engine zero-period sample and exact metric/formula/UOM compatibility gates: `61eb5ca932394b34c449fa196600c0e5cb805449`. It can now identify genuine new activity from a verified zero baseline and decline-to-zero while preserving the five-order minimum for non-zero samples.
+- Combined the source with the existing customer retention growth inputs and the same `buildGrowthOpportunityRadar()`: `79ee40119bd306b29044ca51fe7c1ba167327390`, `a5656010c4f719fc498b70375a00ec4c578bd208`, `4fb9da37286ccd1757a45aacdc1683a5f0b7106f`, `3a3d98a0767345eb7c40c7e8c514bdda141b5f11`.
+- Arabic UI displays product-source status, product/UOM population counts and unit-withheld count. A no-opportunity claim is shown only when the combined source/evidence status is VERIFIED: `b367eb50c2cf2f1183f25c60218c1efd966ea74d`, `22cfe6fdcd78f81de65ff8f555734617ea8febac`.
+- Matrix leaf `REF-NL-GROWTH-RADAR-READ-001` updated in place at `71793af7877ecceb0641a0f858a130bfeb130116`; P3 checkpoint appended at `080319dd2608765853c762363b8cb8929cb5005a`.
+- The product SQL migration remains unapplied/source-only. No tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operation was run. No PASS/runtime/production claim. Quote conversion remains unsupported without a persisted quote-to-order link; unavailable-product demand remains unsupported without a retained search-event source.
