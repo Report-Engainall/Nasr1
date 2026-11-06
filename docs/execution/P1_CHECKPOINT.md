@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-038
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at this checkpoint base: `4d884bf48737ba7d246a918cb8919d8aa1c669f0`.
+- P1 product-code commit: `4d884bf48737ba7d246a918cb8919d8aa1c669f0`.
+- P1 scope: customer account statement and payment-history presentation. Existing customer statement RPC remains the source of truth.
+
+## BODY-038 — expose individual customer payment entries in the account statement
+
+- The existing `get_customer_account_statement` RPC already returned customer-scoped payment rows (`id`, `invoice_id`, `amount`, `paid_at`), but the statement UI showed only aggregates within invoice rows and a payment count.
+- Added a dedicated `سجل الدفعات المسجلة` table to the existing customer account statement. Each row uses the returned payment identity/date/amount and resolves its invoice number and currency only from the same RPC's invoice detail set.
+- Where the corresponding invoice is outside the bounded invoice-detail set, the row explicitly displays the invoice/value/currency as unavailable rather than inventing or mislabeling a currency. Existing partial-detail warnings and server-computed ledger totals remain unchanged.
+- File changed: `src/components/CustomerWorkflows.tsx`. No table, RPC, schema, direct payment-table query, or duplicate payment ledger was added.
+- Scope: one customer payment-history presentation gap closed using the established, tenant-scoped statement source. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-038.
+- No customer payment mutation was added; this is a read-only rendering of existing payment records.
+- The project-wide 95% P1 target remains unclaimed; there is no complete, evidence-backed denominator of all outstanding P1 functions.
+
+## Next P1 action
+
+Continue from the latest live `main` with the next independently confirmed P1 workflow gap. Do not repeat BODY-032 through BODY-038 absent a reproducible defect.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-037
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
