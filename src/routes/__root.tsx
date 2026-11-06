@@ -244,11 +244,31 @@ function RootNavigation() {
   );
 }
 
+type DeferredPwaInstallPrompt = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
+
 function PwaUpdatePrompt() {
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [available, setAvailable] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<DeferredPwaInstallPrompt | null>(null);
   const reloadAfterControllerChange = useRef(false);
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as DeferredPwaInstallPrompt);
+    };
+    const onInstalled = () => setInstallPrompt(null);
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
@@ -314,7 +334,20 @@ function PwaUpdatePrompt() {
     registration.waiting.postMessage({ type: "AGHBARI_ACTIVATE_UPDATE" });
   }
 
-  if (!available || !registration?.waiting) return null;
+  async function installApp() {
+    const deferred = installPrompt;
+    if (!deferred) return;
+    setInstallPrompt(null);
+    try {
+      await deferred.prompt();
+      await deferred.userChoice;
+    } catch {
+      // The browser may dismiss or reject its native installation prompt.
+    }
+  }
+
+  const hasWaitingUpdate = available && Boolean(registration?.waiting);
+  if (!hasWaitingUpdate && !installPrompt) return null;
 
   return (
     <div
@@ -339,26 +372,42 @@ function PwaUpdatePrompt() {
         fontSize: 13,
       }}
     >
-      <span>تحديث جديد لمتجر الأغبري جاهز. يمكنك تثبيته الآن؛ سيُعاد تحميل الصفحة بعد تفعيل النسخة الجديدة.</span>
-      <button
-        type="button"
-        onClick={applyUpdate}
-        disabled={applying}
-        className="inline-flex items-center gap-2 rounded-lg border border-emerald-800 bg-emerald-800 px-3 py-2 font-semibold text-white disabled:opacity-60"
-      >
-        <RefreshCw size={15}/>
-        {applying ? "جارٍ تطبيق التحديث..." : "تحديث التطبيق"}
-      </button>
-      <button
-        type="button"
-        onClick={() => setAvailable(false)}
-        disabled={applying}
-        aria-label="تأجيل تحديث التطبيق"
-        className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/30 px-2 py-2 disabled:opacity-60"
-      >
-        <X size={14}/>
-        لاحقاً
-      </button>
+      {installPrompt ? (
+        <>
+          <span>ثبّت متجر الأغبري على جهازك للوصول إليه كتطبيق.</span>
+          <button
+            type="button"
+            onClick={() => void installApp()}
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-800 bg-emerald-800 px-3 py-2 font-semibold text-white"
+          >
+            تثبيت التطبيق
+          </button>
+        </>
+      ) : null}
+      {hasWaitingUpdate ? (
+        <>
+          <span>تحديث جديد لمتجر الأغبري جاهز. احفظ العمل الجاري قبل التحديث؛ سيُعاد تحميل الصفحة بعد تفعيل النسخة الجديدة.</span>
+          <button
+            type="button"
+            onClick={applyUpdate}
+            disabled={applying}
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-800 bg-emerald-800 px-3 py-2 font-semibold text-white disabled:opacity-60"
+          >
+            <RefreshCw size={15}/>
+            {applying ? "جارٍ تطبيق التحديث..." : "تحديث التطبيق"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAvailable(false)}
+            disabled={applying}
+            aria-label="تأجيل تحديث التطبيق"
+            className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/30 px-2 py-2 disabled:opacity-60"
+          >
+            <X size={14}/>
+            لاحقاً
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }
