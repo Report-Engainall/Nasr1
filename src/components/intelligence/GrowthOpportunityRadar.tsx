@@ -109,8 +109,13 @@ export function GrowthOpportunityRadar({
         </div>
       </header>
       <p className="text-sm text-muted-foreground">الفرصة تثبت الإشارة التجارية فقط؛ لا تمثل وعداً بالبيع أو توقعاً للربح ولا تنفذ إجراءً نيابة عن المستخدم.</p>
-      {result.opportunities.length === 0 && result.withheld.length === 0 ? (
-        <div role="status" className="rounded-lg border p-3 text-sm">لا توجد فرص تجاوزت العتبات المحددة في البيانات المكتملة للفترة.</div>
+      {result.opportunities.length === 0 && result.withheld.length === 0 && result.status === "VERIFIED" ? (
+        <div role="status" className="rounded-lg border p-3 text-sm">لا توجد فرص تجاوزت العتبات المحددة في مجتمع البيانات المكتمل لهذه الفترة.</div>
+      ) : null}
+      {result.opportunities.length === 0 && result.withheld.length === 0 && result.status !== "VERIFIED" ? (
+        <div role="status" className="rounded-lg border p-3 text-sm">
+          لا توجد فرصة يمكن إثباتها حالياً، لكن تغطية المصادر أو جودة بعض المؤشرات لا تسمح باستنتاج أن فرص النمو غير موجودة.
+        </div>
       ) : null}
       {result.opportunities.map(opportunity => (
         <GrowthOpportunityCard key={opportunity.id} opportunity={opportunity} onOpenRecord={onOpenRecord} />
