@@ -857,3 +857,26 @@ Continue only from source-backed intelligence gaps in Sections 45–64; do not a
 
 ### Next P3 action
 Continue with another source-backed Section 45–64 gap; keep the simulator read-only and do not turn simulation outcomes into live policy writes.
+
+
+## P3 ENGINE FIX — PROCESS BOTTLENECK COMPARISON CAVEAT LIFECYCLE — 2026-11-06
+
+- Parent/current main code line: `6424bb824220642598b911e73d29f9f7ad4b0a1e` plus subsequent concurrent P1 acceptance commits; exact final P3 code/test SHA: `52898135ec0aabdc8d34fdbb5a1dde6c8438d9f6`.
+- Source fix commit: `c5cea02ce9dc2b7f7258de874659c38cd221f247`.
+- Regression coverage commit: `52898135ec0aabdc8d34fdbb5a1dde6c8438d9f6`.
+
+### Delivered
+- Fixed a use-before-initialization defect in `buildProcessBottlenecks()`: the comparison loop appended to `withheld` before the variable existed, while the declaration was below the loop. The function now initializes the caveat accumulator before any comparisons, seeded with unavailable-source messages.
+- The change preserves and returns source-unavailable caveats, small-current-sample caveats, small-baseline-sample caveats, and missing-stage caveats in the same result.
+- Added an explicit regression case covering a current-period sample below three and a baseline-period sample below three; both comparisons must be withheld, not converted to zero or emitted as a numeric comparison.
+- The existing period equality, non-overlap, stage identity, quantile order, queue-age and complete-source checks remain unchanged.
+- No new RPC, table, migration, route or UI was added; existing bottleneck panel and its authorized snapshot source remain the single path.
+
+### Exact files/blobs
+- `src/lib/intelligence/process-bottlenecks.ts` — `bef9bb9954f47ffb47e5b5b087c27db4a2b1d2da`
+- `src/lib/intelligence/process-bottlenecks.test.ts` — `a1eb251756a1ba28f2e13889a2859e1bf5076fd7`
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Test source added but NOT RUN. No build, typecheck, lint, CI, browser, DB, Supabase, Bolt, Preview, Vercel or production operation was run.
+- No runtime PASS is claimed; the exact-head regression remains for the later Bolt/CI acceptance pass.
