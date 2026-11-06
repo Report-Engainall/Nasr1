@@ -5374,6 +5374,16 @@ async function main() {
   assert.equal(qualityFalsePositiveA.result.ok, true);
   assert.equal(qualityFalsePositiveB.result.ok, true);
 
+  const qualityNeedsReview = await recordQualityReview(
+    invoiceTask[0].id,
+    "ALERT_VALIDATION",
+    { alertVerdict: "NEEDS_REVIEW" },
+    "needs-review",
+    "ci-quality-event-needs-review",
+    "ci-quality-idem-needs-review",
+  );
+  assert.equal(qualityNeedsReview.result.ok, true, "unresolved alert review remains a distinct non-final verdict");
+
   const qualityReplayRows = await db.unsafe(
     "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
     [
@@ -5386,11 +5396,20 @@ async function main() {
     ],
   );
   assert.equal(qualityReplayRows[0].result.duplicate, true, "same actor and payload replay returns the saved review without a second event");
+  await expectFailure(
+    "same quality idempotency key cannot be replayed with a different review payload",
+    () => db.unsafe(
+      "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text)",
+      [reviewBefore[0].id,qualityActionable.updatedAt,"ACTIONABILITY",db.json({actionability:"NOT_ACTIONABLE",reasonCode:"ALREADY_RESOLVED"}),qualityActionable.eventId,qualityActionable.idempotencyKey],
+    ),
+    /task quality idempotency payload conflict/i,
+    "23505",
+  );
   const qualityEventCount = await db.unsafe(
     "select count(*)::integer as count from public.operational_task_quality_events where organization_id=$1",
     [organizationId],
   );
-  assert.equal(qualityEventCount[0].count, 6, "replaying a quality review cannot duplicate an append-only event");
+  assert.equal(qualityEventCount[0].count, 7, "replaying a quality review cannot duplicate an append-only event");
 
   const qualityMetricsRows = await db.unsafe(
     "select public.fetch_operational_task_quality_metrics() as result",
@@ -5403,6 +5422,9 @@ async function main() {
   assert.equal(qualityMetrics.disposition.deferredCount, 1);
   assert.equal(qualityMetrics.disposition.rejectionReasons[0].reasonCode, "DUPLICATE_RECOMMENDATION");
   assert.equal(qualityMetrics.disposition.deferralReasons[0].reasonCode, "RESOURCE_UNAVAILABLE");
+  assert.equal(qualityMetrics.alerts.reviewedCount, 3);
+  assert.equal(qualityMetrics.alerts.needsReviewCount, 1);
+  assert.equal(qualityMetrics.alerts.falseAlarmDenominator, 2);
   assert.equal(qualityMetrics.alerts.falseAlarmRatePercent, 100,
     "false-alarm rate uses false positives/(true positives+false positives), excluding needs-review");
   assert.ok(qualityMetrics.repeatedCauses.some((cause) =>
@@ -5410,8 +5432,13 @@ async function main() {
     "repeated causes require the same reason across distinct reviewed tasks");
 
   await expectFailure(
-    "authenticated manager cannot directly mutate append-only task quality events",
+    "authenticated manager cannot directly update append-only task quality events",
     () => db.unsafe("update public.operational_task_quality_events set reason_code='OTHER' where id=$1", [qualityFalsePositiveA.result.event.id]),
+    /permission denied/i,
+  );
+  await expectFailure(
+    "authenticated manager cannot directly delete append-only task quality events",
+    () => db.unsafe("delete from public.operational_task_quality_events where id=$1", [qualityFalsePositiveA.result.event.id]),
     /permission denied/i,
   );
 
