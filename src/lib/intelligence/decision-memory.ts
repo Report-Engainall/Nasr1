@@ -504,12 +504,18 @@ export function decisionMemoryMissingLabels(): Record<DecisionMemoryMissingField
 
 /** Read-only decision memory. Missing historical snapshots remain explicitly incomplete. */
 export function buildDecisionMemoryBook(input: {
-  generatedAt: string; outcomes: DecisionOutcomeView[]; snapshots: DecisionMemorySnapshot[]; totalOutcomes?: number;
+  generatedAt: string;
+  outcomes: DecisionOutcomeView[];
+  snapshots: DecisionMemorySnapshot[];
+  totalOutcomes?: number;
+  sourceCoverageComplete?: boolean;
+  sourceCoverageWarning?: string;
 }): DecisionMemoryBookResult {
   if (!validTime(input.generatedAt) || !Array.isArray(input.outcomes) || !Array.isArray(input.snapshots)) {
     throw new Error("decision_memory_input_invalid");
   }
   const totalCount = input.totalOutcomes ?? input.outcomes.length;
+  const sourceCoverageComplete = input.sourceCoverageComplete !== false;
   if (!Number.isInteger(totalCount) || totalCount < input.outcomes.length) throw new Error("decision_memory_total_invalid");
   const snapshotsByDecision = new Map<string, DecisionMemorySnapshot[]>();
   const suppliedSnapshots = input.snapshots.length ? input.snapshots : input.outcomes.flatMap(outcome => outcome.memorySnapshot ? [outcome.memorySnapshot] : []);
@@ -635,11 +641,12 @@ export function buildDecisionMemoryBook(input: {
   const warnings=unique([
     ...(suppliedSnapshots.length===0&&records.length?["DECISION_MEMORY_SNAPSHOT_SOURCE_NOT_AVAILABLE"]:[]),
     ...(totalCount>input.outcomes.length?["DECISION_HISTORY_IS_PAGINATED"]:[]),
+    ...(!sourceCoverageComplete?[input.sourceCoverageWarning??"DECISION_HISTORY_SOURCE_COVERAGE_UNVERIFIED"]:[]),
     ...records.flatMap(record=>record.warnings),
   ]);
   return {
     generatedAt:input.generatedAt,policyVersion:DECISION_MEMORY_POLICY_VERSION,
-    status:!records.length?"UNAVAILABLE":partialCount>0||totalCount>input.outcomes.length?"PARTIAL":"VERIFIED",
+    status:!records.length?"UNAVAILABLE":partialCount>0||totalCount>input.outcomes.length||!sourceCoverageComplete?"PARTIAL":"VERIFIED",
     loadedCount:records.length,totalCount,completeCount,partialCount,measuredCount,verifiedMeasurementCount,
     correctionCount,records,warnings,
   };
