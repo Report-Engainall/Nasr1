@@ -10,7 +10,7 @@ type AuthContextType = {
   loading: boolean;
   ready: boolean;
   configurationError: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (identifier: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ needsConfirmation: boolean }>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -19,9 +19,21 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 const STAFF_ROLES = ['admin', 'manager', 'staff', 'accountant', 'customer_manager'];
 
+export function normalizeAuthPhoneIdentifier(value: string): string | null {
+  const compact = value.trim().replace(/[()\\s-]/g, "");
+  if (/^\\+[1-9]\\d{7,14}$/.test(compact)) return compact;
+  const digits = compact.replace(/\\D/g, "");
+  if (/^00967\\d{9}$/.test(digits)) return "+" + digits.slice(2);
+  if (/^967\\d{9}$/.test(digits)) return "+" + digits;
+  const local = digits.startsWith("0") ? digits.slice(1) : digits;
+  return /^7\\d{8}$/.test(local) ? "+967" + local : null;
+}
+
 function translateAuthError(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes('invalid login')) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+  if (m.includes('invalid login')) return 'بيانات الدخول غير صحيحة؛ تحقق من البريد أو الهاتف وكلمة المرور';
+  if (m.includes('unsupported phone provider') || (m.includes('phone') && (m.includes('not enabled') || m.includes('disabled')))) return 'تسجيل الدخول برقم الهاتف غير مفعّل في إعدادات موفر المصادقة لهذا المشروع.';
+  if (m.includes('phone not confirmed') || m.includes('phone is not confirmed')) return 'رقم الهاتف غير مؤكد لدى موفر المصادقة. أكمل التحقق أولاً.';
   if (m.includes('email not confirmed')) return 'يرجى تأكيد بريدك الإلكتروني أولاً من الرابط المرسل إليك';
   if (m.includes('already registered')) return 'هذا البريد مسجل مسبقاً، سجّل الدخول بدلاً من ذلك';
   if (m.includes('password')) return 'كلمة المرور ضعيفة: استخدم 8 أحرف على الأقل';
@@ -104,10 +116,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe?.();
   }, [refresh]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (identifier: string, password: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const normalized = identifier.trim();
+      const credentials = normalized.includes("@")
+        ? { email: normalized, password }
+        : { phone: normalizeAuthPhoneIdentifier(normalized) ?? "", password };
+      if ("phone" in credentials && !credentials.phone) {
+        throw new Error("أدخل رقماً يمنياً صحيحاً يبدأ بـ7 أو رقماً دولياً بصيغة +رمز الدولة.");
+      }
+      const { error } = await supabase.auth.signInWithPassword(credentials);
       if (error) throw new Error(translateAuthError(error.message));
       await refresh();
     } finally { setLoading(false); }
