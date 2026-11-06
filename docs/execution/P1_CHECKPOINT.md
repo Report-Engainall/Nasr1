@@ -1,3 +1,22 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-068 — CUSTOMER PRE-REVIEW ORDER QUANTITY AMENDMENT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent/base SHA: `fe98832e657fb21de589d84639eabd101f37b218`.
+- Added `supabase/migrations/20261106260000_customer_pending_order_amendments.sql`.
+- Extended `submit_customer_order_amendment(...)` to accept an owned `pending` order only while the order is not staged for staff review, while retaining the full exact-line/quantity-only/server-price validation and idempotency rules.
+- Extended `review_order_lines(...)` to load and lock the open customer proposal by ID; staff rejection marks that proposal rejected and preserves the order's pending/returned status, while approval closes it in the same transaction as the existing staff confirmation/inventory reservation/invoice/payment request.
+- Customer `/orders/$id` now presents the quantity correction panel for a pending order before staff review, and locks the form while a proposal is pending. Rejected proposals may be corrected and resubmitted. Staff OrderDetail recognizes pending-order customer proposals for review/rejection.
+- Pending customer amendment is rejected once staff has set `quantity_review_required` or staged line proposals. Customer cannot change price, totals, order state, stock, invoice or payment; staff remains the only final approver.
+- Files changed: `supabase/migrations/20261106260000_customer_pending_order_amendments.sql`, `src/components/CustomerOrders.tsx`, `src/components/AdminPages.tsx`, `docs/execution/P1_CHECKPOINT.md`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; migration deployment and browser acceptance remain pending.
+- Evidence boundary: source-only commit. No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue the next uncovered customer and commerce command from the canonical requirements; preserve exact ownership, quantity-only customer mutation and staff-only final confirmation. Do not alter P3-owned intelligent engines.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-067 — CUSTOMER PRE-CONFIRMATION ORDER CANCELLATION
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

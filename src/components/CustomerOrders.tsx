@@ -718,9 +718,15 @@ function OrderInvoiceInner({ id }: { id: string }) {
         </div>
       )}
 
-      {['returned','needs_customer_amendment','returned_for_adjustment'].includes(order.status) && !user?.isStaff && (
+      {(
+        (['returned','needs_customer_amendment','returned_for_adjustment'].includes(order.status)
+          || (order.status==='pending' && (!order.quantity_review_required || amendment?.status==='pending_review')))
+        && !user?.isStaff
+      ) && (
         <section className="no-print" style={{ ...card, marginBottom:16, borderColor:'#e6c98f' }} aria-labelledby="customer-order-amendment-title">
-          <h2 id="customer-order-amendment-title" style={{ margin:'0 0 8px' }}>تعديل الطلب المعاد من الإدارة</h2>
+          <h2 id="customer-order-amendment-title" style={{ margin:'0 0 8px' }}>
+            {order.status==='pending' ? 'تعديل الطلب قبل مراجعة الإدارة' : 'تعديل الطلب المعاد من الإدارة'}
+          </h2>
           {order.customer_adjustment_note && <p style={{ margin:'0 0 10px', lineHeight:1.8 }}>{order.customer_adjustment_note}</p>}
           {amendment?.status==='pending_review' ? (
             <div role="status" style={{ padding:12, borderRadius:10, background:'#edf7f2', color:'#17684d' }}>
@@ -733,7 +739,9 @@ function OrderInvoiceInner({ id }: { id: string }) {
                 <p role="alert" style={{ color:'#8a4c19', margin:'0 0 10px' }}>ملاحظة الإدارة على التعديل السابق: {amendment.review_note}</p>
               )}
               <p style={{ margin:'0 0 12px', color:'#536b70', lineHeight:1.8 }}>
-                عدّل الكميات فقط. يجب إبقاء جميع البنود؛ لا تُرسل هذه الخطوة أسعارًا أو إجماليات، ولا تؤكد الطلب.
+                {order.status==='pending'
+                  ? 'يمكنك تصحيح الكميات قبل أن تبدأ الإدارة المراجعة. بعد الإرسال ستُقفل الكميات حتى قرار الموظف.'
+                  : 'عدّل الكميات فقط. يجب إبقاء جميع البنود؛ لا تُرسل هذه الخطوة أسعارًا أو إجماليات، ولا تؤكد الطلب.'}
               </p>
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>

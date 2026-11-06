@@ -511,7 +511,8 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
 
   const returnedOrderStatuses = ['returned','needs_customer_amendment','returned_for_adjustment'];
   const isCustomerAmendmentReview = Boolean(
-    order && returnedOrderStatuses.includes(order.status) && customerAmendment?.status==='pending_review',
+    order && (returnedOrderStatuses.includes(order.status) || order.status==='pending')
+      && customerAmendment?.status==='pending_review',
   );
   const editable = order?.status === 'pending' || order?.status === 'draft' || isCustomerAmendmentReview;
   const hasStaged = Boolean(order?.quantity_review_required) || Boolean(items?.some((item) =>
