@@ -1,3 +1,13 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-056 — SESSION REVOCATION
+
+- Added `signOutOtherSessions()` and `signOutEverywhere()` methods in AuthContext using explicit Supabase scopes `others` and `global`; regular logout remains explicit `local`.
+- Added confirmed profile actions with in-flight guard and visible error handling; added Help Center entry and access-token expiry disclosure.
+- Source commits: `d2aa6092d7cd09403a4057d567f5374a3ce7ea92`, `931e65714388359ac5dc414ae1d4d2ada17c534a`, `c21e5c335a7d3221c9674450d2abbdc24349cb60`.
+- Acceptance leaf: `DLV-006-ACCOUNT-SESSION-REVOCATION-001`; `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/Auth/DB/Preview/Vercel/production operation was run. No PASS or runtime acceptance claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-055 — PHONE PASSWORD SIGN-IN
 
 - Added email/phone switching in the login form. Phone credentials use Supabase Auth `signInWithPassword({ phone, password })`; email path remains intact.
