@@ -829,3 +829,47 @@
 - Hosted customer/tenant isolation was previously `SKIPPED`; it is not PASS until a real authorized hosted run exists.
 - No DLV roll-up or production/release gate is closed.
 - exact_next_command: `gh run list --branch main --commit 2761904cfa661ac4fd221d9b2ff801cd970aaad8 --limit 10 --json databaseId,name,status,conclusion,headSha`.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DECISION-DEFERRAL-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Source head before this checkpoint update: `fe035887434a417b6c8c95a163475348273a2eaf`.
+- Scope: P3 decision lifecycle and source integrity; no P1-owned files were changed.
+
+### Implemented on main
+
+1. **Decision-memory migration source repair**
+   - Reconstructed `20261105270000_intelligence_decision_memory.sql` from its pre-repair source, placing the missing expected-metric calculation continuation back inside `save_decision_memory_snapshot`.
+   - Restored the complete currency expression, retained one save function and one fetch function, and removed the detached duplicate tail.
+   - Final source file: 899 lines; blob `3b2c36cba1517fee154eb96d3a73e63f7027a24d`.
+   - Earlier intermediate migration-repair commits `f75d944cf783197f80ecbf6923bdd6571b8f4753`, `18db3138c7cbf0f90fb6218debc371e17c94ddda`, and `f543b686778b71bb7547f3431b8eef7c545afee4` were superseded by the final reconstruction `fe035887434a417b6c8c95a163475348273a2eaf`. Do not treat those intermediate commits as acceptance evidence.
+
+2. **Decision metric comparison safety**
+   - `decision-memory.ts` now withholds non-finite, out-of-safe-range variance or percentage results as `OUTCOME_ARITHMETIC_UNSAFE`; it no longer labels an unsafe comparison `VERIFIED`.
+   - Commit: `e61b5ed78f691cb231081f16736ed0630ef6f473`.
+
+3. **Reasoned decision deferral**
+   - Added `20261106130000_intelligence_decision_outcome_deferral.sql` with a dedicated manager/admin-only RPC.
+   - Deferral is allowed only from `IN_REVIEW`, requires a meaningful reason, checks organization and optimistic version under row lock, uses idempotency locking, appends the event and audit old/new snapshots atomically, and denies direct public/anonymous execution.
+   - Added `DEFERRED` to the shared decision state, pure transition policy, validated client parser, dedicated RPC client, Arabic lifecycle control and decision-memory label.
+   - Added source tests for the pure transition and client RPC contract. Tests were authored but not run.
+   - Commits: `eb60ba212ba2973501186e17e3add1cfbd91481c`, `444374c0225acf446f88c80ea0a65faaf641a521`, `89968567348ae6ae29cf424f5ee0345d989ab580`, `042c04cc852c65541b96fed5897ea1b1f608a8a0`, `ca224f46877608222e143282455c038e14afa001`, `bd6bd7d94e251a2f6c62440899ed49651aabd159`, `8ab2ef41813106b907affda1cb3877150c6bbf8a`, `33a803b1a626e51d571c8e6c4a2997f07342ebae`.
+
+### Boundaries and remaining work
+
+- Both SQL migrations are source-only; neither was applied to Supabase/Bolt. No database runtime, permission-denial, idempotency, or audit transaction was proven.
+- No test, build, lint, typecheck, browser, CI, or deployment command was run in this execution window. No PASS or Runtime-Proven status is claimed.
+- `DEFERRED` is intentionally terminal in this change; a controlled return-to-review transition is not yet implemented.
+- Section 61 quality-review engine, metrics and standalone review UI remain implemented as recorded in the prior checkpoint. P1 still owns mounting `TaskQualityReviewForm` into the task center; P3 did not edit `TaskCenter.tsx`, `IntelligenceWorkspace.tsx`, or `AghbariApp.tsx`.
+- Decision-memory measurement remains restricted to the existing source-backed receivables/collections metric. Extending it to operational metrics requires matching server-owned metric formulas and evidence resolvers; no generic metric claims were fabricated.
+- The full weighted denominator for all remaining P3 sections was not independently reconciled in this source-only pass. Therefore no 95% completion claim is made.
+
+### Next P3 actions
+
+1. Preserve the final migration source and have it applied only through the authorized database workflow; then capture exact-SHA database acceptance evidence.
+2. Add a manager-authorized, reasoned resume/re-review path for `DEFERRED` only if the reference requires it, using a new versioned event (never mutate the defer event).
+3. Continue the remaining independent Section 52–63 gaps from the active reference; broaden decision measures only when authoritative operational sources and formula contracts exist.
+4. Keep P1's quality-review component mount as a handoff; do not modify P1-owned workspace or task-center files.
+
+Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. This checkpoint records source changes only.
