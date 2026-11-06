@@ -168,7 +168,7 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
     });
     const offerB=result.comparisons[0].offers.find(item=>item.supplierName==="مورد ب");
     expect(offerB?.supplierPerformance).toMatchObject({
-      state:"NO_ACTIVITY_IN_PERIOD",purchaseOrderCount:null,medianLeadDays:null,onTimePercent:null,
+      state:"NO_ELIGIBLE_ORDERS_IN_PERIOD",purchaseOrderCount:null,medianLeadDays:null,onTimePercent:null,
     });
   });
 

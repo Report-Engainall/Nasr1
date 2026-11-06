@@ -8,7 +8,7 @@ export type SupplierQuoteComparisonWithheldReason =
   | "INSUFFICIENT_DISTINCT_SUPPLIERS";
 
 export interface SupplierQuoteSupplierPerformance {
-  state: "AVAILABLE" | "NO_ACTIVITY_IN_PERIOD" | "NOT_IN_RETURNED_PAGE" | "SOURCE_UNAVAILABLE";
+  state: "AVAILABLE" | "NO_ELIGIBLE_ORDERS_IN_PERIOD" | "NOT_IN_RETURNED_PAGE" | "SOURCE_UNAVAILABLE";
   purchaseOrderCount: number | null;
   completedOrderCount: number | null;
   openOrderCount: number | null;
@@ -188,7 +188,7 @@ export function buildSupplierQuoteComparisonAssistant(
     };
     const supplier = performanceMap.get(supplierId);
     if (!supplier) {
-      const state = performanceSnapshot.completePopulation ? "NO_ACTIVITY_IN_PERIOD" : "NOT_IN_RETURNED_PAGE";
+      const state = performanceSnapshot.completePopulation ? "NO_ELIGIBLE_ORDERS_IN_PERIOD" : "NOT_IN_RETURNED_PAGE";
       return {
         state,
         purchaseOrderCount: null,

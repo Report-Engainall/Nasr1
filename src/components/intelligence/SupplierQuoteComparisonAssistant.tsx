@@ -91,8 +91,8 @@ export function SupplierQuoteComparisonAssistant({
                       {" · "}عينات الموعد: {count.format(offer.supplierPerformance.promisedDeliverySampleCount ?? 0)}
                     </p>
                   ) : null}
-                  {offer.supplierPerformance?.state === "NO_ACTIVITY_IN_PERIOD" ? (
-                    <p className="text-xs text-muted-foreground">لا توجد أوامر شراء لهذا المورد في فترة الأداء المعروضة.</p>
+                  {offer.supplierPerformance?.state === "NO_ELIGIBLE_ORDERS_IN_PERIOD" ? (
+                    <p className="text-xs text-muted-foreground">لا توجد أوامر شراء مؤهلة لقياس الأداء لهذا المورد في الفترة المعروضة.</p>
                   ) : null}
                   {offer.supplierPerformance?.state === "NOT_IN_RETURNED_PAGE" ? (
                     <p className="text-xs text-muted-foreground">لم يظهر هذا المورد في صفحة أداء الموردين الجزئية؛ لا يمكن الجزم بغياب نشاطه.</p>
