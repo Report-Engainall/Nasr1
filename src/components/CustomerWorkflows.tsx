@@ -1662,6 +1662,8 @@ function Reorder() {
   const [notice, setNotice] = useState("");
   const [priceVisibilityPolicy, setPriceVisibilityPolicy] = useState<unknown>(undefined);
   const loadRevisionRef = useRef(0);
+  const activeProfileIdRef = useRef(user?.profileId);
+  activeProfileIdRef.current = user?.profileId;
   const load = useCallback(async () => {
     const requestRevision = ++loadRevisionRef.current;
     setError("");
@@ -1731,6 +1733,7 @@ function Reorder() {
   const visible = products.filter((p) => matchesArabicCatalogSearch(p, query));
   async function save(e: FormEvent) {
     e.preventDefault();
+    const actionProfileId = user?.profileId;
     const lines = Object.entries(quantities)
       .filter(([, q]) => Number.isInteger(q) && q > 0)
       .map(([product_id, quantity]) => ({ product_id, quantity }));
@@ -1747,6 +1750,7 @@ function Reorder() {
         p_lines: lines,
         p_source_order_id: null,
       });
+      if (activeProfileIdRef.current !== actionProfileId) return;
       if (r.error) throw new Error("تعذر حفظ القالب. تحقق من الاتصال والصلاحيات ثم حاول مجددًا.");
       if (typeof r.data !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.data)) {
         throw new Error("لم يؤكد الخادم حفظ قالب صالح؛ لم تُعرض نتيجة نجاح.");
@@ -1755,12 +1759,15 @@ function Reorder() {
       setQuantities({});
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر حفظ قالب إعادة الطلب. تحقق من الاتصال ثم حاول مجددًا.");
+      if (activeProfileIdRef.current === actionProfileId) {
+        setError(cause instanceof Error ? cause.message : "تعذر حفظ قالب إعادة الطلب. تحقق من الاتصال ثم حاول مجددًا.");
+      }
     } finally {
-      setBusy(false);
+      if (activeProfileIdRef.current === actionProfileId) setBusy(false);
     }
   }
   async function apply(t: ReorderTemplate) {
+    const actionProfileId = user?.profileId;
     setBusy(true);
     setError("");
     setNotice("");
@@ -1769,6 +1776,7 @@ function Reorder() {
         .from("reorder_template_items")
         .select("product_id,quantity")
         .eq("template_id", t.id);
+      if (activeProfileIdRef.current !== actionProfileId) return;
       if (r.error) throw new Error("تعذر قراءة أصناف القالب. حاول مجددًا.");
       const draft = normalizeCartDraft(
         (r.data ?? [])
@@ -1779,13 +1787,16 @@ function Reorder() {
           })),
       );
       if (!draft.length) throw new Error("لا يحتوي القالب على أصناف صالحة لإضافتها إلى السلة.");
-      const merged = mergeOfflineCartDraft(window.localStorage, user?.profileId, draft);
+      const merged = mergeOfflineCartDraft(window.localStorage, actionProfileId, draft);
       if (!merged) throw new Error("تعذر حفظ السلة المعزولة لهذا الحساب على الجهاز.");
+      if (activeProfileIdRef.current !== actionProfileId) return;
       await navigate({ to: "/cart" });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تطبيق قالب إعادة الطلب. لم تتغير السلة.");
+      if (activeProfileIdRef.current === actionProfileId) {
+        setError(cause instanceof Error ? cause.message : "تعذر تطبيق قالب إعادة الطلب. لم تتغير السلة.");
+      }
     } finally {
-      setBusy(false);
+      if (activeProfileIdRef.current === actionProfileId) setBusy(false);
     }
   }
   return (
