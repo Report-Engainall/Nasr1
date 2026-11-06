@@ -139,8 +139,27 @@ function recommend(m: ProcessBottleneckMetric): string {
     case "TASKS": return "راجع حجم التكليف وتوزيع الأدوار وأسباب إعادة الفتح؛ الزمن يشمل الانتظار والتنفيذ ولا يقيس سرعة الموظف منفرداً.";
   }
 }
+function periodLengthDays(period: ProcessBottleneckPeriod): number {
+  const from = Date.parse(period.from + "T00:00:00.000Z");
+  const to = Date.parse(period.to + "T00:00:00.000Z");
+  return Math.floor((to - from) / (24 * 60 * 60 * 1000)) + 1;
+}
+
+function comparableBeforeAfterPeriods(
+  current: ProcessBottleneckPeriod,
+  baseline: ProcessBottleneckPeriod | null,
+): baseline is ProcessBottleneckPeriod {
+  return Boolean(
+    baseline &&
+    baseline.timeZone === current.timeZone &&
+    baseline.to < current.from &&
+    periodLengthDays(baseline) === periodLengthDays(current)
+  );
+}
+
 export function buildProcessBottlenecks(s: ProcessBottleneckSnapshot): ProcessBottleneckResult {
   const verified=new Set(s.sourceCoverage.filter(x=>x.status==="VERIFIED" && x.completePopulation).map(x=>x.key));
+  const comparablePeriods = comparableBeforeAfterPeriods(s.period, s.baselinePeriod);
   const findings=s.metrics.filter(m=>m.window==="CURRENT" && verified.has(m.processKey) && m.sampleCount>=3)
     .map(m=>({
       processKey:m.processKey,stageKey:m.stageKey,waitClass:m.waitClass,sampleCount:m.sampleCount,
@@ -151,7 +170,7 @@ export function buildProcessBottlenecks(s: ProcessBottleneckSnapshot): ProcessBo
   const prior=new Map(s.metrics.filter(m=>m.window==="BASELINE" && verified.has(m.processKey) && m.sampleCount>=3)
     .map(m=>[m.processKey+":"+m.stageKey+":"+m.waitClass,m]));
   const comparisons: ProcessBottleneckComparison[]=[];
-  if(s.baselinePeriod) for(const m of s.metrics.filter(x=>x.window==="CURRENT" && verified.has(x.processKey) && x.sampleCount>=3)) {
+  if(comparablePeriods) for(const m of s.metrics.filter(x=>x.window==="CURRENT" && verified.has(x.processKey) && x.sampleCount>=3)) {
     const old=prior.get(m.processKey+":"+m.stageKey+":"+m.waitClass);
     if(!old) continue;
     const diff=m.medianMinutes-old.medianMinutes;
@@ -167,7 +186,10 @@ export function buildProcessBottlenecks(s: ProcessBottleneckSnapshot): ProcessBo
   const withheld=s.sourceCoverage.filter(x=>x.status==="UNAVAILABLE").map(x=>x.message);
   for(const m of s.metrics.filter(x=>x.window==="CURRENT" && verified.has(x.processKey) && x.sampleCount<3))
     withheld.push("عينة "+m.processKey+"/"+m.stageKey+" لا تكفي لاعتبار المرحلة اختناقاً (n="+m.sampleCount+").");
-  if(s.baselinePeriod && comparisons.length===0) withheld.push("لا توجد مراحل مشتركة بعينة كافية في الفترتين للمقارنة.");
+  if(s.baselinePeriod && !comparablePeriods)
+    withheld.push("فترة الأساس يجب أن تسبق الفترة الحالية وأن تطابقها في عدد الأيام؛ حُجبت المقارنة.");
+  else if(s.baselinePeriod && comparisons.length===0)
+    withheld.push("لا توجد مراحل مشتركة بعينة كافية في الفترتين للمقارنة.");
   return {
     state,asOf:s.asOf,period:s.period,baselinePeriod:s.baselinePeriod,findings,
     comparisons:comparisons.sort((a,b)=>Math.abs(b.changeMinutes)-Math.abs(a.changeMinutes)),
