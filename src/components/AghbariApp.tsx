@@ -291,7 +291,7 @@ function AdminWorkspaceContent({
     case "quotes":
       return <StaffQuotesPage />;
     case "finance":
-      return <StaffFinancePage />;
+      return <StaffFinancePage initialInvoiceId={recordContext?.kind === "invoice" ? recordContext.id : undefined} />;
     case "tasks":
       return (
         <TaskCenter
@@ -301,7 +301,7 @@ function AdminWorkspaceContent({
         />
       );
     case "audit":
-      return <AdminAuditLog />;
+      return <AdminAuditLog initialSearch={recordContext?.kind === "audit" ? recordContext.id : undefined} />;
     case "stock-count":
       return <InventoryStockCountPage />;
     case "inventory-transfers":
@@ -726,7 +726,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
                 <div className="px-3 py-2 text-sm text-muted-foreground" role="status">لا توجد سجلات مطابقة ضمن صلاحيات هذا الحساب.</div>}
               {workspaceSearchResults.map((item) => (
                 <CommandItem key={item.kind + ":" + item.id} shouldFilter={false}
-                  value={`${item.kind} ${item.title} ${item.subtitle} ${item.id}`}
+                  value={`${item.kind} ${item.title} ${item.subtitle} ${item.id}`} keywords={[commandSearch]}
                   onSelect={() => openWorkspaceSearchResult(item)}>
                   <Search size={16} aria-hidden="true" />
                   <span className="min-w-0 flex-1">
