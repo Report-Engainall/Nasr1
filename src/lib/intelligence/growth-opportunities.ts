@@ -353,7 +353,8 @@ export function buildGrowthOpportunityRadar(input: {
       } else eligible = true;
     } else if (signal.kind === "PRODUCT_UNAVAILABLE_DEMAND") {
       if (!countMetric(observed) || observed.metric.unit !== "COUNT" ||
-          observed.value < MIN_UNAVAILABLE_SEARCHES || sample.value < MIN_DISTINCT_SEARCHERS) {
+          observed.value < MIN_UNAVAILABLE_SEARCHES || sample.value < MIN_DISTINCT_SEARCHERS ||
+          sample.value > observed.value) {
         reason = "SAMPLE_INSUFFICIENT";
       } else eligible = true;
     } else if (signal.kind === "CUSTOMER_ACTIVITY_DECLINE") {
