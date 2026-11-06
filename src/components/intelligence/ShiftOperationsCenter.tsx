@@ -224,7 +224,7 @@ export function ShiftOperationsCenter({
   async function startNextShift(event: FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!result || commandBusy)return;
-    if(startShiftLabel.trim().length<2 || !/^d{4}-d{2}-d{2}$/.test(startShiftDate)){
+    if(startShiftLabel.trim().length<2 || !/^\d{4}-\d{2}-\d{2}$/.test(startShiftDate)){
       setCommandError("أدخل اسم وردية صالحاً وتاريخ عمل صحيحاً.");
       return;
     }
