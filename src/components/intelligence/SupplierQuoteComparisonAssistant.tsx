@@ -35,6 +35,19 @@ export function SupplierQuoteComparisonAssistant({
         · المرسّاة: {count.format(result.quoteCounts.awarded)}
         · المنتهية: {count.format(result.quoteCounts.expired)}
       </p>
+      {result.supplierPerformance.status !== "NOT_REQUESTED" ? (
+        <p className="text-xs text-muted-foreground">
+          أداء التوريد الفعلي: {result.supplierPerformance.status === "READY" ? "نطاق مكتمل" :
+            result.supplierPerformance.status === "PARTIAL" ? "نطاق جزئي" :
+            result.supplierPerformance.status === "DENIED" ? "غير مصرح" : "المصدر غير متاح"}
+          {result.supplierPerformance.period
+            ? " · الفترة " + result.supplierPerformance.period.from + " إلى " + result.supplierPerformance.period.to + " UTC"
+            : ""}
+          {result.supplierPerformance.returnedSupplierCount !== null
+            ? " · الموردون المعادون " + count.format(result.supplierPerformance.returnedSupplierCount) + " من " + count.format(result.supplierPerformance.totalSupplierCount ?? 0)
+            : ""}
+        </p>
+      ) : null}
 
       {result.comparisons.map((item) => (
         <article key={item.key} className="space-y-2 rounded-lg border p-3">
@@ -58,6 +71,35 @@ export function SupplierQuoteComparisonAssistant({
                   <p className="text-xs text-muted-foreground">التوريد: {offer.deliveryDays === null ? "غير محدد" : count.format(offer.deliveryDays) + " يوم"}</p>
                   <p className="text-xs text-muted-foreground">الدفع: {offer.paymentTerms ?? "الشروط غير مسجلة"}</p>
                   {offer.validUntil ? <p className="text-xs text-muted-foreground">صالح حتى: {offer.validUntil}</p> : null}
+                  {offer.supplierPerformance?.state === "AVAILABLE" ? (
+                    <p className="text-xs text-muted-foreground">
+                      الأداء الفعلي · أوامر: {count.format(offer.supplierPerformance.purchaseOrderCount ?? 0)}
+                      · مكتمل: {count.format(offer.supplierPerformance.completedOrderCount ?? 0)}
+                      · مفتوح: {count.format(offer.supplierPerformance.openOrderCount ?? 0)}
+                      · متبقي: {count.format(offer.supplierPerformance.backlogLineCount ?? 0)} سطر
+                    </p>
+                  ) : null}
+                  {offer.supplierPerformance?.state === "AVAILABLE" ? (
+                    <p className="text-xs text-muted-foreground">
+                      وسيط زمن الاستلام: {offer.supplierPerformance.medianLeadDays === null
+                        ? "غير متاح — أقل من 3 عينات"
+                        : count.format(offer.supplierPerformance.medianLeadDays) + " يوم"}
+                      {" · "}عينات الزمن: {count.format(offer.supplierPerformance.leadTimeSampleCount ?? 0)}
+                      {" · "}الالتزام: {offer.supplierPerformance.onTimePercent === null
+                        ? "غير متاح — أقل من 3 عينات"
+                        : number.format(offer.supplierPerformance.onTimePercent) + "%"}
+                      {" · "}عينات الموعد: {count.format(offer.supplierPerformance.promisedDeliverySampleCount ?? 0)}
+                    </p>
+                  ) : null}
+                  {offer.supplierPerformance?.state === "NO_ACTIVITY_IN_PERIOD" ? (
+                    <p className="text-xs text-muted-foreground">لا توجد أوامر شراء لهذا المورد في فترة الأداء المعروضة.</p>
+                  ) : null}
+                  {offer.supplierPerformance?.state === "NOT_IN_RETURNED_PAGE" ? (
+                    <p className="text-xs text-muted-foreground">لم يظهر هذا المورد في صفحة أداء الموردين الجزئية؛ لا يمكن الجزم بغياب نشاطه.</p>
+                  ) : null}
+                  {offer.supplierPerformance?.state === "SOURCE_UNAVAILABLE" ? (
+                    <p className="text-xs text-muted-foreground">مؤشرات الأداء الفعلي غير متاحة.</p>
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -142,7 +184,7 @@ export function SupplierQuoteComparisonAssistant({
         </p>
       ))}
       <p className="text-xs text-muted-foreground">
-        تظهر تكلفة الوحدة ومدة التوريد وشروط الدفع كأبعاد مستقلة من العرض المحفوظ. لا يوجد مجموع نقاط مركب أو وزن تقديري؛ القرار النهائي يتطلب مراجعة المستخدم المخول. لا تختار الواجهة عرضاً ولا تنشئ أمر شراء.
+        تكلفة الوحدة ومدة التوريد الموعودة وشروط الدفع منفصلة عن أداء المورد الفعلي في أوامر الشراء والاستلام خلال فترة التقرير. لا يظهر وسيط زمن الاستلام أو معدل الالتزام قبل 3 عينات لكل مؤشر. لا يوجد مجموع نقاط مركب أو ترسية تلقائية أو إنشاء أمر شراء.
       </p>
     </section>
   );
