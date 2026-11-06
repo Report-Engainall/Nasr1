@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-056 — REVOKE OTHER / ALL AUTH SESSIONS
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product commits: Auth session methods `d2aa6092d7cd09403a4057d567f5374a3ce7ea92`; profile controls `931e65714388359ac5dc414ae1d4d2ada17c534a`; Help Center `c21e5c335a7d3221c9674450d2abbdc24349cb60`.
+- Scope: fill the account-security session-management action using the existing Supabase Auth session revoke API.
+
+## BODY-056 — manage other and all active sessions
+
+- Preserved the existing local-only sign-out method and added two explicit AuthContext commands:
+  - `signOutOtherSessions()` calls `supabase.auth.signOut({ scope: 'others' })` and keeps the current session.
+  - `signOutEverywhere()` calls `supabase.auth.signOut({ scope: 'global' })` and clears the current session after success.
+- Added both actions to `/profile` behind separate confirmation prompts; action in-flight state prevents double submission, errors remain visible, and successful "others" revocation leaves this device active.
+- Added Help Center instructions and security disclosure. Supabase revokes refresh tokens; already-issued access tokens may remain valid until their expiry, so the UI does not claim immediate invalidation of every request.
+- Existing ordinary local sign-out remains `scope: 'local'`; no forced change to current navigation/logout behavior.
+- Files changed: `src/lib/auth.tsx`, `src/routes/profile.tsx`, `src/routes/help.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- GitHub source references were re-read for explicit `others`/`global` scopes, profile controls and Help Center FAQ.
+- Supabase's current sign-out contract distinguishes `global`, `local` and `others`; global/others revoke refresh tokens, while already issued access tokens can remain valid until expiry: https://supabase.com/docs/guides/auth/signout
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue absent customer/account workflows and role-specific outputs. Keep phone provider configuration, customer self-registration/customer linking and returned-order amendment dependent on their real provider/backend contracts; do not claim these external or P2-dependent items are complete.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-055 — PHONE + PASSWORD SIGN-IN
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
