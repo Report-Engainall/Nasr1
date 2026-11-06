@@ -1,3 +1,38 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-045
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main head observed immediately before this checkpoint update: `c0ea665ac235fbe6aec8dd7b1235a1f848a239b1`.
+- P1 product-code commits: `c9797ff37be5d34efc69b6fa7d21aa76b4f9c0a0`, `759e2402a56b6ff00e4658f3dbdd6bdedf255e24`, and `9e8ffd22341ca6fcbb07340b63467f9b4f70d981`.
+- P1 scope: isolate the customer reorder workspace across account changes and route successful template application to the actual cart review screen.
+
+## BODY-045 — isolate reorder data and complete the review handoff
+
+- The reorder workspace now clears its product list, saved templates, pending quantity draft and price policy when the authenticated profile changes.
+- Added a monotonic load-revision guard. Responses from prior account/profile loads are ignored when a newer load starts or the component leaves the active identity; an older response cannot repopulate the new account's view.
+- Supabase query results retain inferred response types; no untyped query payload or cross-tenant client-side lookup was introduced.
+- After a saved template is successfully merged into the existing profile-isolated cart, the customer is routed to the active `/cart` route for immediate review instead of returning to the storefront home page.
+- File changed: `src/components/CustomerWorkflows.tsx`.
+- Code commits: `c9797ff37be5d34efc69b6fa7d21aa76b4f9c0a0`, `759e2402a56b6ff00e4658f3dbdd6bdedf255e24`, `9e8ffd22341ca6fcbb07340b63467f9b4f70d981`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no runtime PASS is claimed.
+
+## Confirmed next P1 gap
+
+- Customer order detail shows an instruction for `returned`, `needs_customer_amendment` and `returned_for_adjustment`, but the active detail view does not expose an edit-and-resubmit form. The separate `CustomerReturnRequest` is a delivered-order return workflow, not an amendment workflow.
+- The active checkout call to `submit_customer_order` sends cart lines, contact, payment, delivery and idempotency data but no source-order identifier. `save_reorder_template` links the saved template to the source order; it does not by itself link the newly submitted order to that source.
+- Do not simulate amendment by loading old lines into a generic cart. The next implementation must use or establish an approved tenant-scoped server transaction contract that validates returned status and customer ownership, reprices current lines, preserves idempotency, and persists the origin-order relation.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-045.
+- No P3-owned file, engine, DTO, RPC or migration was changed. No dependency, paid service or parallel order-write path was added.
+- Project-wide 95% P1 completion remains unclaimed because the complete denominator and weighting of remaining executable requirements are not established by the acceptance record.
+
+## Next P1 action
+
+Implement the returned-for-adjustment customer workflow against its approved server contract, then continue the next uncovered P1 customer/admin actions and remaining DLV-011 role/template pairs. Keep DLV-011 PARTIAL until all role/template requirements are accepted.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-044
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
