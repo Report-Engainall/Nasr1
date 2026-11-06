@@ -180,6 +180,7 @@ function comparableBeforeAfterPeriods(
 export function buildProcessBottlenecks(s: ProcessBottleneckSnapshot): ProcessBottleneckResult {
   const verified=new Set(s.sourceCoverage.filter(x=>x.status==="VERIFIED" && x.completePopulation).map(x=>x.key));
   const comparablePeriods = comparableBeforeAfterPeriods(s.period, s.baselinePeriod);
+  const withheld = s.sourceCoverage.filter(x=>x.status==="UNAVAILABLE").map(x=>x.message);
   const findings=s.metrics.filter(m=>m.window==="CURRENT" && verified.has(m.processKey) && m.sampleCount>=3)
     .map(m=>({
       processKey:m.processKey,stageKey:m.stageKey,waitClass:m.waitClass,sampleCount:m.sampleCount,
@@ -223,7 +224,6 @@ export function buildProcessBottlenecks(s: ProcessBottleneckSnapshot): ProcessBo
   }
   const available=s.sourceCoverage.filter(x=>x.status==="VERIFIED").length;
   const state=available===0 ? "UNAVAILABLE" : available===PROCESS_KEYS.size ? "READY" : "PARTIAL";
-  const withheld=s.sourceCoverage.filter(x=>x.status==="UNAVAILABLE").map(x=>x.message);
   for(const m of s.metrics.filter(x=>x.window==="CURRENT" && verified.has(x.processKey) && x.sampleCount<3))
     withheld.push("عينة "+m.processKey+"/"+m.stageKey+" لا تكفي لاعتبار المرحلة اختناقاً (n="+m.sampleCount+").");
   if(s.baselinePeriod && !comparablePeriods)
