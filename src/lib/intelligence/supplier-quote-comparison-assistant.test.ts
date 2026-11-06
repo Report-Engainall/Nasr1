@@ -12,7 +12,7 @@ const suppliers=[
 function quote(input: {
   id: string; supplierId: string; supplierName: string; number: string;
   unitCost: number; quantity?: number; unit?: string | null; currency?: string;
-  status?: SupplierQuote["status"]; updatedAt?: string;
+  status?: SupplierQuote["status"]; updatedAt?: string; createdAt?: string;
 }): SupplierQuote {
   const quantity=input.quantity??10;
   return {
@@ -20,7 +20,7 @@ function quote(input: {
     supplier_code:input.supplierName.toUpperCase(),quote_number:input.number,
     supplier_reference:null,currency:input.currency??"YER",valid_until:null,
     delivery_days:null,payment_terms:null,notes:null,status:input.status??"received",
-    purchase_order_id:null,created_at:"2026-11-01T09:00:00.000Z",
+    purchase_order_id:null,created_at:input.createdAt??"2026-11-01T09:00:00.000Z",
     updated_at:input.updatedAt??"2026-11-01T10:00:00.000Z",
     items:[{
       id:"30000000-0000-4000-8000-000000000001",product_id:productId,
@@ -100,5 +100,42 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
       deliveryDays:null,paymentTerms:null,validUntil:null,
     });
   });
+
+  it("derives a supplier-specific quote price change from separately dated saved offers",()=>{
+    const result=buildSupplierQuoteComparisonAssistant([
+      quote({id:"history-old",supplierId:suppliers[0],supplierName:"مورد أ",number:"OLD",unitCost:10,createdAt:"2026-10-01T09:00:00.000Z"}),
+      quote({id:"history-new",supplierId:suppliers[0],supplierName:"مورد أ",number:"NEW",unitCost:12,createdAt:"2026-11-01T09:00:00.000Z",status:"expired"}),
+    ],"2026-11-06T00:00:00.000Z");
+    expect(result.priceHistory).toHaveLength(1);
+    expect(result.priceHistory[0]).toMatchObject({
+      supplierName:"مورد أ",quoteCount:2,changeAmount:2,changePercent:20,direction:"INCREASED",
+      first:{unitCost:10,quoteNumber:"OLD"},
+      latest:{unitCost:12,quoteNumber:"NEW",status:"expired"},
+    });
+  });
+
+  it("withholds a percentage change when the first saved quote price is zero",()=>{
+    const result=buildSupplierQuoteComparisonAssistant([
+      quote({id:"zero-old",supplierId:suppliers[0],supplierName:"مورد أ",number:"ZERO",unitCost:0,createdAt:"2026-10-01T09:00:00.000Z"}),
+      quote({id:"zero-new",supplierId:suppliers[0],supplierName:"مورد أ",number:"POSITIVE",unitCost:5,createdAt:"2026-11-01T09:00:00.000Z"}),
+    ],"2026-11-06T00:00:00.000Z");
+    expect(result.priceHistory[0]).toMatchObject({
+      changeAmount:5,changePercent:null,direction:"INCREASED",
+    });
+  });
+
+  it("does not derive price chronology from identical or future source timestamps",()=>{
+    const sameTime=buildSupplierQuoteComparisonAssistant([
+      quote({id:"same-a",supplierId:suppliers[0],supplierName:"مورد أ",number:"A",unitCost:10,createdAt:"2026-11-01T09:00:00.000Z"}),
+      quote({id:"same-b",supplierId:suppliers[0],supplierName:"مورد أ",number:"B",unitCost:12,createdAt:"2026-11-01T09:00:00.000Z"}),
+    ],"2026-11-06T00:00:00.000Z");
+    expect(sameTime.priceHistory).toHaveLength(0);
+    const future=buildSupplierQuoteComparisonAssistant([
+      quote({id:"past",supplierId:suppliers[0],supplierName:"مورد أ",number:"A",unitCost:10,createdAt:"2026-11-01T09:00:00.000Z"}),
+      quote({id:"future",supplierId:suppliers[0],supplierName:"مورد أ",number:"B",unitCost:12,createdAt:"2026-12-01T09:00:00.000Z"}),
+    ],"2026-11-06T00:00:00.000Z");
+    expect(future.priceHistory).toHaveLength(0);
+  });
+
 
 });
