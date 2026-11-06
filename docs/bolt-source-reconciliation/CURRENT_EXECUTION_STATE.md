@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1/P2 body update — profile-scoped notification inbox — 2026-11-06
+
+- Implemented on main: `src/lib/api.ts` now resolves current tenant scope and filters notification reads and read-state changes by both `organization_id` and `profile_id`. Mark-one validates the notification UUID, changes only an unread row in the current profile, and verifies an already-read replay without treating it as a foreign row. Mark-all no longer updates all users in the organization.
+- Expanded `src/components/CustomerNotificationCenter.tsx`: Arabic search, all/unread/read filters, and older-page loading. The service uses a stable `(created_at,id)` keyset cursor in bounded 30-row batches; new notifications cannot shift the next older page. Loaded pages are deduplicated and their read state stays synchronized after mark-one/mark-all.
+- Main commits: `ff8130c4b33fc4a1289765bbdb910b3086382e8d` (profile scope), `2cd35136b47538e4a1e9530d02d3eaf96ebf2d38` (search/filter), `135967930c0a521545bf7fd5950f532ef2913410` (keyset reader), `2f57755cca4ba3244d1c2ae420a343638c02848b` (older-page UI).
+- Added acceptance leaf `DLV-015-NOTIFICATION-PROFILE-SCOPE-001` to the sole acceptance matrix. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, typecheck, lint, CI, browser, database, Bolt, Preview or production operation was run. No PASS/runtime claim is made.
+
 ## P1 body update — user-controlled PWA update lifecycle — 2026-11-06
 
 - BODY-060 commits: service worker `a23066e40ac1abf899d9aac3a1f578927ef37e9b`; root update UI `d73e1d028699b41188f03970f261d245fe26c1f8`; cleanup `828065e3ca7450fc90cf5b2b4a282c3ff9bf6524`. Final blobs `public/sw.js=3af1b8508a1a1703ed51f1d314fdcaf31983bb1c`, `src/routes/__root.tsx=ce7ebd8a2abcc62d95a3d42e474039776f3c9a7d`.
