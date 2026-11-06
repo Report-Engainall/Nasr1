@@ -100,7 +100,7 @@ BEGIN
       END IF;
       v_expiry_raw:=pg_catalog.btrim(v_line->>'expiry_date');
       IF v_expiry_raw<>'' THEN
-        IF v_expiry_raw !~ '^\\d{4}-\\d{2}-\\d{2}$' THEN
+        IF v_expiry_raw !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN
           RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='expiry date must use YYYY-MM-DD';
         END IF;
         BEGIN
