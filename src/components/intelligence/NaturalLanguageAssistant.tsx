@@ -137,7 +137,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     <p className="mt-1 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · وقت الاستعلام: {new Date(response.result.queriedAt).toLocaleString("ar-YE")} · القرارات المحملة: {qty.format(response.result.memory.loadedCount)} من {qty.format(response.result.memory.totalCount)}</p>
    </div>
    <DecisionMemoryBook result={response.result.memory} state="ready" onRetry={()=>void submit()}/>
-   <p className="text-xs text-muted-foreground">تُستبعد الذاكرة الناقصة والوقائع بلا إثبات والقياسات غير المتوافقة من مسودات مراجعة القواعد. المسودات لا تغيّر قاعدة أو سعرًا أو حد ائتمان أو مخزون؛ أي تعديل لاحق يظل في مسار اعتماد منفصل. البحث والنتائج محصوران بالقرارات المحملة من أول صفحة فقط عند وجود صفحات إضافية.</p>
+   <p className="text-xs text-muted-foreground">تُستبعد الذاكرة الناقصة والوقائع بلا إثبات والقياسات غير المتوافقة من مسودات مراجعة القواعد. المسودات لا تغيّر قاعدة أو سعرًا أو حد ائتمان أو مخزون؛ أي تعديل لاحق يظل في مسار اعتماد منفصل. يشمل البحث جميع الصفحات التي جرى تحميلها والتحقق منها، بحد أقصى 5,100 قرار. يظل النطاق جزئياً عند تجاوز الحد أو تغير إجمالي المصدر أو عدم ثبات الصفحة الأولى؛ ولا يُعامل غياب السابقة من نطاق غير مكتمل كدليل على عدم وجودها.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="COMMERCE_POLICY"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
