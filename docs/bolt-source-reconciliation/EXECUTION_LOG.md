@@ -2116,3 +2116,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - No quote/order FK or immutable response timestamp exists. Accepted quote is not presented as sales order conversion; no response latency inference. The new reader returns no row identities or financial/item details and performs no write.
 - Tests authored but NOT RUN. No migration application, build, CI, browser, Bolt, database, Preview, Vercel or production operation. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; matrix leaf `REF-NL-CUSTOMER-QUOTE-PIPELINE-001`.
 
+## 2026-11-06 — REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001 — P90 lead time and receipt reconciliation counters
+
+- Parent `65312224cd73e4d7474acbba1b89b7c548876e1a`; code commit `511b7e3a3ffdfa81a703d92eeec3e05751b8c661`.
+- Added source P90 actual lead time behind a 10-sample gate; median requires 3; on-time percentage requires 3 promise samples. Added explicit counts for purchase orders marked received without evidence of complete receiving and completed orders without a recorded delivery promise.
+- Labels preserve source semantics and do not infer employee error or missing inventory. Existing supplier comparison matrix leaf updated in place.
+- Source tests authored but NOT RUN; no build/CI/browser/Bolt/DB/Preview/Vercel/production operation; no PASS/runtime claim.
+

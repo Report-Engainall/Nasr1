@@ -148,6 +148,18 @@ Continue only with remaining P3-owned gaps backed by existing authenticated sour
 - Bolt must verify both readers derive the same authenticated tenant and enforce purchasing role; complete and partial supplier-performance page semantics; identity join; 90-day UTC period disclosure; 3-sample gates; actual vs promised lead-time separation; denied/unavailable performance with quote comparison preserved; and no supplier/order UUID or business write in the rendered assistant result.
 
 
+### Supplemental P3 increment — supplier receipt tail and reconciliation signals — 2026-11-06
+
+- Code parent: `65312224cd73e4d7474acbba1b89b7c548876e1a`.
+- Code commit: `511b7e3a3ffdfa81a703d92eeec3e05751b8c661`.
+- Extended the existing supplier quote/performance comparison contract with source `p90LeadDays`, `inconsistentReceivedCount`, and `completedWithoutPromiseCount`.
+- The source SQL defines `inconsistentReceivedCount` as purchase orders whose stored status is `received` while the receipt evidence/quantity checks do not prove completion. The UI deliberately labels these as "orders marked received without proven completion"; it does not assign blame or assert stock shortage.
+- Completed orders without an awarded-quote delivery promise are shown as a separate count. This is not interpreted as late performance.
+- P90 lead time is exposed only with at least 10 completed lead-time samples. Median still requires 3, and on-time rate requires 3 promised-delivery samples. The source P90 value is reused; no client percentile is recomputed.
+- Tests were extended for P90 withheld at 4 samples and visible at 10 samples together with the reconciliation counters. Tests authored, NOT RUN. No new SQL/RPC, no P1 workspace, no PO, stock, finance or supplier write.
+- Status remains `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SHIFT-OPERATIONS-ASSISTANT-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — supplier receipt tail and completion-evidence counters — 2026-11-06
+
+- Parent `65312224cd73e4d7474acbba1b89b7c548876e1a`; code commit `511b7e3a3ffdfa81a703d92eeec3e05751b8c661`.
+- Quote/performance comparison now surfaces source P90 actual lead time only when at least 10 completed samples exist; median retains 3 sample minimum and on-time rate retains 3 promised-delivery sample minimums.
+- Exposes source counts for received-status purchase orders without proven completion and completed orders without an awarded delivery promise. These are distinct source conditions; no employee blame, inventory shortage or delay cause is inferred.
+- Tests authored but NOT RUN. No build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production operation. Existing supplier matrix row updated in place.
+
+
 ## P3 body update — customer quote lifecycle funnel — 2026-11-06
 
 - Parent `f6643a67232e991c816a1e6cf26286053f8f5c2c`; commits `baee1a7f9417b4eb42d16c442b1e9424d4423e93`, `4755f7dd027c6c659830142594016e7341dc5ced`, `baa16ca9c4e5da78d88a8c2ca39f7be2e2c21d59`.
