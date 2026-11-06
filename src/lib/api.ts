@@ -1359,6 +1359,9 @@ export async function refreshOperationalTasks(): Promise<{
 }
 
 // ─── Notifications ───
+const NOTIFICATION_PAGE_SIZE = 30;
+const NOTIFICATION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function fetchNotifications(): Promise<Notification[]> {
   const { profileId, organizationId } = await getCurrentTenantScope();
   const data = await readWithRetry(() => supabase
@@ -1367,7 +1370,32 @@ export async function fetchNotifications(): Promise<Notification[]> {
     .eq('organization_id', organizationId)
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
-    .limit(30));
+    .order('id', { ascending: false })
+    .limit(NOTIFICATION_PAGE_SIZE));
+  return (data ?? []) as Notification[];
+}
+
+/**
+ * Reads the next older cursor page for the current profile only.
+ * The timestamp+UUID tuple is a stable keyset cursor; newly inserted notifications
+ * do not shift older pages or cause offset-pagination duplicates/skips.
+ */
+export async function fetchOlderNotifications(cursor: { createdAt: string; id: string }): Promise<Notification[]> {
+  if (!cursor || typeof cursor.createdAt !== 'string' || !Number.isFinite(Date.parse(cursor.createdAt)) ||
+      !NOTIFICATION_UUID.test(cursor.id)) {
+    throw new Error('مؤشر صفحة التنبيهات الأقدم غير صالح.');
+  }
+  const createdAt = new Date(cursor.createdAt).toISOString();
+  const { profileId, organizationId } = await getCurrentTenantScope();
+  const data = await readWithRetry(() => supabase
+    .from('notifications')
+    .select('id,organization_id,profile_id,title,body,type,is_read,created_at,entity_type,entity_id')
+    .eq('organization_id', organizationId)
+    .eq('profile_id', profileId)
+    .or('created_at.lt.' + createdAt + ',and(created_at.eq.' + createdAt + ',id.lt.' + cursor.id + ')')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(NOTIFICATION_PAGE_SIZE));
   return (data ?? []) as Notification[];
 }
 
