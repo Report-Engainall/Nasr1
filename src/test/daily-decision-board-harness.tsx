@@ -1,3 +1,4 @@
+import "../styles.css";
 import { createRoot } from "react-dom/client";
 import { DailyDecisionBoard } from "@/components/intelligence/DailyDecisionBoard";
 import type { DecisionMemoryBookResult, DecisionMemoryRecord } from "@/lib/intelligence/decision-memory";
