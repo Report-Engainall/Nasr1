@@ -1856,3 +1856,5 @@ Continue Section 54 only with additional timestamp/sequence facts already repres
 - Overflow, zero-denominator and minimum-sample cases are withheld rather than filled with synthetic values. Suggested next steps are review guidance only.
 - Exact paths: `src/lib/intelligence/task-intelligence-insights.ts`, `src/components/intelligence/TaskIntelligenceInsights.tsx`, `src/components/intelligence/NaturalLanguageAssistant.tsx`, `src/components/intelligence/index.ts`, `src/lib/intelligence/index.ts`.
 - Runtime/Bolt acceptance remains pending; no execution or production readiness is claimed.
+
+- Follow-up hardening commits: `954340d4c501acde2e446e4538f76b6eafc148c6` (unsafe count aggregation is withheld) and `9bde01855fcd31cba1a8cb6860f42d35262b248b` (percentage derivation uses bounded division and explicit null guards).
