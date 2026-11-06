@@ -1,3 +1,35 @@
+## P3 FINANCIAL ENGINE HARDENING — CASHFLOW EXACT-CENT ARITHMETIC — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Source implementation commit: `e4d97cf68f95531b0a33c2e3a4800355d6c6c5e6`.
+- Formula identity/version commit: `ea0545d6e4d9a6b75cb3e250190dc42ba818c989` (exact current code SHA).
+- Source blob: `src/lib/intelligence/cashflow-forecast.ts` — `76320aed420da6bbb30dfb77c59f2b51766528b5`.
+- Regression source blob: `src/lib/intelligence/cashflow-forecast.test.ts` — `105bc9fa5bfc0f5907af2e028e74c9bbf975ec0e`.
+
+### Implemented
+- Replaced JavaScript floating-point parsing and accumulation of cash movements with the shared `financial-precision.ts` minor-unit helpers.
+- Currency values are now accepted only at the source's two-decimal scale. Sub-cent or over-precision values are not rounded silently; the affected forecast is downgraded and withheld.
+- Scheduled inflows and outflows are summed as integer cents with `BigInt`. If an aggregate or projected balance exceeds the safe minor-unit ceiling, the amount is withheld and the result is marked `NEEDS_REVIEW`.
+- Opening balances use exact cent parsing and can remain negative to represent a verified overdraft; schedule movements themselves remain non-negative.
+- The forecast's calendar window now derives from the UTC day of the offset-aware `asOf` instant instead of slicing the caller's local date text.
+- Bumped `cashflow.scheduled-net` formula version from `1.0.0` to `1.1.0` so evidence and later comparisons do not conflate the arithmetic implementation.
+- Added source-level regression cases for 0.10 + 0.20 cent arithmetic, sub-cent input rejection, aggregate overflow, offset-aware UTC dates and negative opening balances.
+
+### Boundaries retained
+- No new source aggregate, RPC, SQL migration, database permission, route or P1-owned page was added.
+- This does not fill the P2 source gap: the existing cashflow schedule remains a scheduled-collections source and does not prove a complete supplier/expense outflow population or verified opening cash/bank balances. Net/projected balances remain withheld unless the existing input contract contains those verified sources.
+- Currency groups remain separate. No FX, sales extrapolation, probability, assumed collection rate or business write was introduced.
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression tests were authored but NOT RUN. No build, typecheck, lint, CI, browser, Bolt, database, Preview, Vercel or production operation was run. No PASS, runtime or production-readiness claim is made.
+- Later exact-SHA acceptance must prove source lineage and currency parity, rejection of sub-cent/over-precision values, negative opening-balance handling, cent-exact summation, aggregate-overflow withholding, UTC period boundaries, separate currencies and continued suppression of net liquidity when outflows/opening sources are incomplete.
+
+### Next P3 action
+Continue with the next independently source-backed Section 52–63 intelligence requirement. Do not manufacture supplier liabilities, operating expenses or opening balances to make the cashflow card appear complete.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-CUSTOMER-QUOTE-PIPELINE-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

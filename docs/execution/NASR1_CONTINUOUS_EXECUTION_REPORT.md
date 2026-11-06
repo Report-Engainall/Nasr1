@@ -1,3 +1,14 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 CASHFLOW EXACT-CENT ARITHMETIC
+
+- P3 code commit `e4d97cf68f95531b0a33c2e3a4800355d6c6c5e6` replaced floating-point cash movement accumulation with the repository's shared exact-decimal minor-unit helper. Commit `ea0545d6e4d9a6b75cb3e250190dc42ba818c989` advanced the formula identity to `cashflow.scheduled-net@1.1.0`.
+- `src/lib/intelligence/cashflow-forecast.ts` now validates money at two decimal places, adds inflows/outflows using BigInt cents, accepts verified negative opening balances, withholds invalid precision and aggregate overflow, and derives the forecast day from the UTC instant represented by offset-aware `asOf`.
+- Regression source in `src/lib/intelligence/cashflow-forecast.test.ts` covers cent-exact addition, sub-cent rejection, overflow, UTC day conversion and negative opening balance.
+- Matrix row: `REF-CASHFLOW-FORECAST-001` updated with the exact code SHA and remaining P2 source dependencies.
+- No SQL, RPC, tenant/auth scope, route, P1 page, provider, currency conversion, payment, inventory or ledger write was changed.
+- Tests are authored but NOT RUN. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation or runtime PASS is claimed. P2 must still supply verified opening balances and complete due-dated supplier/expense outflows before net liquidity is available.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-060 — PWA UPDATE LIFECYCLE
 
 - Added user-controlled PWA update notification. A new Service Worker waits instead of automatically calling skipWaiting; the UI detects it and offers Update/Later.

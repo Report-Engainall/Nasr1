@@ -1,5 +1,13 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
 
+## P3 CODE UPDATE — CASHFLOW EXACT-CENT ARITHMETIC — 2026-11-06
+
+- Current P3 code SHA on `main`: `ea0545d6e4d9a6b75cb3e250190dc42ba818c989`.
+- Formula `cashflow.scheduled-net` is now version `1.1.0`; amounts use exact integer cents, not floating-point accumulation.
+- Sub-cent and over-precision financial values are withheld; overflow is `NEEDS_REVIEW`; offset-aware `asOf` uses its UTC calendar day; verified negative opening balances are retained.
+- Regression source was added but NOT RUN. No build/CI/Bolt/database/production operation or runtime acceptance is claimed.
+- P2 input dependency remains open: verified opening balances plus complete due-dated supplier/expense outflows. Do not label collections-only data as total cashflow or project net liquidity.
+
 - Exact P1 code/test head on `main`: `4d9a30323332c1e02948ee71f9e7961bb57c1079`.
 - `P1 Targeted TypeScript Assurance` SUCCESS on exact SHA `4d9a30323332c1e02948ee71f9e7961bb57c1079` (run `42176545834`); `One-main-branch cleanup` SUCCESS on the same SHA.
 - Focused test evidence on previous exact SHA `e258a98d435fc393b33e0806d30ae9c97c11b337`: `customer-order-amendment-history-migration.test.ts` passed 8/8; `ReplenishmentCard.test.tsx` passed 1/1. The customer history React test exposed text-selector mistakes in the new test (not component rendering); all identified prefixed-text/actor selectors were corrected in commits `e6669022d615bfbf6de332c907575e7ad95b184f` and `4d9a30323332c1e02948ee71f9e7961bb57c1079`. Latest full commerce run on `4d9a30323332c1e02948ee71f9e7961bb57c1079` was IN_PROGRESS at checkpoint; do not claim the corrected React test or full suite passed until a completed run confirms it.

@@ -2,8 +2,8 @@
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main` only  
-**Current documentation/source head at this override:** `1c244d2bfe4ff4e8585210e8363ff77c24e99490`  
-**Latest P3 code-bearing commit:** `cef56b2e730d0e15da458e6933fba22da0a142d8`  
+**Current code-bearing main SHA at this override:** `ea0545d6e4d9a6b75cb3e250190dc42ba818c989`  
+**Latest P3 code-bearing commit:** `ea0545d6e4d9a6b75cb3e250190dc42ba818c989`  
 **Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
 **Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
 
@@ -20,17 +20,12 @@
 The Section 61 task-quality system, persisted decision lifecycle, constrained cashflow measurement, Arabic decision assistant, Growth Radar reader, task performance/manager shortlist, policy catalog reader, notification delivery policy audit, evidence source comparison, process equal-window comparison and current Business Health assistant composition already exist in the live source tree. Read their current checkpoints/matrix rows before changing them; do not recreate them.
 
 Latest P3 delivery in this session:
-- `3cde36503c7e7b8de406755de81c4cee25c7203d` — Arabic Business Health assistant integration.
-- `a66abc8475f0b0faf722218a9128051081855210` — explicit cashflow snapshot contract correction.
-- Documentation checkpoint: `e8b9241be11bf84f8d385ecda7c74fae5180bdcb`.
+- `e4d97cf68f95531b0a33c2e3a4800355d6c6c5e6` — cashflow scheduled movements switched to exact integer-cent parsing and aggregation.
+- `ea0545d6e4d9a6b75cb3e250190dc42ba818c989` — cashflow formula version advanced to `1.1.0`, with regression-source update.
+- Source: `src/lib/intelligence/cashflow-forecast.ts`; regression source: `src/lib/intelligence/cashflow-forecast.test.ts`.
+- Shared precision dependency: existing `src/lib/intelligence/financial-precision.ts` (unchanged).
 
-Files of that delivery:
-- `src/lib/intelligence/business-health-assistant-client.ts` (new)
-- `src/lib/intelligence/natural-language-assistant.ts`
-- `src/lib/intelligence/natural-language-assistant-client.ts`
-- `src/components/intelligence/NaturalLanguageAssistant.tsx`
-
-The new Arabic Business Health intent reuses authenticated inventory, cashflow and customer-retention clients and existing deterministic health engines. It deliberately withholds unsupported opening cash, due obligations, net liquidity, projected bank balances, DSO/DPO/CCC and revenue concentration. It does not call an external AI provider or perform a business write.
+The forecast now rejects sub-cent/over-precision monetary values, uses BigInt minor units for sums, withholds overflow, respects offset-aware UTC `asOf` dates and permits a verified negative opening balance. It remains a scheduled-movements calculation only: P2's verified opening cash and complete supplier/expense outflow source contracts remain open, so no unsupported closing/net projection is generated. Tests were authored but NOT RUN.
 
 ## Immediate P3 execution order
 
