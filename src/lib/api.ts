@@ -209,6 +209,7 @@ export async function createProduct(p: Partial<Product>): Promise<Product> {
     throw new Error('أدخل السعر الأساسي وأسعار شرائح العملاء الثلاث قبل إنشاء المنتج.');
   }
 
+  const requestedStatus = (p as Partial<Product> & { status?: string }).status;
   const saved = await saveAdminCatalogProduct(null, {
     name: p.name ?? '',
     item_code: p.item_code ?? '',
@@ -220,7 +221,7 @@ export async function createProduct(p: Partial<Product>): Promise<Product> {
     price_wholesale_of_wholesale: p.price_wholesale_of_wholesale as number,
     price_wholesale: p.price_wholesale as number,
     price_retail: p.price_retail as number,
-    status: p.is_active === false ? 'inactive' : 'active',
+    status: requestedStatus === 'inactive' || p.is_active === false ? 'inactive' : 'active',
     name_en: p.name_en ?? null,
     sku: p.sku ?? null,
     is_featured: p.is_featured ?? false,
@@ -231,7 +232,11 @@ export async function createProduct(p: Partial<Product>): Promise<Product> {
   if (!saved.created) {
     throw new Error('لم يؤكد الخادم إنشاء المنتج؛ حدّث الكتالوج قبل إعادة المحاولة.');
   }
-  return fetchStaffProductById(saved.id);
+  try {
+    return await fetchStaffProductById(saved.id);
+  } catch {
+    throw new Error('تم حفظ المنتج بالمعرّف ' + saved.id + '، لكن تعذر تحميل بياناته. حدّث قائمة المنتجات قبل إعادة الإنشاء لتجنب التكرار.');
+  }
 }
 
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
