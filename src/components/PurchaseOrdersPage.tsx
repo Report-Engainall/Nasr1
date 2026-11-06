@@ -326,7 +326,7 @@ function PurchaseOrderPrintViews({ printMode, orderDocument, resultsDocument }: 
   );
 }
 
-export function PurchaseOrdersPage() {
+export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchaseOrderId?: string } = {}) {
   const { user } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [orders,setOrders] = useState<PurchaseOrder[]>([]);
@@ -385,6 +385,11 @@ export function PurchaseOrdersPage() {
   },[canManage]);
 
   useEffect(() => { void load(); },[load]);
+  useEffect(() => {
+    if (!initialPurchaseOrderId || loading || !orders.some((order) => order.id === initialPurchaseOrderId)) return;
+    setStatusFilter("all");
+    setSelectedId(initialPurchaseOrderId);
+  }, [initialPurchaseOrderId, loading, orders]);
   useEffect(() => {
     setReceiveDrafts({});
     setReceiveBatchDrafts({});
