@@ -1,7 +1,12 @@
 import { supabase } from "@/lib/supabase";
-import type {
-  TaskQualityActionability,TaskQualityAlertVerdict,TaskQualityDisposition,
-  TaskQualityReasonCode,TaskQualityReviewType,
+import {
+  parseTaskQualityMetrics,
+  type TaskQualityMetrics,
+  type TaskQualityActionability,
+  type TaskQualityAlertVerdict,
+  type TaskQualityDisposition,
+  type TaskQualityReasonCode,
+  type TaskQualityReviewType,
 } from "./task-quality-reviews";
 
 export interface RecordTaskQualityReviewInput {
@@ -102,4 +107,31 @@ export async function recordOperationalTaskQualityReview(input:RecordTaskQuality
    alertVerdict:input.alertVerdict??null,reasonCode:input.reasonCode??null,createdAt:event.createdAt as string,
   }};
  }catch{return{ok:false,status:"UNAVAILABLE",message:"تعذر الاتصال بخدمة مراجعات الجودة؛ لم تُحفظ مراجعة محلية."};}
+}
+
+
+/**
+ * Reads manager-reviewed quality evidence from its dedicated tenant-scoped RPC.
+ * Permission and migration failures stay explicit; no fallback counts are invented.
+ */
+export async function fetchOperationalTaskQualityMetrics(): Promise<TaskQualityMetrics> {
+  try {
+    const { data, error } = await supabase.rpc("fetch_operational_task_quality_metrics");
+    if (error) {
+      const row = asRow(error);
+      const code = typeof row?.code === "string" ? row.code : "";
+      const message = typeof row?.message === "string" ? row.message : "";
+      if (code === "42501" || code === "28000" || code === "PGRST301") {
+        return { status: "RESTRICTED", reasonCode: "QUALITY_REVIEW_MANAGER_ONLY" };
+      }
+      if (code === "PGRST202" || code === "42883" ||
+          /function .* does not exist|could not find the function/i.test(message)) {
+        return { status: "UNAVAILABLE", reasonCode: "QUALITY_REVIEW_MIGRATION_PENDING" };
+      }
+      return { status: "UNAVAILABLE", reasonCode: "QUALITY_REVIEW_SOURCE_INVALID" };
+    }
+    return parseTaskQualityMetrics(data);
+  } catch {
+    return { status: "UNAVAILABLE", reasonCode: "QUALITY_REVIEW_SOURCE_INVALID" };
+  }
 }
