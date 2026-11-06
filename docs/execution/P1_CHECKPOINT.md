@@ -1,4 +1,26 @@
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-029
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-030
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Latest P1 product-code SHA: `61c40c123b2116ac1b6d149ccb94bcc194417dff`.
+- P1 owns customer-facing product output; P3 ownership and source intelligence contracts were not touched.
+
+## BODY-030 — customer account statement XLSX
+
+- Added a five-sheet Arabic XLSX download to the existing customer `/statement` workspace beside the existing PDF and browser-print outputs.
+- Reuses the exact `get_customer_account_statement()` response already loaded by the screen; no second query, database migration, or alternate balance calculation was added.
+- The workbook separates full-ledger per-currency balances from bounded detail sheets for invoices (up to 200), payments (up to 500) and posted credit memos (up to 500). It carries the server snapshot time, discloses each detail bound, preserves currency separation and leaves unknown amounts blank.
+- The export fails closed unless the full-ledger summary, as-of timestamp and credit-detail array are present and valid. It validates invoice/payment/credit identities and cent precision, checks the existing per-invoice balance contract, does not recompute full balances from bounded details, and omits internal IDs, tenant/profile data, cost and margin fields. OOXML business text is written as inline strings.
+- Files: `src/lib/customer-account-statement-xlsx.ts`; integrated in `src/components/CustomerWorkflows.tsx`.
+- Source commits: XLSX builder `61c40c123b2116ac1b6d149ccb94bcc194417dff`; customer statement UI `6e8a0ccec58587d47e5e278a42b6fe2d4f2a4fb3`.
+- Acceptance leaf: `DLV-011-CUSTOMER-ACCOUNT-STATEMENT-XLSX-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No migration, dependency, paid provider or Vercel operation was added. No tests/build/lint/CI/browser/E2E/database/Bolt/Preview operation was run in this source batch; no runtime PASS is claimed.
+
+## Next P1 action
+Continue the next uncovered non-intelligence product workflow/output pair. Preserve all current customer statement PDF and print behavior.
+
+---
+
+# Historical P1 checkpoint — BODY-COMPLETION-ON-MAIN-029
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Latest P1 product-code SHA: `82424db8079c512f84e87b69715453fe24b6330b`.
