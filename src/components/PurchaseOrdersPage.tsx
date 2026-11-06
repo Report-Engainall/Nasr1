@@ -152,24 +152,31 @@ function PurchaseOrderLineTable({ order }: { order: PurchaseOrder }) {
   );
 }
 
-function PurchaseOrderReceiveForm({ order, busy, receiveDrafts, receiptNotes, onQuantityChange, onNotesChange }: {
-  order: PurchaseOrder; busy: boolean; receiveDrafts: Record<string, string>; receiptNotes: string;
-  onQuantityChange: (itemId: string, value: string) => void; onNotesChange: (value: string) => void;
+function PurchaseOrderReceiveForm({ order, busy, receiveDrafts, batchDrafts, expiryDrafts, receiptNotes, onQuantityChange, onBatchChange, onExpiryChange, onNotesChange }: {
+  order: PurchaseOrder; busy: boolean;
+  receiveDrafts: Record<string, string>; batchDrafts: Record<string, string>; expiryDrafts: Record<string, string>;
+  receiptNotes: string;
+  onQuantityChange: (itemId: string, value: string) => void;
+  onBatchChange: (itemId: string, value: string) => void;
+  onExpiryChange: (itemId: string, value: string) => void;
+  onNotesChange: (value: string) => void;
 }) {
   const remainingItems = order.items.filter((item) => item.remaining_quantity > 0);
   if (!["submitted", "partially_received"].includes(order.status)) return null;
   return (
     <div className="no-print" style={{ marginTop: 16 }}>
       <h3>استلام فعلي (يمكن الاستلام على دفعات)</h3>
-      <p className="po-muted">أدخل الكمية المستلمة الآن لكل بند؛ الحقل الفارغ لا يُستلم. الخادم يعيد التحقق من الكميات المتبقية ويقفل رصيد المخزون داخل معاملة واحدة.</p>
+      <p className="po-muted">أدخل كمية كل بند مستلم. سجّل رقم دفعة المورد وتاريخ الانتهاء من ملصق المورد عند توفرهما؛ تاريخ الانتهاء يتطلب رقم دفعة، ويرفض الخادم ترحيل مخزون منتهي.</p>
       <div className="po-table-wrap">
         <table>
-          <thead><tr><th>الصنف</th><th>المتبقي</th><th>كمية هذه الدفعة</th></tr></thead>
+          <thead><tr><th>الصنف</th><th>المتبقي</th><th>كمية هذه الدفعة</th><th>رقم الدفعة (اختياري)</th><th>تاريخ الانتهاء (اختياري)</th></tr></thead>
           <tbody>{remainingItems.map((item) => (
             <tr key={item.id}>
               <td>{item.product_name} <small>{item.item_code}</small></td>
               <td>{numberText(item.remaining_quantity)}</td>
               <td><input aria-label={"كمية الاستلام " + item.product_name} type="number" min="0.001" max={item.remaining_quantity} step="0.001" value={receiveDrafts[item.id] ?? ""} onChange={(event) => onQuantityChange(item.id, event.target.value)} disabled={busy} /></td>
+              <td><input aria-label={"رقم دفعة " + item.product_name} type="text" maxLength={100} value={batchDrafts[item.id] ?? ""} onChange={(event) => onBatchChange(item.id, event.target.value)} placeholder="رقم المورد" disabled={busy} /></td>
+              <td><input aria-label={"تاريخ انتهاء " + item.product_name} type="date" value={expiryDrafts[item.id] ?? ""} onChange={(event) => onExpiryChange(item.id, event.target.value)} disabled={busy} /></td>
             </tr>
           ))}</tbody>
         </table>
@@ -188,10 +195,15 @@ function PurchaseOrderStatusMessage({ order }: { order: PurchaseOrder }) {
   return null;
 }
 
-function PurchaseOrderDetailPanel({ order, busy, cancelReason, receiveDrafts, receiptNotes, onCancelReasonChange, onSubmit, onCancel, onReceiveQuantityChange, onReceiptNotesChange, onPostReceipt, onPrint }: {
-  order: PurchaseOrder; busy: boolean; cancelReason: string; receiveDrafts: Record<string, string>; receiptNotes: string;
+function PurchaseOrderDetailPanel({ order, busy, cancelReason, receiveDrafts, batchDrafts, expiryDrafts, receiptNotes, onCancelReasonChange, onSubmit, onCancel, onReceiveQuantityChange, onBatchChange, onExpiryChange, onReceiptNotesChange, onPostReceipt, onPrint }: {
+  order: PurchaseOrder; busy: boolean; cancelReason: string;
+  receiveDrafts: Record<string, string>; batchDrafts: Record<string, string>; expiryDrafts: Record<string, string>;
+  receiptNotes: string;
   onCancelReasonChange: (value: string) => void; onSubmit: () => void; onCancel: () => void;
-  onReceiveQuantityChange: (itemId: string, value: string) => void; onReceiptNotesChange: (value: string) => void; onPostReceipt: () => void; onPrint: () => void;
+  onReceiveQuantityChange: (itemId: string, value: string) => void;
+  onBatchChange: (itemId: string, value: string) => void;
+  onExpiryChange: (itemId: string, value: string) => void;
+  onReceiptNotesChange: (value: string) => void; onPostReceipt: () => void; onPrint: () => void;
 }) {
   return (
     <section className="panel" style={{ padding: 14 }}>
@@ -212,7 +224,7 @@ function PurchaseOrderDetailPanel({ order, busy, cancelReason, receiveDrafts, re
         {["draft", "submitted"].includes(order.status) && <button className="btn outline" type="button" onClick={onCancel} disabled={busy}><Trash2 size={15} /> إلغاء أمر الشراء</button>}
         <button className="btn outline" type="button" onClick={onPrint} disabled={busy}><Printer size={15} /> طباعة الأمر</button>
       </div>
-      <PurchaseOrderReceiveForm order={order} busy={busy} receiveDrafts={receiveDrafts} receiptNotes={receiptNotes} onQuantityChange={onReceiveQuantityChange} onNotesChange={onReceiptNotesChange} />
+      <PurchaseOrderReceiveForm order={order} busy={busy} receiveDrafts={receiveDrafts} batchDrafts={batchDrafts} expiryDrafts={expiryDrafts} receiptNotes={receiptNotes} onQuantityChange={onReceiveQuantityChange} onBatchChange={onBatchChange} onExpiryChange={onExpiryChange} onNotesChange={onReceiptNotesChange} />
       <PurchaseOrderStatusMessage order={order} />
       <div className="no-print">
         <PurchaseReceiptAccountingWorkspace purchaseOrderId={order.id} />
@@ -236,10 +248,13 @@ function PurchaseOrderRecordCard({ order, selected, onSelect }: { order: Purchas
 
 function PurchaseOrderRecordsPanel({ loading, orders, selectedId, selectedOrder, statusFilter, busy, cancelReason, receiveDrafts, receiptNotes, onStatusFilterChange, onSelect, onCancelReasonChange, onSubmit, onCancel, onReceiveQuantityChange, onReceiptNotesChange, onPostReceipt, onPrint }: {
   loading: boolean; orders: PurchaseOrder[]; selectedId: string | null; selectedOrder: PurchaseOrder | null; statusFilter: PurchaseOrderFilter; busy: boolean;
-  cancelReason: string; receiveDrafts: Record<string, string>; receiptNotes: string;
+  cancelReason: string; receiveDrafts: Record<string, string>;
+  batchDrafts: Record<string, string>; expiryDrafts: Record<string, string>; receiptNotes: string;
   onStatusFilterChange: (value: PurchaseOrderFilter) => void; onSelect: (order: PurchaseOrder) => void;
   onCancelReasonChange: (value: string) => void; onSubmit: () => void; onCancel: () => void;
-  onReceiveQuantityChange: (itemId: string, value: string) => void; onReceiptNotesChange: (value: string) => void; onPostReceipt: () => void; onPrint: () => void;
+  onReceiveQuantityChange: (itemId: string, value: string) => void;
+  onBatchChange: (itemId: string, value: string) => void; onExpiryChange: (itemId: string, value: string) => void;
+  onReceiptNotesChange: (value: string) => void; onPostReceipt: () => void; onPrint: () => void;
 }) {
   const filterOptions: Array<{ value: PurchaseOrderFilter; label: string }> = [
     { value: "all", label: "كل الحالات" }, { value: "draft", label: "مسودة" },
@@ -263,7 +278,7 @@ function PurchaseOrderRecordsPanel({ loading, orders, selectedId, selectedOrder,
           </div>
           <div className="po-selected-order">
             {selectedOrder
-              ? <PurchaseOrderDetailPanel order={selectedOrder} busy={busy} cancelReason={cancelReason} receiveDrafts={receiveDrafts} receiptNotes={receiptNotes} onCancelReasonChange={onCancelReasonChange} onSubmit={onSubmit} onCancel={onCancel} onReceiveQuantityChange={onReceiveQuantityChange} onReceiptNotesChange={onReceiptNotesChange} onPostReceipt={onPostReceipt} onPrint={onPrint} />
+              ? <PurchaseOrderDetailPanel order={selectedOrder} busy={busy} cancelReason={cancelReason} receiveDrafts={receiveDrafts} batchDrafts={batchDrafts} expiryDrafts={expiryDrafts} receiptNotes={receiptNotes} onCancelReasonChange={onCancelReasonChange} onSubmit={onSubmit} onCancel={onCancel} onReceiveQuantityChange={onReceiveQuantityChange} onBatchChange={onBatchChange} onExpiryChange={onExpiryChange} onReceiptNotesChange={onReceiptNotesChange} onPostReceipt={onPostReceipt} onPrint={onPrint} />
               : <div className="po-card"><ClipboardList size={28} /><strong>اختر أمر شراء لعرض بنوده وإجراءاته.</strong><span className="po-muted">الإرسال والاستلام يؤثران في المهام وحركات المخزون الحقيقية عبر RPC خادمية.</span></div>}
           </div>
         </div>
@@ -332,6 +347,8 @@ export function PurchaseOrdersPage() {
   const [cancelReason,setCancelReason] = useState('');
   const [receiptNotes,setReceiptNotes] = useState('');
   const [receiveDrafts,setReceiveDrafts] = useState<Record<string,string>>({});
+  const [receiveBatchDrafts,setReceiveBatchDrafts] = useState<Record<string,string>>({});
+  const [receiveExpiryDrafts,setReceiveExpiryDrafts] = useState<Record<string,string>>({});
   const [printMode,setPrintMode] = useState<'results'|'order'|null>(null);
 
   useEffect(() => {
@@ -368,6 +385,12 @@ export function PurchaseOrdersPage() {
   },[canManage]);
 
   useEffect(() => { void load(); },[load]);
+  useEffect(() => {
+    setReceiveDrafts({});
+    setReceiveBatchDrafts({});
+    setReceiveExpiryDrafts({});
+    setReceiptNotes('');
+  }, [selectedId]);
 
   const visibleOrders = useMemo(
     () => orders.filter((order) => statusFilter === 'all' || order.status === statusFilter),
@@ -475,7 +498,11 @@ export function PurchaseOrdersPage() {
         setError('كمية استلام '+item.product_name+' يجب أن تكون موجبة ولا تتجاوز المتبقي ('+numberText(item.remaining_quantity)+').');
         return;
       }
-      lines.push({item_id:item.id,quantity});
+      const batchNumber=(receiveBatchDrafts[item.id]??'').trim();
+      const expiryDate=(receiveExpiryDrafts[item.id]??'').trim();
+      if(batchNumber.length>100){setError('رقم دفعة '+item.product_name+' يتجاوز 100 حرف.');return;}
+      if(expiryDate&&!batchNumber){setError('رقم الدفعة مطلوب عند تسجيل تاريخ الانتهاء للصنف '+item.product_name+'.');return;}
+      lines.push({item_id:item.id,quantity,batch_number:batchNumber||null,expiry_date:expiryDate||null});
     }
     if (!lines.length) { setError('أدخل كمية الاستلام لبند واحد على الأقل.'); return; }
     if (!window.confirm('سيُرحّل الاستلام إلى المخزون الفعلي ويُسجل في دفتر الحركات. راجع الكميات قبل المتابعة.')) return;
@@ -485,7 +512,7 @@ export function PurchaseOrdersPage() {
         purchaseOrderId:selectedOrder.id,lines,notes:receiptNotes,
         idempotencyKey:'pr-'+crypto.randomUUID().replace(/-/g,''),
       });
-      setReceiveDrafts({});setReceiptNotes('');
+      setReceiveDrafts({});setReceiveBatchDrafts({});setReceiveExpiryDrafts({});setReceiptNotes('');
       await load();
       setNotice('حُفظ إيصال '+result.receipt.receipt_number+'؛ حالة أمر الشراء: '+(statusLabel[result.purchase_order.status]??result.purchase_order.status)+
         (result.idempotent_replay?' (استعادة لنفس الإيصال دون تكرار المخزون).':'')+
@@ -619,13 +646,17 @@ export function PurchaseOrdersPage() {
       busy={busy}
       cancelReason={cancelReason}
       receiveDrafts={receiveDrafts}
+      batchDrafts={receiveBatchDrafts}
+      expiryDrafts={receiveExpiryDrafts}
       receiptNotes={receiptNotes}
       onStatusFilterChange={setStatusFilter}
-      onSelect={(order) => { setSelectedId(order.id); setCancelReason(""); setReceiveDrafts({}); setError(""); }}
+      onSelect={(order) => { setSelectedId(order.id); setCancelReason(""); setReceiveDrafts({}); setReceiveBatchDrafts({}); setReceiveExpiryDrafts({}); setReceiptNotes(""); setError(""); }}
       onCancelReasonChange={setCancelReason}
       onSubmit={() => void submitSelected()}
       onCancel={() => void cancelSelected()}
       onReceiveQuantityChange={(itemId, value) => setReceiveDrafts((old) => ({ ...old, [itemId]: value }))}
+      onBatchChange={(itemId, value) => setReceiveBatchDrafts((old) => ({ ...old, [itemId]: value }))}
+      onExpiryChange={(itemId, value) => setReceiveExpiryDrafts((old) => ({ ...old, [itemId]: value }))}
       onReceiptNotesChange={setReceiptNotes}
       onPostReceipt={() => void postReceipt()}
       onPrint={() => startPrint("order")}
