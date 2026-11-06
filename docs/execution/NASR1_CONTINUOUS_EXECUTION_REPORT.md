@@ -1,3 +1,15 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-053 — ACCOUNT PASSWORD CHANGE
+
+- Completed action: `BODY-COMPLETION-ON-MAIN-053`.
+- Added authenticated `/account/password` route using Supabase Auth `updateUser` on the active identity.
+- Enforces minimum length, no whitespace, exact confirmation, one in-flight update and returned-user identity check. Password values are not written to app database/profile metadata or browser storage.
+- Help Center links to the new screen and documents the existing recovery path for Auth reauthentication failures.
+- Commits: `d3aa3a2bbdd2b103d19617b264005804cca43daa`, `8ea2063bfa80abd8cd51afefc76b301d71d9c476`, `c03e62be3d19bb00bde904b3d9f7b71e223f9483`, `bfb1b567df4e463f0319f7205401a277510a7524`.
+- Acceptance row: `DLV-006-ACCOUNT-PASSWORD-CHANGE-001`; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation was run. No PASS or runtime acceptance is claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-052 — CUSTOMER PAYMENTS HISTORY
 
 - Completed action: `BODY-COMPLETION-ON-MAIN-052`.
