@@ -79,7 +79,7 @@ P1 has now mounted `TaskQualityReviewForm` in `TaskCenter.tsx` using the actual 
 8. `40104d187359b1e75ca50402a2995ca4b8723d32` — Arabic quality intent planner.
 9. `8da3a4d61f64102d19518600eae0d0119bdc887a` — natural-language result contract.
 10. `9d67bc2a80d48c4bce04134db22445e5788369e7` — quality RPC resolver.
-11. `80f5ad7a7709b0bbeaeaef1a35fd7ea2ca92f466` — assistant result UI.
+11. `e75c85f07fa3633b225a4dfa85e5a6ce2cfaab40` — assistant result UI.
 12. `80f5ad7a7709b0bbeaeaef1a35fd7ea2ca92f466` — explicit approved recommendation count.
 
 Documentation commits:
@@ -88,7 +88,7 @@ Documentation commits:
 
 ## Remaining / boundary
 
-- P1 still needs to mount `TaskQualityReviewForm` in its existing `TaskCenter.tsx` card using the actual `task.id` and `task.updated_at`, existing manager/admin presentation gate, current refresh callback and `key={task.id}`. P3 did not edit P1-owned files.
+- P1 has mounted `TaskQualityReviewForm` in the existing `TaskCenter.tsx` card (P1 commit `4eb080d6ee44a74a36086a6cb9014e8d0fb4004b`) using actual `task.id`/`task.updated_at`, the existing `canManage` gate, `key={task.id}` and `onSaved={loadTasks}`. This mount is complete on current main; Bolt migration/runtime acceptance remains pending.
 - P1's existing `NaturalLanguageAssistant` mount is present in `IntelligenceWorkspace.tsx` with the authorized existing supplier-invoice and purchase-order callbacks; P3 did not edit that workspace.
 - The quality migration `20261106090000_operational_task_quality_reviews.sql` and prerequisite task scorecard/audit migrations remain source-only pending the approved Bolt non-production workflow.
 - Section 52 is not fully closed: the current persisted expected-baseline selector is limited to `cashflow.expected_collections`. Comparable operational baselines/actuals for order lateness, receiving, supplier settlement and inventory variance remain unimplemented until their exact source tables, metric formulas, tenant scopes and evidence IDs are grounded. Do not estimate those values.
