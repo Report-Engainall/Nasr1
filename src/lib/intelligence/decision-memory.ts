@@ -97,6 +97,139 @@ export interface DecisionMemoryBookResult {
   records: DecisionMemoryRecord[]; warnings: string[];
 }
 
+export interface DecisionMemoryPrecedentMatch {
+  record: DecisionMemoryRecord;
+  matchedTerms: string[];
+  matchReasons: string[];
+  comparisonStatus: "COMPARABLE" | "NOT_COMPARABLE" | "OUTCOME_UNVERIFIED";
+  contextDifferences: string[];
+}
+
+const decisionSearchStopwords = new Set([
+  "هذا","هذه","ذلك","تلك","على","الى","إلى","عن","من","في","مع","بعد","قبل",
+  "عند","بين","ضمن","كان","كانت","تم","قد","هو","هي","ما","ماذا","كيف","هل",
+]);
+
+function normalizeDecisionSearchText(value: string): string {
+  return value.normalize("NFKC")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .toLowerCase();
+}
+
+function decisionSearchTokens(value: string): string[] {
+  const normalized = normalizeDecisionSearchText(value);
+  const tokens = normalized.match(/[\p{L}\p{N}]{2,}/gu) ?? [];
+  return [...new Set(tokens.filter(token => !decisionSearchStopwords.has(token)))].slice(0, 240);
+}
+
+function decisionRecordSearchText(record: DecisionMemoryRecord): string {
+  return [
+    record.ruleId, record.candidateRef, record.proposedResult, record.decisionReason ?? "",
+    record.problem ?? "", ...record.facts.map(item => item.text),
+    ...record.opinions.map(item => item.text), ...record.hypotheses.map(item => item.text),
+    ...record.assumptions, ...record.alternatives.flatMap(item => [item.label, item.rationale ?? ""]),
+    record.chosenAlternative?.label ?? "", record.actionTaken ?? "", ...record.lessons,
+  ].join(" ");
+}
+
+function metricContextDifferences(
+  left: DecisionMemoryMetricResult,
+  right: DecisionMemoryMetricResult,
+  label: string,
+): string[] {
+  const differences: string[] = [];
+  if (left.metricKey !== right.metricKey) differences.push(label + ": المؤشر مختلف");
+  if (left.unit !== right.unit) differences.push(label + ": وحدة القياس مختلفة");
+  if ((left.currency ?? "").toUpperCase() !== (right.currency ?? "").toUpperCase())
+    differences.push(label + ": العملة مختلفة أو غير محددة");
+  if ((left.unitOfMeasure ?? "") !== (right.unitOfMeasure ?? ""))
+    differences.push(label + ": وحدة الصنف مختلفة أو غير محددة");
+  if (left.period.from !== right.period.from || left.period.to !== right.period.to)
+    differences.push(label + ": الفترة مختلفة");
+  if (left.formulaId !== right.formulaId || left.formulaVersion !== right.formulaVersion)
+    differences.push(label + ": المعادلة أو إصدارها مختلف");
+  return differences;
+}
+
+/**
+ * Finds earlier decisions by deterministic same-rule and shared-context matching.
+ * Results are limited to the records actually supplied by the authorized source.
+ * This is a retrieval aid, not an ML similarity score or a causal recommendation.
+ */
+export function searchSimilarDecisionMemory(input: {
+  records: DecisionMemoryRecord[];
+  decisionId: string;
+  query?: string;
+  limit?: number;
+}): DecisionMemoryPrecedentMatch[] {
+  const { records, decisionId } = input;
+  const limit = input.limit ?? 5;
+  const query = input.query ?? "";
+  if (!Array.isArray(records) || !decisionId.trim() ||
+      !Number.isInteger(limit) || limit < 1 || limit > 20 ||
+      typeof query !== "string" || query.length > 500) {
+    throw new Error("decision_memory_search_input_invalid");
+  }
+  const target = records.find(record => record.decisionId === decisionId);
+  if (!target || !Number.isFinite(Date.parse(target.createdAt))) return [];
+
+  const queryTokens = decisionSearchTokens(query);
+  const targetTokens = decisionSearchTokens(decisionRecordSearchText(target) + " " + query);
+  if (!targetTokens.length) return [];
+
+  const targetRule = target.ruleId.trim().toLowerCase();
+  return records
+    .filter(candidate =>
+      candidate.decisionId !== target.decisionId &&
+      Number.isFinite(Date.parse(candidate.createdAt)) &&
+      Date.parse(candidate.createdAt) < Date.parse(target.createdAt))
+    .map(candidate => {
+      const candidateTokens = new Set(decisionSearchTokens(decisionRecordSearchText(candidate)));
+      const matchedTerms = targetTokens.filter(token => candidateTokens.has(token));
+      const sameRule = Boolean(targetRule) && candidate.ruleId.trim().toLowerCase() === targetRule;
+      const matchReasons = [
+        ...(sameRule ? ["نفس قاعدة القرار"] : []),
+        ...(matchedTerms.length ? ["مصطلحات وسياق مشترك"] : []),
+        ...(queryTokens.some(token => matchedTerms.includes(token)) ? ["تطابق مع عبارة البحث الإضافية"] : []),
+      ];
+      const actualLeft = target.metricComparison.actual;
+      const actualRight = candidate.metricComparison.actual;
+      const actualDifferences = actualLeft && actualRight
+        ? metricContextDifferences(actualLeft, actualRight, "النتيجة الفعلية")
+        : ["النتيجة الفعلية الموثقة غير متاحة في أحد القرارين"];
+      const expectedLeft = target.metricComparison.expected;
+      const expectedRight = candidate.metricComparison.expected;
+      const expectedDifferences = expectedLeft && expectedRight
+        ? metricContextDifferences(expectedLeft, expectedRight, "خط الأساس المتوقع")
+        : ["خط الأساس المتوقع غير متاح في أحد القرارين"];
+      const comparisonStatus: DecisionMemoryPrecedentMatch["comparisonStatus"] =
+        !actualLeft || !actualRight
+          ? "OUTCOME_UNVERIFIED"
+          : actualDifferences.length
+            ? "NOT_COMPARABLE"
+            : "COMPARABLE";
+      return {
+        record: candidate,
+        matchedTerms,
+        matchReasons,
+        comparisonStatus,
+        contextDifferences: [...actualDifferences, ...expectedDifferences],
+        ranking: (sameRule ? 100 : 0) + matchedTerms.length * 4 +
+          (candidate.state === "MEASURED" && actualRight ? 2 : 0),
+      };
+    })
+    .filter(match => match.matchReasons.length > 0)
+    .sort((left, right) =>
+      right.ranking - left.ranking ||
+      right.record.createdAt.localeCompare(left.record.createdAt) ||
+      left.record.decisionId.localeCompare(right.record.decisionId))
+    .slice(0, limit)
+    .map(({ ranking: _ranking, ...match }) => match);
+}
+
 function validTime(value: string): boolean {
   return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
 }
