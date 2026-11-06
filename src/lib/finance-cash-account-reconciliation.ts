@@ -270,6 +270,12 @@ function bankStatement(value: unknown): FinanceBankStatement {
   const latestRun = row.latest_run == null ? null : run(row.latest_run);
   if (typeof row.is_voided !== "boolean") throw new Error("حالة إلغاء كشف البنك غير صالحة.");
   const isVoided = row.is_voided;
+  const voidReason = optionalText(row.void_reason, 500);
+  const voidedBy = row.voided_by == null ? null : uuid(row.voided_by, "منفذ إلغاء الكشف");
+  const voidedAt = row.voided_at == null ? null : timestamp(row.voided_at, "وقت إلغاء الكشف");
+  if (isVoided ? !voidReason || !voidedBy || !voidedAt : Boolean(voidReason || voidedBy || voidedAt)) {
+    throw new Error("بيانات إلغاء كشف البنك غير مكتملة أو متعارضة.");
+  }
   const lineCount = integer(row.line_count, "عدد حركات الكشف", 0, 10000);
   const matchedCount = integer(row.matched_count, "عدد الحركات المطابقة", 0, 10000);
   const lineNumbers = new Set(lines.map((item) => item.lineNumber));
@@ -303,9 +309,9 @@ function bankStatement(value: unknown): FinanceBankStatement {
     matchedCount,
     latestRun,
     isVoided,
-    voidReason: optionalText(row.void_reason, 500),
-    voidedBy: row.voided_by == null ? null : uuid(row.voided_by, "منفذ إلغاء الكشف"),
-    voidedAt: row.voided_at == null ? null : timestamp(row.voided_at, "وقت إلغاء الكشف"),
+    voidReason,
+    voidedBy,
+    voidedAt,
   };
 }
 
@@ -445,11 +451,12 @@ export async function voidBankStatement(input: { statementId: string; reason: st
   });
   if (error) throw error;
   const row = object(data, "تأكيد إلغاء كشف البنك");
-  return {
-    statementId: uuid(row.statement_id, "كشف البنك"),
-    voidId: uuid(row.void_id, "سجل إلغاء الكشف"),
-    replayed: row.replayed === true,
-  };
+  const statementId = uuid(row.statement_id, "كشف البنك");
+  const voidId = uuid(row.void_id, "سجل إلغاء الكشف");
+  if (statementId !== input.statementId || row.voided !== true || typeof row.replayed !== "boolean") {
+    throw new Error("لم يؤكد الخادم إلغاء كشف البنك بالمعرف والنتيجة المتوقعة.");
+  }
+  return { statementId, voidId, replayed: row.replayed };
 }
 
 export async function recordBankStatementLine(input: {
