@@ -84,7 +84,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -99,7 +99,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    </div>
    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
     {([
-     ["مقترح","PROPOSED"],["قيد المراجعة","IN_REVIEW"],["معتمد","APPROVED"],["مرفوض","REJECTED"],
+     ["مقترح","PROPOSED"],["قيد المراجعة","IN_REVIEW"],["معتمد","APPROVED"],["مرفوض","REJECTED"],["مؤجل","DEFERRED"],
      ["مسند","ASSIGNED"],["قيد التنفيذ","EXECUTING"],["بانتظار القياس","EXECUTED"],["تم قياسه","MEASURED"],
     ] as const).map(([label,key])=><article key={key} className="rounded-lg border p-3 text-sm">
       <p className="text-xs text-muted-foreground">{label}</p>
