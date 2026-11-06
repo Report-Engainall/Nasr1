@@ -1607,3 +1607,54 @@ Continue with another independently implementable P3 product-body gap backed by 
 ### Next P3 action
 
 Continue only with source-backed intelligence gaps. Additional collision resolution, discount stacking behavior, alert thresholds or automatic activation require an explicit executable rule contract and human approval; this review remains advisory and read-only.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-GROWTH-RADAR-PRODUCT-PERFORMANCE-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Canonical coverage: Section 50 — product performance changes based on comparable periods and the existing deterministic Growth Opportunity Radar. This delivery extends the existing radar; it does not create a parallel growth engine.
+
+### Implemented on main
+
+1. **Tenant-scoped product performance source**
+   - Added `supabase/migrations/20261106200000_product_performance_growth_aggregate.sql`.
+   - Adds `fetch_product_performance_growth_aggregate()`, requiring an authenticated active staff profile and current organization scope.
+   - Computes current and immediately preceding equal-length UTC periods (30/60/90/180/365 days) over product/order-line groups. Only orders in `confirmed`, `processing`, `shipped`, or `delivered` current states are included; draft, pending and cancelled states are excluded.
+   - Returns product reference/label, order UOM, current/baseline quantities, distinct qualifying-order sample counts, derived evidence reference and coverage counts only. It does not return customer references, order IDs, prices, amounts, payments or line-level details.
+   - Requires one comparable order UOM per product and equality with the product master UOM. UOM variants/mismatches are explicitly marked uncomparable. Population is bounded to 2,000 product/UOM groups; truncation or unit incomparability makes the result PARTIAL.
+   - Migration commit: `bbd487b4025d3eb302c6caa952d42073677234c2`.
+
+2. **Strict evidence-backed client**
+   - Added `src/lib/intelligence/product-performance-growth-client.ts`.
+   - Validates the source scope, as-of timestamp, equal-length adjacent windows, returned/total counts, UOM uniqueness, quantity/sample reconciliation, product UUIDs and derived evidence references.
+   - Creates separate current and baseline evidence records with matching periods, plus four source-backed metrics per comparable product/UOM: current and baseline quantity and distinct qualifying-order counts.
+   - Creates `PRODUCT_PERFORMANCE_CHANGE` signals for the existing growth engine. A non-comparable UOM produces a withheld signal rather than a guessed unit conversion.
+   - Client commits: `224af6d3b6d777c999a4439aa430b445f08f14f9`, `9854f7e73e088b47ad048bb39cc2f3d6e77b6ea3`, `58f2bd52d9611019fb0a455bb39a0b8750d31323`, `0558c2b1f5a5f0da854e4b243326a3590b523c8e`; final client blob `f8f105534b9717f0ff221cc6291f323194d89ba0`.
+
+3. **Existing growth engine integration**
+   - Extended `src/lib/intelligence/customer-retention-client.ts` to expose the verified customer growth inputs and source-coverage gate without rebuilding the customer engine; commit `79ee40119bd306b29044ca51fe7c1ba167327390`.
+   - Hardened `buildGrowthOpportunityRadar()` in `src/lib/intelligence/growth-opportunities.ts`:
+     - Current/baseline product metrics must share the metric key, unit/UOM and exact formula ID/version.
+     - A zero activity period is valid only when its sample count is also zero; a non-zero period still requires the existing five-transaction sample threshold. This makes genuine new-activity and decline-to-zero transitions measurable without lowering the non-zero sample gate.
+     - Supports a source label for a product/UOM signal and an explicit source-population completeness input.
+     - A no-signal result is VERIFIED only when the caller explicitly confirms complete source populations.
+   - Growth-engine commit: `61eb5ca932394b34c449fa196600c0e5cb805449`.
+
+4. **Arabic assistant composition and coverage UI**
+   - The existing `GROWTH_RADAR_OVERVIEW` branch now combines customer-retention metrics and product-performance metrics in the same `buildGrowthOpportunityRadar()` call. It does not create a second radar or a new route.
+   - If either source is denied, unavailable, truncated, incomplete or has incomparable units, the combined radar remains PARTIAL/NEEDS_REVIEW. Customer-only opportunities may still be shown with their valid evidence; absence of a product opportunity is not treated as zero demand.
+   - The Arabic assistant now displays product/UOM population coverage and unavailable/incomparable counts. The radar's empty state no longer says "no opportunities" unless the evidence status is VERIFIED.
+   - Commits: composition `a5656010c4f719fc498b70375a00ec4c578bd208`; result contract `4fb9da37286ccd1757a45aacdc1683a5f0b7106f`; keep incomplete composition PARTIAL `3a3d98a0767345eb7c40c7e8c514bdda141b5f11`; safe empty-state UI `b367eb50c2cf2f1183f25c60218c1efd966ea74d`; Arabic coverage UI `22cfe6fdcd78f81de65ff8f555734617ea8febac`.
+
+### Measurement and acceptance boundary
+
+- Product quantity measures qualifying order-line quantities by `orders.created_at` cohort and current order status at the snapshot; it is not recognized revenue, shipped/received quantity, available stock or profit.
+- Products with no qualifying order line in either comparison period are not in this source population. The source does not provide a saved storefront search log; `PRODUCT_UNAVAILABLE_DEMAND` is therefore not inferred.
+- `sales_quotes` currently has no persisted `order_id` relation; accepting a quote is not treated as an order conversion and `QUOTE_UNCONVERTED` is not inferred as converted/unconverted from this source.
+- The new migration is source-only. No test/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operation was run. No PASS, runtime or production claim is made. No price, inventory, purchase, order or financial mutation was made.
+- Updated existing matrix leaf `REF-NL-GROWTH-RADAR-READ-001` at `71793af7877ecceb0641a0f858a130bfeb130116`; no duplicate requirement row created.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+Continue with independently source-backed Section 50 gaps only if a persisted same-tenant source exists. Quote conversion needs an immutable quote-to-order reference and product-unavailable demand needs a retained search event/cohort. Do not synthesize either signal from current quote status or catalog reads.
