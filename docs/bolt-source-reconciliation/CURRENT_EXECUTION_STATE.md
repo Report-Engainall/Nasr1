@@ -1961,3 +1961,20 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 ### P3 next action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-005`: continue the next independently implementable source-backed Section 53–63 item, without touching P1 routes or P2 sender/persistence paths.
+
+
+## P3 LIVE EXECUTION OVERRIDE — 2026-11-06 — EVIDENCE SOURCE COMPARISON
+
+- Main SHA at cursor update: `d09f7ba540efdf74874e6a9af9f77f598a7ca920`.
+- P3 leaf: `REF-EVIDENCE-SOURCE-COMPARISON-001`, canonical Section 56.
+- Added deterministic `compareEvidenceMetricSources()` and Arabic `EvidenceSourceComparisonPanel`. It preserves two values/source timestamps separately; computes a difference only for same key/unit/currency/UOM/period/as-of/formula and independently VERIFIED/COMPLETE/ACCEPTABLE evidence; otherwise returns NOT_COMPARABLE or WITHHELD. No average or source write.
+- Engine final blob: `455b05d48c81f430efcad118bbde8179b22ce9e5`; component blob: `066119a863c9d4d16ea193a25645ca6504ee5f98`; engine tests blob: `6a268fc838eb8d2298c495db8939daebcd0661ef`; UI tests blob: `56e0ef43c8bdcd2d282c69485defabefb1b16a6a`.
+- Source code commits: `e71e4562c924af9b0c4be3184019fb3c0bc6bd34`, `a3089b9ec6786a4c48d2e17c25b364156f081938`, `17bdd9065698f28e2ef46b7ff908a0c8b48ef0d7`, `5963ee490af24188d7399d8eff97ff78c5192333`, `255e7e540fa52ceb3b3e04b794e2c7eaee227e28`, `2ff9958c4f8f6750838897a5f8009bde2cc54123`, `9dc03531d7266e1fa93da7b42607349f4a44081b`.
+- Handoff appended to existing P1 component contract: `52e4c1804e9f0291ef0a19e659e43b117fa2770d`. Matrix row `REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001` updated at `4e8b58bf1d496ec5880a649802c9c36fbef3d808`.
+- P1 still must mount the component beside the existing Evidence Passport. Persisted reconciliation disposition/audit remains P2-owned. No P1 routes/workspace or P2 persistence path changed.
+- Tests authored but not run; no build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production action was performed. No PASS/runtime/production claim.
+- Status: `IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / ACCEPTANCE_PENDING`.
+
+### P3 next action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-007`: continue only a remaining independent P3-owned source-backed Section 53–63 requirement; preserve the comparison/page/tenant scope and do not add a parallel reconciliation writer.
