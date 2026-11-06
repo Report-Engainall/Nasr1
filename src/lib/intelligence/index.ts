@@ -12,6 +12,7 @@ export * from "./scenario-lab";
 export * from "./decision-outcome";
 export * from "./learning-loop";
 export * from "./free-ai-policy";
+export * from "./ai-gateway-operations-client";
 export * from "./system-health";
 export * from "./rbac-contract";
 export * from "./growth-opportunities";
