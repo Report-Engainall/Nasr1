@@ -2158,3 +2158,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Uses an explicit business date and label, server-derived active actor/organization, the organization's time zone from the current workspace, and the current shift as previous-shift reference. Reuses the existing audited, idempotent `start_operational_shift` RPC. Does not close the previous shift.
 - Matrix `INT-SHIFT-001`: `57655ad7c359ace1747aa4990b28daca36e71509`; P3 checkpoint: `3c6aeaefc980c295e43354c286a789d8bac13563`; state update: `b526cda95a26acf822c6b467c9bdea8cb9892311`.
 - No tests/build/runtime/DB/Bolt/Preview/Vercel/production acceptance run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## 2026-11-06 — REF-SHIFT-OPERATIONS-COMMANDS-UI-001 — create first shift when source returns NOT_FOUND
+
+- Added `StartFirstOperationalShiftForm` (commit `42c953e5f38764eff2e51a8a1acf8ee2440b01f4`) and preserved the typed shift plan on NOT_FOUND (commit `ea3d0fb1c3a931b3cf5367404926b6123ad5a998`); mounted the form in the existing Arabic assistant (commit `b855a403b7040a8fe9cd55fa17917418dee17847`).
+- The user must supply the organization's IANA time zone, work date and shift label. It calls the existing audited tenant-scoped `start_operational_shift` RPC with a stable idempotency key and then re-reads the same shift query. It never infers the organization's time zone from the device and does not close a previous shift.
+- Matrix `INT-SHIFT-001`: `76ed7934bfc6de85d3fd30ffa881cee54e94db7a`; P3 checkpoint `37762f2e4a1d649ad4a1de9c2c8fd337c089d5b5`; execution-state update `2043d2815d87e00532e11e5abc6bfdd17f003951`.
+- No new database contract, test/build/runtime/DB/Bolt/Preview/Vercel/production action. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
