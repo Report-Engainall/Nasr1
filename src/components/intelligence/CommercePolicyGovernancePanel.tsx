@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { buildPromotionPolicyOverlapReview } from "@/lib/intelligence/commerce-policy-overlap-review";
 import {
   fetchCommercePolicyCatalog, fetchCommercePolicyOwners, fetchCommercePolicySources,
   fetchCommercePolicySimulationHistory, registerCommercePolicyMetadata, simulateCommercePolicy,
@@ -86,6 +87,13 @@ export function CommercePolicyGovernancePanel() {
   useEffect(()=>{void refreshSources();},[refreshSources]);
 
   const selectedSource=useMemo(()=>sources.find(item=>item.id===sourceId)??null,[sources,sourceId]);
+  const promotionOverlapReview=useMemo(
+    ()=>catalog?buildPromotionPolicyOverlapReview(catalog):null,
+    [catalog],
+  );
+  const overlapDate=(value:string|null)=>value
+    ?new Date(value).toLocaleString("ar-YE",{dateStyle:"medium",timeStyle:"short"})
+    :"دون نهاية محددة";
 
   async function handleRegister() {
     setSubmitting(true);setError(null);setNotice(null);
@@ -157,6 +165,73 @@ export function CommercePolicyGovernancePanel() {
       </header>
       {error?<div role="alert" className="rounded-lg border border-red-300 p-3 text-sm text-red-700">{error}</div>:null}
       {notice?<div role="status" className="rounded-lg border p-3 text-sm">{notice}</div>:null}
+
+      <section className="space-y-3 rounded-lg border p-3" aria-label="مراجعة التداخل المحتمل للعروض">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold">مراجعة التداخل المحتمل للعروض</h3>
+          <span className="text-xs text-muted-foreground">
+            {promotionOverlapReview?.state==="READY"?"مصادر صالحة للمقارنة":
+              promotionOverlapReview?.state==="PARTIAL"?"مراجعة جزئية":"لا توجد بيانات كافية"}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          يرصد المحرك عرضين نشطين/مجدولين فقط عند تطابق المنتج أو الفئة صراحةً وتداخل نافذتي سريان المصدر والسياسة
+          مع ثبات بصمتي المصدر. هذا «تداخل محتمل يحتاج مراجعة» وليس إثباتاً أن الخصومات ممنوع جمعها؛
+          لا تتغير أولوية أي قاعدة ولا تتعدل العروض تلقائياً.
+        </p>
+        {promotionOverlapReview?<>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <article className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">العروض القابلة للمقارنة</p>
+              <strong className="text-xl tabular-nums">{promotionOverlapReview.inspectedPromotionCount}</strong>
+            </article>
+            <article className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">أزواج التداخل المحتمل</p>
+              <strong className="text-xl tabular-nums">{promotionOverlapReview.candidatePairCount}</strong>
+            </article>
+            <article className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">مصادر/مقارنات محجوبة</p>
+              <strong className="text-xl tabular-nums">{promotionOverlapReview.withheldCount}</strong>
+            </article>
+          </div>
+          {promotionOverlapReview.state==="EMPTY"?
+            <p className="text-sm text-muted-foreground">لم يُرصد تداخل صريح في المنتجات أو الفئات والفترات ضمن كامل سجل السياسات المحمل.</p>:null}
+          {promotionOverlapReview.candidates.length?
+            <div className="space-y-2">
+              {promotionOverlapReview.candidates.map((pair,index)=><article key={pair.first.version+":"+pair.second.version+":"+pair.overlapPeriod.from+":"+index} className="rounded-lg border p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong className="text-sm">{pair.first.label} ↔ {pair.second.label}</strong>
+                  <span className="rounded-full border px-2 py-1 text-xs">تداخل محتمل للمراجعة</span>
+                </div>
+                <div className="grid gap-1 text-xs sm:grid-cols-2">
+                  <p>الأول: إصدار {pair.first.version} · أولوية مسجلة {pair.first.conflictPriority}</p>
+                  <p>الثاني: إصدار {pair.second.version} · أولوية مسجلة {pair.second.conflictPriority}</p>
+                  <p>النطاق المشترك: {pair.sharedScope.kind==="PRODUCT"?"نفس المنتج":"نفس الفئة"} · {pair.sharedScope.count} تطابقاً صريحاً</p>
+                  <p>فترة التداخل: {overlapDate(pair.overlapPeriod.from)} — {overlapDate(pair.overlapPeriod.to)}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  لم يثبت مصدر الحوكمة قاعدة جمع الخصومات أو أسبقية التنفيذ؛ يلزم فحص أمثلة الاختبار ومسار سياسة العروض قبل أي قرار.
+                </p>
+              </article>)}
+              {promotionOverlapReview.candidatePairCount>promotionOverlapReview.candidates.length?
+                <p className="text-xs text-muted-foreground">عُرضت أول {promotionOverlapReview.candidates.length} أزواج فقط من أصل {promotionOverlapReview.candidatePairCount}.</p>:null}
+            </div>:null}
+          {promotionOverlapReview.withheldReasons.length?
+            <details className="rounded-lg border p-2">
+              <summary className="cursor-pointer text-xs font-semibold">ما لم يمكن مقارنته ({promotionOverlapReview.withheldCount})</summary>
+              <ul className="mt-2 space-y-1 text-xs">
+                {promotionOverlapReview.withheldReasons.map(item=><li key={item.reason}>
+                  {item.reason==="SOURCE_CHANGED"?"بصمة المصدر تغيرت منذ تسجيل السياسة":
+                    item.reason==="SCOPE_NOT_COMPARABLE"?"نطاق المنتج/الفئة غير صريح أو غير قابل للمقارنة":
+                    "تاريخ السريان في سجل المصدر غير صالح أو مفقود"} · {item.count}
+                </li>)}
+              </ul>
+            </details>:null}
+          {!promotionOverlapReview.completePopulation?
+            <p role="status" className="text-xs text-muted-foreground">المجتمع غير مكتمل أو توجد مصادر محجوبة؛ عدم ظهور زوج هنا لا يثبت عدم وجود تداخلات أخرى.</p>:null}
+          <p className="text-xs text-muted-foreground">وقت التحليل: {new Date(promotionOverlapReview.asOf).toLocaleString("ar-YE")}</p>
+        </>:<p className="text-sm text-muted-foreground">{loading?"جارٍ تحميل سجل السياسات…":"مصدر سجل السياسات غير متاح."}</p>}
+      </section>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
