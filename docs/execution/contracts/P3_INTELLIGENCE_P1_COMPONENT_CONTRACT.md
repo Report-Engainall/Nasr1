@@ -102,3 +102,19 @@ P1 owns route mounting, tenant-safe request orchestration and interactions. Cons
 - UI must preserve `DENIED`, `UNAVAILABLE`, `ERROR`, `CLARIFICATION`, `UNSUPPORTED`, `EMPTY`, `PARTIAL`, `READY` states. Do not downgrade a source-denied state into empty data or mock answers.
 - The assistant only reports unit-price variance; it must not label tax differences or missing quantities as a price-match result. It omits money values and PO line quantity sums. It surfaces source caps (100 invoices / 500 orders) and incomplete coverage.
 - Do not claim that an order is late based on age or `created_at`; current source has no committed due-date contract. No open text → SQL translation, no writes, no quote approvals, no invoice reviews, no external LLM calls.
+
+
+## Section 56 — Evidence Source Comparison Panel (2026-11-06)
+
+P3 added the reusable `EvidenceSourceComparisonPanel` and deterministic engine exports. Mount this panel once beside the existing Evidence Passport where two already-authorized source snapshots are available.
+
+- Engine import: `@/lib/intelligence/evidence-source-comparison` — `compareEvidenceMetricSources({ comparisonKey, metricKey, left, right })`.
+- UI import: `@/components/intelligence/EvidenceSourceComparisonPanel` — `EvidenceSourceComparisonPanel`.
+- Props: `comparison?: EvidenceSourceComparison | null`, `state?: "loading" | "empty" | "error" | "unavailable" | "ready"`, `errorMessage?`, `onRetry?`.
+- Do not create a new route/workspace. Use the existing Evidence Passport/intelligence evidence surface and the existing server-authorized source snapshots only. The comparison key must be the actual stable join key already resolved by the authorized caller; do not infer identity from coincidental values.
+- Display both source values separately with source name/kind/version, source timestamp, as-of, exact period, unit/currency/UOM and formula ID/version.
+- Calculate the difference only for two individually VERIFIED/COMPLETE/ACCEPTABLE values with the same metric key, unit, currency, UOM, period, as-of and formula ID/version. Otherwise preserve the two source sides when independently trusted but mark NOT_COMPARABLE; hide unverified values and mark WITHHELD. Zero baseline may show an absolute difference, but percentage remains undefined.
+- Never average the sources, update either source, or persist a match/variance disposition from the component. P2 owns any future persisted reconciliation review/settlement workflow.
+- UI states and no-data behavior are required; page/source scope must remain explicit.
+
+Source-only P3 delivery at the recorded code SHA. No test/build/browser/database runtime acceptance is claimed in this handoff.
