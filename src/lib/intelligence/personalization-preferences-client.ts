@@ -133,3 +133,32 @@ export async function saveMyPersonalizationPreferences(
     return { ok: false, message: "تعذر تأكيد حفظ الإعدادات من الخادم." };
   }
 }
+export type PersonalizationConsentRevokeResult =
+  | { ok: true; consent: ExternalChannelConsent }
+  | Failure;
+
+export async function revokeMyPersonalizationChannelConsent(
+  expectedProfileId: string,
+  request: { consentId: string; expectedGrantedAt: string },
+): Promise<PersonalizationConsentRevokeResult> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!expectedProfileId.trim() || !uuidPattern.test(request.consentId) ||
+      !Number.isFinite(Date.parse(request.expectedGrantedAt))) {
+    return { ok: false, message: "معرّف الموافقة أو إصدارها غير صالح." };
+  }
+  try {
+    const { data, error } = await supabase.rpc("revoke_my_personalization_channel_consent", {
+      p_consent_id: request.consentId,
+      p_expected_granted_at: request.expectedGrantedAt,
+    });
+    if (error) return { ok: false, message: safeMessage(error) };
+    const parsed = parseConsents({ consents: [data] }, expectedProfileId);
+    const consent = parsed?.[0];
+    if (!consent || consent.id !== request.consentId || consent.revokedAt === null) {
+      return { ok: false, message: "لم يرجع الخادم إلغاءً مؤكداً للموافقة نفسها؛ لم يُعرض نجاح." };
+    }
+    return { ok: true, consent };
+  } catch {
+    return { ok: false, message: "تعذر تأكيد إلغاء الموافقة من الخادم." };
+  }
+}

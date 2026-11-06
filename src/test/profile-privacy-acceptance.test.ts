@@ -8,6 +8,7 @@ const profileSql = read("supabase/migrations/20261106210100_customer_account_pro
 const profilePage = read("src/routes/profile.tsx");
 const preferenceUi = read("src/components/AccountPersonalizationSettings.tsx");
 const preferenceSql = read("supabase/migrations/20261107000000_profile_personalization_preferences.sql");
+const preferenceDeliverySql = read("supabase/migrations/20261107000200_notification_preference_enforcement_and_consent_revocation.sql");
 const outbox = read("supabase/functions/outbox-worker/handler.ts");
 
 describe("P1 account profile and notification consent boundaries", () => {
@@ -41,5 +42,22 @@ describe("P1 account profile and notification consent boundaries", () => {
     expect(outbox).not.toContain("whatsapp");
     expect(outbox).not.toContain("sendgrid");
     expect(outbox).not.toContain("resend");
+  });
+
+  it("enforces account notification preferences at the final in-app sender boundary", () => {
+    expect(preferenceDeliverySql).toContain("BEFORE INSERT ON public.notifications");
+    expect(preferenceDeliverySql).toContain("notification_channels");
+    expect(preferenceDeliverySql).toContain("NOTIFICATION_LEVEL_FILTERED");
+    expect(preferenceDeliverySql).toContain("QUIET_HOURS");
+    expect(preferenceDeliverySql).toContain("notification_delivery_suppressions");
+    expect(preferenceDeliverySql).toContain("RETURN NULL");
+  });
+
+  it("allows account-owned external consent revocation without direct consent-table mutation", () => {
+    expect(preferenceDeliverySql).toContain("revoke_my_personalization_channel_consent");
+    expect(preferenceDeliverySql).toContain("p_expected_granted_at");
+    expect(preferenceDeliverySql).toContain("GRANT EXECUTE ON FUNCTION public.revoke_my_personalization_channel_consent(uuid,timestamptz)");
+    expect(preferenceDeliverySql).toContain("REVOKE ALL ON TABLE public.notification_delivery_suppressions FROM PUBLIC,anon,authenticated,service_role");
+    expect(preferenceSql).toContain("REVOKE ALL ON TABLE public.profile_notification_channel_consents FROM PUBLIC,anon,authenticated");
   });
 });

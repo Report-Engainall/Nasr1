@@ -28,6 +28,9 @@ export interface PersonalizationPrivacyPanelProps {
   ) => Promise<PersonalizationPreferencesSaveResult>;
   onRetry?: () => void;
   onSaved?: (preferences: PersonalizationPreferences) => void;
+  onRevokeConsent?: (request: { consentId: string; expectedGrantedAt: string }) =>
+    Promise<{ ok: true; consent: ExternalChannelConsent } | { ok: false; message: string }>;
+  onConsentRevoked?: (consent: ExternalChannelConsent) => void;
   externalConsents?: ExternalChannelConsent[];
   consentReadStatus?: "LOADED" | "UNAVAILABLE";
   loadError?: string | null;
@@ -113,6 +116,8 @@ export function PersonalizationPrivacyPanel({
   onSavePreferences,
   onRetry,
   onSaved,
+  onRevokeConsent,
+  onConsentRevoked,
   externalConsents = [],
   consentReadStatus = "UNAVAILABLE",
   loadError = null,
@@ -121,6 +126,7 @@ export function PersonalizationPrivacyPanel({
     preferences ? toDraft(preferences) : null,
   );
   const [saving, setSaving] = useState(false);
+  const [revokingConsentId, setRevokingConsentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -174,6 +180,34 @@ export function PersonalizationPrivacyPanel({
       setError("تعذر حفظ الإعدادات. لم يتم عرض نجاح محلي.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function revokeConsent(consent: ExternalChannelConsent) {
+    if (!onRevokeConsent || consent.revokedAt !== null || revokingConsentId !== null) return;
+    if (!window.confirm("سيؤدي إلغاء هذه الموافقة إلى منع الإرسال اللاحق لهذه القناة والوجهة والغرض. هل تريد المتابعة؟")) return;
+    setRevokingConsentId(consent.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await onRevokeConsent({ consentId: consent.id, expectedGrantedAt: consent.grantedAt });
+      if (!result.ok) {
+        setError(result.message || "رفض الخادم إلغاء الموافقة.");
+        return;
+      }
+      if (result.consent.id !== consent.id ||
+          result.consent.profileId !== consent.profileId ||
+          result.consent.organizationId !== consent.organizationId ||
+          result.consent.revokedAt === null) {
+        setError("أعاد الخادم إلغاءً لا يطابق سجل الموافقة المحدد؛ لم يُعتمد التغيير في الواجهة.");
+        return;
+      }
+      onConsentRevoked?.(result.consent);
+      setNotice("أكد الخادم إلغاء الموافقة؛ ستُرفض محاولات الإرسال اللاحقة ضمن هذا النطاق.");
+    } catch {
+      setError("تعذر إلغاء الموافقة. لم يتم عرض نجاح محلي.");
+    } finally {
+      setRevokingConsentId(null);
     }
   }
 
@@ -408,6 +442,16 @@ export function PersonalizationPrivacyPanel({
                       <p><strong>سُجلت:</strong> {new Date(consent.grantedAt).toLocaleString("ar-YE")}</p>
                       <p><strong>الحالة:</strong> {consent.revokedAt === null ? "سارية حسب سجل الموافقة" : "ملغاة في " + new Date(consent.revokedAt).toLocaleString("ar-YE")}</p>
                       <p className="text-muted-foreground">إصدار الموافقة: {consent.consentVersion}</p>
+                      {consent.revokedAt === null && onRevokeConsent ? (
+                        <button
+                          type="button"
+                          className="mt-2 rounded-md border px-3 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => void revokeConsent(consent)}
+                          disabled={saving || revokingConsentId !== null || consentReadStatus !== "LOADED"}
+                        >
+                          {revokingConsentId === consent.id ? "جار إلغاء الموافقة…" : "إلغاء الموافقة"}
+                        </button>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth";
 import {
   fetchMyPersonalizationSettings,
   saveMyPersonalizationPreferences,
+  revokeMyPersonalizationChannelConsent,
   type PersonalizationSettingsSnapshot,
 } from "@/lib/intelligence/personalization-preferences-client";
 import {
@@ -70,6 +71,21 @@ export function AccountPersonalizationSettings() {
     return result;
   }, [profileId]);
 
+  const revokeConsent = useCallback(async (
+    request: { consentId: string; expectedGrantedAt: string },
+  ) => {
+    if (!profileId) return { ok: false as const, message: "انتهت جلسة الحساب؛ أعد تسجيل الدخول." };
+    const result = await revokeMyPersonalizationChannelConsent(profileId, request);
+    if (!result.ok) return result;
+    setSnapshot(current => current ? {
+      ...current,
+      externalConsents: current.externalConsents.map(consent =>
+        consent.id === result.consent.id ? result.consent : consent,
+      ),
+    } : current);
+    return result;
+  }, [profileId]);
+
   return (
     <>
       <style>{`
@@ -91,6 +107,7 @@ export function AccountPersonalizationSettings() {
         externalConsents={snapshot?.externalConsents ?? []}
         consentReadStatus={snapshot?.consentReadStatus ?? "UNAVAILABLE"}
         onSavePreferences={save}
+        onRevokeConsent={revokeConsent}
         onRetry={() => void load()}
       />
     </>

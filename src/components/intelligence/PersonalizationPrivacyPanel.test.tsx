@@ -99,4 +99,44 @@ describe("PersonalizationPrivacyPanel", () => {
     expect(email.disabled).toBe(false);
     expect(whatsapp.disabled).toBe(true);
   });
+
+  it("revokes only the selected active channel consent after explicit confirmation", async () => {
+    const preferences = { ...initialPreferences(), notificationChannels: ["IN_APP", "EMAIL"] as const };
+    const consent = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      organizationId: "org-a",
+      profileId: "profile-a",
+      channel: "EMAIL" as const,
+      destinationId: "account-email-id",
+      destinationLabel: "nasr@example.test",
+      purpose: "order_updates",
+      dataClasses: ["GENERAL"] as const,
+      grantedAt: "2026-11-06T19:30:00.000Z",
+      revokedAt: null,
+      consentVersion: "consent-v1",
+      source: "EXPLICIT_USER_ACTION" as const,
+    };
+    const revoked = { ...consent, revokedAt: "2026-11-06T20:00:00.000Z" };
+    const onRevokeConsent = vi.fn(async (request: { consentId: string; expectedGrantedAt: string }) => {
+      expect(request).toEqual({ consentId: consent.id, expectedGrantedAt: consent.grantedAt });
+      return { ok: true as const, consent: revoked };
+    });
+    const onConsentRevoked = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <PersonalizationPrivacyPanel
+        authorized
+        preferences={preferences}
+        channelCapabilities={{ EMAIL: true }}
+        externalConsents={[consent]}
+        consentReadStatus="LOADED"
+        onRevokeConsent={onRevokeConsent}
+        onConsentRevoked={onConsentRevoked}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "إلغاء الموافقة" }));
+    await waitFor(() => expect(onRevokeConsent).toHaveBeenCalledTimes(1));
+    expect(onConsentRevoked).toHaveBeenCalledWith(revoked);
+    expect(screen.getByRole("status").textContent).toContain("أكد الخادم إلغاء الموافقة");
+  });
 });
