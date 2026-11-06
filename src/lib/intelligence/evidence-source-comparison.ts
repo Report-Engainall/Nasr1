@@ -42,6 +42,7 @@ export interface EvidenceSourceReferenceSummary {
   sourceVersion: string | null;
   sourceTimestamp: string;
   asOf: string;
+  sourceAgeMilliseconds: number | null;
   status: EvidenceStatus;
   completeness: DataCompleteness;
   quality: DataQuality;
@@ -131,6 +132,11 @@ function metricSources(
       sourceVersion: record.source.version ?? null,
       sourceTimestamp: record.sourceTimestamp,
       asOf: record.asOf,
+      sourceAgeMilliseconds: Number.isFinite(Date.parse(record.sourceTimestamp)) &&
+        Number.isFinite(Date.parse(record.asOf)) &&
+        Date.parse(record.sourceTimestamp) <= Date.parse(record.asOf)
+        ? Date.parse(record.asOf) - Date.parse(record.sourceTimestamp)
+        : null,
       status: record.status,
       completeness: record.completeness,
       quality: record.quality,
@@ -290,7 +296,10 @@ export function compareEvidenceMetricSources(input: {
       leftMetric.period?.from !== rightMetric.period?.from ||
       leftMetric.period?.to !== rightMetric.period?.to)
     reasons.push("PERIOD_MISSING_OR_MISMATCH");
-  if (leftMetric.asOf !== rightMetric.asOf) reasons.push("AS_OF_MISMATCH");
+  if (!Number.isFinite(Date.parse(leftMetric.asOf)) ||
+      !Number.isFinite(Date.parse(rightMetric.asOf)) ||
+      Date.parse(leftMetric.asOf) !== Date.parse(rightMetric.asOf))
+    reasons.push("AS_OF_MISMATCH");
   if (leftMetric.lineage.formulaId !== rightMetric.lineage.formulaId ||
       leftMetric.lineage.formulaVersion !== rightMetric.lineage.formulaVersion)
     reasons.push("FORMULA_MISMATCH");

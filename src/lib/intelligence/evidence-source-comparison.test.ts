@@ -36,13 +36,15 @@ function passport(
   overrides: {
     metric?: Partial<MetricSnapshot>;
     evidence?: Partial<EvidenceRecord>;
+    passportAsOf?: string;
   } = {},
 ) {
+  const passportAsOf = overrides.passportAsOf ?? asOf;
   const evidence: EvidenceRecord = {
     id: "evidence-1",
     source: { kind: "TABLE", name: sourceName, recordId: "private-record-ref", version: "v1" },
     sourceTimestamp: "2026-11-06T19:55:00.000Z",
-    asOf,
+    asOf: passportAsOf,
     period,
     status: "VERIFIED",
     completeness: "COMPLETE",
@@ -53,7 +55,7 @@ function passport(
   return buildEvidencePassport({
     id,
     generatedAt: "2026-11-06T20:02:00.000Z",
-    asOf,
+    asOf: passportAsOf,
     evidenceRecords: [evidence],
     metrics: [metric(value, overrides.metric)],
   });
@@ -76,8 +78,48 @@ describe("verified evidence source comparison", () => {
       left: { value: 12, sources: [{ sourceName: "operational.orders" }] },
       right: { value: 12, sources: [{ sourceName: "analytics.orders" }] },
     });
-    expect(result.left?.sources[0]).toHaveProperty("sourceTimestamp");
+    expect(result.left?.sources[0]).toMatchObject({
+      sourceTimestamp: "2026-11-06T19:55:00.000Z",
+      sourceAgeMilliseconds: 5 * 60 * 1000,
+    });
     expect(result.left?.sources[0]).not.toHaveProperty("recordId");
+  });
+
+  it("compares identical as-of instants expressed with different UTC offsets", () => {
+    const offsetAsOf = "2026-11-06T21:00:00.000+01:00";
+    const result = compareEvidenceMetricSources({
+      comparisonKey: "product:item_code:000125",
+      metricKey: "orders.completed",
+      left: passport("left", "operational.orders", 12),
+      right: passport("right", "analytics.orders", 12, {
+        passportAsOf: offsetAsOf,
+        metric: { asOf: offsetAsOf },
+        evidence: { asOf: offsetAsOf },
+      }),
+    });
+    expect(result).toMatchObject({
+      status: "MATCHED",
+      difference: 0,
+      differencePercent: 0,
+      right: { asOf: offsetAsOf },
+    });
+  });
+
+  it("still withholds difference when as-of instants genuinely differ", () => {
+    const laterAsOf = "2026-11-06T20:01:00.000Z";
+    const result = compareEvidenceMetricSources({
+      comparisonKey: "product:item_code:000125",
+      metricKey: "orders.completed",
+      left: passport("left", "operational.orders", 12),
+      right: passport("right", "analytics.orders", 12, {
+        passportAsOf: laterAsOf,
+        metric: { asOf: laterAsOf },
+        evidence: { asOf: laterAsOf },
+      }),
+    });
+    expect(result.status).toBe("NOT_COMPARABLE");
+    expect(result.reasons).toContain("AS_OF_MISMATCH");
+    expect(result.difference).toBeNull();
   });
 
   it("reports a variance without averaging or changing either source value", () => {

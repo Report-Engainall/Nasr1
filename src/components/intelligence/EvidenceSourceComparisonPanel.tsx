@@ -43,6 +43,17 @@ const reasonLabels: Record<EvidenceSourceComparisonReason, string> = {
   COMPARISON_ARITHMETIC_UNSAFE: "الفرق الحسابي غير آمن؛ لم يتم احتسابه.",
 };
 
+function sourceAgeLabel(milliseconds: number | null): string {
+  if (milliseconds === null || !Number.isFinite(milliseconds) || milliseconds < 0) return "غير متاح";
+  if (milliseconds < 60_000) return Math.floor(milliseconds / 1000) + " ثانية";
+  const minutes = Math.floor(milliseconds / 60_000);
+  if (minutes < 60) return minutes + " دقيقة";
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return days + " يوم و" + (hours % 24) + " ساعة";
+  return hours + " ساعة و" + (minutes % 60) + " دقيقة";
+}
+
 const value = (amount: number | null, unit: string, currency: string | null) => {
   if (amount === null) return "غير متاح";
   const formatted = new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 4 }).format(amount);
@@ -103,6 +114,9 @@ function SourceSide({
                 <p className="break-words font-medium">{source.sourceName} · {source.sourceKind}</p>
                 <p className="text-muted-foreground">
                   نسخة المصدر: {source.sourceVersion ?? "غير محددة"} · وقت المصدر: {source.sourceTimestamp}
+                </p>
+                <p className="text-muted-foreground">
+                  الفاصل بين تحديث المصدر ووقت القياس: {sourceAgeLabel(source.sourceAgeMilliseconds)}
                 </p>
                 <p className="text-muted-foreground">
                   جودة الإثبات: {source.status} · {source.completeness} · {source.quality}
@@ -209,7 +223,7 @@ export function EvidenceSourceComparisonPanel({
       ) : null}
       <p className="text-xs text-muted-foreground">{comparison.explanation}</p>
       <p className="text-xs text-muted-foreground">
-        لم يتم حساب متوسط بين المصدرين ولم يُعدّل أي مصدر أو سجل تشغيلي.
+        لم يتم حساب متوسط بين المصدرين ولم يُعدّل أي مصدر أو سجل تشغيلي. الفاصل الزمني المعروض ليس حكماً على حداثة المصدر؛ يتطلب تصنيف التأخر مهلة معتمدة خاصة بنوع المصدر.
       </p>
     </section>
   );
