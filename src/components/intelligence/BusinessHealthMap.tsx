@@ -219,6 +219,66 @@ export function BusinessHealthMap({ result = null, state = "ready", onRetry }: B
               {item.status!=="VERIFIED" ? <p role="status" className="text-xs text-muted-foreground">لا يوجد إجمالي دائن موجب لهذه العملة؛ حُجبت نسبة التركّز.</p> : null}
             </article>)}
           </div> : null}
+          <section className="space-y-2 rounded-lg border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="font-semibold">اتجاه تركّز أعلى خمسة موردين</h4>
+              <span className="text-xs">
+                {result.supplierPostedPayableActivityTrend.status === "VERIFIED" ? "مقارنة قابلة للمقارنة" :
+                  result.supplierPostedPayableActivityTrend.status === "PARTIAL" ? "مقارنة جزئية" :
+                  result.supplierPostedPayableActivityTrend.status === "NOT_COMPARABLE" ? "لا توجد مقارنة صالحة" : "المقارنة غير متاحة"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              مقارنة أعلى خمسة موردين في كل فترة مع الفترة السابقة المساوية لها، لكل عملة مستقلة.
+              قد تختلف أسماء الموردين بين الفترتين؛ التغير يقيس درجة التركّز ولا يعني أن المجموعة نفسها بقيت ثابتة.
+              يتطلب المؤشر أكثر من خمسة موردين في كل فترة حتى لا تصبح النسبة 100% بحكم احتواء المجموعة على جميع الموردين.
+            </p>
+            {result.supplierPostedPayableActivityTrend.comparisons.length ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {result.supplierPostedPayableActivityTrend.comparisons.map(item => (
+                  <article key={item.currency} className="rounded-md bg-muted/30 p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong>{item.currency}</strong>
+                      <span>{item.direction === "INCREASED" ? "ارتفع التركّز" :
+                        item.direction === "DECREASED" ? "انخفض التركّز" : "لم يتغير تقريباً"}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div><p className="text-xs text-muted-foreground">الفترة السابقة</p><strong>{formatEvidenceNumber(item.baselinePercent)}%</strong></div>
+                      <div><p className="text-xs text-muted-foreground">الفترة الحالية</p><strong>{formatEvidenceNumber(item.currentPercent)}%</strong></div>
+                    </div>
+                    <p className="mt-1 text-xs">
+                      التغير: {item.changePercentagePoints > 0 ? "+" : ""}{formatEvidenceNumber(item.changePercentagePoints)} نقطة مئوية
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      عدد الموردين: {formatEvidenceNumber(item.baselineSupplierCount)} سابقاً · {formatEvidenceNumber(item.currentSupplierCount)} حالياً
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p role="status" className="text-xs text-muted-foreground">
+                لم تتوفر عملة تحقق شروط المقارنة؛ لا تُستبدل الفترة أو النسبة الناقصة بصفر.
+              </p>
+            )}
+            {result.supplierPostedPayableActivityTrend.withheld.length ? (
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {result.supplierPostedPayableActivityTrend.withheld.map((item, index) => (
+                  <li key={item.currency ?? "scope-" + index}>
+                    {item.currency ? item.currency + ": " : ""}
+                    {item.reason === "CURRENT_CURRENCY_MISSING" ? "لا توجد حركة مؤهلة في الفترة الحالية." :
+                      item.reason === "BASELINE_CURRENCY_MISSING" ? "لا توجد حركة مؤهلة في الفترة السابقة." :
+                      item.reason === "INSUFFICIENT_SUPPLIER_DIVERSITY" ? "عدد الموردين خمسة أو أقل؛ النسبة لا تصلح لمقارنة التركّز." :
+                      item.reason === "CURRENCY_NEEDS_REVIEW" ? "إحدى فترتي العملة تحتاج مراجعة؛ حُجبت المقارنة." :
+                      "بيانات العملة أو أدلة الفترة غير كافية للمقارنة."}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              الفترة السابقة: {result.supplierPostedPayableActivityTrend.baselinePeriod?.from ?? "غير متاحة"} — {result.supplierPostedPayableActivityTrend.baselinePeriod?.to ?? "غير متاحة"}
+              · الحالية: {result.supplierPostedPayableActivityTrend.currentPeriod?.from ?? "غير متاحة"} — {result.supplierPostedPayableActivityTrend.currentPeriod?.to ?? "غير متاحة"}
+            </p>
+          </section>
           <p className="text-xs text-muted-foreground">{result.supplierPostedPayableActivity.formulaDescription}</p>
           <p className="text-xs text-muted-foreground">مجموعة القيود متصالحة بحسب مجاميع المصدر داخل النطاق المحدد، وليست إثباتاً لاكتمال كل التزامات الموردين.</p>
         </> : <div role="status" className="rounded-lg border p-3 text-sm">

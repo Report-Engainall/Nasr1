@@ -6,6 +6,7 @@ import type { LiquidityPosition, LiquiditySnapshot } from "./liquidity";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import type { ProductRevenueConcentrationSnapshot } from "./product-revenue-concentration-client";
 import type { SupplierPostedPayableActivitySnapshot } from "./supplier-posted-payable-activity-client";
+import { buildSupplierPayableConcentrationTrend, type SupplierPayableConcentrationTrend } from "./supplier-payable-concentration-trend";
 
 export const BUSINESS_HEALTH_MAP_POLICY_VERSION = "1.0.0";
 
@@ -29,6 +30,8 @@ export interface BusinessHealthMapInput {
   productRevenueConcentrationUnavailableReason?: string;
   supplierPostedPayableActivity?: SupplierPostedPayableActivitySnapshot | null;
   supplierPostedPayableActivityUnavailableReason?: string;
+  supplierPostedPayableActivityPriorPeriod?: SupplierPostedPayableActivitySnapshot | null;
+  supplierPostedPayableActivityPriorPeriodUnavailableReason?: string;
 }
 export interface BusinessHealthAmount {
   value: number | null;
@@ -111,6 +114,7 @@ export interface BusinessHealthMapResult {
   }>;
   productRevenueConcentration: ProductRevenueConcentrationSnapshot | null;
   supplierPostedPayableActivity: SupplierPostedPayableActivitySnapshot | null;
+  supplierPostedPayableActivityTrend: SupplierPayableConcentrationTrend;
   calculations: {
     cashConversionCycle: BusinessHealthCalculability;
     daysSalesOutstanding: BusinessHealthCalculability;
@@ -497,6 +501,14 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   if (suppliedSupplierActivity && !supplierActivityAligned) warnings.push("SUPPLIER_POSTED_PAYABLE_ACTIVITY_AS_OF_OR_PERIOD_MISMATCH");
   if (!supplierPostedPayableActivity && input.supplierPostedPayableActivityUnavailableReason)
     warnings.push("SUPPLIER_POSTED_PAYABLE_ACTIVITY_UNAVAILABLE");
+  const supplierPostedPayableActivityTrend = buildSupplierPayableConcentrationTrend(
+    supplierPostedPayableActivity,
+    input.supplierPostedPayableActivityPriorPeriod ?? null,
+  );
+  if (input.supplierPostedPayableActivityPriorPeriodUnavailableReason) {
+    warnings.push("SUPPLIER_POSTED_PAYABLE_ACTIVITY_PRIOR_PERIOD_UNAVAILABLE");
+  }
+  warnings.push(...supplierPostedPayableActivityTrend.warnings);
   const supplierActivityCalculation: BusinessHealthCalculability = supplierPostedPayableActivity
     ? {
         status: supplierPostedPayableActivity.status,
@@ -549,7 +561,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   return {
     id: input.id, generatedAt: input.generatedAt, asOf: input.asOf, period: input.period,
     policyVersion: BUSINESS_HEALTH_MAP_POLICY_VERSION, status, currencies, cashflow, stock, replenishment,
-    customerFocus: customer.rows, productRevenueConcentration, supplierPostedPayableActivity, calculations, totalCapitalAtRisk: null,
+    customerFocus: customer.rows, productRevenueConcentration, supplierPostedPayableActivity, supplierPostedPayableActivityTrend, calculations, totalCapitalAtRisk: null,
     totalCapitalAtRiskReason: "الإجمالي محجوب لأن الذمم والتحصيلات والالتزامات والمخزون والوارد المجدول قد تتداخل؛ تُعرض المكونات منفصلة إلى أن تثبت مجموعات مصادر متنافية.",
     attention, warnings: unique(warnings),
   };

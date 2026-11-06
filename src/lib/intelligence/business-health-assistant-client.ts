@@ -153,6 +153,25 @@ function buildCashflow(data: CashflowScheduleSnapshot) {
   return { forecast, liquidity };
 }
 
+function previousEqualUtcPeriod(period: { from: string; to: string }): { from: string; to: string } | null {
+  const day = (value: string): number | null => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const millis = Date.parse(value + "T00:00:00.000Z");
+    return Number.isFinite(millis) && new Date(millis).toISOString().slice(0, 10) === value ? millis : null;
+  };
+  const from = day(period.from);
+  const to = day(period.to);
+  if (from === null || to === null || from > to) return null;
+  const durationDays = Math.round((to - from) / 86_400_000) + 1;
+  if (durationDays < 1 || durationDays > 366) return null;
+  const previousTo = from - 86_400_000;
+  const previousFrom = previousTo - (durationDays - 1) * 86_400_000;
+  return {
+    from: new Date(previousFrom).toISOString().slice(0, 10),
+    to: new Date(previousTo).toISOString().slice(0, 10),
+  };
+}
+
 export async function fetchBusinessHealthAssistantSummary(now = new Date()): Promise<BusinessHealthAssistantFetchResult> {
   if (!Number.isFinite(now.getTime())) {
     return { ok: false, status: "ERROR", message: "وقت احتساب خريطة صحة الأعمال غير صالح." };
@@ -160,7 +179,8 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
   try {
     const inventoryRequest = createInventoryIntelligencePeriod(now, 92);
     const cashflowRequest = createCashflowScheduleRequest({ horizonDays: 90, now });
-    const [inventory, cashflow, retention, productRevenueConcentration, supplierPostedPayableActivity] = await Promise.all([
+    const supplierPriorPeriod = previousEqualUtcPeriod(inventoryRequest.period);
+    const [inventory, cashflow, retention, productRevenueConcentration, supplierPostedPayableActivity, supplierPostedPayableActivityPrior] = await Promise.all([
       fetchInventoryIntelligence(inventoryRequest.period, inventoryRequest.asOf),
       fetchCashflowSchedule(cashflowRequest),
       fetchCustomerRetentionAggregate(90, inventoryRequest.asOf),
@@ -174,6 +194,17 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
         to: inventoryRequest.period.to,
         asOf: inventoryRequest.asOf,
       }),
+      supplierPriorPeriod
+        ? fetchSupplierPostedPayableActivity({
+            from: supplierPriorPeriod.from,
+            to: supplierPriorPeriod.to,
+            asOf: inventoryRequest.asOf,
+          })
+        : Promise.resolve({
+            ok: false as const,
+            status: "ERROR" as const,
+            message: "تعذر إنشاء فترة سابقة مساوية وآمنة لمقارنة تركّز الموردين.",
+          }),
     ]);
 
     if (inventory.ok === false) {
@@ -226,6 +257,10 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
       supplierPostedPayableActivity: supplierPostedPayableActivity.ok ? supplierPostedPayableActivity.snapshot : null,
       supplierPostedPayableActivityUnavailableReason: supplierPostedPayableActivity.ok
         ? undefined : supplierPostedPayableActivity.message,
+      supplierPostedPayableActivityPriorPeriod: supplierPostedPayableActivityPrior.ok
+        ? supplierPostedPayableActivityPrior.snapshot : null,
+      supplierPostedPayableActivityPriorPeriodUnavailableReason: supplierPostedPayableActivityPrior.ok
+        ? undefined : supplierPostedPayableActivityPrior.message,
       replenishment: {
         id: "business-health-replenishment-source:" + inventory.data.asOf,
         asOf: inventory.data.asOf,
@@ -292,7 +327,8 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
       sources.productRevenueConcentration.completePopulation &&
       sources.supplierPostedPayableActivity.sourceStatus === "READY" &&
       sources.supplierPostedPayableActivity.resultStatus === "VERIFIED" &&
-      sources.supplierPostedPayableActivity.completeSourceAggregation;
+      sources.supplierPostedPayableActivity.completeSourceAggregation &&
+      map.supplierPostedPayableActivityTrend.status === "VERIFIED";
     const state = allSourcesReady && map.status === "VERIFIED" ? "READY" : "PARTIAL";
     const answer = state === "READY"
       ? "اكتملت قراءة مصادر خريطة صحة الأعمال عند " + map.asOf + "؛ عُرضت المؤشرات المثبتة فقط، مع إبقاء العملات منفصلة ومنع جمع المكونات المتداخلة."
