@@ -56,7 +56,10 @@ function compareOrder(left: DecisionMemoryRecord, right: DecisionMemoryRecord, n
   for (let index = 0; index < a.length; index += 1) {
     if (a[index] !== b[index]) return a[index] - b[index];
   }
-  return Date.parse(left.createdAt) - Date.parse(right.createdAt);
+  const byCreation = Date.parse(left.createdAt) - Date.parse(right.createdAt);
+  if (byCreation !== 0) return byCreation;
+  // Use the immutable decision ID as a deterministic final tie-breaker.
+  return left.decisionId < right.decisionId ? -1 : left.decisionId > right.decisionId ? 1 : 0;
 }
 
 function decisionDue(record: DecisionMemoryRecord, now: number): string {
