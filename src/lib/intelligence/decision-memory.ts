@@ -222,9 +222,19 @@ function compareMetrics(expected: DecisionMemoryMetricResult | null, actual: Dec
     reason: "METRIC_PERIOD_UNIT_CURRENCY_OR_FORMULA_CHANGED",
   };
   const difference = actual.value - expected.value;
+  const differencePercent = expected.value === 0
+    ? null
+    : (difference / Math.abs(expected.value)) * 100;
+  if (!Number.isFinite(difference) || Math.abs(difference) > Number.MAX_SAFE_INTEGER ||
+      (differencePercent !== null &&
+        (!Number.isFinite(differencePercent) || Math.abs(differencePercent) > Number.MAX_SAFE_INTEGER))) {
+    return {
+      status: "WITHHELD", expected, actual, difference: null, differencePercent: null,
+      reason: "OUTCOME_ARITHMETIC_UNSAFE",
+    };
+  }
   return {
-    status: "VERIFIED", expected, actual, difference,
-    differencePercent: expected.value === 0 ? null : (difference / Math.abs(expected.value)) * 100,
+    status: "VERIFIED", expected, actual, difference, differencePercent,
     reason: expected.value === 0 ? "ZERO_BASELINE_PERCENT_WITHHELD" : null,
   };
 }
