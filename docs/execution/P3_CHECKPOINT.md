@@ -1,3 +1,38 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-TASK-QUALITY-REVIEWS-001
+
+- Repository: `Report-Engainall/Nasr1`; branch `main`.
+- Latest P3 source SHA: `1f09197ec8aa412428ae759353b32ede3b033e45`. Current main subsequently advanced only in P1 CustomerWorkflows / customer-account-statement XLSX files; no P3 overlap was found.
+- Core feature commits include:
+  - `051e56a3cd349572adff52c80aaa15d15ed1d772` — append-only manager-reviewed quality event store and RPCs.
+  - `091d3c2bb5e6e1334720dcd02fd2127c5212d5f0` — result snapshot generated before insert, preserving append-only semantics.
+  - `26de99fa7a8c9cbebe84947a570431fd74bebecb` — typed quality metrics engine and write client.
+  - `dcf88f302c8fc87625620313f1a2b739b7b8a491` — integrate quality metrics with the existing task scorecard DTO/UI.
+  - `79750089fd0f0cc20e324642037683074fe79a7b` — Arabic manager review form.
+  - `a299e5b68d2811f7c5dd55d82475659860489bbf` — scorecard wrapper exposes denominator-backed availability.
+  - `a305ce91a284f8def784ecce4cf7056e34a70bec` — latest review per task/decision/type plus cause-sample reconciliation.
+  - `e76b4f3eea73b05b7221224e7dcf4a1c4003658a` — lock reviewer profile/role and reject null classification.
+  - `f4655fcfcc9bab2f5a0cb03d23be12bab8f86f45` — stale-version and manager-only metrics acceptance assertions.
+  - `698f9ed628c6c05484f7bcfb195d7b46d0167c0c` — exact client response validation.
+  - `3e4c783f8af8f469cfe1fef5dd401ce7c31fa686` — wide numeric type for cause count.
+  - `1f09197ec8aa412428ae759353b32ede3b033e45` — reset in-memory idempotency token when task ID/version changes.
+- Added migration `supabase/migrations/20261106090000_operational_task_quality_reviews.sql` (blob `16becf47c0688703debf2737b7c745273b823747`).
+  - Append-only table `operational_task_quality_events` stores ACTIONABILITY, RECOMMENDATION_DISPOSITION and ALERT_VALIDATION events linked to a real same-tenant `ai_tasks` row and optional same-tenant `decision_outcomes` row.
+  - Manager/admin RPC derives actor/organization from authenticated session, locks active reviewer profile/role and task row, binds the review to exact task `updated_at`, validates review/reason taxonomy and stores result snapshot atomically with the event.
+  - Same actor/key/payload replay returns persisted result without another event; same key with changed payload conflicts. Stale task version returns SQLSTATE 40001.
+  - Direct SELECT/INSERT/UPDATE/DELETE access to the raw event table is revoked. UPDATE/DELETE triggers reject mutation, and no task status or decision lifecycle is mutated.
+  - Manager-only aggregate returns only RESTRICTED to non-managers. Actionability denominator excludes deferred; false-alarm denominator excludes NEEDS_REVIEW; repeated cause requires one standardized reason across at least two distinct tasks.
+  - Existing task scorecard wrapper includes the quality aggregate and removes unavailable labels only when a valid denominator/review sample exists.
+- Added strict TypeScript parser/client, Arabic RTL `TaskQualityReviewForm`, quality panel inside the existing task scorecard, exports, focused tests, and PostgreSQL acceptance source.
+- P1 already mounted `TaskPerformanceScorecard` in `IntelligenceWorkspace`. P1 must mount `TaskQualityReviewForm` in existing `TaskCenter.tsx`; handoff: `docs/execution/contracts/P3_TASK_QUALITY_REVIEW_P1_HANDOFF.md`.
+- The current `OperationalTask` type extends `AiTask` with `updated_at: string`; existing `fetchOperationalTasks()` selects `*`. P1 should use the task's real ID/version and existing manager/admin gate. No parallel route, query or mock data.
+- Database acceptance source covers actual task scenarios for ACTIONABLE, NOT_ACTIONABLE, rejected, deferred, FALSE_POSITIVE and NEEDS_REVIEW; exact reason-based aggregates, replay/conflict, stale version, manager-only access, direct raw-table SELECT/UPDATE/DELETE denial, and customer denial with before/after event counts unchanged.
+- Tests were added but NOT run. Migration has NOT been applied to Bolt/Supabase. No typecheck, build, lint, CI, browser, E2E, database runtime, Preview, Vercel or production operation was run. No PASS or production readiness is claimed.
+- No paid provider, dependency, secret, Vercel credit, AI quota, financial/inventory mutation or production operation was used.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Next: extend existing decision-outcome/learning-loop measurement to comparable operational outcomes using explicit baseline and source evidence; never infer impact from task text or status.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SECTION-61-TASK-AUDIT-WINDOW-BOUNDARY-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

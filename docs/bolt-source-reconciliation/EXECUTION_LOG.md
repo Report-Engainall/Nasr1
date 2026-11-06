@@ -1982,3 +1982,16 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - The central audit event preserves status, manager_cancellation, assigned_to, resolution_note, and manager_cancellation_cleared values from the former status RPC audit payload. The task status RPC stays free of a second explicit event insert.
 - PostgreSQL acceptance source asserts the prior resolution-note/cancellation metadata contract and a single baseline row in addition to user/source transition event uniqueness and exact post-baseline reopen-rate reconciliation.
 - Current main after source changes: 8695394f5039cbe072d6b7e8a94e325f2fc6a8e6. Tests and all runtime/toolchain acceptance were not run; all four Section 61 migrations remain source-only, status IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. No PASS claim.
+
+
+## 2026-11-06 — REF-TASK-QUALITY-REVIEWS-001 — append-only reviewed quality evidence
+
+- P3 source SHA: 1f09197ec8aa412428ae759353b32ede3b033e45.
+- Added migration 20261106090000_operational_task_quality_reviews.sql (blob 16becf47c0688703debf2737b7c745273b823747).
+- Append-only event table stores manager/admin reviews of actionability, recommendation disposition and alert validation; each event is same-tenant linked to ai_tasks and optionally decision_outcomes. Actor and organization are session-derived. Task updated_at is locked and checked exactly. No task status or decision outcome is mutated.
+- Manager profile/role rows are locked during the write. Same-key/same-payload replay returns persisted result_snapshot; changed payload conflicts. Snapshot is created before insert. Direct raw-table client access is revoked; UPDATE/DELETE triggers reject mutation.
+- Metrics derive from latest event per task/decision/review type. Deferred actionability is excluded from actionability rate; NEEDS_REVIEW is excluded from false-alarm denominator; repeated reason requires two distinct tasks. Only manager/admin receive aggregate; others receive RESTRICTED only.
+- Integrated the quality output into the existing Section 61 scorecard wrapper/panel; added TaskQualityReviewForm with stable in-memory idempotency across uncertain retries.
+- PostgreSQL acceptance source covers actual task reviews for ACTIONABLE, NOT_ACTIONABLE, rejected, deferred, FALSE_POSITIVE and NEEDS_REVIEW; exact denominators, reason groups, repeated cause, replay, payload conflict, stale version, direct SELECT/UPDATE/DELETE denial, customer denial and unchanged before/after row count.
+- P1 handoff is docs/execution/contracts/P3_TASK_QUALITY_REVIEW_P1_HANDOFF.md. The existing scorecard mount is present; TaskQualityReviewForm is not yet mounted by P1.
+- Tests, build, typecheck, lint, CI, browser/E2E, database runtime and migration application were NOT run. No PASS/production readiness claimed. No paid provider, dependency, secret, Vercel credit, AI quota or business-state mutation.
