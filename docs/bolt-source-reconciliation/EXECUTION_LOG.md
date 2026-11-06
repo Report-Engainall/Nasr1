@@ -2078,3 +2078,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Exact paths: `src/lib/intelligence/natural-language-assistant.ts`, `natural-language-assistant-client.ts`, `src/components/intelligence/NaturalLanguageAssistant.tsx`, `src/lib/intelligence/natural-language-assistant.test.ts`.
 - Source tests authored but NOT run. No build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production action was run. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Matrix leaf: `REF-NL-DECISION-MEMORY-ASSISTANT-001`; canonical P3 checkpoint documents the exact Bolt acceptance gates.
 
+## 2026-11-06 — REF-NL-SHIFT-OPERATIONS-ASSISTANT-001 — Arabic shift readiness and closeout assistant
+
+- Code parent: `b662ef538d87f1d705d4d4517994b3f78025d7f6`; commits `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, `5f716ea481a0d07b7dbdf720faf7891331423ebe`, `d69c1ef4ed6ef433f16a78bea95f12d43f239870`.
+- Added a date-explicit Arabic assistant read for Section 53 shift operations. It composes the existing authenticated workspace RPC, deterministic shift decision packet and existing presentation.
+- No date inference: exact valid organization business date is required; relative/missing/ambiguous/invalid requests clarify without RPC. Server timezone, business date and asOf remain authoritative.
+- Preserves source denial/not-found/unavailable and completeness status. No shift/cash/handover/close/inventory/journal write occurs from the assistant query.
+- Code paths: `natural-language-assistant.ts`, `natural-language-assistant-client.ts`, `NaturalLanguageAssistant.tsx`, `natural-language-assistant.test.ts`. No new RPC/schema/migration/provider.
+- Tests authored but NOT run; no build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production action. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; matrix leaf `REF-NL-SHIFT-OPERATIONS-ASSISTANT-001`.
+

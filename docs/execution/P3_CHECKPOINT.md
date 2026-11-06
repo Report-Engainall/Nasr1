@@ -1,3 +1,40 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SHIFT-OPERATIONS-ASSISTANT-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Code parent before this increment: `b662ef538d87f1d705d4d4517994b3f78025d7f6`.
+- Code commits: `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, Arabic date/intent correction `5f716ea481a0d07b7dbdf720faf7891331423ebe`, and final date/applicability correction `d69c1ef4ed6ef433f16a78bea95f12d43f239870`.
+- Feature: Arabic assistant intent `SHIFT_OPERATIONS_OVERVIEW` backed by the existing shift workspace contract.
+
+### Implemented on main
+
+- Added Arabic read intent for the shift opening/closeout center, readiness and handover questions.
+- The planner requires exactly one explicit valid `YYYY-MM-DD` business date. It does not infer a date from browser-local time, UTC, or relative words such as "today"; ambiguous, missing or invalid dates return CLARIFICATION before an RPC call.
+- Reused `fetchOperationalShiftWorkspace({ businessDate })`, the existing authenticated `fetch_operational_shift_workspace` RPC client, deterministic `buildShiftOperationsCenter` result, parser and the existing `ShiftOperationsCenter` presentation.
+- The summary is computed only from the returned shift packet: opening readiness, operational closeout, financial closeout eligibility, action-required checks, unknown checks, and non-applicable-aware source coverage. Organization time zone and source `asOf` are displayed from the server result.
+- The read path preserves existing `DENIED`, `NOT_FOUND`, `UNAVAILABLE` and malformed-source states; no fallback or zero-fill is introduced.
+- No shift is opened, no cash count or handover is recorded, no financial close is posted, no stock movement or journal is executed. The natural-language query remains read-only.
+- No new RPC, SQL, migration, permission path, route, provider or P1-owned workspace/shell file was added or changed.
+
+### Exact changed code paths
+
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+- `src/lib/intelligence/natural-language-assistant.test.ts`
+
+### Acceptance boundary
+
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Source tests were authored for required explicit date, relative-date clarification, invalid calendar date, and Arabic closeout phrasing; NOT RUN.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, migration application, Preview, Vercel or production action was run. No PASS/runtime/production claim.
+- Bolt must later prove: valid date resolves in the organization business time zone; missing/relative/multiple/invalid dates never call the RPC; authorized same-tenant read; denied role and foreign-tenant denial; missing shift returns NOT_FOUND; missing migration/source returns UNAVAILABLE; coverage and closeout checks reconcile to server DTO; the assistant read itself does not change shifts, cash, handover, stock or journals.
+
+### Next P3 action
+
+Continue the next independently executable P3-owned source-backed gap. P1 shell/workspace ownership and any separately authorized shift commands remain outside this read path.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-DECISION-MEMORY-ASSISTANT-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

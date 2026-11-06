@@ -1,5 +1,16 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — Arabic shift readiness and closeout assistant — 2026-11-06
+
+- Code parent: `b662ef538d87f1d705d4d4517994b3f78025d7f6`; code commits: `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, `5f716ea481a0d07b7dbdf720faf7891331423ebe`, `d69c1ef4ed6ef433f16a78bea95f12d43f239870`.
+- Added `SHIFT_OPERATIONS_OVERVIEW` Arabic assistant intent using the existing `fetch_operational_shift_workspace` reader, `buildShiftOperationsCenter` and `ShiftOperationsCenter` UI.
+- A single explicit valid business date is required. Relative date, missing date, multiple dates or invalid calendar date returns CLARIFICATION before source access; no browser/UTC date is guessed. The organization time zone and source asOf are presented from server output.
+- Existing DENIED / NOT_FOUND / UNAVAILABLE and malformed-source behavior are preserved. Summary includes opening readiness, operational closeout, financial closeout eligibility and evidence coverage. Non-applicable source checks do not inflate the incomplete-source count.
+- This is read-only: no shift start, cash count, handover, financial close, inventory movement or journal posting. No new RPC, SQL, migration, permission path, route or P1 workspace modification.
+- Source tests were authored, not run. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation was run. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Exact Bolt acceptance gates are documented in the P3 checkpoint and matrix leaf `REF-NL-SHIFT-OPERATIONS-ASSISTANT-001`.
+
+
 ## P3 body update — Arabic decision memory and evidence-backed learning — 2026-11-06
 
 - Code commits `e654903224ca378dc7862cf5e195e9a8abc079d6` and `5f0d3b67fd94fceea766ccdad4db187b9e053c0f`; code-bearing parent was `541b3902fe08eb65c39781b04b315027710a2478`.
