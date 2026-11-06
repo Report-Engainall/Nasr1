@@ -28,7 +28,7 @@ export interface DecisionCandidate {
  whatNext:string;proof:{evidenceIds:string[];metricKeys:string[];asOf:string;formulaVersions:string[]};
  owner:string;expectedOutcome:string;createdAt:string;expiresAt:string|null;
 }
-export type DecisionOutcomeState="PROPOSED"|"IN_REVIEW"|"APPROVED"|"REJECTED"|"ASSIGNED"|"EXECUTING"|"EXECUTED"|"MEASURED";
+export type DecisionOutcomeState="PROPOSED"|"IN_REVIEW"|"APPROVED"|"REJECTED"|"DEFERRED"|"ASSIGNED"|"EXECUTING"|"EXECUTED"|"MEASURED";
 export interface DecisionActor {id:string;role:string}
 export interface DecisionMeasuredOutcome {
  metricKey:string;value:number;unit:MetricUnit;currency?:string;
