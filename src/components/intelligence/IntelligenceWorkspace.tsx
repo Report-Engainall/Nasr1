@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { BrainCircuit, CalendarClock, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
@@ -13,6 +14,7 @@ import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult 
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
+import { fetchCustomerQuotePipeline, type CustomerQuotePipelineFetchResult } from "@/lib/intelligence/customer-quote-pipeline-client";
 import { fetchTaskPerformanceScorecard, type TaskPerformanceScorecardFetchResult } from "@/lib/intelligence/task-performance-scorecard-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { ShiftQueueSourceKey } from "@/lib/intelligence/shift-operations";
@@ -416,6 +418,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [supplierPerformanceLoading, setSupplierPerformanceLoading] = useState(true);
   const [supplierPerformanceRefreshKey, setSupplierPerformanceRefreshKey] = useState(0);
   const supplierPerformanceRequestGeneration = useRef(0);
+  const [customerQuotePipelineResponse, setCustomerQuotePipelineResponse] = useState<CustomerQuotePipelineFetchResult | null>(null);
+  const [customerQuotePipelineLoading, setCustomerQuotePipelineLoading] = useState(true);
+  const [customerQuotePipelineRefreshKey, setCustomerQuotePipelineRefreshKey] = useState(0);
+  const customerQuotePipelineRequestGeneration = useRef(0);
   const [taskPerformanceResponse, setTaskPerformanceResponse] = useState<TaskPerformanceScorecardFetchResult | null>(null);
   const [taskPerformanceLoading, setTaskPerformanceLoading] = useState(true);
   const [taskPerformanceRefreshKey, setTaskPerformanceRefreshKey] = useState(0);
@@ -561,6 +567,33 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       supplierPerformanceRequestGeneration.current += 1;
     };
   }, [canManage, processFrom, processTo, supplierPerformanceRefreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    const generation = ++customerQuotePipelineRequestGeneration.current;
+    if (!canManage) {
+      setCustomerQuotePipelineResponse({ ok: false, status: "DENIED", message: "تتطلب قراءة مسار عروض أسعار العملاء صلاحية موظف نشط داخل المؤسسة." });
+      setCustomerQuotePipelineLoading(false);
+      return () => { mounted = false; };
+    }
+    setCustomerQuotePipelineLoading(true);
+    void fetchCustomerQuotePipeline({ from: processFrom, to: processTo })
+      .then((response) => {
+        if (mounted && generation === customerQuotePipelineRequestGeneration.current) setCustomerQuotePipelineResponse(response);
+      })
+      .catch(() => {
+        if (mounted && generation === customerQuotePipelineRequestGeneration.current) {
+          setCustomerQuotePipelineResponse({ ok: false, status: "ERROR", message: "تعذر تحميل مسار عروض أسعار العملاء من المصدر المعتمد." });
+        }
+      })
+      .finally(() => {
+        if (mounted && generation === customerQuotePipelineRequestGeneration.current) setCustomerQuotePipelineLoading(false);
+      });
+    return () => {
+      mounted = false;
+      customerQuotePipelineRequestGeneration.current += 1;
+    };
+  }, [canManage, processFrom, processTo, customerQuotePipelineRefreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -799,6 +832,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const supplierPerformanceViewState = supplierPerformanceLoading ? "loading"
     : supplierPerformanceResponse?.ok ? "ready"
     : supplierPerformanceResponse?.status === "UNAVAILABLE" ? "unavailable"
+    : "error";
+  const customerQuotePipelineViewState = customerQuotePipelineLoading ? "loading"
+    : customerQuotePipelineResponse?.ok ? "ready"
+    : customerQuotePipelineResponse?.status === "UNAVAILABLE" ? "unavailable"
     : "error";
   const openShiftItems = shiftWorkspace?.result.items.filter((item) => item.state !== "RESOLVED" && item.state !== "UNKNOWN") ?? [];
   const handoverRefs = [...new Set(openShiftItems
@@ -1156,8 +1193,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 setShiftRefreshKey((value) => value + 1);
                 setProcessRefreshKey((value) => value + 1);
                 setSupplierPerformanceRefreshKey((value) => value + 1);
+                setCustomerQuotePipelineRefreshKey((value) => value + 1);
                 setTaskPerformanceRefreshKey((value) => value + 1);
-              }} disabled={loading || outcomesLoading || inventoryLoading || shiftLoading || processLoading || supplierPerformanceLoading || taskPerformanceLoading}>
+              }} disabled={loading || outcomesLoading || inventoryLoading || shiftLoading || processLoading || supplierPerformanceLoading || customerQuotePipelineLoading || taskPerformanceLoading}>
                 <RefreshCw size={16} /> تحديث
               </button>
             </div>
@@ -1335,6 +1373,27 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 onOpenPurchaseOrder={onOpenPurchaseOrder}
               />
             </div>
+            <section className="border-t pt-4 space-y-3" aria-label="مسار عروض أسعار العملاء">
+              <header className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2>مسار عروض أسعار العملاء</h2>
+                  <p className="report-note">يعرض دورة عروض الأسعار المنشأة في فترة UTC المحددة أعلاه، مع الحالة الحالية كما قرأها الخادم. قبول العرض ليس طلب بيع ولا يثبت التحويل إلى فاتورة.</p>
+                </div>
+                <button type="button" className="btn secondary" onClick={() => setCustomerQuotePipelineRefreshKey((value) => value + 1)} disabled={customerQuotePipelineLoading}>
+                  <RefreshCw size={15} /> تحديث مسار العروض
+                </button>
+              </header>
+              {customerQuotePipelineResponse && !customerQuotePipelineResponse.ok ? <p role="alert" className="text-sm">{customerQuotePipelineResponse.message}</p> : null}
+              {customerQuotePipelineViewState === "loading" ? (
+                <p role="status" className="rounded-lg border p-3 text-sm">جارٍ تحميل مسار عروض العملاء من سجلات المؤسسة…</p>
+              ) : customerQuotePipelineResponse?.ok ? (
+                <CustomerQuotePipelineSummary result={customerQuotePipelineResponse.result} />
+              ) : (
+                <p role="status" className="rounded-lg border p-3 text-sm">
+                  {customerQuotePipelineViewState === "unavailable" ? "مصدر مسار عروض العملاء غير متاح حتى تطبيق ترحيله في بيئة التشغيل." : "لم تُعرض مؤشرات لمسار العروض؛ لم تُستخدم أرقام بديلة."}
+                </p>
+              )}
+            </section>
           </section>
 
           <section className="panel space-y-3" aria-label="مؤشرات أداء المهام">
