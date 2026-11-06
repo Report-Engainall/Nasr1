@@ -1661,46 +1661,75 @@ function Reorder() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [priceVisibilityPolicy, setPriceVisibilityPolicy] = useState<unknown>(undefined);
+  const loadRevisionRef = useRef(0);
   const load = useCallback(async () => {
+    const requestRevision = ++loadRevisionRef.current;
     setError("");
     const tenantScope = await getCurrentTenantScope().catch((cause) => {
-      setError(cause instanceof Error ? cause.message : "تعذر تحديد المؤسسة الحالية.");
+      if (requestRevision === loadRevisionRef.current) {
+        setError(cause instanceof Error ? cause.message : "تعذر تحديد المؤسسة الحالية.");
+      }
       return null;
     });
-    if (!tenantScope) return;
+    if (!tenantScope || requestRevision !== loadRevisionRef.current) return;
     const { organizationId: orgId } = tenantScope;
-    const [p, t, publicSettings] = await Promise.all([
-      supabase
-        .from("products")
-        .select("id,name,item_code,barcode,unit,status")
-        .eq("organization_id", orgId)
-        .eq("status", "active")
-        .order("name")
-        .limit(500),
-      supabase
-        .from("reorder_templates")
-        .select("id,name,created_at,updated_at,source_order_id")
-        .order("updated_at", { ascending: false })
-        .limit(100),
-      fetchSettingsMap().catch(() => null),
-    ]);
+    let p: Awaited<ReturnType<typeof supabase.from>> | null = null;
+    let t: Awaited<ReturnType<typeof supabase.from>> | null = null;
+    let publicSettings: Record<string, unknown> | null = null;
+    try {
+      [p, t, publicSettings] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id,name,item_code,barcode,unit,status")
+          .eq("organization_id", orgId)
+          .eq("status", "active")
+          .order("name")
+          .limit(500),
+        supabase
+          .from("reorder_templates")
+          .select("id,name,created_at,updated_at,source_order_id")
+          .order("updated_at", { ascending: false })
+          .limit(100),
+        fetchSettingsMap().catch(() => null),
+      ]);
+    } catch {
+      if (requestRevision === loadRevisionRef.current) {
+        setError("تعذر تحميل المنتجات أو قوالب إعادة الطلب. تحقق من الاتصال ثم حاول مجددًا.");
+      }
+      return;
+    }
+    if (requestRevision !== loadRevisionRef.current || !p || !t) return;
     setPriceVisibilityPolicy(publicSettings?.show_price_on_cards);
     if (p.error || t.error)
-      setError("تعذر تحميل المنتجات أو قوالب إعادة الطلب. تحقق من ترحيل قاعدة البيانات.");
+      setError("تعذر تحميل المنتجات أو قوالب إعادة الطلب. تحقق من الاتصال وإعدادات الحساب.");
     else {
       try {
         const rows = (p.data ?? []) as Array<{ id: string; [key: string]: unknown }>;
         const priceMap = await fetchResolvedProductPrices(rows.map((row) => row.id));
+        if (requestRevision !== loadRevisionRef.current) return;
         setProducts(rows.map((row) => withResolvedProductPrice(row, priceMap.get(row.id))) as Product[]);
       } catch (priceError) {
+        if (requestRevision !== loadRevisionRef.current) return;
         setProducts([]);
         setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
       }
-      setTemplates((t.data ?? []) as ReorderTemplate[]);
+      if (requestRevision === loadRevisionRef.current) {
+        setTemplates((t.data ?? []) as ReorderTemplate[]);
+      }
     }
-  }, []);
+  }, [user?.id, user?.profileId]);
   useEffect(() => {
+    setProducts([]);
+    setTemplates([]);
+    setQuantities({});
+    setPriceVisibilityPolicy(undefined);
+    setError("");
+    setNotice("");
+    setBusy(false);
     void load();
+    return () => {
+      loadRevisionRef.current += 1;
+    };
   }, [load]);
   const visible = products.filter((p) => matchesArabicCatalogSearch(p, query));
   async function save(e: FormEvent) {
