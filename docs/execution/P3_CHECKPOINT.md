@@ -1898,3 +1898,47 @@ Continue Section 54 only with additional timestamp/sequence facts already repres
 
 ### Next P3 action
 Continue the next unimplemented intelligent product-body function. Do not rework the above files absent a specific blocker or new P2 contract.
+
+## P3 checkpoint — 2026-11-06 — AI gateway operations read surface (partial REF-AI-OPS-001)
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Code-bearing SHA: `91bee9d04cd5ea80f4d6f99228a798529fd1e769` (code commits below; subsequent docs-only handoff commit `f6cb4537f1a9e9faed23766ecd361e9039fd896d`).
+- Parent before this increment: `754ec9a16a780560382ec8e0b606adb165fe5269`.
+
+### Delivered on main
+
+1. Added `fetchAiGatewayBudget()` and `parseAiGatewayBudgetSnapshot()` in `src/lib/intelligence/ai-gateway-operations-client.ts`.
+   - Reuses the existing authenticated `get_ai_gateway_budget()` RPC; no new endpoint, migration, provider call or tenant selector.
+   - The server contract requires an active administrator/manager session and derives organization scope server-side. The client does not send organization, actor or role values.
+   - Strictly validates booleans, provider/model identifiers, numeric limits, token counts, cost totals, reservations, cross-limit consistency and `keys_stored_in_database=false`. Malformed responses fail closed.
+   - Discards organization ID and does not expose base URLs or secret values.
+
+2. Added reusable Arabic `AiGatewayOperationsPanel` in `src/components/intelligence/AiGatewayOperationsPanel.tsx`.
+   - Displays configured/enabled state, stored primary/fallback provider and model, daily/monthly recorded cost and tokens, active reservation totals and configured limits.
+   - Uses the current authenticated RPC's admin/manager denial; provides loading, denied, unavailable/error, malformed and ready states with retry.
+   - Read-only: no provider call, configuration mutation, quota reservation, purchase, production operation or external data egress.
+   - Cost values have no explicit currency in this DTO, so the panel does not add a currency label. It distinguishes gateway estimates/ledger aggregates from invoices or settled provider charges.
+   - Positive configured cost allowances trigger an explicit review warning. Zero recorded cost is not treated as proof of a free model or zero paid spend.
+
+3. Exported the client and component from `src/lib/intelligence/index.ts` and `src/components/intelligence/index.ts`.
+
+### Exact source commits
+
+- `befd0017595d987723331280b29dadad7d072f0f` — strict RPC reader/parser.
+- `819a8faf06b431897c9021e0a0336ad605fad269` — Arabic operations panel.
+- `50c60626332ab48c2bc6bfb0e6fb54ade4bbb1e6` — library barrel export.
+- `91bee9d04cd5ea80f4d6f99228a798529fd1e769` — component barrel export; code-bearing cursor.
+- `f6cb4537f1a9e9faed23766ecd361e9039fd896d` — P1 mount contract handoff.
+
+### Acceptance boundary / remaining work
+
+- Status: `PARTIAL_P3_IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / P2_PROVIDER_STATUS_SOURCE_OPEN / ACCEPTANCE_PENDING`.
+- The existing RPC does **not** return verified free-tier status, provider zero-rate evidence, remaining provider quota/reset time, cooldown, privacy classification, last provider response, per-attempt errors or provider fallback counts. The panel explicitly says these are not proven. Do not infer them from configuration or zero recorded cost.
+- The component is not mounted by P3. P1 owns mounting it inside the existing admin AI view; no second route/page was added.
+- P2/server ownership remains for a tenant-scoped, admin-only status DTO for verified free quota/provider verification, cooldown, safe attempt telemetry and privacy status. No new server endpoint was fabricated.
+- Source-only implementation only. No tests, build, typecheck, lint, CI, browser, database, Bolt New, Preview, Vercel or production operation was run. No PASS/runtime/production proof is claimed.
+- No code was changed in P1-owned routes, `AghbariApp.tsx`, `IntelligenceWorkspace.tsx`, commerce pages or the live sender/gateway.
+
+### Next action
+
+P1 mounts the exported panel in the current admin AI view. Continue P3 with another independent source-backed intelligent product capability; keep full AI operations closure open until P2 exposes the missing free-quota/provider-status contract and P1 mounts the panel.
