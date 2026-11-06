@@ -2271,3 +2271,40 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Acceptance boundary: source and regression tests only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
 - NEXT_ACTION_ID: `REF-AI-FALLBACK-001` — exact-SHA acceptance of sanitizer fail-closed behavior, quota evidence eligibility, deterministic fallback, telemetry population validation, privacy and zero-paid-spend boundaries. Keep runtime provider activation disabled until free-tier, zero-cost and data-egress claims are proven from current provider evidence and owner approval.
 
+
+
+## P3 BUSINESS HEALTH SOURCE PRECISION — EXACT FINANCIAL CENTS AND CONCENTRATION ROUNDING — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Source commits:
+  - `3c0e07c15f000174f53f27e0cc9e9c040e1cbe90` — introduced a shared exact-decimal minor-unit and SQL percentage-rounding helper.
+  - `251051a4cff0bef51ed453cf77b4fc9b5e937f0e` — integrated exact arithmetic into both source-backed business-health readers and added regression tests.
+- Added `src/lib/intelligence/financial-precision.ts`:
+  - Converts decimal strings/numbers into bounded integer minor units without binary floating-point subtraction.
+  - Uses a conservative 10^15 minor-unit bound so returned JS numbers preserve cent precision.
+  - Implements PostgreSQL-compatible positive `round(numeric,2)` percentage rounding in integer arithmetic.
+- Hardened `src/lib/intelligence/supplier-posted-payable-activity-client.ts`:
+  - Net payable movement must now equal gross posted payable credits minus posted supplier credit-note debits exactly in integer cents; a one-cent difference is rejected.
+  - Top-five concentration percentage must equal the source's rounded `top5/gross × 100` at exactly two decimal places; a 0.01 percentage-point discrepancy is rejected.
+  - Count aggregation across currencies uses BigInt before comparison with the source total.
+  - Missing nullable fields are distinguished from explicit nulls and malformed fields are rejected.
+- Hardened `src/lib/intelligence/product-revenue-concentration-client.ts`:
+  - Top-five net invoice-line amount must not exceed the verified net amount.
+  - The top-five/net percentage must exactly match source rounding to two percentage decimals; no 0.011 tolerance remains.
+  - Cross-currency invoice and invoice-without-lines population totals use BigInt.
+  - Missing nullable fields are rejected rather than interpreted as an explicit null.
+- Added regression files:
+  - `src/lib/intelligence/financial-precision.test.ts` — exact decimal parsing, over-precision/unsafe values, negative values, and PostgreSQL percentage half-up boundaries.
+  - `src/lib/intelligence/supplier-posted-payable-activity-client.test.ts` — accepted source-aligned totals, one-cent net mismatch, one-hundredth percentage mismatch and absent nullable field.
+  - `src/lib/intelligence/product-revenue-concentration-client.test.ts` — accepted SQL-rounded ratio, one-hundredth percentage mismatch, top-five amount exceeding net and absent nullable field.
+- Exact final blobs:
+  - `financial-precision.ts`: `0bebd4c9d539dd67d8eb1de37e869a8cc78ca944`.
+  - `financial-precision.test.ts`: `4a8fde6f7c13dce97f7e7a48cee56d4451762eed`.
+  - `supplier-posted-payable-activity-client.ts`: `006598275108a8c884bbc8ad2bb9263cd65c2bc0`.
+  - `supplier-posted-payable-activity-client.test.ts`: `cbeab59bd1c8a5690f003d00622c4cc05743c66f`.
+  - `product-revenue-concentration-client.ts`: `26859285482c0ccfb9a5b47834dd4ef90e20bad1`.
+  - `product-revenue-concentration-client.test.ts`: `d6a03c662bbd39533877237ffdaaa1f8a9d289ad`.
+- No SQL migration, accounting entry, payment, supplier balance, inventory, customer invoice or external integration was changed. Existing migrations `20261106210000_business_health_product_revenue_concentration.sql` and `20261106220000_business_health_supplier_posted_payable_activity.sql` remain unchanged.
+- Acceptance boundary: implementation and regression sources only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
+- NEXT_ACTION_ID: `REF-BUSINESS-HEALTH-MAP-001` — Bolt exact-SHA non-production acceptance for source-aligned decimal/percentage arithmetic, finance authorization, tenant isolation, source completeness and no financial side effects.
+
