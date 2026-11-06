@@ -90,13 +90,37 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة ودفتر ذاكرة القرارات والتعلم من نتائجها، ومركز الوردية بتاريخ عمل محدد، ومسار عروض أسعار العملاء ومعدل القبول الصريح، ومقارنة عروض الموردين حسب الصنف والكمية والوحدة والعملة مع مؤشرات الأداء الفعلي للتوريد، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: طلبات العملاء المفتوحة وحالات طلبات البيع، أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة ودفتر ذاكرة القرارات والتعلم من نتائجها، ومركز الوردية بتاريخ عمل محدد، ومسار عروض أسعار العملاء ومعدل القبول الصريح، ومقارنة عروض الموردين حسب الصنف والكمية والوحدة والعملة مع مؤشرات الأداء الفعلي للتوريد، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","NOT_FOUND","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
    {response.status==="DENIED"?"غير مصرح":response.status==="UNAVAILABLE"?"المصدر غير متاح":response.status==="NOT_FOUND"?"لا توجد وردية مطابقة":"تعذر الاستعلام"}: {response.message}</div>:null}
   {response?.status==="NOT_FOUND"&&response.plan.sourceRpc==="fetch_operational_shift_workspace"?
     <StartFirstOperationalShiftForm businessDate={response.plan.businessDate??""} onStarted={()=>void submit()}/>:null}
+  {response?.status==="RESULT"&&response.result.kind==="SALES_ORDER_STATUS"?<section dir="rtl" className="space-y-3 rounded-lg border p-3" aria-label="ملخص طلبات البيع">
+   <header className="flex flex-wrap items-center justify-between gap-2">
+    <strong>{response.result.intent==="SALES_ORDERS_OPEN"?"الطلبات البيعية المفتوحة":response.result.intent==="SALES_ORDERS_PROCESSING"?"الطلبات قيد المعالجة":response.result.intent==="SALES_ORDERS_SHIPPED"?"الطلبات المشحونة":response.result.intent==="SALES_ORDERS_CANCELLED"?"الطلبات الملغاة":"ملخص حالات طلبات البيع"}</strong>
+    <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="EMPTY"?"لا توجد طلبات":response.result.state==="PARTIAL"?"تغطية جزئية":"لقطة كاملة"}</span>
+   </header>
+   <p className="font-medium">{response.result.answer}</p>
+   <p className="text-xs text-muted-foreground">المصدر: fetch_intelligence_sales_order_status_summary · عدد الطلبات: {count(response.result.totalCount)} · كما في {new Date(response.result.asOf).toLocaleString("ar-YE")}</p>
+   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    {([
+      ["مسودات","draft"],["بانتظار المعالجة","pending"],["مؤكدة","confirmed"],["قيد المعالجة","processing"],
+      ["مشحونة","shipped"],["مسلّمة","delivered"],["ملغاة","cancelled"],
+    ] as const).map(([label,key])=><article key={key} className="rounded-lg border p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <strong className="text-xl tabular-nums">{count(response.result.countsByStatus[key])}</strong>
+    </article>)}
+    <article className="rounded-lg border p-3">
+      <p className="text-xs text-muted-foreground">إجمالي الحالات غير المعروفة</p>
+      <strong className="text-xl tabular-nums">{count(response.result.unknownStatusCount)}</strong>
+    </article>
+   </div>
+   {response.result.intent!=="SALES_ORDERS_OVERVIEW"?<p className="text-xs text-muted-foreground">العدد المطابق للمرشح: {count(response.result.matchingCount)}.</p>:null}
+   {!response.result.completePopulation?<p role="status" className="text-xs text-muted-foreground">توجد حالات طلب مخزنة خارج قاموس الحالات المعروف؛ لذلك بقيت النتيجة جزئية ولم تُصنّف تلك الطلبات تخميناً.</p>:null}
+   <p className="text-xs text-muted-foreground">هذه قراءة تجميعية للموظف المخول داخل المؤسسة الحالية. لا تعرض أسماء العملاء أو معرفات الطلبات أو المبالغ أو السطور، ولا تنفذ أي تغيير على الطلبات.</p>
+  </section>:null}
   {response?.status==="RESULT"&&response.result.kind==="DECISION_OUTCOMES"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
