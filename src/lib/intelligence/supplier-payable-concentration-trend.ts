@@ -1,4 +1,9 @@
 import type { SupplierPostedPayableActivitySnapshot } from "./supplier-posted-payable-activity-client";
+import {
+  decimalToMinorUnits,
+  percentageToHundredths,
+  roundedPercentageHundredths,
+} from "./financial-precision";
 
 export type SupplierPayableTrendDirection = "INCREASED" | "DECREASED" | "UNCHANGED";
 export type SupplierPayableTrendStatus = "VERIFIED" | "PARTIAL" | "NOT_COMPARABLE" | "UNAVAILABLE";
@@ -52,6 +57,62 @@ function sameWindow(a: { from: string; to: string }, b: { from: string; to: stri
 function round2(value: number): number {
   return Number(value.toFixed(2));
 }
+
+function validSnapshotContract(snapshot: SupplierPostedPayableActivitySnapshot): boolean {
+  if (
+    snapshot.completeSourceAggregation !== true ||
+    !Number.isSafeInteger(snapshot.sourceEntryCount) || snapshot.sourceEntryCount < 0 ||
+    !Number.isSafeInteger(snapshot.currencyCount) || snapshot.currencyCount !== snapshot.currencies.length ||
+    snapshot.currencies.length > 20 ||
+    snapshot.activityScope !== "POSTED_SOURCE_LINKED_RECEIPT_AND_SUPPLIER_CREDIT_NOTE_JOURNALS" ||
+    snapshot.formulaId !== "nasr1.posted-supplier-payable-credit-concentration" ||
+    snapshot.formulaVersion !== "1"
+  ) return false;
+
+  const currencies = new Set<string>();
+  let totalEntries = 0n;
+  let hasReviewCurrency = false;
+  for (const row of snapshot.currencies) {
+    if (
+      !/^[A-Z]{3}$/.test(row.currency) || currencies.has(row.currency) ||
+      (row.status !== "VERIFIED" && row.status !== "NEEDS_REVIEW") ||
+      !Number.isSafeInteger(row.supplierCount) || row.supplierCount < 1 ||
+      !Number.isSafeInteger(row.sourceEntryCount) || row.sourceEntryCount < row.supplierCount
+    ) return false;
+    currencies.add(row.currency);
+    totalEntries += BigInt(row.sourceEntryCount);
+
+    const gross = decimalToMinorUnits(row.grossPayableCreditAmount, 2);
+    const debit = decimalToMinorUnits(row.postedSupplierCreditNoteDebitAmount, 2);
+    const net = decimalToMinorUnits(row.netPayableMovementAmount, 2, true);
+    const top5 = decimalToMinorUnits(row.top5GrossPayableCreditAmount, 2);
+    const percent = row.top5GrossPayableCreditPercent === null
+      ? null : percentageToHundredths(row.top5GrossPayableCreditPercent);
+    if (
+      gross === null || debit === null || net === null || top5 === null ||
+      net !== gross - debit ||
+      (row.status === "VERIFIED" && (
+        gross <= 0n || top5 > gross || percent === null || percent <= 0n ||
+        percent !== roundedPercentageHundredths(top5, gross)
+      )) ||
+      (row.status === "NEEDS_REVIEW" && (gross !== 0n || top5 !== 0n || percent !== null))
+    ) return false;
+    if (row.status === "NEEDS_REVIEW") hasReviewCurrency = true;
+  }
+
+  if (totalEntries !== BigInt(snapshot.sourceEntryCount)) return false;
+  if (snapshot.status === "EMPTY") {
+    return snapshot.sourceEntryCount === 0 && snapshot.currencyCount === 0 &&
+      snapshot.currencies.length === 0;
+  }
+  if (snapshot.status === "VERIFIED") {
+    return snapshot.sourceEntryCount > 0 && snapshot.currencyCount > 0 && !hasReviewCurrency;
+  }
+  if (snapshot.status === "NEEDS_REVIEW") {
+    return snapshot.sourceEntryCount > 0 && snapshot.currencyCount > 0 && hasReviewCurrency;
+  }
+  return false;
+}
 function empty(
   status: SupplierPayableTrendStatus,
   current: SupplierPostedPayableActivitySnapshot | null,
@@ -90,6 +151,9 @@ export function buildSupplierPayableConcentrationTrend(
   }
   if (current.activityScope !== baseline.activityScope) {
     return empty("NOT_COMPARABLE", current, baseline, "SUPPLIER_TREND_SOURCE_SCOPE_MISMATCH");
+  }
+  if (!validSnapshotContract(current) || !validSnapshotContract(baseline)) {
+    return empty("NOT_COMPARABLE", current, baseline, "SUPPLIER_TREND_SOURCE_CONTRACT_INVALID");
   }
   if (current.formulaId !== baseline.formulaId || current.formulaVersion !== baseline.formulaVersion) {
     return empty("NOT_COMPARABLE", current, baseline, "SUPPLIER_TREND_FORMULA_MISMATCH");

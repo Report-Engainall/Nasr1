@@ -82,6 +82,58 @@ describe("posted supplier payable concentration trend", () => {
     )).toMatchObject({ status: "NOT_COMPARABLE", warnings: ["SUPPLIER_TREND_PERIODS_NOT_ADJACENT_AND_EQUAL"] });
   });
 
+  it("rejects duplicate currency rows instead of silently overwriting them in a Map", () => {
+    const base = snapshot({ from: "2026-10-07", to: "2026-11-06" }, 72);
+    const duplicate = {
+      ...base,
+      sourceEntryCount: 36,
+      currencyCount: 2,
+      currencies: [base.currencies[0], { ...base.currencies[0] }],
+    };
+    expect(buildSupplierPayableConcentrationTrend(
+      duplicate,
+      snapshot({ from: "2026-09-06", to: "2026-10-06" }, 61),
+    )).toMatchObject({
+      status: "NOT_COMPARABLE",
+      warnings: ["SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"],
+      comparisons: [],
+    });
+  });
+
+  it("rejects inconsistent source row totals and currency population metadata", () => {
+    const base = snapshot({ from: "2026-10-07", to: "2026-11-06" }, 72);
+    expect(buildSupplierPayableConcentrationTrend(
+      { ...base, sourceEntryCount: 19 },
+      snapshot({ from: "2026-09-06", to: "2026-10-06" }, 61),
+    )).toMatchObject({ status: "NOT_COMPARABLE", warnings: ["SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"] });
+
+    expect(buildSupplierPayableConcentrationTrend(
+      { ...base, currencyCount: 2 },
+      snapshot({ from: "2026-09-06", to: "2026-10-06" }, 61),
+    )).toMatchObject({ status: "NOT_COMPARABLE", warnings: ["SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"] });
+  });
+
+  it("rejects one-cent net movement and one-hundredth concentration mismatches", () => {
+    const base = snapshot({ from: "2026-10-07", to: "2026-11-06" }, 72);
+    const netMismatch = {
+      ...base,
+      currencies: [{ ...base.currencies[0], netPayableMovementAmount: 999.99 }],
+    };
+    expect(buildSupplierPayableConcentrationTrend(
+      netMismatch,
+      snapshot({ from: "2026-09-06", to: "2026-10-06" }, 61),
+    )).toMatchObject({ status: "NOT_COMPARABLE", warnings: ["SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"] });
+
+    const percentMismatch = {
+      ...base,
+      currencies: [{ ...base.currencies[0], top5GrossPayableCreditPercent: 71.99 }],
+    };
+    expect(buildSupplierPayableConcentrationTrend(
+      percentMismatch,
+      snapshot({ from: "2026-09-06", to: "2026-10-06" }, 61),
+    )).toMatchObject({ status: "NOT_COMPARABLE", warnings: ["SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"] });
+  });
+
   it("compares available currencies and withholds a currency missing from the baseline", () => {
     const currentBase = snapshot({ from: "2026-10-07", to: "2026-11-06" }, 72);
     const baselineBase = snapshot({ from: "2026-09-06", to: "2026-10-06" }, 61);
