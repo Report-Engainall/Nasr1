@@ -53,7 +53,12 @@ export function SupplierQuoteComparisonAssistant({
                   <span className="ms-2 text-xs text-muted-foreground">عرض {offer.quoteNumber}</span>
                   {index === 0 ? <span className="ms-2 text-xs">أقل تكلفة وحدة مسجلة</span> : null}
                 </span>
-                <strong className="tabular-nums">{amount(offer.unitCost, item.currency)}</strong>
+                <div className="text-start">
+                  <strong className="tabular-nums">{amount(offer.unitCost, item.currency)}</strong>
+                  <p className="text-xs text-muted-foreground">التوريد: {offer.deliveryDays === null ? "غير محدد" : count.format(offer.deliveryDays) + " يوم"}</p>
+                  <p className="text-xs text-muted-foreground">الدفع: {offer.paymentTerms ?? "الشروط غير مسجلة"}</p>
+                  {offer.validUntil ? <p className="text-xs text-muted-foreground">صالح حتى: {offer.validUntil}</p> : null}
+                </div>
               </li>
             ))}
           </ol>
@@ -65,6 +70,10 @@ export function SupplierQuoteComparisonAssistant({
               الفارق بين أقل تكلفة والثانية: {amount(item.differenceToNextUnitCost ?? 0, item.currency)} لكل وحدة على هذا الأساس فقط.
             </p>
           ) : null}
+          <div className="rounded-md border p-2 text-xs">
+            <p>أقصر مدة توريد مسجلة: {item.deliveryProfile.shortestDays === null ? "غير محددة" : count.format(item.deliveryProfile.shortestDays) + " يوم"} · عدد العروض التي سجلت مدة: {count.format(item.deliveryProfile.withDays)} · غير المسجل: {count.format(item.deliveryProfile.withoutDays)}</p>
+            <p>شروط دفع مسجلة: {count.format(item.paymentTermsCoverage.recorded)} · غير مسجلة: {count.format(item.paymentTermsCoverage.missing)}</p>
+          </div>
         </article>
       ))}
 
@@ -97,7 +106,7 @@ export function SupplierQuoteComparisonAssistant({
         </p>
       ))}
       <p className="text-xs text-muted-foreground">
-        هذه مقارنة لتكلفة الوحدة المسجلة على المنتج والكمية والوحدة والعملة نفسها فقط. لا تقيم مدة التوريد أو شروط الدفع أو جودة المورد، ولا تختار عرضاً ولا تنشئ أمر شراء.
+        تظهر تكلفة الوحدة ومدة التوريد وشروط الدفع كأبعاد مستقلة من العرض المحفوظ. لا يوجد مجموع نقاط مركب أو وزن تقديري؛ القرار النهائي يتطلب مراجعة المستخدم المخول. لا تختار الواجهة عرضاً ولا تنشئ أمر شراء.
       </p>
     </section>
   );
