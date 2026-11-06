@@ -976,3 +976,27 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Existing migration `supabase/migrations/20261106010000_intelligence_shift_operations.sql` and the separate incoming-owner lookup migration remain source-only until approved Bolt non-production acceptance. No new SQL migration was added by this increment.
 - NEXT_ACTION_ID: `INT-SHIFT-001` — Bolt non-production: apply existing shift migrations; verify role/tenant scope, same-key replay/conflict, immutable source evidence, per-currency opening/closing counts, exact cent comparison including one-cent variance, append-only corrections, and incoming-owner-only handover acceptance.
 
+
+
+## P3 PROCUREMENT INTELLIGENCE HARDENING — SUPPLIER QUOTE SOURCE ROUNDING — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Starting source head for the engine change: `578e77ab4e27d4b4c0d8144eb49fddf992bd39d2`.
+- Main commits for this increment:
+  - `2144913e8bb22a5db38aed4eabf9335730cef321` — align quote line-total comparison to the SQL numeric rounding contract and add current comparison regressions.
+  - `429f6a20a7cb9ea03d783c1c561288f1519b6b6d` — correct the fixed-decimal parser expression.
+  - `94a168e8e670b373548953d1829c178962bc298d` — add regression coverage for historical price movement.
+- Source contract read from `supabase/migrations/20261105231000_supplier_quote_comparison.sql`: quoted quantity is `numeric(15,3)`, unit cost and line total are `numeric(15,2)`, and the server persists line total from quantity × unit cost cast to `numeric(15,2)`.
+- Hardened the existing `buildSupplierQuoteComparisonAssistant()` in `src/lib/intelligence/supplier-quote-comparison-assistant.ts`:
+  - Replaced the former `0.011` floating tolerance with exact decimal-scale validation and BigInt integer arithmetic.
+  - Mirrors the source rounding: quantity thousandths × unit-cost cents, rounded once to cents using the non-negative SQL numeric half-up rule.
+  - Requires the persisted line-total cents to equal the source-calculated cents. A one-cent discrepancy is now `LINE_TOTAL_MISMATCH`; it is withheld from both live comparison and saved price history.
+  - Uses the same validator for current supplier offers and historical quote observations, so history cannot retain a price movement from a malformed line total.
+- Added regression coverage for a half-cent rounding boundary that should match the SQL source, a one-cent mismatch in current offers, and a one-cent mismatch in historical price observations.
+- Exact final blobs:
+  - `src/lib/intelligence/supplier-quote-comparison-assistant.ts` — `e541f81d84b07d4b4352167c118218da4bccb30e`.
+  - `src/lib/intelligence/supplier-quote-comparison-assistant.test.ts` — `ae4956fa9c3494ee458e101796b72ef2e14f32ed`.
+- No SQL migration, supplier quote reader, award workflow, PO, stock, payment, journal or supplier-performance authorization was modified. No quote is awarded and no procurement side effect is introduced.
+- Acceptance boundary: source implementation and regression source only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
+- NEXT_ACTION_ID: `REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001` — exact-SHA Bolt non-production acceptance for SQL rounding parity, same-tenant purchasing authorization, comparison basis, history basis, performance sample gates and zero-write behavior.
+
