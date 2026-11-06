@@ -91,8 +91,15 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
    }};
   }
   if(plan.sourceRpc==="fetch_purchase_supplier_quotes"){
-   const quotes=await fetchSupplierQuotes();
-   const result=buildSupplierQuoteComparisonAssistant(quotes,new Date().toISOString());
+   const queriedAt=new Date().toISOString();
+   const to=queriedAt.slice(0,10);
+   const fromDate=new Date(to+"T00:00:00.000Z");
+   fromDate.setUTCDate(fromDate.getUTCDate()-89);
+   const [quotes,performance]=await Promise.all([
+    fetchSupplierQuotes(),
+    fetchSupplierPerformance({from:fromDate.toISOString().slice(0,10),to,limit:200}),
+   ]);
+   const result=buildSupplierQuoteComparisonAssistant(quotes,queriedAt,performance);
    return {status:"RESULT",plan,result};
   }
   if(plan.sourceRpc==="fetch_operational_shift_workspace"){
