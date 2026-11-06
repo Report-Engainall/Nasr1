@@ -1,3 +1,21 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — CUSTOMER ORDER XLSX + CUSTOMER RETURN PRINT
+
+## Customer order XLSX — BODY-058
+- Four Arabic worksheets built from the existing validated customer order projection: metadata, line items/quantities, saved delivery snapshot, and status/return history.
+- Added the order detail Excel action; no new query or data mutation. Excludes prices, totals, costs, margins, UUIDs and internal notes.
+- Commit `a8b093527c580ce2fde67248072f591b9b57729c`; builder blob `0e9784a8943ed0824378afa8a790dafbf9a94413`; UI blob `05c21aee4f76a2e7aff15eb8446fd8f190765576`.
+- Acceptance leaf `DLV-011-CUSTOMER-ORDER-XLSX-001`; `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Customer return request A4 print — BODY-059
+- Added a per-request A4 RTL print/Save-as-PDF action to `/returns`.
+- Uses validated saved request data; excludes UUIDs and all money/cost fields. Explicitly states that the document proves request submission only, not physical receipt, final approval, credit memo or refund.
+- Commit `6ac5bd9bee33de74cee0bbe15358f0b80337f814`; blob `e4f3001096acd5ce4f3b529406bf2301c84a6cf2`.
+- Acceptance leaf `DLV-011-CUSTOMER-RETURN-REQUEST-PRINT-001`; `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation was run. No runtime PASS claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-057 — MY RETURNS
 
 - Added authenticated customer route `/returns` as a consolidated, read-only history of saved return requests.
