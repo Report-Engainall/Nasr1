@@ -1,7 +1,7 @@
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-058 — CUSTOMER ORDER XLSX EXPORT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
-- Base SHA: `6ac5bd9bee33de74cee0bbe15358f0b80337f814`.
+- Source delivery commit: `a8b093527c580ce2fde67248072f591b9b57729c` (parent `6ac5bd9bee33de74cee0bbe15358f0b80337f814`).
 - Feature: authenticated customer order detail exports an Excel workbook from the existing validated `CustomerOrderPrintDocument` projection.
 - Added `src/lib/customer-order-xlsx.ts`: four Arabic worksheets (order metadata, items/quantities, saved delivery snapshot, and returned status history); text cells are emitted as literal inline strings through the shared OOXML writer.
 - Added a download action to `src/components/CustomerOrders.tsx` beside the existing print/PDF action. It uses the exact same already-loaded customer-owned order data and projection; no duplicate query or database mutation was added.
