@@ -112,6 +112,21 @@ CREATE TABLE public.finance_bank_statements (
 CREATE INDEX finance_bank_statements_account_period_idx
   ON public.finance_bank_statements(organization_id,settlement_account_mapping_id,period_from,period_to);
 
+-- A wrong, not-yet-verified statement is not edited or deleted. It is voided with
+-- actor/reason evidence; a corrected statement can then reuse the same period.
+CREATE TABLE public.finance_bank_statement_voids (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
+  statement_id uuid NOT NULL,
+  reason text NOT NULL CHECK (char_length(btrim(reason)) BETWEEN 3 AND 500),
+  voided_by_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  voided_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (organization_id,id),
+  UNIQUE (organization_id,statement_id),
+  FOREIGN KEY (organization_id,statement_id)
+    REFERENCES public.finance_bank_statements(organization_id,id) ON DELETE RESTRICT
+);
+
 CREATE TABLE public.finance_bank_statement_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
@@ -146,7 +161,6 @@ CREATE TABLE public.finance_bank_statement_line_matches (
   matched_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (organization_id,id),
   UNIQUE (organization_id,statement_line_id),
-  UNIQUE (organization_id,journal_entry_id,journal_line_number),
   FOREIGN KEY (organization_id,statement_line_id)
     REFERENCES public.finance_bank_statement_lines(organization_id,id) ON DELETE RESTRICT,
   FOREIGN KEY (organization_id,journal_entry_id)
@@ -183,6 +197,7 @@ ALTER TABLE public.finance_cash_account_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_cash_opening_balance_proposals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_cash_opening_balance_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_bank_statements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.finance_bank_statement_voids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_bank_statement_lines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_bank_statement_line_matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_bank_statement_reconciliation_runs ENABLE ROW LEVEL SECURITY;
@@ -211,6 +226,12 @@ CREATE POLICY finance_bank_statements_read ON public.finance_bank_statements
     AND organization_id = (SELECT p.organization_id FROM public.profiles p
       WHERE p.id=public.current_profile_id() AND p.auth_user_id=auth.uid() AND p.is_active=true)
   );
+CREATE POLICY finance_bank_statement_voids_read ON public.finance_bank_statement_voids
+  FOR SELECT TO authenticated USING (
+    public.can_manage_finance()
+    AND organization_id = (SELECT p.organization_id FROM public.profiles p
+      WHERE p.id=public.current_profile_id() AND p.auth_user_id=auth.uid() AND p.is_active=true)
+  );
 CREATE POLICY finance_bank_statement_lines_read ON public.finance_bank_statement_lines
   FOR SELECT TO authenticated USING (
     public.can_manage_finance()
@@ -234,6 +255,7 @@ GRANT SELECT ON public.finance_cash_account_evidence,
   public.finance_cash_opening_balance_proposals,
   public.finance_cash_opening_balance_reviews,
   public.finance_bank_statements,
+  public.finance_bank_statement_voids,
   public.finance_bank_statement_lines,
   public.finance_bank_statement_line_matches,
   public.finance_bank_statement_reconciliation_runs TO authenticated;
@@ -265,6 +287,9 @@ CREATE TRIGGER finance_cash_opening_review_immutable
   FOR EACH ROW EXECUTE FUNCTION public.guard_finance_cash_reconciliation_immutable();
 CREATE TRIGGER finance_bank_statement_immutable
   BEFORE UPDATE OR DELETE ON public.finance_bank_statements
+  FOR EACH ROW EXECUTE FUNCTION public.guard_finance_cash_reconciliation_immutable();
+CREATE TRIGGER finance_bank_statement_void_immutable
+  BEFORE UPDATE OR DELETE ON public.finance_bank_statement_voids
   FOR EACH ROW EXECUTE FUNCTION public.guard_finance_cash_reconciliation_immutable();
 CREATE TRIGGER finance_bank_statement_line_immutable
   BEFORE UPDATE OR DELETE ON public.finance_bank_statement_lines
@@ -580,6 +605,8 @@ BEGIN
   IF EXISTS(
     SELECT 1 FROM public.finance_bank_statements s
     WHERE s.organization_id=v_org AND s.settlement_account_mapping_id=p_settlement_account_mapping_id
+      AND NOT EXISTS (SELECT 1 FROM public.finance_bank_statement_voids v
+        WHERE v.organization_id=s.organization_id AND v.statement_id=s.id)
       AND daterange(s.period_from,s.period_to,'[]') && daterange(p_period_from,p_period_to,'[]')
   ) THEN
     RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='bank statement period overlaps an existing statement for this account';
@@ -622,6 +649,53 @@ $function$;
 REVOKE ALL ON FUNCTION public.create_finance_bank_statement(uuid,uuid,text,date,date,numeric,numeric) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.create_finance_bank_statement(uuid,uuid,text,date,date,numeric,numeric) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.void_finance_bank_statement(
+  p_statement_id uuid,
+  p_reason text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+  v_actor uuid:=public.current_profile_id();
+  v_org uuid;
+  v_statement public.finance_bank_statements%ROWTYPE;
+  v_existing public.finance_bank_statement_voids%ROWTYPE;
+  v_row public.finance_bank_statement_voids%ROWTYPE;
+BEGIN
+  SELECT p.organization_id INTO v_org FROM public.profiles p
+  WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance() THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance permission required to void a bank statement';
+  END IF;
+  IF p_statement_id IS NULL OR p_reason IS NULL OR char_length(btrim(p_reason)) NOT BETWEEN 3 AND 500 THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='statement void reason is required';
+  END IF;
+  SELECT s.* INTO v_statement FROM public.finance_bank_statements s
+  WHERE s.id=p_statement_id AND s.organization_id=v_org FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='bank statement is not available in this organization'; END IF;
+  IF EXISTS(SELECT 1 FROM public.finance_bank_statement_reconciliation_runs r
+    WHERE r.organization_id=v_org AND r.statement_id=v_statement.id AND r.outcome='VERIFIED') THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='a VERIFIED bank statement cannot be voided';
+  END IF;
+  SELECT v.* INTO v_existing FROM public.finance_bank_statement_voids v
+  WHERE v.organization_id=v_org AND v.statement_id=v_statement.id;
+  IF FOUND THEN
+    IF v_existing.reason=btrim(p_reason) THEN
+      RETURN jsonb_build_object('void_id',v_existing.id,'statement_id',v_statement.id,'voided',true,'replayed',true);
+    END IF;
+    RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='bank statement was already voided with a different reason';
+  END IF;
+  INSERT INTO public.finance_bank_statement_voids(organization_id,statement_id,reason,voided_by_profile_id)
+  VALUES(v_org,v_statement.id,btrim(p_reason),v_actor)
+  RETURNING * INTO v_row;
+  INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
+  VALUES(v_org,v_actor,'finance.bank_statement_voided','finance_bank_statement_void',v_row.id,'{}'::jsonb,
+    jsonb_build_object('statement_id',v_statement.id,'reason',v_row.reason));
+  RETURN jsonb_build_object('void_id',v_row.id,'statement_id',v_statement.id,'voided',true,'replayed',false);
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.void_finance_bank_statement(uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.void_finance_bank_statement(uuid,text) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.record_finance_bank_statement_line(
   p_statement_id uuid,
   p_line_number integer,
@@ -649,6 +723,10 @@ BEGIN
   SELECT s.* INTO v_statement FROM public.finance_bank_statements s
   WHERE s.id=p_statement_id AND s.organization_id=v_org FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='bank statement is not available in this organization'; END IF;
+  IF EXISTS(SELECT 1 FROM public.finance_bank_statement_voids v
+    WHERE v.organization_id=v_org AND v.statement_id=v_statement.id) THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='voided bank statement is closed';
+  END IF;
   IF EXISTS(SELECT 1 FROM public.finance_bank_statement_reconciliation_runs r
     WHERE r.organization_id=v_org AND r.statement_id=v_statement.id AND r.outcome='VERIFIED') THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='verified bank statement is immutable and closed';
@@ -718,6 +796,10 @@ BEGIN
   IF v_statement.id IS NULL OR v_line.id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='bank statement line is not available in this organization';
   END IF;
+  IF EXISTS(SELECT 1 FROM public.finance_bank_statement_voids v
+    WHERE v.organization_id=v_org AND v.statement_id=v_statement.id) THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='voided bank statement is closed';
+  END IF;
   SELECT m.accounting_account_id INTO v_account_id FROM public.purchase_supplier_payment_settlement_accounts m
   WHERE m.id=v_statement.settlement_account_mapping_id AND m.organization_id=v_org;
   SELECT coalesce(jsonb_agg(jsonb_build_object(
@@ -738,7 +820,13 @@ BEGIN
         OR (v_line.signed_amount<0 AND l.credit=abs(v_line.signed_amount) AND l.debit=0))
       AND NOT EXISTS (
         SELECT 1 FROM public.finance_bank_statement_line_matches x
+        JOIN public.finance_bank_statement_lines prior_line
+          ON prior_line.organization_id=x.organization_id AND prior_line.id=x.statement_line_id
+        JOIN public.finance_bank_statements prior_statement
+          ON prior_statement.organization_id=prior_line.organization_id AND prior_statement.id=prior_line.statement_id
         WHERE x.organization_id=v_org AND x.journal_entry_id=e.id AND x.journal_line_number=l.line_number
+          AND NOT EXISTS (SELECT 1 FROM public.finance_bank_statement_voids v
+            WHERE v.organization_id=prior_statement.organization_id AND v.statement_id=prior_statement.id)
       )
     ORDER BY e.entry_date,e.entry_number,l.line_number
     LIMIT 100
@@ -783,6 +871,10 @@ BEGIN
   IF v_statement.id IS NULL OR v_line.id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='bank statement line is not available in this organization';
   END IF;
+  IF EXISTS(SELECT 1 FROM public.finance_bank_statement_voids v
+    WHERE v.organization_id=v_org AND v.statement_id=v_statement.id) THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='voided bank statement is closed';
+  END IF;
   IF EXISTS(SELECT 1 FROM public.finance_bank_statement_reconciliation_runs r
     WHERE r.organization_id=v_org AND r.statement_id=v_statement.id AND r.outcome='VERIFIED') THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='verified bank statement is immutable and closed';
@@ -805,6 +897,20 @@ BEGIN
   WHERE l.organization_id=v_org AND l.journal_entry_id=p_journal_entry_id;
   IF v_line_count<2 OR v_debit_total<>v_credit_total THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='matched general-ledger journal is not balanced';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtext('finance-bank-match:'||v_org::text||':'||p_journal_entry_id::text||':'||p_journal_line_number::text));
+  IF EXISTS(
+    SELECT 1 FROM public.finance_bank_statement_line_matches prior_match
+    JOIN public.finance_bank_statement_lines prior_line
+      ON prior_line.organization_id=prior_match.organization_id AND prior_line.id=prior_match.statement_line_id
+    JOIN public.finance_bank_statements prior_statement
+      ON prior_statement.organization_id=prior_line.organization_id AND prior_statement.id=prior_line.statement_id
+    WHERE prior_match.organization_id=v_org AND prior_match.journal_entry_id=p_journal_entry_id
+      AND prior_match.journal_line_number=p_journal_line_number
+      AND NOT EXISTS (SELECT 1 FROM public.finance_bank_statement_voids v
+        WHERE v.organization_id=prior_statement.organization_id AND v.statement_id=prior_statement.id)
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='23505',MESSAGE='posted general-ledger line is already matched to an active bank statement';
   END IF;
   INSERT INTO public.finance_bank_statement_line_matches(
     organization_id,statement_line_id,journal_entry_id,journal_line_number,matched_by_profile_id
@@ -852,6 +958,10 @@ BEGIN
   SELECT s.* INTO v_statement FROM public.finance_bank_statements s
   WHERE s.id=p_statement_id AND s.organization_id=v_org FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='bank statement is not available in this organization'; END IF;
+  IF EXISTS(SELECT 1 FROM public.finance_bank_statement_voids v
+    WHERE v.organization_id=v_org AND v.statement_id=v_statement.id) THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='voided bank statement cannot be reconciled';
+  END IF;
   IF EXISTS(SELECT 1 FROM public.finance_bank_statement_reconciliation_runs r
     WHERE r.organization_id=v_org AND r.statement_id=v_statement.id AND r.outcome='VERIFIED') THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='bank statement already has a verified reconciliation run';
@@ -962,12 +1072,16 @@ BEGIN
     'statement_reference',s.statement_reference,'period_from',s.period_from,'period_to',s.period_to,
     'opening_balance',s.statement_opening_balance::text,'closing_balance',s.statement_closing_balance::text,
     'currency',s.currency,'created_by',s.created_by_profile_id,'created_at',s.created_at,
+    'is_voided',(voided.id IS NOT NULL),'void_reason',voided.reason,
+    'voided_by',voided.voided_by_profile_id,'voided_at',voided.voided_at,
     'lines',coalesce(lines.items,'[]'::jsonb),
     'line_count',coalesce(lines.line_count,0),'matched_count',coalesce(lines.matched_count,0),
     'latest_run',latest.run_data
   ) ORDER BY s.period_to DESC,s.created_at DESC),'[]'::jsonb)
   INTO v_statements
   FROM public.finance_bank_statements s
+  LEFT JOIN public.finance_bank_statement_voids voided
+    ON voided.organization_id=s.organization_id AND voided.statement_id=s.id
   LEFT JOIN LATERAL (
     SELECT jsonb_agg(jsonb_build_object(
       'id',l.id,'line_number',l.line_number,'transaction_date',l.transaction_date,
