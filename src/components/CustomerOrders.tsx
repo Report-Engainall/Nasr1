@@ -8,6 +8,7 @@ import { formatDate, formatNumber } from '@/lib/format';
 import { ORDER_STATUS_LABELS, type Order, type OrderItem } from '@/lib/types';
 import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
 import { downloadCustomerOrderWorkbookXlsx } from '@/lib/customer-order-xlsx';
+import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
 
@@ -727,7 +728,12 @@ function OrderInvoiceInner({ id }: { id: string }) {
           <h2 id="customer-order-amendment-title" style={{ margin:'0 0 8px' }}>
             {order.status==='pending' ? 'تعديل الطلب قبل مراجعة الإدارة' : 'تعديل الطلب المعاد من الإدارة'}
           </h2>
-          {order.customer_adjustment_note && <p style={{ margin:'0 0 10px', lineHeight:1.8 }}>{order.customer_adjustment_note}</p>}
+          {(['returned','needs_customer_amendment','returned_for_adjustment'].includes(order.status)) && (
+            <div style={{ margin:'0 0 12px', padding:12, borderRadius:9, background:'#fff8e9', border:'1px solid #efd8a6' }}>
+              <strong>سبب إعادة الطلب للتعديل</strong>
+              <p style={{ margin:'5px 0 0', lineHeight:1.8 }}>{order.customer_adjustment_note || 'لم تسجل الإدارة ملاحظة تفصيلية؛ راجع بنود الطلب أو تواصل مع الإدارة قبل إعادة التقديم.'}</p>
+            </div>
+          )}
           {amendment?.status==='pending_review' ? (
             <div role="status" style={{ padding:12, borderRadius:10, background:'#edf7f2', color:'#17684d' }}>
               أُرسل تعديلك بتاريخ {formatDate(amendment.created_at)} وهو الآن بانتظار مراجعة الإدارة. لا يمكن تعديل الكميات مرة أخرى قبل انتهاء المراجعة.
@@ -785,6 +791,13 @@ function OrderInvoiceInner({ id }: { id: string }) {
       )}
 
 
+      { !user?.isStaff && (['returned','needs_customer_amendment','returned_for_adjustment'].includes(order.status) || Boolean(amendment)) ? (
+        <CustomerOrderAmendmentHistory
+          orderId={order.id}
+          refreshKey={[amendment?.created_at ?? '', amendment?.status ?? '', amendment?.review_note ?? ''].join(':')}
+        />
+      ) : null}
+      
       {['draft','pending'].includes(order.status) && !user?.isStaff && !order.quantity_review_required && (
         <section className="no-print" style={{ ...card, marginBottom:16, borderColor:'#e5c4ba' }} aria-labelledby="customer-order-cancel-title">
           <h2 id="customer-order-cancel-title" style={{ margin:'0 0 7px', fontSize:17 }}>إلغاء الطلب قبل اعتماده</h2>
