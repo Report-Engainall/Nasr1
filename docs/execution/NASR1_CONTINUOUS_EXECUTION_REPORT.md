@@ -1258,3 +1258,20 @@ Keep migration versions unique and preserve dependency order:
 - New SQL migration is source-only and has not been applied. No test/build/lint/scan/CI/browser/Bolt Preview or runtime verification was performed by design. The matrix status remains \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`.
 - No Vercel action/credit usage or new paid service/dependency.
 - Next action: \`BODY-COMPLETION-ON-MAIN-011\` — authenticated customer-side visibility and response flow with strict separation between public customer replies/history and internal escalation/manager notes.
+
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — CASH OPENING BALANCES + BANK STATEMENT RECONCILIATION
+
+- Source-only base SHA: `f5bbe29fc3d3e326aa587f9f3a88495be49d3e1f`; all changes below were committed directly to `main`.
+- Added migration `supabase/migrations/20261106320000_finance_cash_opening_and_bank_reconciliation.sql`.
+- Added private same-tenant evidence bucket and immutable evidence registration with SHA-256/content metadata checks. Evidence is attached to the active cash/bank settlement-account mapping; bank statements require bank mappings, and cash counts require cash mappings.
+- Added opening-balance proposal/review lifecycle. The submitter cannot review their own proposal. Approval verifies the exact posted GL balance for the mapped account through the stated as-of date; if no posted GL line exists or the amount differs, approval is rejected. The proposal does not post a journal.
+- Added bank statement capture and line registration. Opening balance continuity is enforced from an approved prior-day opening balance or an immediately preceding VERIFIED statement. Statement periods are bounded and overlapping active periods are rejected.
+- Added exact one-to-one bank-line matching to same-account, same-currency, same-period, posted and balanced GL journals. Finalization records statement arithmetic difference, full posted-ledger movement difference and unmatched-line counts. NEEDS_REVIEW is preserved as evidence; it is never concealed or automatically adjusted.
+- Added strict TypeScript service/parser, private upload helpers and Arabic RTL finance UI. Mounted `CashAccountReconciliationWorkspace` directly inside the existing authenticated `GeneralLedgerWorkspace` on `/admin/finance`, rather than depending on the executive liquidity snapshot to load.
+- Added parser regression source `src/lib/finance-cash-account-reconciliation.test.ts`. No test, build, typecheck, lint, CI, browser or database migration execution was performed in this delivery. The migration remains unapplied in Bolt/Supabase; do not display or infer a current/projected balance as accepted until database acceptance.
+- Acceptance leaf: `DLV-010-CASH-OPENING-BANK-RECONCILIATION-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Main source commit sequence: migration `e7bdb8578559198e8f7991f7a0844d69bfc37929`; evidence/chain hardening `ad9c9a0a0a037fe30b7211a2c45e765b63cf7478`; initial client `becc7cba5d386285973c301ebb8690a2f5b3cd50`; UI `03f5fe128df2420223ba25b0fd4697af672ceaa7`; full-ledger reconciliation fix `62f4311b3b0001bd6c63f06df244343dbe072f81`; final UI mount `e2d14639bbbca85e11473133f8ab57d5ae042e17`; parser tests `5d8345ff0bc409ddc088e0ddb8f0344cf5d3a308`.
+- NEXT: apply migrations in dependency order on a non-production tenant; verify evidence access/tenant boundaries, independent review, opening-vs-GL parity, statement continuity, all-line matching, difference outcomes, closure immutability and no journal side effects. Only after this may balances be enabled.
+
+---
+
