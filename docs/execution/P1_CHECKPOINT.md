@@ -1,3 +1,31 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-041
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at checkpoint base: `d9ff1efd198337aa3a8be8bc776b255152dd1562`.
+- P1 code commits: `67d8eb9a0712721b7d43462abf289111cc2926f2` and `d9ff1efd198337aa3a8be8bc776b255152dd1562`.
+- Files changed: `src/components/Storefront.tsx`, `src/aghbari.css`.
+
+## BODY-041 — product-detail image enlargement and same-category discovery
+
+- Added a keyboard-accessible image enlargement action to the existing product-detail screen. The lightbox exposes a labelled modal dialog, closes on Escape, outside click or the explicit close control, and loads the image asynchronously with lazy/decode hints in the detail entry point.
+- Added up to four related-product cards filtered strictly by the same persisted `category_id`, excluding the current product. They are sourced only from products already loaded into the storefront catalogue; no fixtures, invented recommendations, secondary query or new route were introduced.
+- Selecting a related item uses the existing `openProduct` route navigation. Its displayed price is rendered through the same `StorefrontPricePresentation` and server-provided `display_price` under the existing customer price-visibility policy; no other-tier prices or cost data are added.
+- Added responsive, RTL-compatible layout and focus-visible styling for the zoom action, dialog and related-product cards.
+- Scoped gap count: 2 concrete product-detail requirements from the original specification (enlarged image and same-category related products) now have UI behavior wired to existing catalog data. This is a bounded DLV-003 slice, not a project-wide completion percentage.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No browser/runtime acceptance is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run.
+- No product data source, pricing rule, stock behavior, cart command, route or P3-owned file was changed.
+- Project-wide 95% P1 completion remains unclaimed; the full denominator of executable P1 gaps is not established.
+
+## Next P1 action
+
+Continue with the next source-backed, non-P3 gap in the current product/admin workflows. Preserve DLV-011 templates already implemented or accepted; do not rebuild existing reports merely because their runtime acceptance is pending.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-040
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
