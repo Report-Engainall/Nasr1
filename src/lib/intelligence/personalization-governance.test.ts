@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createDefaultPersonalizationPreferences,
+  createNotificationDeliveryAuditMetadata,
   resolveNotificationDelivery,
   resolvePersonalizationExperience,
   type ExternalChannelConsent,
@@ -520,4 +521,136 @@ describe("privacy usage audit and subject ownership", () => {
     expect(createPersonalizationUsageAuditMetadata({ ...request, actorProfileId: "profile-b" }, result))
       .toBeNull();
   });
+
+
+describe("notification delivery policy audit metadata", () => {
+  it("records an in-app decision without message or recipient destination data", () => {
+    const request = {
+      ...input(),
+      deliveryAttemptId: "attempt-in-app-1",
+      actorProfileId: "profile-a",
+    };
+    const decision = resolveNotificationDelivery(request);
+    expect(decision).toMatchObject({ status: "ALLOW", reason: "ALLOWED" });
+    const metadata = createNotificationDeliveryAuditMetadata(request, decision);
+    expect(metadata).toMatchObject({
+      eventType: "NOTIFICATION_DELIVERY_POLICY_EVALUATED",
+      deliveryAttemptId: "attempt-in-app-1",
+      organizationId: "org-a",
+      recipientProfileId: "profile-a",
+      actorProfileId: "profile-a",
+      channel: "IN_APP",
+      decisionStatus: "ALLOW",
+      decisionReason: "ALLOWED",
+      policyVersion: "1.0.0",
+      consentId: null,
+      consentVersion: null,
+    });
+    expect(metadata).not.toHaveProperty("destinationId");
+    expect(metadata).not.toHaveProperty("destinationAddress");
+    expect(metadata).not.toHaveProperty("messageBody");
+    expect(metadata).not.toHaveProperty("title");
+    expect(metadata).not.toHaveProperty("financialAmount");
+  });
+
+  it("records exact external consent references without recording the destination", () => {
+    const request = {
+      ...input({
+        channel: "EMAIL",
+        event: {
+          severity: "HIGH",
+          dataClass: "ACCOUNT_STATEMENT",
+          purpose: "account-statement-delivery",
+        },
+        recipient: {
+          organizationId: "org-a",
+          profileId: "profile-a",
+          destinationId: "verified-email-destination",
+          destinationVerified: true,
+          authorizedForData: true,
+        },
+        preferences: preferences({ notificationChannels: ["IN_APP", "EMAIL"] }),
+        channelCapabilities: { EMAIL: true },
+        externalConsents: [emailConsent()],
+      }),
+      deliveryAttemptId: "attempt-email-1",
+      actorProfileId: "profile-a",
+    };
+    const decision = resolveNotificationDelivery(request);
+    expect(decision).toMatchObject({ status: "ALLOW", reason: "ALLOWED" });
+    const metadata = createNotificationDeliveryAuditMetadata(request, decision);
+    expect(metadata).toMatchObject({
+      channel: "EMAIL",
+      decisionStatus: "ALLOW",
+      consentId: "consent-1",
+      consentVersion: "1",
+    });
+    expect(metadata).not.toHaveProperty("destinationId");
+    expect(metadata).not.toHaveProperty("email");
+  });
+
+  it("retains a revoked consent reference on a denied delivery decision", () => {
+    const request = {
+      ...input({
+        channel: "EMAIL",
+        event: {
+          severity: "HIGH",
+          dataClass: "ACCOUNT_STATEMENT",
+          purpose: "account-statement-delivery",
+        },
+        recipient: {
+          organizationId: "org-a",
+          profileId: "profile-a",
+          destinationId: "verified-email-destination",
+          destinationVerified: true,
+          authorizedForData: true,
+        },
+        preferences: preferences({ notificationChannels: ["IN_APP", "EMAIL"] }),
+        channelCapabilities: { EMAIL: true },
+        externalConsents: [emailConsent({ revokedAt: "2026-11-06T19:30:00.000Z" })],
+      }),
+      deliveryAttemptId: "attempt-email-revoked",
+      actorProfileId: "profile-a",
+    };
+    const decision = resolveNotificationDelivery(request);
+    expect(decision).toMatchObject({ status: "DENY", reason: "EXTERNAL_CONSENT_REVOKED" });
+    expect(createNotificationDeliveryAuditMetadata(request, decision)).toMatchObject({
+      decisionStatus: "DENY",
+      decisionReason: "EXTERNAL_CONSENT_REVOKED",
+      consentId: "consent-1",
+      consentVersion: "1",
+    });
+  });
+
+  it("rejects altered decisions and malformed audit identities", () => {
+    const request = {
+      ...input(),
+      deliveryAttemptId: "attempt-in-app-2",
+      actorProfileId: "profile-a",
+    };
+    const decision = resolveNotificationDelivery(request);
+    expect(createNotificationDeliveryAuditMetadata(request, {
+      ...decision,
+      status: "ALLOW",
+      reason: "ALLOWED",
+      channel: "IN_APP",
+      detailLevel: decision.detailLevel,
+      reducedMotion: decision.reducedMotion,
+      personalizationMode: decision.personalizationMode,
+      externalContextAllowed: decision.externalContextAllowed,
+    })).toMatchObject({ decisionStatus: "ALLOW" });
+    expect(createNotificationDeliveryAuditMetadata(request, {
+      ...decision,
+      reason: "EXTERNAL_CONSENT_REQUIRED",
+    })).toBeNull();
+    expect(createNotificationDeliveryAuditMetadata({
+      ...request,
+      actorProfileId: "",
+    }, decision)).toBeNull();
+    expect(createNotificationDeliveryAuditMetadata({
+      ...request,
+      deliveryAttemptId: "x".repeat(129),
+    }, decision)).toBeNull();
+  });
+});
 });
