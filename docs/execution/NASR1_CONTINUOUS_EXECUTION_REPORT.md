@@ -1,3 +1,15 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-055 — PHONE PASSWORD SIGN-IN
+
+- Added email/phone switching in the login form. Phone credentials use Supabase Auth `signInWithPassword({ phone, password })`; email path remains intact.
+- Normalizes Yemen local mobile forms, +967/00967 and general E.164 numbers; invalid phone strings fail before network call. Provider-disabled and phone-unconfirmed failures are explicit.
+- Profile/password views handle phone-only accounts without email.
+- Phone Auth configuration, verified phone identities and any SMS provider remain external prerequisites. New phone registration/OTP is not implemented; no paid provider or SMS spend was enabled.
+- Commits: `9386f10d699ba3cde1e827e1e1c9d26f212a958e`, `750580d67a91acc006546eff643c6037f6ccbd50`, `4067958f8bf80f39220b5338173a4f59cc3a9406`, `8030278a8a6ffe040328fcab144722fdbfa5c218`, `c551fb3bf31d599b7c5b257f551884109878c24a`, `de77468477d804aae910f43c4b09389947cce804`.
+- Acceptance row: `DLV-006-PHONE-PASSWORD-SIGNIN-001`; state `IMPLEMENTED_ON_MAIN / AUTH_PROVIDER_CONFIGURATION_AND_ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/Auth-provider/SMS/database/Preview/Vercel/production operation was run. No runtime PASS.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-054 — CUSTOMER PROFILE OVERVIEW
 
 - Completed action: `BODY-COMPLETION-ON-MAIN-054`.
