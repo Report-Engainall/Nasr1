@@ -105,23 +105,34 @@ function parsePolicy(value: unknown): CommercePolicyMetadata | null {
   return r as unknown as CommercePolicyMetadata;
 }
 
-export async function fetchCommercePolicyCatalog(): Promise<PolicyRpcResult<CommercePolicyCatalog>> {
-  const { data, error } = await supabase.rpc("fetch_commerce_policy_catalog");
-  if (error) return rpcFailure(error);
-  const row = object(data);
-  if (!row || typeof row.asOf !== "string" ||
-      !Number.isSafeInteger(row.totalCount) || !Number.isSafeInteger(row.returnedCount) ||
-      typeof row.completePopulation !== "boolean" || !Array.isArray(row.items)) {
-    return { ok: false, status: "ERROR", message: "استجابة سجل السياسات لا تطابق عقد البيانات." };
+export function parseCommercePolicyCatalog(value: unknown): PolicyRpcResult<CommercePolicyCatalog> {
+  const row = object(value);
+  if (!row || typeof row.asOf !== "string" || !Number.isFinite(Date.parse(row.asOf)) ||
+      !Number.isSafeInteger(row.totalCount) || (row.totalCount as number) < 0 ||
+      !Number.isSafeInteger(row.returnedCount) || (row.returnedCount as number) < 0 ||
+      (row.returnedCount as number) > (row.totalCount as number) ||
+      typeof row.completePopulation !== "boolean" || !Array.isArray(row.items) ||
+      row.returnedCount !== row.items.length ||
+      row.completePopulation !== (row.returnedCount === row.totalCount)) {
+    return { ok: false, status: "ERROR", message: "استجابة سجل السياسات غير مكتملة أو لا تطابق أعداد المجتمع؛ تم حجبها." };
   }
   const items = row.items.map(parsePolicy);
   if (items.some(item => item === null))
     return { ok: false, status: "ERROR", message: "أحد سجلات السياسات ناقص أو غير صالح؛ لم يتم عرض بيانات بديلة." };
+  const parsed = items as CommercePolicyMetadata[];
+  if (new Set(parsed.map(item => item.id)).size !== parsed.length)
+    return { ok: false, status: "ERROR", message: "سجل السياسات يحتوي على معرفات مكررة؛ تم حجب المجتمع." };
   return { ok: true, data: {
     asOf: row.asOf, totalCount: row.totalCount as number,
     returnedCount: row.returnedCount as number, completePopulation: row.completePopulation,
-    items: items as CommercePolicyMetadata[],
+    items: parsed,
   } };
+}
+
+export async function fetchCommercePolicyCatalog(): Promise<PolicyRpcResult<CommercePolicyCatalog>> {
+  const { data, error } = await supabase.rpc("fetch_commerce_policy_catalog");
+  if (error) return rpcFailure(error);
+  return parseCommercePolicyCatalog(data);
 }
 
 export async function registerCommercePolicyMetadata(
