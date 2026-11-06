@@ -84,13 +84,13 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
   catch{setResponse({status:"ERROR",message:"تعذر تنفيذ الاستعلام من مصدر التطبيق المصرح به."});}
   finally{setLoading(false);}
  }
- return <section dir="rtl" className="rounded-xl border p-4 space-y-3" aria-label="المساعد الإداري باللغة الطبيعية">
-  <header><h2 className="text-lg font-semibold">المساعد الإداري</h2>
+ return <section dir="rtl" className="min-w-0 rounded-xl border p-4 space-y-3" aria-labelledby="natural-language-assistant-title">
+  <header><h2 id="natural-language-assistant-title" className="text-lg font-semibold">المساعد الإداري</h2>
    <p className="text-xs text-muted-foreground">يستخدم نوايا ومصادر مصرحاً بها. السؤال نفسه لا ينفذ تغييرات؛ أدوات ذاكرة القرار وسير الاعتماد لا تظهر إلا هنا كإجراءات منفصلة، صريحة وخاضعة لصلاحية الخادم.</p></header>
-  <form onSubmit={event=>{event.preventDefault();void submit();}} className="flex flex-col gap-2 sm:flex-row">
+  <form onSubmit={event=>{event.preventDefault();void submit();}} aria-busy={loading} className="flex min-w-0 flex-col gap-2 sm:flex-row">
    <input value={question} onChange={event=>setQuestion(event.target.value)} maxLength={400} aria-label="سؤال إداري"
-    placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
-   <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
+    placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"/>
+   <button type="submit" disabled={loading||!question.trim()} className="min-h-11 shrink-0 rounded-lg border px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
   <p className="text-xs text-muted-foreground">أمثلة: طلبات العملاء المفتوحة وحالات طلبات البيع، أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وملخص حوكمة السياسات التجارية والسياسات التي تغيرت بصمة مصادرها، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ والقرارات المؤجلة ودفتر ذاكرة القرارات والتعلم من نتائجها، ومركز الوردية بتاريخ عمل محدد، ومسار عروض أسعار العملاء ومعدل القبول الصريح، ومقارنة عروض الموردين حسب الصنف والكمية والوحدة والعملة مع مؤشرات الأداء الفعلي للتوريد، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
