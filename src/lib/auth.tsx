@@ -20,13 +20,13 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const STAFF_ROLES = ['admin', 'manager', 'staff', 'accountant', 'customer_manager'];
 
 export function normalizeAuthPhoneIdentifier(value: string): string | null {
-  const compact = value.trim().replace(/[()\\s-]/g, "");
-  if (/^\\+[1-9]\\d{7,14}$/.test(compact)) return compact;
-  const digits = compact.replace(/\\D/g, "");
-  if (/^00967\\d{9}$/.test(digits)) return "+" + digits.slice(2);
-  if (/^967\\d{9}$/.test(digits)) return "+" + digits;
+  const compact = value.trim().replace(/[()\s-]/g, "");
+  if (/^\+[1-9]\d{7,14}$/.test(compact)) return compact;
+  const digits = compact.replace(/\D/g, "");
+  if (/^00967\d{9}$/.test(digits)) return "+" + digits.slice(2);
+  if (/^967\d{9}$/.test(digits)) return "+" + digits;
   const local = digits.startsWith("0") ? digits.slice(1) : digits;
-  return /^7\\d{8}$/.test(local) ? "+967" + local : null;
+  return /^7\d{8}$/.test(local) ? "+967" + local : null;
 }
 
 function translateAuthError(message: string): string {
