@@ -11,7 +11,7 @@ import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskP
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
 import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
-import { TaskQualityReviewForm } from '@/components/intelligence';
+import { TaskQualityReviewCenter, TaskQualityReviewForm } from '@/components/intelligence';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',
@@ -253,6 +253,7 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
   const [bulkDetailsPriority, setBulkDetailsPriority] = useState<OperationalTask['priority']>('medium');
   const [bulkDetailsDueAt, setBulkDetailsDueAt] = useState('');
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [qualityRefreshToken, setQualityRefreshToken] = useState(0);
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -268,6 +269,10 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
     catch (cause) { setError(cause instanceof Error ? cause.message : 'تعذر تحميل مهام التشغيل.'); }
     finally { setLoading(false); }
   }, []);
+  const refreshQualityAfterReview = useCallback(async () => {
+    await loadTasks();
+    setQualityRefreshToken((current) => current + 1);
+  }, [loadTasks]);
   useEffect(() => { void loadTasks(); }, [loadTasks]);
   useEffect(() => {
     if (!initialTaskId || loading) return;
@@ -742,6 +747,7 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
         </button>
       </div>
     </div>
+    {canManage ? <TaskQualityReviewCenter refreshToken={qualityRefreshToken} /> : null}
     <div className="task-center-metrics">
       <article><span><ListTodo size={19} /> المهام المفتوحة</span><strong>{openCount.toLocaleString('ar-YE')}</strong></article>
       <article><span><AlertTriangle size={19} /> متأخرة حسب موعد المصدر</span><strong>{lateCount.toLocaleString('ar-YE')}</strong></article>
@@ -909,7 +915,7 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
               key={task.id}
               taskId={task.id}
               taskUpdatedAt={task.updated_at}
-              onSaved={loadTasks}
+              onSaved={refreshQualityAfterReview}
             />
           </div>
         )}
