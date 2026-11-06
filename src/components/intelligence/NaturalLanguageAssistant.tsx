@@ -368,7 +368,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
      <strong>رادار فرص النمو</strong>
-     <span className="rounded-full border px-2 py-1 text-xs">{response.result.completePopulation?"مجتمع العملاء والمنتجات مكتمل":"تغطية جزئية — راجع مصادر العملاء والمنتجات"}</span>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="READY"?"مجتمع العملاء والمنتجات مكتمل":"تغطية جزئية أو مؤشرات تحتاج مراجعة"}</span>
     </div>
     <p className="mt-2">{response.result.answer}</p>
     <p className="mt-1 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · كما في {response.result.asOf} · نافذة التحليل: {response.result.periodDays} يوماً، ومقارنتها بفترة سابقة مساوية.</p>
