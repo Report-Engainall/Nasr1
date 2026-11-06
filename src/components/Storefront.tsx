@@ -846,7 +846,23 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         {savedListNotice && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>{savedListNotice}</div>}
         {user?.profileId && wishlistSyncState === 'pending' && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>بعض تغييرات المفضلة لم تصل إلى الخادم بعد؛ حُفظت في هذا الجهاز وستُعاد مزامنتها عند عودة الاتصال أو استقرار الجلسة.</div>}
         {view === 'product' && (selectedProduct
-          ? <ProductDetail product={selectedProduct} priceVisibilityPolicy={settings?.show_price_on_cards} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} initialQuantity={cart.find((item) => item.product.id === selectedProduct.id)?.quantity ?? null} onBack={() => void navigate({ to: '/' })} onAdd={(quantity, unitSelection) => addToCart(selectedProduct, quantity, unitSelection)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
+          ? <ProductDetail
+              product={selectedProduct}
+              relatedProducts={(products ?? []).filter((candidate) =>
+                selectedProduct.category_id !== null
+                && candidate.id !== selectedProduct.id
+                && candidate.category_id === selectedProduct.category_id
+              ).slice(0, 4)}
+              priceVisibilityPolicy={settings?.show_price_on_cards}
+              inWishlist={wishlist.includes(selectedProduct.id)}
+              inCompare={compare.includes(selectedProduct.id)}
+              initialQuantity={cart.find((item) => item.product.id === selectedProduct.id)?.quantity ?? null}
+              onBack={() => void navigate({ to: '/' })}
+              onAdd={(quantity, unitSelection) => addToCart(selectedProduct, quantity, unitSelection)}
+              onWishlist={() => toggleWishlist(selectedProduct.id)}
+              onCompare={() => toggleCompare(selectedProduct.id)}
+              onOpenRelated={openProduct}
+            />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
@@ -1009,6 +1025,7 @@ export function ProductGrid({
 
 export function ProductDetail({
   product,
+  relatedProducts,
   priceVisibilityPolicy,
   inWishlist,
   inCompare,
@@ -1019,6 +1036,7 @@ export function ProductDetail({
   onCompare,
 }: {
   product: ProductWithInventory;
+  relatedProducts: ProductWithInventory[];
   priceVisibilityPolicy: unknown;
   inWishlist: boolean;
   inCompare: boolean;
@@ -1027,6 +1045,7 @@ export function ProductDetail({
   onAdd: (baseQuantity: number, selection: ProductUnitSelection) => void;
   onWishlist: () => void;
   onCompare: () => void;
+  onOpenRelated: (product: ProductWithInventory) => void;
 }) {
   const rawAvailableQuantity = product.inventory?.quantity_available;
   const quantityKnown = typeof rawAvailableQuantity === 'number' &&
@@ -1037,6 +1056,7 @@ export function ProductDetail({
   const quantityMultiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
     ? Number(product.order_quantity_multiple) : 1;
   const belowMinimum = quantityKnown && availableQuantity > 0 && availableQuantity < minimumOrderQuantity;
+  const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
   const [alternateUnits, setAlternateUnits] = useState<ProductAlternateUnit[]>([]);
   const [alternateUnitsLoading, setAlternateUnitsLoading] = useState(true);
   const [alternateUnitsError, setAlternateUnitsError] = useState('');
@@ -1046,6 +1066,15 @@ export function ProductDetail({
   });
   const [requestedUnitQuantity, setRequestedUnitQuantity] = useState(minimumOrderQuantity);
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
+
+  useEffect(() => {
+    if (!isImageZoomOpen) return;
+    function handleImageZoomKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsImageZoomOpen(false);
+    }
+    window.addEventListener('keydown', handleImageZoomKeyDown);
+    return () => window.removeEventListener('keydown', handleImageZoomKeyDown);
+  }, [isImageZoomOpen]);
 
   useEffect(() => {
     let active = true;
@@ -1154,7 +1183,17 @@ export function ProductDetail({
       <button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للكتالوج</button>
       <div className="sf-detail-layout">
         <div className="sf-detail-image">
-          {product.image_url ? <img src={product.image_url} alt={product.name} /> : <Package size={72} />}
+          {product.image_url ? (
+            <button
+              type="button"
+              className="sf-detail-image-trigger"
+              aria-label={'تكبير صورة ' + product.name}
+              onClick={() => setIsImageZoomOpen(true)}
+            >
+              <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" />
+              <span className="sf-detail-image-hint">اضغط لتكبير الصورة</span>
+            </button>
+          ) : <Package size={72} />}
           <span className="sf-detail-code">
             {product.sku ? <span dir="ltr">SKU: {product.sku}</span> : <>رمز المنتج: <bdi>{product.item_code}</bdi></>}
             {product.sku && product.item_code ? <> · رمز المنتج: <bdi>{product.item_code}</bdi></> : null}
@@ -1273,6 +1312,62 @@ export function ProductDetail({
           </div>
         </div>
       </div>
+      {relatedProducts.length > 0 && (
+        <section className="sf-related-products" aria-labelledby="sf-related-products-title">
+          <div className="sf-related-header">
+            <h3 id="sf-related-products-title">منتجات من التصنيف نفسه</h3>
+            <span>من المنتجات المحمّلة في الكتالوج</span>
+          </div>
+          <div className="sf-related-grid">
+            {relatedProducts.map((relatedProduct) => (
+              <button
+                type="button"
+                key={relatedProduct.id}
+                className="sf-related-card"
+                onClick={() => onOpenRelated(relatedProduct)}
+                aria-label={'عرض تفاصيل ' + relatedProduct.name}
+              >
+                <span className="sf-related-image">
+                  {relatedProduct.image_url
+                    ? <img src={relatedProduct.image_url} alt="" loading="lazy" decoding="async" />
+                    : <Package size={30} aria-hidden="true" />}
+                </span>
+                <strong>{relatedProduct.name}</strong>
+                <small><bdi>{relatedProduct.item_code}</bdi></small>
+                <StorefrontPricePresentation
+                  policyValue={priceVisibilityPolicy}
+                  serverUnitPrice={relatedProduct.display_price}
+                  className="sf-related-price"
+                  unitLabel={'لكل ' + relatedProduct.unit}
+                />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      {isImageZoomOpen && product.image_url && (
+        <div
+          className="sf-image-lightbox"
+          role="presentation"
+          onClick={() => setIsImageZoomOpen(false)}
+        >
+          <div
+            className="sf-image-lightbox-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label={'صورة المنتج ' + product.name}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="sf-image-lightbox-close"
+              autoFocus
+              onClick={() => setIsImageZoomOpen(false)}
+            >إغلاق الصورة</button>
+            <img src={product.image_url} alt={product.name} decoding="async" />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
