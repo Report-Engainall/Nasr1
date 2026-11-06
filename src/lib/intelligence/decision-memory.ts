@@ -272,10 +272,11 @@ export function buildDecisionPolicyReviewSuggestions(
     const comparison = record.metricComparison;
     const expected = comparison.expected;
     const actual = comparison.actual;
+    const lessons = unique(record.lessons.map(lesson => lesson.trim()));
     if (record.state !== "MEASURED" ||
         record.memoryStatus !== "VERIFIED" ||
         !record.lessonsReviewed ||
-        !record.lessons.length ||
+        !lessons.length ||
         comparison.status !== "VERIFIED" ||
         !expected || !actual ||
         !record.ruleId.trim() || !record.ruleVersion.trim() ||
@@ -309,7 +310,7 @@ export function buildDecisionPolicyReviewSuggestions(
       actual,
       difference: comparison.difference as number,
       differencePercent: comparison.differencePercent,
-      lessons: unique(record.lessons.map(lesson => lesson.trim())),
+      lessons,
       evidenceIds: unique([...expected.evidenceIds, ...actual.evidenceIds]),
     };
     const existing = groups.get(groupKey);
