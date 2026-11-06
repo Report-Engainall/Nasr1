@@ -13,7 +13,7 @@ import {
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
-import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';
+import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -1927,6 +1927,7 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
   const [name, setName] = useState('');
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -1944,7 +1945,7 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   }
 
   async function archive(category: Category) {
-    if (!canManageImports || category.is_active === false) return;
+    if (!canManageImports || category.is_active === false || restoringId !== null) return;
     if (!window.confirm(`هل تريد أرشفة التصنيف «${category.name}»؟ سيبقى السجل محفوظًا، ولن يُحذف.`)) return;
     setArchivingId(category.id);
     try {
@@ -1961,8 +1962,26 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
     }
   }
 
+  async function restore(category: Category) {
+    if (!canManageImports || category.is_active !== false || restoringId !== null || archivingId !== null || renamingId !== null) return;
+    if (!window.confirm(`هل تريد استعادة التصنيف «${category.name}» وإعادته إلى الاختيارات النشطة؟`)) return;
+    setRestoringId(category.id);
+    try {
+      const result = await restoreAdminCatalogCategory(category.id);
+      if (result.id !== category.id || result.is_active !== true || typeof result.restored !== 'boolean') {
+        throw new Error('لم يؤكد الخادم استعادة التصنيف.');
+      }
+      await refetch();
+      onNotice(result.restored ? 'تمت استعادة التصنيف' : 'التصنيف نشط بالفعل');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذرت استعادة التصنيف');
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
   function beginRename(category: Category) {
-    if (!canManageImports || category.is_active === false || renamingId !== null || archivingId !== null) return;
+    if (!canManageImports || category.is_active === false || renamingId !== null || archivingId !== null || restoringId !== null) return;
     setEditingCategoryId(category.id);
     setRenameDraft(category.name);
   }
@@ -1976,7 +1995,7 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   async function renameCategory(category: Category) {
     const nextName = renameDraft.trim();
     if (!canManageImports || category.is_active === false || editingCategoryId !== category.id
-      || !nextName || renamingId !== null || archivingId !== null) return;
+      || !nextName || renamingId !== null || archivingId !== null || restoringId !== null) return;
     setRenamingId(category.id);
     try {
       const result = await renameAdminCatalogCategory(category.id, nextName);
@@ -2040,19 +2059,22 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
                     maxLength={100}
                     disabled={renamingId === category.id}
                   />
-                  <Button onClick={() => void renameCategory(category)} disabled={!renameDraft.trim() || renamingId !== null || archivingId !== null}>
+                  <Button onClick={() => void renameCategory(category)} disabled={!renameDraft.trim() || renamingId !== null || archivingId !== null || restoringId !== null}>
                     <Check size={16} /> {renamingId === category.id ? 'جار حفظ الاسم…' : 'حفظ الاسم'}
                   </Button>
                   <Button variant="outline" disabled={renamingId !== null} onClick={cancelRename}>إلغاء</Button>
                 </> : <>
                   <span>{category.name}</span>
-                  {canManageImports && category.is_active !== false && <Button variant="outline" disabled={renamingId !== null || archivingId !== null} onClick={() => beginRename(category)}>
+                  {canManageImports && category.is_active !== false && <Button variant="outline" disabled={renamingId !== null || archivingId !== null || restoringId !== null} onClick={() => beginRename(category)}>
                     <Pencil size={16} /> تعديل الاسم
                   </Button>}
                 </>}
                 <small>{category.code ?? 'بدون رمز'}</small>
                 {category.is_active === false && <small className="text-muted">مؤرشف</small>}
-                {canManageImports && category.is_active !== false && <Button variant="outline" disabled={archivingId === category.id || renamingId !== null || editingCategoryId !== null} onClick={() => void archive(category)}>
+                {canManageImports && category.is_active === false && <Button variant="outline" disabled={restoringId !== null || archivingId !== null || renamingId !== null || editingCategoryId !== null} onClick={() => void restore(category)}>
+                  <RefreshCw size={16} /> {restoringId === category.id ? "جار الاستعادة…" : "استعادة"}
+                </Button>}
+                {canManageImports && category.is_active !== false && <Button variant="outline" disabled={archivingId === category.id || renamingId !== null || editingCategoryId !== null || restoringId !== null} onClick={() => void archive(category)}>
                   <Trash2 size={16} /> {archivingId === category.id ? 'جار الأرشفة…' : 'أرشفة'}
                 </Button>}
               </div>

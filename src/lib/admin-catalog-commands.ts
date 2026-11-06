@@ -18,3 +18,16 @@ export async function renameAdminCatalogCategory(id:string,nameInput:string){
     throw new Error('لم يؤكد الخادم إعادة تسمية التصنيف.');
   return data as{id:string;name:string;renamed:boolean};
 }
+
+
+export async function restoreAdminCatalogCategory(id: string) {
+  if (!UUID.test(id)) throw new Error('معرّف التصنيف غير صالح.');
+  const { data, error } = await supabase.rpc('restore_admin_catalog_category', { p_category_id: id });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || typeof data.id !== 'string'
+    || data.id.toLowerCase() !== id.toLowerCase() || data.is_active !== true
+    || typeof data.restored !== 'boolean') {
+    throw new Error('لم يؤكد الخادم استعادة التصنيف.');
+  }
+  return data as { id: string; is_active: true; restored: boolean };
+}
