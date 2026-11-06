@@ -660,7 +660,9 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
   const [thresholdSaving, setThresholdSaving] = useState(false);
   const [thresholdError, setThresholdError] = useState('');
   const thresholdRequestSequence = useRef(0);
-  const rows = (data ?? []).filter((p) => (p.name + ' ' + p.item_code + ' ' + (p.barcode ?? '')).toLowerCase().includes(query.toLowerCase()));
+  const rows = (data ?? []).filter((p) =>
+    [p.name, p.item_code, p.sku ?? '', p.barcode ?? ''].join(' ').toLocaleLowerCase('ar').includes(query.trim().toLocaleLowerCase('ar')),
+  );
   async function archive(product: ProductWithInventory) {
     if (!canManageProductLifecycle || lifecycleBusyId) return;
     if (!window.confirm('أرشفة ' + product.name + '؟ لن يظهر المنتج في المتجر، ويمكن إعادة تفعيله لاحقًا.')) return;
@@ -843,7 +845,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
     <div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
-    <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز..." /></label></div>
+    <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table>
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
@@ -852,7 +854,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
           const stockStatus = getInventoryAvailabilityStatus(qty, reorderPoint);
           const low = stockStatus === 'low';
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td><span className={'badge ' + (p.status === 'inactive' ? 'warning' : p.status === 'active' ? 'success' : 'info')}>{p.status === 'inactive' ? 'مؤرشف' : p.status === 'active' ? 'نشط' : 'غير محدد'}</span></td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td><td><code>{p.item_code}</code>{p.sku && <small>SKU: {p.sku}</small>}{p.barcode && <small>باركود: {p.barcode}</small>}</td><td>{p.category?.name ?? 'غير مصنف'}</td><td><span className={'badge ' + (p.status === 'inactive' ? 'warning' : p.status === 'active' ? 'success' : 'info')}>{p.status === 'inactive' ? 'مؤرشف' : p.status === 'active' ? 'نشط' : 'غير محدد'}</span></td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
             <td><span className={'badge ' + (stockStatus === 'unknown' ? 'info' : low ? 'warning' : 'success')}>{stockStatus === 'unknown' ? 'غير متاح' : low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions">
