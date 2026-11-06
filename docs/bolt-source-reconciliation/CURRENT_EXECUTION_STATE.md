@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 sequential body update — BODY-COMPLETION-ON-MAIN-031
+
+- Latest P1 UI source commit: `51daf271923dc89a654b35890b2f2faf3997dbd7`.
+- Added an accountant/manager/admin Excel export action to the existing receivables-aging report using its loaded `fetch_staff_receivables_aging` RPC payload. Workbook separates the complete per-currency aging summary from the current 200-row detail page; six-bucket totals, full open counts, invoice cents, unique currencies and page continuation are validated before download.
+- Internal IDs, tenant/profile identifiers, cost and margin are excluded. Unknown due dates remain a separate bucket. Business text is emitted as literal OOXML strings.
+- New acceptance leaf `DLV-011-RECEIVABLES-AGING-XLSX-001`: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; builder commit `34eb38271f6abaa79b0cf048c5eff6173bc7238e`, UI commit `ec3bc25982caf13896ef59a74a31474a6e0ba8e9`, refresh fix `51daf271923dc89a654b35890b2f2faf3997dbd7`.
+- No migration/dependency/test/runtime PASS claimed; no Vercel credit or deployment used.
+
 ## P1 sequential body update — BODY-COMPLETION-ON-MAIN-030
 
 - Latest P1 product-code SHA: `61c40c123b2116ac1b6d149ccb94bcc194417dff`.
