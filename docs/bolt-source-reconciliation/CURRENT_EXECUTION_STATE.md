@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1/P2 body update — server-filtered return history — 2026-11-06
+
+- Extended `list_my_customer_return_history` with a validated optional status filter (`submitted`, `under_review`, `approved`, `rejected`, `received`, `closed`, `cancelled`). Search, status and exact total are computed on the same customer/tenant source population; the keyset cursor remains `created_at,id`.
+- Added the status selector to `/returns`, combined with search and cursor page reset. The count now describes the complete filtered result, not just loaded rows.
+- Main commits: SQL `1cd1b098f3ef3a73995b157156b85e6055bff6a2`; UI `ae3fd0143d5193baef5058cf6acbe5a3f0f93e33`.
+- The existing leaf `DLV-008-CUSTOMER-RETURN-HISTORY-KEYSET-001` was updated in place, not duplicated. Status remains `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, typecheck, lint, CI, browser, database migration apply, Bolt, Preview or production operation was run. No PASS/runtime claim is made.
+
 ## P1/P2 body update — customer-wide paged return history — 2026-11-06
 
 - Added `supabase/migrations/20261106232000_customer_return_history_paged_reader.sql` with `list_my_customer_return_history`: server-derived active customer/org scope, direct customer-only row filtering, strict bounded 1–50 page size, paired `(created_at,id)` cursor, descending keyset page plus one, exact search-wide total, item snapshots and cancellation evidence. Server search covers order/request numbers, status/reason, customer/review/cancellation notes, product snapshots and item code; LIKE wildcards are stripped. Read-only, no business side effects.
