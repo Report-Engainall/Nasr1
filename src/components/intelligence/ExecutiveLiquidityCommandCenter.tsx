@@ -6,7 +6,6 @@ import {
   type ExecutiveLiquiditySnapshot,
 } from "@/lib/intelligence/executive-liquidity-client";
 import { EvidenceReferences, EvidenceStatusLabel, EvidenceWarnings } from "./shared";
-import { CashAccountReconciliationWorkspace } from "./CashAccountReconciliationWorkspace";
 
 export interface ExecutiveLiquidityCommandCenterProps {
   refreshKey?: number;
@@ -286,7 +285,6 @@ export function ExecutiveLiquidityCommandCenter({ refreshKey = 0 }: ExecutiveLiq
             <ReceivablesSection snapshot={snapshot} />
             <SupplierPayablesSection snapshot={snapshot} />
           </div>
-          <CashAccountReconciliationWorkspace />
           <EvidenceWarnings warnings={snapshot.warnings} />
         </>
       ) : null}
