@@ -18,6 +18,27 @@ export interface DecisionOutcomeEventView {
   actorRole: string;
   reason: string | null;
 }
+export interface DecisionCandidateSnapshot {
+  schemaVersion: "1.0.0";
+  candidateId: string;
+  ruleId: string;
+  ruleVersion: string;
+  priority: "P0" | "P1" | "P2" | "P3";
+  priorityScore: number;
+  what: string;
+  why: string;
+  risk: string;
+  soWhat: string;
+  whatNext: string;
+  owner: string;
+  expectedOutcome: string;
+  impact: { value: number; unit: string; currency: string | null; formulaId: string; formulaVersion: string; sourceMetricIds: string[] } | null;
+  impactStatus: "CALCULATED" | "NOT_CONFIGURED" | "WITHHELD";
+  impactReason: string | null;
+  proof: { evidenceIds: string[]; metricKeys: string[]; asOf: string; formulaVersions: string[] };
+  createdAt: string;
+  expiresAt: string | null;
+}
 export interface DecisionOutcomeView {
   id: string;
   candidateId: string;
@@ -36,6 +57,7 @@ export interface DecisionOutcomeView {
   executedAt: string | null;
   measuredOutcome: { value: number; currency: string; asOf: string } | null;
   memorySnapshot: DecisionMemorySnapshot | null;
+  candidateSnapshot: DecisionCandidateSnapshot | null;
   eventCount: number;
   history: DecisionOutcomeEventView[];
 }
@@ -130,6 +152,45 @@ function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutc
   };
 }
 
+function parseCandidateSnapshot(value: unknown): DecisionCandidateSnapshot | null {
+  const raw = record(value);
+  const proof = record(raw?.proof);
+  if (!raw || !proof) return null;
+  const priority = raw.priority === "P0" || raw.priority === "P1" || raw.priority === "P2" || raw.priority === "P3"
+    ? raw.priority : null;
+  const score = priority === "P0" ? 400 : priority === "P1" ? 300 : priority === "P2" ? 200 : priority === "P3" ? 100 : null;
+  const evidenceIds = Array.isArray(proof.evidenceIds) && proof.evidenceIds.length >= 1 && proof.evidenceIds.length <= 500 && proof.evidenceIds.every(id => str(id,500)) ? proof.evidenceIds as string[] : null;
+  const metricKeys = Array.isArray(proof.metricKeys) && proof.metricKeys.length >= 1 && proof.metricKeys.length <= 50 && proof.metricKeys.every(key => str(key,150)) ? proof.metricKeys as string[] : null;
+  const formulaVersions = Array.isArray(proof.formulaVersions) && proof.formulaVersions.length >= 1 && proof.formulaVersions.length <= 50 && proof.formulaVersions.every(item => str(item,200)) ? proof.formulaVersions as string[] : null;
+  const impactRaw = raw.impact === null ? null : record(raw.impact);
+  const impact = impactRaw && typeof impactRaw.value === "number" && Number.isFinite(impactRaw.value) &&
+    str(impactRaw.unit,80) && str(impactRaw.formulaId,150) && str(impactRaw.formulaVersion,80) &&
+    Array.isArray(impactRaw.sourceMetricIds) && impactRaw.sourceMetricIds.length <= 50 && impactRaw.sourceMetricIds.every(id => str(id,200)) &&
+    (impactRaw.currency === null || impactRaw.currency === undefined || (str(impactRaw.currency,3) && /^[A-Z]{3}$/.test(impactRaw.currency)))
+    ? { value: impactRaw.value, unit: impactRaw.unit, currency: typeof impactRaw.currency === "string" ? impactRaw.currency : null,
+        formulaId: impactRaw.formulaId, formulaVersion: impactRaw.formulaVersion, sourceMetricIds: impactRaw.sourceMetricIds as string[] }
+    : raw.impact === null ? null : undefined;
+  if (score === null || raw.schemaVersion !== "1.0.0" || !str(raw.candidateId,150) ||
+      !str(raw.ruleId,150) || !str(raw.ruleVersion,80) || raw.priorityScore !== score ||
+      !str(raw.what,500) || !str(raw.why,2000) || !str(raw.risk,2000) || !str(raw.soWhat,2000) ||
+      !str(raw.whatNext,2000) || !str(raw.owner,150) || !str(raw.expectedOutcome,2000) ||
+      !["CALCULATED","NOT_CONFIGURED","WITHHELD"].includes(String(raw.impactStatus)) ||
+      (raw.impactReason !== null && !str(raw.impactReason,2000)) ||
+      !evidenceIds || new Set(evidenceIds).size !== evidenceIds.length || !metricKeys || !formulaVersions ||
+      !iso(proof.asOf) || !iso(raw.createdAt) || (raw.expiresAt !== null && !iso(raw.expiresAt)) ||
+      impact === undefined || (raw.impactStatus === "CALCULATED" && impact === null) ||
+      (raw.impactStatus !== "CALCULATED" && impact !== null)) return null;
+  return {
+    schemaVersion: "1.0.0", candidateId: raw.candidateId, ruleId: raw.ruleId, ruleVersion: raw.ruleVersion,
+    priority, priorityScore: score, what: raw.what, why: raw.why, risk: raw.risk, soWhat: raw.soWhat,
+    whatNext: raw.whatNext, owner: raw.owner, expectedOutcome: raw.expectedOutcome, impact,
+    impactStatus: raw.impactStatus as DecisionCandidateSnapshot["impactStatus"],
+    impactReason: typeof raw.impactReason === "string" ? raw.impactReason : null,
+    proof: { evidenceIds, metricKeys, asOf: proof.asOf, formulaVersions },
+    createdAt: raw.createdAt, expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : null,
+  };
+}
+
 function parseOutcome(value: unknown): DecisionOutcomeView | null {
   const raw = record(value);
   const owner = record(raw?.owner);
@@ -139,7 +200,10 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     : undefined;
   const memorySnapshot = raw?.memorySnapshot === null || raw?.memorySnapshot === undefined
     ? null : parseDecisionMemorySnapshot(raw.memorySnapshot);
+  const candidateSnapshot = raw?.candidateSnapshot === null || raw?.candidateSnapshot === undefined
+    ? null : parseCandidateSnapshot(raw.candidateSnapshot);
   if (raw?.memorySnapshot !== null && raw?.memorySnapshot !== undefined && !memorySnapshot) return null;
+  if (raw?.candidateSnapshot !== null && raw?.candidateSnapshot !== undefined && !candidateSnapshot) return null;
   if (
     !raw || !owner || !proposedBy ||
     !str(raw.id, 80) || !UUID.test(raw.id) ||
@@ -222,6 +286,7 @@ function parseOutcome(value: unknown): DecisionOutcomeView | null {
     executedAt: raw.executedAt,
     measuredOutcome,
     memorySnapshot,
+    candidateSnapshot,
     eventCount: raw.eventCount as number,
     history,
   };
@@ -237,11 +302,16 @@ function parseCommandResult(value: unknown): DecisionOutcomeCommandResult {
 }
 function validateProposal(input: {
   candidateId: string; ruleId: string; ruleVersion: string; ownerProfileId: string;
-  expectedOutcome: string; reason: string;
+  expectedOutcome: string; reason: string; candidateSnapshot?: DecisionCandidateSnapshot;
 }): string | null {
   if (!str(input.candidateId, 150) || !str(input.ruleId, 150) ||
       !str(input.ruleVersion, 80) || !UUID.test(input.ownerProfileId) ||
-      !str(input.expectedOutcome, 2000) || input.reason.length > 2000) {
+      !str(input.expectedOutcome, 2000) || input.reason.length > 2000 ||
+      (input.candidateSnapshot !== undefined &&
+        (input.candidateSnapshot.candidateId !== input.candidateId ||
+         input.candidateSnapshot.ruleId !== input.ruleId ||
+         input.candidateSnapshot.ruleVersion !== input.ruleVersion ||
+         input.candidateSnapshot.expectedOutcome !== input.expectedOutcome))) {
     return "أكمل وصف النتيجة المتوقعة، وتأكد من صلاحية مالك القرار.";
   }
   return null;
@@ -379,11 +449,12 @@ export async function createDecisionOutcomeProposal(input: {
   ownerProfileId: string;
   expectedOutcome: string;
   reason: string;
+  candidateSnapshot?: DecisionCandidateSnapshot;
 }): Promise<DecisionOutcomeCommandResult> {
   const invalid = validateProposal(input);
   if (invalid) return { ok: false, status: "ERROR", message: invalid };
   try {
-    const { data, error } = await supabase.rpc("create_decision_outcome_proposal", {
+    const command = {
       p_candidate_id: input.candidateId,
       p_rule_id: input.ruleId,
       p_rule_version: input.ruleVersion,
@@ -391,7 +462,12 @@ export async function createDecisionOutcomeProposal(input: {
       p_expected_outcome: input.expectedOutcome.trim(),
       p_reason: input.reason.trim() || null,
       p_idempotency_key: crypto.randomUUID(),
-    });
+    };
+    const { data, error } = input.candidateSnapshot
+      ? await supabase.rpc("create_decision_outcome_proposal_with_snapshot", {
+          ...command, p_candidate_snapshot: input.candidateSnapshot,
+        })
+      : await supabase.rpc("create_decision_outcome_proposal", command);
     if (error) return { ok: false, ...safeFailure(error) };
     return parseCommandResult(data);
   } catch {

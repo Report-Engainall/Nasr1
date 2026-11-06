@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { createDecisionOutcomeProposal } from "@/lib/intelligence/decision-outcome-client";
+import { fetchExecutiveCustomerReceivableAging, type CustomerReceivableAgingItem, type CustomerReceivableAgingResult } from "@/lib/intelligence/customer-receivable-aging-client";
 import { RefreshCw } from "lucide-react";
 import {
   fetchExecutiveLiquidityWorkspace,
@@ -9,6 +12,7 @@ import { EvidenceReferences, EvidenceStatusLabel, EvidenceWarnings } from "./sha
 
 export interface ExecutiveLiquidityCommandCenterProps {
   refreshKey?: number;
+  onDecisionSaved?: () => void;
 }
 
 const amount = (value: number | null, currency: string) =>
@@ -228,10 +232,103 @@ function ReceivablesSection({ snapshot }: { snapshot: ExecutiveLiquiditySnapshot
   );
 }
 
-export function ExecutiveLiquidityCommandCenter({ refreshKey = 0 }: ExecutiveLiquidityCommandCenterProps) {
+function CustomerAgingDecisionSection({
+  result,
+  userProfileId,
+  onDecisionSaved,
+}: {
+  result: CustomerReceivableAgingResult | null;
+  userProfileId?: string | null;
+  onDecisionSaved?: () => void;
+}) {
+  const [busyKey,setBusyKey] = useState<string|null>(null);
+  const [message,setMessage] = useState<string|null>(null);
+  const rows = result?.ok ? result.data.items
+    .filter(item=>item.overdueAmount>0)
+    .sort((a,b)=>(b.oldestAgeDays??-1)-(a.oldestAgeDays??-1) || b.overdueAmount-a.overdueAmount)
+    .slice(0,10) : [];
+  const saveDecision = async (item: CustomerReceivableAgingItem) => {
+    if (!userProfileId || busyKey) return;
+    const evidenceIds=[...new Set(item.agingBuckets.filter(bucket=>bucket.bucket.startsWith("OVERDUE_")).flatMap(bucket=>bucket.evidenceIds))].slice(0,500);
+    if (!evidenceIds.length) { setMessage("لا يمكن حفظ قرار تحصيل دون مراجع فواتير/دفعات مثبتة."); return; }
+    const priority = (item.oldestAgeDays??0)>=90 ? "P0" : (item.oldestAgeDays??0)>=60 ? "P1" : (item.oldestAgeDays??0)>=30 ? "P2" : "P3";
+    const priorityScore = priority==="P0"?400:priority==="P1"?300:priority==="P2"?200:100;
+    const candidateId = ("receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)).slice(0,150);
+    const expectedOutcome="خفض الرصيد المتأخر للعميل وتسجيل نتيجة التحصيل في مستندات المؤسسة.";
+    const impactVerified=item.status==="VERIFIED" && item.overdueAmount>=0;
+    const candidateSnapshot={
+      schemaVersion:"1.0.0" as const,candidateId,ruleId:"receivables.collection.followup",ruleVersion:"1.0.0",
+      priority,priorityScore,what:"تحصيل الذمم المتأخرة من العميل "+item.customerName,
+      why:"يوجد رصيد متأخر مثبت بقيمة "+item.overdueAmount+" "+item.currency+"؛ أقدم عمر مستحق "+(item.oldestAgeDays===null?"غير محدد":item.oldestAgeDays+" يوماً")+".",
+      risk:"تأخر التحصيل يجمّد سيولة المؤسسة ويزيد مخاطر تأخر السداد؛ لا يُفترض فقدان الدين.",
+      soWhat:"تتطلب الذمم المتأخرة تواصلاً موثقاً وخطة تحصيل حسب أقدم فاتورة.",
+      whatNext:"راجع الفواتير المتأخرة للعميل، اتفق على موعد سداد، وسجل الدفعة على الفاتورة ذاتها لمنع التكرار.",
+      owner:"مسؤول التحصيلات",expectedOutcome,
+      impact:impactVerified?{value:item.overdueAmount,unit:"CURRENCY",currency:item.currency,formulaId:item.formulaId,formulaVersion:item.formulaVersion,sourceMetricIds:[]}:null,
+      impactStatus:impactVerified?"CALCULATED" as const:"WITHHELD" as const,
+      impactReason:impactVerified?null:"CUSTOMER_AGING_REQUIRES_REVIEW",
+      proof:{evidenceIds,metricKeys:["receivables.customer_overdue"],asOf:item.asOf,formulaVersions:[item.formulaId+"@"+item.formulaVersion]},
+      createdAt:item.calculatedAt,expiresAt:null,
+    };
+    setBusyKey(candidateId);setMessage(null);
+    const saved=await createDecisionOutcomeProposal({
+      candidateId,ruleId:candidateSnapshot.ruleId,ruleVersion:candidateSnapshot.ruleVersion,
+      ownerProfileId:userProfileId,expectedOutcome,reason:candidateSnapshot.why,candidateSnapshot,
+    });
+    setBusyKey(null);
+    setMessage(saved.ok?(saved.duplicate?"قرار التحصيل محفوظ بالفعل؛ تم استرجاع حالته.":"تم حفظ قرار التحصيل في دورة القرارات."):saved.message);
+    if(saved.ok)onDecisionSaved?.();
+  };
+  if (!result) return <section className="rounded-xl border p-3"><h3 className="font-semibold">أعمار الذمم حسب العميل</h3><p className="text-sm text-muted-foreground">جارٍ تحميل أعمار الذمم...</p></section>;
+  if (!result.ok) return <section className="rounded-xl border p-3"><h3 className="font-semibold">أعمار الذمم حسب العميل</h3><p role="alert" className="text-sm">{result.message}</p></section>;
+  return (
+    <section className="rounded-xl border p-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-semibold">أعمار الذمم حسب العميل</h3>
+        <span className="text-xs text-muted-foreground">{result.data.returnedGroups} مجموعة عميل/عملة · {result.data.asOf}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">الأرصدة بعد خصم الدفعات المسجلة على الفاتورة نفسها. لا تدمج العملات، ولا يظهر العميل كقرار تحصيل دون مراجع مصدرية.</p>
+      {rows.length?rows.map(item=>(
+        <article key={item.customerName+":"+item.currency} className="rounded-lg border p-3 space-y-2">
+          <div className="flex flex-wrap justify-between gap-2">
+            <strong>{item.customerName} · {item.currency}</strong>
+            <span className="text-sm font-semibold">{amount(item.overdueAmount,item.currency)} متأخر</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 text-xs">
+            <p>إجمالي المفتوح: {amount(item.totalOutstanding,item.currency)}</p>
+            <p>الفواتير: {item.invoiceCount} · جزئية: {item.partiallyPaidCount}</p>
+            <p>أقدم عمر: {item.oldestAgeDays===null?"غير محدد":item.oldestAgeDays+" يوم"}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {item.agingBuckets.map(bucket=><span key={bucket.bucket} className="rounded-md border px-2 py-1">{bucket.bucket==="OVERDUE_1_30"?"1–30":bucket.bucket==="OVERDUE_31_60"?"31–60":bucket.bucket==="OVERDUE_61_90"?"61–90":bucket.bucket==="OVERDUE_90_PLUS"?"90+":bucket.bucket==="NOT_DUE"?"غير مستحق":"تاريخ مجهول"}: {amount(bucket.amount,item.currency)}</span>)}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground"><EvidenceStatusLabel status={item.status}/>: <EvidenceReferences ids={item.agingBuckets.flatMap(bucket=>bucket.evidenceIds).slice(0,12)}/></span>
+            <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
+              {busyKey==="receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)?"جارٍ الحفظ...":"حفظ قرار متابعة التحصيل"}
+            </button>
+          </div>
+        </article>
+      )):<p className="text-sm text-muted-foreground">لا توجد ذمم متأخرة على عملاء ضمن بيانات الفواتير المفتوحة.</p>}
+      {result.data.warnings.length||!result.data.complete?<p role="status" className="text-xs text-muted-foreground">{result.data.warnings.join(" · ")||"التغطية جزئية؛ راجع الصفوف غير المكتملة."}</p>:null}
+      {message?<p role="status" className="text-sm">{message}</p>:null}
+    </section>
+  );
+}
+
+export function ExecutiveLiquidityCommandCenter({ refreshKey = 0, onDecisionSaved }: ExecutiveLiquidityCommandCenterProps) {
+  const { user } = useAuth();
+  const [customerAgingResult,setCustomerAgingResult] = useState<CustomerReceivableAgingResult|null>(null);
   const [result, setResult] = useState<ExecutiveLiquidityFetchResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [manualRefreshKey, setManualRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setCustomerAgingResult(null);
+    void fetchExecutiveCustomerReceivableAging().then(value=>{if(active)setCustomerAgingResult(value);});
+    return () => { active = false; };
+  }, [refreshKey, manualRefreshKey]);
 
   useEffect(() => {
     let active = true;
@@ -285,6 +382,7 @@ export function ExecutiveLiquidityCommandCenter({ refreshKey = 0 }: ExecutiveLiq
             <ReceivablesSection snapshot={snapshot} />
             <SupplierPayablesSection snapshot={snapshot} />
           </div>
+          <CustomerAgingDecisionSection result={customerAgingResult} userProfileId={user?.profileId} onDecisionSaved={onDecisionSaved} />
           <EvidenceWarnings warnings={snapshot.warnings} />
         </>
       ) : null}
