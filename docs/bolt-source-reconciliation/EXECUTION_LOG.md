@@ -2166,3 +2166,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - The user must supply the organization's IANA time zone, work date and shift label. It calls the existing audited tenant-scoped `start_operational_shift` RPC with a stable idempotency key and then re-reads the same shift query. It never infers the organization's time zone from the device and does not close a previous shift.
 - Matrix `INT-SHIFT-001`: `76ed7934bfc6de85d3fd30ffa881cee54e94db7a`; P3 checkpoint `37762f2e4a1d649ad4a1de9c2c8fd337c089d5b5`; execution-state update `2043d2815d87e00532e11e5abc6bfdd17f003951`.
 - No new database contract, test/build/runtime/DB/Bolt/Preview/Vercel/production action. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## 2026-11-06 — REF-NL-SALES-ORDER-STATUS-001 — aggregate sales-order assistant intent
+
+- Added tenant-scoped active-staff aggregate RPC `fetch_intelligence_sales_order_status_summary()` in migration `20261106190000_intelligence_sales_order_status_summary.sql` (commit `d7876f7cb7aff2dea08f6f570219ef9309b43a66`). The payload is counts/status/as-of only; customer, order, amount, line and payment details remain server-side.
+- Strict parser/resolver commit `cc3cffec727464c34612a17b7873cd87583f3004`; aggregate client `a8e19dafa119056128423424c019f06b5080a3e9`; deterministic Arabic planner `f3921721d4623d63395d04885492bff82f8a694a`; assistant client `09bdf840e915236638a8790d870c50e017fb6db0`; Arabic panel `ef1717bf8a0f1b9ae248dffb511defbf1ef1ea74`.
+- Distinguishes sales orders from purchase orders, requests clarification for generic order questions, rejects historical windows unsupported by the current snapshot and keeps unknown status values PARTIAL.
+- Matrix leaf `REF-NL-ADMIN-ASSISTANT-057`: `eec22f0d982765afc40b3a7c7bdb55e79b8f237a`; P3 checkpoint `263928a9bff577c5d4684e0619c493ad78204377`; current state `361f86897472c954b5da461a1ddcefb79ef67319`.
+- No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. Migration remains source-only. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
