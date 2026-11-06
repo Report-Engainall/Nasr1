@@ -1,5 +1,5 @@
 import type {DecisionActor,DecisionMeasuredOutcome,DecisionOutcome,DecisionOutcomeEventRecord,DecisionOutcomeState} from "./types";
-export type DecisionOutcomeEventType="SUBMIT_FOR_REVIEW"|"APPROVE"|"REJECT"|"DEFER"|"ASSIGN"|"START_EXECUTION"|"COMPLETE_EXECUTION"|"MEASURE";
+export type DecisionOutcomeEventType="SUBMIT_FOR_REVIEW"|"APPROVE"|"REJECT"|"DEFER"|"ASSIGN"|"START_EXECUTION"|"COMPLETE_EXECUTION"|"MEASURE"|"RESUBMIT_FOR_REVIEW";
 export interface DecisionOutcomeEvent extends DecisionOutcomeEventRecord {type:DecisionOutcomeEventType}
 export type DecisionTransitionResult=
  |{ok:true;outcome:DecisionOutcome;duplicate:boolean}
@@ -12,7 +12,7 @@ export function createDecisionOutcome(input:{id:string;candidateId:string;propos
   executedAt:null,measuredOutcome:null,eventKeys:[],history:[]};
 }
 const transitions:Record<DecisionOutcomeState,DecisionOutcomeEventType[]>={
- PROPOSED:["SUBMIT_FOR_REVIEW"],IN_REVIEW:["APPROVE","REJECT","DEFER"],APPROVED:["ASSIGN"],REJECTED:[],DEFERRED:[],
+ PROPOSED:["SUBMIT_FOR_REVIEW"],IN_REVIEW:["APPROVE","REJECT","DEFER"],APPROVED:["ASSIGN"],REJECTED:[],DEFERRED:["RESUBMIT_FOR_REVIEW"],
  ASSIGNED:["START_EXECUTION"],EXECUTING:["COMPLETE_EXECUTION"],EXECUTED:["MEASURE"],MEASURED:[],
 };
 function sameEvent(a:DecisionOutcomeEventRecord,b:DecisionOutcomeEvent):boolean {
@@ -47,7 +47,7 @@ export function transitionDecisionOutcome(outcome:DecisionOutcome,event:Decision
  if(event.type==="ASSIGN"&&!event.owner?.trim())return {ok:false,outcome,reason:"MISSING_OWNER"};
  if(event.type==="MEASURE"&&!validMeasurement(event.measuredOutcome))return {ok:false,outcome,reason:"INVALID_MEASUREMENT"};
  const next:Record<DecisionOutcomeEventType,DecisionOutcomeState>={SUBMIT_FOR_REVIEW:"IN_REVIEW",APPROVE:"APPROVED",REJECT:"REJECTED",DEFER:"DEFERRED",
-  ASSIGN:"ASSIGNED",START_EXECUTION:"EXECUTING",COMPLETE_EXECUTION:"EXECUTED",MEASURE:"MEASURED"};
+  ASSIGN:"ASSIGNED",START_EXECUTION:"EXECUTING",COMPLETE_EXECUTION:"EXECUTED",MEASURE:"MEASURED",RESUBMIT_FOR_REVIEW:"IN_REVIEW"};
  return {ok:true,duplicate:false,outcome:{...outcome,version:outcome.version+1,state:next[event.type],
   history:[...outcome.history,event],eventKeys:[...outcome.eventKeys,event.idempotencyKey],reason:event.reason??outcome.reason,
   ...(event.type==="APPROVE"?{approvedAt:event.at,approvedBy:event.actor}:{}),
