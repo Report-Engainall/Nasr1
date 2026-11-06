@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Bell, Check, ExternalLink, RefreshCw } from 'lucide-react';
+import { Bell, Check, ExternalLink, RefreshCw, Search, X } from 'lucide-react';
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
@@ -72,9 +72,18 @@ export function CustomerNotificationCenter() {
   );
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [query, setQuery] = useState('');
 
   const notifications = data ?? [];
   const unread = notifications.filter((item) => !item.is_read).length;
+  const normalizedQuery = query.trim().toLocaleLowerCase('ar');
+  const filteredNotifications = notifications.filter((item) => {
+    const matchesReadState = filter === 'all' || (filter === 'unread' ? !item.is_read : item.is_read);
+    if (!matchesReadState) return false;
+    if (!normalizedQuery) return true;
+    return [item.title, item.body ?? '', item.type].join(' ').toLocaleLowerCase('ar').includes(normalizedQuery);
+  });
 
   // Poll only while the customer notification page is visible and the browser is online.
   // This provides a safe delivery fallback when realtime transport is unavailable.
@@ -166,6 +175,42 @@ export function CustomerNotificationCenter() {
         </div>
       </header>
 
+      <section className="mb-4 grid gap-3 rounded-xl border border-border bg-card p-4" aria-label="البحث وتصفية التنبيهات">
+        <label className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
+          <Search size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="sr-only">ابحث في التنبيهات المحمّلة</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            maxLength={120}
+            placeholder="ابحث في عنوان التنبيه أو تفاصيله..."
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+          />
+          {query ? <button type="button" className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="مسح البحث" onClick={() => setQuery('')}><X size={15}/></button> : null}
+        </label>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="حالة القراءة">
+          {([
+            { value: 'all', label: 'الكل', count: notifications.length },
+            { value: 'unread', label: 'غير مقروء', count: unread },
+            { value: 'read', label: 'مقروء', count: notifications.length - unread },
+          ] as const).map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              aria-pressed={filter === item.value}
+              onClick={() => setFilter(item.value)}
+              className={filter === item.value ? 'rounded-full border border-primary bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground' : 'rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-muted'}
+            >
+              {item.label} ({item.count.toLocaleString('ar-YE')})
+            </button>
+          ))}
+          <span className="ms-auto text-xs text-muted-foreground" aria-live="polite">
+            المعروض: {filteredNotifications.length.toLocaleString('ar-YE')} من {notifications.length.toLocaleString('ar-YE')}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">يعرض المصدر أحدث 30 تنبيهًا للحساب الحالي فقط؛ البحث والتصفية يعملان ضمن هذه العناصر، ولا يمثلان سجلًا تاريخيًا كاملًا.</p>
+      </section>
+
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
       {loading ? (
         <div role="status" className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">جار تحميل التنبيهات...</div>
@@ -180,9 +225,15 @@ export function CustomerNotificationCenter() {
           <p style={{ margin: 0, fontWeight: 700 }}>لا توجد تنبيهات حالياً.</p>
           <p style={{ margin: '6px 0 0', color: 'var(--muted-foreground)', fontSize: 12 }}>ستظهر هنا تحديثات الطلبات والإجراءات المرتبطة بحسابك.</p>
         </section>
+      ) : filteredNotifications.length === 0 ? (
+        <section className="rounded-xl border border-border bg-card p-8 text-center" role="status">
+          <Search size={26} style={{ margin: '0 auto 10px', color: 'var(--muted-foreground)' }} />
+          <p style={{ margin: 0, fontWeight: 700 }}>لا توجد تنبيهات تطابق البحث والتصفية.</p>
+          <button type="button" className="btn btn-secondary btn-sm mt-3" onClick={() => { setQuery(''); setFilter('all'); }}>مسح البحث والتصفية</button>
+        </section>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
-          {notifications.map((notification) => (
+          {filteredNotifications.map((notification) => (
             <NotificationItem
               key={notification.id}
               notification={notification}
