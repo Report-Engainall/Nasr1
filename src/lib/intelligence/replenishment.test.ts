@@ -34,7 +34,7 @@ describe("replenishment recommendations",()=>{
   const r=build({incoming:metric("incoming",20,"QUANTITY",null)}).recommendations[0];
   expect(r).toMatchObject({status:"VERIFIED",action:"NO_ACTION",coveredAfterIncoming:25,recommendedQuantity:0,automaticPurchase:false});
  });
- it("does not purchase automatically when ATP is adequate",()=>
+ it("does not purchase automatically when ATP is adequate",()=>{
   const result=build({atp:metric("atp",50,"QUANTITY")});
   expect(result.recommendations[0]).toMatchObject({action:"NO_ACTION",quantityUnit:"EA",recommendedQuantity:0,automaticPurchase:false});
  });

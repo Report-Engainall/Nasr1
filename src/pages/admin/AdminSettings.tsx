@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Setting } from '../../lib/types'\nimport PersonalizationPrivacyPanel from '../../components/PersonalizationPrivacyPanel'
+import type { Setting } from '../../lib/types'
 
 
 type AdminSettingSection = {

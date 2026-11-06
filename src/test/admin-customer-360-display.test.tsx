@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import type { ReactNode } from "react";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffCustomer360Summary } from "@/lib/customer-360-summary";
 import { projectStaffCustomer360PrintDocument } from "@/lib/customer-360-print";
@@ -318,7 +318,7 @@ describe("Admin Customer 360 source-lineage display", () => {
     render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
     const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
     const button = await within(dialog).findByRole("button", { name: /طباعة \/ PDF/ });
-    expect(button).toBeEnabled();
+    await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(document.body.getAttribute("data-print-mode")).toBe("customer-360");
@@ -359,10 +359,15 @@ describe("Admin Customer 360 source-lineage display", () => {
     render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
 
     const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
-    fireEvent.click(await within(dialog).findByRole("button", { name: /طباعة \/ PDF/ }));
+    const printButton = await within(dialog).findByRole("button", { name: /طباعة \/ PDF/ });
+    await waitFor(() => expect(printButton).toBeEnabled());
+    fireEvent.click(printButton);
 
     expect(document.body.getAttribute("data-print-mode")).toBe(previousPrintMode);
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("تعذر فتح نافذة الطباعة في هذا المتصفح.");
+    await waitFor(() => {
+      const alerts = within(dialog).getAllByRole("alert");
+      expect(alerts.some(alert => alert.textContent?.includes("تعذر فتح نافذة الطباعة في هذا المتصفح."))).toBe(true);
+    });
   });
 
   it("does not print Customer 360 while its tenant-scoped summary is loading", async () => {

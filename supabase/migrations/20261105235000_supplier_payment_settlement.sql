@@ -886,6 +886,7 @@ DECLARE
   v_existing public.purchase_supplier_payment_accounting_drafts%ROWTYPE;
   v_journal public.accounting_journal_entries%ROWTYPE;
   v_reconciliation public.purchase_supplier_payment_reconciliation_events%ROWTYPE;
+  v_expected_evidence_type text;
   v_open record;
   v_item record;
   v_allocated_total numeric(18,2):=0;
@@ -953,15 +954,16 @@ BEGIN
   WHERE e.organization_id=v_org AND e.payment_id=v_payment.id
   ORDER BY e.created_at DESC,e.id DESC
   LIMIT 1;
+  v_expected_evidence_type := CASE
+    WHEN v_payment.payment_method='cash' THEN 'cash_voucher'
+    WHEN v_payment.payment_method='bank_transfer' THEN 'bank_statement_line'
+    WHEN v_payment.payment_method='cheque' THEN 'cheque_clearance'
+    ELSE NULL END;
   IF NOT FOUND OR v_reconciliation.action<>'matched'
      OR v_reconciliation.actor_profile_id=v_payment.created_by_profile_id
      OR v_reconciliation.observed_amount IS DISTINCT FROM v_payment.amount
      OR v_reconciliation.currency IS DISTINCT FROM v_payment.currency
-     OR v_reconciliation.evidence_type IS DISTINCT FROM CASE
-       WHEN v_payment.payment_method='cash' THEN 'cash_voucher'
-       WHEN v_payment.payment_method='bank_transfer' THEN 'bank_statement_line'
-       WHEN v_payment.payment_method='cheque' THEN 'cheque_clearance'
-       ELSE NULL END THEN
+     OR v_reconciliation.evidence_type IS DISTINCT FROM v_expected_evidence_type THEN
     RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='a matching, independently reviewed settlement evidence event is required before journal handoff';
   END IF;
 
