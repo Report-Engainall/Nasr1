@@ -74,6 +74,7 @@ import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as ProductsRouteImport } from './routes/products'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ApiInvoicePdfInvoiceIdRouteImport } from './routes/api.invoice-pdf.$invoiceId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -397,6 +398,11 @@ const StoreRoute = StoreRouteImport.update({
   path: '/store',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductsRoute = ProductsRouteImport.update({
   id: '/products',
   path: '/products',
@@ -425,6 +431,7 @@ export interface FileRoutesByFullPath {
   '/offline': typeof OfflineRoute
   '/orders': typeof OrdersRouteWithChildren
   '/quotes': typeof QuotesRoute
+  '/profile': typeof ProfileRoute
   '/reorder': typeof ReorderRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -492,6 +499,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/offline': typeof OfflineRoute
   '/quotes': typeof QuotesRoute
+  '/profile': typeof ProfileRoute
   '/reorder': typeof ReorderRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -559,6 +567,7 @@ export interface FileRoutesById {
   '/offline': typeof OfflineRoute
   '/orders': typeof OrdersRouteWithChildren
   '/quotes': typeof QuotesRoute
+  '/profile': typeof ProfileRoute
   '/reorder': typeof ReorderRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -628,6 +637,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/orders'
     | '/quotes'
+    | '/profile'
     | '/reorder'
     | '/reset-password'
     | '/statement'
@@ -690,6 +700,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/offline'
     | '/quotes'
+    | '/profile'
     | '/reorder'
     | '/reset-password'
     | '/statement'
@@ -752,6 +763,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/orders'
     | '/quotes'
+    | '/profile'
     | '/reorder'
     | '/reset-password'
     | '/statement'
@@ -800,6 +812,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  ProfileRoute: typeof ProfileRoute
   AccountPasswordRoute: typeof AccountPasswordRoute
   PaymentsRoute: typeof PaymentsRoute
   HelpRoute: typeof HelpRoute
@@ -964,6 +977,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/orders'
       preLoaderRoute: typeof OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quotes': {
@@ -1405,6 +1425,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInvoicePdfInvoiceIdRoute: ApiInvoicePdfInvoiceIdRoute,
   AdminAuditRoute: AdminAuditRoute,
   ProductsRoute: ProductsRoute,
+  ProfileRoute: ProfileRoute,
   InviteTokenRoute: InviteTokenRoute,
   CustomerActivateTokenRoute: CustomerActivateTokenRoute,
   CatalogRoute: CatalogRoute,
