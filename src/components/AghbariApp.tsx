@@ -890,6 +890,7 @@ export function ProductModal({
   const [productStatus, setProductStatus] = useState<'active' | 'inactive'>(product?.status === 'inactive' ? 'inactive' : 'active');
   const [nameEn, setNameEn] = useState(product?.name_en ?? '');
   const [code, setCode] = useState(product?.item_code ?? '');
+  const [unit, setUnit] = useState(product?.unit ?? '');
   const [sku, setSku] = useState(product?.sku ?? '');
   const [barcode, setBarcode] = useState(product?.barcode ?? '');
   const [isFeatured, setIsFeatured] = useState(product?.is_featured ?? false);
@@ -966,7 +967,8 @@ export function ProductModal({
 
   async function save() {
     if (saveInFlight.current || saving) return;
-    if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; }
+    if (!name.trim() || !code.trim() || !unit.trim() || !price) { setError('أكمل الحقول المطلوبة، بما فيها الوحدة الأساسية.'); return; }
+    if (unit.trim().length > 40) { setError('الوحدة الأساسية لا تتجاوز 40 حرفًا.'); return; }
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
     const minimumValue = Number(minOrderQuantity);
@@ -979,7 +981,7 @@ export function ProductModal({
     setSaving(true); setError('');
     let productSaved = false;
     try {
-      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, is_featured: isFeatured, sort_order: sortOrderValue, unit: product?.unit ?? 'كرتون', status: productStatus };
+      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, is_featured: isFeatured, sort_order: sortOrderValue, unit: unit.trim(), status: productStatus };
       const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
       productSaved = true;
       if (!(await persistProductImageChanges(saved.id))) return;
@@ -1010,7 +1012,11 @@ export function ProductModal({
         <Field label="رمز المنتج">
           <input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} />
         </Field>
-        <Field label="السعر الأساسي">
+        <Field label="الوحدة الأساسية (مثل حبة، عبوة، كرتون)">
+          <input value={unit} onChange={(e) => setUnit(e.target.value)} maxLength={40} disabled={saving} placeholder="أدخل وحدة القياس الأساسية" />
+        </Field>
+      </div>
+      <Field label="السعر الأساسي">
           <input
             type="number"
             min="0"
