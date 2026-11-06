@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomes } from "./decision-outcome-client";
+import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomes, resumeDeferredDecisionOutcome } from "./decision-outcome-client";
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
@@ -132,5 +132,53 @@ describe("persisted decision outcome client", () => {
     });
     expect(result).toMatchObject({ ok: false, status: "ERROR" });
     expect(rpc).not.toHaveBeenCalled();
+  });
+  it("resubmits a deferred decision with a new reason and expected version", async () => {
+    const reason = "تم استكمال المستندات ويمكن إعادة المراجعة";
+    const deferred = {
+      ...outcome,
+      state: "DEFERRED",
+      version: 2,
+      eventCount: 2,
+      history: [...outcome.history, {
+        id: "defer-event",
+        type: "DEFER",
+        version: 2,
+        actor: { id: "22222222-2222-4222-8222-222222222222", role: "admin" },
+        at: "2026-10-31T11:00:00.000Z",
+        reason: "بانتظار المستندات",
+        owner: null,
+        idempotencyKey: "defer-key",
+      }],
+    };
+    const resumed = {
+      ...deferred,
+      state: "IN_REVIEW",
+      version: 3,
+      reason,
+      eventCount: 3,
+      history: [...deferred.history, {
+        id: "resume-event",
+        type: "RESUBMIT_FOR_REVIEW",
+        version: 3,
+        actor: { id: "22222222-2222-4222-8222-222222222222", role: "admin" },
+        at: "2026-10-31T12:00:00.000Z",
+        reason,
+        owner: null,
+        idempotencyKey: "resume-key",
+      }],
+    };
+    rpc.mockResolvedValue({ data: { ok: true, duplicate: false, outcome: resumed }, error: null });
+    const result = await resumeDeferredDecisionOutcome({
+      outcomeId: outcome.id,
+      expectedVersion: 2,
+      reason,
+    });
+    expect(rpc).toHaveBeenCalledWith("resume_deferred_decision_outcome", expect.objectContaining({
+      p_outcome_id: outcome.id,
+      p_expected_version: 2,
+      p_reason: reason,
+    }));
+    expect(result).toMatchObject({ ok: true, outcome: { state: "IN_REVIEW", version: 3, reason } });
   });
 });
