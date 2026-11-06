@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type AdminWorkspaceSearchKind = "product" | "customer" | "order" | "invoice" | "decision" | "audit";
+export type AdminWorkspaceSearchKind = "product" | "customer" | "order" | "supplier" | "invoice" | "decision" | "audit" | "purchase_order" | "task" | "import";
 export type AdminWorkspaceSearchItem = {
   id: string;
   kind: AdminWorkspaceSearchKind;
@@ -15,9 +15,13 @@ const ROUTES: Record<AdminWorkspaceSearchKind, string> = {
   product: "/admin/products",
   customer: "/admin/customers",
   order: "/admin/orders",
+  supplier: "/admin/suppliers",
   invoice: "/admin/finance",
   decision: "/admin/intelligence",
   audit: "/admin/audit",
+  purchase_order: "/admin/purchase-orders",
+  task: "/admin/tasks",
+  import: "/admin/data",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
