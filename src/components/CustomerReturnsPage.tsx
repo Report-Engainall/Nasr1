@@ -128,7 +128,7 @@ export function CustomerReturnsPage() {
       <section className="rounded-2xl border bg-card p-6">
         <h1 className="text-xl font-bold">مرتجعات العملاء</h1>
         <p className="mt-2 text-sm text-muted-foreground">هذه الصفحة مخصصة لحساب العميل. استخدم طابور مراجعة المرتجعات في مساحة الإدارة.</p>
-        <Link to="/admin/returns" className="mt-4 inline-flex items-center gap-2 text-primary">فتح إدارة المرتجعات <ArrowLeft size={15}/></Link>
+        <Link to="/admin/orders" className="mt-4 inline-flex items-center gap-2 text-primary">فتح إدارة المرتجعات <ArrowLeft size={15}/></Link>
       </section>
     </main>
   );
