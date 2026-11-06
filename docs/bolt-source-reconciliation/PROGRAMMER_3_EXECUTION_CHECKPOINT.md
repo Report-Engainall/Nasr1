@@ -260,3 +260,34 @@ Documentation commits:
 - Growth source gaps remain open: the current DTO does not contain quote-to-order linkage, nor a verified unavailable-product-search aggregate; product performance-change signals also require paired full-period metrics and evidence not currently emitted by the retention source.
 
 **Next P3 action:** continue from live `main`; do not synthesize the missing growth signals. Keep these source gaps explicitly withheld until their authenticated, complete metric/evidence DTOs exist.
+
+
+## P3 incremental product-body checkpoint — Arabic role-scoped task scorecard assistant — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commit:** `0578c3bb84e05654412ceb03f98539e7e6e2aefa`  
+**Parent:** `6fefc7daa42bb78eddf292a97f7f1db08ffd7525`
+
+### Delivered on main
+
+- Added explicit Arabic read intent `TASK_PERFORMANCE_OVERVIEW` for current task scorecard questions and rejects historical/free date windows.
+- Reuses the existing `fetchTaskPerformanceScorecard()` client and `fetch_task_performance_scorecard` RPC. The server still resolves tenant and task-role scope from the authenticated actor; the browser sends no tenant or role override.
+- Reuses the existing `TaskPerformanceScorecard` component, with `ready` state only after the validated client returns `ok: true`; denied/unavailable/error responses are preserved by the assistant.
+- Displays current visible task count, authorized role count, task-type/role group count, as-of time and the full existing card. The result contains aggregate role/task-type groups only, not employee names, task titles, assignee IDs or per-employee rankings.
+- Explicitly preserves unavailable indicators: full reopen rate when audit coverage is partial, employee comparison, duplicate replay rate, waiting-on-other-party, improvement outcomes and print success are not replaced by zero or inferred from elapsed durations.
+- Employee comparison phrases are rejected by the earlier intent guard before the new task-performance intent is considered.
+
+### Exact changed files
+
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+
+### State and limits
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Existing P1 workspace mount and existing scorecard component/export are unchanged; no new page, route, RPC or migration was created.
+- No tests, build, lint, typecheck, CI, browser, database, Bolt, Preview, Vercel or production operation was run in this body-only batch. No PASS or runtime proof is claimed.
+- Approved non-production acceptance must prove: same-tenant task-role scope; hidden roles excluded; denied user remains denied; EMPTY differs from no access; all aggregate task-role counts reconcile; audit reopen rate remains withheld when baseline incomplete; employee comparison query remains unsupported; no task IDs, task names, assignee identity or private task payloads leak into the assistant response.
+
+**Next P3 action:** resume from live `main`; only pursue source-backed role-task attention queries if the current source exposes the authenticated visible task list without expanding role visibility. Do not create a second task query or bypass TaskCenter guards.

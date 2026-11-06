@@ -1,5 +1,11 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — Arabic role-scoped task performance read — 2026-11-06
+
+- Code commit `0578c3bb84e05654412ceb03f98539e7e6e2aefa` adds the Arabic `TASK_PERFORMANCE_OVERVIEW` intent and reuses the existing `fetchTaskPerformanceScorecard()` client/RPC and `TaskPerformanceScorecard` UI.
+- The output is aggregate-only by authenticated visible task roles and task type. Historical date windows and individual employee ranking queries remain unsupported. Incomplete audit and other unavailable metrics remain explicitly withheld.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/database/Bolt/Preview/Vercel/production acceptance was run in this source-only continuation.
+
 ## P3 body update — Arabic Growth Radar assistant read path — 2026-11-06
 
 - Commit `33212afd4b332177a64f18f0cdd2e21ce6a677e7` adds the Arabic `GROWTH_RADAR_OVERVIEW` intent using the existing tenant-scoped customer-retention aggregate and deterministic GrowthOpportunityRadar result.
