@@ -1,5 +1,18 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — 2026-11-06
+
+- P3 source-code delivery is now at `e75c85f07fa3633b225a4dfa85e5a6ce2cfaab40`; P3 documentation/checkpoint is at `e073410db322efec6ea8dfd39f7dc61f48fce366`.
+- Extended Section 61 quality review reads/UI and Section 57 Arabic assistant: independent direct quality RPC read, scorecard composition that survives an unavailable quality migration, reusable metrics panel, explicit true/false/pending alert counts, optional decision linking using only IDs returned by `fetch_decision_outcomes`, and allow-listed Arabic read-only quality queries.
+- P3 handoff: `docs/execution/contracts/P3_TASK_QUALITY_REVIEW_P1_HANDOFF.md`. Added matrix leaf `REF-TASK-QUALITY-METRICS-ASSISTANT-001`. Detailed exact commit chain and boundaries are in `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`.
+- P1-owned pending integration remains: mount `TaskQualityReviewForm` in existing `TaskCenter.tsx` using real `task.id`/ `task.updated_at`, manager/admin gate, task-key isolation and existing refresh callback; mount `NaturalLanguageAssistant` in existing intelligence workspace. P3 did not edit P1-owned components.
+- Quality/scorecard/audit migrations remain source-only pending Bolt non-production acceptance. No tests/build/lint/CI/browser/DB/Bolt/Preview/Vercel/production run or PASS is claimed.
+- P3 next action: Section 52 has only the `cashflow.expected_collections` baseline source; extend other operational measures only when their exact tenant-scoped source/evidence/formula contract is available. Unsupported metrics remain withheld. A weighted 95% residual closure ratio is not certifiable because the matrix provides no defined weighting denominator.
+
+## P3 next action
+Continue with the next P3-owned Section 52/remaining Section 53–56 and 59–63 gap grounded by the live matrix; do not duplicate completed engines and do not modify P1-owned workspace/routes.
+
+
 ## P1 sequential body update — BODY-COMPLETION-ON-MAIN-031
 
 - Latest P1 UI source commit: `51daf271923dc89a654b35890b2f2faf3997dbd7`.
