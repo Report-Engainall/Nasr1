@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProcessBottlenecks,
+  parseProcessBottleneckSnapshot,
   type ProcessBottleneckMetric,
   type ProcessBottleneckPeriod,
   type ProcessBottleneckSnapshot,
@@ -18,7 +19,11 @@ const equalBaselinePeriod: ProcessBottleneckPeriod = {
   timeZone: "UTC",
 };
 
-function metric(window: "CURRENT" | "BASELINE", medianMinutes: number): ProcessBottleneckMetric {
+function metric(
+  window: "CURRENT" | "BASELINE",
+  medianMinutes: number,
+  overrides: Partial<ProcessBottleneckMetric> = {},
+): ProcessBottleneckMetric {
   return {
     window,
     processKey: "ORDERS",
@@ -30,6 +35,7 @@ function metric(window: "CURRENT" | "BASELINE", medianMinutes: number): ProcessB
     p90Minutes: medianMinutes + 8,
     firstCompletedAt: window === "CURRENT" ? "2026-11-02T08:00:00.000Z" : "2026-10-03T08:00:00.000Z",
     lastCompletedAt: window === "CURRENT" ? "2026-11-29T18:00:00.000Z" : "2026-10-30T18:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -88,6 +94,72 @@ describe("process bottleneck before/after comparison windows", () => {
     expect(result.withheldReasons).toContain(
       "فترة الأساس يجب أن تسبق الفترة الحالية وأن تطابقها في عدد الأيام؛ حُجبت المقارنة.",
     );
+  });
+
+
+  it("discloses baseline stages with insufficient samples without hiding other valid comparisons", () => {
+    const s = snapshot(equalBaselinePeriod);
+    s.metrics = [
+      metric("CURRENT", 30, { stageKey: "A", sampleCount: 5 }),
+      metric("BASELINE", 45, { stageKey: "A", sampleCount: 5 }),
+      metric("CURRENT", 12, { stageKey: "B", sampleCount: 5 }),
+      metric("BASELINE", 9, { stageKey: "B", sampleCount: 2 }),
+    ];
+    const result = buildProcessBottlenecks(s);
+    expect(result.comparisons).toHaveLength(1);
+    expect(result.comparisons[0].stageKey).toBe("A");
+    expect(result.withheldReasons).toContain(
+      "مقارنة المرحلة ORDERS/B محجوبة: عينة فترة الأساس أقل من 3 (n=2).",
+    );
+  });
+
+  it("does not treat a stage missing from either window as a zero-duration stage", () => {
+    const s = snapshot(equalBaselinePeriod);
+    s.metrics = [
+      metric("CURRENT", 30, { stageKey: "NEW_STAGE" }),
+      metric("BASELINE", 45, { stageKey: "OLD_STAGE" }),
+    ];
+    const result = buildProcessBottlenecks(s);
+    expect(result.comparisons).toEqual([]);
+    expect(result.withheldReasons).toContain(
+      "لم تُرصد المرحلة ORDERS/NEW_STAGE في فترة الأساس؛ لم تُعامل كقيمة صفرية.",
+    );
+    expect(result.withheldReasons).toContain(
+      "لم تُرصد المرحلة ORDERS/OLD_STAGE في الفترة الحالية؛ لم تُعامل كقيمة صفرية.",
+    );
+  });
+
+  it("rejects duplicate aggregate identities and metrics outside their source window", () => {
+    const valid = snapshot(equalBaselinePeriod);
+    expect(parseProcessBottleneckSnapshot(valid)).not.toBeNull();
+    expect(parseProcessBottleneckSnapshot({
+      ...valid,
+      metrics: [...valid.metrics, valid.metrics[0]],
+    })).toBeNull();
+    expect(parseProcessBottleneckSnapshot({
+      ...valid,
+      metrics: [metric("CURRENT", 30, { lastCompletedAt: "2026-12-01T00:00:00.000Z" }), valid.metrics[1]],
+    })).toBeNull();
+  });
+
+  it("rejects quantile order violations and inconsistent or future queue ages", () => {
+    const valid = snapshot(equalBaselinePeriod);
+    expect(parseProcessBottleneckSnapshot({
+      ...valid,
+      metrics: [metric("CURRENT", 30, { p90Minutes: 20 }), valid.metrics[1]],
+    })).toBeNull();
+    const queue = {
+      processKey: "ORDERS",
+      openCount: 1,
+      oldestOpenedAt: "2026-11-30T23:50:00.000Z",
+      oldestAgeMinutes: 5,
+      asOf: valid.asOf,
+    };
+    expect(parseProcessBottleneckSnapshot({ ...valid, queues: [queue] })).toBeNull();
+    expect(parseProcessBottleneckSnapshot({
+      ...valid,
+      queues: [{ ...queue, oldestOpenedAt: "2026-12-01T00:01:00.000Z", oldestAgeMinutes: 0 }],
+    })).toBeNull();
   });
 
   it("does not claim a before/after comparison when no baseline was supplied", () => {

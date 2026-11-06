@@ -71,6 +71,7 @@ function parseMetric(v: unknown): ProcessBottleneckMetric | null {
       typeof r.waitClass!=="string" || !WAIT_CLASSES.has(r.waitClass as ProcessWaitClass) ||
       !text(r.stageKey) || !int(r.sampleCount) || r.sampleCount<1 ||
       !num(r.averageMinutes) || !num(r.medianMinutes) || !num(r.p90Minutes) ||
+      r.p90Minutes<r.medianMinutes ||
       !ts(r.firstCompletedAt) || !ts(r.lastCompletedAt) ||
       Date.parse(r.firstCompletedAt)>Date.parse(r.lastCompletedAt)) return null;
   return {
@@ -87,6 +88,14 @@ function parseQueue(v: unknown, asOf: string): ProcessBottleneckQueue | null {
       (r.oldestAgeMinutes!==null && !num(r.oldestAgeMinutes)) || r.asOf!==asOf ||
       (r.openCount===0 && (r.oldestOpenedAt!==null || r.oldestAgeMinutes!==null)) ||
       (r.openCount>0 && (r.oldestOpenedAt===null || r.oldestAgeMinutes===null))) return null;
+  if (r.openCount>0) {
+    const openedAt=Date.parse(r.oldestOpenedAt as string);
+    const measuredAt=Date.parse(asOf);
+    const suppliedAge=r.oldestAgeMinutes as number;
+    if (!Number.isFinite(openedAt) || openedAt>measuredAt) return null;
+    const expectedAge=Math.round(((measuredAt-openedAt)/60000)*100)/100;
+    if (!Number.isFinite(expectedAge) || Math.abs(expectedAge-suppliedAge)>0.01) return null;
+  }
   return {
     processKey:r.processKey as ProcessBottleneckKey, openCount:r.openCount,
     oldestOpenedAt:r.oldestOpenedAt as string|null, oldestAgeMinutes:r.oldestAgeMinutes as number|null, asOf,
@@ -123,6 +132,17 @@ export function parseProcessBottleneckSnapshot(v: unknown): ProcessBottleneckSna
   const coverage=r.sourceCoverage.map(x=>parseCoverage(x,r.asOf as string,period));
   if (metrics.some(x=>x===null) || queues.some(x=>x===null) || coverage.some(x=>x===null)) return null;
   const q=queues as ProcessBottleneckQueue[], c=coverage as ProcessBottleneckCoverage[], m=metrics as ProcessBottleneckMetric[];
+  const metricIdentity=(x:ProcessBottleneckMetric)=>x.window+":"+x.processKey+":"+x.stageKey+":"+x.waitClass;
+  if (new Set(m.map(metricIdentity)).size!==m.length) return null;
+  const withinPeriod=(x:ProcessBottleneckMetric):boolean=>{
+    const target=x.window==="CURRENT"?period:baselinePeriod;
+    if(!target) return false;
+    const start=Date.parse(target.from+"T00:00:00.000Z");
+    const end=Date.parse(target.to+"T00:00:00.000Z")+24*60*60*1000;
+    const first=Date.parse(x.firstCompletedAt),last=Date.parse(x.lastCompletedAt);
+    return Number.isFinite(start)&&Number.isFinite(end)&&first>=start&&last<end;
+  };
+  if(m.some(x=>!withinPeriod(x))) return null;
   if (new Set(q.map(x=>x.processKey)).size!==q.length ||
       new Set(c.map(x=>x.key)).size!==c.length || c.length!==PROCESS_KEYS.size ||
       m.some(x=>x.window==="BASELINE" && !baselinePeriod)) return null;
@@ -167,19 +187,39 @@ export function buildProcessBottlenecks(s: ProcessBottleneckSnapshot): ProcessBo
     }))
     .sort((a,b)=>b.medianMinutes-a.medianMinutes || b.p90Minutes-a.p90Minutes || a.processKey.localeCompare(b.processKey))
     .slice(0,8);
-  const prior=new Map(s.metrics.filter(m=>m.window==="BASELINE" && verified.has(m.processKey) && m.sampleCount>=3)
-    .map(m=>[m.processKey+":"+m.stageKey+":"+m.waitClass,m]));
+  const stageIdentity=(m:ProcessBottleneckMetric)=>m.processKey+":"+m.stageKey+":"+m.waitClass;
+  const prior=new Map(s.metrics.filter(m=>m.window==="BASELINE" && verified.has(m.processKey))
+    .map(m=>[stageIdentity(m),m]));
+  const currentStages=new Map(s.metrics.filter(m=>m.window==="CURRENT" && verified.has(m.processKey))
+    .map(m=>[stageIdentity(m),m]));
   const comparisons: ProcessBottleneckComparison[]=[];
-  if(comparablePeriods) for(const m of s.metrics.filter(x=>x.window==="CURRENT" && verified.has(x.processKey) && x.sampleCount>=3)) {
-    const old=prior.get(m.processKey+":"+m.stageKey+":"+m.waitClass);
-    if(!old) continue;
-    const diff=m.medianMinutes-old.medianMinutes;
-    comparisons.push({
-      processKey:m.processKey,stageKey:m.stageKey,currentMedianMinutes:m.medianMinutes,
-      baselineMedianMinutes:old.medianMinutes,changeMinutes:diff,
-      changePercent:old.medianMinutes>0 ? Math.round(diff/old.medianMinutes*10000)/100 : null,
-      note:"مقارنة وصفية لفترتين متساويتين؛ لا تثبت أن تغييراً واحداً سبب الفرق.",
-    });
+  if(comparablePeriods) {
+    for(const m of currentStages.values()) {
+      const identity=stageIdentity(m);
+      if(m.sampleCount<3) {
+        withheld.push("مقارنة المرحلة "+m.processKey+"/"+m.stageKey+" محجوبة: عينة الفترة الحالية أقل من 3 (n="+m.sampleCount+").");
+        continue;
+      }
+      const old=prior.get(identity);
+      if(!old) {
+        withheld.push("لم تُرصد المرحلة "+m.processKey+"/"+m.stageKey+" في فترة الأساس؛ لم تُعامل كقيمة صفرية.");
+        continue;
+      }
+      if(old.sampleCount<3) {
+        withheld.push("مقارنة المرحلة "+m.processKey+"/"+m.stageKey+" محجوبة: عينة فترة الأساس أقل من 3 (n="+old.sampleCount+").");
+        continue;
+      }
+      const diff=m.medianMinutes-old.medianMinutes;
+      comparisons.push({
+        processKey:m.processKey,stageKey:m.stageKey,currentMedianMinutes:m.medianMinutes,
+        baselineMedianMinutes:old.medianMinutes,changeMinutes:diff,
+        changePercent:old.medianMinutes>0 ? Math.round(diff/old.medianMinutes*10000)/100 : null,
+        note:"مقارنة وصفية لفترتين متساويتين؛ لا تثبت أن تغييراً واحداً سبب الفرق.",
+      });
+    }
+    for(const old of prior.values()) if(!currentStages.has(stageIdentity(old))) {
+      withheld.push("لم تُرصد المرحلة "+old.processKey+"/"+old.stageKey+" في الفترة الحالية؛ لم تُعامل كقيمة صفرية.");
+    }
   }
   const available=s.sourceCoverage.filter(x=>x.status==="VERIFIED").length;
   const state=available===0 ? "UNAVAILABLE" : available===PROCESS_KEYS.size ? "READY" : "PARTIAL";
