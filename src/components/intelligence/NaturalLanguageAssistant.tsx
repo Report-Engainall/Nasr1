@@ -3,6 +3,7 @@ import { runNaturalLanguageAssistantQuery,type NaturalLanguageAssistantResponse 
 import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@/lib/intelligence/natural-language-assistant";
 import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
 import { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
+import { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
@@ -62,7 +63,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة، وبطاقة أداء المهام حسب الدور، وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -85,6 +86,18 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     </article>)}
    </div>
    <p className="text-xs text-muted-foreground">النتيجة قراءة تجميعية لحالة القرار الحالية وليست سجلاً تاريخياً للأحداث. عند ظهور «نتيجة جزئية» لا تُفسر أعداد الحالات أو عدم العثور على قرارات مطابقة على أنها تغطي كامل السجل. لا يعرض هذا المسار أسماء المسؤولين أو بيانات مالية أو تفاصيل حساسة.</p>
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="TASK_PERFORMANCE"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <strong>بطاقة أداء المهام</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="EMPTY"?"لا توجد مهام ضمن النطاق":"لقطة الأدوار المصرّح بها"}</span>
+    </div>
+    <p className="mt-2">{response.result.answer}</p>
+    <p className="mt-1 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · كما في {new Date(response.result.scorecard.asOf).toLocaleString("ar-YE")} · وقت الاستعلام: {new Date(response.result.queriedAt).toLocaleString("ar-YE")}</p>
+   </div>
+   <TaskPerformanceScorecard scorecard={response.result.scorecard} state="ready"/>
+   <p className="text-xs text-muted-foreground">هذه بطاقة تجميع حسب نوع المهمة والدور المرئي فقط، وليست تقييماً فردياً للموظفين. لا يُستنتج معدل إعادة فتح كامل من سجل جزئي، ولا تُحسب مقارنة موظفين أو نتائج تحسين غير موثقة؛ تبقى المؤشرات المحددة في «غير متاح» محجوبة.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="TASK_QUALITY"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">

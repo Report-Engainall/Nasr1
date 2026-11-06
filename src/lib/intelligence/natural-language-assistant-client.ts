@@ -9,10 +9,11 @@ import { createCashflowScheduleRequest,fetchCashflowSchedule } from "./cashflow-
 import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-client";
 import { fetchCustomerServiceIntelligenceSummary } from "./customer-service-intelligence-client";
 import { fetchDecisionOutcomes } from "./decision-outcome-client";
+import { fetchTaskPerformanceScorecard } from "./task-performance-scorecard-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -29,6 +30,20 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="fetch_task_performance_scorecard"){
+   const result=await fetchTaskPerformanceScorecard();
+   if(!result.ok)return {status:result.status,message:result.message};
+   const scorecard=result.scorecard;
+   const answer=scorecard.status==="EMPTY"
+    ?"لا توجد مهام ضمن الأدوار التي تسمح صلاحيتك برؤيتها في لقطة المصدر الحالية."
+    :"بطاقة الأداء تعرض "+scorecard.scope.visibleTaskCount+" مهمة مرئية، موزعة على "+scorecard.scope.visibleRoles.length+" أدوار مصرح بها و"+scorecard.groups.length+" مجموعة نوع/دور. تعرض مؤشرات التغطية وزمن الإكمال وجودة المراجعات المتاحة فقط.";
+   return {status:"RESULT",plan,result:{
+    kind:"TASK_PERFORMANCE",state:scorecard.status,
+    intent:plan.intent as TaskPerformanceIntent,answer,
+    sourceRpc:"fetch_task_performance_scorecard",
+    queriedAt:new Date().toISOString(),scorecard,
+   }};
+  }
   if(plan.sourceRpc==="fetch_decision_outcomes"){
    const outcomes=await fetchDecisionOutcomes(100,0);
    if(!outcomes.ok)return {status:outcomes.status,message:outcomes.message};
