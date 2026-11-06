@@ -122,7 +122,7 @@ describe('purchase orders page',()=>{
     render(<PurchaseOrdersPage/>);
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
-    fireEvent.change(screen.getByLabelText('الصنف'),{target:{value:'product-1'}});
+    fireEvent.change(screen.getAllByLabelText('الصنف').at(-1)!,{target:{value:'product-1'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
     expect(await screen.findByText(/حُفظت مسودة أمر الشراء من البيانات الحالية/)).toBeInTheDocument();
     expect(mocks.createPurchaseOrder).toHaveBeenCalledTimes(1);
@@ -147,7 +147,7 @@ describe('purchase orders page',()=>{
     render(<PurchaseOrdersPage/>);
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
-    fireEvent.change(screen.getByLabelText('الصنف'),{target:{value:'product-1'}});
+    fireEvent.change(screen.getAllByLabelText('الصنف').at(-1)!,{target:{value:'product-1'}});
     fireEvent.change(screen.getByLabelText('الكمية المطلوبة'),{target:{value:'1.0001'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
     expect((await screen.findByRole('alert')).textContent).toMatch(/الكمية يجب أن تكون موجبة/);
@@ -158,7 +158,7 @@ describe('purchase orders page',()=>{
     render(<PurchaseOrdersPage/>);
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
-    fireEvent.change(screen.getByLabelText('الصنف'),{target:{value:'product-1'}});
+    fireEvent.change(screen.getAllByLabelText('الصنف').at(-1)!,{target:{value:'product-1'}});
     fireEvent.change(screen.getByLabelText('تكلفة الوحدة (اختياري)'),{target:{value:'12.345'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
     expect((await screen.findByRole('alert')).textContent).toMatch(/تكلفة الوحدة يجب أن تكون غير سالبة/);

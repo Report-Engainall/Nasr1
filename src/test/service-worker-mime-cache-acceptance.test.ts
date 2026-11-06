@@ -165,34 +165,47 @@ describe("PWA service-worker MIME cache acceptance", () => {
     const root = responseStub("application/json");
     const manifest = responseStub("text/html; charset=utf-8");
     const favicon = responseStub("image/x-icon");
+    const icon192 = responseStub("image/svg+xml");
+    const icon512 = responseStub("image/svg+xml");
     const scenario = runInstallScenario(new Map([
       ["/", root],
       ["/manifest.webmanifest", manifest],
       ["/favicon.ico", favicon],
+      ["/icons/aghbari-icon-192.svg", icon192],
+      ["/icons/aghbari-icon-512.svg", icon512],
     ]));
 
     await scenario.lifecyclePromise;
 
-    expect(scenario.fetchMock).toHaveBeenCalledTimes(3);
-    expect(scenario.cache.put).toHaveBeenCalledTimes(1);
+    expect(scenario.fetchMock).toHaveBeenCalledTimes(5);
+    expect(scenario.cache.put).toHaveBeenCalledTimes(3);
     expect(scenario.cache.put).toHaveBeenCalledWith("/favicon.ico", favicon);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/icons/aghbari-icon-192.svg", icon192);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/icons/aghbari-icon-512.svg", icon512);
   });
 
   it("precaches a valid HTML shell, manifest JSON and favicon by their expected MIME types", async () => {
     const root = responseStub("text/html; charset=utf-8");
     const manifest = responseStub("application/manifest+json; charset=utf-8");
     const favicon = responseStub("image/vnd.microsoft.icon");
+    const icon192 = responseStub("image/svg+xml");
+    const icon512 = responseStub("image/svg+xml");
     const scenario = runInstallScenario(new Map([
       ["/", root],
       ["/manifest.webmanifest", manifest],
       ["/favicon.ico", favicon],
+      ["/icons/aghbari-icon-192.svg", icon192],
+      ["/icons/aghbari-icon-512.svg", icon512],
     ]));
 
     await scenario.lifecyclePromise;
 
-    expect(scenario.cache.put).toHaveBeenCalledTimes(3);
+    expect(scenario.fetchMock).toHaveBeenCalledTimes(5);
+    expect(scenario.cache.put).toHaveBeenCalledTimes(5);
     expect(scenario.cache.put).toHaveBeenCalledWith("/", root);
     expect(scenario.cache.put).toHaveBeenCalledWith("/manifest.webmanifest", manifest);
     expect(scenario.cache.put).toHaveBeenCalledWith("/favicon.ico", favicon);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/icons/aghbari-icon-192.svg", icon192);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/icons/aghbari-icon-512.svg", icon512);
   });
 });
