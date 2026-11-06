@@ -332,7 +332,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   return <section dir="rtl" className="space-y-3 rounded-xl border p-4" aria-label="دفتر ذاكرة القرارات والتعلم">
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">دفتر ذاكرة القرارات والتعلّم من نتائجها</h2>
       <p className="text-xs text-muted-foreground">سياسة {result.policyVersion} · لقطة {result.generatedAt} · الصفحة {result.loadedCount} من {result.totalCount}</p></div>
-      <span className="text-xs"><EvidenceStatusLabel status={result.status==="VERIFIED"?"VERIFIED":result.status==="PARTIAL"?"NEEDS_REVIEW":"UNAVAILABLE"}/></span></header>
+      <span className="text-xs">{result.status==="EMPTY"?"لا توجد قرارات محفوظة":<EvidenceStatusLabel status={result.status==="VERIFIED"?"VERIFIED":result.status==="PARTIAL"?"NEEDS_REVIEW":"UNAVAILABLE"}/>}</span></header>
     <p className="text-sm text-muted-foreground">يوثق المشكلة والبدائل والافتراضات والإجراء والمراجعة على إصدارات غير قابلة للاستبدال. لا تتحول الوقائع إلى أدلة إلا بعد تحقق الخادم من مصدرها داخل المؤسسة؛ ولا تتغير القواعد أو الأسعار أو الصلاحيات تلقائياً.</p>
     {result.records.length?<section className="space-y-3 rounded-xl border p-3" aria-label="البحث في القرارات السابقة المشابهة">
       <div><h3 className="font-semibold">البحث في القرارات السابقة المشابهة</h3>
