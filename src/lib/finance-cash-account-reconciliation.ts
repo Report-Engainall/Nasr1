@@ -203,13 +203,15 @@ function opening(value: unknown): CashOpeningBalanceProposal {
   if (decision !== null && decision !== undefined && decision !== "approved" && decision !== "rejected") {
     throw new Error("قرار مراجعة الرصيد الافتتاحي غير صالح.");
   }
+  const currency = text(row.currency, "العملة", 3);
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("عملة الرصيد الافتتاحي غير صالحة.");
   return {
     id: uuid(row.id, "طلب الرصيد"),
     mappingId: uuid(row.mapping_id, "ربط الحساب"),
     evidenceId: uuid(row.evidence_id, "مستند الرصيد"),
     asOfDate: day(row.as_of_date, "تاريخ الرصيد"),
     openingBalance: money(row.opening_balance, "الرصيد الافتتاحي"),
-    currency: text(row.currency, "العملة", 3),
+    currency,
     submittedBy: uuid(row.submitted_by, "مقدم الطلب"),
     submittedAt: timestamp(row.submitted_at, "وقت تقديم الطلب"),
     reviewDecision: (decision as OpeningDecision | null | undefined) ?? null,
@@ -222,6 +224,12 @@ function opening(value: unknown): CashOpeningBalanceProposal {
 }
 function statementLine(value: unknown): BankStatementLine {
   const row = object(value, "سطر كشف البنك");
+  const matchId = row.match_id == null ? null : uuid(row.match_id, "معرف المطابقة");
+  const journalEntryId = row.journal_entry_id == null ? null : uuid(row.journal_entry_id, "قيد الأستاذ");
+  const journalLineNumber = row.journal_line_number == null ? null : integer(row.journal_line_number, "سطر الأستاذ", 1, 100);
+  if ((matchId === null) !== (journalEntryId === null) || (journalEntryId === null) !== (journalLineNumber === null)) {
+    throw new Error("بيانات ربط حركة الكشف بقيد الأستاذ غير مكتملة.");
+  }
   return {
     id: uuid(row.id, "سطر الكشف"),
     lineNumber: integer(row.line_number, "رقم السطر", 1, 10000),
@@ -229,9 +237,9 @@ function statementLine(value: unknown): BankStatementLine {
     externalReference: optionalText(row.external_reference, 160),
     description: text(row.description, "وصف الحركة", 500),
     signedAmount: money(row.signed_amount, "مبلغ الحركة"),
-    matchId: row.match_id == null ? null : uuid(row.match_id, "معرف المطابقة"),
-    journalEntryId: row.journal_entry_id == null ? null : uuid(row.journal_entry_id, "قيد الأستاذ"),
-    journalLineNumber: row.journal_line_number == null ? null : integer(row.journal_line_number, "سطر الأستاذ", 1, 100),
+    matchId,
+    journalEntryId,
+    journalLineNumber,
   };
 }
 function run(value: unknown): BankReconciliationRun {
@@ -258,19 +266,30 @@ function bankStatement(value: unknown): FinanceBankStatement {
   const latestRun = row.latest_run == null ? null : run(row.latest_run);
   const lineCount = integer(row.line_count, "عدد حركات الكشف", 0, 10000);
   const matchedCount = integer(row.matched_count, "عدد الحركات المطابقة", 0, 10000);
-  if (lineCount !== lines.length || matchedCount > lineCount || matchedCount !== lines.filter((item) => item.matchId).length) {
-    throw new Error("تغطية حركات كشف البنك غير متطابقة.");
+  const lineNumbers = new Set(lines.map((item) => item.lineNumber));
+  const currency = text(row.currency, "عملة الكشف", 3);
+  const periodFrom = day(row.period_from, "بداية الكشف");
+  const periodTo = day(row.period_to, "نهاية الكشف");
+  if (lineCount !== lines.length || lineNumbers.size !== lines.length || matchedCount > lineCount ||
+      matchedCount !== lines.filter((item) => item.matchId).length || periodFrom > periodTo ||
+      lines.some((item) => item.transactionDate < periodFrom || item.transactionDate > periodTo) ||
+      !/^[A-Z]{3}$/.test(currency) ||
+      (latestRun?.outcome === "VERIFIED" && (matchedCount !== lineCount ||
+        latestRun.unmatchedStatementLines !== 0 || latestRun.unmatchedLedgerLines !== 0 ||
+        latestRun.statementDifference !== "0" && latestRun.statementDifference !== "0.00" ||
+        latestRun.ledgerDifference !== "0" && latestRun.ledgerDifference !== "0.00"))) {
+    throw new Error("تغطية حركات كشف البنك أو فروق المطابقة غير متطابقة.");
   }
   return {
     id: uuid(row.id, "كشف البنك"),
     mappingId: uuid(row.mapping_id, "ربط البنك"),
     evidenceId: uuid(row.evidence_id, "دليل الكشف"),
     statementReference: text(row.statement_reference, "مرجع الكشف", 120),
-    periodFrom: day(row.period_from, "بداية الكشف"),
-    periodTo: day(row.period_to, "نهاية الكشف"),
+    periodFrom,
+    periodTo,
     openingBalance: money(row.opening_balance, "رصيد بداية الكشف"),
     closingBalance: money(row.closing_balance, "رصيد نهاية الكشف"),
-    currency: text(row.currency, "عملة الكشف", 3),
+    currency,
     createdBy: uuid(row.created_by, "منشئ الكشف"),
     createdAt: timestamp(row.created_at, "وقت إنشاء الكشف"),
     lines,
@@ -292,11 +311,22 @@ export function parseCashReconciliationWorkspace(value: unknown): CashReconcilia
   const evidenceRows = list(row.evidence, "مستندات الحسابات", 500).map(evidence);
   const openings = list(row.openingBalances, "طلبات الأرصدة الافتتاحية", 2000).map(opening);
   const statements = list(row.statements, "كشوف البنوك", 500).map(bankStatement);
-  const accountIds = new Set(accounts.map((item) => item.id));
-  if (evidenceRows.some((item) => !accountIds.has(item.mappingId)) ||
-      openings.some((item) => !accountIds.has(item.mappingId)) ||
-      statements.some((item) => !accountIds.has(item.mappingId))) {
-    throw new Error("توجد مستندات أو أرصدة أو كشوف خارج حسابات المؤسسة المعروضة.");
+  const accountById = new Map(accounts.map((item) => [item.id, item]));
+  if (accountById.size !== accounts.length) throw new Error("تكرر ربط الحساب النقدي أو المصرفي.");
+  if (evidenceRows.some((item) => {
+        const mapped = accountById.get(item.mappingId);
+        return !mapped || (item.evidenceKind === "bank_statement" && mapped.settlementKind !== "bank") ||
+          (item.evidenceKind === "cash_count" && mapped.settlementKind !== "cash");
+      }) ||
+      openings.some((item) => {
+        const mapped = accountById.get(item.mappingId);
+        return !mapped || mapped.currency !== item.currency;
+      }) ||
+      statements.some((item) => {
+        const mapped = accountById.get(item.mappingId);
+        return !mapped || mapped.settlementKind !== "bank" || mapped.currency !== item.currency;
+      })) {
+    throw new Error("توجد مستندات أو أرصدة أو كشوف لا تتطابق مع نوع حساب المؤسسة أو عملته.");
   }
   return {
     role: authorization.effectiveRole,
