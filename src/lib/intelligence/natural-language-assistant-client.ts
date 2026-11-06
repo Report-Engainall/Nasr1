@@ -6,10 +6,11 @@ import { createInventoryIntelligencePeriod,fetchInventoryIntelligence } from "./
 import { fetchProcessBottlenecks } from "./process-bottlenecks-client";
 import { fetchTaskIntelligenceReport } from "./task-intelligence-reports-client";
 import { createCashflowScheduleRequest,fetchCashflowSchedule } from "./cashflow-schedule-client";
+import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -26,6 +27,21 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="fetch_operational_task_quality_metrics"){
+   const quality=await fetchOperationalTaskQualityMetrics();
+   const answer=quality.status==="READY"
+    ?"هذه مؤشرات مراجعات الجودة المحفوظة. تقيس أحكام المراجعين ولا تثبت وحدها نجاح الإجراء أو أثره."
+    :quality.status==="EMPTY"
+     ?"لا توجد مراجعات جودة محفوظة في نطاق الصلاحية الحالي؛ لا يعني ذلك أن المهام أو التنبيهات صحيحة تلقائياً."
+     :quality.status==="RESTRICTED"
+      ?"تفاصيل جودة المهام والتوصيات محجوبة لهذا الحساب؛ يلزم دور مدير أو مسؤول."
+      :"مؤشرات الجودة غير متاحة من المصدر المعتمد حالياً؛ لم تُستبدل بأرقام صفرية.";
+   return {status:"RESULT",plan,result:{
+    kind:"TASK_QUALITY",state:quality.status,intent:plan.intent as TaskQualityIntent,
+    answer,sourceRpc:"fetch_operational_task_quality_metrics",
+    queriedAt:new Date().toISOString(),quality,
+   }};
+  }
   if(plan.sourceRpc==="fetch_task_intelligence_report"){
    if(!plan.taskReportKind)return {status:"ERROR",message:"نوع تقرير المهام غير محدد؛ لم يُنفذ طلب غير مكتمل."};
    const report=await fetchTaskIntelligenceReport(plan.taskReportKind);
