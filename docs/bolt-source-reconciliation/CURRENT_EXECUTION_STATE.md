@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — customer return idempotent retry after reload — 2026-11-06
+
+- Updated `src/components/CustomerReturnRequest.tsx` to derive a SHA-256 fingerprint from the order/reason/notes/line payload and persist only that fingerprint plus the existing random idempotency key in tab-scoped `sessionStorage`. Identical retries after a reload reuse the same key; changed payloads use a new key. The notes and line payload are not written to browser storage.
+- Confirmed server result clears the matching saved key; explicit draft clear also removes only the matching attempt. Storage/WebCrypto unavailability leaves the in-memory key and server-side idempotency as fallback.
+- Main commit: `d0ef51213acd382309860d1592ad5b95e700ecb4`.
+- Added acceptance leaf `DLV-008-CUSTOMER-RETURN-RETRY-PERSISTENCE-001`. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, typecheck, lint, CI, browser, database, Bolt, Preview or production operation was run. No PASS/runtime claim is made.
+
 ## P1 body update — customer order-history search — 2026-11-06
 
 - Extended `src/components/CustomerOrders.tsx` with server-side partial order-number search, Arabic-Indic/Persian/ASCII digit normalization, and removal of wildcard metacharacters. Search is applied before range pagination, retains the status filter/exact count/deterministic date+ID ordering, and resets to page 1 on apply/clear.
