@@ -1,4 +1,10 @@
 import { supabase } from "@/lib/supabase";
+import {
+  decimalToMinorUnits,
+  minorUnitsToNumber,
+  percentageToHundredths,
+  roundedPercentageHundredths,
+} from "./financial-precision";
 
 export interface ProductRevenueConcentrationCurrency {
   currency: string;
@@ -54,14 +60,6 @@ function validTimestamp(value: unknown): value is string {
 }
 function integer(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
-function amount(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value :
-    typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= Number.MAX_SAFE_INTEGER ? parsed : null;
-}
-function nullableAmount(value: unknown): number | null | undefined {
-  return value === null ? null : amount(value) ?? undefined;
 }
 function mapFailure(error: unknown): ProductRevenueConcentrationFetchResult {
   const failure = error as { code?: string; message?: string };
@@ -122,17 +120,26 @@ export async function fetchProductRevenueConcentration(input: {
           row.mappedLineCount + row.unmappedLineCount !== row.invoiceLineCount) {
         return { ok: false, status: "ERROR", message: "يوجد صف عملة ناقص أو مكرر في تركّز الفواتير." };
       }
-      const gross = amount(row.grossInvoiceLineAmount);
-      const net = nullableAmount(row.netInvoiceLineAmount);
-      const top5 = nullableAmount(row.top5NetInvoiceLineAmount);
-      const percent = nullableAmount(row.top5ConcentrationPercent);
-      if (gross === null || net === undefined || top5 === undefined || percent === undefined ||
+      const grossMinor = decimalToMinorUnits(row.grossInvoiceLineAmount, 2);
+      const netMinor = row.netInvoiceLineAmount === null ? null : decimalToMinorUnits(row.netInvoiceLineAmount, 2);
+      const top5Minor = row.top5NetInvoiceLineAmount === null ? null : decimalToMinorUnits(row.top5NetInvoiceLineAmount, 2);
+      const percentMinor = row.top5ConcentrationPercent === null ? null : percentageToHundredths(row.top5ConcentrationPercent);
+      const expectedPercentMinor = netMinor !== null && top5Minor !== null && netMinor > 0n
+        ? roundedPercentageHundredths(top5Minor, netMinor) : null;
+      const gross = grossMinor === null ? null : minorUnitsToNumber(grossMinor, 2);
+      const net = netMinor === null ? null : minorUnitsToNumber(netMinor, 2);
+      const top5 = top5Minor === null ? null : minorUnitsToNumber(top5Minor, 2);
+      const percent = percentMinor === null ? null : Number(percentMinor) / 100;
+      if (grossMinor === null || gross === null ||
+          (row.netInvoiceLineAmount !== null && (netMinor === null || net === null)) ||
+          (row.top5NetInvoiceLineAmount !== null && (top5Minor === null || top5 === null)) ||
+          (row.top5ConcentrationPercent !== null && percentMinor === null) ||
           (row.status === "VERIFIED" &&
             (row.unmappedLineCount !== 0 || row.invalidCreditLineCount !== 0 || row.invoicesWithoutLines !== 0 ||
-             row.invoiceLineCount === 0 || row.productCount === 0 || net === null || net <= 0 ||
-             top5 === null || top5 > net || percent === null || percent > 100 ||
-             Math.abs(percent-Math.round((top5/net)*10000)/100)>0.011)) ||
-          (row.status !== "VERIFIED" && (net !== null || top5 !== null || percent !== null))) {
+             row.invoiceLineCount === 0 || row.productCount === 0 || netMinor === null || netMinor <= 0n ||
+             top5Minor === null || top5Minor > netMinor || percentMinor === null ||
+             percentMinor !== expectedPercentMinor)) ||
+          (row.status !== "VERIFIED" && (netMinor !== null || top5Minor !== null || percentMinor !== null))) {
         return { ok: false, status: "ERROR", message: "تركيز العملة يتضمن نسبة غير متوافقة مع تغطية سطور الفواتير." };
       }
       seenCurrencies.add(row.currency);
@@ -158,8 +165,8 @@ export async function fetchProductRevenueConcentration(input: {
     const expectedStatus = raw.invoiceCount === 0 ? "EMPTY" :
       completePopulation ? "VERIFIED" : "PARTIAL";
     if (raw.completePopulation !== completePopulation || raw.status !== expectedStatus ||
-        currencies.reduce((sum,item)=>sum+item.invoiceCount,0)!==raw.invoiceCount ||
-        currencies.reduce((sum,item)=>sum+item.invoicesWithoutLines,0)!==raw.invoiceWithoutLinesCount) {
+        currencies.reduce((sum,item)=>sum+BigInt(item.invoiceCount),0n)!==BigInt(raw.invoiceCount) ||
+        currencies.reduce((sum,item)=>sum+BigInt(item.invoicesWithoutLines),0n)!==BigInt(raw.invoiceWithoutLinesCount)) {
       return { ok: false, status: "ERROR", message: "تغطية الفواتير والعملات لا تتطابق مع المجاميع؛ لم تُعرض نسبة تركّز." };
     }
     return {

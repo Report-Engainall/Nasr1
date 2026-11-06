@@ -1,4 +1,10 @@
 import { supabase } from "@/lib/supabase";
+import {
+  decimalToMinorUnits,
+  minorUnitsToNumber,
+  percentageToHundredths,
+  roundedPercentageHundredths,
+} from "./financial-precision";
 export interface SupplierPostedPayableActivityCurrency {
   currency: string;
   status: "VERIFIED" | "NEEDS_REVIEW";
@@ -45,16 +51,7 @@ function validTimestamp(value: unknown): value is string {
 function integer(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
-function unsignedAmount(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value :
-    typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= Number.MAX_SAFE_INTEGER ? parsed : null;
-}
-function signedAmount(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value :
-    typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
-  return Number.isFinite(parsed) && Math.abs(parsed) <= Number.MAX_SAFE_INTEGER ? parsed : null;
-}
+
 function mapFailure(error: unknown): SupplierPostedPayableActivityFetchResult {
   const failure = error as { code?: string; message?: string };
   if (failure?.code === "42501" || failure?.code === "28000" || failure?.code === "PGRST301")
@@ -96,17 +93,26 @@ export async function fetchSupplierPostedPayableActivity(input: {
          !integer(row.supplierCount) || row.supplierCount<1 ||
          !integer(row.sourceEntryCount) || row.sourceEntryCount<row.supplierCount)
         return {ok:false,status:"ERROR",message:"يوجد صف عملة ناقص أو مكرر في حركة الموردين."};
-      const gross=unsignedAmount(row.grossPayableCreditAmount);
-      const debit=unsignedAmount(row.postedSupplierCreditNoteDebitAmount);
-      const net=signedAmount(row.netPayableMovementAmount);
-      const top5=unsignedAmount(row.top5GrossPayableCreditAmount);
-      const percent=row.top5GrossPayableCreditPercent===null?null:unsignedAmount(row.top5GrossPayableCreditPercent);
-      if(gross===null || debit===null || net===null || top5===null ||
-         (row.top5GrossPayableCreditPercent!==null && percent===null) ||
-         Math.abs(net-(gross-debit))>0.011 ||
-         (row.status==="VERIFIED" && (gross<=0 || top5>gross || percent===null || percent<=0 || percent>100 ||
-           Math.abs(percent-Math.round((top5/gross)*10000)/100)>0.011)) ||
-         (row.status==="NEEDS_REVIEW" && (gross!==0 || top5!==0 || percent!==null)))
+      const grossMinor=decimalToMinorUnits(row.grossPayableCreditAmount,2);
+      const debitMinor=decimalToMinorUnits(row.postedSupplierCreditNoteDebitAmount,2);
+      const netMinor=decimalToMinorUnits(row.netPayableMovementAmount,2,true);
+      const top5Minor=decimalToMinorUnits(row.top5GrossPayableCreditAmount,2);
+      const percentMinor=row.top5GrossPayableCreditPercent===null
+        ?null:percentageToHundredths(row.top5GrossPayableCreditPercent);
+      const expectedPercentMinor=grossMinor!==null&&top5Minor!==null&&grossMinor>0n
+        ?roundedPercentageHundredths(top5Minor,grossMinor):null;
+      const gross=grossMinor===null?null:minorUnitsToNumber(grossMinor,2);
+      const debit=debitMinor===null?null:minorUnitsToNumber(debitMinor,2);
+      const net=netMinor===null?null:minorUnitsToNumber(netMinor,2);
+      const top5=top5Minor===null?null:minorUnitsToNumber(top5Minor,2);
+      const percent=percentMinor===null?null:Number(percentMinor)/100;
+      if(grossMinor===null || debitMinor===null || netMinor===null || top5Minor===null ||
+         gross===null || debit===null || net===null || top5===null ||
+         (row.top5GrossPayableCreditPercent!==null && percentMinor===null) ||
+         netMinor!==grossMinor-debitMinor ||
+         (row.status==="VERIFIED" && (grossMinor<=0n || top5Minor>grossMinor ||
+           percentMinor===null || percentMinor<=0n || percentMinor!==expectedPercentMinor)) ||
+         (row.status==="NEEDS_REVIEW" && (grossMinor!==0n || top5Minor!==0n || percentMinor!==null)))
         return {ok:false,status:"ERROR",message:"حركة عملة الموردين لا تتطابق حسابياً مع قيودها المنشورة."};
       seen.add(row.currency);
       currencies.push({
@@ -117,10 +123,10 @@ export async function fetchSupplierPostedPayableActivity(input: {
         top5GrossPayableCreditPercent:percent,
       });
     }
-    const summedEntries=currencies.reduce((sum,item)=>sum+item.sourceEntryCount,0);
+    const summedEntries=currencies.reduce((sum,item)=>sum+BigInt(item.sourceEntryCount),0n);
     const expectedStatus=raw.sourceEntryCount===0?"EMPTY":
       currencies.every(item=>item.status==="VERIFIED")?"VERIFIED":"NEEDS_REVIEW";
-    if(summedEntries!==raw.sourceEntryCount || raw.status!==expectedStatus ||
+    if(summedEntries!==BigInt(raw.sourceEntryCount) || raw.status!==expectedStatus ||
        (raw.sourceEntryCount===0 && currencies.length!==0) ||
        (raw.sourceEntryCount>0 && currencies.length===0))
       return {ok:false,status:"ERROR",message:"مجاميع قيود الموردين والعملات غير متصالحة؛ لم تُعرض نسب التركّز."};
