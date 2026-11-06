@@ -2252,3 +2252,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P1 component contract updated; P1 mount remains pending. P2 must supply safe verified free-tier/quota/cooldown/privacy/attempt status before those fields may be displayed.
 - Matrix row `REF-AI-OPS-001` updated to PARTIAL, not CLOSED.
 - Status: `PARTIAL_P3_IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / P2_PROVIDER_STATUS_SOURCE_OPEN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. No PASS or release claim.
+
+## 2026-11-06 — REF-GROWTH-OPPORTUNITY-RADAR-001 — confidence guard correction
+
+- P3 corrected the deterministic Growth Radar status rollup: optional `sourceSnapshotVerified` is now fail-closed. Only an explicit true certifies source population completeness; unknown coverage never promotes verified individual metrics into a verified complete-population opportunity set.
+- Added explicit machine-readable warnings for incomplete and unconfirmed source populations; an empty unconfirmed population remains UNAVAILABLE.
+- Added an engine-level invariant that distinct unavailable-product searchers cannot exceed the total unavailable-search event count, with impossible samples withheld.
+- Files: `src/lib/intelligence/growth-opportunities.ts`, `src/lib/intelligence/growth-opportunities.test.ts`.
+- Exact source commits: `51cebd4a47c9cfaa23888e3d0b9799f96beab61c`, `13858915589ecbf990adf87a777f444a12bf87c8`, `d5d24e7879c1701c76310b0ec61a896bb7359a0b`, `f677a0abe6c6626907affb6bcdf3cac041392e6f`. Blobs: engine `740a9913715181927d9e402fd395f3e5e551cc62`; tests `ab89ce9ec5aeda4331c79af93f79eb5ec4738464`.
+- Source tests NOT RUN; no build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production execution. Status IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
