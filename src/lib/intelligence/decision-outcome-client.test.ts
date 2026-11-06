@@ -42,6 +42,42 @@ const proof = {
   formulaId: "nasr1.receivables-outstanding", formulaVersion: "1", evidenceIds: ["invoice:one"],
 };
 
+const fullMeasurement = {
+  ...proof,
+  measuredAt: "2026-10-31T10:06:00.000Z",
+};
+const historyEvent = (id: string, type: string, version: number, at: string, reason: string | null = null) => ({
+  id,
+  type,
+  version,
+  actor: { id: "22222222-2222-4222-8222-222222222222", role: "manager" },
+  at,
+  reason,
+  owner: null,
+  idempotencyKey: id + "-key",
+});
+const measuredOutcome = {
+  ...outcome,
+  state: "MEASURED",
+  version: 7,
+  updatedAt: "2026-10-31T10:06:00.000Z",
+  approvedAt: "2026-10-31T10:02:00.000Z",
+  approvedBy: "22222222-2222-4222-8222-222222222222",
+  assignedAt: "2026-10-31T10:03:00.000Z",
+  executedAt: "2026-10-31T10:05:00.000Z",
+  measuredOutcome: fullMeasurement,
+  eventCount: 7,
+  history: [
+    historyEvent("create-event", "CREATE", 1, "2026-10-31T10:00:00.000Z", "مطلوب متابعة"),
+    historyEvent("submit-event", "SUBMIT_FOR_REVIEW", 2, "2026-10-31T10:01:00.000Z"),
+    historyEvent("approve-event", "APPROVE", 3, "2026-10-31T10:02:00.000Z", "تمت مراجعة الدليل"),
+    historyEvent("assign-event", "ASSIGN", 4, "2026-10-31T10:03:00.000Z"),
+    historyEvent("start-event", "START_EXECUTION", 5, "2026-10-31T10:04:00.000Z"),
+    historyEvent("complete-event", "COMPLETE_EXECUTION", 6, "2026-10-31T10:05:00.000Z"),
+    historyEvent("measure-event", "MEASURE", 7, "2026-10-31T10:06:00.000Z", "تم اعتماد القياس"),
+  ],
+};
+
 describe("persisted decision outcome client", () => {
   beforeEach(() => rpc.mockReset());
 
@@ -70,7 +106,7 @@ describe("persisted decision outcome client", () => {
   });
 
   it("uses optimistic version and sends only the server-derived metric proof", async () => {
-    rpc.mockResolvedValue({ data: { ok: true, duplicate: false, outcome: { ...outcome, state: "MEASURED", version: 7 } }, error: null });
+    rpc.mockResolvedValue({ data: { ok: true, duplicate: false, outcome: measuredOutcome }, error: null });
     const result = await commandDecisionOutcome({
       outcomeId: outcome.id, expectedVersion: 6, eventType: "MEASURE",
       measuredOutcome: { ...proof, measuredAt: "2026-10-31T10:00:00.000Z" },
@@ -81,6 +117,67 @@ describe("persisted decision outcome client", () => {
     }));
     expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_organization_id");
     expect(result).toMatchObject({ ok: true, outcome: { state: "MEASURED", version: 7 } });
+  });
+
+  it("rejects an event count that does not reconcile to the full append-only history", async () => {
+    rpc.mockResolvedValue({
+      data: { items: [{ ...outcome, eventCount: 2 }], total: 1 },
+      error: null,
+    });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("rejects gaps, duplicate event IDs and a terminal event inconsistent with state", async () => {
+    const withGap = {
+      ...outcome,
+      version: 2,
+      eventCount: 2,
+      history: [
+        outcome.history[0],
+        historyEvent("submit-event", "SUBMIT_FOR_REVIEW", 3, "2026-10-31T10:01:00.000Z"),
+      ],
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [withGap], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const duplicateId = {
+      ...outcome,
+      version: 2,
+      eventCount: 2,
+      history: [
+        outcome.history[0],
+        historyEvent("create-event", "SUBMIT_FOR_REVIEW", 2, "2026-10-31T10:01:00.000Z"),
+      ],
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [duplicateId], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const wrongTerminalState = { ...outcome, state: "IN_REVIEW" };
+    rpc.mockResolvedValueOnce({ data: { items: [wrongTerminalState], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("rejects a measured state with missing, malformed or unverified measurement evidence", async () => {
+    const withoutMeasurement = {
+      ...measuredOutcome,
+      measuredOutcome: null,
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [withoutMeasurement], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const malformedMeasurement = {
+      ...measuredOutcome,
+      measuredOutcome: { ...fullMeasurement, evidenceIds: ["invoice:one", "invoice:one"] },
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [malformedMeasurement], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
+
+    const unverifiedMeasurement = {
+      ...measuredOutcome,
+      measuredOutcome: { ...fullMeasurement, status: "UNVERIFIED" },
+    };
+    rpc.mockResolvedValueOnce({ data: { items: [unverifiedMeasurement], total: 1 }, error: null });
+    expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "ERROR" });
   });
 
   it("maps stale versions and role denial to safe UI results", async () => {

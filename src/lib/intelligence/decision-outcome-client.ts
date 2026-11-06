@@ -74,60 +74,159 @@ function safeFailure(error: unknown): { status: DecisionOutcomeFailureStatus; me
   if (code === "22023") return { status: "ERROR", message: "رفض الخادم الانتقال لعدم استيفاء شروط القرار أو أدلته." };
   return { status: "UNAVAILABLE", message: "تعذر الوصول إلى خدمة القرارات؛ لم تُحفظ أي تغييرات محلية." };
 }
+const eventStateByType: Record<string, DecisionOutcomeState> = {
+  CREATE: "PROPOSED",
+  SUBMIT_FOR_REVIEW: "IN_REVIEW",
+  APPROVE: "APPROVED",
+  REJECT: "REJECTED",
+  DEFER: "DEFERRED",
+  ASSIGN: "ASSIGNED",
+  START_EXECUTION: "EXECUTING",
+  COMPLETE_EXECUTION: "EXECUTED",
+  MEASURE: "MEASURED",
+  RESUBMIT_FOR_REVIEW: "IN_REVIEW",
+};
+
+function isNullableIso(value: unknown): value is string | null {
+  return value === null || iso(value);
+}
+
+function parseMeasuredOutcome(value: unknown): DecisionOutcomeView["measuredOutcome"] | undefined {
+  if (value === null) return null;
+  const measured = record(value);
+  const period = record(measured?.period);
+  if (
+    !measured ||
+    !str(measured.metricKey, 150) ||
+    typeof measured.value !== "number" ||
+    !Number.isFinite(measured.value) ||
+    !str(measured.unit, 50) ||
+    !str(measured.currency, 3) ||
+    !/^[A-Z]{3}$/.test(measured.currency) ||
+    measured.status !== "VERIFIED" ||
+    measured.completeness !== "COMPLETE" ||
+    measured.quality !== "ACCEPTABLE" ||
+    !period ||
+    !str(period.from, 10) ||
+    !str(period.to, 10) ||
+    !Number.isFinite(Date.parse(period.from)) ||
+    !Number.isFinite(Date.parse(period.to)) ||
+    Date.parse(period.from) > Date.parse(period.to) ||
+    !iso(measured.asOf) ||
+    !iso(measured.measuredAt) ||
+    Date.parse(measured.asOf) > Date.parse(measured.measuredAt) ||
+    !str(measured.formulaId, 150) ||
+    !str(measured.formulaVersion, 80) ||
+    !Array.isArray(measured.evidenceIds) ||
+    measured.evidenceIds.length < 1 ||
+    measured.evidenceIds.length > 500 ||
+    measured.evidenceIds.some(id => !str(id, 500)) ||
+    new Set(measured.evidenceIds).size !== measured.evidenceIds.length
+  ) return undefined;
+  return {
+    value: measured.value,
+    currency: measured.currency,
+    asOf: measured.asOf,
+  };
+}
+
 function parseOutcome(value: unknown): DecisionOutcomeView | null {
   const raw = record(value);
   const owner = record(raw?.owner);
-  const measured = record(raw?.measuredOutcome);
+  const proposedBy = record(raw?.proposedBy);
+  const measuredOutcome = raw && Object.prototype.hasOwnProperty.call(raw, "measuredOutcome")
+    ? parseMeasuredOutcome(raw.measuredOutcome)
+    : undefined;
   const memorySnapshot = raw?.memorySnapshot === null || raw?.memorySnapshot === undefined
     ? null : parseDecisionMemorySnapshot(raw.memorySnapshot);
   if (raw?.memorySnapshot !== null && raw?.memorySnapshot !== undefined && !memorySnapshot) return null;
   if (
-    !raw || !owner ||
+    !raw || !owner || !proposedBy ||
     !str(raw.id, 80) || !UUID.test(raw.id) ||
     !str(raw.candidateId, 150) || !str(raw.ruleId, 150) || !str(raw.ruleVersion, 80) ||
     typeof raw.state !== "string" || !states.has(raw.state as DecisionOutcomeState) ||
-    !Number.isInteger(raw.version) || (raw.version as number) < 1 ||
+    !Number.isInteger(raw.version) || (raw.version as number) < 1 || (raw.version as number) > 1000 ||
     !str(raw.expectedOutcome, 2000) ||
-    !iso(raw.createdAt) || !iso(raw.updatedAt) ||
+    !iso(raw.createdAt) || !iso(raw.updatedAt) || Date.parse(raw.createdAt) > Date.parse(raw.updatedAt) ||
     !Number.isInteger(raw.eventCount) || (raw.eventCount as number) < 1 ||
     !Array.isArray(raw.history) || raw.history.length > 1000 ||
-    (owner.id !== null && !str(owner.id, 80)) ||
-    !str(owner.label, 150)
+    raw.eventCount !== raw.history.length || raw.history.length !== raw.version ||
+    !str(proposedBy.id, 80) || !UUID.test(proposedBy.id) ||
+    (owner.id !== null && (!str(owner.id, 80) || !UUID.test(owner.id))) ||
+    !str(owner.label, 150) ||
+    (raw.reason !== null && !str(raw.reason, 2000)) ||
+    !isNullableIso(raw.approvedAt) ||
+    !isNullableIso(raw.assignedAt) ||
+    !isNullableIso(raw.executedAt) ||
+    (raw.approvedBy !== null && (!str(raw.approvedBy, 80) || !UUID.test(raw.approvedBy))) ||
+    ((raw.approvedAt === null) !== (raw.approvedBy === null)) ||
+    measuredOutcome === undefined
   ) return null;
+
   const history: DecisionOutcomeEventView[] = [];
-  for (const item of raw.history) {
-    const event = record(item);
+  const eventIds = new Set<string>();
+  let priorAt = Date.parse(raw.createdAt);
+  for (let index = 0; index < raw.history.length; index += 1) {
+    const event = record(raw.history[index]);
     const actor = record(event?.actor);
+    const expectedVersion = index + 1;
     if (
-      !event || !actor || !str(event.id, 100) || !str(event.type, 80) ||
-      !Number.isInteger(event.version) || !iso(event.at) || !str(actor.role, 100)
+      !event || !actor ||
+      !str(event.id, 100) || eventIds.has(event.id) ||
+      typeof event.type !== "string" || !Object.prototype.hasOwnProperty.call(eventStateByType, event.type) ||
+      event.version !== expectedVersion ||
+      !iso(event.at) ||
+      Date.parse(event.at) < priorAt ||
+      Date.parse(event.at) > Date.parse(raw.updatedAt) ||
+      !str(actor.id, 80) || !UUID.test(actor.id) ||
+      !str(actor.role, 100) ||
+      (event.reason !== null && !str(event.reason, 2000))
     ) return null;
+    eventIds.add(event.id);
+    priorAt = Date.parse(event.at);
     history.push({
-      id: event.id, type: event.type, version: event.version as number,
-      at: event.at, actorRole: actor.role,
-      reason: typeof event.reason === "string" ? event.reason : null,
+      id: event.id,
+      type: event.type,
+      version: expectedVersion,
+      at: event.at,
+      actorRole: actor.role,
+      reason: event.reason,
     });
   }
-  const measurement = measured &&
-    typeof measured.value === "number" && Number.isFinite(measured.value) &&
-    str(measured.currency, 3) && iso(measured.asOf)
-      ? { value: measured.value, currency: measured.currency, asOf: measured.asOf } : null;
+
+  const latestEvent = raw.history[raw.history.length - 1] as UnknownRecord;
+  if (
+    eventStateByType[String(latestEvent.type)] !== raw.state ||
+    (raw.state === "MEASURED") !== (measuredOutcome !== null) ||
+    (raw.state === "MEASURED" && (!raw.executedAt || !raw.assignedAt || !raw.approvedAt)) ||
+    (["ASSIGNED", "EXECUTING", "EXECUTED"].includes(String(raw.state)) && (!raw.approvedAt || !raw.assignedAt)) ||
+    (raw.state === "EXECUTED" && !raw.executedAt) ||
+    (measuredOutcome && Date.parse(measuredOutcome.asOf) > Date.parse(raw.updatedAt))
+  ) return null;
+
   return {
-    id: raw.id, candidateId: raw.candidateId, ruleId: raw.ruleId, ruleVersion: raw.ruleVersion,
-    state: raw.state as DecisionOutcomeState, version: raw.version as number,
+    id: raw.id,
+    candidateId: raw.candidateId,
+    ruleId: raw.ruleId,
+    ruleVersion: raw.ruleVersion,
+    state: raw.state as DecisionOutcomeState,
+    version: raw.version as number,
     ownerProfileId: typeof owner.id === "string" ? owner.id : null,
-    ownerLabel: owner.label, expectedOutcome: raw.expectedOutcome,
+    ownerLabel: owner.label,
+    expectedOutcome: raw.expectedOutcome,
     reason: typeof raw.reason === "string" ? raw.reason : null,
-    createdAt: raw.createdAt, updatedAt: raw.updatedAt,
-    approvedAt: nullableIso(raw.approvedAt),
-    assignedAt: nullableIso(raw.assignedAt),
-    executedAt: nullableIso(raw.executedAt),
-    measuredOutcome: measurement,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    approvedAt: raw.approvedAt,
+    assignedAt: raw.assignedAt,
+    executedAt: raw.executedAt,
+    measuredOutcome,
     memorySnapshot,
     eventCount: raw.eventCount as number,
     history,
   };
 }
+
 function parseCommandResult(value: unknown): DecisionOutcomeCommandResult {
   const raw = record(value);
   const outcome = parseOutcome(raw?.outcome);
