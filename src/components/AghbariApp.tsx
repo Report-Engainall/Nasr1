@@ -55,6 +55,7 @@ import { PromotionManager } from '@/components/PromotionManager';
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
 import { validateCustomerInput } from '@/lib/customer-input';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
+import { GeneralLedgerWorkspace } from '@/components/GeneralLedgerWorkspace';
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from '@/components/ui/command';
@@ -325,7 +326,14 @@ function AdminWorkspaceContent({
     case "quotes":
       return <StaffQuotesPage />;
     case "finance":
-      return <StaffFinancePage initialInvoiceId={recordContext?.kind === "invoice" ? recordContext.id : undefined} />;
+      return (
+        <>
+          <StaffFinancePage initialInvoiceId={recordContext?.kind === "invoice" ? recordContext.id : undefined} />
+          {user.roles.some((role) => role === "admin" || role === "manager" || role === "accountant")
+            ? <GeneralLedgerWorkspace />
+            : null}
+        </>
+      );
     case "tasks":
       return (
         <TaskCenter
