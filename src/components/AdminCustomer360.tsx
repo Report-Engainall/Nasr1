@@ -348,6 +348,72 @@ function retentionPercent(value: number | null): string {
   }).format(value) + '٪';
 }
 
+function Customer360RetentionReportBody({
+  report,
+  customerId,
+}: {
+  report: CustomerRetentionReport;
+  customerId: string;
+}) {
+  if (report.status !== 'VERIFIED') {
+    return (
+      <div className="customer-360-retention-state" role="status">
+        <strong>التصنيف محجوب لحين اكتمال الأدلة</strong>
+        <p>لم يثبت اكتمال مجتمع العملاء أو سلامة جميع سجلات الطلبات للفترة المختارة. لن يعرض التطبيق معدل احتفاظ أو تصنيف نشاط مبنيًا على عينة ناقصة.</p>
+        <small>حالة الدليل: {report.status} · التحذيرات: {report.warnings.join('، ') || 'لم يقدم المصدر سببًا تفصيليًا.'}</small>
+      </div>
+    );
+  }
+
+  const customer = report.customers.find(item => item.customerRef === customerId) ?? null;
+  const activity = customer?.activity ?? 'UNKNOWN';
+  const followUpGuidance: Record<keyof typeof retentionActivityLabels, string> = {
+    ACTIVE: 'العميل نشط ضمن فترة القياس. استمر في المتابعة حسب سجل التواصل واحتياج العميل.',
+    COOLING: 'تراجع النشاط مقارنة بآخر طلب. راجع سجل التواصل وحدد خطوة متابعة مناسبة.',
+    AT_RISK: 'لم يسجل العميل طلبًا منذ 61 إلى 90 يومًا. أعطِ التواصل أولوية وتحقق من احتياجه قبل أي استنتاج.',
+    INACTIVE: 'لم يسجل العميل طلبًا منذ أكثر من 90 يومًا. راجع سجل التعامل والتواصل قبل اقتراح إعادة التنشيط.',
+    NO_ORDER_DATE: 'لا توجد طلبات مسجلة لهذا العميل في الفترتين؛ لا يستنتج المحرك سببًا لذلك.',
+    UNKNOWN: 'لا تسمح الأدلة الحالية بتحديد فئة نشاط موثوقة.',
+  };
+
+  return (
+    <>
+      <div className="customer-360-retention-kpis">
+        <article><span>معدل الاحتفاظ بالمجموعة السابقة</span><strong>{retentionPercent(report.retentionRate)}</strong></article>
+        <article><span>معدل تكرار الشراء</span><strong>{retentionPercent(report.repeatPurchaseRate)}</strong></article>
+        <article><span>العملاء ضمن المجتمع</span><strong>{formatNumber(report.population.total ?? 0)}</strong></article>
+        <article><span>عملاء نشطون في الفترة</span><strong>{formatNumber(report.population.activeCurrentPeriod ?? 0)}</strong></article>
+      </div>
+      <div className="customer-360-retention-activity">
+        <div className="customer-360-retention-customer">
+          <div>
+            <span className="report-note">تصنيف هذا العميل</span>
+            <strong>{customer ? retentionActivityLabels[activity] : 'تعذر مطابقة العميل'}</strong>
+          </div>
+          <span className="customer-360-retention-verified">الدليل مكتمل</span>
+        </div>
+        {customer ? (
+          <>
+            <p>{followUpGuidance[activity]}</p>
+            <div className="customer-360-retention-facts">
+              <span>طلبات الفترة الحالية: {formatNumber(customer.orderCountCurrent ?? 0)}</span>
+              <span>طلبات الفترة السابقة: {formatNumber(customer.orderCountPrevious ?? 0)}</span>
+              <span>آخر طلب: {customer.lastOrderAt ? customerInteractionDate(customer.lastOrderAt) : 'لا يوجد'}</span>
+              <span>منذ آخر طلب: {customer.daysSinceLastOrder === null ? 'غير متاح' : formatNumber(customer.daysSinceLastOrder) + ' يومًا'}</span>
+            </div>
+            {(activity === 'COOLING' || activity === 'AT_RISK' || activity === 'INACTIVE') && (
+              <p className="customer-360-retention-action">الخطوة العملية: سجّل اتصالًا أو زيارة من سجل التواصل أدناه، وحدد موعد المتابعة عند الاتفاق مع العميل.</p>
+            )}
+          </>
+        ) : (
+          <p>لم يتم العثور على سجل مطابق في نتيجة التحليل؛ لا يتم استبدال المعرف أو التخمين.</p>
+        )}
+      </div>
+      <p className="report-note">الفترة الحالية: {report.period.from} — {report.period.to} · المقارنة السابقة: {report.previousPeriod.from} — {report.previousPeriod.to} · وقت القياس: {customerInteractionDate(report.asOf)}</p>
+    </>
+  );
+}
+
 function Customer360RetentionInsights({ customerId }: { customerId: string }) {
   const [periodDays, setPeriodDays] = useState<30 | 60 | 90 | 180 | 365>(90);
   const [report, setReport] = useState<CustomerRetentionReport | null>(null);
@@ -370,17 +436,6 @@ function Customer360RetentionInsights({ customerId }: { customerId: string }) {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const customer = report?.customers.find(item => item.customerRef === customerId) ?? null;
-  const activity = customer?.activity ?? 'UNKNOWN';
-  const followUpGuidance: Record<keyof typeof retentionActivityLabels, string> = {
-    ACTIVE: 'العميل نشط ضمن فترة القياس. استمر في المتابعة حسب سجل التواصل واحتياج العميل.',
-    COOLING: 'تراجع النشاط مقارنة بآخر طلب. راجع سجل التواصل وحدد خطوة متابعة مناسبة.',
-    AT_RISK: 'لم يسجل العميل طلبًا منذ 61 إلى 90 يومًا. أعطِ التواصل أولوية وتحقق من احتياجه قبل أي استنتاج.',
-    INACTIVE: 'لم يسجل العميل طلبًا منذ أكثر من 90 يومًا. راجع سجل التعامل والتواصل قبل اقتراح إعادة التنشيط.',
-    NO_ORDER_DATE: 'لا توجد طلبات مسجلة لهذا العميل في الفترتين؛ لا يستنتج المحرك سببًا لذلك.',
-    UNKNOWN: 'لا تسمح الأدلة الحالية بتحديد فئة نشاط موثوقة.',
-  };
-
   return (
     <section className="panel customer-360-retention">
       <div className="customer-360-retention-heading">
@@ -399,55 +454,13 @@ function Customer360RetentionInsights({ customerId }: { customerId: string }) {
           </select>
         </label>
       </div>
-
       {loading ? <Loading /> : error ? (
         <div className="customer-360-retention-state">
           <ErrorBox message={error} />
           <Button variant="secondary" onClick={() => { void reload(); }}>إعادة تحميل التحليل</Button>
         </div>
       ) : report ? (
-        report.status !== 'VERIFIED' ? (
-          <div className="customer-360-retention-state" role="status">
-            <strong>التصنيف محجوب لحين اكتمال الأدلة</strong>
-            <p>لم يثبت اكتمال مجتمع العملاء أو سلامة جميع سجلات الطلبات للفترة المختارة. لن يعرض التطبيق معدل احتفاظ أو تصنيف نشاط مبنيًا على عينة ناقصة.</p>
-            <small>حالة الدليل: {report.status} · التحذيرات: {report.warnings.join('، ') || 'لم يقدم المصدر سببًا تفصيليًا.'}</small>
-          </div>
-        ) : (
-          <>
-            <div className="customer-360-retention-kpis">
-              <article><span>معدل الاحتفاظ بالمجموعة السابقة</span><strong>{retentionPercent(report.retentionRate)}</strong></article>
-              <article><span>معدل تكرار الشراء</span><strong>{retentionPercent(report.repeatPurchaseRate)}</strong></article>
-              <article><span>العملاء ضمن المجتمع</span><strong>{formatNumber(report.population.total ?? 0)}</strong></article>
-              <article><span>عملاء نشطون في الفترة</span><strong>{formatNumber(report.population.activeCurrentPeriod ?? 0)}</strong></article>
-            </div>
-            <div className="customer-360-retention-activity">
-              <div className="customer-360-retention-customer">
-                <div>
-                  <span className="report-note">تصنيف هذا العميل</span>
-                  <strong>{customer ? retentionActivityLabels[activity] : 'تعذر مطابقة العميل'}</strong>
-                </div>
-                <span className="customer-360-retention-verified">الدليل مكتمل</span>
-              </div>
-              {customer ? (
-                <>
-                  <p>{followUpGuidance[activity]}</p>
-                  <div className="customer-360-retention-facts">
-                    <span>طلبات الفترة الحالية: {formatNumber(customer.orderCountCurrent ?? 0)}</span>
-                    <span>طلبات الفترة السابقة: {formatNumber(customer.orderCountPrevious ?? 0)}</span>
-                    <span>آخر طلب: {customer.lastOrderAt ? customerInteractionDate(customer.lastOrderAt) : 'لا يوجد'}</span>
-                    <span>منذ آخر طلب: {customer.daysSinceLastOrder === null ? 'غير متاح' : formatNumber(customer.daysSinceLastOrder) + ' يومًا'}</span>
-                  </div>
-                  {(activity === 'COOLING' || activity === 'AT_RISK' || activity === 'INACTIVE') && (
-                    <p className="customer-360-retention-action">الخطوة العملية: سجّل اتصالًا أو زيارة من سجل التواصل أدناه، وحدد موعد المتابعة عند الاتفاق مع العميل.</p>
-                  )}
-                </>
-              ) : (
-                <p>لم يتم العثور على سجل مطابق في نتيجة التحليل؛ لا يتم استبدال المعرف أو التخمين.</p>
-              )}
-            </div>
-            <p className="report-note">الفترة الحالية: {report.period.from} — {report.period.to} · المقارنة السابقة: {report.previousPeriod.from} — {report.previousPeriod.to} · وقت القياس: {customerInteractionDate(report.asOf)}</p>
-          </>
-        )
+        <Customer360RetentionReportBody report={report} customerId={customerId} />
       ) : null}
     </section>
   );
