@@ -18,6 +18,7 @@ function FooterLinks() {
       <ul style={{ listStyle: 'none', fontSize: '14px', lineHeight: '2' }}>
         <li><a href="/products" style={{ opacity: 0.7 }}>المنتجات</a></li>
         <li><a href="/orders" style={{ opacity: 0.7 }}>طلباتي</a></li>
+        <li><a href="/returns" style={{ opacity: 0.7 }}>مرتجعاتي</a></li>
         <li><a href="/profile" style={{ opacity: 0.7 }}>ملفي الشخصي</a></li>
         <li><a href="/payments" style={{ opacity: 0.7 }}>دفعاتي</a></li>
         <li><a href="/help" style={{ opacity: 0.7 }}>مركز المساعدة</a></li>
