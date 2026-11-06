@@ -2726,3 +2726,25 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 1. Retrieve the P2 Playwright run triggered by the latest `e2e/public-storefront-smoke.spec.ts` update. Inspect the exact public UI smoke logs/artifact for the new 360/1280 decision-board keyboard/focus/overflow test. Fix only a reproduced defect and rerun on the new exact SHA.
 2. Retrieve P1 Targeted TypeScript and Commerce results for the resulting latest main SHA. If the seven P3-owned natural-language intent failures persist, hand their failing assertions to P3; do not change P3 rule resolution from P1.
 3. P2 must deliver the immutable saved candidate priority/impact/risk/expiry snapshot. Then P1 will render/sort by those saved fields in the already-mounted board.
+
+## P1 exact-head verification update — decision board Chromium run — 2026-11-06
+
+- Current main source SHA at this update: `dc4da3fd281b237e99f6595f7b125f6fdd7da821`.
+- `P1 Targeted TypeScript Assurance` run `42183802484` completed **SUCCESS** on exact main SHA `6e9f2aa65455228c8ad3508d8d360d4fbc159d71`. The source tree under test contains the P1 stable tie-break, static no-backend fixture and Chromium spec; the only later commits before that SHA were acceptance/checkpoint documentation.
+- P2 run `42183688281` on source SHA `17e49830373aec2b9b8a7c8eb882cd530c00778a`:
+  - authenticated infrastructure gate: SUCCESS;
+  - authenticated customer/tenant write path: SKIPPED (external test infrastructure gate did not authorize it);
+  - exact-source build: SUCCESS;
+  - local Vite preview startup: SUCCESS;
+  - Vite component harness startup: SUCCESS;
+  - public Chromium test command: IN_PROGRESS at last retrieval. No browser result is claimed yet.
+- The P2 public smoke now includes the isolated real-component board check: exact Arabic RTL board rendered at 360px and 1280px; two saved cards sorted A/Z on tied saved ranking fields; no document/board horizontal overflow; real Tab navigation to the first reason field and its action; and computed visible focus outlines.
+- P1 current-head typecheck is PASS; Chromium acceptance remains pending until the P2 command completes. The older repository-wide unit suite still has its recorded failures and is not reclassified as green.
+- Matrix rows `DLV-002` and `REF-DAILY-DECISIONS-001` updated in place with these exact results.
+- No database write, migration application, hosted authentication test, Bolt runtime, or production operation was performed.
+
+### NEXT_ACTION
+
+1. Fetch run `42183688281` and its public job once complete. If the daily-board browser test failed, inspect its exact trace/error, fix only that reproduced problem, and let a fresh source SHA run again.
+2. Continue to keep authenticated DLV-002/route-wide acceptance pending while the external write gate skips its job.
+3. Wait for P2's immutable persisted priority/impact snapshot before implementing full priority-impact rank. No data is inferred from descriptions or amounts.
