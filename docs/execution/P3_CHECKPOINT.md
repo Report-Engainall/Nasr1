@@ -1858,3 +1858,43 @@ Continue Section 54 only with additional timestamp/sequence facts already repres
 - Runtime/Bolt acceptance remains pending; no execution or production readiness is claimed.
 
 - Follow-up hardening commits: `954340d4c501acde2e446e4538f76b6eafc148c6` (unsafe count aggregation is withheld) and `9bde01855fcd31cba1a8cb6860f42d35262b248b` (percentage derivation uses bounded division and explicit null guards).
+
+
+ 
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — DAILY DECISION BOARD + ACCOUNT PRIVACY CENTER
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Code commit: `1cedea3670f24596abca76744c30703d575aeac7`; parent: `7181d46a5f8397fc9c258596f021e8ec654a3014`.
+
+### Delivered
+- Added `DailyDecisionBoard`, mounted inside the existing assistant decision-memory response. It displays source-backed saved outcomes, owner and review timing, reason/risk text, facts/hypotheses and evidence, expected/actual verified metric comparison, state timeline and existing audited commands for review, approve/reject, defer/resubmit, assign, execute and measure.
+- Ordering is deliberately evidence-bounded: overdue review first, then lifecycle state, then verified absolute metric deviation. Persisted outcomes do not include P0–P3 priority or a general numeric impact field; the board reports that contract gap and does not infer priority from labels or amounts.
+- Corrected the progress display so DEFERRED is resumable (DEFERRED → IN_REVIEW), not a terminal rejection.
+- Mounted the existing privacy panel under authenticated `/profile`; added a profile-scoped preference client and wrapper. Read/save use account-derived RPCs, expected timestamp locking, strict response scope checks and server validation. The migration creates private preference rows with default IN_APP-only notifications and closed external processing.
+- Added a consent reader/display with masked destinations, purpose/data-class scope, saved/revoked status and policy reason. No browser consent write path exists; direct table grants are revoked. EMAIL/WHATSAPP/SMS remain unavailable until verified provider and consent contracts are in place.
+- Added reduced-motion application to the root document and keyboard-visible focus treatment to panel/lifecycle controls.
+
+### Exact source paths
+- `src/components/intelligence/DailyDecisionBoard.tsx`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+- `src/components/intelligence/DecisionOutcomeLifecycleControls.tsx`
+- `src/components/intelligence/PersonalizationPrivacyPanel.tsx`
+- `src/components/AccountPersonalizationSettings.tsx`
+- `src/lib/intelligence/personalization-governance.ts`
+- `src/lib/intelligence/personalization-preferences-client.ts`
+- `src/routes/profile.tsx`
+- `supabase/migrations/20261107000000_profile_personalization_preferences.sql`
+
+### Acceptance boundary / remaining dependencies
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Migration is source-only and not applied to any database. No tests, build, typecheck, lint, CI, browser, DB, Bolt New, Preview, Vercel or production operation was run.
+- Full P0–P3 priority ordering and numeric impact are blocked by absent persisted fields in the current DecisionOutcome DTO/schema; a P2 data-contract extension is required.
+- Actual notification dispatch policy enforcement/audit must be connected by P2 to the current preference and consent source. Explicit verified destination capture/provisioning remains absent; external providers were not enabled.
+- No PASS, browser-proven, production-proven or release-readiness claim.
+
+### Exact code commit and parent
+- `1cedea3670f24596abca76744c30703d575aeac7` on top of P1 commit `7181d46a5f8397fc9c258596f021e8ec654a3014`.
+- Changed blobs: `c7199ebd582dc33aa7ddffcbe0704188e7474273`, `29b257fefbf3b1849e9541cca911cefb2bf52397`, `6774df94264df1f105d4d365db9a94707775012b`, `8e13f04ab0fe4c09c6f7d1d2c15d7c50fa7cf54d`, `7d8c478995942c15495810a9053254c1fbb25827`, `40f803fb40ad98bf17fc58f264df6e04c72d74bf`, `f0e287a82ecdcc19849816832d38d915af5baf30`, `bb0d02604286b023dfc73923d2310a272bc85f3a`, `17b06495f833770b30c3ed5bd3136074407877f5`.
+
+### Next P3 action
+Continue the next unimplemented intelligent product-body function. Do not rework the above files absent a specific blocker or new P2 contract.
