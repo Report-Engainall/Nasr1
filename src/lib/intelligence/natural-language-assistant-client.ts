@@ -10,10 +10,11 @@ import { fetchOperationalTaskQualityMetrics } from "./task-quality-reviews-clien
 import { fetchCustomerServiceIntelligenceSummary } from "./customer-service-intelligence-client";
 import { fetchDecisionOutcomes } from "./decision-outcome-client";
 import { fetchTaskPerformanceScorecard } from "./task-performance-scorecard-client";
+import { fetchCommercePolicyCatalog } from "./commerce-policy-governance-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent,type CommercePolicyIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -30,6 +31,37 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.sourceRpc==="fetch_commerce_policy_catalog"){
+   const result=await fetchCommercePolicyCatalog();
+   if(!result.ok)return {status:result.status==="NOT_FOUND"?"ERROR":result.status,message:result.message};
+   const catalog=result.data;
+   if(!Number.isSafeInteger(catalog.totalCount)||catalog.totalCount<0||
+      !Number.isSafeInteger(catalog.returnedCount)||catalog.returnedCount<0||
+      catalog.returnedCount!==catalog.items.length||catalog.totalCount<catalog.returnedCount||
+      typeof catalog.completePopulation!=="boolean"||
+      (catalog.completePopulation&&catalog.totalCount!==catalog.returnedCount)||
+      !Number.isFinite(Date.parse(catalog.asOf))){
+    return {status:"ERROR",message:"استجابة سجل السياسات لا تتوازن مع تغطية المصدر؛ حُجبت المؤشرات."};
+   }
+   const lifecycleCounts:Record<"SCHEDULED"|"EFFECTIVE"|"EXPIRED"|"SUPERSEDED",number> = {
+    SCHEDULED:0,EFFECTIVE:0,EXPIRED:0,SUPERSEDED:0,
+   };
+   for(const item of catalog.items)lifecycleCounts[item.lifecycle]+=1;
+   const sourceChangedCount=catalog.items.filter(item=>item.sourceChanged).length;
+   const state=!catalog.completePopulation?"PARTIAL":catalog.totalCount===0?"EMPTY":"READY";
+   const answer=state==="PARTIAL"
+    ?"أعاد سجل الحوكمة "+catalog.returnedCount+" سياسة من أصل "+catalog.totalCount+"؛ الملخص جزئي، وفي الصفحة الحالية "+sourceChangedCount+" سياسة تغيرت بصمة مصدرها."
+    :state==="EMPTY"?"لا توجد سياسات في سجل الحوكمة الحالي."
+    :plan.intent==="COMMERCE_POLICY_SOURCE_CHANGES"
+     ?"توجد "+sourceChangedCount+" سياسة من أصل "+catalog.totalCount+" تغيرت بصمة مصادرها وتحتاج مراجعة توافق المصدر."
+     :"يعرض سجل الحوكمة "+catalog.totalCount+" سياسة: "+lifecycleCounts.EFFECTIVE+" سارية، "+lifecycleCounts.SCHEDULED+" مجدولة، "+lifecycleCounts.EXPIRED+" منتهية، و"+lifecycleCounts.SUPERSEDED+" مستبدلة.";
+   return {status:"RESULT",plan,result:{
+    kind:"COMMERCE_POLICY",state,intent:plan.intent as CommercePolicyIntent,
+    answer,sourceRpc:"fetch_commerce_policy_catalog",asOf:catalog.asOf,
+    totalCount:catalog.totalCount,returnedCount:catalog.returnedCount,
+    completePopulation:catalog.completePopulation,lifecycleCounts,sourceChangedCount,
+   }};
+  }
   if(plan.sourceRpc==="fetch_task_performance_scorecard"){
    const result=await fetchTaskPerformanceScorecard();
    if(!result.ok)return {status:result.status,message:result.message};

@@ -22,14 +22,15 @@ export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
 export type TaskQualityIntent="TASK_QUALITY_OVERVIEW";
 export type GrowthRadarIntent="GROWTH_RADAR_OVERVIEW";
 export type TaskPerformanceIntent="TASK_PERFORMANCE_OVERVIEW";
+export type CommercePolicyIntent="COMMERCE_POLICY_OVERVIEW"|"COMMERCE_POLICY_SOURCE_CHANGES";
 export type DecisionOutcomesIntent="DECISION_OUTCOMES_OVERVIEW"|"DECISIONS_PENDING_REVIEW"|"DECISIONS_AWAITING_EXECUTION";
 export type CustomerServiceIntent=
  |"CUSTOMER_SERVICE_OVERVIEW"
  |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
  |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
  |"CUSTOMER_SERVICE_UNASSIGNED";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|GrowthRadarIntent|TaskPerformanceIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard"|"fetch_commerce_policy_catalog";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -72,6 +73,19 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    status:"READY",intent:"TASK_PERFORMANCE_OVERVIEW",normalizedQuestion,
    sourceRpc:"fetch_task_performance_scorecard",
    filterDescription:"ملخص تجميعي حالي للمهام المرئية ضمن أدوار المستخدم فقط، مجمع حسب نوع المهمة والدور؛ لا يحتوي أسماء الموظفين أو ترتيباً فردياً. المقاييس التي لا يثبتها مصدر التدقيق تبقى غير متاحة."
+  };
+ }
+ const policySourceChangeQuestion=/(السياسات التي تغير مصدرها|سياسات تغير مصدرها|السياسات ذات المصدر المتغير|تغير بصمه مصدر السياسه|مصادر السياسات المتغيره)/.test(normalizedQuestion);
+ const policyOverviewQuestion=/(حوكمه السياسات|السياسات التجاريه|سجل السياسات|حاله السياسات|ملخص السياسات|السياسات المجدوله|السياسات الساريه)/.test(normalizedQuestion);
+ if(policySourceChangeQuestion||policyOverviewQuestion){
+  if(/(امس|الماضي|السابق|من تاريخ|بين تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"سجل حوكمة السياسات يعرض لقطة حالية مع تاريخ asOf وتغطية الصفحة؛ لا يقدم تاريخاً حراً أو مقارنة زمنية."
+  };
+  const intent:CommercePolicyIntent=policySourceChangeQuestion?"COMMERCE_POLICY_SOURCE_CHANGES":"COMMERCE_POLICY_OVERVIEW";
+  return {
+   status:"READY",intent,normalizedQuestion,sourceRpc:"fetch_commerce_policy_catalog",
+   filterDescription:"ملخص تجميعي للسياسات التجارية وفق سجل الحوكمة الحالي: حالات دورة الحياة وعدد السجلات التي تغيرت بصمة مصادرها؛ لا يعرض معرفات أو بيانات المالك."
   };
  }
  const managerTaskReport=/(تقرير.*(المدير|الاداره).*المهام|مخاطر المهام (المفتوحه|للاداره)|المهام عاليه الاثر للاداره|تقرير مخاطر المهام|اهم خطوات الاداره|اهم المهام للاداره|اولويات الاداره اليوم|ما الذي يجب على الاداره متابعته)/.test(normalizedQuestion);
@@ -335,6 +349,14 @@ export interface NaturalLanguageTaskPerformanceResult {
  sourceRpc:"fetch_task_performance_scorecard";queriedAt:string;
  scorecard:TaskPerformanceScorecard;
 }
+export interface NaturalLanguageCommercePolicyResult {
+ kind:"COMMERCE_POLICY";state:"READY"|"EMPTY"|"PARTIAL";intent:CommercePolicyIntent;
+ answer:string;sourceRpc:"fetch_commerce_policy_catalog";asOf:string;
+ totalCount:number;returnedCount:number;completePopulation:boolean;
+ lifecycleCounts:Record<"SCHEDULED"|"EFFECTIVE"|"EXPIRED"|"SUPERSEDED",number>;
+ sourceChangedCount:number;
+}
+
 
 
 export interface NaturalLanguageSupplierPerformanceResult {
@@ -402,7 +424,7 @@ export interface NaturalLanguageDecisionOutcomesResult {
  countsByState:Record<DecisionOutcomeState,number>;
 }
 
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult;
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
