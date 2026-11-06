@@ -48,6 +48,7 @@ export interface ExternalChannelConsent {
   profileId: string;
   channel: Exclude<NotificationChannel, "IN_APP">;
   destinationId: string;
+  destinationLabel?: string;
   purpose: string;
   dataClasses: NotificationDataClass[];
   grantedAt: string;

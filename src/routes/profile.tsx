@@ -2,6 +2,7 @@ import { ClientOnly, Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Bell, Building2, FileText, KeyRound, LogOut, MapPin, Package, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
 import { Login } from "@/components/Login";
+import { AccountPersonalizationSettings } from "@/components/AccountPersonalizationSettings";
 import { useAuth } from "@/lib/auth";
 import { fetchMyCustomerAccountProfile, saveMyCustomerAccountProfile, type CustomerAccountProfile, type CustomerAccountProfileInput } from "@/lib/customer-account-profile";
 
@@ -259,6 +260,10 @@ export function CustomerAccountProfilePage() {
           تُعرض معلومات الهوية من جلسة الحساب وملف المستخدم الذي أعاده الخادم. تعديل بيانات الملف التجاري أو اسم العميل غير متاح من هذه الشاشة.
         </p>
       </header>
+
+      <section className="mt-6" aria-label="تفضيلات الخصوصية والإشعارات">
+        <AccountPersonalizationSettings />
+      </section>
 
       <section className="mt-7">
         <h2 className="mb-3 text-lg font-bold">إدارة الحساب والخدمات</h2>

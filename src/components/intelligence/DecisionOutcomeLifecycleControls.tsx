@@ -243,7 +243,7 @@ export function DecisionOutcomeLifecycleControls({
         <label className="block space-y-1 text-sm">
           سبب الإجراء وسجل القرار
           <textarea
-            className="w-full rounded-lg border bg-background p-2"
+            className="w-full rounded-lg border bg-background p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             rows={2}
             maxLength={2000}
             value={reason}
@@ -257,7 +257,7 @@ export function DecisionOutcomeLifecycleControls({
             <button
               key={eventType}
               type="button"
-              className="rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50"
+              className="rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
               disabled={busy || (pending !== null && pending.eventType !== eventType)}
               onClick={() => void submit(eventType)}
             >
@@ -284,7 +284,7 @@ export function DecisionOutcomeLifecycleControls({
           ) : (
             <p className="text-xs text-muted-foreground">لا يوجد خط أساس معتمد من مقياس التحصيلات لهذه الدورة؛ ستظل النتيجة غير مقاسة.</p>
           )}
-          <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={busy || pending !== null || !expectedMetric} onClick={() => void loadMeasurementProof()}>
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" disabled={busy || pending !== null || !expectedMetric} onClick={() => void loadMeasurementProof()}>
             {proofStatus === "LOADING" ? "جارٍ قراءة المصدر..." : "قراءة رصيد الذمم من المصدر"}
           </button>
           {proofStatus === "READY" && measurementProof ? (
@@ -296,17 +296,17 @@ export function DecisionOutcomeLifecycleControls({
           ) : null}
           <label className="block space-y-1 text-sm">
             سبب اعتماد القياس
-            <textarea className="w-full rounded-lg border bg-background p-2" rows={2} maxLength={2000}
+            <textarea className="w-full rounded-lg border bg-background p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" rows={2} maxLength={2000}
               value={reason} disabled={busy || pending !== null}
               onChange={event => setReason(event.target.value)}
               placeholder="اشرح اعتماد هذا القياس أو سبب اختلاف الرصيد عن خط الأساس..." />
           </label>
           {pending?.eventType === "MEASURE" ? (
-            <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={busy} onClick={() => void submit("MEASURE", pending.measuredOutcome)}>
+            <button type="button" className="rounded-lg border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" disabled={busy} onClick={() => void submit("MEASURE", pending.measuredOutcome)}>
               {busy ? "جارٍ إعادة المحاولة..." : "إعادة محاولة حفظ القياس بنفس الدليل"}
             </button>
           ) : (
-            <button type="button" className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
+            <button type="button" className="rounded-lg border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
               disabled={busy || proofStatus !== "READY" || !measurementProof || reason.trim().length < 3}
               onClick={() => void submit("MEASURE", measurementProof ?? undefined)}>
               {busy ? "جارٍ حفظ القياس..." : "اعتماد النتيجة المصدرية"}

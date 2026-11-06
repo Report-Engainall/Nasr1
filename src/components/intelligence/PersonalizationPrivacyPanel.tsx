@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type {
+  ExternalChannelConsent,
   NotificationChannel,
   NotificationLevel,
   NotificationDetailLevel,
@@ -27,6 +28,9 @@ export interface PersonalizationPrivacyPanelProps {
   ) => Promise<PersonalizationPreferencesSaveResult>;
   onRetry?: () => void;
   onSaved?: (preferences: PersonalizationPreferences) => void;
+  externalConsents?: ExternalChannelConsent[];
+  consentReadStatus?: "LOADED" | "UNAVAILABLE";
+  loadError?: string | null;
 }
 
 const channelLabels: Record<NotificationChannel, string> = {
@@ -37,6 +41,21 @@ const channelLabels: Record<NotificationChannel, string> = {
 };
 
 const channelOrder: NotificationChannel[] = ["IN_APP", "EMAIL", "WHATSAPP", "SMS"];
+const externalChannels: NotificationChannel[] = ["EMAIL", "WHATSAPP", "SMS"];
+const dataClassLabels: Record<string, string> = {
+  GENERAL: "عام", RECOMMENDATION: "توصية",
+  ACCOUNT_STATEMENT: "كشف حساب", SENSITIVE_TASK_LIST: "قائمة مهام حساسة",
+  CUSTOMER_PERSONAL_DATA: "بيانات عميل شخصية",
+};
+function maskDestination(value: string): string {
+  if (value.includes("@")) {
+    const [local, domain] = value.split("@");
+    return (local.slice(0, 1) || "•") + "•••@" + (domain || "وجهة");
+  }
+  const digits = value.replace(/\D/g, "");
+  if (digits.length >= 4) return "•••• " + digits.slice(-4);
+  return value.length > 8 ? value.slice(0, 3) + "…" + value.slice(-3) : "وجهة مرتبطة";
+}
 
 const levelLabels: Record<NotificationLevel, string> = {
   ALL: "جميع الإشعارات",
@@ -94,6 +113,9 @@ export function PersonalizationPrivacyPanel({
   onSavePreferences,
   onRetry,
   onSaved,
+  externalConsents = [],
+  consentReadStatus = "UNAVAILABLE",
+  loadError = null,
 }: PersonalizationPrivacyPanelProps) {
   const [draft, setDraft] = useState<PersonalizationPreferencesUpdate | null>(
     preferences ? toDraft(preferences) : null,
@@ -204,6 +226,7 @@ export function PersonalizationPrivacyPanel({
         </p>
       </header>
 
+      {loadError ? <p className="rounded-lg border p-3 text-sm" role="alert">{loadError}</p> : null}
       {saveUnavailable ? (
         <p className="rounded-lg border p-3 text-sm" role="status">
           خدمة حفظ الإعدادات غير متصلة. يمكنك مراجعة القيم الحالية، لكن لا يمكن حفظ أي تعديل الآن.
@@ -237,7 +260,7 @@ export function PersonalizationPrivacyPanel({
           <label className="grid gap-1 text-sm">
             مستوى الإشعارات
             <select
-              className="rounded-lg border bg-background p-2"
+              className="rounded-lg border bg-background p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               value={draft.notificationLevel}
               onChange={event => updateDraft({ notificationLevel: event.target.value as NotificationLevel })}
             >
@@ -249,7 +272,7 @@ export function PersonalizationPrivacyPanel({
           <label className="grid gap-1 text-sm">
             مستوى التفاصيل
             <select
-              className="rounded-lg border bg-background p-2"
+              className="rounded-lg border bg-background p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               value={draft.detailLevel}
               onChange={event => updateDraft({ detailLevel: event.target.value as NotificationDetailLevel })}
             >
@@ -273,7 +296,7 @@ export function PersonalizationPrivacyPanel({
               <label className="grid gap-1 text-sm">
                 من
                 <input
-                  className="rounded-lg border bg-background p-2"
+                  className="rounded-lg border bg-background p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   type="time"
                   value={draft.quietHours.startLocal}
                   onChange={event => updateDraft({
@@ -285,7 +308,7 @@ export function PersonalizationPrivacyPanel({
               <label className="grid gap-1 text-sm">
                 إلى
                 <input
-                  className="rounded-lg border bg-background p-2"
+                  className="rounded-lg border bg-background p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   type="time"
                   value={draft.quietHours.endLocal}
                   onChange={event => updateDraft({
@@ -297,7 +320,7 @@ export function PersonalizationPrivacyPanel({
               <label className="grid gap-1 text-sm">
                 المنطقة الزمنية
                 <input
-                  className="rounded-lg border bg-background p-2"
+                  className="rounded-lg border bg-background p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   value={draft.quietHours.timeZone}
                   onChange={event => updateDraft({
                     quietHours: { ...draft.quietHours, timeZone: event.target.value },
@@ -331,13 +354,76 @@ export function PersonalizationPrivacyPanel({
           />
         </div>
 
+
+      <section className="space-y-3 rounded-lg border p-3" aria-label="حالة الموافقات على القنوات والوجهات">
+        <div>
+          <h3 className="text-sm font-semibold">حالة الموافقات على القنوات والوجهات</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            موافقة المعالجة الخارجية العامة لا تمنح إذناً لقناة أو وجهة بعينها. تُطابق كل محاولة إرسال مع وجهة موثقة وغرض وفئة بيانات وموافقة صريحة مستقلة.
+          </p>
+        </div>
+        {consentReadStatus !== "LOADED" ? (
+          <p className="rounded-md border p-2 text-xs" role="status">
+            مصدر موافقات الوجهات غير متاح للتحقق؛ لذلك تبقى جميع القنوات الخارجية محظورة ولا يُفترض وجود موافقة.
+          </p>
+        ) : null}
+        {externalChannels.map(channel => {
+          const rows = externalConsents.filter(consent => consent.channel === channel);
+          const active = rows.filter(consent => consent.revokedAt === null);
+          const enabled = draft.notificationChannels.includes(channel);
+          const capabilityReady = channelCapabilities[channel] === true;
+          const reason = !enabled
+            ? "CHANNEL_DISABLED"
+            : !capabilityReady
+              ? "CHANNEL_NOT_AVAILABLE"
+              : consentReadStatus !== "LOADED"
+                ? "EXTERNAL_CONSENT_INVALID"
+                : active.length === 0
+                  ? "EXTERNAL_CONSENT_REQUIRED"
+                  : "CONSENT_SCOPE_LIMITED";
+          const reasonText: Record<string, string> = {
+            CHANNEL_NOT_AVAILABLE: "القناة غير متصلة أو لم تُثبت جاهزيتها؛ لا يمكن الإرسال.",
+            CHANNEL_DISABLED: "القناة معطّلة من تفضيلات هذا الحساب.",
+            EXTERNAL_CONSENT_INVALID: "تعذر التحقق من سجل الموافقة؛ يُرفض الإرسال احترازياً.",
+            EXTERNAL_CONSENT_REQUIRED: "لا توجد موافقة صريحة سارية لهذه القناة والوجهة؛ يُرفض الإرسال.",
+            CONSENT_SCOPE_LIMITED: "توجد موافقة محددة النطاق؛ يجب أن تطابق الوجهة والغرض وفئة البيانات لكل إشعار."
+          };
+          return (
+            <article key={channel} className="space-y-2 rounded-md bg-muted/30 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <strong className="text-sm">{channelLabels[channel]}</strong>
+                <span className="rounded-full border px-2 py-1 text-xs">
+                  {active.length ? "موافقة سارية مسجلة" : rows.length ? "موافقة سابقة ملغاة" : "بلا موافقة مسجلة"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">الوجهة: {rows.length ? "وجهة مقنّعة ضمن سجل الموافقة" : "لا توجد وجهة مرتبطة بموافقة محملة"}.</p>
+              <p className="text-xs" role="status">سبب السماح/المنع: {reasonText[reason]}</p>
+              {rows.length ? (
+                <ul className="space-y-2">
+                  {rows.map(consent => (
+                    <li key={consent.id} className="rounded-md border p-2 text-xs">
+                      <p><strong>الوجهة:</strong> {maskDestination(consent.destinationLabel ?? consent.destinationId)}</p>
+                      <p><strong>الغرض:</strong> {consent.purpose}</p>
+                      <p><strong>فئات البيانات:</strong> {consent.dataClasses.map(item => dataClassLabels[item] ?? item).join("، ")}</p>
+                      <p><strong>سُجلت:</strong> {new Date(consent.grantedAt).toLocaleString("ar-YE")}</p>
+                      <p><strong>الحالة:</strong> {consent.revokedAt === null ? "سارية حسب سجل الموافقة" : "ملغاة في " + new Date(consent.revokedAt).toLocaleString("ar-YE")}</p>
+                      <p className="text-muted-foreground">إصدار الموافقة: {consent.consentVersion}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          );
+        })}
+      </section>
+
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
           <p className="text-xs text-muted-foreground">
             الإصدار المحمّل: {preferences.updatedAt}
           </p>
           <button
             type="submit"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
             disabled={saveUnavailable || saving}
           >
             {saving ? "جارٍ الحفظ…" : "حفظ إعدادات الخصوصية"}
