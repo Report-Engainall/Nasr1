@@ -160,17 +160,21 @@ export async function fetchProductPerformanceGrowthContext(
         continue;
       }
 
-      evidenceRecords.push({
-        id: evidenceId,
+      const currentEvidenceId = evidenceId + ":current";
+      const baselineEvidenceId = evidenceId + ":baseline";
+      const makeEvidence = (id: string, evidencePeriod: EvidencePeriod): EvidenceRecord => ({
+        id,
         source: { kind: "TABLE", name: "orders.order_items.product_performance", recordId: productRef, version: "v1" },
         sourceTimestamp: asOf,
         asOf,
-        period: null,
+        period: evidencePeriod,
         status: "VERIFIED",
         completeness: "COMPLETE",
         quality: "ACCEPTABLE",
         warnings: [],
       });
+      evidenceRecords.push(makeEvidence(currentEvidenceId,currentPeriod));
+      evidenceRecords.push(makeEvidence(baselineEvidenceId,baselinePeriod));
 
       const formulaId = "nasr1.product-order-quantity";
       const sampleFormulaId = "nasr1.product-order-sample-count";
@@ -180,6 +184,7 @@ export async function fetchProductPerformanceGrowthContext(
         value: number,
         unitType: "QUANTITY" | "COUNT",
         metricPeriod: EvidencePeriod,
+        sourceEvidenceId: string,
         lineageFormulaId: string,
         transformation: string,
       ): MetricSnapshot => ({
@@ -194,7 +199,7 @@ export async function fetchProductPerformanceGrowthContext(
         period: metricPeriod,
         asOf,
         lineage: {
-          evidenceIds: [evidenceId],
+          evidenceIds: [sourceEvidenceId],
           calculatedAt: asOf,
           formulaId: lineageFormulaId,
           formulaVersion: "1",
@@ -204,13 +209,13 @@ export async function fetchProductPerformanceGrowthContext(
       });
 
       metrics.push(
-        makeMetric(signalId+":current-quantity","product.order_items.quantity",currentQuantity,"QUANTITY",currentPeriod,formulaId,
+        makeMetric(signalId+":current-quantity","product.order_items.quantity",currentQuantity,"QUANTITY",currentPeriod,currentEvidenceId,formulaId,
           "sum positive order_items.quantity for same-tenant active products in confirmed/processing/shipped/delivered orders in the inclusive UTC current period"),
-        makeMetric(signalId+":baseline-quantity","product.order_items.quantity",baselineQuantity,"QUANTITY",baselinePeriod,formulaId,
+        makeMetric(signalId+":baseline-quantity","product.order_items.quantity",baselineQuantity,"QUANTITY",baselinePeriod,baselineEvidenceId,formulaId,
           "sum positive order_items.quantity for same-tenant active products in confirmed/processing/shipped/delivered orders in the equal-length preceding UTC baseline period"),
-        makeMetric(signalId+":current-orders","product.orders.sample_count",currentOrders,"COUNT",currentPeriod,sampleFormulaId,
+        makeMetric(signalId+":current-orders","product.orders.sample_count",currentOrders,"COUNT",currentPeriod,currentEvidenceId,sampleFormulaId,
           "count distinct qualifying same-tenant orders containing this product and unit in the current UTC period"),
-        makeMetric(signalId+":baseline-orders","product.orders.sample_count",baselineOrders,"COUNT",baselinePeriod,sampleFormulaId,
+        makeMetric(signalId+":baseline-orders","product.orders.sample_count",baselineOrders,"COUNT",baselinePeriod,baselineEvidenceId,sampleFormulaId,
           "count distinct qualifying same-tenant orders containing this product and unit in the baseline UTC period"),
       );
     }
