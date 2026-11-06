@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-060 — USER-CONTROLLED PWA UPDATE
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product commits: `public/sw.js` explicit waiting/activation and shell cache v4 `a23066e40ac1abf899d9aac3a1f578927ef37e9b`; root update UI `d73e1d028699b41188f03970f261d245fe26c1f8`; unused error-state cleanup `828065e3ca7450fc90cf5b2b4a282c3ff9bf6524`.
+- Final source blobs: service worker `3af1b8508a1a1703ed51f1d314fdcaf31983bb1c`; root `ce7ebd8a2abcc62d95a3d42e474039776f3c9a7d`.
+- Scope: complete the missing PWA new-version notice and explicit update action without caching protected business data or forcing an immediate reload.
+
+## BODY-060 — safe service-worker update lifecycle
+
+- Removed automatic `skipWaiting()` from the install path. A replacement worker waits while the existing controlled app continues running.
+- Added a service-worker message handler for `AGHBARI_ACTIVATE_UPDATE`; only an explicit user action requests activation.
+- Added a global RTL update notice that detects an existing waiting worker and watches `updatefound`/installed state. It checks for updates when the page becomes visible.
+- «تحديث التطبيق» sends the explicit activation message and reloads only after the new worker takes control (`controllerchange`). «لاحقاً» dismisses the prompt; no automatic reload or forced sign-out is triggered.
+- Bumped the shell cache namespace from `aghbari-shell-v3` to `aghbari-shell-v4`; existing obsolete-shell cleanup removes prior shell versions after activation.
+- Preserved the current cache boundary: public home shell, manifest, favicon and validated static assets only. Supabase API/auth/RPC/storage/functions and authenticated deep-route responses remain network-only; no financial, customer, price, inventory or order response is added to the service-worker cache.
+- Files changed: `public/sw.js`, `src/routes/__root.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- GitHub source re-read on exact current main confirms explicit activation message, no install-time auto-skip, one root service-worker registration, waiting-worker prompt and reload only after controller change.
+- No tests, build, typecheck, lint, CI, browser offline/update exercise, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue missing route-register account and commerce functions. Keep offline writes disabled; do not expand service-worker caching to tenant, price, inventory, finance or authenticated API responses.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-059 — CUSTOMER RETURN REQUEST A4 PRINT/PDF
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
