@@ -149,6 +149,7 @@ type AdminWorkspaceContentProps = {
   onOrderDetailChange: (orderId: string | null) => void;
   onNavigationBlockedChange: (blocked: boolean) => void;
   recordContext: AdminRecordContext | null;
+  onRecordContextChange: (context: Omit<AdminRecordContext, "savedAt"> | null) => void;
 };
 
 function AdminWorkspaceContent({
@@ -161,8 +162,15 @@ function AdminWorkspaceContent({
   onOrderDetailChange,
   onNavigationBlockedChange,
   recordContext,
+  onRecordContextChange,
 }: AdminWorkspaceContentProps) {
   const [notificationTaskId, setNotificationTaskId] = useState<string | null>(null);
+  const keepSourceContext = (kind: string, id: string, title: string, subtitle: string, destination: View) => {
+    onRecordContextChange({
+      kind, id, title, subtitle, route: adminPaths[destination], query: id,
+    });
+    onNavigate(destination);
+  };
 
   switch (view) {
     case "dashboard":
@@ -207,12 +215,12 @@ function AdminWorkspaceContent({
     case "intelligence":
       return <IntelligenceWorkspace
         onOpenSupplierInvoice={(invoiceId) => {
-          onNavigate("finance");
-          onNotice("تم فتح مساحة الفواتير والتحصيل لمراجعة فاتورة المورد. مرجع الفاتورة: " + invoiceId);
+          keepSourceContext("supplier_invoice", invoiceId, "فاتورة مورد", "مرجع فاتورة مصدره مركز ذكاء الأعمال", "finance");
+          onNotice("تم فتح مساحة المالية مع الاحتفاظ بمرجع فاتورة المورد: " + invoiceId);
         }}
         onOpenPurchaseOrder={(purchaseOrderId) => {
-          onNavigate("purchase-orders");
-          onNotice("تم فتح مساحة أوامر الشراء والاستلام لمراجعة الأمر. مرجع أمر الشراء: " + purchaseOrderId);
+          keepSourceContext("purchase_order", purchaseOrderId, "أمر شراء", "مرجع أمر شراء من مركز ذكاء الأعمال", "purchase-orders");
+          onNotice("تم فتح مساحة أوامر الشراء مع الاحتفاظ بالمرجع: " + purchaseOrderId);
         }}
         onOpenRecord={(kind, subjectRef) => {
           const destination = kind === "QUOTE_UNCONVERTED"
@@ -222,8 +230,11 @@ function AdminWorkspaceContent({
               : "products";
           const destinationLabel = destination === "quotes" ? "عروض الأسعار"
             : destination === "customers" ? "العملاء" : "المنتجات";
-          onNavigate(destination);
-          onNotice("تم فتح شاشة " + destinationLabel + " لمراجعة السجل المرتبط. مرجع السجل: " + subjectRef);
+          keepSourceContext(
+            destination === "customers" ? "customer_reference" : destination === "quotes" ? "quote_reference" : "product_reference",
+            subjectRef, destinationLabel, "مرجع مصدر مرتبط بتحليل ذكاء الأعمال", destination,
+          );
+          onNotice("تم فتح شاشة " + destinationLabel + " مع حفظ مرجع السجل: " + subjectRef);
         }}
         onOpenShiftItem={(sourceKey, sourceRef) => {
           if (sourceKey === "ORDERS") {
@@ -231,13 +242,19 @@ function AdminWorkspaceContent({
               onNotice("احفظ مراجعة الطلب الحالية قبل فتح طلب آخر.");
               return;
             }
+            onRecordContextChange({
+              kind: "order", id: sourceRef, title: "طلب من سجل الوردية",
+              subtitle: "مرجع تشغيل محفوظ من مركز الوردية", route: adminPaths.orders, query: sourceRef,
+            });
+            onOrderDetailChange(sourceRef);
             onNavigate("orders");
-            onNotice("تم فتح شاشة الطلبات لمراجعة سجل الوردية. المرجع: " + sourceRef);
+            onNotice("تم فتح الطلب المرتبط بالوردية: " + sourceRef);
             return;
           }
           if (sourceKey === "TASKS") {
-            onNavigate("tasks");
-            onNotice("تم فتح شاشة المهام التشغيلية. مرجع المهمة: " + sourceRef);
+            setNotificationTaskId(sourceRef);
+            keepSourceContext("task", sourceRef, "مهمة تشغيلية", "مرجع مهمة من قائمة الوردية", "tasks");
+            onNotice("تم فتح المهام التشغيلية مع تحديد مرجع المهمة: " + sourceRef);
             return;
           }
           const destination: View =
@@ -261,8 +278,16 @@ function AdminWorkspaceContent({
             tasks: "المهام التشغيلية",
             operations: "العمليات والتنبيهات",
           };
-          onNavigate(destination);
-          onNotice("تم فتح شاشة " + (labels[destination] ?? "العمليات") + " لمراجعة مرجع الوردية: " + sourceRef);
+          const contextKind = destination === "finance" ? "financial_source"
+            : destination === "purchase-orders" ? "receipt_reference"
+              : destination === "inventory-transfers" ? "inventory_movement"
+                : destination === "stock-count" ? "inventory_count"
+                  : destination === "orders" ? "delivery_reference" : "operation_reference";
+          keepSourceContext(
+            contextKind, sourceRef, labels[destination] ?? "مرجع تشغيلي",
+            "مرجع مصدر محفوظ من سجل الوردية: " + sourceKey, destination,
+          );
+          onNotice("تم فتح شاشة " + (labels[destination] ?? "العمليات") + " مع الاحتفاظ بمرجع الوردية: " + sourceRef);
         }}
       />;
     case "ai":
@@ -296,7 +321,7 @@ function AdminWorkspaceContent({
       return (
         <TaskCenter
           onNotice={onNotice}
-          initialTaskId={notificationTaskId}
+          initialTaskId={recordContext?.kind === "task" ? recordContext.id : notificationTaskId}
           onInitialTaskApplied={() => setNotificationTaskId(null)}
         />
       );
@@ -343,6 +368,7 @@ function AdminWorkspaceAccess({
   onOrderDetailChange,
   onNavigationBlockedChange,
   recordContext,
+  onRecordContextChange,
   onOpenCustomers,
   onOpenFinance,
 }: AdminWorkspaceContentProps & {
@@ -368,6 +394,7 @@ function AdminWorkspaceAccess({
       onOrderDetailChange={onOrderDetailChange}
       onNavigationBlockedChange={onNavigationBlockedChange}
       recordContext={recordContext}
+      onRecordContextChange={onRecordContextChange}
     />
   );
 }
@@ -640,7 +667,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     }
     setRecordContext({
       kind: item.kind, id: item.id, title: item.title, subtitle: item.subtitle,
-      route: item.route, query: commandSearch.normalize("NFKC").trim() || item.title,
+      route: item.route, query: item.title || item.id,
       savedAt: Date.now(),
     });
     setCommandOpen(false);
@@ -712,6 +739,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
             onNotice={showNotice}
             onOrderDetailChange={setOrderDetailId}
             onNavigationBlockedChange={setNavigationBlocked}
+            onRecordContextChange={(context) => setRecordContext(context ? { ...context, savedAt: Date.now() } : null)}
             onOpenCustomers={() => runAdminCommand("customers")}
             onOpenFinance={() => runAdminCommand("finance")}
           />
