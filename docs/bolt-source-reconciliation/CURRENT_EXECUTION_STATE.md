@@ -2241,3 +2241,12 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Source files: business-health-map.ts, business-health-assistant-client.ts, BusinessHealthMap.tsx, new supplier-payable-concentration-trend.ts and its tests.
 - Exact blob SHAs: b50bc2b8014adb81d247c8c36aa207660a63fa22, 3a3f133221ba0c34c8e68ebca1fad07e332aed31, a7601662d91125757b881434a8b677b050cac7b9, 30271edd3eb20b5b7f195e1b29735a4758f10b2c, a2686cb1fde5a3779bf981c16647493d36c22366.
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run. Existing 20261106220000_business_health_supplier_posted_payable_activity.sql remains unapplied; no DB/runtime/production operation performed. No PASS claim.
+
+## P3 state update — 2026-11-06 — decision outcome calibration
+
+- Code commit cd64707787b8506a28614c215a856563e7080bf0 extends Section 52 decision review drafts with calibration statistics across verified measured outcomes sharing an exact rule version and metric/formula context.
+- Added arithmetic reconciliation for supplied difference/percentage; inconsistent outcomes are excluded. Outputs include signed mean/median, mean absolute difference, relative deviation only for nonzero baselines, and above/below/equal counts.
+- UI explicitly avoids quality and causal claims. Human approval/simulation remains mandatory; no automatic rule or business mutation.
+- Files: src/lib/intelligence/decision-memory.ts; src/components/intelligence/DecisionMemoryBook.tsx; src/lib/intelligence/decision-memory-search.test.ts.
+- Blobs: e16be29136bba9ce7a40ab304ee9dec9f34ed130; e355254b8f3b51be2b54b28f5b00bf495c8d7c3a; da72d66f89ea5dd46b0fa6b6e55eee5750b267aa.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no build/runtime/DB/production acceptance. No PASS claim.

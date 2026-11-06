@@ -1740,3 +1740,33 @@ Continue with independently source-backed Section 51/52–63 gaps. Do not calcul
 ### Next P3 action
 
 Continue with Section 52/56 decision learning only from verified measured-outcome and evidence snapshots. Do not infer causality, rewrite policy, or change business rules automatically. Keep full supplier spend, closing supplier balance, DSO/DPO/CCC and non-cash operational baselines withheld without their required complete source contracts.
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DECISION-OUTCOME-CALIBRATION-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Code commit: cd64707787b8506a28614c215a856563e7080bf0 (parent 135967930c0a521545bf7fd5950f532ef2913410).
+
+### Delivered on main
+
+- Extended the existing Section 52 decision-memory rule-review drafts with an evidence-bounded calibration summary, grouped only by the exact rule ID/version, metric key, unit, currency, UOM, period and formula/version already required by the review engine.
+- The summary exposes the measured sample count, mean and median signed difference (actual minus expected), mean absolute difference, mean absolute percentage deviation for nonzero baselines only, zero-baseline count and the counts above/below/equal to expected.
+- The engine validates that each supplied difference and percentage recompute from the expected and actual values within a 0.005 tolerance; malformed arithmetic is excluded from the review sample. Mean and median helpers bound their outputs and avoid unsafe aggregate overflow.
+- The UI explicitly states that above/below expected are descriptive directions only: they do not imply good/bad performance or that the decision caused the measured outcome.
+- The review remains a human-only draft. No rule, policy, price, credit, stock, workflow or financial source is changed.
+
+### Exact changed source paths
+
+- src/lib/intelligence/decision-memory.ts.
+- src/components/intelligence/DecisionMemoryBook.tsx.
+- src/lib/intelligence/decision-memory-search.test.ts.
+
+### Acceptance boundary
+
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Added source tests for aggregate calculations, zero-baseline percentage withholding, overflow safety and inconsistent variance rejection. Tests are authored but NOT run.
+- No build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production operation was run. No database or business record was modified. No PASS/runtime/production claim.
+- Exact source blobs: decision-memory engine e16be29136bba9ce7a40ab304ee9dec9f34ed130; DecisionMemoryBook UI e355254b8f3b51be2b54b28f5b00bf495c8d7c3a; tests da72d66f89ea5dd46b0fa6b6e55eee5750b267aa.
+
+### Next P3 action
+
+Continue with evidence-backed Section 56 source trust / comparison only where the complete tenant-scoped source population and comparable periods are present. Keep decision suggestions human-reviewed; do not automate policy adaptation or infer causal effects from observed differences.

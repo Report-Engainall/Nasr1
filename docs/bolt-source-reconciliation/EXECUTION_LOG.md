@@ -2213,3 +2213,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - The scope remains payable-credit concentration, not total supplier spend, end balance, payment or DPO. Missing/invalid coverage remains PARTIAL or NOT_COMPARABLE.
 - Matrix rows REF-BUSINESS-HEALTH-MAP-001 and REF-NL-BUSINESS-HEALTH-ASSISTANT-001 updated in place; no duplicate leaf.
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests were authored but NOT run; existing SQL migration remains source-only. No build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance run.
+
+## 2026-11-06 — REF-DECISION-OUTCOME-CALIBRATION-001
+
+- Code commit cd64707787b8506a28614c215a856563e7080bf0 extends decision policy review drafts with evidence-bounded calibration for measured decisions sharing exact rule/version and metric/formula context.
+- Adds sample count, mean/median signed difference, mean absolute difference, mean absolute percentage deviation for nonzero baselines, zero-baseline count and above/below/equal counts.
+- Each supplied variance must reconcile to expected/actual arithmetic; inconsistent records are omitted. Bounded mean/median avoid unsafe aggregate overflow. UI labels all directional counts as descriptive only, not good/bad or causal.
+- Files: decision-memory.ts, DecisionMemoryBook.tsx, decision-memory-search.test.ts. Blobs: e16be29136bba9ce7a40ab304ee9dec9f34ed130; e355254b8f3b51be2b54b28f5b00bf495c8d7c3a; da72d66f89ea5dd46b0fa6b6e55eee5750b267aa.
+- Matrix row REF-NL-DECISION-MEMORY-ASSISTANT-001 updated in place.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Source tests authored but NOT run; no build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance run; no policy or business mutation.

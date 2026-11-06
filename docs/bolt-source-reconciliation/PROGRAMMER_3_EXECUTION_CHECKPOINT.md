@@ -647,3 +647,15 @@ Documentation commits:
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Source tests authored, NOT run. The pre-existing supplier-activity SQL migration is not applied. No build/runtime/Bolt/DB/Preview/Vercel/production acceptance was run.
 - Exact blobs: b50bc2b8014adb81d247c8c36aa207660a63fa22, 3a3f133221ba0c34c8e68ebca1fad07e332aed31, a7601662d91125757b881434a8b677b050cac7b9, 30271edd3eb20b5b7f195e1b29735a4758f10b2c, a2686cb1fde5a3779bf981c16647493d36c22366.
 - Next: Section 52/56 learning outputs may be extended only from verified measured outcomes and evidence snapshots; no causal claim or automatic policy mutation.
+
+## P3 checkpoint — 2026-11-06 — decision outcome calibration summary
+
+- Code commit: cd64707787b8506a28614c215a856563e7080bf0, parent 135967930c0a521545bf7fd5950f532ef2913410.
+- Enhanced buildDecisionPolicyReviewSuggestions() with calibration statistics over already VERIFIED measured decisions grouped by exact rule version and metric context.
+- New summary: sample count, mean/median signed difference, mean absolute difference, mean absolute percentage deviation (nonzero expected baseline samples only), zero-baseline count, and counts above/below/equal to expected.
+- Each row's arithmetic must reconcile expected and actual within 0.005. Unsafe or inconsistent rows are excluded; zero baselines never receive percentage deviation. Bounded mean/median prevent overflow.
+- DecisionMemoryBook displays the descriptive sample summary and states explicitly that above/below expected is not a quality label and does not prove causation.
+- Files: decision-memory.ts, DecisionMemoryBook.tsx, decision-memory-search.test.ts.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored, NOT run. No build/runtime/Bolt/DB/Preview/Vercel/production acceptance; no business or policy mutation.
+- Exact blobs: e16be29136bba9ce7a40ab304ee9dec9f34ed130, e355254b8f3b51be2b54b28f5b00bf495c8d7c3a, da72d66f89ea5dd46b0fa6b6e55eee5750b267aa.
+- Next: Section 56 source trust/comparability work only when exact tenant-scoped population and comparable source periods exist.
