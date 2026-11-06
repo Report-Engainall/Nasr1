@@ -83,6 +83,10 @@ export interface FinanceBankStatement {
   lineCount: number;
   matchedCount: number;
   latestRun: BankReconciliationRun | null;
+  isVoided: boolean;
+  voidReason: string | null;
+  voidedBy: string | null;
+  voidedAt: string | null;
 }
 export interface CashReconciliationWorkspace {
   role: "admin" | "manager" | "accountant";
@@ -264,6 +268,8 @@ function bankStatement(value: unknown): FinanceBankStatement {
   const row = object(value, "كشف البنك");
   const lines = list(row.lines, "حركات كشف البنك", 10000).map(statementLine);
   const latestRun = row.latest_run == null ? null : run(row.latest_run);
+  if (typeof row.is_voided !== "boolean") throw new Error("حالة إلغاء كشف البنك غير صالحة.");
+  const isVoided = row.is_voided;
   const lineCount = integer(row.line_count, "عدد حركات الكشف", 0, 10000);
   const matchedCount = integer(row.matched_count, "عدد الحركات المطابقة", 0, 10000);
   const lineNumbers = new Set(lines.map((item) => item.lineNumber));
@@ -296,6 +302,10 @@ function bankStatement(value: unknown): FinanceBankStatement {
     lineCount,
     matchedCount,
     latestRun,
+    isVoided,
+    voidReason: optionalText(row.void_reason, 500),
+    voidedBy: row.voided_by == null ? null : uuid(row.voided_by, "منفذ إلغاء الكشف"),
+    voidedAt: row.voided_at == null ? null : timestamp(row.voided_at, "وقت إلغاء الكشف"),
   };
 }
 
@@ -428,6 +438,20 @@ export async function createBankStatement(input: {
   if (error) throw error;
   return uuid(object(data, "تأكيد كشف البنك").statement_id, "كشف البنك");
 }
+export async function voidBankStatement(input: { statementId: string; reason: string }) {
+  const { data, error } = await supabase.rpc("void_finance_bank_statement", {
+    p_statement_id: input.statementId,
+    p_reason: input.reason,
+  });
+  if (error) throw error;
+  const row = object(data, "تأكيد إلغاء كشف البنك");
+  return {
+    statementId: uuid(row.statement_id, "كشف البنك"),
+    voidId: uuid(row.void_id, "سجل إلغاء الكشف"),
+    replayed: row.replayed === true,
+  };
+}
+
 export async function recordBankStatementLine(input: {
   statementId: string; lineNumber: number; transactionDate: string; externalReference: string;
   description: string; signedAmount: string; idempotencyKey: string;
