@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { runNaturalLanguageAssistantQuery,type NaturalLanguageAssistantResponse } from "@/lib/intelligence/natural-language-assistant-client";
 import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@/lib/intelligence/natural-language-assistant";
+import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
@@ -60,11 +61,19 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وجودة المهام والتوصيات والإنذارات بعد المراجعة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
    {response.status==="DENIED"?"غير مصرح":response.status==="UNAVAILABLE"?"المصدر غير متاح":"تعذر الاستعلام"}: {response.message}</div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="TASK_QUALITY"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <p className="font-semibold">{response.result.answer}</p>
+    <p className="mt-1 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · وقت الاستعلام: {new Date(response.result.queriedAt).toLocaleString("ar-YE")}</p>
+    <p className="mt-1 text-xs text-muted-foreground">تاريخ الاستعلام لا يمثل تاريخ آخر مراجعة؛ المؤشرات محسوبة من أحدث مراجعة محفوظة لكل نوع.</p>
+   </div>
+   <TaskQualityReviewMetrics quality={response.result.quality}/>
+  </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="PURCHASE_ORDER"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm"><p className="font-semibold">{response.result.answer}</p>
     <p className="mt-1 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · أوامر مفحوصة: {qty.format(response.result.inspectedOrderCount)}</p>
