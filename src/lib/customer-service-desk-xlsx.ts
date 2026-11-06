@@ -120,7 +120,7 @@ export function downloadCustomerServiceDeskWorkbookXlsx(document: CustomerServic
     throw new Error("تنزيل Excel غير متاح في بيئة المتصفح الحالية.");
   }
   const bytes = buildCustomerServiceDeskWorkbookXlsx(document);
-  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const blob = new Blob([Uint8Array.from(bytes).buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const anchor = globalThis.document.createElement("a");
   anchor.href = url;
