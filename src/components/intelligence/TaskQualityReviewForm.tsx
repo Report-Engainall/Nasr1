@@ -1,5 +1,6 @@
 import {useEffect,useMemo,useRef,useState,type FormEvent} from "react";
 import {recordOperationalTaskQualityReview} from "@/lib/intelligence/task-quality-reviews-client";
+import {fetchDecisionOutcomes,type DecisionOutcomeView} from "@/lib/intelligence/decision-outcome-client";
 import type {TaskQualityActionability,TaskQualityAlertVerdict,TaskQualityDisposition,TaskQualityReasonCode,TaskQualityReviewType} from "@/lib/intelligence/task-quality-reviews";
 
 export interface TaskQualityReviewFormProps{taskId:string;taskUpdatedAt:string;decisionOutcomeId?:string;onSaved?:()=>void|Promise<void>}
@@ -13,6 +14,13 @@ export function TaskQualityReviewForm({taskId,taskUpdatedAt,decisionOutcomeId,on
  const [alertVerdict,setAlertVerdict]=useState<TaskQualityAlertVerdict>("TRUE_POSITIVE");
  const [reasonCode,setReasonCode]=useState<TaskQualityReasonCode|"">("");
  const [reasonNote,setReasonNote]=useState("");
+ const [selectedDecisionOutcomeId,setSelectedDecisionOutcomeId]=useState(decisionOutcomeId??"");
+ const [decisionPickerOpen,setDecisionPickerOpen]=useState(false);
+ const [decisionOutcomes,setDecisionOutcomes]=useState<DecisionOutcomeView[]>([]);
+ const [decisionOutcomesTotal,setDecisionOutcomesTotal]=useState(0);
+ const [decisionOutcomesLoaded,setDecisionOutcomesLoaded]=useState(false);
+ const [decisionOutcomesLoading,setDecisionOutcomesLoading]=useState(false);
+ const [decisionOutcomesError,setDecisionOutcomesError]=useState<string|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[message,setMessage]=useState<string|null>(null);
  const requestKey=useRef<{eventId:string;idempotencyKey:string}|null>(null);
  const resetRequestKey=()=>{requestKey.current=null;};
@@ -21,6 +29,23 @@ export function TaskQualityReviewForm({taskId,taskUpdatedAt,decisionOutcomeId,on
   setError(null);
   setMessage(null);
  },[taskId,taskUpdatedAt]);
+ useEffect(()=>{
+  setSelectedDecisionOutcomeId(decisionOutcomeId??"");
+ },[decisionOutcomeId]);
+ useEffect(()=>{
+  requestKey.current=null;
+ },[selectedDecisionOutcomeId]);
+ async function loadDecisionOutcomes(append=false){
+  if(decisionOutcomesLoading)return;
+  setDecisionOutcomesLoading(true);setDecisionOutcomesError(null);
+  const result=await fetchDecisionOutcomes(50,append?decisionOutcomes.length:0);
+  setDecisionOutcomesLoading(false);
+  if(!result.ok){setDecisionOutcomesError(result.message);return;}
+  setDecisionOutcomes(current=>append?[...current,...result.items]:result.items);
+  setDecisionOutcomesTotal(result.total);
+  setDecisionOutcomesLoaded(true);
+ }
+ const linkedDecisionOutcomeId=decisionOutcomeId??(selectedDecisionOutcomeId||undefined);
  const requiresReason=(reviewType==="ACTIONABILITY"&&actionability!=="ACTIONABLE")||
   (reviewType==="RECOMMENDATION_DISPOSITION"&&(disposition==="REJECTED"||disposition==="DEFERRED"))||
   (reviewType==="ALERT_VALIDATION"&&alertVerdict==="FALSE_POSITIVE");
@@ -35,7 +60,7 @@ export function TaskQualityReviewForm({taskId,taskUpdatedAt,decisionOutcomeId,on
    ...(reviewType==="ALERT_VALIDATION"?{alertVerdict}:{}),
    ...(requiresReason&&reasonCode?{reasonCode}:{}),
    ...(requiresReason&&reasonCode==="OTHER"&&reasonNote.trim()?{reasonNote:reasonNote.trim()}:{}),
-   ...(decisionOutcomeId?{decisionOutcomeId}:{}),
+   ...(linkedDecisionOutcomeId?{decisionOutcomeId:linkedDecisionOutcomeId}:{}),
    eventId:requestKey.current.eventId,idempotencyKey:requestKey.current.idempotencyKey,
   });
   setBusy(false);
@@ -52,6 +77,27 @@ export function TaskQualityReviewForm({taskId,taskUpdatedAt,decisionOutcomeId,on
  const change=(callback:()=>void)=>{resetRequestKey();callback();};
  return <form dir="rtl" onSubmit={event=>void submit(event)} className="space-y-3 rounded-lg border p-3" aria-label="مراجعة جودة المهمة">
   <div><h4 className="font-semibold">مراجعة جودة المهمة</h4><p className="mt-1 text-xs text-muted-foreground">تُحفظ المراجعة كحدث غير قابل للمحو، ولا تغيّر حالة المهمة أو تنفذ الإجراء نيابة عنك. إعادة المحاولة تحتفظ بمفتاح الطلب نفسه ما دامت بيانات المراجعة لم تتغير.</p></div>
+  {decisionOutcomeId?<p className="text-xs text-muted-foreground">ستُربط هذه المراجعة بالقرار الموثق الذي حدده مصدر المهمة.</p>:<section className="space-y-2 rounded-md border p-3">
+   <div className="flex flex-wrap items-center justify-between gap-2">
+    <span className="text-sm font-medium">ربط المراجعة بدورة قرار موجودة (اختياري)</span>
+    <button type="button" className="rounded-md border px-3 py-1.5 text-xs" disabled={decisionOutcomesLoading} onClick={()=>{const open=!decisionPickerOpen;setDecisionPickerOpen(open);if(open&&!decisionOutcomesLoaded)void loadDecisionOutcomes(false);}}>
+     {decisionPickerOpen?"إخفاء قائمة القرارات":"اختيار قرار موجود"}
+    </button>
+   </div>
+   {decisionPickerOpen?<div className="space-y-2">
+    {decisionOutcomesLoading?<p role="status" className="text-xs">جارٍ جلب القرارات المحفوظة…</p>:null}
+    {decisionOutcomesError?<p role="alert" className="text-xs">{decisionOutcomesError} يمكن حفظ مراجعة الجودة دون ربط.</p>:null}
+    {decisionOutcomesLoaded&&!decisionOutcomes.length&&!decisionOutcomesLoading?<p className="text-xs text-muted-foreground">لا توجد قرارات ظاهرة لهذا الحساب؛ لم يتم إنشاء معرف قرار بديل.</p>:null}
+    {decisionOutcomes.length?<label className="grid gap-1 text-sm">القرار المرتبط
+     <select className="rounded-md border bg-background p-2" value={selectedDecisionOutcomeId} onChange={event=>change(()=>setSelectedDecisionOutcomeId(event.target.value))}>
+      <option value="">بدون ربط</option>
+      {decisionOutcomes.map(item=><option key={item.id} value={item.id}>{"#"+item.id.slice(0,8)+" · "+item.state+" · "+item.expectedOutcome.slice(0,90)}</option>)}
+     </select>
+    </label>:null}
+    {decisionOutcomes.length<decisionOutcomesTotal?<button type="button" className="rounded-md border px-3 py-1.5 text-xs" disabled={decisionOutcomesLoading} onClick={()=>void loadDecisionOutcomes(true)}>تحميل قرارات إضافية ({decisionOutcomes.length} / {decisionOutcomesTotal})</button>:null}
+    {selectedDecisionOutcomeId?<p className="text-xs text-muted-foreground">سيُحفظ الربط بالمعرّف الوارد من قائمة القرارات الخادمية، ويعيد الخادم التحقق من المؤسسة والصلاحية.</p>:null}
+   </div>:null}
+  </section>}
   <label className="grid gap-1 text-sm">نوع المراجعة
    <select className="rounded-md border bg-background p-2" value={reviewType} onChange={event=>change(()=>{setReviewType(event.target.value as TaskQualityReviewType);setReasonCode("");setReasonNote("");})}>
     <option value="ACTIONABILITY">قابلية تنفيذ المهمة</option><option value="RECOMMENDATION_DISPOSITION">قرار التوصية</option><option value="ALERT_VALIDATION">التحقق من صحة التنبيه</option>
