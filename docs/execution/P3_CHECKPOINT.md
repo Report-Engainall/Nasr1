@@ -1,3 +1,27 @@
+## P3 SCORECARD PRECISION HARDENING — EXACT PERCENTAGE ROUNDING — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Source/test commit: `f84222e46946d79f64a756036740980b93c6f618`.
+- Engine blob: `src/lib/intelligence/task-performance-scorecard.ts` — `781aadc8fb368d1cd2219d941a28eb568a2cd407`.
+- Regression source blob: `src/lib/intelligence/task-performance-scorecard.test.ts` — `4d707c5e0560111a3f120030137973f1bdb33a12`.
+
+### Implemented
+- Replaced Number multiplication/division rounding in task source/idempotency/traceability coverage and reopen-rate reconciliation with the shared exact BigInt percentage helper.
+- Count inputs are already constrained to non-negative safe integers; conversion to BigInt is exact, and percentage rounding now matches the shared PostgreSQL numeric half-up contract.
+- Added a large-count half-hundredth regression fixture where floating-point evaluation previously yields 12.34 while the exact source ratio rounds to 12.35.
+- The same helper now governs group and top-level coverage percentages, and the reopen-rate check, preventing parser inconsistency between these scorecard levels.
+
+### Boundaries retained
+- No task source RPC, SQL migration, status-audit window, role scope, tenant scope, task mutation, UI mount or employee-level ranking was changed.
+- Existing unavailable metrics remain unavailable; the exact percentage helper does not infer or fill task data.
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression test authored but NOT RUN. No build, typecheck, lint, CI, browser, Bolt, database, Preview, Vercel or production operation was run. No PASS/runtime claim.
+- Later exact-SHA acceptance must reconcile very large count ratios at half-hundredth boundaries, ordinary coverage values, zero denominators and the immutable audit-window reopen-rate source.
+
+---
+
 ## P3 EVIDENCE ENGINE HARDENING — EXACT-CENT CURRENCY SOURCE COMPARISON — 2026-11-06
 
 - Repository/branch: `Report-Engainall/Nasr1` / `main`.

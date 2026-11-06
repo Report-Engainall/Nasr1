@@ -2,8 +2,8 @@
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main` only  
-**Current code-bearing main SHA at this override:** `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`  
-**Latest P3 code-bearing commit:** `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`  
+**Current code-bearing main SHA at this override:** `f84222e46946d79f64a756036740980b93c6f618`  
+**Latest P3 code-bearing commit:** `f84222e46946d79f64a756036740980b93c6f618`  
 **Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
 **Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
 
@@ -22,12 +22,12 @@ The Section 61 task-quality system, persisted decision lifecycle, constrained ca
 Latest P3 delivery in this session:
 - `e4d97cf68f95531b0a33c2e3a4800355d6c6c5e6` — cashflow scheduled movements switched to exact integer-cent parsing and aggregation.
 - `ea0545d6e4d9a6b75cb3e250190dc42ba818c989` — cashflow formula version advanced to `1.1.0`, with regression-source update.
-- `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e` — Evidence Source Comparison now reads numeric-text currency metrics in exact minor units and withholds sub-cent/unsafe differences.
-- Cashflow source/test: `src/lib/intelligence/cashflow-forecast.ts` / `src/lib/intelligence/cashflow-forecast.test.ts`.
-- Evidence comparison source/test: `src/lib/intelligence/evidence-source-comparison.ts` / `src/lib/intelligence/evidence-source-comparison.test.ts`.
-- Shared precision dependency: existing `src/lib/intelligence/financial-precision.ts` (unchanged).
+- `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e` — Evidence Source Comparison gained exact-cent currency text parsing/difference and sub-cent/overflow withholding.
+- `f84222e46946d79f64a756036740980b93c6f618` — task scorecard coverage/reopen-rate percentages now use exact BigInt half-up rounding; a large-count boundary regression was added.
+- Source/test files: `cashflow-forecast.ts`, `cashflow-forecast.test.ts`, `evidence-source-comparison.ts`, `evidence-source-comparison.test.ts`, `task-performance-scorecard.ts`, `task-performance-scorecard.test.ts`.
+- Shared precision dependency: `financial-precision.ts` (unchanged).
 
-The cashflow forecast uses exact integer cents and retains its incomplete-source suppression. The evidence comparison engine now avoids float subtraction for currency deltas and supports decimal-text values without silently rounding sub-cent data. Both increments have source-level regression coverage, NOT RUN.
+Cashflow and currency evidence deltas now avoid floating-point cent errors. Task performance percentages now match the shared PostgreSQL-compatible rounding rule for large safe-integer counts. All regression sources are authored but NOT RUN.
 
 ## Immediate P3 execution order
 

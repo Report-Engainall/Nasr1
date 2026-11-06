@@ -1,3 +1,13 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 TASK SCORECARD EXACT PERCENTAGE ROUNDING
+
+- Source/test commit `f84222e46946d79f64a756036740980b93c6f618` replaces Number-based percentage calculation in `src/lib/intelligence/task-performance-scorecard.ts` with the shared BigInt half-up percentage helper.
+- This governs idempotency-key coverage, traceability coverage, and the reopen-rate reconciliation at both group and scorecard levels.
+- Regression source in `src/lib/intelligence/task-performance-scorecard.test.ts` covers a large safe-integer count ratio whose floating-point path evaluates below the exact half-hundredth boundary (12.345%) and would round to 12.34 instead of 12.35.
+- No source RPC, migration, tenant/role contract, task status workflow, task data, UI mount or write operation was changed.
+- Tests authored but NOT RUN. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation or runtime PASS is claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 EVIDENCE CURRENCY EXACT-CENT COMPARISON
 
 - Source/test commit `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e` hardens `src/lib/intelligence/evidence-source-comparison.ts`.

@@ -1,5 +1,23 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
 
+## P3 CODE UPDATE — TASK SCORECARD EXACT PERCENTAGE ROUNDING — 2026-11-06
+
+- Current P3 code SHA on `main`: `f84222e46946d79f64a756036740980b93c6f618`.
+- Task scorecard coverage and immutable reopen-rate percentages now use shared BigInt half-up decimal rounding, avoiding Number multiplication precision loss for large safe-integer counts.
+- Added regression source for a boundary where Number arithmetic rounds 12.345% down to 12.34% instead of the exact 12.35%.
+- Tests authored but NOT RUN; no build/CI/Bolt/database/production operation or runtime acceptance is claimed.
+
+## P3 CODE UPDATE — EXACT-CENT EVIDENCE SOURCE COMPARISON — 2026-11-06
+
+- Evidence source comparison commit: `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`.
+- Currency metrics returned as decimal text are compared in exact signed cents. Sub-cent precision and unsafe differences are withheld. Tests authored but NOT RUN.
+- P1 comparison panel mounting and P2 authorized same-tenant snapshot/disposition dependencies remain open.
+
+## P3 CODE UPDATE — CASHFLOW EXACT-CENT ARITHMETIC — 2026-11-06
+
+- Cashflow formula `cashflow.scheduled-net@1.1.0` uses exact-cent sums and withholds sub-cent/overflow amounts. Tests authored but NOT RUN.
+- P2 source dependencies for verified opening balances and complete supplier/expense outflows remain open; no unsupported net/projected liquidity is generated.
+
 ## P3 CODE UPDATE — EXACT-CENT EVIDENCE SOURCE COMPARISON — 2026-11-06
 
 - Current P3 code SHA on `main`: `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`.
