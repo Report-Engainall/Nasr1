@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — account session revocation — 2026-11-06
+
+- BODY-056 commits: AuthContext `d2aa6092d7cd09403a4057d567f5374a3ce7ea92`; /profile `931e65714388359ac5dc414ae1d4d2ada17c534a`; Help Center `c21e5c335a7d3221c9674450d2abbdc24349cb60`.
+- Added separate session scopes: other devices `others` (current session remains), and all devices `global` (current session signs out). Existing ordinary logout stays local. Added confirmation, in-flight protection, failure display and accurate access-token expiry disclosure.
+- Added acceptance leaf `DLV-006-ACCOUNT-SESSION-REVOCATION-001`; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Auth/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — phone/password sign-in — 2026-11-06
 
 - BODY-055 commits: Auth base `9386f10d699ba3cde1e827e1e1c9d26f212a958e`; E.164 normalizer correction `750580d67a91acc006546eff643c6037f6ccbd50`; Login UI `4067958f8bf80f39220b5338173a4f59cc3a9406`; Help `8030278a8a6ffe040328fcab144722fdbfa5c218`; profile phone-only label `c551fb3bf31d599b7c5b257f551884109878c24a`; password screen phone-only label `de77468477d804aae910f43c4b09389947cce804`.
