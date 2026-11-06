@@ -1,3 +1,14 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 DEAD-STOCK EXACT-CENT EXPOSURE
+
+- Code commits `36983d8a0e4e3e53d02c40f5de73cd5176344035`, `31d51c6c8cda71c7a9e0cbd2fbf9a0d2510e350d` and `d8e78cb93dd137ab02405bc420ec1ce370e145ca` harden `src/lib/intelligence/dead-stock.ts`; final blobs are engine `3cf255f4d7d4a9372eb0b702a91d766643161291` and tests `c687242088efd25bf3a7af7dfcf6dda703550aee`.
+- Product exposure now multiplies exact quantity/unit-cost source decimals at scale six, rounds half-up to cents and calculates per-currency totals with BigInt cents. Formula identity is `dead-stock.exposure@1.1.0`.
+- Exposure precision/overflow failures remain withheld. A separately verified currency remains associated with a withheld item, increments the currency's withheld count and causes the corresponding currency total to be null rather than dropping the item from the denominator.
+- Regression source covers cent rounding, unsupported precision, exact multi-item totals and trusted currency retention on withheld UOM/precision.
+- No stock/cost/ledger data, database schema, RPC, permission, source workflow, UI mount or financial record was mutated.
+- Tests authored but NOT RUN. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation or runtime PASS is claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 TASK SCORECARD EXACT PERCENTAGE ROUNDING
 
 - Source/test commit `f84222e46946d79f64a756036740980b93c6f618` replaces Number-based percentage calculation in `src/lib/intelligence/task-performance-scorecard.ts` with the shared BigInt half-up percentage helper.

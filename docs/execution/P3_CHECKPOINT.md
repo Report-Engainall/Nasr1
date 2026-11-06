@@ -1,3 +1,33 @@
+## P3 INVENTORY FINANCIAL PRECISION — DEAD-STOCK EXPOSURE IN EXACT CENTS — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Implementation commits:
+  - `36983d8a0e4e3e53d02c40f5de73cd5176344035` — exact decimal quantity × unit-cost exposure, exact currency totals, formula version `1.1.0`.
+  - `31d51c6c8cda71c7a9e0cbd2fbf9a0d2510e350d` — preserve known currency grouping for precision/overflow-withheld exposure.
+  - `d8e78cb93dd137ab02405bc420ec1ce370e145ca` — preserve a separately verified unit-cost currency when quantity evidence is withheld; totals disclose the withheld item and suppress the incomplete currency total.
+- Final engine blob: `src/lib/intelligence/dead-stock.ts` — `3cf255f4d7d4a9372eb0b702a91d766643161291`.
+- Final regression blob: `src/lib/intelligence/dead-stock.test.ts` — `c687242088efd25bf3a7af7dfcf6dda703550aee`.
+
+### Implemented
+- Replaced floating-point quantity × unit-cost exposure with exact source-decimal multiplication using BigInt at up to six fractional places for quantity and cost, then PostgreSQL-compatible half-up rounding to two currency decimals.
+- Exposure with unsupported precision, negative values or a result beyond the safe cent ceiling is withheld as `NEEDS_REVIEW`; source values are not rounded silently.
+- Per-currency exposure totals now sum integer cents, preventing drift such as repeated 0.10 exposures accumulating into a value other than 0.30.
+- If unit-cost currency is independently verified but the quantity/UOM/exposure is withheld, the known currency remains attached to the withheld item. That item increments `withheldItems`, and the affected currency total becomes null instead of silently excluding the item.
+- Formula identity advanced from `dead-stock.exposure@1.0.0` to `1.1.0`.
+- Regression source covers half-cent rounding, precision withholding, trusted-currency retention and exact-cent multi-product totals.
+
+### Boundaries retained
+- No stock balance, cost record, invoice, purchase, GL, COGS, inventory movement, replenishment order or accounting record is mutated.
+- No cost/UOM is inferred, no currencies are merged and no missing/withheld exposure is zero-filled.
+- Existing movement-window evidence gates and classifications remain unchanged.
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression tests are authored but NOT RUN. No build, typecheck, lint, CI, browser, Bolt, database, Preview, Vercel or production operation was run. No PASS/runtime acceptance is claimed.
+- Later exact-SHA acceptance must prove product and currency separation, six-decimal source support, half-cent rounding, sub-micro precision rejection, UOM mismatch withholding, known-currency withheld row accounting, exact multi-row sum, total-overflow withholding and preservation of movement-history evidence gates.
+
+---
+
 ## P3 SCORECARD PRECISION HARDENING — EXACT PERCENTAGE ROUNDING — 2026-11-06
 
 - Repository/branch: `Report-Engainall/Nasr1` / `main`.

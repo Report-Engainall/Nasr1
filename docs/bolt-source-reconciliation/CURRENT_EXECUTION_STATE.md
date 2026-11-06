@@ -1,5 +1,13 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
 
+## P3 CODE UPDATE — DEAD-STOCK EXACT-CENT EXPOSURE — 2026-11-06
+
+- Current P3 code SHA on `main`: `d8e78cb93dd137ab02405bc420ec1ce370e145ca`.
+- Formula `dead-stock.exposure@1.1.0` multiplies source quantity and unit cost as exact decimals (up to six fractional places) and rounds half-up to currency cents using BigInt.
+- Per-currency totals now sum exact cents. Withheld exposure retains a separately verified currency and is counted as withheld; the affected currency total is null rather than partial.
+- Regression tests authored but NOT RUN. No build/CI/Bolt/database/production operation or runtime acceptance is claimed.
+- No financial, inventory or ledger record is changed.
+
 ## P3 CODE UPDATE — TASK SCORECARD EXACT PERCENTAGE ROUNDING — 2026-11-06
 
 - Current P3 code SHA on `main`: `f84222e46946d79f64a756036740980b93c6f618`.
