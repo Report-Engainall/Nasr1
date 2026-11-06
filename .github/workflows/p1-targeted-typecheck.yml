@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   p1-targeted-typecheck:
-    name: Strict TypeScript check for the five P1-owned files
+    name: Strict P1 TypeScript and UI regression checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -55,7 +55,7 @@ jobs:
           fi
           ln -s "$RUNNER_TEMP/pw-p1/node_modules/@playwright/test" node_modules/@playwright/test
 
-      - name: Typecheck all five P1 files and their imported source graph
+      - name: Typecheck P1-owned source and regression files with their imported source graph
         shell: bash
         run: |
           set -euo pipefail
@@ -69,8 +69,8 @@ jobs:
           printf 'Testing SHA: %s\\n' "$(git rev-parse HEAD)"
           bun scripts/test-p1-structural-budget.mjs
 
-      - name: Re-run the two P1-owned Vitest suites
+      - name: Run scoped P1 and customer-facing UI regression suites
         shell: bash
         run: |
           set -euo pipefail
-          bun run vitest run src/test/ai-gateway-logic.test.ts src/test/password-reset-route-security.test.ts
+          bun run vitest run src/test/ai-gateway-logic.test.ts src/test/password-reset-route-security.test.ts src/test/customer-quotes-route-acceptance.test.tsx src/test/admin-customer-360-display.test.tsx
