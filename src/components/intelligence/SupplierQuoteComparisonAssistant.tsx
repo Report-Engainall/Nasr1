@@ -81,10 +81,19 @@ export function SupplierQuoteComparisonAssistant({
                   ) : null}
                   {offer.supplierPerformance?.state === "AVAILABLE" ? (
                     <p className="text-xs text-muted-foreground">
+                      أوامر موسومة مستلمة دون إثبات اكتمالها: {count.format(offer.supplierPerformance.inconsistentReceivedCount ?? 0)}
+                      {" · "}أوامر مكتملة دون مدة توريد مسجلة: {count.format(offer.supplierPerformance.completedWithoutPromiseCount ?? 0)}
+                    </p>
+                  ) : null}
+                  {offer.supplierPerformance?.state === "AVAILABLE" ? (
+                    <p className="text-xs text-muted-foreground">
                       وسيط زمن الاستلام: {offer.supplierPerformance.medianLeadDays === null
                         ? "غير متاح — أقل من 3 عينات"
                         : count.format(offer.supplierPerformance.medianLeadDays) + " يوم"}
                       {" · "}عينات الزمن: {count.format(offer.supplierPerformance.leadTimeSampleCount ?? 0)}
+                      {" · "}P90: {offer.supplierPerformance.p90LeadDays === null
+                        ? "غير متاح — يلزم 10 عينات"
+                        : count.format(offer.supplierPerformance.p90LeadDays) + " يوم"}
                       {" · "}الالتزام: {offer.supplierPerformance.onTimePercent === null
                         ? "غير متاح — أقل من 3 عينات"
                         : number.format(offer.supplierPerformance.onTimePercent) + "%"}
@@ -184,7 +193,7 @@ export function SupplierQuoteComparisonAssistant({
         </p>
       ))}
       <p className="text-xs text-muted-foreground">
-        تكلفة الوحدة ومدة التوريد الموعودة وشروط الدفع منفصلة عن أداء المورد الفعلي في أوامر الشراء والاستلام خلال فترة التقرير. لا يظهر وسيط زمن الاستلام أو معدل الالتزام قبل 3 عينات لكل مؤشر. لا يوجد مجموع نقاط مركب أو ترسية تلقائية أو إنشاء أمر شراء.
+        تكلفة الوحدة ومدة التوريد الموعودة وشروط الدفع منفصلة عن أداء المورد الفعلي. الوسيط يحتاج 3 عينات، وP90 يحتاج 10 عينات، ومعدل الالتزام يحتاج 3 مواعيد توريد مقاسة. عدد الأوامر الموسومة مستلمة دون إثبات اكتمالها مؤشر حالة مصدر لا يثبت خطأ موظف أو عجز مخزون. لا يوجد مجموع نقاط أو ترسية تلقائية.
       </p>
     </section>
   );

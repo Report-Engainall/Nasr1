@@ -163,7 +163,8 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
     const offerA=result.comparisons[0].offers.find(item=>item.supplierName==="مورد أ");
     expect(offerA?.supplierPerformance).toMatchObject({
       state:"AVAILABLE",purchaseOrderCount:6,completedOrderCount:4,openOrderCount:2,
-      backlogLineCount:3,leadTimeSampleCount:4,medianLeadDays:4,
+      backlogLineCount:3,leadTimeSampleCount:4,medianLeadDays:4,p90LeadDays:null,
+      inconsistentReceivedCount:0,completedWithoutPromiseCount:2,
       promisedDeliverySampleCount:2,onTimePercent:null,
     });
     const offerB=result.comparisons[0].offers.find(item=>item.supplierName==="مورد ب");
@@ -206,6 +207,34 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
     expect(result.comparisonGroupCount).toBe(1);
     expect(result.supplierPerformance.status).toBe("DENIED");
     expect(result.comparisons[0].offers.every(item=>item.supplierPerformance?.state==="SOURCE_UNAVAILABLE")).toBe(true);
+  });
+
+
+  it("shows the source P90 only with at least ten completed lead-time samples",()=>{
+    const base:SupplierPerformanceSnapshot={
+      asOf:"2026-11-06T00:00:00.000Z",
+      period:{from:"2026-08-09",to:"2026-11-06",timeZone:"UTC"},
+      source:"purchase_orders + purchase_order_items + purchase_receipts + awarded supplier quote delivery terms",
+      totalSupplierCount:1,returnedSupplierCount:1,resultLimit:200,completePopulation:true,
+      suppliers:[{
+        supplierId:suppliers[0],supplierName:"مورد أ",supplierCode:"A",
+        purchaseOrderCount:12,completedOrderCount:10,openOrderCount:2,
+        inconsistentReceivedCount:2,backlogLineCount:3,leadTimeSampleCount:10,
+        averageLeadDays:5,medianLeadDays:4,p90LeadDays:9,promisedDeliverySampleCount:4,
+        onTimeCount:3,onTimePercent:75,completedWithoutPromiseCount:1,
+        latestSubmittedAt:"2026-11-05T10:00:00.000Z",recentOrders:[],
+      }],
+    };
+    const result=buildSupplierQuoteComparisonAssistant([
+      quote({id:"q-a",supplierId:suppliers[0],supplierName:"مورد أ",number:"A-1",unitCost:12}),
+      quote({id:"q-b",supplierId:suppliers[1],supplierName:"مورد ب",number:"B-1",unitCost:10}),
+    ],"2026-11-06T00:00:00.000Z",{ok:true,snapshot:base});
+    const supplier=result.comparisons[0].offers.find(item=>item.supplierName==="مورد أ")?.supplierPerformance;
+    expect(supplier).toMatchObject({
+      leadTimeSampleCount:10,medianLeadDays:4,p90LeadDays:9,
+      inconsistentReceivedCount:2,completedWithoutPromiseCount:1,
+      promisedDeliverySampleCount:4,onTimePercent:75,
+    });
   });
 
 });

@@ -16,6 +16,8 @@ export interface SupplierQuoteSupplierPerformance {
   backlogLineCount: number | null;
   leadTimeSampleCount: number | null;
   medianLeadDays: number | null;
+  p90LeadDays: number | null;
+  completedWithoutPromiseCount: number | null;
   promisedDeliverySampleCount: number | null;
   onTimePercent: number | null;
 }
@@ -183,6 +185,8 @@ export function buildSupplierQuoteComparisonAssistant(
       backlogLineCount: null,
       leadTimeSampleCount: null,
       medianLeadDays: null,
+      p90LeadDays: null,
+      completedWithoutPromiseCount: null,
       promisedDeliverySampleCount: null,
       onTimePercent: null,
     };
@@ -198,6 +202,8 @@ export function buildSupplierQuoteComparisonAssistant(
         backlogLineCount: null,
         leadTimeSampleCount: 0,
         medianLeadDays: null,
+        p90LeadDays: null,
+        completedWithoutPromiseCount: 0,
         promisedDeliverySampleCount: 0,
         onTimePercent: null,
       };
@@ -211,6 +217,8 @@ export function buildSupplierQuoteComparisonAssistant(
       backlogLineCount: supplier.backlogLineCount,
       leadTimeSampleCount: supplier.leadTimeSampleCount,
       medianLeadDays: supplier.leadTimeSampleCount >= 3 ? supplier.medianLeadDays : null,
+      p90LeadDays: supplier.leadTimeSampleCount >= 10 ? supplier.p90LeadDays : null,
+      completedWithoutPromiseCount: supplier.completedWithoutPromiseCount,
       promisedDeliverySampleCount: supplier.promisedDeliverySampleCount,
       onTimePercent: supplier.promisedDeliverySampleCount >= 3 ? supplier.onTimePercent : null,
     };
