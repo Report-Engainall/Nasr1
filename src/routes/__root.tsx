@@ -8,8 +8,9 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
+import { RefreshCw, X } from "lucide-react";
 import appCss from "../styles.css?url";
 import { reportRuntimeError } from "../lib/runtime-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -243,18 +244,136 @@ function RootNavigation() {
   );
 }
 
+function PwaUpdatePrompt() {
+  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [available, setAvailable] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState("");
+  const reloadAfterControllerChange = useRef(false);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    let mounted = true;
+    let activeRegistration: ServiceWorkerRegistration | null = null;
+
+    const announceWaitingWorker = () => {
+      if (!mounted || !activeRegistration?.waiting || !navigator.serviceWorker.controller) return;
+      setRegistration(activeRegistration);
+      setAvailable(true);
+    };
+
+    const onUpdateFound = () => {
+      const installing = activeRegistration?.installing;
+      if (!installing) return;
+      const onStateChange = () => {
+        if (installing.state === "installed") announceWaitingWorker();
+      };
+      installing.addEventListener("statechange", onStateChange);
+    };
+
+    const onControllerChange = () => {
+      if (reloadAfterControllerChange.current && typeof window !== "undefined") {
+        window.location.reload();
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible" && activeRegistration) {
+        void activeRegistration.update().catch(() => undefined);
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    void navigator.serviceWorker.register("/sw.js")
+      .then((nextRegistration) => {
+        if (!mounted) return;
+        activeRegistration = nextRegistration;
+        setRegistration(nextRegistration);
+        nextRegistration.addEventListener("updatefound", onUpdateFound);
+        announceWaitingWorker();
+        if (document.visibilityState === "visible") {
+          void nextRegistration.update().catch(() => undefined);
+        }
+      })
+      .catch(() => {
+        // PWA registration failure must not block the storefront.
+      });
+
+    return () => {
+      mounted = false;
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      activeRegistration?.removeEventListener("updatefound", onUpdateFound);
+    };
+  }, []);
+
+  function applyUpdate() {
+    if (!registration?.waiting || applying) return;
+    setApplying(true);
+    setError("");
+    reloadAfterControllerChange.current = true;
+    registration.waiting.postMessage({ type: "AGHBARI_ACTIVATE_UPDATE" });
+  }
+
+  if (!available || !registration?.waiting) return null;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      dir="rtl"
+      className="no-print"
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 12,
+        flexWrap: "wrap",
+        padding: "10px 16px",
+        background: "#e8f3ed",
+        color: "#164734",
+        borderBottom: "1px solid #b8d6c6",
+        fontFamily: "Cairo, system-ui, sans-serif",
+        fontSize: 13,
+      }}
+    >
+      <span>تحديث جديد لمتجر الأغبري جاهز. يمكنك تثبيته الآن؛ سيُعاد تحميل الصفحة بعد تفعيل النسخة الجديدة.</span>
+      <button
+        type="button"
+        onClick={applyUpdate}
+        disabled={applying}
+        className="inline-flex items-center gap-2 rounded-lg border border-emerald-800 bg-emerald-800 px-3 py-2 font-semibold text-white disabled:opacity-60"
+      >
+        <RefreshCw size={15}/>
+        {applying ? "جارٍ تطبيق التحديث..." : "تحديث التطبيق"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setAvailable(false)}
+        disabled={applying}
+        aria-label="تأجيل تحديث التطبيق"
+        className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/30 px-2 py-2 disabled:opacity-60"
+      >
+        <X size={14}/>
+        لاحقاً
+      </button>
+      {error ? <span role="alert">{error}</span> : null}
+    </div>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  useEffect(() => {
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-    }
-  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <AuthProvider>
+        <PwaUpdatePrompt />
         <AuthHealthNotice />
         <RootNavigation />
         <AuthScopedOutlet />
