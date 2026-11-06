@@ -230,6 +230,126 @@ export function searchSimilarDecisionMemory(input: {
     .map(({ ranking: _ranking, ...match }) => match);
 }
 
+export interface DecisionPolicyReviewObservation {
+  decisionId: string;
+  createdAt: string;
+  expected: DecisionMemoryMetricResult;
+  actual: DecisionMemoryMetricResult;
+  difference: number;
+  differencePercent: number | null;
+  lessons: string[];
+  evidenceIds: string[];
+}
+
+export interface DecisionPolicyReviewSuggestion {
+  id: string;
+  ruleId: string;
+  ruleVersion: string;
+  metricKey: string;
+  unit: DecisionMemoryMetricResult["unit"];
+  currency: string | null;
+  unitOfMeasure: string | null;
+  period: EvidencePeriod;
+  formulaId: string;
+  formulaVersion: string;
+  status: "DRAFT_REQUIRES_HUMAN_REVIEW";
+  observations: DecisionPolicyReviewObservation[];
+  lessons: string[];
+  evidenceIds: string[];
+  reviewInstruction: string;
+}
+
+/**
+ * Projects measured, evidence-backed lessons into review drafts linked to the
+ * exact rule version and metric context. This never changes a policy or source.
+ */
+export function buildDecisionPolicyReviewSuggestions(
+  records: DecisionMemoryRecord[],
+): DecisionPolicyReviewSuggestion[] {
+  if (!Array.isArray(records)) throw new Error("decision_policy_review_input_invalid");
+  const groups = new Map<string, DecisionPolicyReviewSuggestion>();
+  for (const record of records) {
+    const comparison = record.metricComparison;
+    const expected = comparison.expected;
+    const actual = comparison.actual;
+    if (record.state !== "MEASURED" ||
+        record.memoryStatus !== "VERIFIED" ||
+        !record.lessonsReviewed ||
+        !record.lessons.length ||
+        comparison.status !== "VERIFIED" ||
+        !expected || !actual ||
+        !record.ruleId.trim() || !record.ruleVersion.trim() ||
+        !validPeriod(expected.period) || !validPeriod(actual.period) ||
+        !record.createdAt || !Number.isFinite(Date.parse(record.createdAt)) ||
+        !Number.isFinite(comparison.difference) ||
+        (comparison.differencePercent !== null && !Number.isFinite(comparison.differencePercent)) ||
+        !expected.evidenceIds.length || !actual.evidenceIds.length) {
+      continue;
+    }
+
+    const sameContext = expected.metricKey === actual.metricKey &&
+      expected.unit === actual.unit &&
+      expected.currency === actual.currency &&
+      expected.unitOfMeasure === actual.unitOfMeasure &&
+      expected.period.from === actual.period.from &&
+      expected.period.to === actual.period.to &&
+      expected.formulaId === actual.formulaId &&
+      expected.formulaVersion === actual.formulaVersion;
+    if (!sameContext) continue;
+
+    const groupKey = JSON.stringify([
+      record.ruleId, record.ruleVersion,
+      actual.metricKey, actual.unit, actual.currency, actual.unitOfMeasure,
+      actual.period.from, actual.period.to, actual.formulaId, actual.formulaVersion,
+    ]);
+    const observation: DecisionPolicyReviewObservation = {
+      decisionId: record.decisionId,
+      createdAt: record.createdAt,
+      expected,
+      actual,
+      difference: comparison.difference as number,
+      differencePercent: comparison.differencePercent,
+      lessons: unique(record.lessons.map(lesson => lesson.trim())),
+      evidenceIds: unique([...expected.evidenceIds, ...actual.evidenceIds]),
+    };
+    const existing = groups.get(groupKey);
+    if (existing) {
+      existing.observations.push(observation);
+      existing.lessons = unique([...existing.lessons, ...observation.lessons]);
+      existing.evidenceIds = unique([...existing.evidenceIds, ...observation.evidenceIds]);
+      continue;
+    }
+    groups.set(groupKey, {
+      id: groupKey,
+      ruleId: record.ruleId,
+      ruleVersion: record.ruleVersion,
+      metricKey: actual.metricKey,
+      unit: actual.unit,
+      currency: actual.currency,
+      unitOfMeasure: actual.unitOfMeasure,
+      period: actual.period,
+      formulaId: actual.formulaId,
+      formulaVersion: actual.formulaVersion,
+      status: "DRAFT_REQUIRES_HUMAN_REVIEW",
+      observations: [observation],
+      lessons: observation.lessons,
+      evidenceIds: observation.evidenceIds,
+      reviewInstruction:
+        "راجع صلاحية القاعدة وإصدارها ومدخلاتها في ضوء الدروس والنتائج المثبتة، ثم استخدم المحاكاة وسير الاعتماد المعتاد. لا يغيّر هذا الاقتراح القاعدة أو السعر أو الائتمان أو المخزون.",
+    });
+  }
+  return [...groups.values()]
+    .map(suggestion => ({
+      ...suggestion,
+      observations: suggestion.observations.sort((a,b) =>
+        b.createdAt.localeCompare(a.createdAt) || a.decisionId.localeCompare(b.decisionId)),
+    }))
+    .sort((a,b) =>
+      b.observations.length - a.observations.length ||
+      b.observations[0].createdAt.localeCompare(a.observations[0].createdAt) ||
+      a.id.localeCompare(b.id));
+}
+
 function validTime(value: string): boolean {
   return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
 }
