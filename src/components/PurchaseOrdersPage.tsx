@@ -393,11 +393,6 @@ export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchase
     setSelectedId(target.id);
   }, [initialPurchaseOrderId, loading, orders]);
   useEffect(() => {
-    if (!initialPurchaseOrderId || loading || !orders.some((order) => order.id === initialPurchaseOrderId)) return;
-    setStatusFilter("all");
-    setSelectedId(initialPurchaseOrderId);
-  }, [initialPurchaseOrderId, loading, orders]);
-  useEffect(() => {
     setReceiveDrafts({});
     setReceiveBatchDrafts({});
     setReceiveExpiryDrafts({});
