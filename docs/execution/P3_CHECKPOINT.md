@@ -1469,3 +1469,44 @@ Continue only with an independently implementable P3 requirement backed by a rea
 - `buildDecisionMemoryBook()` now returns `EMPTY` only when the authorized source confirms zero outcomes and page coverage is complete. A failed, malformed or inconsistent read remains `UNAVAILABLE` or `PARTIAL`; zero records are no longer conflated with a missing source.
 - The existing Arabic DecisionMemoryBook renders an explicit empty label while retaining unavailable/partial evidence states.
 - No RPC, migration, database, P1-owned route/workspace or financial/inventory operation changed. No tests/build/typecheck/lint/CI/browser/DB/Bolt runtime operation was run; no PASS/runtime claim.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-SHIFT-OPERATIONS-COMMANDS-UI-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Section 53: turn the existing, tenant-authorized operational shift commands into reachable P3 product actions inside the existing `ShiftOperationsCenter`; do not create a second shift workspace or edit the P1 shell.
+
+### Implemented on main
+
+1. **Incoming-owner-only acceptance reference**
+   - Added additive migration `supabase/migrations/20261106180000_intelligence_shift_handover_acceptance_lookup.sql`.
+   - New `fetch_operational_shift_handover_acceptance` returns only the current shift's recorded handover ID and acceptance timestamp to the authenticated incoming shift owner, in the current organization. It does not disclose source references, notes or other handover details.
+   - The existing `accept_operational_shift_handover` remains the only acceptance writer and independently revalidates the incoming owner, tenant, one-time acceptance and idempotency.
+   - Migration commit: `dc492566a0c97e06b3389a7605a4b965b150dbc4`; blob `3b86c21d9a216965951fff48d2b53ab423402d73`.
+
+2. **Typed client and strict command lookup**
+   - Added `fetchOperationalShiftHandoverAcceptance()` to `src/lib/intelligence/shift-operations-client.ts`. It validates the UUID, current-shift correlation, required flag, nullable pending/accepted states and timestamps; denial/unavailable/error remain distinct.
+   - Client commits: `b1de680dd84170d924ad15430e7f1bedf508a2bd`, `44fd4cfb31c4cac312f8f924c2adb37c8ac92d9a`; final blob `060a9ad506b8a18ee4fb1c9d517c19c957618b2b`.
+
+3. **Real Section 53 actions in the existing component**
+   - `ShiftOperationsCenter` now exposes server-backed save actions for immutable `OPENING` and `CLOSEOUT` evidence snapshots.
+   - Finance-role UI can record the actual counted cash amount by a currency and phase already returned by the shift source. The form does not create a ledger entry, post cash, change expected balances or alter stock.
+   - The outgoing owner or manager can record a handover with reason/note and a bounded selection of real source UUIDs from currently open items. PostgreSQL rechecks every reference, tenant, active status and role before append-only persistence.
+   - Only the incoming owner can retrieve the handover action reference and accept it. The existing server acceptance command remains authoritative.
+   - UI confirms success only after a valid RPC receipt; errors and denied/unavailable states remain visible, and successful commands request a source refresh.
+   - Stable idempotency keys are retained for cash-count, handover-record, handover-accept and snapshot attempts across ambiguous retries; editing command input invalidates the affected pending key. This avoids accidental duplicate events on a retry.
+   - No P1 file or P2 database path was edited. Component commits: `64c0b2d2223f0ad14b41dfdf1952357756aea761`, `adb06cda0bc8ecb3c8faac034af5676c1d74a312`, `233640c0e58e93baee375044d873947c742952d4`; final blob `3fe7100fcd574b39fc831150b47ccb1e1c62e73c`.
+
+4. **Acceptance matrix**
+   - Updated existing `INT-SHIFT-001` leaf in place; commit `3319c21e9919a5f9e5f8df0b85e2cb25e862d0b7`. No duplicate matrix row created.
+
+### Acceptance boundary
+
+- Both Section 53 migrations are source-only pending the approved Bolt/non-production database workflow. The new lookup function is additive; the pre-existing shift writer/reader migration was not rewritten.
+- No start/close transaction, ledger journal, payment, inventory balance, task status or live external delivery is executed by this UI batch. Cash counts are append-only physical-count evidence only. A closeout snapshot may be partial or blocked; capture does not assert financial close.
+- Tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operations were NOT run. No PASS, runtime or production claim is made. No paid provider, AI quota or deployment credit was used.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+Continue with the next independently implementable Section 50–63 P3 gap. Bolt later must verify all command role/tenant boundaries, idempotency replay/conflict, append-only history, cash count correction reason, stale/closed/cross-tenant handover references, incoming-owner-only acceptance, partial snapshots and absence of payment/ledger/inventory side effects on this exact main lineage.
