@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — consolidated customer returns history — 2026-11-06
+
+- BODY-057 commits: history component `b54906d6452fc9e59119ae63b29acb3787c3cb8e`; staff link fix `059e67277463f02d3c55b00fe011b1d75a14eb6d`; route `fa96fd9754589c395adf0e4315452c1ece56634f`; route tree `8373a07c9feff4204d9fefb1b3274d224b412f77`; navigation `c08f56f3b716f3eaa2dd4165a10ede6ffe63f7d7`; footer `6ae7a21b1d130ea77b7b1bcb02f7a9f6f3ebc7f6`; Help `b0736e47ceb9845c90e57b5fa9fba0b33deb0b36` (icon fix `b51acd3f8b4bb7e95679bf15aa1562ac0f2a4ceb)); profile `e849baa6f01c666d1706333d18201e8a45911ee3`; Arabic order status `4f6c9abc898ac84b6b0fb82f30e41224dfedd121`.
+- Added read-only `/returns` using current customer's RLS-scoped order page and the existing per-order `list_my_customer_return_requests` RPC. 20 orders per page; all summaries validated before displaying; source order links and review history shown. No direct private return-table access or new writes.
+- Added matrix leaf `DLV-006-CUSTOMER-RETURNS-HISTORY-001`. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — account session revocation — 2026-11-06
 
 - BODY-056 commits: AuthContext `d2aa6092d7cd09403a4057d567f5374a3ce7ea92`; /profile `931e65714388359ac5dc414ae1d4d2ada17c534a`; Help Center `c21e5c335a7d3221c9674450d2abbdc24349cb60`.
