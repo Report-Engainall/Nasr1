@@ -27,6 +27,7 @@ export type EvidenceSourceComparisonReason =
   | "RIGHT_EVIDENCE_NOT_VERIFIED"
   | "METRIC_VALUE_NOT_NUMERIC"
   | "METRIC_VALUE_OUT_OF_RANGE"
+  | "ZERO_BASELINE_PERCENT_UNDEFINED"
   | "METRIC_UNIT_MISMATCH"
   | "CURRENCY_MISMATCH"
   | "UNIT_OF_MEASURE_MISMATCH"
@@ -93,6 +94,16 @@ function normalizePassport(passport: EvidencePassport | null | undefined): Evide
   } catch {
     return null;
   }
+}
+
+function validDay(value: string): boolean {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const date = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function validPeriod(period: EvidencePeriod | null): boolean {
+  return Boolean(period && validDay(period.from) && validDay(period.to) && period.from <= period.to);
 }
 
 function metricSources(
@@ -271,9 +282,9 @@ export function compareEvidenceMetricSources(input: {
     reasons.push("CURRENCY_MISMATCH");
   if ((leftMetric.unitOfMeasure ?? "") !== (rightMetric.unitOfMeasure ?? ""))
     reasons.push("UNIT_OF_MEASURE_MISMATCH");
-  if (!leftMetric.period || !rightMetric.period ||
-      leftMetric.period.from !== rightMetric.period.from ||
-      leftMetric.period.to !== rightMetric.period.to)
+  if (!validPeriod(leftMetric.period) || !validPeriod(rightMetric.period) ||
+      leftMetric.period?.from !== rightMetric.period?.from ||
+      leftMetric.period?.to !== rightMetric.period?.to)
     reasons.push("PERIOD_MISSING_OR_MISMATCH");
   if (leftMetric.asOf !== rightMetric.asOf) reasons.push("AS_OF_MISMATCH");
   if (leftMetric.lineage.formulaId !== rightMetric.lineage.formulaId ||
@@ -294,7 +305,8 @@ export function compareEvidenceMetricSources(input: {
     };
   }
 
-  if (left.value === null || right.value === null) {
+  if (typeof leftMetric.value !== "number" || typeof rightMetric.value !== "number" ||
+      !Number.isFinite(leftMetric.value) || !Number.isFinite(rightMetric.value)) {
     return {
       status: "WITHHELD",
       comparisonKey: input.comparisonKey.trim(),
@@ -307,8 +319,16 @@ export function compareEvidenceMetricSources(input: {
       explanation: "القيم ليست أرقاماً صالحة للمقارنة؛ لم يُستبدل المجهول بصفر.",
     };
   }
-  const difference = right.value - left.value;
-  const differencePercent = left.value === 0 ? null : (difference / Math.abs(left.value)) * 100;
+  if (Math.abs(leftMetric.value) > Number.MAX_SAFE_INTEGER || Math.abs(rightMetric.value) > Number.MAX_SAFE_INTEGER) {
+    return {
+      status: "WITHHELD", comparisonKey: input.comparisonKey.trim(), metricKey: input.metricKey,
+      left, right, difference: null, differencePercent: null,
+      reasons: ["METRIC_VALUE_OUT_OF_RANGE"],
+      explanation: "إحدى القيم تتجاوز الحدود الرقمية الآمنة؛ أبقينا قيمتي المصدر منفصلتين.",
+    };
+  }
+  const difference = rightMetric.value - leftMetric.value;
+  const differencePercent = leftMetric.value === 0 ? null : (difference / Math.abs(leftMetric.value)) * 100;
   if (!Number.isFinite(difference) || Math.abs(difference) > Number.MAX_SAFE_INTEGER ||
       (differencePercent !== null &&
         (!Number.isFinite(differencePercent) || Math.abs(differencePercent) > Number.MAX_SAFE_INTEGER))) {
@@ -333,9 +353,11 @@ export function compareEvidenceMetricSources(input: {
     right,
     difference,
     differencePercent,
-    reasons: differencePercent === null ? ["COMPARISON_ARITHMETIC_UNSAFE"] : [],
-    explanation: difference === 0
-      ? "القيمتان متطابقتان ضمن المفتاح والفترة والعملات والوحدة والمعادلة نفسها."
-      : "يوجد فرق بين المصدرين؛ لم يُحسب متوسط ولم يُعدّل أي مصدر.",
+    reasons: differencePercent === null ? ["ZERO_BASELINE_PERCENT_UNDEFINED"] : [],
+    explanation: differencePercent === null
+      ? "احتُسب الفرق المطلق؛ نسبة التغير غير معرفة لأن خط الأساس يساوي صفراً."
+      : difference === 0
+        ? "القيمتان متطابقتان ضمن المفتاح والفترة والعملات والوحدة والمعادلة نفسها."
+        : "يوجد فرق بين المصدرين؛ لم يُحسب متوسط ولم يُعدّل أي مصدر.",
   };
 }
