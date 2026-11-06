@@ -148,6 +148,38 @@ export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: strin
 
   useEffect(() => { void loadSummary(); }, [loadSummary]);
 
+  async function cancelRequest(requestId: string, cancellationReason: string): Promise<boolean> {
+    if (busy) return false;
+    const normalizedReason = cancellationReason.trim();
+    if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+      setError("اكتب سبب سحب طلب الإرجاع بين 3 و500 حرف.");
+      return false;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const { data, error: rpcError } = await supabase.rpc("cancel_customer_return_request", {
+        p_return_request_id: requestId,
+        p_reason: normalizedReason,
+      });
+      if (rpcError) throw new Error(rpcError.message || "تعذر سحب طلب الإرجاع.");
+      const result = readReturnMutationResult(data);
+      if (result.status !== "cancelled") throw new Error("لم يؤكد الخادم إلغاء طلب الإرجاع.");
+      setNotice(
+        (result.idempotent_replay ? "تم تأكيد السحب السابق: " : "تم سحب طلب الإرجاع: ") +
+        result.request_number + ". أُعيدت الكميات إلى المتاح لطلب جديد.",
+      );
+      await loadSummary();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر سحب طلب الإرجاع.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!summary || summary.order_status !== "delivered" || orderStatus !== "delivered") {
@@ -444,10 +476,26 @@ function CustomerReturnHistoryLine({
 
 function CustomerReturnHistoryCard({
   request,
+  busy,
+  onCancelRequest,
 }: {
   request: CustomerReturnSummary["requests"][number];
+  busy: boolean;
+  onCancelRequest: (requestId: string, reason: string) => Promise<boolean>;
 }) {
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const rejected = request.status === "rejected";
+  const cancelled = request.status === "cancelled";
+
+  async function submitCancellation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const completed = await onCancelRequest(request.id, cancelReason);
+    if (completed) {
+      setShowCancelForm(false);
+      setCancelReason("");
+    }
+  }
 
   return (
     <article style={{ border: "1px solid #e3ebec", borderRadius: 10, padding: 12, display: "grid", gap: 7 }}>
@@ -457,8 +505,8 @@ function CustomerReturnHistoryCard({
           style={{
             padding: "3px 8px",
             borderRadius: 20,
-            background: rejected ? "#fff1f1" : "#eef7f5",
-            color: rejected ? "#a32929" : "#17684d",
+            background: rejected || cancelled ? "#fff1f1" : "#eef7f5",
+            color: rejected || cancelled ? "#a32929" : "#17684d",
             fontSize: 12,
             fontWeight: 800,
           }}
@@ -474,6 +522,50 @@ function CustomerReturnHistoryCard({
       {request.review_note ? (
         <p style={{ ...muted, color: "#3e5e61" }}>ملاحظة القرار: {request.review_note}</p>
       ) : null}
+      {request.customer_cancellation_reason ? (
+        <p style={{ ...muted, color: "#8a3030" }}>سبب سحب العميل: {request.customer_cancellation_reason}</p>
+      ) : null}
+      {request.customer_cancelled_at ? (
+        <p style={muted}>تاريخ السحب: {new Date(request.customer_cancelled_at).toLocaleString("ar-YE")}</p>
+      ) : null}
+      {request.status === "submitted" && !showCancelForm ? (
+        <button
+          type="button"
+          style={{ ...button, justifySelf: "start", color: "#9a3434", borderColor: "#e6c2c2" }}
+          disabled={busy}
+          onClick={() => setShowCancelForm(true)}
+        >
+          سحب طلب الإرجاع
+        </button>
+      ) : null}
+      {request.status === "submitted" && showCancelForm ? (
+        <form onSubmit={(event) => void submitCancellation(event)} style={{ display: "grid", gap: 8, padding: 10, border: "1px solid #ead2d2", borderRadius: 9 }}>
+          <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 750 }}>
+            سبب سحب طلب الإرجاع
+            <textarea
+              value={cancelReason}
+              onChange={(event) => setCancelReason(event.target.value)}
+              minLength={3}
+              maxLength={500}
+              rows={2}
+              required
+              disabled={busy}
+              style={{ ...field, resize: "vertical" }}
+              placeholder="اكتب سبب السحب..."
+            />
+          </label>
+          <p style={muted}>لا يتاح السحب إلا قبل بدء مراجعة الإدارة. إذا بدأت المراجعة، تواصل مع فريق المراجعة.</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="submit" style={{ ...primary, background: "#9a3434", borderColor: "#9a3434" }} disabled={busy || cancelReason.trim().length < 3}>
+              {busy ? "جارٍ سحب الطلب..." : "تأكيد سحب الطلب"}
+            </button>
+            <button type="button" style={button} disabled={busy} onClick={() => { setShowCancelForm(false); setCancelReason(""); }}>تراجع</button>
+          </div>
+        </form>
+      ) : null}
+      {request.status === "under_review" ? (
+        <p style={muted}>بدأت مراجعة الطلب؛ لم يعد السحب الذاتي متاحًا.</p>
+      ) : null}
     </article>
   );
 }
@@ -488,8 +580,12 @@ function CustomerReturnHistoryItems({ items }: { items: CustomerReturnSummary["r
 
 function CustomerReturnHistory({
   requests,
+  busy,
+  onCancelRequest,
 }: {
   requests: CustomerReturnSummary["requests"];
+  busy: boolean;
+  onCancelRequest: (requestId: string, reason: string) => Promise<boolean>;
 }) {
   if (requests.length === 0) return null;
 
@@ -502,7 +598,12 @@ function CustomerReturnHistory({
         <ClipboardCheck size={17} /> سجل طلبات الإرجاع
       </h3>
       {requests.map((request) => (
-        <CustomerReturnHistoryCard key={request.id} request={request} />
+        <CustomerReturnHistoryCard
+          key={request.id}
+          request={request}
+          busy={busy}
+          onCancelRequest={onCancelRequest}
+        />
       ))}
     </section>
   );
@@ -579,7 +680,11 @@ function CustomerReturnPolicyNote() {
         />
       ) : null}
 
-      <CustomerReturnHistory requests={summary?.requests ?? []} />
+      <CustomerReturnHistory
+        requests={summary?.requests ?? []}
+        busy={busy}
+        onCancelRequest={cancelRequest}
+      />
       <CustomerReturnPolicyNote />
     </section>
   );
