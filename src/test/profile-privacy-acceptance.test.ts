@@ -47,6 +47,8 @@ describe("P1 account profile and notification consent boundaries", () => {
   it("enforces account notification preferences at the final in-app sender boundary", () => {
     expect(preferenceDeliverySql).toContain("BEFORE INSERT ON public.notifications");
     expect(preferenceDeliverySql).toContain("notification_channels");
+    expect(preferenceDeliverySql).toContain("NEW.organization_id IS DISTINCT FROM v_profile_org");
+    expect(preferenceDeliverySql).toContain("NEW.organization_id := v_profile_org");
     expect(preferenceDeliverySql).toContain("NOTIFICATION_LEVEL_FILTERED");
     expect(preferenceDeliverySql).toContain("QUIET_HOURS");
     expect(preferenceDeliverySql).toContain("notification_delivery_suppressions");

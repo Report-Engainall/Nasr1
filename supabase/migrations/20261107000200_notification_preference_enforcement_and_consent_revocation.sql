@@ -32,21 +32,46 @@ SET search_path=''
 AS $function$
 DECLARE
   v_preferences public.profile_personalization_preferences%ROWTYPE;
+  v_profile_org uuid;
   v_found boolean := false;
   v_severity text;
   v_reason text;
   v_timezone text;
   v_local_time time;
 BEGIN
-  -- Account-less notifications have no recipient preference scope to resolve.
-  IF NEW.profile_id IS NULL OR NEW.organization_id IS NULL THEN
+  -- A profile-scoped notification must derive its tenant from the recipient profile.
+  -- Missing tenant is filled from the profile; a caller-supplied cross-tenant scope is rejected.
+  IF NEW.profile_id IS NULL THEN
     RETURN NEW;
   END IF;
+
+  SELECT p.organization_id
+    INTO v_profile_org
+    FROM public.profiles p
+   WHERE p.id=NEW.profile_id;
+  IF NOT FOUND OR v_profile_org IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  IF NEW.organization_id IS NOT NULL
+     AND NEW.organization_id IS DISTINCT FROM v_profile_org THEN
+    INSERT INTO public.notification_delivery_suppressions(
+      notification_id,organization_id,profile_id,notification_type,severity,reason
+    )
+    VALUES(
+      NEW.id::text,v_profile_org,NEW.profile_id,
+      pg_catalog.left(coalesce(NEW.type,'unknown'),80),
+      'NORMAL','PREFERENCES_INVALID'
+    )
+    ON CONFLICT(notification_id) DO NOTHING;
+    RETURN NULL;
+  END IF;
+  NEW.organization_id := v_profile_org;
 
   SELECT p.*
     INTO v_preferences
     FROM public.profile_personalization_preferences p
-   WHERE p.organization_id=NEW.organization_id
+   WHERE p.organization_id=v_profile_org
      AND p.profile_id=NEW.profile_id;
 
   v_found := FOUND;
