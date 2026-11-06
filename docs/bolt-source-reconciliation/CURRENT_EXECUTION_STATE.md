@@ -2998,3 +2998,16 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Acceptance boundary: code and regression sources only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
 - NEXT_ACTION_ID: `REF-BUSINESS-HEALTH-MAP-001` — exact-SHA Bolt non-production acceptance for current/prior snapshot population parity, per-currency exact cent and percentage arithmetic, same asOf/equal adjacent windows, sample diversity, finance authorization, tenant isolation and no side effects.
 
+
+
+## P1 BODY HARDENING — CUSTOMER AMENDMENT IDEMPOTENCY PAYLOAD BINDING — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Base main SHA: `7781f1a31759f725d7142b1c69d7d104b54a66e9`.
+- Added `supabase/migrations/20261106300000_customer_amendment_idempotency_payload_guard.sql`, replacing the existing customer amendment RPC after the immutable snapshot migration.
+- A reused idempotency key now returns the original amendment only when the exact trimmed note, line count, unique full item set, and proposed quantity for every item match its append-only snapshot. Missing/incomplete snapshots, duplicate/missing item pairs, extra JSON properties, price/status fields, changed note, or changed quantities are rejected rather than reported as a successful replay.
+- Customer UI retries retain the key only for the exact serialized order/note/quantity fingerprint. A changed proposal obtains a new key; a successful server acknowledgement clears both key and fingerprint.
+- Added `src/test/customer-amendment-idempotency-migration.test.ts` covering the database replay contract, immutable snapshot dependency, quantity-only field boundary and UI fingerprint binding.
+- No customer price, invoice, stock, reservation, ledger or payment write was added. The RPC continues to derive prices on the server and leaves order confirmation to staff.
+- Acceptance boundary: source code and regression assertions only. No migration was applied in Supabase/Bolt; tests, full build, browser acceptance and runtime acceptance were NOT RUN. Do not claim the new migration is operationally accepted until migrations `20261106250000`–`20261106300000` are applied in order and the exact-payload replay / changed-payload rejection cases are run against the deployed schema.
+- NEXT_ACTION_ID: `DLV-004-CUSTOMER-AMENDMENT-IDEMPOTENCY-001` — apply the pending-order/amendment migrations in order; verify same-payload retry returns the original amendment, changed note/quantity/key reuse rejects without mutation, all line snapshots are complete, and customer price/financial injection is rejected.

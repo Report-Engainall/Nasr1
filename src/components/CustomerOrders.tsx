@@ -482,6 +482,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const [amendmentBusy, setAmendmentBusy] = useState(false);
   const [amendmentFeedback, setAmendmentFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const amendmentRequestKey = useRef<string | null>(null);
+  const amendmentRequestFingerprint = useRef<string | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationBusy, setCancellationBusy] = useState(false);
   const [cancellationFeedback, setCancellationFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
@@ -565,8 +566,17 @@ function OrderInvoiceInner({ id }: { id: string }) {
     }
     setAmendmentBusy(true);
     try {
-      const requestKey = amendmentRequestKey.current ?? crypto.randomUUID().replace(/-/g,'');
+      const requestFingerprint = JSON.stringify({
+        orderId: order.id,
+        note: amendmentNote.trim() || null,
+        lines,
+      });
+      const requestKey = amendmentRequestKey.current !== null
+        && amendmentRequestFingerprint.current === requestFingerprint
+        ? amendmentRequestKey.current
+        : crypto.randomUUID().replace(/-/g,'');
       amendmentRequestKey.current = requestKey;
+      amendmentRequestFingerprint.current = requestFingerprint;
       const { data: result, error: rpcError } = await supabase.rpc('submit_customer_order_amendment', {
         p_order_id: order.id,
         p_lines: lines,
@@ -580,6 +590,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
         throw new Error('لم يؤكد الخادم استلام تعديل الطلب.');
       }
       amendmentRequestKey.current = null;
+      amendmentRequestFingerprint.current = null;
       setAmendmentFeedback({
         kind:'success',
         message:'تم إرسال الكميات المقترحة إلى الإدارة. تبقى غير معتمدة، ولا يتغير السعر أو المخزون أو الفاتورة حتى مراجعة الموظف.',
