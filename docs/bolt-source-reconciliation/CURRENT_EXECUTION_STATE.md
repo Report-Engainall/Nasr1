@@ -2470,3 +2470,21 @@ Continue the next unimplemented intelligent product-body function from the lates
 - P2: apply the above migrations in approved non-production, supply the missing liquidity opening-balance/future-outflow sources, extend immutable decision priority/impact persistence, and connect preference/consent policy to the transactional notification sender.
 - P3: retain fail-closed currency/evidence semantics and deterministic engines; do not infer missing values or mark any workstream accepted from source presence alone.
 - The central acceptance matrix rows for these nine affected IDs were updated in place. Status remains source-implemented/partial with runtime acceptance pending; no PASS/production claim.
+
+## P1 delivery — AI Gateway operations mount and executive liquidity evidence coverage — 2026-11-06
+
+### AI Gateway Operations — P1 mount completed / P2 telemetry source remains open
+- Mounted the P3 `AiGatewayOperationsPanel` inside the existing manager/admin `AiCenter` only, immediately after the existing gateway configuration and before the alerts/tasks tabs. The existing `canManageGateway` guard controls rendering; the server-side `get_ai_gateway_budget()` authorization remains authoritative.
+- The panel is read-only and consumes the strict P3 `fetchAiGatewayBudget()` reader. It does not configure providers, reserve quota, call a model or transmit user content. It avoids a second route/workspace.
+- Main code commit: `f4571d5b6c197cb0d5fc129c3730e41b0fb8c9a6`; `src/components/AdminPages.tsx` blob `277f9e13e9df5f1c0edf3599eefc0e9231287c5d`. Acceptance row `REF-AI-OPS-001` updated in place by docs commit `3b985599bd4940a467f1277861f29855bad65606`.
+- P2 still must provide verified free-tier/zero-rate evidence, provider remaining quota/reset, cooldown, privacy classification, last response, safe per-attempt errors and fallback counts. The current budget RPC does not supply these fields; no zero-paid-spend claim is possible.
+
+### Executive liquidity — P1 source-coverage visibility and refresh added
+- Extended `ExecutiveLiquidityCommandCenter` with a dedicated refresh/retry button. Its source-coverage block now shows VERIFIED/NEEDS_REVIEW/etc. status, COMPLETE/PARTIAL/UNKNOWN completeness, unclassified posted cash journal-line count, unlinked cash-expense count, unlinked customer-payment count, formula/version and calculation timestamp.
+- No source facts or RPCs were changed. Counts are displayed exactly as returned by the typed, tenant-scoped client; the component continues to withhold null cash/bank balances, net available liquidity and projected closing balance when opening-balance/future-outflow evidence is absent.
+- Main commit: `92b65449fe31d486b0bd0b5df9aa890a54b30625`; component blob `35c26048003b9676d7051435ee7773ff06cb450e`. Matrix row `REF-LIQUIDITY-001` updated in place by docs commit `560819ef4c5654c3ceddb3abb8fe45da29cd38b8`.
+- P2 still must apply `20261106233000_executive_liquidity_command_center.sql` in approved non-production and deliver reconciled opening balances, bank reconciliation, supplier due dates and complete future outflow schedules. The existing 7/30/90 forecast remains scheduled receivables only, not a complete cashflow forecast.
+
+### Exact evidence boundary
+- These source commits and docs updates were confirmed on `main`; no database migration was applied, and no tests/build/typecheck/CI/browser/Preview/production run was performed during this increment.
+- Current build status is not a pass: the latest available Vercel status continued to return the build-rate-limit failure URL. No source-build success is inferred from the commits.
