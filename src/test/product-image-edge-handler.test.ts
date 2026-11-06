@@ -74,7 +74,15 @@ function setup(options: SetupOptions = {}) {
     SUPABASE_ANON_KEY: "test-anon-key",
     SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
   };
-  const authClient = { auth: { getUser: vi.fn(resolveAuthUser(options)) } };
+  const authClient = {
+    auth: { getUser: vi.fn(resolveAuthUser(options)) },
+    setProductImageUrl: vi.fn(async (_token: string, productId: string, _expected: string | null, imageUrl: string | null) => ({
+      data: { id: productId, image_url: imageUrl }, error: null,
+    })),
+    addProductGalleryImage: vi.fn(async (_token: string, productId: string, imageUrl: string) => ({
+      data: { id: productId, image_url: imageUrl, image_gallery_urls: [imageUrl] }, error: null,
+    })),
+  };
   const adminClient = {
     getProfileByAuthUserId: vi.fn(resolveProfile(options)),
     getRoles: vi.fn(resolveRoles(options)),
@@ -219,6 +227,8 @@ describe("product image Edge handler HTTP acceptance", () => {
     expect(body).toEqual({
       public_url: "https://assets.example.test/" + expectedPath,
       object_path: expectedPath,
+      image_linked: true,
+      image_role: "primary",
     });
     expect(adminClient.productExists).toHaveBeenCalledWith(PRODUCT, ORG);
     expect(adminClient.storage.upload).toHaveBeenCalledWith(

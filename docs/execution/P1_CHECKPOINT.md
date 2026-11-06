@@ -1227,3 +1227,14 @@ P1 continues UI ownership and this checkpoint only. P2 owns backend/API/security
 - Files: `src/lib/api.ts`, `supabase/functions/_shared/product-image-upload-handler.ts`, `supabase/functions/product-image-upload/index.ts`, `supabase/migrations/20261106140000_staff_product_image_atomic_link.sql`.
 - Migration is source-only for Bolt New; it has not been applied to a connected database. No tests, build, lint, typecheck, CI, browser, E2E, Bolt, Preview, Vercel or production operation was run. Runtime acceptance is pending; no PASS is claimed.
 - Next P1 action: continue the next concrete product-body gap without rebuilding completed catalog CRUD, category lifecycle, product search or storefront routes.
+
+
+## P1 product-body delivery — BODY-COMPLETION-ON-MAIN-048 — multi-image product gallery
+
+- Parent main SHA: `abce1525e2f40888dfbd921dac014f1d56f7b3f6`.
+- Extended the product model with up to eight additional gallery images while preserving `image_url` as the primary image. The customer catalog projection exposes only HTTPS gallery URLs.
+- Product management can queue multiple files, remove saved gallery entries and upload through the existing WebP image Edge boundary. The server validates active profile, tenant, role, same-tenant storage URL and the eight-image maximum; each gallery add/remove locks the product and appends an audit event.
+- Product detail renders selectable image thumbnails and opens the selected image in the existing lightbox. Existing product cards, primary image handling and price projection remain unchanged.
+- Files: `src/lib/api.ts`, `src/lib/types.ts`, `src/components/AghbariApp.tsx`, `src/components/Storefront.tsx`, `supabase/functions/_shared/product-image-upload-handler.ts`, `supabase/functions/product-image-upload/index.ts`, `supabase/migrations/20261106150000_product_gallery_images.sql`.
+- Existing image Edge test doubles were aligned to the caller-JWT RPC contract; tests were NOT executed. The migration remains source-only and has not been applied to Bolt/Supabase. No build/lint/typecheck/CI/browser/E2E/runtime PASS is claimed.
+- Next P1 action: continue the next uncovered commerce/operations capability without rebuilding existing catalog CRUD, category lifecycle, search or checkout idempotency.

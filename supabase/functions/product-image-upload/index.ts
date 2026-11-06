@@ -32,9 +32,17 @@ function createProductImageAuthClient(url: string, anonKey: string): ProductImag
         global: { headers: { Authorization: "Bearer " + token } },
       });
       const { data, error } = await command.rpc("set_staff_product_image", {
-        p_product_id: productId,
-        p_expected_image_url: expectedImageUrl,
-        p_image_url: nextImageUrl,
+        p_product_id: productId, p_expected_image_url: expectedImageUrl, p_image_url: nextImageUrl,
+      });
+      return { data, error };
+    },
+    addProductGalleryImage: async (token, productId, imageUrl) => {
+      const command = createClient(url, anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        global: { headers: { Authorization: "Bearer " + token } },
+      });
+      const { data, error } = await command.rpc("mutate_staff_product_gallery_image", {
+        p_product_id: productId, p_image_url: imageUrl, p_action: "add",
       });
       return { data, error };
     },

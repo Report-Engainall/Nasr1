@@ -73,8 +73,17 @@ function setup() {
       mocks.events.push("storage-delete");
       return mocks.deleteResponse ?? { data: { deleted: true }, error: null };
     }
+    if (body?.action === "unlink") {
+      mocks.events.push("database-unlink");
+      const cleanupOk = !mocks.deleteResponse || (mocks.deleteResponse.data?.deleted === true && !mocks.deleteResponse.error);
+      return { data: { unlinked: true, cleaned: cleanupOk }, error: null };
+    }
     mocks.events.push("storage-upload");
-    return { data: { public_url: NEW_URL, object_path: NEW_PATH }, error: null };
+    if (mocks.updateResponse?.data === null) {
+      return { data: null, error: new Error("image link not confirmed") };
+    }
+    mocks.events.push("database-link");
+    return { data: { public_url: NEW_URL, object_path: NEW_PATH, image_linked: true }, error: null };
   });
 }
 
@@ -89,14 +98,14 @@ describe("product image lifecycle", () => {
 
     await expect(uploadProductImage(PRODUCT_ID, image, OLD_URL)).resolves.toBe(NEW_URL);
 
-    expect(mocks.updates).toEqual([{ table: "products", payload: { image_url: NEW_URL } }]);
+    expect(mocks.updates).toEqual([]);
     expect(mocks.invoke).toHaveBeenCalledTimes(2);
     expect(mocks.invoke.mock.calls[1][1].body).toEqual({
       action: "delete",
       product_id: PRODUCT_ID,
       object_path: OLD_PATH,
     });
-    expect(mocks.events.indexOf("database-update-confirmed")).toBeLessThan(
+    expect(mocks.events.indexOf("database-link")).toBeLessThan(
       mocks.events.indexOf("storage-delete"),
     );
   });
@@ -109,7 +118,7 @@ describe("product image lifecycle", () => {
         PRODUCT_ID + "/" + OLD_OBJECT_ID + ".webp",
     );
 
-    expect(mocks.updates).toEqual([{ table: "products", payload: { image_url: NEW_URL } }]);
+    expect(mocks.updates).toEqual([]);
     expect(mocks.invoke).toHaveBeenCalledTimes(1);
   });
 
@@ -120,20 +129,21 @@ describe("product image lifecycle", () => {
       uploadProductImage(PRODUCT_ID, new Blob(["valid webp fixture"], { type: "image/webp" }), OLD_URL),
     ).rejects.toMatchObject({ name: "ProductImageCleanupError", imageLinked: true });
 
-    expect(mocks.updates).toEqual([{ table: "products", payload: { image_url: NEW_URL } }]);
+    expect(mocks.updates).toEqual([]);
   });
 
   it("removes the database URL before requesting deletion of the validated object", async () => {
     await expect(removeProductImage(PRODUCT_ID, OLD_URL)).resolves.toBeUndefined();
 
-    expect(mocks.updates).toEqual([{ table: "products", payload: { image_url: null } }]);
+    expect(mocks.updates).toEqual([]);
     expect(mocks.invoke).toHaveBeenCalledTimes(1);
     expect(mocks.invoke.mock.calls[0][1].body).toEqual({
-      action: "delete",
+      action: "unlink",
       product_id: PRODUCT_ID,
+      expected_image_url: OLD_URL,
       object_path: OLD_PATH,
     });
-    expect(mocks.events.indexOf("database-update-confirmed")).toBeLessThan(
+    expect(mocks.events.indexOf("database-unlink")).toBeLessThan(
       mocks.events.indexOf("storage-delete"),
     );
   });
@@ -143,8 +153,8 @@ describe("product image lifecycle", () => {
       removeProductImage(PRODUCT_ID, "https://images.example.test/legacy/product.png"),
     ).resolves.toBeUndefined();
 
-    expect(mocks.updates).toEqual([{ table: "products", payload: { image_url: null } }]);
-    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.updates).toEqual([]);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
   });
 
   it("reports a partial removal accurately if storage cleanup fails after the URL is cleared", async () => {
@@ -154,22 +164,18 @@ describe("product image lifecycle", () => {
       name: "ProductImageCleanupError",
       imageLinked: false,
     });
-    expect(mocks.updates).toEqual([{ table: "products", payload: { image_url: null } }]);
+    expect(mocks.updates).toEqual([]);
   });
 
-  it("cleans the newly uploaded object when the product URL write is not confirmed", async () => {
+  it("does not claim a saved image when the Edge link acknowledgement fails", async () => {
     mocks.updateResponse = { data: null, error: null };
 
     await expect(
       uploadProductImage(PRODUCT_ID, new Blob(["valid webp fixture"], { type: "image/webp" }), OLD_URL),
-    ).rejects.toThrow("تعذر ربط صورة المنتج بالسجل");
+    ).rejects.toThrow("تعذر رفع صورة المنتج وربطها");
 
-    expect(mocks.invoke).toHaveBeenCalledTimes(2);
-    expect(mocks.invoke.mock.calls[1][1].body).toEqual({
-      action: "delete",
-      product_id: PRODUCT_ID,
-      object_path: NEW_PATH,
-    });
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.updates).toEqual([]);
   });
 
   it("denies upload and removal for non-staff before any storage mutation", async () => {

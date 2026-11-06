@@ -20,6 +20,11 @@ type AuthClient = {
     expectedImageUrl: string | null,
     nextImageUrl: string | null,
   ): Promise<{ data: unknown; error: unknown | null }>;
+  addProductGalleryImage(
+    token: string,
+    productId: string,
+    imageUrl: string,
+  ): Promise<{ data: unknown; error: unknown | null }>;
 };
 type ProductImageStorage = {
   upload(
@@ -53,7 +58,7 @@ export type ProductImageUploadDependencies = {
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "POST, OPTIONS",
-  "access-control-allow-headers": "authorization, apikey, x-client-info, content-type, x-product-id, x-expected-image-url",
+  "access-control-allow-headers": "authorization, apikey, x-client-info, content-type, x-product-id, x-expected-image-url, x-image-mode",
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
 };
@@ -126,7 +131,7 @@ async function readBoundedBytes(request: Request, limit: number): Promise<Uint8A
 type ProductImageCommand =
   | { action: "delete"; productId: string; objectPath: string }
   | { action: "unlink"; productId: string; expectedImageUrl: string | null; objectPath: string | null }
-  | { action: "upload"; productId: string; expectedImageUrl: string | null; bytes: Uint8Array };
+  | { action: "upload"; productId: string; mode: "primary" | "gallery"; expectedImageUrl: string | null; bytes: Uint8Array };
 
 type ProductImageCommandResult =
   | { ok: true; command: ProductImageCommand }
@@ -217,8 +222,12 @@ async function parseUploadCommand(
   if (bytes.byteLength < 1) return commandFailure("invalid_image", 400);
   if (!isWebpPayload(bytes)) return commandFailure("webp_signature_required", 415);
 
+  const modeHeader = request.headers.get("x-image-mode") ?? "primary";
+  if (modeHeader !== "primary" && modeHeader !== "gallery") {
+    return commandFailure("invalid_image_mode", 400);
+  }
   const expectedHeader = request.headers.get("x-expected-image-url");
-  if (expectedHeader !== null && expectedHeader.length > 2048) {
+  if (modeHeader === "primary" && expectedHeader !== null && expectedHeader.length > 2048) {
     return commandFailure("invalid_expected_image_url", 400);
   }
 
@@ -227,6 +236,7 @@ async function parseUploadCommand(
     command: {
       action: "upload",
       productId,
+      mode: modeHeader,
       expectedImageUrl: expectedHeader || null,
       bytes,
     },
@@ -285,12 +295,9 @@ async function executeUploadCommand(
   if (uploadError) return reply({ error: "image_upload_failed" }, 502);
 
   const publicUrl = admin.storage.getPublicUrl(objectPath).data.publicUrl;
-  const { data, error } = await auth.setProductImageUrl(
-    token,
-    command.productId,
-    command.expectedImageUrl,
-    publicUrl,
-  );
+  const { data, error } = command.mode === "gallery"
+    ? await auth.addProductGalleryImage(token, command.productId, publicUrl)
+    : await auth.setProductImageUrl(token, command.productId, command.expectedImageUrl, publicUrl);
   if (error) {
     let cleanupFailed = false;
     try {
@@ -300,11 +307,13 @@ async function executeUploadCommand(
       cleanupFailed = true;
     }
     const stale = rpcErrorCode(error) === "40001";
+    const galleryLimit = command.mode === "gallery" && rpcErrorCode(error) === "22023";
     return reply({
       error: stale
         ? "image_link_changed"
+        : galleryLimit ? "gallery_limit_reached"
         : cleanupFailed ? "image_link_failed_cleanup_pending" : "image_link_failed",
-    }, stale ? 409 : 502);
+    }, stale || galleryLimit ? 409 : 502);
   }
 
   const saved = data && typeof data === "object" ? data as Record<string, unknown> : null;
@@ -314,7 +323,12 @@ async function executeUploadCommand(
     return reply({ error: "image_link_state_unconfirmed" }, 503);
   }
 
-  return reply({ public_url: publicUrl, object_path: objectPath, image_linked: true });
+  return reply({
+    public_url: publicUrl,
+    object_path: objectPath,
+    image_linked: true,
+    image_role: command.mode,
+  });
 }
 
 async function executeUnlinkCommand(

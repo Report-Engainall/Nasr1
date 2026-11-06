@@ -86,7 +86,7 @@ export async function fetchResolvedProductPrices(
 export async function fetchProducts(): Promise<ProductWithInventory[]> {
   const scope = await getStorefrontDataScope();
   const { organizationId: orgId, warehouseId, isStaff } = scope;
-  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
+  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,image_gallery_urls,created_at,min_order_quantity,order_quantity_multiple';
   let products: Product[];
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
@@ -178,6 +178,9 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
           order_quantity_multiple: Number(p.order_quantity_multiple ?? 1),
           status: staffProduct.status,
           image_url: p.image_url,
+          image_gallery_urls: Array.isArray(p.image_gallery_urls)
+            ? p.image_gallery_urls.filter((url): url is string => typeof url === 'string' && /^https:\/\//i.test(url)).slice(0, 8)
+            : [],
           created_at: staffProduct.created_at,
         };
 
@@ -381,6 +384,49 @@ export async function uploadProductImage(
     }
   }
   return publicUrl;
+}
+
+export async function uploadProductGalleryImage(productId: string, image: Blob): Promise<string> {
+  if (!isValidProductImageProductId(productId)) throw new Error("معرّف المنتج غير صالح؛ لم تُرفع صورة المعرض.");
+  if (!(image instanceof Blob) || image.type !== "image/webp" || image.size < 1 || image.size > PRODUCT_IMAGE_MAX_BYTES) {
+    throw new Error("صورة المعرض ليست WebP صالحًا أو تجاوزت حد 8 ميغابايت.");
+  }
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error("صلاحية إدارة المنتجات مطلوبة لرفع صور المعرض.");
+  const { data, error } = await supabase.functions.invoke("product-image-upload", {
+    body: image,
+    headers: { "content-type": "image/webp", "x-product-id": productId, "x-image-mode": "gallery" },
+  });
+  if (error || data?.image_linked !== true || data?.image_role !== "gallery") {
+    const code = typeof data?.error === "string" ? data.error : "";
+    if (code === "gallery_limit_reached") throw new Error("يحتوي معرض المنتج على الحد الأقصى البالغ 8 صور.");
+    throw new Error("تعذر رفع صورة المعرض وربطها بالمنتج؛ حدّث المنتج قبل إعادة المحاولة.");
+  }
+  const url = typeof data.public_url === "string" ? data.public_url : "";
+  if (!/^https:\/\//i.test(url)) throw new Error("لم يرجع الخادم رابط صورة صالحًا للمعرض.");
+  return url;
+}
+
+export async function removeProductGalleryImage(productId: string, imageUrl: string): Promise<void> {
+  if (!isValidProductImageProductId(productId)) throw new Error("معرّف المنتج غير صالح؛ لم تُزل صورة المعرض.");
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error("صلاحية إدارة المنتجات مطلوبة لإزالة صور المعرض.");
+  const objectPath = extractOwnedProductImageObjectPath(imageUrl, scope.organizationId, productId);
+  const { data, error } = await supabase.rpc("mutate_staff_product_gallery_image", {
+    p_product_id: productId, p_image_url: imageUrl, p_action: "remove",
+  });
+  if (error) throw new Error("تعذر فصل صورة المعرض من المنتج؛ لم يُحذف أي ملف.");
+  const saved = data && typeof data === "object" ? data as Record<string, unknown> : null;
+  if (!saved || saved.id !== productId || saved.changed !== true) {
+    throw new Error("لم يؤكد الخادم فصل صورة المعرض؛ حدّث بيانات المنتج.");
+  }
+  if (objectPath) {
+    try {
+      await deleteProductImageObject(productId, objectPath);
+    } catch {
+      throw new ProductImageCleanupError("فُصلت الصورة من معرض المنتج، لكن تعذر تنظيف ملفها من التخزين.", false);
+    }
+  }
 }
 
 export async function removeProductImage(

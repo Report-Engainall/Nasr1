@@ -4,6 +4,8 @@ import { createProductImageUploadHandler } from "../../supabase/functions/_share
 const mocks = vi.hoisted(() => ({
   env: {} as Record<string, string | undefined>,
   getUser: vi.fn(),
+  setProductImageUrl: vi.fn(),
+  addProductGalleryImage: vi.fn(),
   getProfile: vi.fn(),
   getRoles: vi.fn(),
   productExists: vi.fn(),
@@ -43,7 +45,11 @@ async function bodyJson(response: Response) {
 }
 
 function makeHandler() {
-  mocks.createAuthClient.mockImplementation(() => ({ auth: { getUser: mocks.getUser } }));
+  mocks.createAuthClient.mockImplementation(() => ({
+    auth: { getUser: mocks.getUser },
+    setProductImageUrl: mocks.setProductImageUrl,
+    addProductGalleryImage: mocks.addProductGalleryImage,
+  }));
   mocks.createAdminClient.mockImplementation(() => ({
     getProfileByAuthUserId: mocks.getProfile,
     getRoles: mocks.getRoles,
@@ -71,6 +77,12 @@ describe("product image Edge HTTP boundary", () => {
       SUPABASE_SERVICE_ROLE_KEY: "service-test-key",
     };
     mocks.getUser.mockResolvedValue({ data: { user: { id: "auth-user-1" } }, error: null });
+    mocks.setProductImageUrl.mockImplementation(async (_token: string, productId: string, _expected: string | null, imageUrl: string | null) => ({
+      data: { id: productId, image_url: imageUrl }, error: null,
+    }));
+    mocks.addProductGalleryImage.mockImplementation(async (_token: string, productId: string, imageUrl: string) => ({
+      data: { id: productId, image_url: imageUrl, image_gallery_urls: [imageUrl] }, error: null,
+    }));
     mocks.getProfile.mockResolvedValue({
       data: { id: "profile-1", organization_id: ORG, is_active: true }, error: null,
     });
@@ -148,7 +160,9 @@ describe("product image Edge HTTP boundary", () => {
       contentType: "image/webp", cacheControl: "31536000", upsert: false,
     });
     expect(mocks.getPublicUrl).toHaveBeenCalledWith(PATH);
-    expect(await bodyJson(response)).toEqual({ public_url: PUBLIC_URL, object_path: PATH });
+    expect(await bodyJson(response)).toEqual({
+      public_url: PUBLIC_URL, object_path: PATH, image_linked: true, image_role: "primary",
+    });
   });
 
   it("rejects wrong content type, malformed product IDs, invalid signatures, and oversize images", async () => {

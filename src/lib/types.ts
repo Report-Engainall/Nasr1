@@ -3,6 +3,8 @@ export interface Brand { id: string; name: string; name_en: string | null; is_ac
 export interface Product {
   id: string; name: string; name_en: string | null; item_code: string; sku: string | null; barcode: string | null;
   category_id: string | null; brand_id: string | null; unit: string; description: string | null; image_url: string | null;
+  /** Additional same-tenant WebP gallery images; image_url remains the primary image. */
+  image_gallery_urls?: string[];
   is_active: boolean; is_featured: boolean; sort_order: number;
   price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number; base_price: number;
   stock_quantity: number; reserved_quantity: number; min_stock_level: number;

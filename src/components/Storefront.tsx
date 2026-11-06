@@ -1056,6 +1056,13 @@ export function ProductDetail({
   const quantityMultiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
     ? Number(product.order_quantity_multiple) : 1;
   const belowMinimum = quantityKnown && availableQuantity > 0 && availableQuantity < minimumOrderQuantity;
+  const galleryUrls = Array.from(new Set([
+    product.image_url,
+    ...(Array.isArray(product.image_gallery_urls) ? product.image_gallery_urls : []),
+  ].filter((url): url is string => typeof url === 'string' && /^https:\/\//i.test(url))));
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(
+    product.image_url ?? product.image_gallery_urls?.[0] ?? null,
+  );
   const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
   const [alternateUnits, setAlternateUnits] = useState<ProductAlternateUnit[]>([]);
   const [alternateUnitsLoading, setAlternateUnitsLoading] = useState(true);
@@ -1066,6 +1073,11 @@ export function ProductDetail({
   });
   const [requestedUnitQuantity, setRequestedUnitQuantity] = useState(minimumOrderQuantity);
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
+
+  useEffect(() => {
+    setSelectedImageUrl(product.image_url ?? product.image_gallery_urls?.[0] ?? null);
+    setIsImageZoomOpen(false);
+  }, [product.id, product.image_url, product.image_gallery_urls]);
 
   useEffect(() => {
     if (!isImageZoomOpen) return;
@@ -1183,17 +1195,24 @@ export function ProductDetail({
       <button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للكتالوج</button>
       <div className="sf-detail-layout">
         <div className="sf-detail-image">
-          {product.image_url ? (
-            <button
-              type="button"
-              className="sf-detail-image-trigger"
-              aria-label={'تكبير صورة ' + product.name}
-              onClick={() => setIsImageZoomOpen(true)}
-            >
-              <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" />
+          {selectedImageUrl ? (
+            <button type="button" className="sf-detail-image-trigger" aria-label={'تكبير صورة ' + product.name}
+              onClick={() => setIsImageZoomOpen(true)}>
+              <img src={selectedImageUrl} alt={product.name} loading="lazy" decoding="async" />
               <span className="sf-detail-image-hint">اضغط لتكبير الصورة</span>
             </button>
           ) : <Package size={72} />}
+          {galleryUrls.length > 1 && (
+            <div role="group" aria-label="صور المنتج" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(58px,1fr))', gap: 7, width: '100%', marginTop: 10 }}>
+              {galleryUrls.map((url, index) => (
+                <button key={url} type="button" aria-label={'عرض صورة المنتج ' + (index + 1)} aria-pressed={selectedImageUrl === url}
+                  onClick={() => setSelectedImageUrl(url)}
+                  style={{ border: selectedImageUrl === url ? '2px solid var(--primary, #0f766e)' : '1px solid var(--border, #d6dfe4)', borderRadius: 8, padding: 3, background: 'var(--card, #fff)' }}>
+                  <img src={url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: 54, objectFit: 'contain' }} />
+                </button>
+              ))}
+            </div>
+          )}
           <span className="sf-detail-code">
             {product.sku ? <span dir="ltr">SKU: {product.sku}</span> : <>رمز المنتج: <bdi>{product.item_code}</bdi></>}
             {product.sku && product.item_code ? <> · رمز المنتج: <bdi>{product.item_code}</bdi></> : null}
@@ -1346,7 +1365,7 @@ export function ProductDetail({
           </div>
         </section>
       )}
-      {isImageZoomOpen && product.image_url && (
+      {isImageZoomOpen && selectedImageUrl && (
         <div
           className="sf-image-lightbox"
           role="presentation"
@@ -1365,7 +1384,7 @@ export function ProductDetail({
               autoFocus
               onClick={() => setIsImageZoomOpen(false)}
             >إغلاق الصورة</button>
-            <img src={product.image_url} alt={product.name} decoding="async" />
+            <img src={selectedImageUrl} alt={product.name} decoding="async" />
           </div>
         </div>
       )}

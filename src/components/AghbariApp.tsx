@@ -12,6 +12,7 @@ import {
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
+  uploadProductGalleryImage, removeProductGalleryImage,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
@@ -914,6 +915,8 @@ export function ProductModal({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [removeImageRequested, setRemoveImageRequested] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [galleryRemoveUrls, setGalleryRemoveUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   // React state alone does not block two click events dispatched before a rerender.
@@ -944,6 +947,41 @@ export function ProductModal({
     }
     setRemoveImageRequested(Boolean(product?.image_url));
     setImagePreview(null);
+  }
+
+  function chooseGalleryFiles(files: File[]) {
+    setError('');
+    const savedCount = (product?.image_gallery_urls ?? []).length - galleryRemoveUrls.length;
+    if (savedCount + galleryFiles.length + files.length > 8) {
+      setError('يسمح معرض المنتج بثماني صور إضافية كحد أقصى؛ أزل صورة قبل إضافة المزيد.');
+      return;
+    }
+    for (const file of files) {
+      const issue = validateProductImageFile(file);
+      if (issue) { setError(issue); return; }
+    }
+    setGalleryFiles((current) => [...current, ...files]);
+  }
+
+  async function persistProductGalleryChanges(savedId: string): Promise<boolean> {
+    if (galleryRemoveUrls.length === 0 && galleryFiles.length === 0) return true;
+    let removed = 0;
+    let uploaded = 0;
+    try {
+      for (const url of galleryRemoveUrls) {
+        await removeProductGalleryImage(savedId, url);
+        removed += 1;
+      }
+      for (const file of galleryFiles) {
+        await uploadProductGalleryImage(savedId, await toWebp(file));
+        uploaded += 1;
+      }
+      return true;
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : 'تعذر تحديث معرض الصور.';
+      onSaved('حُفظت بيانات المنتج؛ اكتمل ' + removed + ' إزالة و' + uploaded + ' رفع من معرض الصور قبل التعذر. حدّث المنتج لمراجعة الحالة الحالية. ' + detail);
+      return false;
+    }
   }
 
   async function persistProductImageChanges(savedId: string): Promise<boolean> {
@@ -1052,6 +1090,7 @@ export function ProductModal({
       }
       productSaved = true;
       if (!(await persistProductImageChanges(savedProductId))) return;
+      if (!(await persistProductGalleryChanges(savedProductId))) return;
       onSaved();
     } catch (cause) {
       if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
@@ -1237,6 +1276,31 @@ export function ProductModal({
           ستُضغط الصورة إلى WebP بحد أقصى 1600×1600 وتُرفع إلى مساحة صور الكتالوج للمؤسسة.
         </p>
       )}
+      <section aria-label="معرض صور المنتج" style={{ display: 'grid', gap: 10, marginTop: 14 }}>
+        <strong>معرض الصور الإضافية ({((product?.image_gallery_urls ?? []).length - galleryRemoveUrls.length + galleryFiles.length).toLocaleString('ar-YE')} / 8)</strong>
+        <p className="text-muted" style={{ margin: 0 }}>أضف حتى ثماني صور تفصيلية بجانب الصورة الرئيسية. تُحفظ في مساحة المؤسسة وتُربط بأمر خادمي مدقق.</p>
+        <input type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="إضافة صور إضافية للمنتج"
+          onChange={(event) => { chooseGalleryFiles(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ''; }}
+          disabled={saving || (product?.image_gallery_urls ?? []).length - galleryRemoveUrls.length + galleryFiles.length >= 8} />
+        {(product?.image_gallery_urls ?? []).filter((url) => !galleryRemoveUrls.includes(url)).length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8 }}>
+            {(product?.image_gallery_urls ?? []).filter((url) => !galleryRemoveUrls.includes(url)).map((url) => (
+              <div key={url} style={{ display: 'grid', gap: 4, border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, padding: 6 }}>
+                <img src={url} alt={'صورة إضافية للمنتج ' + name} style={{ width: '100%', height: 84, objectFit: 'contain' }} />
+                <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryRemoveUrls((current) => [...current, url])}>إزالة</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {galleryFiles.length > 0 && <div style={{ display: 'grid', gap: 5 }}>
+          {galleryFiles.map((file, index) => (
+            <div key={file.name + '-' + file.size + '-' + file.lastModified} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+              <span>{file.name}</span>
+              <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>إلغاء الاختيار</button>
+            </div>
+          ))}
+        </div>}
+      </section>
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="modal-actions">
         <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
