@@ -228,6 +228,42 @@ export async function acceptOperationalShiftHandover(
   } };
 }
 
+
+export interface ShiftHandoverAcceptanceLookup {
+  currentShiftId: string;
+  required: boolean;
+  handoverId: string | null;
+  acceptedAt: string | null;
+}
+
+/** Only the server-confirmed incoming owner can retrieve the command reference. */
+export async function fetchOperationalShiftHandoverAcceptance(
+  currentShiftId: string,
+): Promise<RpcResult<ShiftHandoverAcceptanceLookup>> {
+  if (!UUID.test(currentShiftId)) {
+    return { ok: false, status: "ERROR", message: "مرجع الوردية غير صالح." };
+  }
+  const response = await callRpc<unknown>("fetch_operational_shift_handover_acceptance", {
+    p_current_shift_id: currentShiftId,
+  });
+  if (!response.ok) return response;
+  const raw = record(response.data);
+  if (!raw || raw.current_shift_id !== currentShiftId || raw.required !== true ||
+      !(raw.handover_id === null || (typeof raw.handover_id === "string" && UUID.test(raw.handover_id))) ||
+      !(raw.accepted_at === null || (typeof raw.accepted_at === "string" && Number.isFinite(Date.parse(raw.accepted_at)))) ||
+      (raw.handover_id === null && raw.accepted_at !== null) ||
+      (raw.handover_id !== null && raw.accepted_at === null && typeof raw.accepted_at !== "undefined" && !Number.isFinite(Date.parse(String(raw.accepted_at))))) {
+    return { ok: false, status: "ERROR", message: "استجابة مرجع قبول التسليم لا تطابق عقد الخدمة." };
+  }
+  return { ok: true, data: {
+    currentShiftId,
+    required: true,
+    handoverId: typeof raw.handover_id === "string" ? raw.handover_id : null,
+    acceptedAt: typeof raw.accepted_at === "string" ? raw.accepted_at : null,
+  } };
+}
+
+
 /** Returns a typed evidence result; missing or malformed server DTOs are never replaced with demo data. */
 export async function fetchOperationalShiftWorkspace(
   input: FetchShiftWorkspaceInput,
