@@ -17,9 +17,9 @@ const ROLE: Record<TaskIntelligenceRole,string> = {
   purchasing:"المشتريات",management:"الإدارة",operations:"العمليات"
 };
 const sum=(values:number[]):number|null=>{let total=0;for(const value of values){if(!Number.isSafeInteger(total+value))return null;total+=value;}return total;};
-function count(key:string,title:string,value:number,detail:string,nextStep:string,warning=false):TaskInsight {
-  return {key,title,value,valueKind:"COUNT",state:value===0?"EMPTY":"READY",
-    severity:warning&&value>0?"WARNING":"INFO",detail,nextStep};
+function count(key:string,title:string,value:number|null,detail:string,nextStep:string,warning=false):TaskInsight {
+  return {key,title,value,valueKind:"COUNT",state:value===null?"WITHHELD":value===0?"EMPTY":"READY",
+    severity:warning&&value!==null&&value>0?"WARNING":"INFO",detail,nextStep};
 }
 function roleMax(rows:TaskIntelligenceRoleSummary[],field:"openCount"|"overdueOpenCount") {
   return [...rows].filter(r=>r[field]>0).sort((a,b)=>b[field]-a[field]||a.taskRole.localeCompare(b.taskRole))[0]??null;
