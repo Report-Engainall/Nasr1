@@ -1369,7 +1369,7 @@ function CustomerPayments() {
             !Number.isFinite(amount) || amount < 0 ||
             (row.id !== undefined && (typeof row.id !== "string" ||
               !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id))) ||
-            (row.paid_at !== undefined && (typeof row.paid_at !== "string" || !Number.isFinite(Date.parse(row.paid_at)))) {
+            (row.paid_at !== undefined && (typeof row.paid_at !== "string" || !Number.isFinite(Date.parse(row.paid_at))))) {
           throw new Error("إحدى حركات الدفع تحتوي مرجعاً أو مبلغاً أو تاريخاً غير صالح.");
         }
         parsed.push({
