@@ -12,6 +12,7 @@ describe("scheduled cash-flow forecast",()=>{
   const r=buildCashflowForecast(base([entry("a","INFLOW","2026-11-01",20),entry("b","OUTFLOW","2026-11-05",5),entry("c","INFLOW","2026-11-20",10),entry("d","OUTFLOW","2026-12-01",5),entry("e","INFLOW","2026-12-20",7)]));
   // Each forecast window is [asOf, asOf + horizonDays); the Dec 1 payment is outside the 30-day window.
   expect(r.points.map(p=>[p.horizonDays,p.projectedBalance])).toEqual([[7,115],[30,125],[90,127]]);
+  expect(r.points.every(point=>point.formulaVersion==="1.1.0")).toBe(true);
  });
  it("keeps currency groups separate",()=>{
   const usd=metric("usd-open","cash.opening",100,"USD"),usdIn=entry("usd-in","INFLOW","2026-11-01",15,"USD");

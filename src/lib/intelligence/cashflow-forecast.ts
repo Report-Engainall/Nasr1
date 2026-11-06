@@ -13,7 +13,7 @@ export interface CashflowForecastPoint {
  formulaId:string;formulaVersion:string;evidenceIds:string[];formulaVersions:string[];warnings:string[];
 }
 export interface CashflowForecast {id:string;generatedAt:string;asOf:string;points:CashflowForecastPoint[];warnings:string[]}
-const FORMULA_ID="cashflow.scheduled-net",FORMULA_VERSION="1.0.0";
+const FORMULA_ID="cashflow.scheduled-net",FORMULA_VERSION="1.1.0";
 function addDays(day:string,days:number):string {const d=new Date(day+"T00:00:00.000Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)}
 function parseDay(day:string):string|null {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return null;
