@@ -2156,3 +2156,27 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - Regression tests are authored/typed but NOT RUN. No build, typecheck, lint, CI, browser, DB, Supabase migration, Bolt, Preview, Vercel or production operation was run.
 - No test PASS or authenticated manager/non-manager runtime proof is claimed.
+
+
+## P3 ENGINE HARDENING — DECISION OUTCOME SNAPSHOT INTEGRITY — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Starting main SHA for code work: `2199ebf05bbd824ccebed057852dab7c324160e8`.
+- Exact code/test commit on main: `9b70d56c1502e679698e65e576289dd5b1e9a3a8`.
+- This P3 increment is limited to the existing authenticated DecisionOutcome read client and its regression source. No P1-owned route, page, App shell, workspace mount or P2-owned server migration was changed.
+- Hardened `src/lib/intelligence/decision-outcome-client.ts`:
+  - `eventCount` must equal the full returned history length and the persisted outcome version.
+  - History must begin with `CREATE`/version 1, use contiguous increasing versions, contain unique event IDs, and end in the event type corresponding to the current lifecycle state.
+  - Event actors require valid profile UUIDs and roles; event timestamps must be monotonic and within the outcome creation/update window.
+  - Approval actor/time fields are validated as a pair.
+  - A `MEASURED` outcome now requires complete, VERIFIED, ACCEPTABLE measurement evidence, a three-letter currency, a valid period, formula identifiers, ordered measurement timestamps and unique bounded evidence IDs. A malformed non-null measurement is rejected rather than projected as null.
+  - ASSIGNED/EXECUTING/EXECUTED/MEASURED states require their already-reached lifecycle timestamps.
+- The only data authority remains the existing authenticated `fetch_decision_outcomes` RPC. Server-derived tenant/actor scope and manager authorization are unchanged. No SQL/RPC, RLS, ledger, payment, inventory or pricing mutation changed.
+- Regression source in `src/lib/intelligence/decision-outcome-client.test.ts` now covers event-count mismatch, version gaps, duplicate event IDs, terminal-state mismatch, missing/malformed/unverified measurement evidence, and a coherent seven-event measured lifecycle.
+- Exact blobs:
+  - `src/lib/intelligence/decision-outcome-client.ts`: `1c0bb3e7ab0b9645f29e46d5d4d840107bb15ea2`.
+  - `src/lib/intelligence/decision-outcome-client.test.ts`: `3cb696236e8b77c588d4106e13952cc157e37f63`.
+- Acceptance boundary: implementation and regression source only. Tests were NOT RUN. No build, typecheck, CI, browser, database migration apply, Bolt, Preview, Vercel or production operation was performed. No PASS/runtime acceptance is claimed.
+- Dependencies still open: apply and accept the existing decision outcome/deferral/resubmission/decision-memory migrations in approved Bolt non-production; verify role/tenant denials, idempotency and stale versions, append-only event/audit, history-count parity, exact measured evidence, and no financial/stock side effects. The persisted P0–P3 candidate priority/impact/risk/expiry snapshot is still absent and must not be inferred by P3 or P1.
+- NEXT_ACTION_ID: `REF-DECISION-OUTCOME-001` — Bolt source/database acceptance on the exact code SHA; then continue to another independently source-backed P3 capability.
+
