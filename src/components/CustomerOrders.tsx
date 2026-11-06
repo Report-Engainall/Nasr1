@@ -535,7 +535,37 @@ function OrderInvoiceInner({ id }: { id: string }) {
   if (error) return <Shell><div style={card} role="alert">{error} <button type="button" className="sf-link" aria-label="إعادة تحميل تفاصيل الطلب" onClick={() => void refetch()}>إعادة المحاولة</button></div></Shell>;
   if (!data?.order) return <Shell><div style={card}>الطلب غير موجود أو لا تملك صلاحية عرضه. <Link to="/orders" className="sf-link">طلباتي</Link></div></Shell>;
   const { order, items, history, customer, amendment, cancellation } = data;
-  const printDocument = projectCustomerOrderPrintDocument(order, items, history, customer, user?.name ?? null);
+  const printOrder = {
+    order_number: order.order_number ?? "غير مسجل",
+    status: order.status,
+    created_at: order.created_at,
+    notes: order.notes ?? null,
+    delivery_address_snapshot: order.delivery_address_snapshot ?? null,
+    quantity_review_required: order.quantity_review_required,
+    customer_adjustment_note: order.customer_adjustment_note ?? null,
+    customer_payment_requested_at: order.customer_payment_requested_at ?? null,
+    payment_request_status: order.payment_request_status,
+  };
+  const printLines = items.map((item) => ({
+    item_code: item.item_code ?? null,
+    product_name_snapshot: item.product_name_snapshot ?? "صنف غير مسمى",
+    unit_snapshot: item.unit_snapshot ?? null,
+    quantity: item.quantity,
+    requested_quantity: item.requested_quantity ?? null,
+    approved_quantity: item.approved_quantity ?? null,
+  }));
+  const printHistory = history.map((entry) => ({
+    to_status: entry.to_status,
+    created_at: entry.created_at,
+  }));
+  const printCustomer = customer ? {
+    customer_code: customer.customer_code,
+    business_name: customer.business_name,
+    contact_name: customer.contact_name,
+  } : null;
+  const printDocument = projectCustomerOrderPrintDocument(
+    printOrder, printLines, printHistory, printCustomer, user?.name ?? null,
+  );
 
   function exportOrderWorkbook() {
     setExportFeedback(null);

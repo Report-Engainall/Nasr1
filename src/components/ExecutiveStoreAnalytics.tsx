@@ -6,7 +6,7 @@ import { fetchStoreExecutiveAnalytics, fetchStoreProductActivityReport } from '@
 import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
 import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
-import { PRODUCT_ACTIVITY_STATUS_LABELS, filterProductActivityRows, paginateProductActivityRows, sortProductActivityRows, type ProductActivityStatus, type ProductActivityRowsSort } from '@/lib/product-activity-report';
+import { PRODUCT_ACTIVITY_STATUS_LABELS, filterProductActivityRows, paginateProductActivityRows, sortProductActivityRows, type ProductActivityStatus, type ProductActivityRowsSort, type StoreProductActivityReport } from '@/lib/product-activity-report';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
 import { projectProductActivityPrintDocument } from '@/lib/product-activity-print';
 import { ProductActivityPrintSheet } from '@/components/ProductActivityPrintSheet';

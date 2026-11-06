@@ -287,8 +287,13 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       if (selectedProfile && !profile) {
         throw new Error("تعذر تحميل إصدار الملف التعريفي المقيد بالدفعة؛ لن تتم معالجة صفوف بإعدادات غير مؤكدة.");
       }
-      const transformations = profile?.transformation_rules ?? [];
-      const validations = profile?.validation_rules ?? [];
+      const rawTransformations: unknown = profile?.transformation_rules;
+      const rawValidations: unknown = profile?.validation_rules;
+      if (profile && (!Array.isArray(rawTransformations) || !Array.isArray(rawValidations))) {
+        throw new Error("إعدادات التحويل والتحقق في الملف التعريفي غير صالحة؛ أوقف الاستيراد قبل تجهيز الصفوف.");
+      }
+      const transformations: unknown[] = Array.isArray(rawTransformations) ? rawTransformations : [];
+      const validations: unknown[] = Array.isArray(rawValidations) ? rawValidations : [];
       // Fail fast on malformed declarative profiles before any rows are staged.
       validateImportProfileRules(transformations, validations);
       const profileSynonyms: Record<string, string> = { ...DEFAULT_SYNONYMS };

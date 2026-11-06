@@ -619,6 +619,17 @@ function Invoices() {
       setItems([]);
       setInvoiceOrder(null);
     } else {
+      const customerSnapshot = payload.customer;
+      if (!customerSnapshot) {
+        setError("لا يمكن عرض الفاتورة دون مرجع عميل موثوق؛ لم تُحمّل أي بيانات مالية.");
+        setChosen(null);
+        setChosenCustomer(null);
+        setChosenFinancials(null);
+        setFinancialDetailsVisible(false);
+        setItems([]);
+        setInvoiceOrder(null);
+        return;
+      }
       setError("");
       const financialVisible = payload.financial_details_visible === true;
       setFinancialDetailsVisible(financialVisible);
@@ -626,10 +637,10 @@ function Invoices() {
         ? line
         : { id: line.id, item_code: line.item_code, description: line.description, unit: line.unit, quantity: line.quantity }));
       setChosenCustomer({
-        customer_code: payload.customer?.customer_code ?? "",
-        business_name: payload.customer?.business_name ?? "",
-        contact_name: payload.customer?.contact_name ?? null,
-        tier_label: payload.customer_tier_visible === true ? payload.customer.tier_label as string : null,
+        customer_code: customerSnapshot.customer_code ?? "",
+        business_name: customerSnapshot.business_name ?? "",
+        contact_name: customerSnapshot.contact_name ?? null,
+        tier_label: payload.customer_tier_visible === true ? customerSnapshot.tier_label as string : null,
       });
       setChosenFinancials(financialVisible ? {
         currency: payload.invoice!.currency,
@@ -4031,16 +4042,19 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
               </tr>
             </thead>
             <tbody>
-              {invoices.map((i) => (
-                <tr key={i.id} style={{ borderTop: "1px solid #edf2f3" }}>
-                  <td style={{ padding: 12 }}>{i.invoice_number}</td>
-                  <td>{formatDateShort(i.issued_at)}</td>
-                  <td>{formatCurrency(Number(i.total_amount))}</td>
-                  <td>{paidAmountLabel(i)}</td>
-                  <td>{formatCurrency(outstanding(i))}</td>
-                  <td>{i.status}</td>
-                </tr>
-              ))}
+              {invoices.map((i) => {
+                const remainingAmount = outstanding(i);
+                return (
+                  <tr key={i.id} style={{ borderTop: "1px solid #edf2f3" }}>
+                    <td style={{ padding: 12 }}>{i.invoice_number}</td>
+                    <td>{formatDateShort(i.issued_at)}</td>
+                    <td>{formatCurrency(Number(i.total_amount))}</td>
+                    <td>{paidAmountLabel(i)}</td>
+                    <td>{typeof remainingAmount === "number" ? formatCurrency(remainingAmount) : "غير متاح"}</td>
+                    <td>{i.status}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>

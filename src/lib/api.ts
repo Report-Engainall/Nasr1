@@ -115,8 +115,10 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
         .eq('is_primary', false)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Array<{ product_id: string; url: string; sort_order: number; created_at: string }>;
+      return {
+        data: (data ?? []) as Array<{ product_id: string; url: string; sort_order: number; created_at: string }>,
+        error,
+      };
     });
     for (const media of mediaRows ?? []) {
       if (typeof media.product_id !== 'string' || typeof media.url !== 'string' || !/^https:\/\//i.test(media.url)) continue;
