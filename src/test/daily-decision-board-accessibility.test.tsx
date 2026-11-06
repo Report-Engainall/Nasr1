@@ -102,7 +102,7 @@ describe("daily decision board accessibility and responsive structure", () => {
     expect(progress.className).toContain("grid-cols-2");
     expect(progress.className).toContain("sm:grid-cols-4");
     expect(progress.className).toContain("lg:grid-cols-7");
-    expect(screen.getByRole("status")).toHaveTextContent("تغطية جزئية");
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent("تغطية جزئية");
     expect(screen.getByText("غير محفوظة في عقد القرار الحالي")).toBeInTheDocument();
     expect(screen.getByText(/لا تشمل هذه اللوحة كامل تاريخ القرارات/)).toBeInTheDocument();
   });
