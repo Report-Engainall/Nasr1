@@ -2095,3 +2095,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Exactly 200 returned quotes means PARTIAL because the server source has no total/cursor. The display caps groups/offers with omission disclosure.
 - Exact code paths are recorded in `docs/execution/P3_CHECKPOINT.md`. Tests authored but NOT RUN; no build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production action. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Matrix leaf `REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001`.
 
+## 2026-11-06 — REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001 — commercial terms and bounded price history
+
+- Extension parent `9a0ab3ec8546f298433c79c43a28663839455af1`; code commits `70875adbd3bab2723d2b0d98a36d13ffdbc4a04c`, `995294b21dd3e74a03c741b9da5b7a1838d4bbbd`, `71acfb3dbede92300858e32854e79f8de673f1b3`, `96c037fa8632448aec13d6cb8e35e1220f1bdcde`, `6ee0415240d062784593b5344ef4788a85886074`, `4eb3810d6c3fab6f617f207dde6c639b6b4c567a`, `abce1525e2f40888dfbd921dac014f1d56f7b3f6`, `f9cc7a3a4f1f8ea138b55aeb2341a0d76810d002`.
+- Added source-backed delivery days, payment terms, validity date and separate bounded supplier quote-price history. History compares only the same supplier/product/quantity/UOM/currency, uses distinct created_at values, verifies line arithmetic, and withholds percent when baseline is zero.
+- 200-row/no-cursor source remains PARTIAL at limit; no free-date-window claim. No composite ranking or write side effect.
+- Exact paths and Bolt gates are in `docs/execution/P3_CHECKPOINT.md`; existing matrix leaf updated in place. Tests authored, NOT RUN; no build/CI/browser/Bolt/DB/Preview/Vercel/production action; no PASS/runtime claim.
+

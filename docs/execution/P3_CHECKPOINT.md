@@ -41,6 +41,35 @@ Continue only with remaining P3-owned gaps backed by existing authenticated sour
 
 ---
 
+### Supplemental P3 increment — commercial terms and bounded supplier price history — 2026-11-06
+
+- Code parent before extension: `9a0ab3ec8546f298433c79c43a28663839455af1`.
+- Commits: `70875adbd3bab2723d2b0d98a36d13ffdbc4a04c` (delivery/payment/validity DTO), `995294b21dd3e74a03c741b9da5b7a1838d4bbbd` (commercial-terms UI), `71acfb3dbede92300858e32854e79f8de673f1b3` (terms tests), `96c037fa8632448aec13d6cb8e35e1220f1bdcde` (price-history engine), `6ee0415240d062784593b5344ef4788a85886074` (history UI), `4eb3810d6c3fab6f617f207dde6c639b6b4c567a` (chronology tests), `abce1525e2f40888dfbd921dac014f1d56f7b3f6` (Arabic planner phrases), `f9cc7a3a4f1f8ea138b55aeb2341a0d76810d002` (planner tests).
+
+#### Added behavior
+
+- Each offer now exposes source `delivery_days`, `payment_terms` and `valid_until`. Comparison groups show shortest/longest recorded lead time and present/missing counts. Null remains null; no default lead time or payment term is inferred.
+- Price history is separate from current received-offer ranking. It includes saved quote lifecycle states, grouped only by the same supplier, product, quoted quantity, UOM and currency. The first/latest observations use source `created_at`, not `updated_at`.
+- A history comparison requires at least two observations at distinct timestamps, consistent product snapshots, valid price/quantity arithmetic and timestamps no later than query time. It reports absolute price change and percentage only when the starting price is greater than zero; a zero baseline yields a null percentage.
+- The source has a 200-quote cap and no total/cursor. History therefore uses only the returned page; exactly 200 remains PARTIAL. Explicit date-window requests remain UNSUPPORTED because the RPC cannot prove that window complete.
+- Unit price, lead time, payment terms and historical price movement remain separate dimensions. No weighted score, landed-cost estimate, quality rating, prediction, award recommendation or automatic purchase order was added.
+- Existing admin/manager purchasing authorization and server-side tenant resolution remain in force. No new RPC, SQL, migration, provider, P1 procurement file, award, stock, payment or ledger action was introduced.
+
+#### Exact paths
+
+- `src/lib/intelligence/supplier-quote-comparison-assistant.ts`
+- `src/components/intelligence/SupplierQuoteComparisonAssistant.tsx`
+- `src/lib/intelligence/supplier-quote-comparison-assistant.test.ts`
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant.test.ts`
+
+#### Acceptance boundary
+
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Focused tests were authored but NOT run. No build, typecheck, lint, CI, browser, Bolt, database, Preview, Vercel or production acceptance was run. No PASS/runtime claim.
+- Bolt must later validate authorization/tenant denial, exact-basis history grouping, created_at order, inclusion of saved quote states, same/future timestamp refusal, zero-baseline percentage withholding, first/latest source reconciliation, 200-row PARTIAL, visible null commercial terms and absence of purchasing side effects.
+
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SHIFT-OPERATIONS-ASSISTANT-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

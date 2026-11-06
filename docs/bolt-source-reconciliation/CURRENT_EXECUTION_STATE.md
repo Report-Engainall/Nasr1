@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — supplier commercial terms and bounded quote-price history — 2026-11-06
+
+- Source code parent `9a0ab3ec8546f298433c79c43a28663839455af1`; extension commits are listed in the canonical P3 checkpoint.
+- Supplier comparisons now expose source delivery days, payment terms and validity separately; missing values remain NULL. A separate history calculation uses first/latest saved quote timestamps per supplier/product/quantity/UOM/currency.
+- History requires distinct created_at times, valid line arithmetic and non-future source timestamps. Zero starting price withholds percentage. The 200-row source page remains bounded and PARTIAL at the limit; explicit date-window analysis is refused.
+- No synthetic weighted score, supplier-quality rating, forecast, award, PO, stock, payment or ledger action. No new RPC/schema/migration/provider or P1 workspace change.
+- Tests authored, NOT RUN; no build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production acceptance. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Existing matrix row `REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001` updated in place.
+
+
 ## P3 body update — Arabic supplier quote comparison assistant — 2026-11-06
 
 - Code parent `555bfe59a09d447d016df9d22c089815118f8b5d`; code commit `baad6f9f14caf792e109c86c6e99abda01634f85`.
