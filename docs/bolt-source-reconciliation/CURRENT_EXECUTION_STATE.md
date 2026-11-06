@@ -2135,3 +2135,12 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - The form requires explicit IANA organization time zone, shift label and business date, reuses the existing tenant-scoped `start_operational_shift` command with an idempotency key, and refreshes the same assistant query only after a server receipt. No device time zone is inferred and no prior shift is closed.
 - Commits: `42c953e5f38764eff2e51a8a1acf8ee2440b01f4`, `ea3d0fb1c3a931b3cf5367404926b6123ad5a998`, `b855a403b7040a8fe9cd55fa17917418dee17847`. Matrix `INT-SHIFT-001` updated at `76ed7934bfc6de85d3fd30ffa881cee54e94db7a`; P3 checkpoint at `37762f2e4a1d649ad4a1de9c2c8fd337c089d5b5`.
 - No new database contract was introduced for the form; existing Section 53 source migration remains unapplied pending authorized non-production acceptance. No tests/build/runtime/DB/Bolt/Preview/Vercel/production operation was run.
+
+
+## P3 body update — 2026-11-06 — Section 57 sales-order status query
+
+- Added a tenant-scoped, active-staff-only aggregate RPC for sales-order status counts. It returns no customer/order identities, amounts, line items or payment details; null/future status values remain a separately counted PARTIAL population.
+- The Arabic assistant now recognizes explicit customer-sales-order questions, asks for clarification when generic "orders" could mean purchase orders, refuses unsupported historical windows, and renders overview/open/processing/shipped/cancelled counts from the fixed aggregate source.
+- Code commits: migration `d7876f7cb7aff2dea08f6f570219ef9309b43a66`; strict engine `cc3cffec727464c34612a17b7873cd87583f3004`; client `a8e19dafa119056128423424c019f06b5080a3e9`; planner `f3921721d4623d63395d04885492bff82f8a694a`; client route `09bdf840e915236638a8790d870c50e017fb6db0`; Arabic UI `ef1717bf8a0f1b9ae248dffb511defbf1ef1ea74`.
+- Acceptance row `REF-NL-ADMIN-ASSISTANT-057` updated at `eec22f0d982765afc40b3a7c7bdb55e79b8f237a`; P3 checkpoint appended at `263928a9bff577c5d4684e0619c493ad78204377`.
+- Migration remains source-only. No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production claim.
