@@ -1523,7 +1523,10 @@ function Quotes() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
   const [query, setQuery] = useState("");
+  const [quoteSearch, setQuoteSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMoreQuotes, setLoadingMoreQuotes] = useState(false);
+  const [hasMoreQuotes, setHasMoreQuotes] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -1549,7 +1552,9 @@ function Quotes() {
       supabase
         .from("sales_quotes")
         .select("id,quote_number,status,notes,response_note,created_at,quoted_at,valid_until")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
         .limit(50),
     ]);
     if (p.error || q.error)
@@ -1565,6 +1570,8 @@ function Quotes() {
       }
       const quoteRows = (q.data ?? []) as Quote[];
       setQuotes(quoteRows);
+      setQuoteItems({});
+      setHasMoreQuotes(quoteRows.length === 50);
       if (quoteRows.length) {
         const lineRows = await supabase
           .from("sales_quote_items")
@@ -1600,6 +1607,70 @@ function Quotes() {
     window.print();
     return () => window.removeEventListener("afterprint", clearAfterPrint);
   }, [printingQuoteId]);
+
+  async function loadMoreQuotes() {
+    if (loadingMoreQuotes || !hasMoreQuotes || quotes.length === 0) return;
+    const cursor = quotes[quotes.length - 1];
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidPattern.test(cursor.id) || !Number.isFinite(Date.parse(cursor.created_at))) {
+      setError("تعذر التحقق من مؤشر سجل العروض؛ لم يتم تحميل صفحة غير موثوقة.");
+      return;
+    }
+
+    setLoadingMoreQuotes(true);
+    setError("");
+    try {
+      const { organizationId } = await getCurrentTenantScope();
+      const cursorAt = new Date(cursor.created_at).toISOString();
+      const { data, error: quoteError } = await supabase
+        .from("sales_quotes")
+        .select("id,quote_number,status,notes,response_note,created_at,quoted_at,valid_until")
+        .eq("organization_id", organizationId)
+        .or("created_at.lt." + cursorAt + ",and(created_at.eq." + cursorAt + ",id.lt." + cursor.id + ")")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(50);
+      if (quoteError) throw new Error("تعذر تحميل العروض الأقدم من الخادم.");
+
+      const rows = (data ?? []) as Quote[];
+      if (rows.some((row) => !uuidPattern.test(row.id) || !Number.isFinite(Date.parse(row.created_at)))) {
+        throw new Error("أعاد الخادم صف عرض سعر غير صالح؛ لم تُضف الصفحة إلى السجل.");
+      }
+      const existingIds = new Set(quotes.map((quote) => quote.id));
+      const additions = rows.filter((quote) => !existingIds.has(quote.id));
+      if (additions.length > 0) {
+        const lineResult = await supabase
+          .from("sales_quote_items")
+          .select("id,quote_id,product_id,item_code,product_name_snapshot,unit_snapshot,requested_quantity,target_unit_price,quoted_unit_price")
+          .in("quote_id", additions.map((quote) => quote.id))
+          .order("created_at");
+        if (lineResult.error) throw new Error("تعذر تحميل بنود العروض الأقدم؛ لم تُضف عروضًا بلا تفاصيلها.");
+        const grouped: Record<string, QuoteLine[]> = {};
+        for (const row of (lineResult.data ?? []) as QuoteLine[]) {
+          const key = row.quote_id ?? "";
+          if (key) (grouped[key] ??= []).push(row);
+        }
+        setQuoteItems((current) => ({ ...current, ...grouped }));
+        setQuotes((current) => {
+          const currentIds = new Set(current.map((quote) => quote.id));
+          return [...current, ...additions.filter((quote) => !currentIds.has(quote.id))];
+        });
+      }
+      setHasMoreQuotes(rows.length === 50 && additions.length > 0);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل العروض الأقدم.");
+    } finally {
+      setLoadingMoreQuotes(false);
+    }
+  }
+
+  const normalizedQuoteSearch = quoteSearch.trim().toLocaleLowerCase("ar");
+  const visibleQuotes = quotes.filter((quote) => {
+    if (!normalizedQuoteSearch) return true;
+    const lineText = (quoteItems[quote.id] ?? []).map((line) => line.product_name_snapshot + " " + (line.item_code ?? "")).join(" ");
+    return [quote.quote_number, quote.status, quote.notes ?? "", quote.response_note ?? "", lineText]
+      .join(" ").toLocaleLowerCase("ar").includes(normalizedQuoteSearch);
+  });
 
   const printableQuote = printingQuoteId
     ? quotes.find((quote) => quote.id === printingQuoteId) ?? null
@@ -1742,13 +1813,25 @@ function Quotes() {
         </button>
       </form>
       <h2 style={{ fontSize: 19 }}>عروضي السابقة</h2>
+      <label style={{ ...card, display: "grid", gap: 6, marginBottom: 12 }}>
+        البحث في سجل العروض المحمّلة
+        <input
+          style={field}
+          value={quoteSearch}
+          onChange={(event) => setQuoteSearch(event.target.value)}
+          maxLength={120}
+          placeholder="رقم العرض أو الحالة أو اسم الصنف أو ملاحظة الرد"
+        />
+      </label>
       {loading ? (
         <p role="status">جارٍ تحميل العروض...</p>
       ) : !quotes.length ? (
         <EmptyBox>لم ترسل عروض أسعار بعد.</EmptyBox>
+      ) : !visibleQuotes.length ? (
+        <EmptyBox>لا توجد عروض مطابقة للبحث ضمن العروض المحمّلة.</EmptyBox>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
-          {quotes.map((q) => (
+          {visibleQuotes.map((q) => (
             <article key={q.id} style={card}>
               <div
                 style={{
@@ -1854,6 +1937,22 @@ function Quotes() {
           ))}
         </div>
       )}
+      {quotes.length > 0 && hasMoreQuotes ? (
+        <div className="no-print" style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
+          <button
+            type="button"
+            style={secondary}
+            disabled={loadingMoreQuotes || loading || busy}
+            onClick={() => void loadMoreQuotes()}
+          >
+            <RefreshCw size={16} />
+            {loadingMoreQuotes ? "جارٍ تحميل العروض الأقدم..." : "تحميل العروض الأقدم"}
+          </button>
+        </div>
+      ) : null}
+      {quotes.length > 0 && !hasMoreQuotes ? (
+        <p role="status" style={{ ...quiet, textAlign: "center", marginTop: 12 }}>وصلت إلى نهاية سجل عروض الأسعار المتاح.</p>
+      ) : null}
       {printableDocument && createPortal((
         <article
           className="customer-quote-print-sheet"
