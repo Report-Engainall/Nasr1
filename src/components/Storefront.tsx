@@ -703,12 +703,18 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         </div>
       </header>
 
-      {cartActionNotice && (
-        <div role="alert" aria-live="assertive" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 16px', color: '#8a2525', background: '#fff4f4', borderBottom: '1px solid #efc5c5', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>
-          <span>{cartActionNotice}</span>
-          <button type="button" aria-label="إغلاق تنبيه المخزون" onClick={() => setCartActionNotice(null)} style={{ border: '1px solid #dba4a4', borderRadius: 14, padding: '3px 9px', background: '#fff', color: '#8a2525' }}>إغلاق</button>
-        </div>
-      )}
+      {cartActionNotice && (() => {
+        const isSuccess = cartActionNotice.startsWith('أُضيف ');
+        const tone = isSuccess
+          ? { color: '#17684d', background: '#edf9f2', border: '1px solid #b7d9ce' }
+          : { color: '#8a2525', background: '#fff4f4', border: '1px solid #efc5c5' };
+        return (
+          <div role={isSuccess ? 'status' : 'alert'} aria-live={isSuccess ? 'polite' : 'assertive'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 16px', ...tone, borderBottom: tone.border, textAlign: 'center', fontSize: 12, fontWeight: 700 }}>
+            <span>{cartActionNotice}</span>
+            <button type="button" aria-label="إغلاق التنبيه" onClick={() => setCartActionNotice(null)} style={{ border: `1px solid ${isSuccess ? '#9cc8b4' : '#dba4a4'}`, borderRadius: 14, padding: '3px 9px', background: '#fff', color: tone.color }}>إغلاق</button>
+          </div>
+        );
+      })()}
 
       {storefrontAnnouncementsError && <div className="sf-announcement-error" role="status">تعذر تحميل إعلانات المتجر الحالية؛ بقية الكتالوج متاحة.</div>}
       <StorefrontAnnouncementSlider announcements={storefrontAnnouncements ?? []} />
