@@ -2045,3 +2045,16 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Runtime boundary: caller must supply two same-tenant, already-authorized snapshots and a stable join key from the authorized source. Persistence of matched/variance/ignored/review/settled disposition, owner/reason and audit remains P2-owned. No new RPC/table/migration or provider.
 - No test/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production action was run. No PASS/runtime/production claim. Status: `IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / ACCEPTANCE_PENDING`.
 - Next: `P3-SECTION-52-63-INDEPENDENT-GAPS-007`.
+
+
+## 2026-11-06 — REF-PROCESS-COMPARABLE-WINDOWS-001 — Section 54 equivalent before/after periods
+
+- Added a deterministic equal-duration/strictly-preceding comparison guard to `buildProcessBottlenecks()`. Baseline must end before the current period and match its inclusive UTC day count; overlap/later/unequal periods suppress comparison values while preserving current-period findings.
+- Code commit `043e1697489b8d6ecc1af7a8c64bb7898f53b823`; final engine blob `597ac5476df3b9be0f04b4ba06317df9db1b9431`.
+- Added focused tests for equal windows, unequal windows, overlapping/following baseline and absent baseline: commit `a8a3b0c2923eba508723d3cfc984f20a1eca4317`; final test blob `111bf261a0727e1354c1fdb3090ca235d5873855`. Authored, NOT run.
+- Matrix row `INT-PROCESS-001` updated: `780f1ea0622972e4e622e397bda4e2ca11eec44f`.
+- P3 checkpoint: `0e1d7e09a7f23062190e3051629e3de726ecbc94`; global cursor update: `dfd3aedd0473d6a330cd7eb9cae5ab66b564efa4`.
+- No P1/P2-owned route, API, migration, database or production path changed. No cause/employee attribution added.
+- No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime claim.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Next P3 action: `P3-SECTION-52-63-INDEPENDENT-GAPS-008`.
