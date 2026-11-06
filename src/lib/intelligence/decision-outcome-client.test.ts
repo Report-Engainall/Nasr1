@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commandDecisionOutcome, createDecisionOutcomeProposal, fetchDecisionOutcomes } from "./decision-outcome-client";
+import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomes } from "./decision-outcome-client";
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
@@ -89,5 +89,48 @@ describe("persisted decision outcome client", () => {
       .toMatchObject({ ok: false, status: "STALE" });
     rpc.mockResolvedValueOnce({ data: null, error: { code: "42501", message: "internal detail" } });
     expect(await fetchDecisionOutcomes()).toMatchObject({ ok: false, status: "DENIED" });
+  });
+  it("defers a decision through the manager-only versioned RPC with a mandatory reason", async () => {
+    const reason = "المستندات الداعمة لم تكتمل";
+    const deferred = {
+      ...outcome,
+      state: "DEFERRED",
+      version: 2,
+      reason,
+      eventCount: 2,
+      history: [...outcome.history, {
+        id: "defer-event",
+        type: "DEFER",
+        version: 2,
+        actor: { id: "22222222-2222-4222-8222-222222222222", role: "admin" },
+        at: "2026-10-31T11:00:00.000Z",
+        reason,
+        owner: null,
+        idempotencyKey: "defer-key",
+      }],
+    };
+    rpc.mockResolvedValue({ data: { ok: true, duplicate: false, outcome: deferred }, error: null });
+    const result = await deferDecisionOutcome({
+      outcomeId: outcome.id,
+      expectedVersion: 1,
+      reason,
+    });
+    expect(rpc).toHaveBeenCalledWith("defer_decision_outcome", expect.objectContaining({
+      p_outcome_id: outcome.id,
+      p_expected_version: 1,
+      p_reason: reason,
+    }));
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_organization_id");
+    expect(result).toMatchObject({ ok: true, outcome: { state: "DEFERRED", version: 2, reason } });
+  });
+
+  it("does not send a deferral without a meaningful reason", async () => {
+    const result = await deferDecisionOutcome({
+      outcomeId: outcome.id,
+      expectedVersion: 1,
+      reason: "  ",
+    });
+    expect(result).toMatchObject({ ok: false, status: "ERROR" });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
