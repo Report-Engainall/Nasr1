@@ -1714,56 +1714,54 @@ function Reorder() {
     }
     setBusy(true);
     setError("");
-    const r = await supabase.rpc("save_reorder_template", {
-      p_name: name.trim(),
-      p_lines: lines,
-      p_source_order_id: null,
-    });
-    if (r.error) setError("تعذر حفظ القالب: " + r.error.message);
-    else {
+    setNotice("");
+    try {
+      const r = await supabase.rpc("save_reorder_template", {
+        p_name: name.trim(),
+        p_lines: lines,
+        p_source_order_id: null,
+      });
+      if (r.error) throw new Error("تعذر حفظ القالب: " + r.error.message);
+      if (typeof r.data !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.data)) {
+        throw new Error("لم يؤكد الخادم حفظ قالب صالح؛ لم تُعرض نتيجة نجاح.");
+      }
       setNotice("تم حفظ قالب إعادة الطلب.");
       setQuantities({});
       await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر حفظ قالب إعادة الطلب. تحقق من الاتصال ثم حاول مجددًا.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
   async function apply(t: ReorderTemplate) {
     setBusy(true);
     setError("");
-    const r = await supabase
-      .from("reorder_template_items")
-      .select("product_id,quantity")
-      .eq("template_id", t.id);
-    if (r.error) {
-      setError("تعذر قراءة أصناف القالب.");
-      setBusy(false);
-      return;
-    }
-    const draft = normalizeCartDraft(
-      (r.data ?? [])
-        .filter((x: ReorderTemplateLine) => x.product_id)
-        .map((x: ReorderTemplateLine) => ({
-          product_id: x.product_id as string,
-          quantity: Number(x.quantity),
-        })),
-    );
-    if (!draft.length) {
-      setError("لا يحتوي القالب على أصناف متاحة.");
-      setBusy(false);
-      return;
-    }
+    setNotice("");
     try {
+      const r = await supabase
+        .from("reorder_template_items")
+        .select("product_id,quantity")
+        .eq("template_id", t.id);
+      if (r.error) throw new Error("تعذر قراءة أصناف القالب: " + r.error.message);
+      const draft = normalizeCartDraft(
+        (r.data ?? [])
+          .filter((x: ReorderTemplateLine) => x.product_id)
+          .map((x: ReorderTemplateLine) => ({
+            product_id: x.product_id as string,
+            quantity: Number(x.quantity),
+          })),
+      );
+      if (!draft.length) throw new Error("لا يحتوي القالب على أصناف صالحة لإضافتها إلى السلة.");
       const merged = mergeOfflineCartDraft(window.localStorage, user?.profileId, draft);
-      if (!merged) {
-        setError("تعذر حفظ السلة المعزولة لهذا الحساب على الجهاز.");
-        setBusy(false);
-        return;
-      }
+      if (!merged) throw new Error("تعذر حفظ السلة المعزولة لهذا الحساب على الجهاز.");
+      setNotice("تم تحميل القالب إلى السلة. ستُراجع الأسعار والتوفر الحاليان عند إتمام الطلب.");
       void navigate({ to: "/" });
-    } catch {
-      setError("تعذر حفظ السلة على هذا الجهاز.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تطبيق قالب إعادة الطلب. لم تتغير السلة.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
   return (
     <WorkspaceShell
