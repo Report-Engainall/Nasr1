@@ -2240,3 +2240,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Files: process-bottlenecks.ts and process-bottlenecks.test.ts; blobs a999aef73f201b5c242eb8fa4761143a3ebeb4a8 and e7ac0eca0df3e1713922cff6cd62ecd60ade3870.
 - Matrix row INT-PROCESS-001 updated in place.
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance; no PASS claim.
+
+
+## 2026-11-06 — REF-AI-OPS-001 partial operations read surface
+
+- P3 source delivery code cursor `91bee9d04cd5ea80f4d6f99228a798529fd1e769`.
+- Added `fetchAiGatewayBudget()` and strict parsing over the existing authenticated manager/admin `get_ai_gateway_budget()` RPC; no tenant ID, actor, role or client-selected scope is sent.
+- Added exported reusable `AiGatewayOperationsPanel`: shows configured/enablement state, stored primary/fallback provider/model, daily/monthly estimated cost and token aggregates, active reservations and configured limits. It hides organization identifiers, provider base URLs, secrets and prompts.
+- It is read-only and contains no provider invocation or settings mutation. It warns that cost aggregates are not invoices, that zero cost is not proof of a free model, and that this DTO cannot prove `paidSpendLimit=0`.
+- Exact source commits: client `befd0017595d987723331280b29dadad7d072f0f`; panel `819a8faf06b431897c9021e0a0336ad605fad269`; library export `50c60626332ab48c2bc6bfb0e6fb54ade4bbb1e6`; component export `91bee9d04cd5ea80f4d6f99228a798529fd1e769`.
+- P1 component contract updated; P1 mount remains pending. P2 must supply safe verified free-tier/quota/cooldown/privacy/attempt status before those fields may be displayed.
+- Matrix row `REF-AI-OPS-001` updated to PARTIAL, not CLOSED.
+- Status: `PARTIAL_P3_IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / P2_PROVIDER_STATUS_SOURCE_OPEN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. No PASS or release claim.
