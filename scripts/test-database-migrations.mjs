@@ -5300,6 +5300,156 @@ async function main() {
   assert.equal(invoiceTask.length, 1, "the persisted partially-paid invoice creates one accounting collection task");
   assert.equal(invoiceTask[0].task_role, "accountant");
 
+  // REF-SECTION-61-TASK-QUALITY-REVIEWS-001: append-only manager reviews, reason codes and calibrated metrics.
+  async function recordQualityReview(taskId, reviewType, review, suffix, eventId, idempotencyKey) {
+    const taskVersion = await db.unsafe(
+      "select updated_at from public.ai_tasks where id=$1 and organization_id=$2",
+      [taskId, organizationId],
+    );
+    assert.equal(taskVersion.length, 1, "quality reviews attach only to a persisted task in the active organization");
+    const rows = await db.unsafe(
+      "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
+      [taskId, taskVersion[0].updated_at, reviewType, db.json(review), eventId ?? ("ci-quality-event-" + suffix + "-" + randomUUID()), idempotencyKey ?? ("ci-quality-idem-" + suffix + "-" + randomUUID())],
+    );
+    return { result: rows[0].result, updatedAt: taskVersion[0].updated_at, eventId, idempotencyKey };
+  }
+
+  const qualityActionable = await recordQualityReview(
+    reviewBefore[0].id,
+    "ACTIONABILITY",
+    { actionability: "ACTIONABLE" },
+    "actionable",
+    "ci-quality-event-actionable-0001",
+    "ci-quality-idem-actionable-0001",
+  );
+  assert.equal(qualityActionable.result.ok, true, "manager review records actionability against a real source task");
+  assert.equal(qualityActionable.result.duplicate, false);
+
+  const qualityNotActionable = await recordQualityReview(
+    manualTaskId,
+    "ACTIONABILITY",
+    { actionability: "NOT_ACTIONABLE", reasonCode: "ALREADY_RESOLVED" },
+    "not-actionable",
+    "ci-quality-event-not-actionable-0001",
+    "ci-quality-idem-not-actionable-0001",
+  );
+  assert.equal(qualityNotActionable.result.ok, true, "completed task can be marked non-actionable with a standardized reason");
+
+  const qualityRejected = await recordQualityReview(
+    lowStockTask[0].id,
+    "RECOMMENDATION_DISPOSITION",
+    { disposition: "REJECTED", reasonCode: "DUPLICATE_RECOMMENDATION" },
+    "rejected",
+    "ci-quality-event-rejected-0001",
+    "ci-quality-idem-rejected-0001",
+  );
+  assert.equal(qualityRejected.result.ok, true, "recommendation rejection persists a reason code");
+
+  const qualityDeferred = await recordQualityReview(
+    invoiceTask[0].id,
+    "RECOMMENDATION_DISPOSITION",
+    { disposition: "DEFERRED", reasonCode: "RESOURCE_UNAVAILABLE" },
+    "deferred",
+    "ci-quality-event-deferred-0001",
+    "ci-quality-idem-deferred-0001",
+  );
+  assert.equal(qualityDeferred.result.ok, true, "recommendation deferral persists separately from rejection");
+
+  const qualityFalsePositiveA = await recordQualityReview(
+    lowStockTask[0].id,
+    "ALERT_VALIDATION",
+    { alertVerdict: "FALSE_POSITIVE", reasonCode: "THRESHOLD_NOT_MET" },
+    "false-positive-a",
+    "ci-quality-event-false-positive-a",
+    "ci-quality-idem-false-positive-a",
+  );
+  const qualityFalsePositiveB = await recordQualityReview(
+    manualTaskId,
+    "ALERT_VALIDATION",
+    { alertVerdict: "FALSE_POSITIVE", reasonCode: "THRESHOLD_NOT_MET" },
+    "false-positive-b",
+    "ci-quality-event-false-positive-b",
+    "ci-quality-idem-false-positive-b",
+  );
+  assert.equal(qualityFalsePositiveA.result.ok, true);
+  assert.equal(qualityFalsePositiveB.result.ok, true);
+
+  const qualityReplayRows = await db.unsafe(
+    "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
+    [
+      reviewBefore[0].id,
+      qualityActionable.updatedAt,
+      "ACTIONABILITY",
+      db.json({ actionability: "ACTIONABLE" }),
+      qualityActionable.eventId,
+      qualityActionable.idempotencyKey,
+    ],
+  );
+  assert.equal(qualityReplayRows[0].result.duplicate, true, "same actor and payload replay returns the saved review without a second event");
+  const qualityEventCount = await db.unsafe(
+    "select count(*)::integer as count from public.operational_task_quality_events where organization_id=$1",
+    [organizationId],
+  );
+  assert.equal(qualityEventCount[0].count, 6, "replaying a quality review cannot duplicate an append-only event");
+
+  const qualityMetricsRows = await db.unsafe(
+    "select public.fetch_operational_task_quality_metrics() as result",
+  );
+  const qualityMetrics = qualityMetricsRows[0].result;
+  assert.equal(qualityMetrics.status, "READY");
+  assert.equal(qualityMetrics.actionability.actionableRatePercent, 50,
+    "actionability rate uses actionable/(actionable+not-actionable), excluding deferred");
+  assert.equal(qualityMetrics.disposition.rejectedCount, 1);
+  assert.equal(qualityMetrics.disposition.deferredCount, 1);
+  assert.equal(qualityMetrics.disposition.rejectionReasons[0].reasonCode, "DUPLICATE_RECOMMENDATION");
+  assert.equal(qualityMetrics.disposition.deferralReasons[0].reasonCode, "RESOURCE_UNAVAILABLE");
+  assert.equal(qualityMetrics.alerts.falseAlarmRatePercent, 100,
+    "false-alarm rate uses false positives/(true positives+false positives), excluding needs-review");
+  assert.ok(qualityMetrics.repeatedCauses.some((cause) =>
+    cause.reasonCode === "THRESHOLD_NOT_MET" && cause.affectedTaskCount === 2),
+    "repeated causes require the same reason across distinct reviewed tasks");
+
+  await expectFailure(
+    "authenticated manager cannot directly mutate append-only task quality events",
+    () => db.unsafe("update public.operational_task_quality_events set reason_code='OTHER' where id=$1", [qualityFalsePositiveA.result.event.id]),
+    /permission denied/i,
+  );
+
+  await db.unsafe("reset role");
+  const qualityCountBeforeCustomer = (await db.unsafe(
+    "select count(*)::integer as count from public.operational_task_quality_events where organization_id=$1",
+    [organizationId],
+  ))[0].count;
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot record manager-only task quality review",
+    () => db.unsafe(
+      "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text)",
+      [reviewBefore[0].id,qualityActionable.updatedAt,"ACTIONABILITY",db.json({actionability:"ACTIONABLE"}),"ci-quality-customer-denied-event","ci-quality-customer-denied-key"],
+    ),
+    /administrator or manager permission required/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  const qualityCountAfterCustomer = (await db.unsafe(
+    "select count(*)::integer as count from public.operational_task_quality_events where organization_id=$1",
+    [organizationId],
+  ))[0].count;
+  assert.equal(qualityCountAfterCustomer, qualityCountBeforeCustomer,
+    "denied customer quality review leaves append-only history unchanged");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+
+  const combinedQualityRows = await db.unsafe(
+    "select public.fetch_task_performance_scorecard_with_quality() as result",
+  );
+  assert.equal(combinedQualityRows[0].result.quality.status, "READY");
+  assert.ok(!combinedQualityRows[0].result.unavailableMetrics.includes("ACTIONABILITY_RATE"),
+    "wrapper removes actionability metric from unavailable only when a valid denominator exists");
+  assert.ok(!combinedQualityRows[0].result.unavailableMetrics.includes("FALSE_ALARM_RATE"),
+    "wrapper removes false-alarm metric from unavailable only when reviewed true/false verdicts exist");
+
   const accountantManual = await db.unsafe(
     "select public.create_operational_task($1::text,$2::text,$3::text,$4::text,$5::timestamptz,$6::uuid) as id",
     ["CI accounting task", "Must be visible to the accountant lane only", "accountant", "medium", null, null],
