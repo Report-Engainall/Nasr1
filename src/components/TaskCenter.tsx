@@ -11,6 +11,7 @@ import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskP
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
 import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
+import { TaskQualityReviewForm } from '@/components/intelligence/TaskQualityReviewForm';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',
@@ -902,6 +903,16 @@ export function TaskCenter({ onNotice, initialTaskId = null, onInitialTaskApplie
             {task.resolution_note&&<span className="task-resolution">{task.resolution_note}</span>}
           </div>
         </div>
+        {canManage && (
+          <div className="task-card-quality-review" style={{ marginTop: 14 }}>
+            <TaskQualityReviewForm
+              key={task.id}
+              taskId={task.id}
+              taskUpdatedAt={task.updated_at}
+              onSaved={loadTasks}
+            />
+          </div>
+        )}
         <div className="task-card-actions">
           {canManage && !['completed','cancelled'].includes(task.status) && (() => {
             const draft = taskDetailsDraft(task);
