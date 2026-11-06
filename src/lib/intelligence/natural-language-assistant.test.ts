@@ -136,3 +136,29 @@ describe("task quality assistant scope and Arabic synonyms", () => {
     }
   });
 });
+
+describe("decision memory assistant intent", () => {
+  it("routes Arabic decision-memory and learning questions through the authorized decision source", () => {
+    for (const question of [
+      "اعرض دفتر ذاكرة القرارات",
+      "التعلم من نتائج القرارات",
+      "ما الدروس المستفادة من القرارات؟",
+      "مقترحات مراجعة القواعد من نتائج القرارات",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({
+        status: "READY",
+        intent: "DECISION_MEMORY_OVERVIEW",
+        sourceRpc: "fetch_decision_outcomes",
+      });
+    }
+  });
+
+  it("does not present the current first page as a historical decision-memory report", () => {
+    for (const question of [
+      "ذاكرة القرارات خلال الشهر الماضي",
+      "التعلم من نتائج القرارات في آخر 30 يوم",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({ status: "UNSUPPORTED" });
+    }
+  });
+});

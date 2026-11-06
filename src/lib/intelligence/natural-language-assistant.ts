@@ -11,6 +11,7 @@ import type { DecisionOutcomeState, DecisionOutcomeView } from "./decision-outco
 import type { GrowthOpportunityRadarResult } from "./growth-opportunities";
 import type { TaskPerformanceScorecard } from "./task-performance-scorecard";
 import type { BusinessHealthMapResult } from "./business-health-map";
+import { buildDecisionPolicyReviewSuggestions, type DecisionMemoryBookResult } from "./decision-memory";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
@@ -26,12 +27,13 @@ export type TaskPerformanceIntent="TASK_PERFORMANCE_OVERVIEW";
 export type BusinessHealthIntent="BUSINESS_HEALTH_OVERVIEW";
 export type CommercePolicyIntent="COMMERCE_POLICY_OVERVIEW"|"COMMERCE_POLICY_SOURCE_CHANGES";
 export type DecisionOutcomesIntent="DECISION_OUTCOMES_OVERVIEW"|"DECISIONS_PENDING_REVIEW"|"DECISIONS_AWAITING_EXECUTION"|"DECISIONS_DEFERRED";
+export type DecisionMemoryIntent="DECISION_MEMORY_OVERVIEW";
 export type CustomerServiceIntent=
  |"CUSTOMER_SERVICE_OVERVIEW"
  |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
  |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
  |"CUSTOMER_SERVICE_UNASSIGNED";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent|BusinessHealthIntent;
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|DecisionMemoryIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent|BusinessHealthIntent;
 export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard"|"fetch_commerce_policy_catalog";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
@@ -284,6 +286,18 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"ملخص كامل للحالات النشطة داخل المؤسسة الحالية، محسوب على توقيت خادمي واحد؛ يعرض عدد المفتوح والمتأخر عن أول استجابة والمتجاوز لموعد الحل وغير المسند والعاجل والعالي. لا يعيد أسماء العملاء أو تفاصيل الحالات."
   };
  }
+ const decisionMemoryQuestion=/(ذاكره القرارات|ذاكرة القرارات|ذاكره القرار|دفتر ذاكره القرارات|دفتر ذاكرة القرارات|التعلم من نتائج القرارات|دروس القرارات|مقترحات مراجعه القواعد من نتائج القرارات)/.test(normalizedQuestion);
+ if(decisionMemoryQuestion){
+  if(/(اخر|الماضي|الماضيه|السابق|من تاريخ|بين تاريخ|خلال|منذ|هذا الشهر|هذا الاسبوع|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"دفتر ذاكرة القرارات يعرض أول صفحة من القرارات الحالية فقط؛ لا يقدم تاريخاً حراً أو مراجعة زمنية شاملة. استخدم دفتر الذاكرة للقرارات المحملة، وتحقق من اكتمال نطاق الصفحة."
+  };
+  return {
+   status:"READY",intent:"DECISION_MEMORY_OVERVIEW",normalizedQuestion,
+   sourceRpc:"fetch_decision_outcomes",
+   filterDescription:"دفتر ذاكرة للقرارات المعادة من مصدر القرار المصرح به، مع التحقق من لقطة الذاكرة والأدلة والمعادلات؛ يحمّل أول 100 قرار فقط ويعلن النطاق الجزئي إذا تجاوز العدد ذلك."
+  };
+ }
  const decisionPendingQuestion=/(القرارات قيد المراجعه|قرارات قيد المراجعه|قرارات بانتظار المراجعه|قرارات تنتظر المراجعه|القرارات بانتظار الاعتماد|قرارات تنتظر الاعتماد)/.test(normalizedQuestion);
  const decisionExecutionQuestion=/(القرارات بانتظار التنفيذ|قرارات بانتظار التنفيذ|القرارات المعتمده للتنفيذ|قرارات تنتظر الاسناد|قرارات بانتظار الاسناد)/.test(normalizedQuestion);
  const decisionDeferredQuestion=/(القرارات المؤجله|قرارات مؤجله|القرارات التي تم تاجيلها|قرارات التي تم تاجيلها|قرارات تم تاجيلها|القرارات التي تاجلت|قرارات تاجلت|سجل القرارات المؤجله)/.test(normalizedQuestion);
@@ -446,6 +460,10 @@ export interface NaturalLanguageCustomerServiceResult {
   unassignedCount:number;urgentCount:number;highCount:number;
  };
 }
+export interface NaturalLanguageDecisionMemoryResult {
+ kind:"DECISION_MEMORY";state:DecisionMemoryBookResult["status"];intent:DecisionMemoryIntent;
+ answer:string;sourceRpc:"fetch_decision_outcomes";queriedAt:string;memory:DecisionMemoryBookResult;
+}
 export interface NaturalLanguageDecisionOutcomesResult {
  kind:"DECISION_OUTCOMES";state:"READY"|"EMPTY"|"PARTIAL";intent:DecisionOutcomesIntent;
  answer:string;sourceRpc:"fetch_decision_outcomes";queriedAt:string;
@@ -466,7 +484,7 @@ export interface NaturalLanguageBusinessHealthResult {
  };
 }
 
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult|NaturalLanguageBusinessHealthResult;
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageDecisionMemoryResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult|NaturalLanguageBusinessHealthResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -806,6 +824,23 @@ export function resolveDecisionOutcomesIntent(
  return {
   kind:"DECISION_OUTCOMES",state,intent,answer,sourceRpc:"fetch_decision_outcomes",queriedAt,
   totalCount,inspectedCount:items.length,primaryCount:selected.length,completePopulation,countsByState,
+ };
+}
+
+/** Exposes only validated decision-memory records and evidence-backed review drafts. */
+export function resolveDecisionMemoryIntent(
+ memory:DecisionMemoryBookResult,queriedAt:string,
+):NaturalLanguageDecisionMemoryResult {
+ if(!Number.isFinite(Date.parse(queriedAt)))throw new Error("decision_memory_query_time_invalid");
+ const suggestions=buildDecisionPolicyReviewSuggestions(memory.records);
+ const answer=memory.totalCount===0
+  ?"لا توجد قرارات محفوظة في المصدر الحالي؛ لم تُنشأ سجلات افتراضية."
+  :memory.status==="VERIFIED"
+   ?"اكتمل تحميل "+memory.loadedCount+" قراراً. الذاكرة المكتملة "+memory.completeCount+"، والقرارات المقاسة "+memory.measuredCount+"، والقياسات المثبتة القابلة للمقارنة "+memory.verifiedMeasurementCount+"، ومسودات مراجعة القواعد "+suggestions.length+"."
+   :"حُمّل "+memory.loadedCount+" قراراً من أصل "+memory.totalCount+"؛ الذاكرة المكتملة "+memory.completeCount+"، والجزئية أو غير الموثقة "+memory.partialCount+"، والقياسات المثبتة القابلة للمقارنة "+memory.verifiedMeasurementCount+"، ومسودات المراجعة "+suggestions.length+". هذه نتيجة جزئية وليست مراجعة شاملة للتاريخ.";
+ return {
+  kind:"DECISION_MEMORY",state:memory.status,intent:"DECISION_MEMORY_OVERVIEW",
+  answer,sourceRpc:"fetch_decision_outcomes",queriedAt,memory,
  };
 }
 
