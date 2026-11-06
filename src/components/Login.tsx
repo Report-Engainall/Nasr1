@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Activity, Eye, EyeOff, Lock, Mail, ShieldCheck, User } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
+import { normalizeAuthPhoneIdentifier, useAuth } from '@/lib/auth';
 
 type Mode = 'login' | 'register' | 'forgot';
 
@@ -42,25 +42,47 @@ function LoginNameField({ value, onChange }: { value: string; onChange: (value: 
   );
 }
 
-function LoginEmailField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function LoginEmailField({
+  value,
+  onChange,
+  mode,
+  phoneLogin,
+  onPhoneLoginChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  mode: Mode;
+  phoneLogin: boolean;
+  onPhoneLoginChange: (value: boolean) => void;
+}) {
+  const isPhone = mode === "login" && phoneLogin;
   return (
     <label className="login-field">
-      <span>البريد الإلكتروني</span>
+      <span>{isPhone ? "رقم الهاتف" : "البريد الإلكتروني"}</span>
       <div className="login-input-wrap">
-        <Mail size={18} />
+        {isPhone ? <User size={18} /> : <Mail size={18} />}
         <input
-          type="email"
+          type={isPhone ? "tel" : "email"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          autoComplete="email"
+          autoComplete={isPhone ? "tel" : "email"}
+          placeholder={isPhone ? "+967 7xxxxxxxx أو 7xxxxxxxx" : "name@example.com"}
           dir="ltr"
           required
         />
       </div>
+      {mode === "login" ? (
+        <button
+          type="button"
+          className="sf-link"
+          onClick={() => onPhoneLoginChange(!phoneLogin)}
+        >
+          {phoneLogin ? "تسجيل الدخول بالبريد الإلكتروني" : "تسجيل الدخول برقم الهاتف"}
+        </button>
+      ) : null}
     </label>
   );
 }
-
 function LoginPasswordField({
   value,
   visible,
@@ -150,12 +172,16 @@ function loginTitle(mode: Mode): string {
   return 'استعادة كلمة المرور';
 }
 
-function validateLoginInput(mode: Mode, name: string, email: string, password: string): string {
-  if (!/^\S+@\S+\.\S+$/.test(email.trim())) return 'أدخل بريداً إلكترونياً صحيحاً';
-  if (mode === 'forgot') return '';
-  if (password.length < 8) return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
-  if (mode === 'register' && name.trim().length < 2) return 'أدخل الاسم الكامل';
-  return '';
+function validateLoginInput(mode: Mode, name: string, email: string, password: string, phoneLogin: boolean): string {
+  if (mode === "login" && phoneLogin) {
+    if (!normalizeAuthPhoneIdentifier(email)) return "أدخل رقماً يمنياً يبدأ بـ7 أو رقماً دولياً بصيغة +رمز الدولة.";
+  } else if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+    return "أدخل بريداً إلكترونياً صحيحاً";
+  }
+  if (mode === "forgot") return "";
+  if (password.length < 8) return "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
+  if (mode === "register" && name.trim().length < 2) return "أدخل الاسم الكامل";
+  return "";
 }
 
 export function Login({
@@ -169,6 +195,7 @@ export function Login({
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneLogin, setPhoneLogin] = useState(false);
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [error, setError] = useState('');
@@ -179,7 +206,7 @@ export function Login({
     setError('');
     setInfo('');
 
-    const validationError = validateLoginInput(mode, name, email, password);
+    const validationError = validateLoginInput(mode, name, email, password, phoneLogin);
     if (validationError) {
       setError(validationError);
       return;
@@ -216,7 +243,7 @@ export function Login({
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <LoginFormIntro mode={mode} title={loginTitle(mode)} />
           {mode === 'register' ? <LoginNameField value={name} onChange={setName} /> : null}
-          <LoginEmailField value={email} onChange={setEmail} />
+          <LoginEmailField value={email} onChange={setEmail} mode={mode} phoneLogin={phoneLogin} onPhoneLoginChange={(next) => { setPhoneLogin(next); setEmail(""); setError(""); setInfo(""); }} />
           {mode !== 'forgot' ? (
             <LoginPasswordField
               value={password}
@@ -230,7 +257,7 @@ export function Login({
           <button className="login-submit" type="submit" disabled={loading}>
             {loading ? 'جارٍ المعالجة...' : mode === 'login' ? 'دخول' : mode === 'register' ? 'إنشاء الحساب' : 'إرسال الرابط'}
           </button>
-          <LoginModeActions mode={mode} onModeChange={setMode} />
+          <LoginModeActions mode={mode} onModeChange={(next) => { setMode(next); setPhoneLogin(false); setEmail(""); setError(""); setInfo(""); }} />
         </form>
       </div>
     </div>
