@@ -74,7 +74,7 @@ export interface DecisionMemoryMetricComparison {
 export interface DecisionMemoryRecord {
   decisionId: string; candidateRef: string; ruleId: string; ruleVersion: string;
   state: DecisionOutcomeView["state"]; version: number; createdAt: string; updatedAt: string;
-  owner: string; proposedResult: string; decisionReason: string | null;
+  owner: string; ownerProfileId: string | null; proposedResult: string; decisionReason: string | null;
   approvalAt: string | null; executionAt: string | null; eventCount: number;
   events: DecisionOutcomeView["history"]; legacyMeasurement: DecisionOutcomeView["measuredOutcome"];
   snapshotVersion: number | null; capturedAt: string | null; snapshot: DecisionMemorySnapshot | null; problem: string | null;
@@ -355,7 +355,7 @@ export function buildDecisionMemoryBook(input: {
         ?"VERIFIED" as const:snapshot?"PARTIAL" as const:"UNVERIFIED" as const;
       return {
         decisionId:outcome.id,candidateRef:outcome.candidateId,ruleId:outcome.ruleId,ruleVersion:outcome.ruleVersion,
-        state:outcome.state,version:outcome.version,createdAt:outcome.createdAt,updatedAt:outcome.updatedAt,owner:outcome.ownerLabel,
+        state:outcome.state,version:outcome.version,createdAt:outcome.createdAt,updatedAt:outcome.updatedAt,owner:outcome.ownerLabel,ownerProfileId:outcome.ownerProfileId,
         proposedResult:outcome.expectedOutcome,decisionReason:outcome.reason,approvalAt:outcome.approvedAt,executionAt:outcome.executedAt,
         eventCount:outcome.eventCount,events:outcome.history,legacyMeasurement:outcome.measuredOutcome,
         snapshotVersion,capturedAt,snapshot,problem,factsReviewed,facts,opinions,hypotheses,assumptionsReviewed,assumptions,lessonsReviewed,withheldFacts,alternatives,chosenAlternative,

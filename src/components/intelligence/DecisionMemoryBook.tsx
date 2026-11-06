@@ -11,6 +11,7 @@ import type {
   DecisionMemoryReviewDisposition,
 } from "@/lib/intelligence/decision-memory";
 import { EvidenceReferences, EvidenceStatusLabel, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
+import { DecisionOutcomeLifecycleControls } from "./DecisionOutcomeLifecycleControls";
 
 export interface DecisionMemoryBookProps {
   result?: DecisionMemoryBookResult | null;
@@ -247,6 +248,7 @@ function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetr
       <p className="text-xs text-muted-foreground" dir="ltr">{record.ruleId}@{record.ruleVersion} · {record.decisionId.slice(0,8)}</p>
       <p className="text-xs">الحالة: {states[record.state]} · الإصدار: {record.version} · المسؤول: {record.owner}</p>
     </div><span className="text-xs"><EvidenceStatusLabel status={record.memoryStatus==="VERIFIED"?"VERIFIED":record.memoryStatus==="PARTIAL"?"NEEDS_REVIEW":"UNVERIFIED"}/></span></header>
+    <DecisionOutcomeLifecycleControls outcomeId={record.decisionId} state={record.state} version={record.version} ownerProfileId={record.ownerProfileId} onChanged={onRetry}/>
     {record.problem?<section><h4 className="text-sm font-semibold">المشكلة المسجلة</h4><p className="text-sm">{record.problem}</p></section>:null}
     {record.decisionReason?<section><h4 className="text-sm font-semibold">مبرر القرار — سياق إداري لا يُعامل كحقيقة مستقلة</h4><p className="text-sm">{record.decisionReason}</p></section>:null}
     <div className="grid gap-2 sm:grid-cols-2">

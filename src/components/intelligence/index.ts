@@ -15,6 +15,7 @@ export type { GrowthOpportunityRadarProps } from "./GrowthOpportunityRadar";
 export { BusinessHealthMap } from "./BusinessHealthMap";
 export type { BusinessHealthMapProps } from "./BusinessHealthMap";
 export { DecisionMemoryBook } from "./DecisionMemoryBook";
+export { DecisionOutcomeLifecycleControls } from "./DecisionOutcomeLifecycleControls";
 export type { DecisionMemoryBookProps } from "./DecisionMemoryBook";
 export { ShiftOperationsCenter } from "./ShiftOperationsCenter";
 export type { ShiftOperationsCenterProps } from "./ShiftOperationsCenter";

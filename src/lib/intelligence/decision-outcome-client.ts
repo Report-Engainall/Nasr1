@@ -205,11 +205,15 @@ export async function commandDecisionOutcome(input: {
   eventType: DecisionOutcomeEventType;
   reason?: string;
   ownerProfileId?: string;
+  eventId?: string;
+  idempotencyKey?: string;
   measuredOutcome?: CashflowMeasurementProof & { measuredAt: string };
 }): Promise<DecisionOutcomeCommandResult> {
   if (!UUID.test(input.outcomeId) || !Number.isInteger(input.expectedVersion) || input.expectedVersion < 1 ||
       (input.reason?.length ?? 0) > 2000 ||
-      (input.eventType === "ASSIGN" && !input.ownerProfileId) ||
+      (input.eventId !== undefined && !UUID.test(input.eventId)) ||
+      (input.idempotencyKey !== undefined && !UUID.test(input.idempotencyKey)) ||
+      (input.eventType === "ASSIGN" && (!input.ownerProfileId || !UUID.test(input.ownerProfileId))) ||
       (input.eventType === "MEASURE" && !input.measuredOutcome)) {
     return { ok: false, status: "ERROR", message: "أمر القرار لا يستوفي الحقول المطلوبة." };
   }
@@ -217,8 +221,8 @@ export async function commandDecisionOutcome(input: {
     const measured = input.measuredOutcome;
     const { data, error } = await supabase.rpc("command_decision_outcome", {
       p_outcome_id: input.outcomeId,
-      p_event_id: crypto.randomUUID(),
-      p_idempotency_key: crypto.randomUUID(),
+      p_event_id: input.eventId ?? crypto.randomUUID(),
+      p_idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
       p_expected_version: input.expectedVersion,
       p_event_type: input.eventType,
       p_reason: input.reason?.trim() || null,
