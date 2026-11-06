@@ -9,7 +9,7 @@ import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { extractOwnedProductImageObjectPath } from './product-image-security';
-import { validateCustomerInput } from './customer-input';
+import { validateCustomerInput, type NewCustomerInput } from './customer-input';
 import { validateInventoryTransferBatchInput, type InventoryTransferBatchInput } from './inventory-transfer-batch';
 import { isValidPriceAmount } from './price-grid-money';
 import type {
@@ -107,7 +107,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   const galleryByProduct = new Map<string, string[]>();
   for (let offset = 0; offset < productIds.length; offset += 200) {
     const productIdBatch = productIds.slice(offset, offset + 200);
-    const mediaRows = await readWithRetry(async () => {
+    const mediaRows = await readWithRetry<Array<{ product_id: string; url: string; sort_order: number; created_at: string }>>(async () => {
       const { data, error } = await supabase
         .from('product_media')
         .select('product_id,url,sort_order,created_at')
@@ -116,9 +116,9 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as Array<{ product_id: string; url: string; sort_order: number; created_at: string }>;
     });
-    for (const media of mediaRows) {
+    for (const media of mediaRows ?? []) {
       if (typeof media.product_id !== 'string' || typeof media.url !== 'string' || !/^https:\/\//i.test(media.url)) continue;
       const urls = galleryByProduct.get(media.product_id) ?? [];
       if (urls.length < 8) urls.push(media.url);
@@ -542,7 +542,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
   return (data ?? []) as Customer[];
 }
 
-export async function createCustomer(c: Partial<Customer>): Promise<Customer> {
+export async function createCustomer(c: NewCustomerInput): Promise<Customer> {
   const input = validateCustomerInput({
     business_name: c.business_name,
     contact_name: c.contact_name,
