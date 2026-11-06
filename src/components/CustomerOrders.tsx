@@ -33,8 +33,14 @@ type CustomerOrderDocument = Pick<Order, 'id' | 'order_number' | 'customer_id' |
   payment_request_status?: string;
 };
 type CustomerOrderLine = Pick<OrderItem, 'id' | 'product_id' | 'item_code' | 'product_name_snapshot' | 'unit_snapshot' | 'quantity'> & {
-  requested_quantity?: number;
-  approved_quantity?: number;
+  requested_quantity?: number | null;
+  approved_quantity?: number | null;
+};
+type CustomerOrderAmendmentSummary = {
+  status: 'pending_review' | 'approved' | 'rejected';
+  note: string | null;
+  review_note: string | null;
+  created_at: string;
 };
 
 const CUSTOMER_REORDER_PRODUCT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -469,6 +475,11 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const { user } = useAuth();
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateSaved, setTemplateSaved] = useState(false);
+  const [amendmentQuantities, setAmendmentQuantities] = useState<Record<string, string>>({});
+  const [amendmentNote, setAmendmentNote] = useState('');
+  const [amendmentBusy, setAmendmentBusy] = useState(false);
+  const [amendmentFeedback, setAmendmentFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const amendmentRequestKey = useRef<string | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const templateSaveInFlightRef = useRef(false);
@@ -479,7 +490,15 @@ function OrderInvoiceInner({ id }: { id: string }) {
       supabase.from('order_status_history').select('id,to_status,created_at,notes').eq('order_id', id).order('created_at'),
     ]);
     if (o.error || i.error || h.error) throw new Error('تعذر تحميل الطلب');
-    if (!o.data) return { order: null, items: [] as CustomerOrderLine[], history: [] as { id: string; to_status: string; created_at: string; notes: string | null }[], customer: null as { customer_code: string; business_name: string; contact_name: string | null } | null };
+    const amendmentResult = await supabase
+      .from('customer_order_amendments')
+      .select('status,note,review_note,created_at')
+      .eq('order_id', id)
+      .order('created_at', { ascending:false })
+      .limit(1)
+      .maybeSingle();
+    const amendment = amendmentResult.error ? null : amendmentResult.data as CustomerOrderAmendmentSummary | null;
+    if (!o.data) return { order: null, items: [] as CustomerOrderLine[], history: [] as { id: string; to_status: string; created_at: string; notes: string | null }[], customer: null as { customer_code: string; business_name: string; contact_name: string | null } | null, amendment: null as CustomerOrderAmendmentSummary | null };
     const customer = await supabase.from('customers').select('customer_code,business_name,contact_name').eq('id', o.data.customer_id).maybeSingle();
     if (customer.error) throw new Error('تعذر تحميل بيانات العميل');
     return {
@@ -487,13 +506,21 @@ function OrderInvoiceInner({ id }: { id: string }) {
       items: (i.data ?? []) as CustomerOrderLine[],
       history: (h.data ?? []) as { id: string; to_status: string; created_at: string; notes: string | null }[],
       customer: customer.data as { customer_code: string; business_name: string; contact_name: string | null } | null,
+      amendment,
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!data?.items) return;
+    setAmendmentQuantities(Object.fromEntries(
+      data.items.map((item) => [item.id, String(item.approved_quantity ?? item.quantity)]),
+    ));
+  }, [data?.order?.id, data?.items]);
 
   if (loading) return <Shell><p role="status">جارٍ تحميل الطلب...</p></Shell>;
   if (error) return <Shell><div style={card} role="alert">{error} <button type="button" className="sf-link" aria-label="إعادة تحميل تفاصيل الطلب" onClick={() => void refetch()}>إعادة المحاولة</button></div></Shell>;
   if (!data?.order) return <Shell><div style={card}>الطلب غير موجود أو لا تملك صلاحية عرضه. <Link to="/orders" className="sf-link">طلباتي</Link></div></Shell>;
-  const { order, items, history, customer } = data;
+  const { order, items, history, customer, amendment } = data;
   const printDocument = projectCustomerOrderPrintDocument(order, items, history, customer, user?.name ?? null);
 
   function exportOrderWorkbook() {
@@ -503,6 +530,55 @@ function OrderInvoiceInner({ id }: { id: string }) {
       setExportFeedback({ kind: 'success', message: 'تم تجهيز كشف الطلب بصيغة Excel للتنزيل. لا يحتوي الملف على أسعار أو تكاليف أو معرفات داخلية.' });
     } catch (cause) {
       setExportFeedback({ kind: 'error', message: cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel للطلب.' });
+    }
+  }
+
+
+  async function submitCustomerAmendment() {
+    if (amendmentBusy || items.length===0 || amendment?.status==='pending_review') return;
+    setAmendmentFeedback(null);
+    const lines = items.map((item) => ({
+      item_id: item.id,
+      quantity: Number(amendmentQuantities[item.id] ?? item.approved_quantity ?? item.quantity),
+    }));
+    if (lines.some((line) => !Number.isFinite(line.quantity) || line.quantity<=0 || line.quantity>10000
+      || Math.abs(line.quantity*1000-Math.round(line.quantity*1000))>0.000001)) {
+      setAmendmentFeedback({ kind:'error', message:'تحقق من أن كل كمية أكبر من صفر ولا تتجاوز 10,000 وبحد أقصى ثلاث منازل عشرية.' });
+      return;
+    }
+    if (!lines.some((line,index) => line.quantity !== Number(items[index].approved_quantity ?? items[index].quantity))) {
+      setAmendmentFeedback({ kind:'error', message:'لم تتغير أي كمية؛ عدّل كمية بند واحد على الأقل قبل الإرسال.' });
+      return;
+    }
+    setAmendmentBusy(true);
+    try {
+      const requestKey = amendmentRequestKey.current ?? crypto.randomUUID().replace(/-/g,'');
+      amendmentRequestKey.current = requestKey;
+      const { data: result, error: rpcError } = await supabase.rpc('submit_customer_order_amendment', {
+        p_order_id: order.id,
+        p_lines: lines,
+        p_note: amendmentNote.trim() || null,
+        p_idempotency_key: requestKey,
+      });
+      if (rpcError) throw rpcError;
+      if (!result || typeof result!=='object' || Array.isArray(result)
+        || result.order_id!==order.id
+        || !['pending_review','approved','rejected'].includes(result.status)) {
+        throw new Error('لم يؤكد الخادم استلام تعديل الطلب.');
+      }
+      amendmentRequestKey.current = null;
+      setAmendmentFeedback({
+        kind:'success',
+        message:'تم إرسال الكميات المقترحة إلى الإدارة. تبقى غير معتمدة، ولا يتغير السعر أو المخزون أو الفاتورة حتى مراجعة الموظف.',
+      });
+      await refetch();
+    } catch (cause) {
+      setAmendmentFeedback({
+        kind:'error',
+        message:cause instanceof Error ? cause.message : 'تعذر إرسال تعديل الطلب؛ لم يُعتمد أي تغيير.',
+      });
+    } finally {
+      setAmendmentBusy(false);
     }
   }
 
@@ -590,6 +666,65 @@ function OrderInvoiceInner({ id }: { id: string }) {
           <p style={{ margin: 0 }}>{exportFeedback.message}</p>
         </div>
       )}
+
+      {['returned','needs_customer_amendment','returned_for_adjustment'].includes(order.status) && !user?.isStaff && (
+        <section className="no-print" style={{ ...card, marginBottom:16, borderColor:'#e6c98f' }} aria-labelledby="customer-order-amendment-title">
+          <h2 id="customer-order-amendment-title" style={{ margin:'0 0 8px' }}>تعديل الطلب المعاد من الإدارة</h2>
+          {order.customer_adjustment_note && <p style={{ margin:'0 0 10px', lineHeight:1.8 }}>{order.customer_adjustment_note}</p>}
+          {amendment?.status==='pending_review' ? (
+            <div role="status" style={{ padding:12, borderRadius:10, background:'#edf7f2', color:'#17684d' }}>
+              أُرسل تعديلك بتاريخ {formatDate(amendment.created_at)} وهو الآن بانتظار مراجعة الإدارة. لا يمكن تعديل الكميات مرة أخرى قبل انتهاء المراجعة.
+              {amendment.note && <p style={{ margin:'8px 0 0' }}>ملاحظتك: {amendment.note}</p>}
+            </div>
+          ) : (
+            <>
+              {amendment?.status==='rejected' && amendment.review_note && (
+                <p role="alert" style={{ color:'#8a4c19', margin:'0 0 10px' }}>ملاحظة الإدارة على التعديل السابق: {amendment.review_note}</p>
+              )}
+              <p style={{ margin:'0 0 12px', color:'#536b70', lineHeight:1.8 }}>
+                عدّل الكميات فقط. يجب إبقاء جميع البنود؛ لا تُرسل هذه الخطوة أسعارًا أو إجماليات، ولا تؤكد الطلب.
+              </p>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                  <thead><tr style={{ textAlign:'right', background:'#f4f8f9' }}>
+                    <th style={{ padding:8 }}>الصنف</th><th>الرمز</th><th>الوحدة</th><th>الكمية المعدلة</th>
+                  </tr></thead>
+                  <tbody>{items.map((item) => (
+                    <tr key={item.id} style={{ borderTop:'1px solid #e5eeee' }}>
+                      <td style={{ padding:8, fontWeight:700 }}>{item.product_name_snapshot}</td>
+                      <td>{item.item_code ?? '—'}</td>
+                      <td>{item.unit_snapshot ?? '—'}</td>
+                      <td>
+                        <input
+                          type="number" min="0.001" max="10000" step="0.001"
+                          aria-label={'الكمية المعدلة ' + item.product_name_snapshot}
+                          value={amendmentQuantities[item.id] ?? String(item.approved_quantity ?? item.quantity)}
+                          disabled={amendmentBusy}
+                          onChange={(event) => setAmendmentQuantities((previous) => ({ ...previous, [item.id]:event.target.value }))}
+                          style={{ width:140, padding:'8px 10px', border:'1px solid #b8d7f3', borderRadius:8, background:'#eef7ff' }}
+                        />
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <label style={{ display:'grid', gap:6, marginTop:12 }}>
+                <strong>ملاحظة توضيحية للإدارة (اختيارية)</strong>
+                <textarea rows={3} maxLength={1000} value={amendmentNote} disabled={amendmentBusy}
+                  onChange={(event) => setAmendmentNote(event.target.value)}
+                  placeholder="اكتب سبب التعديل أو أي توضيح يساعد الإدارة في المراجعة."
+                  style={{ width:'100%', padding:10, border:'1px solid #d9e5eb', borderRadius:8, font:'inherit' }} />
+              </label>
+              {amendmentFeedback && <p role={amendmentFeedback.kind==='error'?'alert':'status'} style={{ margin:'10px 0 0', color:amendmentFeedback.kind==='error'?'#9b2929':'#17684d' }}>{amendmentFeedback.message}</p>}
+              <button type="button" className="sf-btn-primary" disabled={amendmentBusy || !items.length}
+                onClick={() => void submitCustomerAmendment()} style={{ marginTop:12 }}>
+                {amendmentBusy ? 'جارٍ إرسال التعديل...' : 'إرسال التعديل إلى الإدارة'}
+              </button>
+            </>
+          )}
+        </section>
+      )}
+
       {templateFeedback && (
         <div
           className="no-print"

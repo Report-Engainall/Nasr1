@@ -1,3 +1,23 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-066 — CUSTOMER RETURNED-ORDER AMENDMENT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent/base SHA: `36b31b0819da3ca83c8fdb42338516edeef5c245`.
+- Added `supabase/migrations/20261106230000_customer_returned_order_amendments.sql`.
+- Added a tenant-scoped `customer_order_amendments` record and `submit_customer_order_amendment(...)` command. The command resolves the primary customer account from the authenticated profile, locks the owned returned order, requires a complete one-to-one list of order lines, rejects price/financial fields, and stages only quantities while retaining the server's persisted unit-price snapshot.
+- The command is idempotent, prevents concurrent active amendments, blocks orders that already reserved or sold inventory, records an audit event, and sends a deduplicated in-app notification to active same-organization admin/manager/staff profiles. Customer read access is limited to its own amendment history; staff read access is same-tenant; direct table writes are revoked.
+- Extended the existing order state guard to permit only staff confirmation from a returned status when an active customer amendment exists and no reserve/sale movement exists. Extended `review_order_lines` so staff can stage/approve the submitted amendment using the existing atomic confirmation, inventory reservation, invoice and payment-request path; discarding a returned proposal marks it rejected and leaves the order returned.
+- Customer `/orders/$id` now provides a quantity-only amendment form, submission state/history and prior staff rejection note. Admin `OrderDetail` displays the customer's note, reviews the staged quantities, and can approve or reject the proposal.
+- No price, cost, margin, total or stock value is exposed through the customer amendment UI or its RPC response. Customer submission does not change order status, totals, inventory movements, invoice or payment state.
+- Files changed: `supabase/migrations/20261106230000_customer_returned_order_amendments.sql`, `src/components/CustomerOrders.tsx`, `src/components/AdminPages.tsx`, `docs/execution/P1_CHECKPOINT.md`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; migration deployment and browser acceptance remain pending.
+- Evidence boundary: source-only commit. No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue the next uncovered core business workflow from the canonical specification and remaining acceptance matrix. Do not repeat exports/profile work or bypass tenant-scoped server commands; keep P3 engines unchanged.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-065 — CUSTOMER BUSINESS PROFILE EDIT
 
 - Repository: \`Report-Engainall/Nasr1\`; branch: \`main\`.

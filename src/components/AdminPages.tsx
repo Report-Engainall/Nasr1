@@ -395,6 +395,12 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
   </AdminPage>;
 }
 type OrderReviewDraft = { quantity: string; unitPrice: string; reason: string };
+type CustomerOrderAmendmentSummary = {
+  status: 'pending_review' | 'approved' | 'rejected';
+  note: string | null;
+  review_note: string | null;
+  created_at: string;
+};
 
 export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { orderId: string; onBack: () => void; onNotice: (m: string) => void; onBlockedChange: (blocked: boolean) => void }) {
   const { user } = useAuth();
@@ -421,7 +427,28 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   const exportRequestKey = useRef<string | null>(null);
   const [customerNote, setCustomerNote] = useState('');
   const [reviewMessage, setReviewMessage] = useState('');
+  const [customerAmendment, setCustomerAmendment] = useState<CustomerOrderAmendmentSummary | null>(null);
+  const [customerAmendmentError, setCustomerAmendmentError] = useState('');
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const loadCustomerAmendment = useCallback(async () => {
+    setCustomerAmendmentError('');
+    const { data, error: amendmentError } = await supabase
+      .from('customer_order_amendments')
+      .select('status,note,review_note,created_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending:false })
+      .limit(1)
+      .maybeSingle();
+    if (amendmentError) {
+      setCustomerAmendment(null);
+      setCustomerAmendmentError('تعذر تحميل سجل تعديل العميل المرتبط بالطلب.');
+      return;
+    }
+    setCustomerAmendment(data as CustomerOrderAmendmentSummary | null);
+  }, [orderId]);
+
+  useEffect(() => { void loadCustomerAmendment(); }, [loadCustomerAmendment]);
 
   useEffect(() => {
     let active = true;
@@ -462,7 +489,11 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     setDirty(false);
   }, [items]);
 
-  const editable = order?.status === 'pending' || order?.status === 'draft';
+  const returnedOrderStatuses = ['returned','needs_customer_amendment','returned_for_adjustment'];
+  const isCustomerAmendmentReview = Boolean(
+    order && returnedOrderStatuses.includes(order.status) && customerAmendment?.status==='pending_review',
+  );
+  const editable = order?.status === 'pending' || order?.status === 'draft' || isCustomerAmendmentReview;
   const hasStaged = Boolean(order?.quantity_review_required) || Boolean(items?.some((item) =>
     item.proposed_quantity != null || item.proposed_unit_price != null,
   ));
@@ -555,7 +586,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     setReviewMessage('');
     try {
       const result = await reviewOrderLines(orderId, lines, 'stage', customerNote);
-      await Promise.all([refetch(), refetchOrders()]);
+      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
       setDirty(false);
       onBlockedChange(Boolean(result.quantity_review_required));
       setReviewMessage(result.quantity_review_required
@@ -591,7 +622,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       // the server stages this exact grid and approves it inside the same transaction; on any stock,
       // credit or invoice failure, the complete approval is rolled back.
       const result = await reviewOrderLines(orderId, lines, 'approve', customerNote);
-      await Promise.all([refetch(), refetchOrders()]);
+      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
       setDirty(false);
       onBlockedChange(false);
       setReviewMessage(result.adjusted
@@ -599,7 +630,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         : 'اعتمدت الكميات وأُكد الطلب. أُنشئت الفاتورة وطلب السداد من الخادم.');
       onNotice('تم اعتماد الطلب ذريًا. حالة طلب السداد: ' + (result.payment_request_status ?? 'requested'));
     } catch (cause) {
-      await Promise.all([refetch(), refetchOrders()]);
+      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
       setReviewMessage(cause instanceof Error ? cause.message : 'تعذر اعتماد الطلب؛ بقي الطلب دون تأكيد إذا رفض الخادم العملية.');
     } finally {
       setBusy(false);
@@ -610,7 +641,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     if (busy) return;
     setBusy(true);
     try {
-      if (hasStaged && editable) await reviewOrderLines(orderId, [], 'discard');
+      if (hasStaged && editable) await reviewOrderLines(orderId, [], 'discard', customerNote);
       if (items) {
         const next: Record<string, OrderReviewDraft> = {};
         for (const item of items) next[item.id] = {
@@ -621,9 +652,11 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         setDrafts(next);
       }
       setDirty(false);
-      await Promise.all([refetch(), refetchOrders()]);
+      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
       onBlockedChange(false);
-      setReviewMessage('أُلغيت المسودة غير المعتمدة. لم يتغير المخزون ولم تصدر فاتورة من هذه المسودة.');
+      setReviewMessage(isCustomerAmendmentReview
+        ? 'رُفض تعديل العميل وسُجلت ملاحظة المراجعة. بقي الطلب في حالة الإرجاع، دون تغيير المخزون أو إصدار فاتورة.'
+        : 'أُلغيت المسودة غير المعتمدة. لم يتغير المخزون ولم تصدر فاتورة من هذه المسودة.');
     } catch (cause) {
       setReviewMessage(cause instanceof Error ? cause.message : 'تعذر إلغاء المسودة');
     } finally {
@@ -832,6 +865,12 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     </section>}
 
     {editable && <section className="panel table-panel" style={{ marginTop: 16 }}>
+      {customerAmendmentError && <div role="alert" className="form-error">{customerAmendmentError}</div>}
+      {isCustomerAmendmentReview && <div style={{ padding:14, marginBottom:14, border:'1px solid #e6c98f', borderRadius:10, background:'#fff9ed' }}>
+        <h2 style={{ margin:'0 0 7px' }}>تعديل مقدم من العميل — بانتظار قرار الإدارة</h2>
+        <p style={{ margin:'0 0 5px' }}>{customerAmendment?.note || 'لم يرفق العميل ملاحظة.'}</p>
+        <small>تاريخ الإرسال: {formatDateShort(customerAmendment?.created_at ?? '')}. الكميات المقترحة محفوظة كمسودة؛ لا يتغير المخزون أو الفاتورة قبل الاعتماد.</small>
+      </div>}
       <div className="panel-head"><div><h2>مراجعة بنود الطلب</h2><p>Enter ينتقل إلى كمية السطر التالي. اللون الأزرق الفاتح يميز الحقول القابلة للتعديل. أي تغيير يبقى غير معتمد حتى تنفيذ الاعتماد.</p></div>
         <span className={'badge ' + (blocked ? 'warning' : 'success')}>{blocked ? 'مراجعة غير معتمدة' : 'جاهز للمراجعة'}</span>
       </div>
@@ -881,7 +920,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
         <Button variant="secondary" disabled={busy || loading || !items?.length} onClick={() => void stageReview()}>{busy ? 'جارٍ الحفظ...' : 'حفظ المسودة دون اعتماد'}</Button>
         <Button disabled={busy || loading || !items?.length} onClick={() => void approveReview()}>{busy ? 'جارٍ الاعتماد...' : 'اعتماد الكميات وتأكيد الطلب'}</Button>
-        {(blocked || dirty) && <Button variant="outline" disabled={busy} onClick={() => void discardReview()}>إلغاء المسودة</Button>}
+        {(blocked || dirty) && <Button variant="outline" disabled={busy} onClick={() => void discardReview()}>{isCustomerAmendmentReview ? 'رفض تعديل العميل' : 'إلغاء المسودة'}</Button>}
       </div>
       {blocked && <p role="alert" style={{ color: '#9a5b13', fontWeight: 800, marginTop: 12 }}>لا يمكن مغادرة هذا القسم أو تغيير حالة الطلب قبل اعتماد الكميات/الأسعار المقترحة أو إلغاء المسودة.</p>}
     </section>}
@@ -893,6 +932,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       </tr>)}</tbody></table></TableWrap>}
       {order?.quantity_review_required && <p role="alert" style={{ color: '#9a5b13', fontWeight: 800 }}>توجد مراجعة معلقة. يجب إكمالها قبل متابعة الطلب.</p>}
       {order?.customer_adjustment_note && <p>{order?.customer_adjustment_note}</p>}
+      {customerAmendment?.status==='rejected' && customerAmendment.review_note && <p role="status">ملاحظة رفض تعديل العميل: {customerAmendment.review_note}</p>}
     </section>}
     {blocker.status === 'blocked' && <div className="modal-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="order-review-navigation-title">
       <section className="modal" style={{ maxWidth: 460 }} dir="rtl">
