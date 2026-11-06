@@ -1,3 +1,24 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-067 — CUSTOMER PRE-CONFIRMATION ORDER CANCELLATION
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent/base SHA: `cd4a3287f00d702e0dd8162ed1476ca5b2566a38`.
+- Added `supabase/migrations/20261106250000_customer_order_preconfirmation_cancellation.sql` with `customer_order_cancellations` and `cancel_customer_order(...)`.
+- Cancellation is limited to the authenticated primary owner or buyer-capability member acting on an order they created, in the same active customer organization. The RPC serializes with company-membership revocation and rechecks buyer capability after the customer row lock.
+- Only `draft` and `pending` orders without staged quantity/price review or any reserve/sale stock movement can be cancelled. Confirmed, returned, processing and shipped orders remain outside this customer command.
+- The command is idempotent, requires a reason, writes an audit event, notifies same-tenant admin/manager/staff and invokes the existing order lifecycle status-history/customer-notification triggers. Direct cancellation-table writes are revoked; reads are limited to the current customer or same-tenant staff.
+- Extended the current BODY-066-aware `guard_order_confirmation` so customer transition to `cancelled` requires the RPC-created evidence row, owner identity, buyer capability, same tenant and no reserve/sale movement. Existing staff transitions and returned-amendment confirmation logic are preserved.
+- Customer order details now expose a reason-required cancellation action only while the order is draft/pending, and show the saved cancellation reason/time after completion. Staff OrderDetail displays the saved reason and timestamp.
+- No order item, price, stock, invoice, payment, customer balance or ledger data is changed by customer cancellation.
+- Files changed: `supabase/migrations/20261106250000_customer_order_preconfirmation_cancellation.sql`, `src/components/CustomerOrders.tsx`, `src/components/AdminPages.tsx`, `docs/execution/P1_CHECKPOINT.md`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; migration deployment and browser acceptance remain pending.
+- Evidence boundary: source-only commit. No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue the next uncovered business operation from the canonical specification and remaining acceptance matrix. Do not duplicate existing order, return, quote, customer-profile or export behavior; keep P3 engines unchanged.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-066 — CUSTOMER RETURNED-ORDER AMENDMENT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

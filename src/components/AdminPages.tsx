@@ -401,6 +401,7 @@ type CustomerOrderAmendmentSummary = {
   review_note: string | null;
   created_at: string;
 };
+type CustomerOrderCancellationSummary = { reason: string; created_at: string };
 
 export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { orderId: string; onBack: () => void; onNotice: (m: string) => void; onBlockedChange: (blocked: boolean) => void }) {
   const { user } = useAuth();
@@ -429,6 +430,8 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   const [reviewMessage, setReviewMessage] = useState('');
   const [customerAmendment, setCustomerAmendment] = useState<CustomerOrderAmendmentSummary | null>(null);
   const [customerAmendmentError, setCustomerAmendmentError] = useState('');
+  const [customerCancellation, setCustomerCancellation] = useState<CustomerOrderCancellationSummary | null>(null);
+  const [customerCancellationError, setCustomerCancellationError] = useState('');
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const loadCustomerAmendment = useCallback(async () => {
@@ -449,6 +452,23 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   }, [orderId]);
 
   useEffect(() => { void loadCustomerAmendment(); }, [loadCustomerAmendment]);
+
+  const loadCustomerCancellation = useCallback(async () => {
+    setCustomerCancellationError('');
+    const { data, error: cancellationError } = await supabase
+      .from('customer_order_cancellations')
+      .select('reason,created_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (cancellationError) {
+      setCustomerCancellation(null);
+      setCustomerCancellationError('تعذر تحميل سبب إلغاء العميل.');
+      return;
+    }
+    setCustomerCancellation(data as CustomerOrderCancellationSummary | null);
+  }, [orderId]);
+
+  useEffect(() => { void loadCustomerCancellation(); }, [loadCustomerCancellation]);
 
   useEffect(() => {
     let active = true;
@@ -855,6 +875,13 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     </div>}
 
 
+    {customerCancellationError && order?.status==='cancelled' && <div role="alert" className="form-error">{customerCancellationError}</div>}
+    {customerCancellation && order?.status==='cancelled' && <section className="panel" style={{ marginTop:12, padding:14, borderColor:'#e6b6a9' }}>
+      <h3 style={{ margin:'0 0 7px' }}>إلغاء بطلب العميل</h3>
+      <p style={{ margin:'0 0 5px' }}>التاريخ: {formatDateShort(customerCancellation.created_at)}</p>
+      <p style={{ margin:0 }}>سبب الإلغاء: {customerCancellation.reason}</p>
+      <small>سُجل الإلغاء قبل تأكيد الطلب؛ لا ينشئ هذا المستند ردًا أو حركة مالية.</small>
+    </section>}
     {order?.delivery_address_snapshot && <section className="panel" style={{ marginTop: 16, padding: 16 }}>
       <h3 style={{ margin: '0 0 10px' }}>عنوان التوصيل المحفوظ مع الطلب</h3>
       <p style={{ margin: '0 0 4px', fontWeight: 800 }}>{order.delivery_address_snapshot.label}</p>

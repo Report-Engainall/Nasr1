@@ -42,6 +42,7 @@ type CustomerOrderAmendmentSummary = {
   review_note: string | null;
   created_at: string;
 };
+type CustomerOrderCancellationSummary = { reason: string; created_at: string };
 
 const CUSTOMER_REORDER_PRODUCT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -480,6 +481,10 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const [amendmentBusy, setAmendmentBusy] = useState(false);
   const [amendmentFeedback, setAmendmentFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const amendmentRequestKey = useRef<string | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellationBusy, setCancellationBusy] = useState(false);
+  const [cancellationFeedback, setCancellationFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const cancellationRequestKey = useRef<string | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const templateSaveInFlightRef = useRef(false);
@@ -498,7 +503,13 @@ function OrderInvoiceInner({ id }: { id: string }) {
       .limit(1)
       .maybeSingle();
     const amendment = amendmentResult.error ? null : amendmentResult.data as CustomerOrderAmendmentSummary | null;
-    if (!o.data) return { order: null, items: [] as CustomerOrderLine[], history: [] as { id: string; to_status: string; created_at: string; notes: string | null }[], customer: null as { customer_code: string; business_name: string; contact_name: string | null } | null, amendment: null as CustomerOrderAmendmentSummary | null };
+    const cancellationResult = await supabase
+      .from('customer_order_cancellations')
+      .select('reason,created_at')
+      .eq('order_id', id)
+      .maybeSingle();
+    const cancellation = cancellationResult.error ? null : cancellationResult.data as CustomerOrderCancellationSummary | null;
+    if (!o.data) return { order: null, items: [] as CustomerOrderLine[], history: [] as { id: string; to_status: string; created_at: string; notes: string | null }[], customer: null as { customer_code: string; business_name: string; contact_name: string | null } | null, amendment: null as CustomerOrderAmendmentSummary | null, cancellation: null as CustomerOrderCancellationSummary | null };
     const customer = await supabase.from('customers').select('customer_code,business_name,contact_name').eq('id', o.data.customer_id).maybeSingle();
     if (customer.error) throw new Error('تعذر تحميل بيانات العميل');
     return {
@@ -507,6 +518,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
       history: (h.data ?? []) as { id: string; to_status: string; created_at: string; notes: string | null }[],
       customer: customer.data as { customer_code: string; business_name: string; contact_name: string | null } | null,
       amendment,
+      cancellation,
     };
   }, [id]);
 
@@ -520,7 +532,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   if (loading) return <Shell><p role="status">جارٍ تحميل الطلب...</p></Shell>;
   if (error) return <Shell><div style={card} role="alert">{error} <button type="button" className="sf-link" aria-label="إعادة تحميل تفاصيل الطلب" onClick={() => void refetch()}>إعادة المحاولة</button></div></Shell>;
   if (!data?.order) return <Shell><div style={card}>الطلب غير موجود أو لا تملك صلاحية عرضه. <Link to="/orders" className="sf-link">طلباتي</Link></div></Shell>;
-  const { order, items, history, customer, amendment } = data;
+  const { order, items, history, customer, amendment, cancellation } = data;
   const printDocument = projectCustomerOrderPrintDocument(order, items, history, customer, user?.name ?? null);
 
   function exportOrderWorkbook() {
@@ -579,6 +591,45 @@ function OrderInvoiceInner({ id }: { id: string }) {
       });
     } finally {
       setAmendmentBusy(false);
+    }
+  }
+
+
+  async function cancelCustomerOrder() {
+    if (cancellationBusy || !['draft','pending'].includes(order.status)) return;
+    const reason = cancellationReason.trim();
+    if (reason.length<3 || reason.length>500) {
+      setCancellationFeedback({ kind:'error', message:'اكتب سبب الإلغاء بطول من 3 إلى 500 حرف.' });
+      return;
+    }
+    setCancellationBusy(true);
+    setCancellationFeedback(null);
+    try {
+      const requestKey = cancellationRequestKey.current ?? crypto.randomUUID().replace(/-/g,'');
+      cancellationRequestKey.current = requestKey;
+      const { data: result, error: rpcError } = await supabase.rpc('cancel_customer_order', {
+        p_order_id: order.id,
+        p_reason: reason,
+        p_idempotency_key: requestKey,
+      });
+      if (rpcError) throw rpcError;
+      if (!result || typeof result!=='object' || Array.isArray(result)
+        || result.order_id!==order.id || result.status!=='cancelled') {
+        throw new Error('لم يؤكد الخادم إلغاء الطلب.');
+      }
+      cancellationRequestKey.current = null;
+      setCancellationFeedback({
+        kind:'success',
+        message:'أُلغي الطلب قبل اعتماده من الإدارة. لم يُحجز مخزون ولم تُصدر فاتورة أو حركة مالية.',
+      });
+      await refetch();
+    } catch (cause) {
+      setCancellationFeedback({
+        kind:'error',
+        message:cause instanceof Error ? cause.message : 'تعذر إلغاء الطلب؛ تحقق من حالته ثم أعد المحاولة.',
+      });
+    } finally {
+      setCancellationBusy(false);
     }
   }
 
@@ -722,6 +773,36 @@ function OrderInvoiceInner({ id }: { id: string }) {
               </button>
             </>
           )}
+        </section>
+      )}
+
+
+      {['draft','pending'].includes(order.status) && !user?.isStaff && !order.quantity_review_required && (
+        <section className="no-print" style={{ ...card, marginBottom:16, borderColor:'#e5c4ba' }} aria-labelledby="customer-order-cancel-title">
+          <h2 id="customer-order-cancel-title" style={{ margin:'0 0 7px', fontSize:17 }}>إلغاء الطلب قبل اعتماده</h2>
+          <p style={{ margin:'0 0 10px', color:'#536b70', lineHeight:1.8 }}>
+            يمكنك إلغاء طلبك قبل أن تبدأ الإدارة المراجعة أو اعتماد الطلب. يلزم تسجيل سبب الإلغاء.
+          </p>
+          <label style={{ display:'grid', gap:6 }}>
+            <strong>سبب الإلغاء</strong>
+            <textarea rows={2} maxLength={500} value={cancellationReason} disabled={cancellationBusy}
+              onChange={(event) => setCancellationReason(event.target.value)}
+              placeholder="مثال: إدخال كمية غير صحيحة أو تغيير احتياج الشراء."
+              style={{ width:'100%', padding:10, border:'1px solid #d9e5eb', borderRadius:8, font:'inherit' }} />
+          </label>
+          {cancellationFeedback && <p role={cancellationFeedback.kind==='error'?'alert':'status'} style={{ margin:'9px 0 0', color:cancellationFeedback.kind==='error'?'#9b2929':'#17684d' }}>{cancellationFeedback.message}</p>}
+          <button type="button" disabled={cancellationBusy} onClick={() => void cancelCustomerOrder()}
+            style={{ marginTop:11, padding:'9px 15px', border:0, borderRadius:8, background:'#963b30', color:'#fff', font:'inherit', fontWeight:800, cursor:'pointer' }}>
+            {cancellationBusy ? 'جارٍ إلغاء الطلب...' : 'تأكيد إلغاء الطلب'}
+          </button>
+        </section>
+      )}
+      {cancellation && order.status==='cancelled' && (
+        <section className="no-print" style={{ ...card, marginBottom:16, borderColor:'#e5c4ba' }} role="status">
+          <strong>تم إلغاء الطلب بطلب من حسابك</strong>
+          <p style={{ margin:'7px 0 0' }}>التاريخ: {formatDate(cancellation.created_at)}</p>
+          <p style={{ margin:'7px 0 0' }}>السبب: {cancellation.reason}</p>
+          <small>هذا إثبات إلغاء الطلب قبل اعتماده، وليس إشعار استرداد أو حركة مالية.</small>
         </section>
       )}
 
