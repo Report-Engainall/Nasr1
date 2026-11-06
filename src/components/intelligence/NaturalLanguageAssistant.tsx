@@ -4,6 +4,7 @@ import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@
 import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
 import { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
 import { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
+import { BusinessHealthMap } from "./BusinessHealthMap";
 import type { TaskIntelligenceManagerRisk, TaskIntelligenceRole } from "@/lib/intelligence/task-intelligence-reports";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
@@ -169,6 +170,22 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     <article className="rounded-lg border p-3 text-sm"><p className="text-xs text-muted-foreground">أولوية عالية</p><strong className="text-xl tabular-nums">{qty.format(response.result.summary.highCount)}</strong></article>
    </div>
    <p className="text-xs text-muted-foreground">النطاق: جميع الحالات النشطة في المؤسسة الحالية، محسوبة عند وقت خادمي واحد. هذه أعداد مجمعة؛ لا يعيد هذا المسار أسماء العملاء أو أرقام الحالات أو أوصافها أو أسماء الموظفين. قد تتداخل حالات تأخر الاستجابة وتأخر الحل، لذلك لا تُجمع في رقم إجمالي واحد.</p>
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="BUSINESS_HEALTH"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <strong>خريطة صحة الأعمال ورأس المال</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="READY"?"مصادر مكتملة":"عرض جزئي — راجع المصادر المحجوبة"}</span>
+    </div>
+    <p className="mt-2">{response.result.answer}</p>
+    <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs">
+     <article className="rounded-md border p-2"><strong>المخزون</strong><p>{count(response.result.sources.inventory.returnedProducts)} من {count(response.result.sources.inventory.totalProducts)} منتج</p><p>{response.result.sources.inventory.period.from} — {response.result.sources.inventory.period.to}</p></article>
+     <article className="rounded-md border p-2"><strong>التدفق النقدي</strong><p>{response.result.sources.cashflow.status==="READY"?"تم تحميل المصدر":"غير متاح"}</p><p>{response.result.sources.cashflow.status==="READY"?response.result.sources.cashflow.period.from+" — "+response.result.sources.cashflow.period.to:response.result.sources.cashflow.message}</p></article>
+     <article className="rounded-md border p-2"><strong>الاحتفاظ بالعملاء</strong><p>{response.result.sources.retention.status==="READY"?(response.result.sources.retention.populationComplete?"مجتمع كامل":"تغطية غير مكتملة"):"غير متاح"}</p><p>{response.result.sources.retention.status==="READY"?response.result.sources.retention.period.from+" — "+response.result.sources.retention.period.to:response.result.sources.retention.message}</p></article>
+    </div>
+   </div>
+   <BusinessHealthMap result={response.result.map} state="ready"/>
+   <p className="text-xs text-muted-foreground">هذه قراءة فقط ولا تنفذ ترحيلاً أو تحصيلاً أو شراءً. الأرصدة البنكية والالتزامات لا تُفترض عند غياب المصدر؛ DSO وDPO وCCC وإجمالي رأس المال المعرض تبقى غير محسوبة ما لم تكتمل مدخلاتها وتثبت عدم تداخل مجموعاتها.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="PURCHASE_ORDER"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm"><p className="font-semibold">{response.result.answer}</p>

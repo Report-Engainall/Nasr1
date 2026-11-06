@@ -10,6 +10,7 @@ import type { TaskQualityMetrics } from "./task-quality-reviews";
 import type { DecisionOutcomeState, DecisionOutcomeView } from "./decision-outcome-client";
 import type { GrowthOpportunityRadarResult } from "./growth-opportunities";
 import type { TaskPerformanceScorecard } from "./task-performance-scorecard";
+import type { BusinessHealthMapResult } from "./business-health-map";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
@@ -22,6 +23,7 @@ export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
 export type TaskQualityIntent="TASK_QUALITY_OVERVIEW";
 export type GrowthRadarIntent="GROWTH_RADAR_OVERVIEW";
 export type TaskPerformanceIntent="TASK_PERFORMANCE_OVERVIEW";
+export type BusinessHealthIntent="BUSINESS_HEALTH_OVERVIEW";
 export type CommercePolicyIntent="COMMERCE_POLICY_OVERVIEW"|"COMMERCE_POLICY_SOURCE_CHANGES";
 export type DecisionOutcomesIntent="DECISION_OUTCOMES_OVERVIEW"|"DECISIONS_PENDING_REVIEW"|"DECISIONS_AWAITING_EXECUTION"|"DECISIONS_DEFERRED";
 export type CustomerServiceIntent=
@@ -29,7 +31,7 @@ export type CustomerServiceIntent=
  |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
  |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
  |"CUSTOMER_SERVICE_UNASSIGNED";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent;
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent|BusinessHealthIntent;
 export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard"|"fetch_commerce_policy_catalog";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
@@ -320,6 +322,18 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"لقطة حالية لمراجعات المدير المحفوظة عبر نطاق المهام المصرح به؛ أحدث مراجعة لكل كيان ونوع. تعرض أسباب رفض/تأجيل التوصيات والإنذارات الكاذبة والأسباب المتكررة بعد المراجعة، ولا تدعم فترة تاريخية أو توزيعاً حسب الدور."
   };
  }
+ const businessHealthQuestion=/(خريطه صحه الاعمال|صحه الاعمال|ملخص صحه الاعمال|راس المال المحجوز|الصحه الماليه والتشغيليه|الخريطه الماليه والتشغيليه)/.test(normalizedQuestion);
+ if(businessHealthQuestion){
+  if(/(الاسبوع الماضي|الشهر الماضي|السنه الماضيه|من تاريخ|بين تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"خريطة صحة الأعمال لقطة موحدة للبيانات المتاحة حالياً؛ لا تدعم استعادة لقطة تاريخية أو مقارنة بتاريخ حر."
+  };
+  return {
+   status:"READY",intent:"BUSINESS_HEALTH_OVERVIEW",normalizedQuestion,
+   sourceRpc:"get_inventory_intelligence_aggregate",
+   filterDescription:"خريطة مركبة من لقطة مخزون 92 يوماً، وجدول تدفق نقدي 90 يوماً، واحتفاظ العملاء 90 يوماً، بوقت احتساب موحد. تبقى العملات منفصلة، ولا تجمع مكونات رأس المال المتداخلة؛ ما لا يثبته المصدر يظهر غير متاح."
+  };
+ }
  return {status:"UNSUPPORTED",normalizedQuestion,
   explanation:"لم يتعرف المساعد على نية قراءة معتمدة. لا ينشئ SQL ولا ينفذ أوامر أو تغييرات من اللغة الطبيعية."};
 }
@@ -439,7 +453,20 @@ export interface NaturalLanguageDecisionOutcomesResult {
  countsByState:Record<DecisionOutcomeState,number>;
 }
 
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult;
+export interface NaturalLanguageBusinessHealthResult {
+ kind:"BUSINESS_HEALTH";state:"READY"|"PARTIAL";intent:BusinessHealthIntent;
+ answer:string;sourceRpc:"get_inventory_intelligence_aggregate";asOf:string;
+ map:BusinessHealthMapResult;
+ sources:{
+  inventory:{status:"READY";asOf:string;period:{from:string;to:string};totalProducts:number;returnedProducts:number};
+  cashflow:{status:"READY";asOf:string;period:{from:string;to:string};scheduleStatus:string;completeness:string;warnings:string[]}
+   |{status:"UNAVAILABLE";message:string};
+  retention:{status:"READY";asOf:string;period:{from:string;to:string};populationComplete:boolean;customerCount:number|null}
+   |{status:"UNAVAILABLE";message:string};
+ };
+}
+
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult|NaturalLanguageBusinessHealthResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {

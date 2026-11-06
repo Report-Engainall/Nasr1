@@ -13,6 +13,7 @@ import { fetchTaskPerformanceScorecard } from "./task-performance-scorecard-clie
 import { fetchCommercePolicyCatalog } from "./commerce-policy-governance-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
+import { fetchBusinessHealthAssistantSummary } from "./business-health-assistant-client";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
  type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent,type CommercePolicyIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
@@ -31,6 +32,15 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
  const plan=planNaturalLanguageQuery(question);
  if(plan.status!=="READY")return {status:plan.status,plan};
  try {
+  if(plan.intent==="BUSINESS_HEALTH_OVERVIEW"){
+   const health=await fetchBusinessHealthAssistantSummary();
+   if(!health.ok)return {status:health.status,message:health.message};
+   return {status:"RESULT",plan,result:{
+    kind:"BUSINESS_HEALTH",state:health.data.state,intent:"BUSINESS_HEALTH_OVERVIEW",
+    answer:health.data.answer,sourceRpc:"get_inventory_intelligence_aggregate",
+    asOf:health.data.map.asOf,map:health.data.map,sources:health.data.sources,
+   }};
+  }
   if(plan.sourceRpc==="fetch_commerce_policy_catalog"){
    const result=await fetchCommercePolicyCatalog();
    if(!result.ok)return {status:result.status==="NOT_FOUND"?"ERROR":result.status,message:result.message};
