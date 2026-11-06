@@ -102,16 +102,53 @@ function resolveQuoteQueryResult(table: string): QueryResult {
 }
 
 function makeQuery(table: string) {
+  const ordering: Array<{ column: string; ascending: boolean }> = [];
+  let pageSize: number | null = null;
+  let cursorFilter: string | null = null;
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
-    order: vi.fn(() => query),
-    limit: vi.fn(() => query),
+    order: vi.fn((column: string, options?: { ascending?: boolean }) => {
+      if (table === "sales_quotes") ordering.push({ column, ascending: options?.ascending ?? true });
+      return query;
+    }),
+    limit: vi.fn((count: number) => {
+      pageSize = count;
+      return query;
+    }),
+    or: vi.fn((filter: string) => {
+      cursorFilter = filter;
+      return query;
+    }),
     in: vi.fn(() => query),
     then: (
       resolve?: (value: QueryResult) => unknown,
       reject?: (reason: unknown) => unknown,
-    ) => Promise.resolve(resolveQuoteQueryResult(table)).then(resolve, reject),
+    ) => {
+      const result = resolveQuoteQueryResult(table);
+      if (table !== "sales_quotes" || !result.data) return Promise.resolve(result).then(resolve, reject);
+      let rows = [...result.data] as Array<Record<string, unknown>>;
+      rows.sort((left, right) => {
+        for (const order of ordering) {
+          const compared = String(left[order.column] ?? "").localeCompare(String(right[order.column] ?? ""));
+          if (compared !== 0) return order.ascending ? compared : -compared;
+        }
+        return 0;
+      });
+      if (cursorFilter) {
+        const cursor = /created_at\.lt\.([^,]+),and\(created_at\.eq\.([^,]+),id\.lt\.([^)]+)\)/.exec(cursorFilter);
+        if (cursor) {
+          const [, beforeDate, sameDate, beforeId] = cursor;
+          rows = rows.filter((row) => {
+            const createdAt = String(row.created_at ?? "");
+            const id = String(row.id ?? "");
+            return createdAt < beforeDate || (createdAt === sameDate && id < beforeId);
+          });
+        }
+      }
+      if (pageSize !== null) rows = rows.slice(0, pageSize);
+      return Promise.resolve({ ...result, data: rows }).then(resolve, reject);
+    },
   };
   return query;
 }
@@ -548,6 +585,44 @@ describe("customer quotes real route acceptance", () => {
 
     expect(host?.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(openButton);
+  });
+
+
+  it("loads the older staff quote backlog with a stable cursor and no duplicate rows", async () => {
+    mocks.user = { ...CUSTOMER, roles: ["admin"], isStaff: true };
+    mocks.quoteRows = Array.from({ length: 101 }, (_, index) => {
+      const number = index + 1;
+      return {
+        id: "33333333-3333-4333-8333-" + String(number).padStart(12, "0"),
+        quote_number: "QT-PAGE-" + String(number).padStart(3, "0"),
+        status: "requested",
+        notes: null,
+        response_note: null,
+        created_at: "2026-10-31T09:00:00.000Z",
+        quoted_at: null,
+        valid_until: null,
+      };
+    });
+
+    await mountStaffQuotesPage();
+
+    expect(host?.querySelectorAll("article")).toHaveLength(100);
+    expect(host?.textContent).toContain("QT-PAGE-002");
+    expect(host?.textContent).not.toContain("QT-PAGE-001");
+    const loadOlder = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("تحميل عروض أقدم"));
+    expect(loadOlder).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(loadOlder!);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+
+    expect(host?.querySelectorAll("article")).toHaveLength(101);
+    expect(host?.textContent).toContain("QT-PAGE-001");
+    expect(Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .some((button) => button.textContent?.includes("تحميل عروض أقدم"))).toBe(false);
   });
 
 
