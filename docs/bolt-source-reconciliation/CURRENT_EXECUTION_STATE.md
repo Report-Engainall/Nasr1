@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — customer order-history search — 2026-11-06
+
+- Extended `src/components/CustomerOrders.tsx` with server-side partial order-number search, Arabic-Indic/Persian/ASCII digit normalization, and removal of wildcard metacharacters. Search is applied before range pagination, retains the status filter/exact count/deterministic date+ID ordering, and resets to page 1 on apply/clear.
+- Main commit: `72e08d2f2dc7c219ed743d16301c7294e6d7c4cd`.
+- Added acceptance leaf `DLV-008-CUSTOMER-ORDER-HISTORY-SEARCH-001`. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, typecheck, lint, CI, browser, database, Bolt, Preview or production operation was run. No PASS/runtime claim is made.
+
 ## P1 body update — customer quote-history paging — 2026-11-06
 
 - Extended the existing customer `/quotes` workflow in `src/components/CustomerWorkflows.tsx`: the saved quote list now has deterministic descending `created_at,id` ordering, a bounded 50-row cursor page reader, and a visible `تحميل العروض الأقدم` action. It validates the cursor and returned quote IDs/timestamps, obtains each page's quote-line details before merging, deduplicates IDs, and supports Arabic search across quote number, status, item snapshot/code and response/customer notes.
