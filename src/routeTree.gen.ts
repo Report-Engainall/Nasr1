@@ -22,6 +22,7 @@ import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as CategorySlugSubcategorySlugRouteImport } from './routes/category.$slug.subcategory.$subcategorySlug'
 import { Route as CollectionsRouteImport } from './routes/collections'
 import { Route as OffersRouteImport } from './routes/offers'
+import { Route as PaymentsRouteImport } from './routes/payments'
 import { Route as StoreRouteImport } from './routes/store'
 import { Route as SearchAdvancedRouteImport } from './routes/search.advanced'
 import { Route as SearchRouteImport } from './routes/search'
@@ -375,6 +376,11 @@ const CollectionsRoute = CollectionsRouteImport.update({
   path: '/collections',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PaymentsRoute = PaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OffersRoute = OffersRouteImport.update({
   id: '/offers',
   path: '/offers',
@@ -455,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/catalog': typeof CatalogRoute
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
+  '/payments': typeof PaymentsRoute
   '/store': typeof StoreRoute
   '/categories': typeof CategoriesRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -518,6 +525,7 @@ export interface FileRoutesByTo {
   '/catalog': typeof CatalogRoute
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
+  '/payments': typeof PaymentsRoute
   '/store': typeof StoreRoute
   '/categories': typeof CategoriesRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -585,6 +593,7 @@ export interface FileRoutesById {
   '/catalog': typeof CatalogRoute
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
+  '/payments': typeof PaymentsRoute
   '/store': typeof StoreRoute
   '/categories': typeof CategoriesRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -648,6 +657,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/collections'
     | '/offers'
+    | '/payments'
     | '/store'
     | '/categories'
     | '/category/$slug'
@@ -707,6 +717,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/collections'
     | '/offers'
+    | '/payments'
     | '/store'
     | '/categories'
     | '/category/$slug'
@@ -767,6 +778,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/collections'
     | '/offers'
+    | '/payments'
     | '/store'
     | '/categories'
     | '/category/$slug'
@@ -776,6 +788,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  PaymentsRoute: typeof PaymentsRoute
   HelpRoute: typeof HelpRoute
   IndexRoute: typeof IndexRoute
   AddressesRoute: typeof AddressesRoute
@@ -1221,6 +1234,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/payments': {
+      id: '/payments'
+      path: '/payments'
+      fullPath: '/payments'
+      preLoaderRoute: typeof PaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/offers': {
       id: '/offers'
       path: '/offers'
@@ -1369,6 +1389,7 @@ const rootRouteChildren: RootRouteChildren = {
   CatalogRoute: CatalogRoute,
   CollectionsRoute: CollectionsRoute,
   OffersRoute: OffersRoute,
+  PaymentsRoute: PaymentsRoute,
   StoreRoute: StoreRoute,
 }
 export const routeTree = rootRouteImport
