@@ -44,7 +44,7 @@ function validate(input:CustomerReturnReviewXlsxInput) {
     throw new Error("قائمة المراجعة يجب أن تحتوي من طلب واحد إلى 50 طلباً أعادها الخادم.");
   }
   const ids=new Set<string>(),numbers=new Set<string>();
-  const requests=input.rows.map(request=>{
+  const requests=input.rows.map((request: CustomerReturnReviewXlsxRequest)=>{
     if(!request||typeof request!=="object") throw new Error("سجل مراجعة مرتجع غير صالح.");
     const id=textValue(request.id,"مرجع الطلب",80),number=textValue(request.request_number,"رقم المرتجع",60);
     if(ids.has(id)||numbers.has(number)) throw new Error("تكرر مرجع طلب أو رقم مرتجع؛ أوقف التصدير.");
@@ -58,7 +58,7 @@ function validate(input:CustomerReturnReviewXlsxInput) {
     timestamp(request.created_at);
     optionalText(request.notes,"ملاحظة العميل",2000);
     if(!Array.isArray(request.items)||request.items.length<1||request.items.length>100) throw new Error("عدد أصناف المرتجع يجب أن يكون من 1 إلى 100.");
-    const items=request.items.map(line=>{
+    const items=request.items.map((line: CustomerReturnReviewXlsxLine)=>{
       if(!line||typeof line!=="object") throw new Error("تفصيل صنف المرتجع غير صالح.");
       optionalText(line.item_code,"رمز الصنف",80);
       textValue(line.product_name,"اسم الصنف",300);
@@ -67,7 +67,7 @@ function validate(input:CustomerReturnReviewXlsxInput) {
     });
     return { ...request, items };
   });
-  return { requests, lines:requests.flatMap(request=>request.items.map(line=>({request,line}))) };
+  return { requests, lines:requests.flatMap((request: CustomerReturnReviewXlsxRequest)=>request.items.map((line: CustomerReturnReviewXlsxLine)=>({request,line}))) };
 }
 function workbookXml(summaryRows:readonly (readonly CellValue[])[],detailRows:readonly (readonly CellValue[])[],createdAt:string):Uint8Array {
   const contentTypes='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+

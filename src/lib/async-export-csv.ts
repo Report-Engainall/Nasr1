@@ -96,7 +96,7 @@ export function buildOrdersCsv(rows: readonly AsyncOrderCsvRow[]): string {
 }
 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer as ArrayBuffer);
   return Array.from(new Uint8Array(digest), (part) => part.toString(16).padStart(2, "0")).join("");
 }
 

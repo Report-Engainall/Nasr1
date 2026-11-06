@@ -417,7 +417,7 @@ export function buildCustomerStatementCurrencySummary(
     );
   }
 
-  const totals = new Map<string, CurrencyTotals>();
+  const totals = new Map<string, CustomerStatementCurrencySummary>();
   const getTotals = (currency: string) => {
     const existing = totals.get(currency);
     if (existing) return existing;

@@ -553,8 +553,8 @@ export async function uploadSupplierInvoiceEvidence(input: {
     throw new Error("المتصفح لا يدعم إنشاء بصمة SHA-256 ومفتاح ملف آمن؛ لم يُرفع المرفق.");
   }
   const safeName = input.file.name
-    .replaceAll("/", "_")
-    .replaceAll(String.fromCharCode(92), "_")
+    .replace(/\//g, "_")
+    .replace(/\\/g, "_")
     .replace(/[\u0000-\u001f\u007f]/g, "_")
     .trim()
     .slice(0, 180);
