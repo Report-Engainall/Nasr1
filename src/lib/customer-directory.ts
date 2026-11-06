@@ -75,10 +75,6 @@ function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryR
     ...(typeof row.credit_limit === "number" || row.credit_limit === null ? { credit_limit: row.credit_limit } : {}),
     ...(typeof row.profile_id === "string" || row.profile_id === null ? { profile_id: row.profile_id } : {}),
   };
-  for (const field of CUSTOMER_MANAGER_DIRECTORY_FIELDS) {
-    const fieldValue = row[field];
-    if (typeof fieldValue === 'string' || fieldValue === null) safe[field] = fieldValue;
-  }
   // The manager projection intentionally omits finance-only fields.
   return safe;
 }
