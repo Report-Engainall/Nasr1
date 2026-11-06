@@ -24,14 +24,14 @@ Continue from the latest live `main` with the next concrete non-P3 workflow gap;
 
 ---
 
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-038
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-039
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Main SHA at checkpoint base: `f511ab5b76d2d3086efbdc0388853dbcb3b35fd5`.
-- P1 code commits: `1467ca00a6360670f5bd9e8726bbea181ac5ebf8`, `372eccf99d94a67f833d77b1cc1550c5b202d08a`, `0287ffd14dda6f2d41ad4984f615e66d11dc5a31`, `d876b2183e13113fabff537f11e0e0202ea14ecc`, `85861a24932ce85b4a2748dc71ec113d357929db`.
+- P1 code commits: `1467ca00a6360670f5bd9e8726bbea181ac5ebf8`, `372eccf99d94a67f833d77b1cc1550c5b202d08a`, `0287ffd14dda6f2d41ad4984f615e66d11dc5a31`, `d876b2183e13113fabff537f11e0e0202ea14ecc`, `85861a24932ce85b4a2748dc71ec113d357929db`, `71f59afdafbbbb89c4fcc5dd6e835e3a5680ac37`.
 - P1 owns the active product editor and catalog write boundary. No P3-owned file or engine was changed.
 
-## BODY-038 — atomic product create/edit contract and product description
+## BODY-039 — atomic product create/edit contract and product description
 
 - Added `20261106130000_admin_product_full_metadata_atomic_save.sql` to restore the complete payload contract of `save_admin_product_with_metadata` while also supporting `p_product_id = NULL` for creation.
 - The wrapper delegates core product identity, category eligibility, price-grid persistence, optimistic stale-price checks and core audit to the existing `save_admin_catalog_product` command. It strips only the six metadata keys before delegation, then persists the optional metadata fields inside the same database transaction.
@@ -39,6 +39,7 @@ Continue from the latest live `main` with the next concrete non-P3 workflow gap;
 - Routed active ProductModal creation through the API's `createProduct()`, and refactored that API to use `saveAdminCatalogProduct()` and the same SECURITY DEFINER RPC; the direct `products` INSERT path was removed from this API function.
 - Product creation now requires and captures all four persisted prices (base, جملة الجملة, الجملة, التجزئة) rather than silently copying one tier into the others. The existing image-persistence flow continues with the server-confirmed product ID.
 - Added product description editing (maximum 2,000 characters) to the existing product modal. Aligned name/barcode limits with server validation and cents validation with JavaScript floating-point precision.
+- The creation API respects the selected active/inactive state. If the server confirms creation but the follow-up staff read is unavailable, the UI receives the saved product ID in the error message and is instructed to refresh before retrying, preventing an unknown duplicate create.
 - Preserved the legacy admin page's existing command use: helper metadata fields are optional and omitted fields are not overwritten during edit.
 - Files: `src/components/AghbariApp.tsx`, `src/lib/api.ts`, `src/lib/admin-catalog-commands.ts`, `supabase/migrations/20261106130000_admin_product_full_metadata_atomic_save.sql`.
 - Scoped functions closed: product creation through the canonical atomic writer; product metadata edit contract; description entry/edit; initial four-tier price capture. These are four bounded capabilities, not a project-wide completion percentage.
