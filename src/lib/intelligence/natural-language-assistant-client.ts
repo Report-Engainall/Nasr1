@@ -24,7 +24,8 @@ import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvo
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
- |{status:"DENIED"|"UNAVAILABLE"|"NOT_FOUND"|"ERROR";message:string};
+ |{status:"NOT_FOUND";message:string;plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>}
+ |{status:"DENIED"|"UNAVAILABLE"|"ERROR";message:string};
 function mapFailure(error:unknown):NaturalLanguageAssistantResponse {
  const failure=error as {code?:string;message?:string};
  if(failure?.code==="42501"||failure?.code==="28000"||failure?.code==="PGRST301")
@@ -115,7 +116,10 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
   if(plan.sourceRpc==="fetch_operational_shift_workspace"){
    if(!plan.businessDate)return {status:"ERROR",message:"تاريخ العمل مطلوب قبل قراءة مركز الوردية."};
    const workspace=await fetchOperationalShiftWorkspace({businessDate:plan.businessDate});
-   if(!workspace.ok)return {status:workspace.status,message:workspace.message};
+   if(!workspace.ok){
+    if(workspace.status==="NOT_FOUND")return {status:"NOT_FOUND",message:workspace.message,plan};
+    return {status:workspace.status,message:workspace.message};
+   }
    return {status:"RESULT",plan,result:resolveShiftOperationsIntent(workspace.data.result)};
   }
   if(plan.sourceRpc==="fetch_decision_outcomes"){
