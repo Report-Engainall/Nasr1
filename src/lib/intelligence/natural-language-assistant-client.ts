@@ -22,9 +22,9 @@ export type NaturalLanguageAssistantResponse=
 function mapFailure(error:unknown):NaturalLanguageAssistantResponse {
  const failure=error as {code?:string;message?:string};
  if(failure?.code==="42501"||failure?.code==="28000"||failure?.code==="PGRST301")
-  return {status:"DENIED",message:"تحتاج هذه الإجابة إلى صلاحية إدارة المشتريات أو قراءة الفواتير المالية حسب نوع السؤال."};
+  return {status:"DENIED",message:"لا تملك الصلاحية المطلوبة لقراءة مصدر البيانات المعتمد لهذا السؤال."};
  if(failure?.code==="PGRST202"||failure?.code==="42883"||/function .* does not exist|could not find the function/i.test(failure?.message??""))
-  return {status:"UNAVAILABLE",message:"مصدر البيانات المعتمد لهذا السؤال غير متاح في قاعدة البيانات المتصلة."};
+  return {status:"UNAVAILABLE",message:"خدمة القراءة المعتمدة لهذا السؤال غير متاحة في قاعدة البيانات المتصلة؛ لم تُستخدم بيانات بديلة."};
  return {status:"ERROR",message:"تعذر تنفيذ الاستعلام من مصدر التطبيق المصرح به."};
 }
 export async function runNaturalLanguageAssistantQuery(question:string):Promise<NaturalLanguageAssistantResponse> {
