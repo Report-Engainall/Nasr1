@@ -491,6 +491,96 @@ BEGIN
     v_expected_currency := pg_catalog.upper(p_snapshot->'expectedMetric'->>'currency');
     IF v_expected_key IS NULL OR v_expected_key <> 'cashflow.expected_collections'
        OR v_expected_currency IS NULL OR v_expected_currency !~ '^[A-Z]{3}
+     THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'expected metric key or currency is invalid';
+    END IF;
+
+    SELECT pg_catalog.count(*)::integer
+      INTO v_unresolved
+      FROM public.customer_invoices i
+     WHERE i.organization_id = v_org
+       AND i.status IN ('issued','partially_paid')
+       AND i.issued_at <= v_as_of
+       AND pg_catalog.upper(i.currency) = v_expected_currency
+       AND i.total_amount > coalesce((
+         SELECT pg_catalog.sum(p.amount)
+           FROM public.customer_payments p
+          WHERE p.organization_id = v_org
+            AND p.invoice_id = i.id
+            AND p.paid_at <= v_as_of
+       ),0)
+       AND i.due_at IS NULL;
+    IF v_unresolved > 0 THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'expected metric blocked by invoices with unresolved due dates';
+    END IF;
+
+    WITH paid AS (
+      SELECT p.invoice_id,pg_catalog.sum(p.amount)::numeric(18,2) AS paid_amount
+        FROM public.customer_payments p
+       WHERE p.organization_id = v_org
+         AND p.paid_at <= v_as_of
+       GROUP BY p.invoice_id
+    ),
+    scoped AS (
+      SELECT i.id,i.total_amount,coalesce(p.paid_amount,0) AS paid_amount
+        FROM public.customer_invoices i
+        LEFT JOIN paid p ON p.invoice_id = i.id
+       WHERE i.organization_id = v_org
+         AND i.status IN ('issued','partially_paid')
+         AND i.issued_at <= v_as_of
+         AND pg_catalog.upper(i.currency) = v_expected_currency
+         AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
+         AND i.total_amount > coalesce(p.paid_amount,0)
+    ),
+    expected_ids AS (
+      SELECT 'invoice:' || s.id::text AS evidence_id FROM scoped s
+      UNION ALL
+      SELECT 'payment:' || p.id::text
+        FROM public.customer_payments p
+        JOIN scoped s ON s.id = p.invoice_id
+       WHERE p.organization_id = v_org
+         AND p.paid_at <= v_as_of
+    )
+    SELECT
+      (SELECT pg_catalog.array_agg(evidence_id ORDER BY evidence_id) FROM expected_ids),
+      (SELECT pg_catalog.sum(GREATEST(total_amount-paid_amount,0))::numeric(18,2) FROM scoped),
+      (SELECT pg_catalog.count(*)::integer FROM scoped)
+      INTO v_expected_ids,v_expected_total,v_expected_invoice_count;
+
+    IF coalesce(v_expected_invoice_count,0) = 0
+       OR coalesce(pg_catalog.cardinality(v_expected_ids),0) = 0
+       OR v_expected_total IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'expected metric has no complete source population in the selected period and currency';
+    END IF;
+
+    v_expected_resolved := public._decision_memory_resolve_evidence(
+      v_org,v_expected_ids,'dmexpected:' || v_snapshot_id::text,v_period,v_as_of
+    );
+    IF pg_catalog.jsonb_array_length(v_expected_resolved->'ids') <> pg_catalog.cardinality(v_expected_ids) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'expected metric source set is incomplete or outside the active organization';
+    END IF;
+    v_expected_metric := pg_catalog.jsonb_build_object(
+      'id','decision-expected:' || p_decision_outcome_id::text,
+      'key',v_expected_key,
+      'value',v_expected_total,
+      'unit','CURRENCY',
+      'currency',v_expected_currency,
+      'status','VERIFIED',
+      'completeness','COMPLETE',
+      'quality','ACCEPTABLE',
+      'period',v_period,
+      'asOf',v_as_of,
+      'lineage',pg_catalog.jsonb_build_object(
+        'evidenceIds',v_expected_resolved->'ids',
+        'calculatedAt',v_now,
+        'formulaId','nasr1.receivables-outstanding',
+        'formulaVersion','1',
+        'transformations',pg_catalog.jsonb_build_array('complete same-tenant invoices minus payments as of decision timestamp')
+      ),
+      'warnings','[]'::jsonb
+    );
+    v_evidence_records := v_evidence_records || v_expected_resolved->'records';
+  END IF;
   IF v_chosen_option_id IS NOT NULL AND NOT EXISTS (
     SELECT 1
       FROM pg_catalog.jsonb_array_elements(p_snapshot->'alternatives') a(value)
