@@ -1,3 +1,21 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-064 — CUSTOMER PAYMENT HISTORY XLSX
+
+- Repository: \`Report-Engainall/Nasr1\`; branch: \`main\`.
+- Parent/base SHA: \`c2e358dce286c49c91157c9d0a4d0ec2d1a06e75\`.
+- Added \`src/lib/customer-payment-history-xlsx.ts\`: an Arabic two-sheet workbook for a customer's loaded payment history and its explicit scope.
+- Added «تنزيل Excel» to the existing customer payment-history screen. It exports the current search-filtered rows only, using the existing \`get_customer_account_statement\` response already loaded by that screen; no new query, mutation, or finance posting path.
+- The workbook contains only payment date, invoice number when available, amount/currency only when the matching invoice is in the loaded invoice detail set, and the linkage scope. When the invoice is outside the loaded details, the amount and currency are omitted exactly as in the UI. All payment/invoice/customer/tenant UUIDs are excluded.
+- It discloses the 500-payment/200-invoice detail limit and whether search filtering was applied. It does not total mixed currencies or claim to be a receipt or complete ledger.
+- Files changed: \`src/lib/customer-payment-history-xlsx.ts\` (new), \`src/components/CustomerWorkflows.tsx\`.
+- State: \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`.
+- Evidence boundary: source-only commit; no tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue the next uncovered customer or commerce workflow from existing server-owned contracts. Keep order amendments and identity/business-profile writes blocked until tenant-bound transactional server commands are authored. Do not alter P3 engines or add paid external providers.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-063 — CUSTOMER INVOICE XLSX EXPORT
 
 - Repository: \`Report-Engainall/Nasr1\`; branch: \`main\`.

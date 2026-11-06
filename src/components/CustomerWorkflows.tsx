@@ -49,6 +49,7 @@ import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xl
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { downloadCustomerQuoteWorkbookXlsx } from "@/lib/customer-quote-xlsx";
 import { downloadCustomerInvoiceWorkbookXlsx } from "@/lib/customer-invoice-xlsx";
+import { downloadCustomerPaymentHistoryWorkbookXlsx } from "@/lib/customer-payment-history-xlsx";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
@@ -1338,6 +1339,8 @@ function CustomerPayments() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [xlsxError, setXlsxError] = useState("");
+  const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1403,6 +1406,32 @@ function CustomerPayments() {
     });
   }, [invoiceById, payments, search]);
 
+  function downloadPaymentHistoryXlsx() {
+    if (loading || error || filtered.length === 0 || xlsxBusy) return;
+    setXlsxBusy(true);
+    setXlsxError("");
+    try {
+      downloadCustomerPaymentHistoryWorkbookXlsx({
+        payments: filtered.map((payment) => {
+          const invoice = invoiceById.get(payment.invoice_id);
+          return {
+            paidAt: payment.paid_at ?? null,
+            invoiceNumber: invoice?.invoice_number ?? null,
+            amount: invoice ? payment.amount : null,
+            currency: invoice?.currency ?? null,
+          };
+        }),
+        loadedCount: payments.length,
+        detailMayBePartial,
+        searchFiltered: Boolean(search.trim()),
+      });
+    } catch (cause) {
+      setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لسجل الدفعات.");
+    } finally {
+      setXlsxBusy(false);
+    }
+  }
+
   const detailMayBePartial = payments.length >= 500 || invoices.length >= 200;
   return (
     <WorkspaceShell
@@ -1414,11 +1443,16 @@ function CustomerPayments() {
           <Link to="/statement" style={secondary}>كشف الحساب</Link>
           <Link to="/invoices" style={secondary}>الفواتير</Link>
         </div>
+        <button type="button" style={secondary} onClick={downloadPaymentHistoryXlsx}
+          disabled={loading || Boolean(error) || filtered.length === 0 || xlsxBusy}>
+          <FileSpreadsheet size={15} /> {xlsxBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel"}
+        </button>
         <button type="button" style={secondary} onClick={() => void load()} disabled={loading}>
           <RefreshCw size={15} /> تحديث الدفعات
         </button>
       </div>
       {error && <ErrorBox message={error} retry={() => void load()} />}
+      {xlsxError && <ErrorBox message={xlsxError} retry={downloadPaymentHistoryXlsx} />}
       {!error && detailMayBePartial && (
         <p role="status" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
           هذه قائمة تفاصيل محدودة بآخر 500 دفعة و200 فاتورة من مصدر كشف الحساب. لا تمثل هذه الصفحة وحدها كامل دفتر العميل.
