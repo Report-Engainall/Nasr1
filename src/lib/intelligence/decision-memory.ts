@@ -241,6 +241,20 @@ export interface DecisionPolicyReviewObservation {
   evidenceIds: string[];
 }
 
+export interface DecisionPolicyReviewCalibration {
+  sampleCount: number;
+  meanExpectedValue: number | null;
+  meanActualValue: number | null;
+  meanSignedDifference: number | null;
+  medianSignedDifference: number | null;
+  meanAbsoluteDifference: number | null;
+  meanAbsoluteDifferencePercent: number | null;
+  percentageSampleCount: number;
+  zeroBaselineCount: number;
+  aboveExpectedCount: number;
+  belowExpectedCount: number;
+  equalExpectedCount: number;
+}
 export interface DecisionPolicyReviewSuggestion {
   id: string;
   ruleId: string;
@@ -254,9 +268,63 @@ export interface DecisionPolicyReviewSuggestion {
   formulaVersion: string;
   status: "DRAFT_REQUIRES_HUMAN_REVIEW";
   observations: DecisionPolicyReviewObservation[];
+  calibration: DecisionPolicyReviewCalibration;
   lessons: string[];
   evidenceIds: string[];
   reviewInstruction: string;
+}
+
+function boundedMean(values: number[]): number | null {
+  if (!values.length || values.some(value => !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER)) return null;
+  const mean = values.reduce((sum, value) => sum + value / values.length, 0);
+  return Number.isFinite(mean) && Math.abs(mean) <= Number.MAX_SAFE_INTEGER ? mean : null;
+}
+function medianValue(values: number[]): number | null {
+  if (!values.length || values.some(value => !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER)) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[middle];
+  const median = sorted[middle - 1] / 2 + sorted[middle] / 2;
+  return Number.isFinite(median) && Math.abs(median) <= Number.MAX_SAFE_INTEGER ? median : null;
+}
+function validReviewComparisonArithmetic(
+  comparison: DecisionMemoryMetricComparison,
+  expected: DecisionMemoryMetricResult,
+  actual: DecisionMemoryMetricResult,
+): boolean {
+  const difference = actual.value - expected.value;
+  if (!Number.isFinite(expected.value) || Math.abs(expected.value) > Number.MAX_SAFE_INTEGER ||
+      !Number.isFinite(actual.value) || Math.abs(actual.value) > Number.MAX_SAFE_INTEGER ||
+      !Number.isFinite(difference) || Math.abs(difference) > Number.MAX_SAFE_INTEGER ||
+      typeof comparison.difference !== "number" || !Number.isFinite(comparison.difference) ||
+      Math.abs(comparison.difference - difference) > 0.005) return false;
+  if (expected.value === 0) return comparison.differencePercent === null;
+  const percent = (difference / Math.abs(expected.value)) * 100;
+  return Number.isFinite(percent) && Math.abs(percent) <= Number.MAX_SAFE_INTEGER &&
+    typeof comparison.differencePercent === "number" &&
+    Number.isFinite(comparison.differencePercent) &&
+    Math.abs(comparison.differencePercent - percent) <= 0.005;
+}
+function buildDecisionPolicyReviewCalibration(
+  observations: DecisionPolicyReviewObservation[],
+): DecisionPolicyReviewCalibration {
+  const differences = observations.map(item => item.difference);
+  const percentageDifferences = observations.flatMap(item =>
+    item.differencePercent === null ? [] : [Math.abs(item.differencePercent)]);
+  return {
+    sampleCount: observations.length,
+    meanExpectedValue: boundedMean(observations.map(item => item.expected.value)),
+    meanActualValue: boundedMean(observations.map(item => item.actual.value)),
+    meanSignedDifference: boundedMean(differences),
+    medianSignedDifference: medianValue(differences),
+    meanAbsoluteDifference: boundedMean(differences.map(Math.abs)),
+    meanAbsoluteDifferencePercent: boundedMean(percentageDifferences),
+    percentageSampleCount: percentageDifferences.length,
+    zeroBaselineCount: observations.filter(item => item.expected.value === 0).length,
+    aboveExpectedCount: differences.filter(value => value > 0).length,
+    belowExpectedCount: differences.filter(value => value < 0).length,
+    equalExpectedCount: differences.filter(value => value === 0).length,
+  };
 }
 
 /**
@@ -282,8 +350,7 @@ export function buildDecisionPolicyReviewSuggestions(
         !record.ruleId.trim() || !record.ruleVersion.trim() ||
         !validPeriod(expected.period) || !validPeriod(actual.period) ||
         !record.createdAt || !Number.isFinite(Date.parse(record.createdAt)) ||
-        !Number.isFinite(comparison.difference) ||
-        (comparison.differencePercent !== null && !Number.isFinite(comparison.differencePercent)) ||
+        !validReviewComparisonArithmetic(comparison, expected, actual) ||
         !expected.evidenceIds.length || !actual.evidenceIds.length) {
       continue;
     }
@@ -333,15 +400,17 @@ export function buildDecisionPolicyReviewSuggestions(
       formulaVersion: actual.formulaVersion,
       status: "DRAFT_REQUIRES_HUMAN_REVIEW",
       observations: [observation],
+      calibration: buildDecisionPolicyReviewCalibration([observation]),
       lessons: observation.lessons,
       evidenceIds: observation.evidenceIds,
       reviewInstruction:
-        "راجع صلاحية القاعدة وإصدارها ومدخلاتها في ضوء الدروس والنتائج المثبتة، ثم استخدم المحاكاة وسير الاعتماد المعتاد. لا يغيّر هذا الاقتراح القاعدة أو السعر أو الائتمان أو المخزون.",
+        "راجع صلاحية القاعدة وإصدارها ومدخلاتها في ضوء الدروس والنتائج المثبتة، ثم استخدم المحاكاة وسير الاعتماد المعتاد. لا يغيّر هذا الاقتراح القاعدة أو السعر أو الائتمان أو المخزون. الفروق فوق/تحت المتوقع وصفية ولا تثبت جودة القرار أو سببيته.",
     });
   }
   return [...groups.values()]
     .map(suggestion => ({
       ...suggestion,
+      calibration: buildDecisionPolicyReviewCalibration(suggestion.observations),
       observations: suggestion.observations.sort((a,b) =>
         b.createdAt.localeCompare(a.createdAt) || a.decisionId.localeCompare(b.decisionId)),
     }))

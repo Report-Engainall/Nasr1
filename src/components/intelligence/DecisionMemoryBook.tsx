@@ -393,6 +393,16 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           </div>
           <p className="text-xs text-muted-foreground">المؤشر: {suggestion.metricKey} · الوحدة: {suggestion.unit} · العملة: {suggestion.currency??"غير منطبقة"} · الفترة: {suggestion.period.from} — {suggestion.period.to} · المعادلة: {suggestion.formulaId}@{suggestion.formulaVersion}</p>
           <p className="text-xs">قرارات القياس المتطابقة في السياق: {suggestion.observations.length} · مجموع مراجع الأدلة: {suggestion.evidenceIds.length}</p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-md bg-muted/40 p-2"><p className="text-xs text-muted-foreground">متوسط الفرق (الفعلي − المتوقع)</p><strong>{suggestion.calibration.meanSignedDifference===null?"غير متاح":number(suggestion.calibration.meanSignedDifference)}</strong></div>
+            <div className="rounded-md bg-muted/40 p-2"><p className="text-xs text-muted-foreground">وسيط الفرق</p><strong>{suggestion.calibration.medianSignedDifference===null?"غير متاح":number(suggestion.calibration.medianSignedDifference)}</strong></div>
+            <div className="rounded-md bg-muted/40 p-2"><p className="text-xs text-muted-foreground">متوسط مقدار الفرق</p><strong>{suggestion.calibration.meanAbsoluteDifference===null?"غير متاح":number(suggestion.calibration.meanAbsoluteDifference)}</strong></div>
+            <div className="rounded-md bg-muted/40 p-2"><p className="text-xs text-muted-foreground">متوسط الانحراف النسبي المطلق</p><strong>{suggestion.calibration.meanAbsoluteDifferencePercent===null?"غير متاح":number(suggestion.calibration.meanAbsoluteDifferencePercent)+"%"}</strong><p className="text-xs text-muted-foreground">العينة ذات خط أساس غير صفري: {suggestion.calibration.percentageSampleCount} من {suggestion.calibration.sampleCount}</p></div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            أعلى من المتوقع: {suggestion.calibration.aboveExpectedCount} · أقل من المتوقع: {suggestion.calibration.belowExpectedCount} · مطابق: {suggestion.calibration.equalExpectedCount} · خط أساس صفري: {suggestion.calibration.zeroBaselineCount}.
+            هذه أوصاف للفروق فقط؛ لا تعني أن الارتفاع أفضل أو أن القرار تسبب في النتيجة.
+          </p>
           <div className="space-y-2">
             {suggestion.observations.slice(0,5).map(observation=><div key={observation.decisionId} className="rounded-md bg-muted/40 p-2">
               <p className="text-xs">القرار {observation.decisionId.slice(0,8)} · {observation.createdAt}</p>

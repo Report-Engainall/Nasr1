@@ -218,6 +218,108 @@ describe("decision memory precedent search", () => {
     expect(result[0].reviewInstruction).toContain("لا يغيّر هذا الاقتراح القاعدة");
   });
 
+  it("summarizes measured calibration without assigning good or bad direction", () => {
+    const zeroBaseline = metric({ value: 0, evidenceIds: ["invoice:zero"] });
+    const result = buildDecisionPolicyReviewSuggestions([
+      decision({ decisionId: "sample-one" }),
+      decision({
+        decisionId: "sample-two",
+        metricComparison: {
+          status: "VERIFIED",
+          expected: metric({ value: 12, evidenceIds: ["invoice:two"] }),
+          actual: metric({ value: 7, evidenceIds: ["movement:two"] }),
+          difference: -5,
+          differencePercent: -41.67,
+          reason: null,
+        },
+      }),
+      decision({
+        decisionId: "sample-three",
+        metricComparison: {
+          status: "VERIFIED",
+          expected: metric({ value: 8, evidenceIds: ["invoice:three"] }),
+          actual: metric({ value: 10, evidenceIds: ["movement:three"] }),
+          difference: 2,
+          differencePercent: 25,
+          reason: null,
+        },
+      }),
+      decision({
+        decisionId: "sample-zero-baseline",
+        metricComparison: {
+          status: "VERIFIED",
+          expected: zeroBaseline,
+          actual: metric({ value: 3, evidenceIds: ["movement:zero"] }),
+          difference: 3,
+          differencePercent: null,
+          reason: "ZERO_BASELINE_PERCENT_WITHHELD",
+        },
+      }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].calibration).toMatchObject({
+      sampleCount: 4,
+      meanExpectedValue: 7.5,
+      meanActualValue: 6,
+      meanSignedDifference: -1.5,
+      medianSignedDifference: -1.5,
+      meanAbsoluteDifference: 4,
+      percentageSampleCount: 3,
+      zeroBaselineCount: 1,
+      aboveExpectedCount: 2,
+      belowExpectedCount: 2,
+      equalExpectedCount: 0,
+    });
+    expect(result[0].calibration.meanAbsoluteDifferencePercent).toBeCloseTo((60 + 41.67 + 25) / 3, 8);
+    expect(result[0].reviewInstruction).toContain("لا تثبت جودة القرار أو سببيته");
+  });
+
+  it("withholds a review sample if supplied variance does not reconcile to expected and actual", () => {
+    const inconsistent = decision({
+      metricComparison: {
+        status: "VERIFIED",
+        expected: metric({ value: 10 }),
+        actual: metric({ value: 4 }),
+        difference: -4,
+        differencePercent: -40,
+        reason: null,
+      },
+    });
+    expect(buildDecisionPolicyReviewSuggestions([inconsistent])).toEqual([]);
+  });
+
+  it("does not overflow calibration means or medians for bounded finite samples", () => {
+    const max = Number.MAX_SAFE_INTEGER;
+    const result = buildDecisionPolicyReviewSuggestions([
+      decision({
+        decisionId: "large-positive",
+        metricComparison: {
+          status: "VERIFIED",
+          expected: metric({ value: -max, evidenceIds: ["e1"] }),
+          actual: metric({ value: 0, evidenceIds: ["a1"] }),
+          difference: max,
+          differencePercent: 100,
+          reason: null,
+        },
+      }),
+      decision({
+        decisionId: "large-negative",
+        metricComparison: {
+          status: "VERIFIED",
+          expected: metric({ value: max, evidenceIds: ["e2"] }),
+          actual: metric({ value: 0, evidenceIds: ["a2"] }),
+          difference: -max,
+          differencePercent: -100,
+          reason: null,
+        },
+      }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].calibration.meanSignedDifference).toBe(0);
+    expect(result[0].calibration.medianSignedDifference).toBe(0);
+    expect(result[0].calibration.meanAbsoluteDifference).toBe(max);
+  });
+
   it("keeps suggestions separate when rule version or metric context changes", () => {
     const differentRuleVersion = decision({
       decisionId: "rule-version-three",
