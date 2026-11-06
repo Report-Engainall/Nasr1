@@ -201,6 +201,7 @@ export function AuthScopedOutlet() {
 const ROOT_NAV_ITEMS = [
   ["/", "المتجر"],
   ["/orders", "طلباتي"],
+  ["/returns", "مرتجعاتي"],
   ["/payments", "دفعاتي"],
   ["/help", "المساعدة"],
   ["/admin", "لوحة الإدارة"],
