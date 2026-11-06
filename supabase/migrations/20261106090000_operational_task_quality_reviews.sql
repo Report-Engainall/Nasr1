@@ -125,7 +125,8 @@ BEGIN
     AND p.organization_id=v_org AND p.is_active
     AND r.role IN ('admin','manager')
   ORDER BY CASE r.role WHEN 'admin' THEN 0 ELSE 1 END
-  LIMIT 1;
+  LIMIT 1
+  FOR SHARE OF p,r;
 
   IF v_role IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active same-organization manager profile required';
@@ -175,7 +176,7 @@ BEGIN
   END IF;
 
   IF p_review_type='ACTIONABILITY' THEN
-    IF v_actionability NOT IN ('ACTIONABLE','NOT_ACTIONABLE','DEFERRED')
+    IF v_actionability IS NULL OR v_actionability NOT IN ('ACTIONABLE','NOT_ACTIONABLE','DEFERRED')
        OR p_review ? 'disposition' OR p_review ? 'alertVerdict' THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='actionability review shape is invalid';
     END IF;
@@ -192,7 +193,7 @@ BEGIN
       'BUDGET_CONSTRAINT','OTHER'
     );
   ELSIF p_review_type='RECOMMENDATION_DISPOSITION' THEN
-    IF v_disposition NOT IN ('APPROVED','REJECTED','DEFERRED')
+    IF v_disposition IS NULL OR v_disposition NOT IN ('APPROVED','REJECTED','DEFERRED')
        OR p_review ? 'actionability' OR p_review ? 'alertVerdict' THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='recommendation disposition shape is invalid';
     END IF;
@@ -209,7 +210,7 @@ BEGIN
       'BUDGET_CONSTRAINT','OTHER'
     );
   ELSE
-    IF v_alert_verdict NOT IN ('TRUE_POSITIVE','FALSE_POSITIVE','NEEDS_REVIEW')
+    IF v_alert_verdict IS NULL OR v_alert_verdict NOT IN ('TRUE_POSITIVE','FALSE_POSITIVE','NEEDS_REVIEW')
        OR p_review ? 'actionability' OR p_review ? 'disposition' THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='alert validation shape is invalid';
     END IF;
