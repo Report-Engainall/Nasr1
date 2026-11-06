@@ -235,6 +235,8 @@ export async function fetchProductPerformanceGrowthContext(
         signals,
         warnings: [
           "PRODUCT_QUANTITY_MEASURES_CONFIRMED_ORDER_LINES_NOT_SHIPPED_OR_RECOGNIZED_SALES",
+          "PRODUCT_COHORT_USES_ORDER_CREATED_AT_AND_CURRENT_STATUS_NOT_HISTORICAL_STATUS_AT_PERIOD_END",
+          "PRODUCT_SCOPE_INCLUDES_ONLY_PRODUCT_UNIT_GROUPS_WITH_QUALIFYING_ORDER_LINES_IN_EITHER_COMPARISON_PERIOD",
           ...(raw.returnedCount < raw.totalCount ? ["PRODUCT_PERFORMANCE_POPULATION_TRUNCATED"] : []),
           ...(withheldUnitRows > 0 ? ["PRODUCT_UNIT_VARIANTS_WITHHELD"] : []),
         ],
