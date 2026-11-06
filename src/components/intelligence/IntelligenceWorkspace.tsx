@@ -1173,7 +1173,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       schemaVersion:"1.0.0" as const,candidateId,ruleId:decision.ruleId,ruleVersion:decision.ruleVersion,
       priority:decision.priority,priorityScore:decision.priorityScore,what:decision.what,why:decision.why,
       risk:decision.soWhat,soWhat:decision.soWhat,whatNext:decision.whatNext,owner:decision.owner,
-      expectedOutcome:decision.expectedOutcome,impact:decision.impact,impactStatus:decision.impactStatus,
+      expectedOutcome:decision.expectedOutcome,
+      impact:decision.impact ? {...decision.impact,currency:decision.impact.currency??null} : null,
+      impactStatus:decision.impactStatus,
       impactReason:decision.impactReason,proof:decision.proof,createdAt:decision.createdAt,expiresAt:decision.expiresAt,
     };
     const created = await createDecisionOutcomeProposal({
