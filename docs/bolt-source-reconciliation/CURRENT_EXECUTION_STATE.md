@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — searchable customer help center — 2026-11-06
+
+- BODY-051 source commits on `main`: help page `68f736b0b3adb7b136873aaac27001b4ce2dc467`; route registration `3e9290f6b2918777c78aeca25fbb967ceab0c7c7`; global navigation `1232f996abf312851698162e887b3222edf474ca`; footer `d81267e9e12ac3da5fc14b890cc3b5a0ba68ebf9`.
+- Added `/help` with normalized Arabic FAQ search, 10 source-grounded answers and working links to existing order, reorder, address, invoice, quote, company-member and service-case pages. Added access from the global navigation and storefront footer.
+- Does not claim GPS shipment tracking, automatic WhatsApp sends or an unpublished policy. Customer case creation continues through the existing authorized `/service-cases` workflow.
+- Acceptance row `DLV-002-HELP-CENTER-001` appended to the sole remaining-screen matrix. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P3 body update — supplier receipt tail and completion-evidence counters — 2026-11-06
 
 - Parent `65312224cd73e4d7474acbba1b89b7c548876e1a`; code commit `511b7e3a3ffdfa81a703d92eeec3e05751b8c661`.
