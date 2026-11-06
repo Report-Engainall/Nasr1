@@ -119,10 +119,6 @@ describe("cash opening and bank reconciliation workspace parser", () => {
         void_reason: null,
         voided_by: null,
         voided_at: null,
-        is_voided: false,
-        void_reason: null,
-        voided_by: null,
-        voided_at: null,
       }],
     });
     expect(() => parseCashReconciliationWorkspace(source))
@@ -157,6 +153,10 @@ describe("cash opening and bank reconciliation workspace parser", () => {
         line_count: 1,
         matched_count: 0,
         latest_run: null,
+         is_voided: false,
+         void_reason: null,
+         voided_by: null,
+         voided_at: null,
       }],
     });
     expect(() => parseCashReconciliationWorkspace(source)).toThrow("تغطية حركات كشف البنك");
