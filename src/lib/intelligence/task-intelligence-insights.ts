@@ -36,15 +36,17 @@ export function buildTaskIntelligenceInsights(report:TaskIntelligenceReport):Tas
   const overdue=sum(roles.map(r=>r.overdueOpenCount));
   const high=sum(roles.map(r=>r.highImpactOpenCount));
   const reopened=sum(roles.map(r=>r.reopenedEventCount));
+  const overdueShare=open!==null&&overdue!==null&&open>0&&overdue<=open
+    ?Math.round((overdue/open)*10000)/100:null;
   const rows:TaskInsight[]=[
     count("NEW_TASKS","المهام المنشأة خلال الفترة",created,"سجلات أنشئت داخل الفترة؛ لا تُعد إعادة الفتح إنشاءً جديداً.","راجع توزيع مصادر الإنشاء حسب الدور."),
     count("FIRST_COMPLETIONS","المهام المكتملة لأول مرة",completed,"أول انتقال موثق إلى completed لكل مهمة.","اربط العدد بجودة الإكمال وإعادة الفتح، لا بعدد الإغلاقات وحده."),
     count("OPEN_BACKLOG","الرصيد المفتوح حالياً",open,"سجلات pending وin_progress عند وقت لقطة المصدر.","راجع قائمة العمل الحالية وتبعياتها."),
     count("OVERDUE_OPEN","المهام المفتوحة المتأخرة",overdue,"مهمة نشطة لها due_at أسبق من asOf؛ الغياب لا يعني التأخر.","راجع الاستحقاق والسجل المصدر قبل التصعيد.",true),
     {key:"OVERDUE_SHARE",title:"نسبة التأخر من الرصيد المفتوح",
-      value:open>0&&overdue<=open?Math.round(overdue*10000/open)/100:null,valueKind:"PERCENT",
-      state:open>0&&overdue<=open?"READY":"WITHHELD",severity:overdue>0?"WARNING":"INFO",
-      detail:open>0?"المعادلة: المتأخرة ÷ المفتوحة × 100.":"لا يوجد مقام مفتوح صالح لحساب النسبة.",
+      value:overdueShare,valueKind:"PERCENT",
+      state:overdueShare===null?"WITHHELD":"READY",severity:overdue!==null&&overdue>0?"WARNING":"INFO",
+      detail:open!==null&&open>0?"المعادلة: المتأخرة ÷ المفتوحة × 100.":"لا يوجد مقام مفتوح صالح لحساب النسبة.",
       nextStep:"اقرأ النسبة مع حجم الرصيد واختلاف نطاق كل دور."},
     count("HIGH_PRIORITY_OPEN","المهام المفتوحة عالية أو حرجة",high,"أولوية high أو critical مسجلة؛ لا تمثل قيمة مالية.","راجع الدليل التشغيلي لكل حالة قبل التدخل.",true),
   ];
