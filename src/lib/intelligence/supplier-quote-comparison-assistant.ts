@@ -118,6 +118,36 @@ function validTime(value: string): boolean {
   return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
 }
 
+/**
+ * Mirrors the SQL quote-line rule: quantity NUMERIC(15,3) multiplied by
+ * unit_cost NUMERIC(15,2), then rounded once into line_total NUMERIC(15,2).
+ * BigInt avoids a one-cent acceptance caused by binary floating-point drift.
+ */
+function supplierQuoteLineTotalMatchesSourceRounding(candidate: Candidate): boolean {
+  const { quantity_quoted: quantity, unit_cost: unitCost, line_total: lineTotal } = candidate.line;
+  if (
+    !Number.isFinite(quantity) || quantity <= 0 ||
+    !Number.isFinite(unitCost) || unitCost < 0 ||
+    !Number.isFinite(lineTotal) || lineTotal < 0
+  ) return false;
+
+  const scaledInteger = (value: number, scale: number): bigint | null => {
+    const match = /^(\\d+)(?:\\.(\\d+))?$/.exec(value.toString());
+    if (!match) return null;
+    const fraction = match[2] ?? "";
+    if (fraction.length > scale) return null;
+    return BigInt(match[1]) * (10n ** BigInt(scale)) +
+      BigInt(fraction.padEnd(scale, "0") || "0");
+  };
+
+  const quantityMilli = scaledInteger(quantity, 3);
+  const unitCostCents = scaledInteger(unitCost, 2);
+  const lineTotalCents = scaledInteger(lineTotal, 2);
+  if (quantityMilli === null || unitCostCents === null || lineTotalCents === null) return false;
+  const expectedLineTotalCents = (quantityMilli * unitCostCents + 500n) / 1000n;
+  return expectedLineTotalCents === lineTotalCents;
+}
+
 function newestFirst(a: Candidate, b: Candidate): number {
   const time = Date.parse(b.quote.updated_at) - Date.parse(a.quote.updated_at);
   if (time !== 0) return time;
@@ -272,12 +302,7 @@ export function buildSupplierQuoteComparisonAssistant(
         addWithheld("PRODUCT_SNAPSHOT_MISMATCH");
         continue;
       }
-      if (candidates.some(item =>
-        !Number.isFinite(item.line.quantity_quoted) || item.line.quantity_quoted <= 0 ||
-        !Number.isFinite(item.line.unit_cost) || item.line.unit_cost < 0 ||
-        !Number.isFinite(item.line.line_total) || item.line.line_total < 0 ||
-        Math.abs(item.line.quantity_quoted * item.line.unit_cost - item.line.line_total) > 0.011
-      )) {
+      if (candidates.some(item => !supplierQuoteLineTotalMatchesSourceRounding(item))) {
         addWithheld("LINE_TOTAL_MISMATCH");
         continue;
       }
@@ -378,9 +403,7 @@ export function buildSupplierQuoteComparisonAssistant(
         rows.some(row => !validTime(row.quote.created_at) ||
           Date.parse(row.quote.created_at) > queryTime ||
           !Number.isFinite(row.line.quantity_quoted) || row.line.quantity_quoted <= 0 ||
-          !Number.isFinite(row.line.unit_cost) || row.line.unit_cost < 0 ||
-          !Number.isFinite(row.line.line_total) || row.line.line_total < 0 ||
-          Math.abs(row.line.quantity_quoted * row.line.unit_cost - row.line.line_total) > 0.011)) continue;
+          !supplierQuoteLineTotalMatchesSourceRounding(row))) continue;
     const ordered = [...rows].sort((a, b) =>
       Date.parse(a.quote.created_at) - Date.parse(b.quote.created_at) ||
       a.quote.id.localeCompare(b.quote.id)

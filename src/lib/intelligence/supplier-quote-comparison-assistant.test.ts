@@ -13,6 +13,7 @@ const suppliers=[
 function quote(input: {
   id: string; supplierId: string; supplierName: string; number: string;
   unitCost: number; quantity?: number; unit?: string | null; currency?: string;
+  lineTotal?: number;
   status?: SupplierQuote["status"]; updatedAt?: string; createdAt?: string;
 }): SupplierQuote {
   const quantity=input.quantity??10;
@@ -26,7 +27,7 @@ function quote(input: {
     items:[{
       id:"30000000-0000-4000-8000-000000000001",product_id:productId,
       item_code:"SKU-1",product_name:"صنف تجريبي",unit:input.unit===undefined?"كرتون":input.unit,
-      quantity_quoted:quantity,unit_cost:input.unitCost,line_total:Number((quantity*input.unitCost).toFixed(2)),
+      quantity_quoted:quantity,unit_cost:input.unitCost,line_total:input.lineTotal??Number((quantity*input.unitCost).toFixed(2)),
     }],
   };
 }
@@ -52,6 +53,25 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
     expect(result.comparisonGroupCount).toBe(0);
     expect(result.withheldGroupCount).toBe(3);
     expect(result.withheld.every(item=>item.reason==="INSUFFICIENT_DISTINCT_SUPPLIERS")).toBe(true);
+  });
+
+  it("matches the source NUMERIC rounding rule at a half-cent boundary", () => {
+    const result = buildSupplierQuoteComparisonAssistant([
+      quote({ id: "q-half-a", supplierId: suppliers[0], supplierName: "مورد أ", number: "A", quantity: 1.005, unitCost: 1, lineTotal: 1.01 }),
+      quote({ id: "q-half-b", supplierId: suppliers[1], supplierName: "مورد ب", number: "B", quantity: 1.005, unitCost: 2, lineTotal: 2.01 }),
+    ], "2026-11-06T00:00:00.000Z");
+    expect(result.comparisonGroupCount).toBe(1);
+    expect(result.withheldGroupCount).toBe(0);
+  });
+
+  it("withholds a one-cent line-total mismatch instead of accepting a 0.011 tolerance", () => {
+    const result = buildSupplierQuoteComparisonAssistant([
+      quote({ id: "q-cent-a", supplierId: suppliers[0], supplierName: "مورد أ", number: "A", quantity: 1.005, unitCost: 1, lineTotal: 1.00 }),
+      quote({ id: "q-cent-b", supplierId: suppliers[1], supplierName: "مورد ب", number: "B", quantity: 1.005, unitCost: 2, lineTotal: 2.01 }),
+    ], "2026-11-06T00:00:00.000Z");
+    expect(result.comparisonGroupCount).toBe(0);
+    expect(result.withheldGroupCount).toBe(1);
+    expect(result.withheld[0].reason).toBe("LINE_TOTAL_MISMATCH");
   });
 
   it("keeps the latest offer per supplier so one supplier cannot occupy multiple comparison ranks",()=>{
