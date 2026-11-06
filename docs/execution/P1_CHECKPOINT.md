@@ -1,3 +1,31 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-052 — CUSTOMER PAYMENTS HISTORY ROUTE
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product commits: customer payment-history workspace `a8f99af47f2f07f0ae2448595e60234116d1ac73`; route `0c8d1428c0b07e2fa00fdc3b23a1c127153a5844`; route-tree registration `2951fff959abe2f44d51c9b240f38ba83c465b25`; global navigation `0df9b39d40adef06332397967b70f1a05c3875bf`; footer `3bbce03c22acadbc565aebfcad757551b6c41389`; help entry `c6bbf686e49a4e53365785cff591311428928af2`.
+- Scope: deliver the customer-facing `/payments` route required by the canonical route register, reusing the already-authorized customer statement read model.
+
+## BODY-052 — customer payments history
+
+- Added `CustomerPaymentsPage` and route `/payments`; mounted through the existing customer authentication gate.
+- Reads only `get_customer_account_statement()`, the same server-authorized source used by the customer statement. The page validates the payment array and each invoice reference/amount/date before rendering.
+- Shows saved payment date, linked invoice, amount and currency only when the referenced invoice is present in the loaded invoice detail set. When the invoice is outside that bounded detail set, the payment amount/currency are withheld rather than guessed.
+- Discloses the source limits (200 invoice details and 500 payment details) and provides local invoice/date/reference search plus links back to statements and invoices.
+- Added the route to TanStack route types, global account navigation, storefront footer and Help Center quick actions/FAQ.
+- This is a read-only history page. It does not collect money, submit payment instructions, create a receipt, post a journal or alter customer balances. Payment initiation remains unavailable until an approved customer-side P2 command and payment-instrument/receipt contract exist.
+- Files changed: `src/components/CustomerWorkflows.tsx`, `src/routes/payments.tsx`, `src/routeTree.gen.ts`, `src/routes/__root.tsx`, `src/components/store/StoreFooter.tsx`, `src/routes/help.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- GitHub source references were re-read on main for the route, component, route-tree, navigation, footer and Help Center entry.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue missing customer/account functions from the canonical route and acceptance register. Do not simulate customer payment initiation or returned-order amendment through staff-only or generic order-write paths; obtain the corresponding approved P2 contracts first.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-051 — SEARCHABLE CUSTOMER HELP CENTER
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
