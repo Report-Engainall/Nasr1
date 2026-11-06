@@ -1,6 +1,55 @@
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-038
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at checkpoint base: `f511ab5b76d2d3086efbdc0388853dbcb3b35fd5`.
+- P1 code commits: `1467ca00a6360670f5bd9e8726bbea181ac5ebf8`, `372eccf99d94a67f833d77b1cc1550c5b202d08a`, `0287ffd14dda6f2d41ad4984f615e66d11dc5a31`, `d876b2183e13113fabff537f11e0e0202ea14ecc`, `85861a24932ce85b4a2748dc71ec113d357929db`.
+- P1 owns the active product editor and catalog write boundary. No P3-owned file or engine was changed.
+
+## BODY-038 — atomic product create/edit contract and product description
+
+- Added `20261106130000_admin_product_full_metadata_atomic_save.sql` to restore the complete payload contract of `save_admin_product_with_metadata` while also supporting `p_product_id = NULL` for creation.
+- The wrapper delegates core product identity, category eligibility, price-grid persistence, optimistic stale-price checks and core audit to the existing `save_admin_catalog_product` command. It strips only the six metadata keys before delegation, then persists the optional metadata fields inside the same database transaction.
+- Preserved/validated `name_en`, `sku`, `is_featured`, `sort_order`, `min_order_quantity` and `order_quantity_multiple`; absent optional values are preserved on edit and retain database defaults on create. The wrapper enforces active same-tenant admin/manager authorization and writes before/after metadata audit records.
+- Routed active ProductModal creation through the API's `createProduct()`, and refactored that API to use `saveAdminCatalogProduct()` and the same SECURITY DEFINER RPC; the direct `products` INSERT path was removed from this API function.
+- Product creation now requires and captures all four persisted prices (base, جملة الجملة, الجملة, التجزئة) rather than silently copying one tier into the others. The existing image-persistence flow continues with the server-confirmed product ID.
+- Added product description editing (maximum 2,000 characters) to the existing product modal. Aligned name/barcode limits with server validation and cents validation with JavaScript floating-point precision.
+- Preserved the legacy admin page's existing command use: helper metadata fields are optional and omitted fields are not overwritten during edit.
+- Files: `src/components/AghbariApp.tsx`, `src/lib/api.ts`, `src/lib/admin-catalog-commands.ts`, `supabase/migrations/20261106130000_admin_product_full_metadata_atomic_save.sql`.
+- Scoped functions closed: product creation through the canonical atomic writer; product metadata edit contract; description entry/edit; initial four-tier price capture. These are four bounded capabilities, not a project-wide completion percentage.
+- Migration status: `SOURCE_ONLY / NOT_APPLIED`. It has not been applied to any database or synchronized into Bolt.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, migration application, Bolt sync, Preview, production or Vercel operation was run. No runtime PASS is claimed.
+- No direct client product INSERT remains in `createProduct()`; no new CRUD route, parallel pricing model, dependency, or P3 file was added.
+- Project-wide 95% P1 completion is not claimed: the full denominator of remaining executable P1 requirements has not been established.
+
+## Next P1 action
+
+Continue from the latest `main` and take the next concrete, non-P3 commerce/administration gap. Keep DLV-011 PARTIAL until each role/template output has source-backed acceptance; do not count source-only migrations as runtime-applied.
+
+---
+
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-037
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- P1 code commit: `10a29f0f6368dce1525cee87cc1373b48bdd9c36` (parent `888d4f84acb881e3a1fb41c97ee379c53951fe6c`).
+- P1 owns Data Center category form integration; the existing server RPC/command and database schema were reused.
+
+## BODY-037 — category hierarchy and code in the existing create form
+
+- Expanded the existing Data Center category form to capture the optional category code and optional active parent category.
+- Calls the existing `createAdminCatalogCategory(name, parentId, code)` server command; it does not create a second category CRUD path or a new RPC.
+- Validates the returned category ID/name/created flag, clears the form and refreshes the current category list. A duplicate existing category under the same parent is reported as existing rather than as a new creation.
+- Shows the parent-category context in the existing list.
+- File changed: `src/components/AghbariApp.tsx`.
+- Scoped gap closed: the existing create UI now exposes both server-supported parent and code inputs (1 bounded form-contract gap).
+
+---
+
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-038
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Main SHA at this checkpoint base: `4d884bf48737ba7d246a918cb8919d8aa1c669f0`.
 - P1 product-code commit: `4d884bf48737ba7d246a918cb8919d8aa1c669f0`.
 - P1 scope: customer account statement and payment-history presentation. Existing customer statement RPC remains the source of truth.
