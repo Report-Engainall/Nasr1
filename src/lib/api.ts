@@ -1360,27 +1360,53 @@ export async function refreshOperationalTasks(): Promise<{
 
 // ─── Notifications ───
 export async function fetchNotifications(): Promise<Notification[]> {
-  const { organizationId: orgId } = await getCurrentTenantScope();
+  const { profileId, organizationId } = await getCurrentTenantScope();
   const data = await readWithRetry(() => supabase
     .from('notifications')
     .select('id,organization_id,profile_id,title,body,type,is_read,created_at,entity_type,entity_id')
-    .eq('organization_id', orgId)
+    .eq('organization_id', organizationId)
+    .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
     .limit(30));
   return (data ?? []) as Notification[];
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('معرّف التنبيه غير صالح.');
+  }
+  const { profileId, organizationId } = await getCurrentTenantScope();
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('id', id)
+    .eq('organization_id', organizationId)
+    .eq('profile_id', profileId)
+    .eq('is_read', false)
+    .select('id')
+    .maybeSingle();
   if (error) throw error;
+  if (!data) {
+    const { data: existing, error: readError } = await supabase
+      .from('notifications')
+      .select('id,is_read')
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .eq('profile_id', profileId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!existing) throw new Error('التنبيه غير موجود ضمن حسابك الحالي.');
+    if (existing.is_read !== true) throw new Error('لم يؤكد الخادم تحديث حالة التنبيه.');
+  }
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  const { organizationId: orgId } = await getCurrentTenantScope();
+  const { profileId, organizationId } = await getCurrentTenantScope();
   const { error } = await supabase
     .from('notifications')
     .update({ is_read: true })
-    .eq('organization_id', orgId)
+    .eq('organization_id', organizationId)
+    .eq('profile_id', profileId)
     .eq('is_read', false);
   if (error) throw error;
 }
