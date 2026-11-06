@@ -1,5 +1,5 @@
 /* Aghbari offline shell. Financial data, auth responses and Supabase traffic are never cached. */
-const CACHE_NAME = 'aghbari-shell-v3';
+const CACHE_NAME = 'aghbari-shell-v4';
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.ico'];
 
 const STATIC_ASSET_MIME_POLICIES = [
@@ -78,11 +78,6 @@ async function installShell() {
     await reportServiceWorkerDiagnostic('error', 'shell-install-cache-failed', 'shell', error);
   }
 
-  try {
-    await self.skipWaiting();
-  } catch (error) {
-    await reportServiceWorkerDiagnostic('error', 'service-worker-skip-waiting-failed', 'lifecycle', error);
-  }
 }
 
 self.addEventListener('install', (event) => {
@@ -118,6 +113,16 @@ async function activateShell() {
 self.addEventListener('activate', (event) => {
   event.waitUntil(activateShell());
 });
+
+self.addEventListener('message', (event) => {
+  if (!event.data || event.data.type !== 'AGHBARI_ACTIVATE_UPDATE') return;
+  event.waitUntil(
+    self.skipWaiting().catch((error) =>
+      reportServiceWorkerDiagnostic('error', 'service-worker-skip-waiting-failed', 'lifecycle', error),
+    ),
+  );
+});
+
 
 async function cachedShellOrError(networkError) {
   if (networkError) {
