@@ -671,9 +671,19 @@ describe("notification delivery policy audit metadata", () => {
       channelCapabilities: { EMAIL: true },
       externalConsents: [null as unknown as ExternalChannelConsent],
     });
-    expect(resolveNotificationDelivery(request)).toMatchObject({
+    const decision = resolveNotificationDelivery(request);
+    expect(decision).toMatchObject({
       status: "REVIEW",
       reason: "EXTERNAL_CONSENT_INVALID",
+    });
+    expect(createNotificationDeliveryAuditMetadata({
+      ...request,
+      deliveryAttemptId: "attempt-malformed-consent",
+      actorProfileId: "profile-a",
+    }, decision)).toMatchObject({
+      decisionStatus: "REVIEW",
+      decisionReason: "EXTERNAL_CONSENT_INVALID",
+      consentId: null,
     });
     expect(createNotificationDeliveryAuditMetadata({
       ...input(),
