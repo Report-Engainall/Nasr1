@@ -38,11 +38,11 @@ export interface PromotionPolicyOverlapReview {
   completePopulation: boolean;
   inspectedPromotionCount: number;
   candidatePairCount: number;
-  withheldPairCount: number;
+  withheldCount: number;
   candidates: PromotionPolicyOverlapPair[];
   withheldReasons: Array<{
     reason: "SOURCE_CHANGED" | "SCOPE_NOT_COMPARABLE" | "SOURCE_DATE_MISSING";
-    pairCount: number;
+    count: number;
   }>;
 }
 
@@ -145,7 +145,7 @@ export function buildPromotionPolicyOverlapReview(
 
   for (const policy of promotions) {
     if (policy.sourceChanged) {
-      sourceChangedCount += Math.max(0, entries.length);
+      sourceChangedCount += 1;
       continue;
     }
     const source = row(policy.currentSource);
@@ -184,9 +184,7 @@ export function buildPromotionPolicyOverlapReview(
   }
 
   const candidates: PromotionPolicyOverlapPair[] = [];
-  let sourceChangedPairs = 0;
   let scopeNotComparablePairs = 0;
-  let sourceDateMissingPairs = 0;
 
   for (let i = 0; i < entries.length; i += 1) {
     const left = entries[i];
@@ -234,19 +232,19 @@ export function buildPromotionPolicyOverlapReview(
   }
 
   const withheldReasons = [
-    ...(sourceChangedCount ? [{ reason: "SOURCE_CHANGED" as const, pairCount: sourceChangedCount }] : []),
+    ...(sourceChangedCount ? [{ reason: "SOURCE_CHANGED" as const, count: sourceChangedCount }] : []),
     ...(scopeNotComparableCount + scopeNotComparablePairs
-      ? [{ reason: "SCOPE_NOT_COMPARABLE" as const, pairCount: scopeNotComparableCount + scopeNotComparablePairs }]
+      ? [{ reason: "SCOPE_NOT_COMPARABLE" as const, count: scopeNotComparableCount + scopeNotComparablePairs }]
       : []),
     ...(sourceDateMissingCount
-      ? [{ reason: "SOURCE_DATE_MISSING" as const, pairCount: sourceDateMissingCount }]
+      ? [{ reason: "SOURCE_DATE_MISSING" as const, count: sourceDateMissingCount }]
       : []),
   ];
-  const withheldPairCount = withheldReasons.reduce((sum, item) => sum + item.pairCount, 0);
-  const completePopulation = catalog.completePopulation && withheldPairCount === 0;
+  const withheldCount = withheldReasons.reduce((sum, item) => sum + item.count, 0);
+  const completePopulation = catalog.completePopulation && withheldCount === 0;
   const state = candidates.length > 0
     ? completePopulation ? "READY" : "PARTIAL"
-    : catalog.completePopulation && withheldPairCount === 0 ? "EMPTY" : "PARTIAL";
+    : catalog.completePopulation && withheldCount === 0 ? "EMPTY" : "PARTIAL";
 
   return {
     state,
@@ -254,7 +252,7 @@ export function buildPromotionPolicyOverlapReview(
     completePopulation,
     inspectedPromotionCount: entries.length,
     candidatePairCount: candidates.length,
-    withheldPairCount,
+    withheldCount,
     candidates: candidates.slice(0, 50),
     withheldReasons,
   };
