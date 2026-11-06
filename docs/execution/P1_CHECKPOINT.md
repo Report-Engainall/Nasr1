@@ -1,6 +1,36 @@
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-041
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main head observed immediately before this checkpoint update: `2bdddc43274a17080dbbc49e5c8afb82448e2878`.
+- P1 product-code commit: `d82c83a57b70d13f3c25c3bdfb4dd67288cf531f`.
+- P1 scope: enforce the existing customer storefront price-visibility policy in the reorder workspace product picker.
+
+## BODY-041 — respect hidden-price policy in reorder workspace
+
+- The existing reorder workspace resolved customer-tier prices for its product selector but formatted the returned value directly. That bypassed the established storefront presentation guard and could render a zero hidden-price sentinel as a monetary amount.
+- Reused the existing public-settings reader `fetchSettingsMap()` (server RPC `get_public_storefront_settings`) and the existing `resolveStorefrontPricePresentation()` guard with the exact `show_price_on_cards` setting.
+- The picker now renders a monetary suffix only when the setting is the explicit boolean `true` and the server-returned customer price is a valid positive amount. Missing/unavailable settings, disabled policy, malformed amounts and the zero hidden-price sentinel fail closed and render no price.
+- Current tier-price resolution remains server-derived. No other customer tier, base cost, margin, order total, alternate price source or new write path was introduced.
+- File changed: `src/components/CustomerWorkflows.tsx`.
+- Code commit: `d82c83a57b70d13f3c25c3bdfb4dd67288cf531f`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-041.
+- No P3-owned file, engine, DTO, RPC or migration was changed. The concurrent P3 commit `46546d358cb729d775d1a8af125241e7a00cd136` remains preserved on `main`.
+- No new dependency or paid service was added.
+- Project-wide 95% P1 completion remains unclaimed because the complete denominator and weighting of remaining executable P1 requirements are not established by the current acceptance record.
+
+## Next P1 action
+
+Continue from the latest live `main` with the next independently confirmed P1 customer/admin workflow gap. Preserve the existing price, tenant, cart, order-idempotency and P3 ownership contracts; do not create a parallel order-write path.
+
+---
+
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-041
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Main SHA at checkpoint base: `abceb79f990af5d7d43a1fe744aabf14216354c8`.
 - P1 code commits: `67d8eb9a0712721b7d43462abf289111cc2926f2`, `d9ff1efd198337aa3a8be8bc776b255152dd1562`, and `6d188f6bed2801cdef241453ba5d23acf86011f4`.
 - Files changed: `src/components/Storefront.tsx`, `src/aghbari.css`.
