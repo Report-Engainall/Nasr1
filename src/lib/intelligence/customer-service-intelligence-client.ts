@@ -33,6 +33,12 @@ function timestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function exactKeys(value: Row, expected: readonly string[]): boolean {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+}
+
 /** Strictly parses the aggregate-only tenant RPC; case/customer detail is not accepted. */
 export function parseCustomerServiceIntelligenceSnapshot(
   value: unknown,
@@ -42,6 +48,8 @@ export function parseCustomerServiceIntelligenceSnapshot(
   if (
     !root ||
     !summary ||
+    !exactKeys(root, ["as_of", "scope", "complete_population", "summary"]) ||
+    !exactKeys(summary, ["open_count", "response_overdue_count", "resolution_overdue_count", "unassigned_count", "urgent_count", "high_count"]) ||
     !timestamp(root.as_of) ||
     root.scope !== "ALL_ACTIVE_CASES_IN_CURRENT_ORGANIZATION" ||
     root.complete_population !== true ||
