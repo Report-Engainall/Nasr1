@@ -29,8 +29,15 @@ describe("buildTaskQualityInsights",()=>{
   expect(x[3].evidence).toContain("يحتاج مراجعة ومستبعد");
  });
  it("preserves empty, restricted and unavailable source states",()=>{
-  const empty=parseTaskQualityMetrics(undefined);
-  expect(empty.status).toBe("UNAVAILABLE");
+  const value=fixture();
+  value.status="EMPTY";value.scope={visibleTaskCount:0,reviewedTaskCount:0};
+  value.actionability={reviewedCount:0,actionableCount:0,notActionableCount:0,deferredCount:0,rateDenominator:0,actionableRatePercent:null,notActionableReasons:[]};
+  value.disposition={reviewedCount:0,approvedCount:0,rejectedCount:0,deferredCount:0,rejectionReasons:[],deferralReasons:[]};
+  value.alerts={reviewedCount:0,truePositiveCount:0,falsePositiveCount:0,needsReviewCount:0,falseAlarmDenominator:0,falseAlarmRatePercent:null};
+  value.causeReviewCount=0;value.repeatedCauses=[];
+  const empty=parseTaskQualityMetrics(value);
+  expect(empty.status).toBe("EMPTY");
+  if(empty.status==="EMPTY")expect(buildTaskQualityInsights(empty)[0].state).toBe("EMPTY");
   expect(buildTaskQualityInsights({status:"RESTRICTED",reasonCode:"QUALITY_REVIEW_MANAGER_ONLY"})[0].state).toBe("RESTRICTED");
   expect(buildTaskQualityInsights({status:"UNAVAILABLE",reasonCode:"QUALITY_REVIEW_MIGRATION_PENDING"})[0].state).toBe("UNAVAILABLE");
  });
