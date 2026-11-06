@@ -74,6 +74,13 @@ const articles: HelpArticle[] = [
     keywords: "فاتورة فواتير كشف حساب رصيد حساب statement",
   },
   {
+    id: "profile",
+    category: "الحساب والتوصيل",
+    question: "أين أراجع بيانات حسابي؟",
+    answer: "افتح «ملفي الشخصي» لمراجعة الاسم والبريد والصلاحيات المرتبطة بجلسة المصادقة الحالية، والوصول إلى صفحات الطلبات والدفعات والعناوين والتنبيهات. تعديل بيانات الملف التجاري غير متاح من هذه الشاشة.",
+    keywords: "ملفي الشخصي ملف الحساب الاسم البريد بيانات الحساب",
+  },
+  {
     id: "password-change",
     category: "الحساب والتوصيل",
     question: "كيف أغيّر كلمة مرور حسابي؟",
@@ -113,6 +120,7 @@ const articles: HelpArticle[] = [
 const actions = [
   { to: "/orders", label: "متابعة طلباتي", detail: "عرض الطلبات وحالاتها المحفوظة", icon: ClipboardList },
   { to: "/payments", label: "دفعاتي", detail: "عرض حركات السداد المسجلة في الحساب", icon: FileText },
+  { to: "/profile", label: "ملفي الشخصي", detail: "بيانات الهوية وروابط الحساب", icon: UserRound },
   { to: "/account/password", label: "كلمة المرور", detail: "تحديث كلمة مرور الحساب الحالي", icon: Lock },
   { to: "/reorder", label: "إعادة الطلب", detail: "تطبيق القوالب ومراجعة السلة", icon: ShoppingBag },
   { to: "/addresses", label: "عناوين التوصيل", detail: "إدارة عناوين الحساب", icon: MapPin },
