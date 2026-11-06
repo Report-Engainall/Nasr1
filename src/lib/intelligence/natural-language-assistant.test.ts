@@ -176,6 +176,15 @@ describe("shift operations assistant intent", () => {
     });
   });
 
+  it("routes common normalized Arabic shift-close phrases when a business date is explicit", () => {
+    expect(planNaturalLanguageQuery("جاهزية إقفال الوردية بتاريخ 2026-11-06")).toMatchObject({
+      status: "READY",
+      intent: "SHIFT_OPERATIONS_OVERVIEW",
+      sourceRpc: "fetch_operational_shift_workspace",
+      businessDate: "2026-11-06",
+    });
+  });
+
   it("routes explicit business-date shift questions to the existing authorized workspace reader", () => {
     expect(planNaturalLanguageQuery("اعرض مركز الوردية بتاريخ 2026-11-06")).toMatchObject({
       status: "READY",
