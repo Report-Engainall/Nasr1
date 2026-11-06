@@ -21,6 +21,7 @@ import {
 } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatDateShort, formatNumber, timeAgo } from '@/lib/format';
+import { ORDER_STATUS_LABELS } from '@/lib/types';
 import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem, StorefrontAnnouncement, StorefrontAnnouncementAudience, StorefrontAnnouncementInput } from '@/lib/types';
 import { buildOnyxOrderWorkbook, onyxOrderWorkbookFilename } from '@/lib/onyx-export';
 import { projectAdminSalesOrderPrintDocument } from '@/lib/admin-sales-order-print';
@@ -900,7 +901,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         <div className="order-info-row"><span>التاريخ</span><strong>{formatDateShort(order.created_at)}</strong></div>
         <div className="order-info-row"><span>الإجمالي المقترح</span><strong>{formatCurrency(projectedTotal)}</strong></div>
         <div className="order-info-row"><span>عدد البنود</span><strong>{formatNumber(order.total_items)}</strong></div>
-        <div className="order-info-row"><span>الحالة الحالية</span><span className={'badge ' + (order.status === 'confirmed' ? 'success' : 'info')}>{order.status}</span></div>
+        <div className="order-info-row"><span>الحالة الحالية</span><span className={'badge ' + (order.status === 'confirmed' ? 'success' : 'info')}>{ORDER_STATUS_LABELS[order.status] ?? order.status}</span></div>
         <div className="order-info-row"><span>طلب السداد</span><strong>{order.payment_request_status === 'requested' ? 'مطلوب من العميل' : order.payment_request_status ?? 'غير مطلوب'}</strong></div>
       </div>
       <div className="order-status-panel">
