@@ -32,7 +32,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'active organization profile required for workspace search';
   END IF;
 
-  SELECT coalesce(pg_catalog.array_agg(DISTINCT r.role), ARRAY[]::text[])
+  SELECT coalesce(pg_catalog.array_agg(DISTINCT r.role::text), ARRAY[]::text[])
     INTO v_roles
     FROM public.user_roles r
    WHERE r.profile_id = v_actor;
@@ -77,7 +77,22 @@ BEGIN
         UNION ALL
 
         SELECT
-          2, 'customer', c.id, c.business_name::text,
+          2, 'supplier', s.id, s.name::text,
+          pg_catalog.concat_ws(' · ', nullif(s.supplier_code, ''), nullif(s.status::text, '')) AS subtitle,
+          s.status::text, '/admin/suppliers', s.created_at
+        FROM public.suppliers s
+        WHERE v_roles && ARRAY['admin','manager','staff']::text[]
+          AND s.organization_id = v_org
+          AND (
+            pg_catalog.strpos(pg_catalog.lower(s.name), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(s.supplier_code, '')), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(s.contact_name, '')), pg_catalog.lower(v_query)) > 0
+          )
+
+        UNION ALL
+
+        SELECT
+          3, 'customer', c.id, c.business_name::text,
           pg_catalog.concat_ws(' · ', nullif(c.customer_code, ''), nullif(c.status::text, '')) AS subtitle,
           c.status::text, '/admin/customers', c.created_at
         FROM public.customers c
@@ -94,7 +109,7 @@ BEGIN
         UNION ALL
 
         SELECT
-          3, 'order', o.id, o.order_code::text,
+          4, 'order', o.id, o.order_code::text,
           pg_catalog.concat_ws(' · ', nullif(o.status::text, ''), nullif(c.business_name, '')) AS subtitle,
           o.status::text, '/admin/orders', o.created_at
         FROM public.orders o
@@ -111,7 +126,7 @@ BEGIN
         UNION ALL
 
         SELECT
-          4, 'invoice', i.id, i.invoice_number::text,
+          5, 'invoice', i.id, i.invoice_number::text,
           pg_catalog.concat_ws(' · ', nullif(i.status::text, ''), nullif(c.business_name, '')) AS subtitle,
           i.status::text, '/admin/finance', i.issued_at
         FROM public.customer_invoices i
@@ -128,7 +143,57 @@ BEGIN
         UNION ALL
 
         SELECT
-          5, 'decision', d.id, d.candidate_id::text,
+          6, 'purchase_order', po.id, po.purchase_order_number::text,
+          pg_catalog.concat_ws(' · ', nullif(po.status, ''), nullif(s.name, '')) AS subtitle,
+          po.status, '/admin/purchase-orders', po.created_at
+        FROM public.purchase_orders po
+        JOIN public.suppliers s
+          ON s.id = po.supplier_id AND s.organization_id = po.organization_id
+        WHERE v_roles && ARRAY['admin','manager']::text[]
+          AND po.organization_id = v_org
+          AND (
+            pg_catalog.strpos(pg_catalog.lower(po.purchase_order_number), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(po.status, '')), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(s.name, '')), pg_catalog.lower(v_query)) > 0
+          )
+
+        UNION ALL
+
+        SELECT
+          7, 'task', t.id, t.title::text,
+          pg_catalog.concat_ws(' · ', nullif(t.task_role, ''), nullif(t.priority, '')) AS subtitle,
+          t.status::text, '/admin/tasks', t.created_at
+        FROM public.ai_tasks t
+        WHERE v_roles && ARRAY['admin','manager','staff','accountant']::text[]
+          AND t.organization_id = v_org
+          AND public.can_view_operational_task_role(t.task_role)
+          AND (
+            pg_catalog.strpos(pg_catalog.lower(t.title), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(t.task_type, '')), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(t.source_entity_type, '')), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(t.source_entity_id::text, '')), pg_catalog.lower(v_query)) > 0
+          )
+
+        UNION ALL
+
+        SELECT
+          8, 'import', j.id, coalesce(nullif(j.file_name, ''), 'دفعة استيراد')::text,
+          pg_catalog.concat_ws(' · ', nullif(j.status, ''), nullif(j.job_type, ''), nullif(j.period_key, '')) AS subtitle,
+          j.status::text, '/admin/data', j.created_at
+        FROM public.import_jobs j
+        WHERE v_roles && ARRAY['admin','manager']::text[]
+          AND j.organization_id = v_org
+          AND (
+            pg_catalog.strpos(pg_catalog.lower(coalesce(j.file_name, '')), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(j.status, '')), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(j.job_type, '')), pg_catalog.lower(v_query)) > 0
+            OR pg_catalog.strpos(pg_catalog.lower(coalesce(j.period_key, '')), pg_catalog.lower(v_query)) > 0
+          )
+
+        UNION ALL
+
+        SELECT
+          9, 'decision', d.id, d.candidate_id::text,
           pg_catalog.concat_ws(' · ', nullif(d.state::text, ''), nullif(d.rule_id, '')) AS subtitle,
           d.state::text, '/admin/intelligence', d.updated_at
         FROM public.decision_outcomes d
@@ -143,7 +208,7 @@ BEGIN
         UNION ALL
 
         SELECT
-          6, 'audit', a.id, a.action::text,
+          10, 'audit', a.id, a.action::text,
           pg_catalog.concat_ws(' · ', nullif(a.entity_type, ''), a.entity_id::text) AS subtitle,
           NULL::text, '/admin/audit', a.created_at
         FROM public.audit_logs a
