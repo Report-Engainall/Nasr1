@@ -1,3 +1,31 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-057 — CUSTOMER RETURNS HISTORY ROUTE
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product commits: returns history page `b54906d6452fc9e59119ae63b29acb3787c3cb8e`; staff destination fix `059e67277463f02d3c55b00fe011b1d75a14eb6d`; route `fa96fd9754589c395adf0e4315452c1ece56634f`; route tree `8373a07c9feff4204d9fefb1b3274d224b412f77`; global navigation `c08f56f3b716f3eaa2dd4165a10ede6ffe63f7d7`; footer `6ae7a21b1d130ea77b7b1bcb02f7a9f6f3ebc7f6`; Help Center `b0736e47ceb9845c90e57b5fa9fba0b33deb0b36` and missing icon fix `b51acd3f8b4bb7e95679bf15aa1562ac0f2a4ceb`; profile shortcut `e849baa6f01c666d1706333d18201e8a45911ee3`; localized order status `4f6c9abc898ac84b6b0fb82f30e41224dfedd121`.
+- Scope: add a customer-facing consolidated returns history using the existing order RLS and server-owned `list_my_customer_return_requests(uuid)` read RPC.
+
+## BODY-057 — my returns history
+
+- Added authenticated customer route `/returns` and `CustomerReturnsPage`.
+- Reads only the customer's own order headers via the existing orders RLS policy, 20 orders per page. For each order in the current page it calls `list_my_customer_return_requests(p_order_id)`; the RPC verifies the current active customer, tenant, approved status and order ownership. It does not read the private return tables directly.
+- Shows each existing request number, status, reason, customer note, review note, source order and requested items/quantities. The original order status is rendered in Arabic; users can navigate to the original order.
+- Fails the page closed when any per-order RPC or payload validation fails instead of presenting an incomplete set as a complete page. The count and result disclosure explicitly apply to the current 20-order page; no organization-wide total is invented.
+- Added `/returns` to the TanStack route tree, global navigation, storefront footer, profile shortcuts and Help Center.
+- Existing single-order request submission remains the only return-write flow; no parallel request/approval/credit/receipt engine or direct return table read was added.
+- Files changed: `src/components/CustomerReturnsPage.tsx`, `src/routes/returns.tsx`, `src/routeTree.gen.ts`, `src/routes/__root.tsx`, `src/components/store/StoreFooter.tsx`, `src/routes/help.tsx`, `src/routes/profile.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- GitHub source references were re-read for the page, file route, generated route registration, global navigation, footer, profile and Help Center. The page calls the existing list RPC per order and has no direct `customer_return_requests` table query.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue absent customer/account workflows. New customer self-registration with commercial profile linkage remains blocked on a P2 tenant-bound onboarding command; returned-order edit-and-resubmit remains blocked on its atomic amendment contract. Do not substitute either with generic cart or direct profile/customer writes.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-056 — REVOKE OTHER / ALL AUTH SESSIONS
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
