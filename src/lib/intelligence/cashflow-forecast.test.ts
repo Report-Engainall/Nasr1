@@ -16,8 +16,9 @@ describe("scheduled cash-flow forecast",()=>{
  it("keeps currency groups separate",()=>{
   const usd=metric("usd-open","cash.opening",100,"USD"),usdIn=entry("usd-in","INFLOW","2026-11-01",15,"USD");
   const r=buildCashflowForecast({...base([usdIn]),openingBalances:[metric("open","cash.opening",100,"YER"),usd],evidenceRecords:[evidence("open","YER"),evidence("usd-open","USD"),evidence("usd-in","USD")]});
-  expect(r.points.filter(p=>p.currency==="YER").every(p=>p.projectedBalance===100)).toBe(true);
-  expect(r.points.find(p=>p.currency==="USD"&&p.horizonDays===7)?.projectedBalance).toBe(115);
+  expect(r.points.every(p=>p.projectedBalance===null)).toBe(true);
+  expect(r.points.every(p=>p.status==="NEEDS_REVIEW")).toBe(true);
+  expect(r.points.every(p=>p.currency==="YER" || p.currency==="USD")).toBe(true);
  });
  it("withholds projected balance when schedule coverage is partial",()=>{
   const r=buildCashflowForecast({...base([entry("a","INFLOW","2026-11-01",20)]),scheduleCompleteness:"PARTIAL"});
@@ -38,12 +39,26 @@ describe("scheduled cash-flow forecast",()=>{
   expect(r.points.every(p=>p.projectedBalance===null&&p.status==="NEEDS_REVIEW")).toBe(true);
   expect(r.points.every(p=>p.warnings.includes("UNSCOPED_SCHEDULE_CURRENCY"))).toBe(true);
  });
+ it("withholds a closing balance when only future receivables exist and no supplier/expense outflow schedule is proven",()=>{
+  const opening=metric("open","cash.opening",100,"YER");
+  const result=buildCashflowForecast({
+   ...base([entry("known-inflow","INFLOW","2026-11-01",20)]),
+   openingBalances:[opening],
+   evidenceRecords:[evidence("open","YER"),evidence("known-inflow","YER")],
+  });
+  const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
+  expect(point).toMatchObject({
+   openingBalance:100,knownInflows:20,knownOutflows:null,
+   projectedBalance:null,status:"NEEDS_REVIEW",scheduleComplete:false,
+  });
+  expect(point?.warnings).toContain("PROJECTED_BALANCE_WITHHELD");
+ });
  it("shows verified scheduled movements without inventing an opening or projected balance",()=>{
   const result=buildCashflowForecast({...base([entry("unfunded-in","INFLOW","2026-11-01",20)]),openingBalances:[]});
   const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
   expect(point).toMatchObject({
-   currency:"YER",openingBalance:null,knownInflows:20,knownOutflows:0,
-   projectedBalance:null,status:"UNAVAILABLE",scheduleComplete:true,
+   currency:"YER",openingBalance:null,knownInflows:20,knownOutflows:null,
+   projectedBalance:null,status:"NEEDS_REVIEW",scheduleComplete:false,
   });
   expect(point?.warnings).toContain("OPENING_BALANCE_NOT_VERIFIED");
   expect(point?.warnings).toContain("PROJECTED_BALANCE_WITHHELD");

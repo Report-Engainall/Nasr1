@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { BrainCircuit, CalendarClock, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
+import { BrainCircuit, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
@@ -56,7 +56,6 @@ import {
   NaturalLanguageAssistant,
 } from "@/components/intelligence";
 
-type Horizon = 7 | 30 | 90;
 const DECISION_PAGE_SIZE = 50;
 const formatDay = (value: string) => new Date(value + "T00:00:00.000Z").toLocaleDateString("ar-YE", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 const formatMoney = (value: number, currency: string) => new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 2 }).format(value) + " " + currency;
@@ -369,7 +368,6 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
 }) {
   const { user } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
-  const [horizon, setHorizon] = useState<Horizon>(30);
   const [refreshKey, setRefreshKey] = useState(0);
   const [result, setResult] = useState<CashflowScheduleResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -443,7 +441,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     }
     setLoading(true);
     try {
-      const request = createCashflowScheduleRequest({ horizonDays: horizon, now: snapshotAt.current });
+      const request = createCashflowScheduleRequest({ horizonDays: 90, now: snapshotAt.current });
       const response = await fetchCashflowSchedule(request);
       if (!active()) return;
       setResult(response);
@@ -453,7 +451,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     } finally {
       if (active()) setLoading(false);
     }
-  }, [canManage, horizon]);
+  }, [canManage]);
 
   const loadInventory = useCallback(async (active: () => boolean) => {
     if (!canManage) {
@@ -1199,16 +1197,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 <RefreshCw size={16} /> تحديث
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm"><CalendarClock size={16} /> أفق الاستحقاقات</label>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="فترة جدول التدفق النقدي">
-                {([7, 30, 90] as const).map((value) => (
-                  <button key={value} type="button" className={horizon === value ? "btn primary" : "btn secondary"} aria-pressed={horizon === value} onClick={() => setHorizon(value)} disabled={loading}>
-                    {value} يومًا
-                  </button>
-                ))}
-              </div>
-            </div>
+            <p className="text-sm text-muted-foreground">تُقرأ تغطية الاستحقاقات لمدة 90 يوماً مرة واحدة، ويعرض المحرك نوافذ 7 و30 و90 يوماً كلٌّ على حدة وبالعملة نفسها.</p>
           </header>
 
           <NaturalLanguageAssistant

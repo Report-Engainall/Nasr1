@@ -122,7 +122,7 @@ function CashflowForecastData({ forecast }: { forecast: CashflowForecast }) {
         <h3 className="font-semibold">التدفق النقدي المجدول</h3>
         <span className="text-xs text-muted-foreground">الاحتساب حتى {forecast.asOf}</span>
       </header>
-      <p className="text-xs text-muted-foreground">يعرض حالياً أرصدة فواتير العملاء المجدولة بعد الدفعات المسجلة؛ لا يمثل المقبوضات النقدية الفعلية أو حركة الصندوق والبنك. لا يظهر رصيد متوقع إلا عند توافر رصيد افتتاحي نقدي/مصرفي مثبت وجدول مكتمل بالعملة نفسها. لا يفترض نسب تحصيل أو مبيعات مستقبلية.</p>
+      <p className="text-xs text-muted-foreground">يعرض حالياً أرصدة فواتير العملاء المجدولة بعد الدفعات المسجلة؛ لا يمثل المقبوضات النقدية الفعلية أو حركة الصندوق والبنك. المدفوعات الخارجة غير المتاحة تبقى «غير متاحة» ولا تتحول إلى صفر. لا يظهر رصيد متوقع إلا عند توافر رصيد افتتاحي نقدي/مصرفي مثبت وجدول كامل للدخول والخروج بالعملة نفسها. لا يفترض نسب تحصيل أو مبيعات مستقبلية.</p>
       {currencies.map((currency) => (
         <CashflowCurrencyPanel
           key={currency}

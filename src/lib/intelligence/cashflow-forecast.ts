@@ -108,17 +108,22 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
    const end=addDays(day,horizon),window=scoped.filter(x=>x.dueDate!==null&&x.dueDate>=day&&x.dueDate<end);
    const knownInflow=window.filter(x=>x.valid&&x.entry.direction==="INFLOW").reduce((sum,x)=>sum+(x.amount??0),0);
    const knownOutflow=window.filter(x=>x.valid&&x.entry.direction==="OUTFLOW").reduce((sum,x)=>sum+(x.amount??0),0);
-   const hasKnownEvents=window.some(x=>x.valid);
-   const projected=complete&&openingValid?(openingValue as number)+knownInflow-knownOutflow:null;
-   const status=resolveCashflowPointStatus(opening,openingValid,complete,scheduleStatus);
+   const hasKnownInflows=window.some(x=>x.valid&&x.entry.direction==="INFLOW");
+   const hasKnownOutflows=window.some(x=>x.valid&&x.entry.direction==="OUTFLOW");
+   const hasKnownEvents=hasKnownInflows||hasKnownOutflows;
+   // The existing aggregate only proves receivable inflows; absent an independently complete
+   // supplier/expense outflow schedule, a zero outflow cannot be assumed for closing cash.
+   const closingScheduleComplete=complete&&hasKnownOutflows;
+   const projected=closingScheduleComplete&&openingValid?(openingValue as number)+knownInflow-knownOutflow:null;
+   const status=resolveCashflowPointStatus(opening,openingValid,closingScheduleComplete,scheduleStatus);
    const sources=[...(opening?[opening]:[]),...window.flatMap(x=>x.metric?[x.metric]:[])];
    const evidenceIds=[...new Set(sources.flatMap(m=>m.lineage.evidenceIds))];
    const formulaVersions=[...new Set(sources.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];
    result.push({
     currency,horizonDays:horizon,period:{from:day,to:end},asOf:input.asOf,openingBalance:openingValid?openingValue:null,
-    knownInflows:complete||hasKnownEvents?knownInflow:null,knownOutflows:complete||hasKnownEvents?knownOutflow:null,
-    projectedBalance:projected,status,scheduleComplete:complete,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,
-    evidenceIds,formulaVersions,warnings:[...baseWarnings,...(projected===null?["PROJECTED_BALANCE_WITHHELD"]:[])],
+    knownInflows:complete||hasKnownInflows?knownInflow:null,knownOutflows:hasKnownOutflows?knownOutflow:null,
+    projectedBalance:projected,status,scheduleComplete:closingScheduleComplete,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,
+    evidenceIds,formulaVersions,warnings:[...baseWarnings,...(!closingScheduleComplete?["OUTFLOW_SCHEDULE_NOT_VERIFIED_OR_UNAVAILABLE"]:[]),...(projected===null?["PROJECTED_BALANCE_WITHHELD"]:[])],
    });
   }
  }
