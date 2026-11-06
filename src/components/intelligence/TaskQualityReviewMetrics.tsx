@@ -88,6 +88,8 @@ export function TaskQualityReviewMetrics({ quality }: TaskQualityReviewMetricsPr
         <MetricCard title="رفض التوصيات" value={number(quality.disposition.rejectedCount)} detail={number(quality.disposition.reviewedCount) + " مراجعة قرار"} />
         <MetricCard title="تأجيل التوصيات" value={number(quality.disposition.deferredCount)} detail={number(quality.actionability.deferredCount) + " مهام مؤجلة أيضاً"} />
         <MetricCard title="الإنذارات الكاذبة" value={percent(quality.alerts.falseAlarmRatePercent)} detail={number(quality.alerts.falsePositiveCount) + " من " + number(quality.alerts.falseAlarmDenominator) + " تنبيه صحيح/كاذب تمت مراجعته"} />
+        <MetricCard title="التنبيهات الصحيحة" value={number(quality.alerts.truePositiveCount)} detail="أثبتت المراجعة أن التنبيه مدعوم بالمصدر." />
+        <MetricCard title="تنبيهات بانتظار المراجعة" value={number(quality.alerts.needsReviewCount)} detail="مستبعدة من مقام نسبة الإنذارات الكاذبة حتى حسمها." />
         <MetricCard title="الأسباب المتكررة" value={number(quality.repeatedCauses.length)} detail={number(quality.causeReviewCount) + " مراجعة سلبية مصنفة"} />
         <MetricCard title="المهام التي تمت مراجعتها" value={number(quality.scope.reviewedTaskCount)} detail="من " + number(quality.scope.visibleTaskCount) + " مهمة مرئية للمدير" />
       </div>
