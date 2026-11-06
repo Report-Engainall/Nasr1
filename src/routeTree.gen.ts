@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AddressesRouteImport } from './routes/addresses'
+import { Route as AccountPasswordRouteImport } from './routes/account.password'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as BarcodeRouteImport } from './routes/barcode'
@@ -78,6 +79,11 @@ import { Route as ApiInvoicePdfInvoiceIdRouteImport } from './routes/api.invoice
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountPasswordRoute = AccountPasswordRouteImport.update({
+  id: '/account/password',
+  path: '/account/password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AddressesRoute = AddressesRouteImport.update({
@@ -405,6 +411,7 @@ const ApiInvoicePdfInvoiceIdRoute = ApiInvoicePdfInvoiceIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/addresses': typeof AddressesRoute
+  '/account/password': typeof AccountPasswordRoute
   '/admin': typeof AdminRoute
   '/assistant': typeof AssistantRoute
   '/barcode': typeof BarcodeRoute
@@ -472,6 +479,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/addresses': typeof AddressesRoute
+  '/account/password': typeof AccountPasswordRoute
   '/admin': typeof AdminRoute
   '/assistant': typeof AssistantRoute
   '/barcode': typeof BarcodeRoute
@@ -537,6 +545,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/addresses': typeof AddressesRoute
+  '/account/password': typeof AccountPasswordRoute
   '/admin': typeof AdminRoute
   '/assistant': typeof AssistantRoute
   '/barcode': typeof BarcodeRoute
@@ -606,6 +615,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/addresses'
+    | '/account/password'
     | '/admin'
     | '/assistant'
     | '/barcode'
@@ -668,6 +678,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/addresses'
+    | '/account/password'
     | '/admin'
     | '/assistant'
     | '/barcode'
@@ -728,6 +739,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/addresses'
+    | '/account/password'
     | '/admin'
     | '/assistant'
     | '/barcode'
@@ -788,6 +800,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  AccountPasswordRoute: typeof AccountPasswordRoute
   PaymentsRoute: typeof PaymentsRoute
   HelpRoute: typeof HelpRoute
   IndexRoute: typeof IndexRoute
@@ -860,6 +873,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account/password': {
+      id: '/account/password'
+      path: '/account/password'
+      fullPath: '/account/password'
+      preLoaderRoute: typeof AccountPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/addresses': {
@@ -1335,6 +1355,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchAdvancedRoute: SearchAdvancedRoute,
   IndexRoute: IndexRoute,
   AddressesRoute: AddressesRoute,
+  AccountPasswordRoute: AccountPasswordRoute,
   AdminRoute: AdminRoute,
   AssistantRoute: AssistantRoute,
   BarcodeRoute: BarcodeRoute,
