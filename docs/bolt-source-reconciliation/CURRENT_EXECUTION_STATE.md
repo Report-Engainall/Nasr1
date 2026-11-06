@@ -2266,3 +2266,11 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Files: src/lib/intelligence/decision-memory.ts; src/components/intelligence/DecisionMemoryBook.tsx; src/lib/intelligence/decision-memory-search.test.ts.
 - Blobs: e16be29136bba9ce7a40ab304ee9dec9f34ed130; e355254b8f3b51be2b54b28f5b00bf495c8d7c3a; da72d66f89ea5dd46b0fa6b6e55eee5750b267aa.
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no build/runtime/DB/production acceptance. No PASS claim.
+
+## P3 state update — 2026-11-06 — Section 56 evidence comparison
+
+- P3 code commit c2e358dce286c49c91157c9d0a4d0ec2d1a06e75 fixes cross-source asOf equivalence by parsed instant, not timestamp text formatting.
+- Added source-to-measurement age (milliseconds) to source references and duration presentation in EvidenceSourceComparisonPanel. Invalid/future timestamps remain unavailable; no stale label without a source SLA.
+- Files: evidence-source-comparison.ts; evidence-source-comparison.test.ts; EvidenceSourceComparisonPanel.tsx.
+- Blobs: bb666a0438706859704a55aa9d44f439d4cdcd53; 5cffc6dc7cb5616688d558b579a9e3fda449be65; ea49c1959acedf96ff6ded44f03108314687a123.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no runtime/DB/production claim.

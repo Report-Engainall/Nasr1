@@ -659,3 +659,14 @@ Documentation commits:
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored, NOT run. No build/runtime/Bolt/DB/Preview/Vercel/production acceptance; no business or policy mutation.
 - Exact blobs: e16be29136bba9ce7a40ab304ee9dec9f34ed130, e355254b8f3b51be2b54b28f5b00bf495c8d7c3a, da72d66f89ea5dd46b0fa6b6e55eee5750b267aa.
 - Next: Section 56 source trust/comparability work only when exact tenant-scoped population and comparable source periods exist.
+
+## P3 checkpoint — 2026-11-06 — evidence source age and as-of instant comparison
+
+- Code commit: c2e358dce286c49c91157c9d0a4d0ec2d1a06e75 (parent fde3068c0970a759cf75a81820d3482acb0120cd).
+- EvidenceSourceComparison now compares parsed timestamp instants, so equivalent ISO timestamps with different UTC offsets remain comparable while genuinely different instants are withheld.
+- Source summaries include sourceAgeMilliseconds (sourceTimestamp → metric asOf). Missing, invalid or future timestamps yield null. The Arabic panel shows a duration but does not call it stale without a source-specific SLA.
+- No score invented for missing duplicate-key/import completeness/aggregate reconciliation/SLA inputs; no client-only persisted reconciliation disposition.
+- Files: evidence-source-comparison.ts, evidence-source-comparison.test.ts, EvidenceSourceComparisonPanel.tsx.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored, NOT run. No build/runtime/browser/Bolt/DB/production acceptance.
+- Exact blobs: bb666a0438706859704a55aa9d44f439d4cdcd53; 5cffc6dc7cb5616688d558b579a9e3fda449be65; ea49c1959acedf96ff6ded44f03108314687a123.
+- Next: Section 56 score only when true source contracts provide completeness, duplicate keys, aggregate consistency and freshness SLA; persisted reconciliation decisions require P2 authorized audit persistence.

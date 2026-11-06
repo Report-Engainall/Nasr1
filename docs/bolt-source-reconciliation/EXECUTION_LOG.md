@@ -2222,3 +2222,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Files: decision-memory.ts, DecisionMemoryBook.tsx, decision-memory-search.test.ts. Blobs: e16be29136bba9ce7a40ab304ee9dec9f34ed130; e355254b8f3b51be2b54b28f5b00bf495c8d7c3a; da72d66f89ea5dd46b0fa6b6e55eee5750b267aa.
 - Matrix row REF-NL-DECISION-MEMORY-ASSISTANT-001 updated in place.
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Source tests authored but NOT run; no build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance run; no policy or business mutation.
+
+## 2026-11-06 — REF-DATA-RELIABILITY-INSTANT-AND-SOURCE-AGE-001
+
+- Commit c2e358dce286c49c91157c9d0a4d0ec2d1a06e75 updates evidence-source-comparison.ts, its tests, and EvidenceSourceComparisonPanel.tsx.
+- Cross-source asOf comparison uses parsed instant equality, not raw string equality; equivalent UTC offsets compare, different instants remain NOT_COMPARABLE.
+- Source-reference summary calculates source-to-metric-asOf age only for valid non-future timestamps. The UI presents elapsed duration without stale classification absent a source freshness SLA.
+- Exact blobs: engine bb666a0438706859704a55aa9d44f439d4cdcd53; tests 5cffc6dc7cb5616688d558b579a9e3fda449be65; UI ea49c1959acedf96ff6ded44f03108314687a123.
+- Matrix row REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001 updated in place.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance; no score/SLA/persistence claim.

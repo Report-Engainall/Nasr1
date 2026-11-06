@@ -1770,3 +1770,33 @@ Continue with Section 52/56 decision learning only from verified measured-outcom
 ### Next P3 action
 
 Continue with evidence-backed Section 56 source trust / comparison only where the complete tenant-scoped source population and comparable periods are present. Keep decision suggestions human-reviewed; do not automate policy adaptation or infer causal effects from observed differences.
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DATA-RELIABILITY-INSTANT-AND-SOURCE-AGE-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Code commit: c2e358dce286c49c91157c9d0a4d0ec2d1a06e75 (parent fde3068c0970a759cf75a81820d3482acb0120cd).
+
+### Delivered on main
+
+- Corrected Section 56 cross-source as-of comparison to compare parsed instants rather than timestamp string formatting. Equivalent offsets for the same absolute instant remain comparable; genuinely different instants remain NOT_COMPARABLE.
+- Added sourceAgeMilliseconds to each source-reference projection: elapsed time from sourceTimestamp to the metric asOf. Invalid, missing or future source timestamps remain null.
+- Arabic EvidenceSourceComparisonPanel displays source-to-measurement interval in seconds/minutes/hours/days, without calling it stale. A source-specific freshness SLA is required before interpreting age as stale.
+- Comparison still requires independently trusted passports and exact metric/unit/currency/UOM/period/as-of/formula compatibility. No averaging, evidence promotion or source writes.
+
+### Exact changed source paths
+
+- src/lib/intelligence/evidence-source-comparison.ts.
+- src/lib/intelligence/evidence-source-comparison.test.ts.
+- src/components/intelligence/EvidenceSourceComparisonPanel.tsx.
+
+### Acceptance boundary
+
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Source tests authored for equivalent-offset instants, genuinely different instants and source-age projection; NOT run.
+- No build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production operation was run. No score, SLA or persistent reconciliation workflow was invented without a source contract.
+- Exact blobs: engine bb666a0438706859704a55aa9d44f439d4cdcd53; tests 5cffc6dc7cb5616688d558b579a9e3fda449be65; UI ea49c1959acedf96ff6ded44f03108314687a123.
+- No PASS/runtime/production claim.
+
+### Next P3 action
+
+Continue Section 56 only when source contracts provide import-batch completeness, duplicate-key counts, aggregate checks and source-specific freshness SLA. Persisted reconciliation dispositions remain a server-backed P2 audit workflow.
