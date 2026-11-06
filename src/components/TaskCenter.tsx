@@ -11,7 +11,7 @@ import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskP
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
 import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
-import { TaskQualityReviewForm } from '@/components/intelligence/TaskQualityReviewForm';
+import { TaskQualityReviewForm } from '@/components/intelligence';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',

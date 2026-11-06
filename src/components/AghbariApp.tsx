@@ -6,14 +6,14 @@ import {
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
-  createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
+  createCustomer, createProduct, createPricingRule, deletePricingRule, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
-import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';
+import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -635,7 +635,9 @@ function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string;
 
 function Products({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
-  const canManageReorderPoint = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canManageProductLifecycle = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canManageReorderPoint = canManageProductLifecycle;
+  const [lifecycleBusyId, setLifecycleBusyId] = useState<string | null>(null);
   const { data, loading, error, refetch } = useFetch(fetchProducts);
   const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
   const [query, setQuery] = useState('');
@@ -659,10 +661,39 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
   const [thresholdError, setThresholdError] = useState('');
   const thresholdRequestSequence = useRef(0);
   const rows = (data ?? []).filter((p) => (p.name + ' ' + p.item_code + ' ' + (p.barcode ?? '')).toLowerCase().includes(query.toLowerCase()));
-  async function remove(product: ProductWithInventory) {
-    if (!window.confirm('حذف ' + product.name + '؟')) return;
-    try { await deleteProduct(product.id); onNotice('تم حذف المنتج'); refetch(); }
-    catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر حذف المنتج'); }
+  async function archive(product: ProductWithInventory) {
+    if (!canManageProductLifecycle || lifecycleBusyId) return;
+    if (!window.confirm('أرشفة ' + product.name + '؟ لن يظهر المنتج في المتجر، ويمكن إعادة تفعيله لاحقًا.')) return;
+    setLifecycleBusyId(product.id);
+    try {
+      const result = await archiveAdminCatalogProduct(product.id);
+      if (result.id !== product.id || result.status !== 'inactive' || result.archived !== true) {
+        throw new Error('لم يؤكد الخادم أرشفة المنتج؛ لم يتم إعلان النجاح.');
+      }
+      await refetch();
+      onNotice('تمت أرشفة المنتج وإخفاؤه من المتجر.');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر أرشفة المنتج.');
+    } finally {
+      setLifecycleBusyId(null);
+    }
+  }
+  async function restore(product: ProductWithInventory) {
+    if (!canManageProductLifecycle || lifecycleBusyId) return;
+    if (!window.confirm('إعادة تفعيل ' + product.name + '؟ سيعود المنتج إلى الكتالوج وفق قواعد المتجر.')) return;
+    setLifecycleBusyId(product.id);
+    try {
+      const saved = await updateProduct(product.id, { status: 'active' });
+      if (saved.id !== product.id) {
+        throw new Error('لم يؤكد الخادم إعادة تفعيل المنتج؛ حدّث القائمة قبل إعادة المحاولة.');
+      }
+      await refetch();
+      onNotice('تمت إعادة تفعيل المنتج.');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر إعادة تفعيل المنتج.');
+    } finally {
+      setLifecycleBusyId(null);
+    }
   }
   function openTransfer(product: ProductWithInventory) {
     setTransferProduct(product);
@@ -814,22 +845,26 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     <div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز..." /></label></div>
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table>
-        <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>السعر</th><th>المتاح</th><th>الحالة</th><th>إجراء المخزون</th><th /></tr></thead>
+        <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
           const qty = p.inventory?.quantity_available;
           const reorderPoint = p.inventory?.reorder_point ?? p.min_stock;
           const stockStatus = getInventoryAvailabilityStatus(qty, reorderPoint);
           const low = stockStatus === 'low';
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td><span className={'badge ' + (p.status === 'inactive' ? 'warning' : p.status === 'active' ? 'success' : 'info')}>{p.status === 'inactive' ? 'مؤرشف' : p.status === 'active' ? 'نشط' : 'غير محدد'}</span></td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
             <td><span className={'badge ' + (stockStatus === 'unknown' ? 'info' : low ? 'warning' : 'success')}>{stockStatus === 'unknown' ? 'غير متاح' : low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
-            <td><div className="row-actions"><button aria-label={'تعديل ' + p.name} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button><button aria-label={'حذف ' + p.name} onClick={() => remove(p)}><Trash2 size={15} /></button></div></td>
+            <td><div className="row-actions">
+              <button aria-label={'تعديل ' + p.name} title="تعديل المنتج" onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>
+              {canManageProductLifecycle && p.status === 'active' && <button aria-label={'أرشفة ' + p.name} title="أرشفة المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void archive(p)}><Trash2 size={15} /></button>}
+              {canManageProductLifecycle && p.status === 'inactive' && <button aria-label={'إعادة تفعيل ' + p.name} title="إعادة تفعيل المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void restore(p)}><Check size={15} /></button>}
+            </div></td>
           </tr>;
         })}</tbody>
       </table>{!rows.length && <Empty text="لا توجد منتجات مطابقة" />}</TableWrap>}
     </section>
-    {modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); refetch(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
+    {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); refetch(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
   </>;
@@ -838,10 +873,12 @@ export function ProductModal({
   product,
   onClose,
   onSaved,
+  canManageLifecycle = false,
 }: {
   product: ProductWithInventory | null;
   onClose: () => void;
   onSaved: (message?: string) => void;
+  canManageLifecycle?: boolean;
 }) {
   const {
     data: categories,
@@ -850,6 +887,7 @@ export function ProductModal({
     refetch: refetchCategories,
   } = useFetch(fetchCategories);
   const [name, setName] = useState(product?.name ?? '');
+  const [productStatus, setProductStatus] = useState<'active' | 'inactive'>(product?.status === 'inactive' ? 'inactive' : 'active');
   const [nameEn, setNameEn] = useState(product?.name_en ?? '');
   const [code, setCode] = useState(product?.item_code ?? '');
   const [sku, setSku] = useState(product?.sku ?? '');
@@ -941,7 +979,7 @@ export function ProductModal({
     setSaving(true); setError('');
     let productSaved = false;
     try {
-      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, is_featured: isFeatured, sort_order: sortOrderValue, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
+      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, is_featured: isFeatured, sort_order: sortOrderValue, unit: product?.unit ?? 'كرتون', status: productStatus };
       const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
       productSaved = true;
       if (!(await persistProductImageChanges(saved.id))) return;
@@ -1008,6 +1046,19 @@ export function ProductModal({
       <p style={{ margin: '-4px 0 12px', color: '#667b80', fontSize: 12, lineHeight: 1.7 }}>
         تظهر المنتجات المميزة قبل المنتجات العادية؛ والرقم الأصغر يسبق الأكبر داخل المجموعة نفسها.
       </p>
+      {canManageLifecycle && (
+        <Field label="حالة المنتج">
+          <select
+            aria-label="حالة المنتج"
+            value={productStatus}
+            onChange={(event) => setProductStatus(event.target.value as 'active' | 'inactive')}
+            disabled={saving}
+          >
+            <option value="active">نشط — يظهر في المتجر وفق الأهلية</option>
+            <option value="inactive">مؤرشف — مخفي من المتجر</option>
+          </select>
+        </Field>
+      )}
       {categoriesError && (
         <div className="form-error" role="alert">
           <span>تعذر تحميل التصنيفات: {categoriesError}</span>
