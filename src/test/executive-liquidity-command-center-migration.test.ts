@@ -7,11 +7,11 @@ const supplierDueDates = readFileSync(join(process.cwd(), "supabase/migrations/2
 
 describe("executive liquidity command-center migration contract", () => {
   it("contains one complete function and no duplicated or orphaned SQL tail", () => {
-    expect(migration.match(/CREATE OR REPLACE FUNCTION public\\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
-    expect(migration.match(/\\$function\\$;/g)).toHaveLength(1);
-    expect(migration.match(/COMMENT ON FUNCTION public\\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
-    expect(migration).not.toContain(" OR aging_bucket = 'UNKNOWN_DUE_DATE'\\n  ),");
-    expect(migration).not.toContain("!~ '^[A-Z]{3}\\n");
+    expect(migration.match(/CREATE OR REPLACE FUNCTION public\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
+    expect(migration.match(/\$function\$;/g)).toHaveLength(1);
+    expect(migration.match(/COMMENT ON FUNCTION public\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
+    expect(migration).not.toContain(" OR aging_bucket = 'UNKNOWN_DUE_DATE'\n  ),");
+    expect(migration).not.toContain("!~ '^[A-Z]{3}\n");
   });
 
   it("keeps unknown due dates and invalid currencies out of inferred aging totals", () => {
