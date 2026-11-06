@@ -19,6 +19,8 @@ import { fetchCommercePolicyCatalog } from "./commerce-policy-governance-client"
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { fetchBusinessHealthAssistantSummary } from "./business-health-assistant-client";
+import { fetchSalesOrderStatusSnapshot } from "./sales-order-status-summary-client";
+import { resolveSalesOrderStatusIntent, type SalesOrderStatusIntent } from "./sales-order-status-summary";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
  type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type ShiftOperationsIntent,resolveShiftOperationsIntent,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent,type CommercePolicyIntent,resolveDecisionMemoryIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
@@ -121,6 +123,13 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     return {status:workspace.status,message:workspace.message};
    }
    return {status:"RESULT",plan,result:resolveShiftOperationsIntent(workspace.data.result)};
+  }
+  if(plan.sourceRpc==="fetch_intelligence_sales_order_status_summary"){
+   const source=await fetchSalesOrderStatusSnapshot();
+   if(!source.ok)return {status:source.status,message:source.message};
+   return {status:"RESULT",plan,result:resolveSalesOrderStatusIntent(
+    plan.intent as SalesOrderStatusIntent,source.snapshot,
+   )};
   }
   if(plan.sourceRpc==="fetch_decision_outcomes"){
    const queriedAt=new Date().toISOString();
