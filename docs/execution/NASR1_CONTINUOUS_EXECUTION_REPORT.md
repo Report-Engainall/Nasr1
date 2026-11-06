@@ -1,3 +1,15 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-054 — CUSTOMER PROFILE OVERVIEW
+
+- Completed action: `BODY-COMPLETION-ON-MAIN-054`.
+- Added the authenticated `/profile` overview with current user display name, email and role labels from the existing AuthContext. Exposes customer or staff workflow shortcuts based on the current role.
+- Changed global «الحساب» navigation, storefront footer and Help Center to link to `/profile`.
+- Commits: `6607901b4b65e9a2471f66ce03463d1cf6029c93`, `3bc60712c7549033c00b1453e7e4133a67934ea8`, `88b17e4de227f1ac36f9eb37765cffc3abcb7d88`, `48ed9df9ad1dc7f4b286082401d646617347eee0`, `9f24fd1ec8a649abba57834529b613e5e8ec7710`.
+- Acceptance row: `DLV-006-CUSTOMER-PROFILE-OVERVIEW-001`; state `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Profile editing is intentionally not exposed: legacy direct profile UPDATE is too broad without a field-allowlisted backend command. No mutation or tenant change was implemented.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation was run. No PASS or runtime acceptance is claimed.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — BODY-COMPLETION-ON-MAIN-053 — ACCOUNT PASSWORD CHANGE
 
 - Completed action: `BODY-COMPLETION-ON-MAIN-053`.
