@@ -17,6 +17,8 @@ import {
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
+import { ADMIN_NAV_GROUPS } from '@/lib/admin-access-matrix';
+import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
 import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
@@ -105,6 +107,36 @@ const adminPaths: Record<View, string> = {
 
 
 
+type AdminRecordContext = {
+  kind: string;
+  id: string;
+  title: string;
+  subtitle: string;
+  route: string;
+  query: string;
+  savedAt: number;
+};
+
+const ADMIN_RECORD_CONTEXT_KEY = "aghbari.admin.record-context.v1";
+function readAdminRecordContext(): AdminRecordContext | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(ADMIN_RECORD_CONTEXT_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<AdminRecordContext>;
+    if (typeof value.kind !== "string" || typeof value.id !== "string" ||
+        typeof value.title !== "string" || typeof value.subtitle !== "string" ||
+        typeof value.route !== "string" || typeof value.query !== "string" ||
+        typeof value.savedAt !== "number" || Date.now() - value.savedAt > 4 * 60 * 60 * 1000) {
+      window.sessionStorage.removeItem(ADMIN_RECORD_CONTEXT_KEY);
+      return null;
+    }
+    return value as AdminRecordContext;
+  } catch {
+    return null;
+  }
+}
+
 type AdminSessionUser = NonNullable<ReturnType<typeof useAuth>["user"]>;
 
 type AdminWorkspaceContentProps = {
@@ -116,6 +148,7 @@ type AdminWorkspaceContentProps = {
   onNotice: (message: string) => void;
   onOrderDetailChange: (orderId: string | null) => void;
   onNavigationBlockedChange: (blocked: boolean) => void;
+  recordContext: AdminRecordContext | null;
 };
 
 function AdminWorkspaceContent({
@@ -127,6 +160,7 @@ function AdminWorkspaceContent({
   onNotice,
   onOrderDetailChange,
   onNavigationBlockedChange,
+  recordContext,
 }: AdminWorkspaceContentProps) {
   const [notificationTaskId, setNotificationTaskId] = useState<string | null>(null);
 
@@ -134,9 +168,9 @@ function AdminWorkspaceContent({
     case "dashboard":
       return <Dashboard onNavigate={onNavigate} />;
     case "products":
-      return <Products onNotice={onNotice} />;
+      return <Products onNotice={onNotice} initialSearch={recordContext?.kind === "product" ? recordContext.query : undefined} />;
     case "customers":
-      return <Customers onNotice={onNotice} />;
+      return <Customers onNotice={onNotice} initialSearch={recordContext?.kind === "customer" ? recordContext.query : undefined} />;
     case "service-desk":
       return <CustomerServiceDesk onNotice={onNotice} onOpenTask={(taskId) => {
         setNotificationTaskId(taskId);
@@ -308,6 +342,7 @@ function AdminWorkspaceAccess({
   onNotice,
   onOrderDetailChange,
   onNavigationBlockedChange,
+  recordContext,
   onOpenCustomers,
   onOpenFinance,
 }: AdminWorkspaceContentProps & {
@@ -332,25 +367,38 @@ function AdminWorkspaceAccess({
       onNotice={onNotice}
       onOrderDetailChange={onOrderDetailChange}
       onNavigationBlockedChange={onNavigationBlockedChange}
+      recordContext={recordContext}
     />
   );
 }
 
-function AdminSidebarNavigation({ items, view, firstMobileNavItemRef, navigationBlocked, onNavigate }: {
-  items: (typeof nav)[number][];
+function AdminSidebarNavigation({ groups, view, firstMobileNavItemRef, navigationBlocked, onNavigate }: {
+  groups: { id: string; label: string; items: (typeof nav)[number][] }[];
   view: View;
   firstMobileNavItemRef: React.Ref<HTMLButtonElement>;
   navigationBlocked: boolean;
   onNavigate: (id: View) => void;
 }) {
+  let firstButton = true;
   return (
     <nav aria-label="التنقل الإداري">
-      {items.map(({ id, label, icon: Icon }, index) => (
-        <button type="button" ref={index === 0 ? firstMobileNavItemRef : undefined} key={id}
-          className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined}
-          aria-disabled={navigationBlocked || undefined} onClick={() => onNavigate(id)}>
-          <Icon size={18} /><span>{label}</span>
-        </button>
+      {groups.map((group) => (
+        <div key={group.id} className="admin-nav-group" style={{ display: "contents" }}>
+          <div className="admin-nav-group-title" style={{ padding: "14px 18px 5px", color: "var(--muted-foreground, #64748b)", fontSize: 11, fontWeight: 700 }}>
+            {group.label}
+          </div>
+          {group.items.map(({ id, label, icon: Icon }) => {
+            const isFirst = firstButton;
+            firstButton = false;
+            return (
+              <button type="button" ref={isFirst ? firstMobileNavItemRef : undefined} key={id}
+                className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined}
+                aria-disabled={navigationBlocked || undefined} onClick={() => onNavigate(id)}>
+                <Icon size={18} /><span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
       ))}
     </nav>
   );
@@ -372,16 +420,66 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       (id !== 'audit' || canManageAudit) &&
       (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
   );
+  const visibleNavGroups = ADMIN_NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.views
+      .map((id) => nav.find((item) => item.id === id))
+      .filter((item): item is (typeof nav)[number] => Boolean(item && visibleNav.some((visible) => visible.id === item.id))),
+  })).filter((group) => group.items.length > 0);
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
   const [mobileNav, setMobileNav] = useState(false);
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [commandSearch, setCommandSearch] = useState(() => readAdminRecordContext()?.query ?? "");
+  const [workspaceSearchResults, setWorkspaceSearchResults] = useState<AdminWorkspaceSearchItem[]>([]);
+  const [workspaceSearchLoading, setWorkspaceSearchLoading] = useState(false);
+  const [workspaceSearchError, setWorkspaceSearchError] = useState("");
+  const workspaceSearchRequest = useRef(0);
+  const [recordContext, setRecordContext] = useState<AdminRecordContext | null>(() => readAdminRecordContext());
   const [notice, setNotice] = useState<string | null>(null);
   const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
   const [navigationBlocked, setNavigationBlocked] = useState(false);
   const showNotice = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(null), 2800); };
+  useEffect(() => {
+    try {
+      if (recordContext) window.sessionStorage.setItem(ADMIN_RECORD_CONTEXT_KEY, JSON.stringify(recordContext));
+      else window.sessionStorage.removeItem(ADMIN_RECORD_CONTEXT_KEY);
+    } catch { /* Session storage is optional; source screens remain independently authorized. */ }
+  }, [recordContext]);
+
+  useEffect(() => {
+    const requestId = ++workspaceSearchRequest.current;
+    const query = commandSearch.normalize("NFKC").trim();
+    if (!commandOpen || query.length < 2) {
+      setWorkspaceSearchResults([]);
+      setWorkspaceSearchError("");
+      setWorkspaceSearchLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setWorkspaceSearchLoading(true);
+      setWorkspaceSearchError("");
+      void searchAdminWorkspaceRecords(query, 30)
+        .then((items) => {
+          if (requestId === workspaceSearchRequest.current) setWorkspaceSearchResults(items);
+        })
+        .catch((cause) => {
+          if (requestId === workspaceSearchRequest.current) {
+            setWorkspaceSearchResults([]);
+            setWorkspaceSearchError(cause instanceof Error ? cause.message : "تعذر البحث في السجلات.");
+          }
+        })
+        .finally(() => {
+          if (requestId === workspaceSearchRequest.current) setWorkspaceSearchLoading(false);
+        });
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      workspaceSearchRequest.current += 1;
+    };
+  }, [commandOpen, commandSearch]);
   const closeMobileNav = () => {
     const wasOpen = mobileNav;
     setMobileNav(false);
@@ -521,6 +619,38 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     navigateAdmin(id, restoreMobileFocus);
   };
 
+  const openWorkspaceSearchResult = (item: AdminWorkspaceSearchItem) => {
+    const destination: View =
+      item.kind === "product" ? "products" :
+      item.kind === "customer" ? "customers" :
+      item.kind === "order" ? "orders" :
+      item.kind === "invoice" ? "finance" :
+      item.kind === "decision" ? "intelligence" : "audit";
+    if (!visibleNav.some((entry) => entry.id === destination)) {
+      showNotice("لا يملك هذا الحساب صلاحية فتح مصدر السجل.");
+      return;
+    }
+    if (navigationBlocked) {
+      showNotice("اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل مغادرة مراجعة الطلب.");
+      return;
+    }
+    setRecordContext({
+      kind: item.kind, id: item.id, title: item.title, subtitle: item.subtitle,
+      route: item.route, query: commandSearch.normalize("NFKC").trim() || item.title,
+      savedAt: Date.now(),
+    });
+    setCommandOpen(false);
+    setView(destination);
+    setOrderDetailId(item.kind === "order" ? item.id : null);
+    closeMobileNav();
+    navigateAdmin(destination, false);
+  };
+
+  const searchKindLabel: Record<AdminWorkspaceSearchItem["kind"], string> = {
+    product: "منتج", customer: "عميل", order: "طلب", invoice: "فاتورة",
+    decision: "قرار", audit: "أثر تدقيق",
+  };
+
   if (!ready) return <div className="login-screen" dir="rtl"><div style={{ margin: 'auto' }}><Loading /></div></div>;
   if (!user) return <Login />;
   if (!user.isStaff) return (
@@ -540,7 +670,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
         <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
         <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
         <AdminSidebarNavigation
-              items={visibleNav}
+              groups={visibleNavGroups}
               view={view}
               firstMobileNavItemRef={firstMobileNavItemRef}
               navigationBlocked={navigationBlocked}
@@ -551,7 +681,22 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       <main className="main">
         <header className="topbar"><button type="button" ref={mobileMenuButtonRef} className="mobile-menu" aria-label={mobileNav ? "إغلاق القائمة الإدارية" : "فتح القائمة الإدارية"} aria-expanded={mobileNav} aria-controls="admin-sidebar" onClick={() => { if (mobileNav) closeMobileNav(); else setMobileNav(true); }}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
         <div className="page-wrap">
+          {recordContext && (
+            <section dir="rtl" aria-label="سياق السجل المفتوح" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-slate-800">
+              <div className="min-w-0">
+                <strong>السجل المفتوح: {recordContext.title}</strong>
+                <p className="mt-1 break-words text-xs text-slate-600">{recordContext.subtitle || recordContext.id} · المرجع: {recordContext.id}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn outline" onClick={() => { setCommandSearch(recordContext.query || recordContext.title); setCommandOpen(true); }}>
+                  العودة إلى البحث
+                </button>
+                <button type="button" className="btn outline" onClick={() => setRecordContext(null)}>إنهاء سياق السجل</button>
+              </div>
+            </section>
+          )}
           <AdminWorkspaceAccess
+            recordContext={recordContext}
             isCustomerManagerOnly={isCustomerManagerOnly}
             isFinanceOnly={isFinanceOnly}
             view={view}
@@ -570,18 +715,40 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
         <DialogTitle className="sr-only">التنقل السريع في لوحة الأغبري</DialogTitle>
         <DialogDescription className="sr-only">ابحث عن قسم ثم اضغط Enter لفتحه. يمكنك فتح البحث باستخدام Ctrl K.</DialogDescription>
-        <CommandInput placeholder="ابحث عن قسم أو صفحة أو إجراء..." />
+        <CommandInput value={commandSearch} onValueChange={setCommandSearch} placeholder="ابحث عن قسم أو صنف أو عميل أو طلب أو فاتورة..." />
         <CommandList dir="rtl">
           <CommandEmpty>لا توجد نتائج مطابقة.</CommandEmpty>
-          <CommandGroup heading="أقسام لوحة التحكم">
-            {visibleNav.map(({ id, label, icon: Icon }) => (
-              <CommandItem key={id} value={`${label} ${id} ${adminPaths[id]}`} onSelect={() => runAdminCommand(id)}>
-                <Icon size={17} aria-hidden="true" />
-                <span>{label}</span>
-                <span className="ml-auto text-xs text-muted-foreground" dir="ltr">{adminPaths[id]}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
+          {commandSearch.trim().length >= 2 && (
+            <CommandGroup heading="نتائج البحث في سجلات المؤسسة">
+              {workspaceSearchLoading && <div className="px-3 py-2 text-sm text-muted-foreground" role="status">جار البحث في المصادر المسموحة...</div>}
+              {workspaceSearchError && <div className="px-3 py-2 text-sm text-red-700" role="alert">{workspaceSearchError}</div>}
+              {!workspaceSearchLoading && !workspaceSearchError && workspaceSearchResults.length === 0 &&
+                <div className="px-3 py-2 text-sm text-muted-foreground" role="status">لا توجد سجلات مطابقة ضمن صلاحيات هذا الحساب.</div>}
+              {workspaceSearchResults.map((item) => (
+                <CommandItem key={item.kind + ":" + item.id} shouldFilter={false}
+                  value={`${item.kind} ${item.title} ${item.subtitle} ${item.id}`}
+                  onSelect={() => openWorkspaceSearchResult(item)}>
+                  <Search size={16} aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate">{item.title}</strong>
+                    <small className="block truncate text-muted-foreground">{searchKindLabel[item.kind]} · {item.subtitle}</small>
+                  </span>
+                  <span className="text-xs text-muted-foreground" dir="ltr">{item.id.slice(0, 8)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {visibleNavGroups.map((group) => (
+            <CommandGroup key={group.id} heading={group.label}>
+              {group.items.map(({ id, label, icon: Icon }) => (
+                <CommandItem key={id} value={`${label} ${id} ${adminPaths[id]}`} onSelect={() => runAdminCommand(id)}>
+                  <Icon size={17} aria-hidden="true" />
+                  <span>{label}</span>
+                  <span className="ml-auto text-xs text-muted-foreground" dir="ltr">{adminPaths[id]}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
           <CommandGroup heading="مسارات إضافية">
             <CommandItem value="المتجر واجهة العميل storefront home catalog" onSelect={() => { setCommandOpen(false); setMode('storefront'); }}>
               <Store size={17} aria-hidden="true" />
@@ -640,14 +807,15 @@ function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string;
   return <div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>;
 }
 
-function Products({ onNotice }: { onNotice: (m: string) => void }) {
+function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
   const { user } = useAuth();
   const canManageProductLifecycle = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const canManageReorderPoint = canManageProductLifecycle;
   const [lifecycleBusyId, setLifecycleBusyId] = useState<string | null>(null);
   const { data, loading, error, refetch } = useFetch(fetchProducts);
   const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialSearch ?? '');
+  useEffect(() => { if (initialSearch?.trim()) setQuery(initialSearch); }, [initialSearch]);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<ProductWithInventory | null>(null);
   const [transferProduct, setTransferProduct] = useState<ProductWithInventory | null>(null);
@@ -1312,7 +1480,7 @@ export function ProductModal({
   );
 }
 
-export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
+export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
   const { user } = useAuth();
   const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'customer_manager'));
@@ -1323,8 +1491,14 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
   const [directory, setDirectory] = useState<Awaited<ReturnType<typeof fetchCustomerDirectoryPage>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [appliedSearch, setAppliedSearch] = useState('');
+  const [query, setQuery] = useState(initialSearch ?? '');
+  const [appliedSearch, setAppliedSearch] = useState(initialSearch ?? '');
+  useEffect(() => {
+    if (!initialSearch?.trim()) return;
+    setQuery(initialSearch);
+    setAppliedSearch(initialSearch);
+    setPage(1);
+  }, [initialSearch]);
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [modal, setModal] = useState(false);
