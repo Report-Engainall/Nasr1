@@ -253,7 +253,7 @@ export function parseExecutiveLiquidityResponse(value: unknown): ExecutiveLiquid
     if (
       !row || !nonEmpty(row.account_id, 100) || !nonEmpty(row.account_code, 80) ||
       !nonEmpty(row.account_name, 150) || !nonEmpty(row.display_name, 150) ||
-      (row.settlement_kind !== "cash" && row.settlement_kind !== "bank") ||
+      (row.settlement_kind !== "cash" && row.settlement_kind !== "bank" && row.settlement_kind !== "unclassified") ||
       !nonEmpty(row.currency, 3) || !ISO_CURRENCY.test(row.currency) ||
       inflows === null || inflows < 0 || outflows === null || outflows < 0 || netMovement === null ||
       Math.abs(inflows - outflows - netMovement) > 0.011 ||
