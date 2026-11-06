@@ -2,7 +2,7 @@
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Code parent before this increment: `b662ef538d87f1d705d4d4517994b3f78025d7f6`.
-- Code commits: `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, Arabic date/intent correction `5f716ea481a0d07b7dbdf720faf7891331423ebe`, and final date/applicability correction `d69c1ef4ed6ef433f16a78bea95f12d43f239870`.
+- Code commits: `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, Arabic date/intent correction `5f716ea481a0d07b7dbdf720faf7891331423ebe`, and final date/applicability correction `d69c1ef4ed6ef433f16a78bea95f12d43f239870 and strict read-only guard c7a67c33c97996c0eebba5934a3afea1bcd7558d`.
 - Feature: Arabic assistant intent `SHIFT_OPERATIONS_OVERVIEW` backed by the existing shift workspace contract.
 
 ### Implemented on main
@@ -25,7 +25,7 @@
 ### Acceptance boundary
 
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
-- Source tests were authored for required explicit date, relative-date clarification, invalid calendar date, and Arabic closeout phrasing; NOT RUN.
+- Source tests were authored for required explicit date, relative-date clarification, invalid calendar date, Arabic closeout phrasing, and refusal to reinterpret start-shift/handover/cash-count commands as read-only success; NOT RUN.
 - No tests, build, typecheck, lint, CI, browser, Bolt, database, migration application, Preview, Vercel or production action was run. No PASS/runtime/production claim.
 - Bolt must later prove: valid date resolves in the organization business time zone; missing/relative/multiple/invalid dates never call the RPC; authorized same-tenant read; denied role and foreign-tenant denial; missing shift returns NOT_FOUND; missing migration/source returns UNAVAILABLE; coverage and closeout checks reconcile to server DTO; the assistant read itself does not change shifts, cash, handover, stock or journals.
 

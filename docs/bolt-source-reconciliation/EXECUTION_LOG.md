@@ -2080,7 +2080,7 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 
 ## 2026-11-06 — REF-NL-SHIFT-OPERATIONS-ASSISTANT-001 — Arabic shift readiness and closeout assistant
 
-- Code parent: `b662ef538d87f1d705d4d4517994b3f78025d7f6`; commits `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, `5f716ea481a0d07b7dbdf720faf7891331423ebe`, `d69c1ef4ed6ef433f16a78bea95f12d43f239870`.
+- Code parent: `b662ef538d87f1d705d4d4517994b3f78025d7f6`; commits `3afd39faebea4f4c898e84c77fe9b2e13fe52749`, `5f716ea481a0d07b7dbdf720faf7891331423ebe`, `d69c1ef4ed6ef433f16a78bea95f12d43f239870 and strict read-only guard c7a67c33c97996c0eebba5934a3afea1bcd7558d`.
 - Added a date-explicit Arabic assistant read for Section 53 shift operations. It composes the existing authenticated workspace RPC, deterministic shift decision packet and existing presentation.
 - No date inference: exact valid organization business date is required; relative/missing/ambiguous/invalid requests clarify without RPC. Server timezone, business date and asOf remain authoritative.
 - Preserves source denial/not-found/unavailable and completeness status. No shift/cash/handover/close/inventory/journal write occurs from the assistant query.
