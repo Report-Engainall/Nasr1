@@ -51,7 +51,6 @@ BEGIN
   PERFORM 1 FROM public.customers c
    WHERE c.id=v_customer
      AND c.organization_id=v_org
-     AND c.profile_id=v_actor
      AND c.status='approved'
    FOR KEY SHARE;
   IF NOT FOUND OR public.current_customer_id() IS DISTINCT FROM v_customer THEN
