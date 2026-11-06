@@ -143,7 +143,7 @@ BEGIN
       'currency',t.currency,'totalOutstanding',t.total_outstanding::text,
       'overdueAmount',t.overdue_amount::text,'invoiceCount',t.invoice_count,
       'partiallyPaidCount',t.partially_paid_count,'oldestAgeDays',t.oldest_age_days,
-      'status',CASE WHEN t.customer_name IS NULL OR t.has_unknown_due_date OR v_unresolved>0 THEN 'NEEDS_REVIEW' ELSE 'VERIFIED' END,
+      'status',CASE WHEN t.customer_name IS NULL OR t.has_unknown_due_date THEN 'NEEDS_REVIEW' ELSE 'VERIFIED' END,
       'agingBuckets',(
         SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
           'bucket',b.aging_bucket,'amount',b.amount::text,'invoiceCount',b.invoice_count,
@@ -158,10 +158,12 @@ BEGIN
       'calculatedAt',v_now,
       'warnings',CASE WHEN t.customer_name IS NULL THEN pg_catalog.jsonb_build_array('اسم العميل غير مثبت في مستند الفاتورة.')
         WHEN t.has_unknown_due_date THEN pg_catalog.jsonb_build_array('توجد فواتير مفتوحة بلا تاريخ استحقاق؛ عُرضت ضمن غير محدد.')
-        WHEN v_unresolved>0 THEN pg_catalog.jsonb_build_array('توجد صفوف ذمم غير مكتملة العملة أو الهوية أو تاريخ الاستحقاق.')
         ELSE '[]'::jsonb END
     ) ORDER BY t.currency,coalesce(t.overdue_amount,0) DESC,coalesce(t.customer_name,'')
-  ),'[]'::jsonb) INTO v_items FROM customer_totals t;
+  ),'[]'::jsonb) INTO v_items
+    FROM (SELECT * FROM customer_totals
+          ORDER BY currency,coalesce(overdue_amount,0) DESC,coalesce(customer_name,'')
+          LIMIT 2000) t;
 
   RETURN pg_catalog.jsonb_build_object(
     'status',CASE WHEN v_unresolved>0 OR v_total_groups>2000 THEN 'PARTIAL' ELSE 'VERIFIED' END,
