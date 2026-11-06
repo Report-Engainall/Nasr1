@@ -202,7 +202,7 @@ export async function createDecisionOutcomeProposal(input: {
 export async function commandDecisionOutcome(input: {
   outcomeId: string;
   expectedVersion: number;
-  eventType: Exclude<DecisionOutcomeEventType, "DEFER">;
+  eventType: Exclude<DecisionOutcomeEventType, "DEFER" | "RESUBMIT_FOR_REVIEW">;
   reason?: string;
   ownerProfileId?: string;
   eventId?: string;
