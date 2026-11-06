@@ -927,7 +927,7 @@ function formatAccountMoney(value: number | string, currency: string): string {
 }
 function Statement() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [payments, setPayments] = useState<(PaymentAmount & { paid_at?: string })[]>([]);
+  const [payments, setPayments] = useState<(PaymentAmount & { id?: string; paid_at?: string })[]>([]);
   const [credits, setCredits] = useState<CustomerStatementCreditMemo[]>([]);
   const [statementSummary, setStatementSummary] = useState<unknown>(undefined);
   const [loading, setLoading] = useState(true);
@@ -1191,6 +1191,39 @@ function Statement() {
               </tbody>
             </table>
             {!invoices.length && <p style={{ padding: 14 }}>لا توجد حركات مالية مسجلة.</p>}
+          </section>
+          <section style={{ ...card, marginTop: 14 }}>
+            <h3 style={{ marginTop: 0 }}>سجل الدفعات المسجلة</h3>
+            <p style={quiet}>حركات الدفعات كما أعادها دفتر العميل المصرّح به. لا تُعرض عملة أو قيمة لدفعة لا تتوفر فاتورتها ضمن تفاصيل القراءة الحالية.</p>
+            {payments.length ? (
+              <div style={{ overflowX: "auto" }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr style={{ textAlign: "right", background: "#f4f8f9" }}>
+                      <th style={{ padding: 10 }}>تاريخ الدفع</th>
+                      <th>الفاتورة المرتبطة</th>
+                      <th>المبلغ</th>
+                      <th>العملة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment, index) => {
+                      const relatedInvoice = invoices.find((invoice) => invoice.id === payment.invoice_id);
+                      return (
+                        <tr key={payment.id ?? (payment.invoice_id + "-" + (payment.paid_at ?? "undated") + "-" + index)} style={{ borderTop: "1px solid #edf2f3" }}>
+                          <td style={{ padding: 10 }}>{payment.paid_at ? formatDateShort(payment.paid_at) : "تاريخ غير متاح"}</td>
+                          <td>{relatedInvoice?.invoice_number ?? "فاتورة خارج تفاصيل القراءة الحالية"}</td>
+                          <td>{relatedInvoice ? formatAccountMoney(payment.amount, relatedInvoice.currency) : "غير متاح"}</td>
+                          <td>{relatedInvoice?.currency ?? "غير متاحة"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p style={quiet}>لا توجد دفعات مسجلة ضمن تفاصيل القراءة الحالية.</p>
+            )}
           </section>
           <section style={{ ...card, marginTop: 14 }}>
             <h3 style={{ marginTop: 0 }}>الإشعارات الدائنة المرحّلة</h3>
