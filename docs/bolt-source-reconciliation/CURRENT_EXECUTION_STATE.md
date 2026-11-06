@@ -1,5 +1,13 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — customer quote-history paging — 2026-11-06
+
+- Extended the existing customer `/quotes` workflow in `src/components/CustomerWorkflows.tsx`: the saved quote list now has deterministic descending `created_at,id` ordering, a bounded 50-row cursor page reader, and a visible `تحميل العروض الأقدم` action. It validates the cursor and returned quote IDs/timestamps, obtains each page's quote-line details before merging, deduplicates IDs, and supports Arabic search across quote number, status, item snapshot/code and response/customer notes.
+- Existing request/accept/reject RPC contracts remain unchanged. Acceptance is still explicit and does not create a sales order or change stock/finance.
+- Main commit: `32a0bc088dd97913544fa5837f9e3549cde00c10`.
+- Added acceptance leaf `DLV-008-CUSTOMER-QUOTE-HISTORY-PAGING-001`. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, typecheck, lint, CI, browser, database, Bolt, Preview or production operation was run. No PASS/runtime claim is made.
+
 ## P1/P2 body update — profile-scoped notification inbox — 2026-11-06
 
 - Implemented on main: `src/lib/api.ts` now resolves current tenant scope and filters notification reads and read-state changes by both `organization_id` and `profile_id`. Mark-one validates the notification UUID, changes only an unread row in the current profile, and verifies an already-read replay without treating it as a foreign row. Mark-all no longer updates all users in the organization.
