@@ -2084,3 +2084,10 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Existing matrix leaf `REF-DECISION-MEMORY-BOOK-001` updated in place at `4805bff266e815cf6335d31694af25bc3ae7610c`; P3 checkpoint `docs/execution/P3_CHECKPOINT.md` and execution log are maintained separately.
 - No migration, new RPC, new table, P1-owned route/workspace, P2 persistence path, production database, paid provider, AI quota or Vercel credit was used. No tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt operation was run; no PASS/runtime/production claim.
 - Next P3 work remains constrained by source evidence: additional operational decision metrics require persisted pre-change baselines and same-tenant post-change evidence with matching metric formula, units/currency, period and source lineage. Bolt must later verify page authorization, tenant isolation, consistency guards, older-page precedent selection and no side effects on this exact main lineage.
+
+
+## P3 follow-up — decision memory empty-state semantics — 2026-11-06
+
+- Commits `abbcb4701bde27621abd26a72466b36404bf20fc` and `3528578d591d27329234c515b2ffdc16db91392e` distinguish an authorized, fully covered zero-decision result (`EMPTY`) from source failure (`UNAVAILABLE`) and incomplete coverage (`PARTIAL`).
+- P3 checkpoint commit: `35a24e0200e1051fcc6ae8bc874a9b67659bb47a`; matrix follow-up: `dbc43cd1e3b7c0e6a1a69cdde314694f2082c671`.
+- No database, migration, RPC, P1 route, paid provider, Vercel credit or runtime/test operation was used. Acceptance remains pending.
