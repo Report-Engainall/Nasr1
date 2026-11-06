@@ -142,6 +142,7 @@ export function parseTaskQualityMetrics(value: unknown): TaskQualityMetrics {
       disposition.reviewedCount!==disposition.approvedCount+disposition.rejectedCount+disposition.deferredCount ||
       sum(rejectionReasons)!==disposition.rejectedCount ||
       sum(deferralReasons)!==disposition.deferredCount+action.deferredCount ||
+      sum(notActionableReasons)+sum(rejectionReasons)+sum(deferralReasons)+alerts.falsePositiveCount!==row.causeReviewCount ||
       alerts.reviewedCount!==alerts.truePositiveCount+alerts.falsePositiveCount+alerts.needsReviewCount ||
       alerts.falseAlarmDenominator!==alertDenominator ||
       alerts.falseAlarmRatePercent!==exactPercent(alerts.falsePositiveCount,alertDenominator) ||

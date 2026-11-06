@@ -349,7 +349,7 @@ BEGIN
     SELECT e.*,
       coalesce(e.decision_outcome_id::text,'task:'||e.task_id::text) AS review_subject,
       pg_catalog.row_number() OVER (
-        PARTITION BY e.review_type,coalesce(e.decision_outcome_id::text,'task:'||e.task_id::text)
+        PARTITION BY e.review_type,e.task_id,e.decision_outcome_id
         ORDER BY e.created_at DESC,e.id DESC
       ) AS review_rank
     FROM public.operational_task_quality_events e
