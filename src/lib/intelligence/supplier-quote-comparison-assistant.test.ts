@@ -82,4 +82,23 @@ describe("buildSupplierQuoteComparisonAssistant",()=>{
     expect(result).toMatchObject({state:"PARTIAL",completePopulation:false,quoteCount:200});
     expect(result.warnings.some(item=>item.startsWith("SOURCE_LIMIT_REACHED"))).toBe(true);
   });
+  it("reports recorded delivery lead time and payment terms as separate dimensions",()=>{
+    const rows=[
+      {...quote({id:"q1",supplierId:suppliers[0],supplierName:"مورد أ",number:"A-1",unitCost:12}),delivery_days:7,payment_terms:"دفع مقدم"},
+      {...quote({id:"q2",supplierId:suppliers[1],supplierName:"مورد ب",number:"B-1",unitCost:10}),delivery_days:3,payment_terms:"آجل 30 يوماً",valid_until:"2026-12-01"},
+      {...quote({id:"q3",supplierId:suppliers[2],supplierName:"مورد ج",number:"C-1",unitCost:11}),delivery_days:null,payment_terms:null},
+    ];
+    const result=buildSupplierQuoteComparisonAssistant(rows,"2026-11-06T00:00:00.000Z");
+    expect(result.comparisons[0].deliveryProfile).toEqual({
+      shortestDays:3,longestDays:7,withDays:2,withoutDays:1,fastestCount:1,
+    });
+    expect(result.comparisons[0].paymentTermsCoverage).toEqual({recorded:2,missing:1});
+    expect(result.comparisons[0].offers.find(item=>item.supplierName==="مورد ب")).toMatchObject({
+      deliveryDays:3,paymentTerms:"آجل 30 يوماً",validUntil:"2026-12-01",
+    });
+    expect(result.comparisons[0].offers.find(item=>item.supplierName==="مورد ج")).toMatchObject({
+      deliveryDays:null,paymentTerms:null,validUntil:null,
+    });
+  });
+
 });
