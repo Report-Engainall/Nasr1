@@ -1,11 +1,11 @@
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-041
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-042
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Main head observed immediately before this checkpoint update: `2bdddc43274a17080dbbc49e5c8afb82448e2878`.
 - P1 product-code commit: `d82c83a57b70d13f3c25c3bdfb4dd67288cf531f`.
 - P1 scope: enforce the existing customer storefront price-visibility policy in the reorder workspace product picker.
 
-## BODY-041 — respect hidden-price policy in reorder workspace
+## BODY-042 — respect hidden-price policy in reorder workspace
 
 - The existing reorder workspace resolved customer-tier prices for its product selector but formatted the returned value directly. That bypassed the established storefront presentation guard and could render a zero hidden-price sentinel as a monetary amount.
 - Reused the existing public-settings reader `fetchSettingsMap()` (server RPC `get_public_storefront_settings`) and the existing `resolveStorefrontPricePresentation()` guard with the exact `show_price_on_cards` setting.
