@@ -1510,3 +1510,12 @@ Continue only with an independently implementable P3 requirement backed by a rea
 ### Next P3 action
 
 Continue with the next independently implementable Section 50–63 P3 gap. Bolt later must verify all command role/tenant boundaries, idempotency replay/conflict, append-only history, cash count correction reason, stale/closed/cross-tenant handover references, incoming-owner-only acceptance, partial snapshots and absence of payment/ledger/inventory side effects on this exact main lineage.
+
+
+### P3 follow-up — explicit start-next-shift action — 2026-11-06
+
+- Extended the existing `ShiftOperationsCenter` with a user-triggered `start_operational_shift` workflow. The form takes an explicit shift label and business date, and reuses only the trusted organization time zone and current shift ID from the authorized workspace result.
+- The command uses the existing tenant-scoped, audited `start_operational_shift` RPC, passes the current shift as `previousShiftId`, and retains one idempotency key across ambiguous retries. The user must change the form payload to begin a new intent/key.
+- Starting a next shift creates a new linked shift record; it does not close the prior shift, capture a cash count, close a ledger or mutate inventory.
+- UI commit: `c7b52a0eb4f6b2b6c49aa0bb10710de63aa67c78`; final component blob `bee0642ccad9d38f73312450fb8dba527a87a7c5`. Existing matrix leaf `INT-SHIFT-001` updated at `57655ad7c359ace1747aa4990b28daca36e71509`.
+- No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. Migrations remain source-only; no PASS/runtime/production claim.
