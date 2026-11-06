@@ -2,7 +2,7 @@
 
 ## P3 body update — 2026-11-06
 
-- P3 source-code delivery is now at `e75c85f07fa3633b225a4dfa85e5a6ce2cfaab40`; P3 documentation/checkpoint is at `e073410db322efec6ea8dfd39f7dc61f48fce366`.
+- P3 source-code delivery is now at `80f5ad7a7709b0bbeaeaef1a35fd7ea2ca92f466`; the latest P3 acceptance matrix/checkpoint are recorded in commits `2d591801304e139840fbd5b7f1ab9e217c52327b` and `c92f05e473a591d232f47a98e8a68bae31d55188`.
 - Extended Section 61 quality review reads/UI and Section 57 Arabic assistant: independent direct quality RPC read, scorecard composition that survives an unavailable quality migration, reusable metrics panel, explicit true/false/pending alert counts, optional decision linking using only IDs returned by `fetch_decision_outcomes`, and allow-listed Arabic read-only quality queries.
 - P3 handoff: `docs/execution/contracts/P3_TASK_QUALITY_REVIEW_P1_HANDOFF.md`. Added matrix leaf `REF-TASK-QUALITY-METRICS-ASSISTANT-001`. Detailed exact commit chain and boundaries are in `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`.
 - P1-owned pending integration remains: mount `TaskQualityReviewForm` in existing `TaskCenter.tsx` using real `task.id`/ `task.updated_at`, manager/admin gate, task-key isolation and existing refresh callback; mount `NaturalLanguageAssistant` in existing intelligence workspace. P3 did not edit P1-owned components.
