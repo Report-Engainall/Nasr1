@@ -1,3 +1,38 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-034
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at this checkpoint base: `23642b9cb47991928f913f4e69daab3a8f7ee0a1`.
+- P1 product-code commit: `2df652db61b291823111d75f97488f4a7fba0591` (parent `33212afd4b332177a64f18f0cdd2e21ce6a677e7`).
+- P1 owns product workflows and UI integration. P3 ownership of intelligence engines, evidence contracts, RPCs and persistence is unchanged.
+
+## BODY-034 — product archive and restore lifecycle
+
+- Replaced the active Products workspace's direct hard-delete action with the existing `archiveAdminCatalogProduct()` command, backed by the tenant-scoped `archive_admin_catalog_product` RPC. The UI validates the returned product ID, inactive state and `archived: true` before announcing success, then refreshes the catalog.
+- Added an admin/manager-only restore action using the existing `updateProduct(product.id, { status: 'active' })` path and its established `save_admin_product_with_metadata` server command. The action rejects an unconfirmed product ID, refreshes the catalog and only then reports completion.
+- The product table now distinguishes the persisted product lifecycle state (active/archived/unknown) from inventory availability; inventory status remains separately displayed.
+- The existing product form exposes active/inactive status only to admin/manager users and persists it through the existing atomic save command. Existing product image upload/removal, price, category and order-quantity flows remain on their established paths.
+- Lifecycle buttons are role-gated and serialized per product while a command is in flight. No direct product DELETE, parallel CRUD, SQL migration, new route, package or alternate data source was introduced.
+- Files: `src/components/AghbariApp.tsx`; `src/components/TaskCenter.tsx`.
+- Functional scope delivered in this batch: 2 concrete lifecycle functions (archive and restore) out of the 2 confirmed gaps in the active product workspace. This is a bounded-scope count, not a project-wide P1 completion percentage.
+
+## Task Center P3 handoff alignment
+
+- The `TaskQualityReviewForm` mount was already present on `main` from P1 commit `4eb080d6ee44a74a36086a6cb9014e8d0fb4004b`; this batch did not recreate it. The import now uses the public `@/components/intelligence` barrel export.
+- Existing wiring remains `key={task.id}`, real `task.id`, persisted `task.updated_at`, manager/admin visibility and `loadTasks` after confirmed save. It is not gated by task status, so closed tasks remain reviewable.
+- No P3 component, engine, client, DTO, RPC, migration or persistence code was modified.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database migration/application, Bolt sync, Preview, production or Vercel operation was run. No runtime PASS is claimed.
+- No P3-owned file or central execution matrix/state file was changed.
+- The overall 95% P1 target is not claimed: this batch did not perform the full remaining-requirement census, and the current evidence does not establish a defensible project-wide denominator.
+
+## Next P1 action
+
+Continue from the latest `main` head and implement the next concrete, non-P3 product gap without repeating accepted workflows. Keep DLV-011 PARTIAL until each required role/template pair has its own source-backed acceptance evidence.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-033
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
