@@ -77,6 +77,7 @@ export interface DecisionMemoryRecord {
   owner: string; ownerProfileId: string | null; proposedResult: string; decisionReason: string | null;
   approvalAt: string | null; executionAt: string | null; eventCount: number;
   events: DecisionOutcomeView["history"]; legacyMeasurement: DecisionOutcomeView["measuredOutcome"];
+  candidateSnapshot: DecisionOutcomeView["candidateSnapshot"];
   snapshotVersion: number | null; capturedAt: string | null; snapshot: DecisionMemorySnapshot | null; problem: string | null;
   factsReviewed: boolean;
   facts: DecisionMemoryStatement[]; opinions: DecisionMemoryStatement[]; hypotheses: DecisionMemoryStatement[];
@@ -697,6 +698,7 @@ export function buildDecisionMemoryBook(input: {
         state:outcome.state,version:outcome.version,createdAt:outcome.createdAt,updatedAt:outcome.updatedAt,owner:outcome.ownerLabel,ownerProfileId:outcome.ownerProfileId,
         proposedResult:outcome.expectedOutcome,decisionReason:outcome.reason,approvalAt:outcome.approvedAt,executionAt:outcome.executedAt,
         eventCount:outcome.eventCount,events:outcome.history,legacyMeasurement:outcome.measuredOutcome,
+        candidateSnapshot:outcome.candidateSnapshot,
         snapshotVersion,capturedAt,snapshot,problem,factsReviewed,facts,opinions,hypotheses,assumptionsReviewed,assumptions,lessonsReviewed,withheldFacts,alternatives,chosenAlternative,
         actionTaken,reviewDisposition,reviewAt,expectedMetric,metricComparison,lessons,corrections,
         missingFields:unique(missingFields),warnings,memoryStatus,precedents,

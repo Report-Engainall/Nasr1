@@ -123,6 +123,7 @@ const collectionFollowupRules: DecisionRule[] = [{
   operator: "GT",
   threshold: 0,
   priority: "P2",
+  impactFormula: { id: "cashflow.expected-collection-impact", version: "1.0.0", operation: "IDENTITY", metricKeys: ["cashflow.expected_collections"], resultUnit: "CURRENCY" },
   what: "متابعة التحصيلات المجدولة",
   why: "يوجد إجمالي تحصيل مثبت ضمن الفترة المحددة.",
   soWhat: "تلزم مراجعة المستحقات وتوثيق إجراءات المتابعة.",
@@ -131,7 +132,7 @@ const collectionFollowupRules: DecisionRule[] = [{
   expectedOutcome: "تسجيل المتابعة ونتيجة التحصيل من مستندات المؤسسة.",
 }];
 
-type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof };
+type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof | null; candidateId: string };
 
 type DecisionTransitionOptions = {
   reason?: string;
@@ -933,7 +934,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         metrics: [metric],
         rules: collectionFollowupRules,
       });
-      return decisions.candidates.map((decision) => ({ decision, proof }));
+      return decisions.candidates.map((decision) => ({ decision, proof, candidateId: candidateIdFor(proof.currency, proof.period) }));
     });
   }, [data, evidencePassport]);
   const liquiditySnapshot = useMemo(() => {
@@ -991,6 +992,56 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       },
     });
   }, [inventoryData]);
+  const stockDecisionActions = useMemo<EvidenceBackedAction[]>(() => {
+    if (!inventoryData || !deadStockReport) return [];
+    return deadStockReport.items.flatMap((item) => {
+      if (!["STAGNANT","ZERO_MOVEMENT"].includes(item.classification) ||
+          item.movementStatus !== "VERIFIED" || !(item.availableQuantity > 0) ||
+          !item.evidenceIds.length) return [];
+      const source = inventoryData.deadStockProducts.find(product => product.productRef === item.productRef);
+      if (!source) return [];
+      const priority = item.classification === "ZERO_MOVEMENT" ? "P1" as const : "P2" as const;
+      const sourceMetricIds = [source.availableQuantity.id, ...(source.unitCost ? [source.unitCost.id] : [])];
+      const impact = item.exposureStatus === "VERIFIED" && item.financialExposure !== null && item.currency
+        ? { value: item.financialExposure, unit: "CURRENCY", currency: item.currency,
+            formulaId: item.formulaId, formulaVersion: item.formulaVersion, sourceMetricIds }
+        : null;
+      const id = ("inventory.dead-stock:" + item.productRef.slice(0,80) + ":" + deadStockReport.asOf.slice(0,10)).slice(0,150);
+      const proofEvidence = [...new Set(item.evidenceIds)].slice(0,500);
+      const formulaVersions = [...new Set([
+        item.formulaId + "@" + item.formulaVersion,
+        source.availableQuantity.lineage.formulaId + "@" + source.availableQuantity.lineage.formulaVersion,
+        ...(source.unitCost ? [source.unitCost.lineage.formulaId + "@" + source.unitCost.lineage.formulaVersion] : []),
+      ])].slice(0,50);
+      const decision: DecisionCandidate = {
+        id, ruleId:"inventory.dead-stock.remediation", ruleVersion:"1.0.0",
+        priority, priorityScore:priority==="P1"?300:200,
+        what:"إيقاف إعادة شراء الصنف الراكد مؤقتاً ومراجعة تصريف المخزون · "+item.productRef,
+        why:item.classification==="ZERO_MOVEMENT"
+          ?"لا توجد حركة موثقة للصنف خلال نافذة التحليل المكتملة البالغة 92 يوماً."
+          :"الصنف مصنف راكداً وفق آخر حركة مثبتة منذ "+(item.daysSinceMovement??"مدة غير محددة")+" يوماً.",
+        soWhat:"استمرار الشراء دون مراجعة الطلب يرفع تجميد رأس المال ومخاطر تراكم المخزون؛ لا يُنفذ إيقاف آلي.",
+        impact, impactStatus:impact?"CALCULATED":"WITHHELD",
+        impactReason:impact?null:(item.warnings[0]??"UNIT_COST_OR_CURRENCY_NOT_VERIFIED"),
+        whatNext:"راجع الرصيد الفعلي والطلبات المفتوحة، أوقف إعادة الطلب يدوياً بعد الاعتماد، وحدد خطة تصريف أو إرجاع موثقة.",
+        proof:{evidenceIds:proofEvidence,metricKeys:[source.availableQuantity.key,...(source.unitCost?[source.unitCost.key]:[])],
+          asOf:deadStockReport.asOf,formulaVersions},
+        owner:"مسؤول المشتريات والمخزون",
+        expectedOutcome:"خفض المخزون الراكد ومنع شراء مكرر حتى مراجعة الطلب والاستهلاك.",
+        createdAt:deadStockReport.asOf,expiresAt:null,
+      };
+      return [{ decision, proof:null, candidateId:id }];
+    });
+  }, [inventoryData, deadStockReport]);
+
+  const dailyDecisionActions = useMemo(() => [...evidenceBackedActions, ...stockDecisionActions]
+    .sort((left,right) => right.decision.priorityScore-left.decision.priorityScore ||
+      (left.decision.impact && right.decision.impact &&
+       left.decision.impact.currency===right.decision.impact.currency
+        ? Math.abs(right.decision.impact.value)-Math.abs(left.decision.impact.value) : 0) ||
+      left.candidateId.localeCompare(right.candidateId)).slice(0,10),
+  [evidenceBackedActions, stockDecisionActions]);
+
   const replenishmentReport = useMemo(() => {
     if (!inventoryData) return null;
     return buildReplenishmentRecommendations({
@@ -1114,17 +1165,27 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     else await loadOutcomes();
   };
 
-  const persistEvidenceBackedAction = async (decision: DecisionCandidate, proof: CashflowMeasurementProof) => {
+  const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string) => {
     if (!data || !user?.profileId || outcomeBusyId !== null) return;
-    setOutcomeBusyId("candidate:" + proof.currency);
+    setOutcomeBusyId("candidate:" + candidateId.slice(0,60));
     setOutcomeMessage(null);
+    const candidateSnapshot = {
+      schemaVersion:"1.0.0" as const,candidateId,ruleId:decision.ruleId,ruleVersion:decision.ruleVersion,
+      priority:decision.priority,priorityScore:decision.priorityScore,what:decision.what,why:decision.why,
+      risk:decision.soWhat,soWhat:decision.soWhat,whatNext:decision.whatNext,owner:decision.owner,
+      expectedOutcome:decision.expectedOutcome,
+      impact:decision.impact ? {...decision.impact,currency:decision.impact.currency??null} : null,
+      impactStatus:decision.impactStatus,
+      impactReason:decision.impactReason,proof:decision.proof,createdAt:decision.createdAt,expiresAt:decision.expiresAt,
+    };
     const created = await createDecisionOutcomeProposal({
-      candidateId: candidateIdFor(proof.currency, proof.period),
+      candidateId,
       ruleId: decision.ruleId,
       ruleVersion: decision.ruleVersion,
       ownerProfileId: user.profileId,
       expectedOutcome: decision.expectedOutcome,
       reason: decision.why.slice(0, 2000),
+      candidateSnapshot,
     });
     setOutcomeBusyId(null);
     if (!created.ok) {
@@ -1611,7 +1672,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             state={loading || inventoryLoading || retentionLoading ? "loading" : businessHealthMapState}
             onRetry={() => setRefreshKey((value) => value + 1)}
           />
-          <ExecutiveLiquidityCommandCenter refreshKey={refreshKey} />
+          <ExecutiveLiquidityCommandCenter refreshKey={refreshKey} onDecisionSaved={() => setRefreshKey(value => value + 1)} />
           <section className="panel space-y-3">
             <h2>التحصيلات المجدولة والتوقع النقدي</h2>
             <p className="report-note">تعرض لوحة القيادة أعلاه الحركات الفعلية والالتزامات المثبتة والذمم كلّاً حسب عملته. تعرض هذه البطاقة التحصيلات المدينة المجدولة فقط؛ لا يوجد رصيد افتتاحي موثق أو جدول مكتمل لمواعيد دفع التزامات الموردين والمصروفات المستقبلية، ولذلك تبقى الأرصدة المتوقعة وصافي السيولة محجوبة. لا تُستبدل الذمم برصيد نقدي، ولا يُفترض أن غياب الحركة يساوي صفراً.</p>
@@ -1633,13 +1694,13 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
               <div className="space-y-3">
-                {evidenceBackedActions.length ? evidenceBackedActions.map(({ decision, proof }) => (
+                {dailyDecisionActions.length ? dailyDecisionActions.map(({ decision, candidateId }) => (
                   <ActionCard
-                    key={decision.id}
+                    key={candidateId}
                     decision={decision}
                     state="ready"
                     ctaLabel="حفظ الإجراء في دورة القرارات"
-                    onContinue={(candidate) => void persistEvidenceBackedAction(candidate, proof)}
+                    onContinue={(candidate) => void persistEvidenceBackedAction(candidate, candidateId)}
                   />
                 )) : (
                   <ActionCard
