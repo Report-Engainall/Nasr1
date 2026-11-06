@@ -340,7 +340,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  }
  const shiftOperationsQuestion=/(مركز الورديه|مركز اقفال اليوم|مركز اقفال الورديه|بدء الورديه|استلام الورديه|تسليم الورديه|جاهزيه الافتتاح|جاهزيه الاغلاق|جاهزيه اقفال الورديه|الاقفال التشغيلي|تقرير الورديه)/.test(normalizedQuestion);
  if(shiftOperationsQuestion){
-  const dates=[...normalizedQuestion.matchAll(/20\d{2}-\d{2}-\d{2}/g)].map(match=>match[0]);
+  const dates=[...normalizedQuestion.matchAll(/\d{4}-\d{2}-\d{2}/g)].map(match=>match[0]);
   const uniqueDates=[...new Set(dates)];
   if(uniqueDates.length!==1)return {
    status:"CLARIFICATION",normalizedQuestion,
@@ -864,9 +864,9 @@ export function resolveShiftOperationsIntent(
  const requiredOpening=result.openingChecks.filter(item=>item.state==="ACTION_REQUIRED").length;
  const requiredClosing=result.closingChecks.filter(item=>item.state==="ACTION_REQUIRED").length;
  const unknownChecks=[...result.openingChecks,...result.closingChecks].filter(item=>item.state==="UNKNOWN").length;
- const incompleteSources=result.sourceCoverage.filter(source=>
+ const incompleteSources=result.sourceCoverage.filter(source=>!source.notApplicable&&(
   source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||!source.completePopulation
- ).length;
+ )).length;
  const financial=result.financialClose.state==="ELIGIBLE"?"مؤهل للمراجعة":
   result.financialClose.state==="BLOCKED"?"محجوب بوجود موانع":
   result.financialClose.state==="NOT_RECORDED"?"لم يسجل":"غير متحقق";
