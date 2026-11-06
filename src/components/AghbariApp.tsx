@@ -115,6 +115,8 @@ type AdminRecordContext = {
   route: string;
   query: string;
   savedAt: number;
+  returnToView?: View | null;
+  returnToOrderDetailId?: string | null;
 };
 
 const ADMIN_RECORD_CONTEXT_KEY = "aghbari.admin.record-context.v1";
@@ -131,7 +133,12 @@ function readAdminRecordContext(): AdminRecordContext | null {
       window.sessionStorage.removeItem(ADMIN_RECORD_CONTEXT_KEY);
       return null;
     }
-    return value as AdminRecordContext;
+    const returnToView = nav.some((item) => item.id === value.returnToView) ? value.returnToView as View : null;
+    return {
+      ...value,
+      returnToView,
+      returnToOrderDetailId: typeof value.returnToOrderDetailId === "string" ? value.returnToOrderDetailId : null,
+    } as AdminRecordContext;
   } catch {
     return null;
   }
@@ -168,6 +175,7 @@ function AdminWorkspaceContent({
   const keepSourceContext = (kind: string, id: string, title: string, subtitle: string, destination: View) => {
     onRecordContextChange({
       kind, id, title, subtitle, route: adminPaths[destination], query: id,
+      returnToView: view, returnToOrderDetailId: orderDetailId,
     });
     onNavigate(destination);
   };
@@ -245,6 +253,7 @@ function AdminWorkspaceContent({
             onRecordContextChange({
               kind: "order", id: sourceRef, title: "طلب من سجل الوردية",
               subtitle: "مرجع تشغيل محفوظ من مركز الوردية", route: adminPaths.orders, query: sourceRef,
+              returnToView: view, returnToOrderDetailId: orderDetailId,
             });
             onOrderDetailChange(sourceRef);
             onNavigate("orders");
@@ -668,7 +677,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     setRecordContext({
       kind: item.kind, id: item.id, title: item.title, subtitle: item.subtitle,
       route: item.route, query: item.title || item.id,
-      savedAt: Date.now(),
+      savedAt: Date.now(), returnToView: null, returnToOrderDetailId: null,
     });
     setCommandOpen(false);
     setView(destination);
@@ -716,12 +725,26 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {recordContext && (
             <section dir="rtl" aria-label="سياق السجل المفتوح" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-slate-800">
               <div className="min-w-0">
-                <strong>السجل المفتوح: {recordContext.title}</strong>
+                <strong>السجل المرتبط: {recordContext.title}</strong>
                 <p className="mt-1 break-words text-xs text-slate-600">{recordContext.subtitle || recordContext.id} · المرجع: {recordContext.id}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn outline" onClick={() => { setCommandSearch(recordContext.query || recordContext.title); setCommandOpen(true); }}>
-                  العودة إلى البحث
+                <button type="button" className="btn outline" onClick={() => {
+                  const returnView = recordContext.returnToView;
+                  if (returnView && visibleNav.some((item) => item.id === returnView)) {
+                    setView(returnView);
+                    setOrderDetailId(recordContext.returnToOrderDetailId ?? null);
+                    setCommandOpen(false);
+                    closeMobileNav();
+                    navigateAdmin(returnView, false);
+                    return;
+                  }
+                  setCommandSearch(recordContext.query || recordContext.title);
+                  setCommandOpen(true);
+                }}>
+                  {recordContext.returnToView && visibleNav.some((item) => item.id === recordContext.returnToView)
+                    ? "العودة إلى " + (nav.find((item) => item.id === recordContext.returnToView)?.label ?? "السياق السابق")
+                    : "العودة إلى البحث"}
                 </button>
                 <button type="button" className="btn outline" onClick={() => setRecordContext(null)}>إنهاء سياق السجل</button>
               </div>
