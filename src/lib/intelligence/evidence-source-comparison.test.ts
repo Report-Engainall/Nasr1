@@ -236,4 +236,76 @@ describe("verified evidence source comparison", () => {
       right: passport("right", "source-b", 11),
     })).toMatchObject({ status: "WITHHELD", reasons: ["LEFT_METRIC_MISSING", "RIGHT_METRIC_MISSING"] });
   });
+  it("compares currency text using exact minor units and returns an exact cent delta", () => {
+    const left = passport("left", "finance.source-a", "0.29", {
+      metric: { unit: "CURRENCY", currency: "YER" },
+      evidence: { currency: "YER" },
+    });
+    const right = passport("right", "finance.source-b", "0.30", {
+      metric: { unit: "CURRENCY", currency: "YER" },
+      evidence: { currency: "YER" },
+    });
+    const result = compareEvidenceMetricSources({
+      comparisonKey: "account:receivables",
+      metricKey: "orders.completed",
+      left,
+      right,
+    });
+    expect(result).toMatchObject({
+      status: "VARIANCE",
+      left: { value: 0.29 },
+      right: { value: 0.3 },
+      difference: 0.01,
+    });
+    expect(result.differencePercent).toBeCloseTo((1 / 29) * 100, 10);
+  });
+
+  it("withholds currency comparisons when either source contains sub-cent precision", () => {
+    const left = passport("left", "finance.source-a", "10.001", {
+      metric: { unit: "CURRENCY", currency: "YER" },
+      evidence: { currency: "YER" },
+    });
+    const right = passport("right", "finance.source-b", "10.00", {
+      metric: { unit: "CURRENCY", currency: "YER" },
+      evidence: { currency: "YER" },
+    });
+    const result = compareEvidenceMetricSources({
+      comparisonKey: "account:receivables",
+      metricKey: "orders.completed",
+      left,
+      right,
+    });
+    expect(result).toMatchObject({
+      status: "WITHHELD",
+      left: { value: null },
+      right: { value: 10 },
+      difference: null,
+      differencePercent: null,
+      reasons: ["METRIC_VALUE_PRECISION_INVALID"],
+    });
+  });
+
+  it("withholds an exact-cent difference that exceeds the safe minor-unit ceiling", () => {
+    const left = passport("left", "finance.source-a", "-9000000000000.00", {
+      metric: { unit: "CURRENCY", currency: "YER" },
+      evidence: { currency: "YER" },
+    });
+    const right = passport("right", "finance.source-b", "9000000000000.00", {
+      metric: { unit: "CURRENCY", currency: "YER" },
+      evidence: { currency: "YER" },
+    });
+    const result = compareEvidenceMetricSources({
+      comparisonKey: "account:receivables",
+      metricKey: "orders.completed",
+      left,
+      right,
+    });
+    expect(result).toMatchObject({
+      status: "WITHHELD",
+      difference: null,
+      differencePercent: null,
+      reasons: ["COMPARISON_ARITHMETIC_UNSAFE"],
+    });
+  });
+
 });

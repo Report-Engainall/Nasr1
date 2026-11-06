@@ -8,6 +8,7 @@ import type {
   MetricSnapshot,
 } from "./types";
 import { buildEvidencePassport } from "./evidence-passport";
+import { decimalToMinorUnits, minorUnitsToNumber } from "./financial-precision";
 
 export type EvidenceSourceComparisonStatus =
   | "MATCHED"
@@ -27,6 +28,7 @@ export type EvidenceSourceComparisonReason =
   | "RIGHT_EVIDENCE_NOT_VERIFIED"
   | "METRIC_VALUE_NOT_NUMERIC"
   | "METRIC_VALUE_OUT_OF_RANGE"
+  | "METRIC_VALUE_PRECISION_INVALID"
   | "ZERO_BASELINE_PERCENT_UNDEFINED"
   | "METRIC_UNIT_MISMATCH"
   | "CURRENCY_MISMATCH"
@@ -145,6 +147,18 @@ function metricSources(
   return result;
 }
 
+function metricDisplayValue(metric: MetricSnapshot): number | null {
+  if (metric.unit === "CURRENCY") {
+    const minorUnits = decimalToMinorUnits(metric.value, 2, true);
+    return minorUnits === null ? null : minorUnitsToNumber(minorUnits, 2);
+  }
+  return typeof metric.value === "number" &&
+    Number.isFinite(metric.value) &&
+    Math.abs(metric.value) <= Number.MAX_SAFE_INTEGER
+    ? metric.value
+    : null;
+}
+
 function metricSide(
   metric: MetricSnapshot,
   records: readonly EvidenceRecord[],
@@ -152,12 +166,7 @@ function metricSide(
   const evidenceTrusted = metric.status === "VERIFIED" &&
     metric.completeness === "COMPLETE" &&
     metric.quality === "ACCEPTABLE";
-  const value = evidenceTrusted &&
-      typeof metric.value === "number" &&
-      Number.isFinite(metric.value) &&
-      Math.abs(metric.value) <= Number.MAX_SAFE_INTEGER
-    ? metric.value
-    : null;
+  const value = evidenceTrusted ? metricDisplayValue(metric) : null;
   return {
     value,
     unit: metric.unit,
@@ -318,31 +327,58 @@ export function compareEvidenceMetricSources(input: {
     };
   }
 
-  if (typeof leftMetric.value !== "number" || typeof rightMetric.value !== "number" ||
-      !Number.isFinite(leftMetric.value) || !Number.isFinite(rightMetric.value)) {
-    return {
-      status: "WITHHELD",
-      comparisonKey: input.comparisonKey.trim(),
-      metricKey: input.metricKey,
-      left,
-      right,
-      difference: null,
-      differencePercent: null,
-      reasons: ["METRIC_VALUE_NOT_NUMERIC"],
-      explanation: "القيم ليست أرقاماً صالحة للمقارنة؛ لم يُستبدل المجهول بصفر.",
-    };
+  let difference: number | null = null;
+  let differencePercent: number | null = null;
+
+  if (leftMetric.unit === "CURRENCY") {
+    const leftMinor = decimalToMinorUnits(leftMetric.value, 2, true);
+    const rightMinor = decimalToMinorUnits(rightMetric.value, 2, true);
+    if (leftMinor === null || rightMinor === null) {
+      return {
+        status: "WITHHELD",
+        comparisonKey: input.comparisonKey.trim(),
+        metricKey: input.metricKey,
+        left,
+        right,
+        difference: null,
+        differencePercent: null,
+        reasons: ["METRIC_VALUE_PRECISION_INVALID"],
+        explanation: "القيمة المالية لا تطابق دقة منزلتين عشريتين أو تتجاوز الحد الآمن؛ حُجبت المقارنة.",
+      };
+    }
+    const differenceMinor = rightMinor - leftMinor;
+    difference = minorUnitsToNumber(differenceMinor, 2);
+    differencePercent = leftMinor === 0n
+      ? null
+      : (Number(differenceMinor) / Number(leftMinor < 0n ? -leftMinor : leftMinor)) * 100;
+  } else {
+    if (typeof leftMetric.value !== "number" || typeof rightMetric.value !== "number" ||
+        !Number.isFinite(leftMetric.value) || !Number.isFinite(rightMetric.value)) {
+      return {
+        status: "WITHHELD",
+        comparisonKey: input.comparisonKey.trim(),
+        metricKey: input.metricKey,
+        left,
+        right,
+        difference: null,
+        differencePercent: null,
+        reasons: ["METRIC_VALUE_NOT_NUMERIC"],
+        explanation: "القيم ليست أرقاماً صالحة للمقارنة؛ لم يُستبدل المجهول بصفر.",
+      };
+    }
+    if (Math.abs(leftMetric.value) > Number.MAX_SAFE_INTEGER || Math.abs(rightMetric.value) > Number.MAX_SAFE_INTEGER) {
+      return {
+        status: "WITHHELD", comparisonKey: input.comparisonKey.trim(), metricKey: input.metricKey,
+        left, right, difference: null, differencePercent: null,
+        reasons: ["METRIC_VALUE_OUT_OF_RANGE"],
+        explanation: "إحدى القيم تتجاوز الحدود الرقمية الآمنة؛ أبقينا قيمتي المصدر منفصلتين.",
+      };
+    }
+    difference = rightMetric.value - leftMetric.value;
+    differencePercent = leftMetric.value === 0 ? null : (difference / Math.abs(leftMetric.value)) * 100;
   }
-  if (Math.abs(leftMetric.value) > Number.MAX_SAFE_INTEGER || Math.abs(rightMetric.value) > Number.MAX_SAFE_INTEGER) {
-    return {
-      status: "WITHHELD", comparisonKey: input.comparisonKey.trim(), metricKey: input.metricKey,
-      left, right, difference: null, differencePercent: null,
-      reasons: ["METRIC_VALUE_OUT_OF_RANGE"],
-      explanation: "إحدى القيم تتجاوز الحدود الرقمية الآمنة؛ أبقينا قيمتي المصدر منفصلتين.",
-    };
-  }
-  const difference = rightMetric.value - leftMetric.value;
-  const differencePercent = leftMetric.value === 0 ? null : (difference / Math.abs(leftMetric.value)) * 100;
-  if (!Number.isFinite(difference) || Math.abs(difference) > Number.MAX_SAFE_INTEGER ||
+
+  if (difference === null || !Number.isFinite(difference) || Math.abs(difference) > Number.MAX_SAFE_INTEGER ||
       (differencePercent !== null &&
         (!Number.isFinite(differencePercent) || Math.abs(differencePercent) > Number.MAX_SAFE_INTEGER))) {
     return {
