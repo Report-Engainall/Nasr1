@@ -1,3 +1,50 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-CUSTOMER-QUOTE-PIPELINE-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Source parent before implementation: `f6643a67232e991c816a1e6cf26286053f8f5c2c`.
+- Code commits:
+  - `baee1a7f9417b4eb42d16c442b1e9424d4423e93` — aggregate-only SQL reader, strict DTO engine and client.
+  - `4755f7dd027c6c659830142594016e7341dc5ced` — Arabic assistant planner and read orchestration.
+  - `baa16ca9c4e5da78d88a8c2ca39f7be2e2c21d59` — assistant panel and source/planner tests.
+
+### Implemented on main
+
+- Added `public.fetch_customer_quote_pipeline(p_from,p_to)` in migration `20261106170000_customer_quote_pipeline_intelligence.sql`. It derives actor and organization from authenticated staff context; no client-supplied tenant or customer filter is accepted.
+- The SQL returns aggregate counts only for the requested UTC `sales_quotes.created_at` cohort: requested for staff pricing, quoted/awaiting customer response, accepted, rejected and expired. It discloses one server `asOf`, period boundaries, complete population and `sideEffects=NONE`.
+- Added a strict typed parser that rejects incomplete snapshots, non-UTC or invalid periods, negative/fractional/unsafe counts, and any count reconciliation where status counts do not sum to the total.
+- Added an Arabic `CUSTOMER_QUOTE_PIPELINE_OVERVIEW` intent, default 90-day UTC rolling window, and explicit supported windows of 30/60/90/180/365 days. Relative calendar expressions such as today, yesterday, last month, or free dates are refused rather than silently mapped to a different window.
+- Added the `CustomerQuotePipelineSummary` panel to the existing Arabic `NaturalLanguageAssistant`. It displays only aggregate counts and an acceptance percentage among explicit accepted/rejected customer decisions. The percentage is withheld until at least 3 explicit decisions exist.
+- Critical source limitation is explicit: `sales_quotes` has no order foreign key or persisted order association. Therefore accepted quote != created/confirmed sales order. The new feature does NOT claim quote-to-order conversion and does not calculate response time because there is no independent response timestamp.
+- Current status counts are cohort-by-created_at and read at server `asOf`; they are not a historical status snapshot as of the end of the cohort period.
+- Added an organization/created_at index to support the date-cohort aggregate. No customer names, IDs, quote IDs, line items, prices, notes or amounts are returned.
+- No quote pricing, acceptance, rejection, sales order creation, stock movement, invoice, payment, journal or other business write is performed.
+
+### Exact changed paths
+
+- `supabase/migrations/20261106170000_customer_quote_pipeline_intelligence.sql`
+- `src/lib/intelligence/customer-quote-pipeline.ts`
+- `src/lib/intelligence/customer-quote-pipeline-client.ts`
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/CustomerQuotePipelineSummary.tsx`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+- `src/lib/intelligence/customer-quote-pipeline.test.ts`
+- `src/lib/intelligence/natural-language-assistant.test.ts`
+- `src/test/customer-quote-pipeline-migration.test.ts`
+
+### Acceptance boundary
+
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Source tests were authored but NOT run. No test, build, typecheck, lint, CI, browser, Bolt, database migration application, Preview, Vercel or production operation was run. No PASS/runtime/production claim.
+- Bolt must later prove staff authorization and non-staff/foreign-tenant denial; period inclusivity in UTC; exact status counts reconcile to the sales_quotes cohort; no customer/quote/line details in RPC result or UI; malformed payload fail-closed; unsupported date windows do not call RPC; minimum three explicit decisions for acceptance-rate display; accepted quote is never represented as order conversion; and no write side effect.
+- Remaining Growth Radar gap: true quote-to-order conversion remains OPEN until the data model persists a trustworthy quote→order source reference and immutable event timing. Do not join by customer/date/product heuristic.
+
+### Next P3 action
+
+Continue another independent source-backed Section 50–63 feature. Treat true quote-to-order conversion, historical response-time analysis and customer-level demand attribution as blocked until authoritative source relationships/events exist.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

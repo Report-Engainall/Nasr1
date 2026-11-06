@@ -2109,3 +2109,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Same-server-tenant supplier join only; no identifiers exposed. Partial supplier page does not infer absence; denied/unavailable performance leaves price comparison visible but PARTIAL.
 - No score, prediction or purchase/stock/finance write. Source tests authored but NOT RUN; no build/runtime/Bolt/DB/Preview/Vercel/production operation. Matrix leaf updated in place.
 
+## 2026-11-06 — REF-NL-CUSTOMER-QUOTE-PIPELINE-001 — customer quote lifecycle funnel
+
+- Code parent `f6643a67232e991c816a1e6cf26286053f8f5c2c`; commits: `baee1a7f9417b4eb42d16c442b1e9424d4423e93` (RPC migration, strict DTO/engine/client), `4755f7dd027c6c659830142594016e7341dc5ced` (Arabic intent/read), `baa16ca9c4e5da78d88a8c2ca39f7be2e2c21d59` (summary panel/tests).
+- Added aggregate counts from the current same-tenant sales_quotes created_at cohort: requested, quoted, accepted, rejected, expired. Acceptance percentage is based only on explicit customer decisions and withheld below 3.
+- No quote/order FK or immutable response timestamp exists. Accepted quote is not presented as sales order conversion; no response latency inference. The new reader returns no row identities or financial/item details and performs no write.
+- Tests authored but NOT RUN. No migration application, build, CI, browser, Bolt, database, Preview, Vercel or production operation. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; matrix leaf `REF-NL-CUSTOMER-QUOTE-PIPELINE-001`.
+

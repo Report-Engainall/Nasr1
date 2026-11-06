@@ -1,5 +1,15 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — customer quote lifecycle funnel — 2026-11-06
+
+- Parent `f6643a67232e991c816a1e6cf26286053f8f5c2c`; commits `baee1a7f9417b4eb42d16c442b1e9424d4423e93`, `4755f7dd027c6c659830142594016e7341dc5ced`, `baa16ca9c4e5da78d88a8c2ca39f7be2e2c21d59`.
+- Added aggregate-only authenticated staff reader for the customer quote created_at cohort, strict status-count parser, Arabic assistant intent, and aggregate summary panel. No customer/quote/line IDs, prices, amounts or notes are returned.
+- The panel reports current status of the cohort as of server timestamp. Explicit acceptance rate uses accepted/(accepted+rejected) only when at least 3 decisions exist.
+- Accepted quote does not imply order conversion; `sales_quotes` has no order reference and no immutable response timestamp. No conversion or response-time metric is claimed. Date expressions unsupported by the rolling UTC windows are rejected.
+- Read-only: no quote response, pricing, order, inventory, invoice, payment, ledger or journal write. No P1 route/workspace changes.
+- Tests authored, NOT RUN; migration not applied; no build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production acceptance. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Matrix leaf: `REF-NL-CUSTOMER-QUOTE-PIPELINE-001`.
+
+
 ## P3 body update — supplier quote and actual performance decision support — 2026-11-06
 
 - P3 code parent `d05f343bfb40a6501d2048d53cb661787ba45c92`; performance-join commits: `e12e229662c7e1f2e734510be206581eeefeb870`, `9255504d928a94e02af4e3f772893c57d08dca1b`, `eb65659a797d72ae1d1b0cde3e5d1750866034d6`, `dcabfeafceaafb817afda64b309cd7f83aa5c805`, `f211ef873e083b0f9ff101321ffdd119371acfd7`, `8ac09e9081e1b76eafda5113ce898396ebbf7b49`.
