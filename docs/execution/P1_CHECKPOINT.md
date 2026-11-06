@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-053 — AUTHENTICATED ACCOUNT PASSWORD CHANGE
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product commits: password workspace `d3aa3a2bbdd2b103d19617b264005804cca43daa`; route `8ea2063bfa80abd8cd51afefc76b301d71d9c476`; route-tree registration `c03e62be3d19bb00bde904b3d9f7b71e223f9483`; help entry `bfb1b567df4e463f0319f7205401a277510a7524`.
+- Scope: implement the canonical `/account/password` route using the existing authenticated Supabase Auth session.
+
+## BODY-053 — change password for the active account
+
+- Added a dedicated authenticated password page and TanStack route at `/account/password`.
+- Requires a new password of at least eight characters, rejects whitespace, confirms the repeated password, and disables duplicate submission while saving.
+- Calls the Auth provider's `supabase.auth.updateUser({ password })` method; it does not write passwords to application tables, browser storage, logs or profile metadata.
+- Requires the returned Auth user ID to match the active account before showing success. Handles Auth reauthentication/weak-password failures with safe Arabic messages and links to the existing password-recovery route.
+- Added a Help Center entry and FAQ answer. No P2 RPC, migration or new password storage was created.
+- Files changed: `src/components/CustomerAccountPasswordPage.tsx`, `src/routes/account.password.tsx`, `src/routeTree.gen.ts`, `src/routes/help.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- GitHub source references were re-read for the component, route, route-tree and help entry.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue canonical customer/account functions still absent from the current route and acceptance inventory. Keep profile/company-detail writes behind a verified server mutation contract; do not update protected customer/profile rows directly from the browser.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-052 — CUSTOMER PAYMENTS HISTORY ROUTE
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
