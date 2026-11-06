@@ -2410,12 +2410,12 @@ Continue the next unimplemented intelligent product-body function from the lates
 - Main commits: quality panel `efa932da592aa4f0ca3e141144a64f189e72732e`; barrel export `0bac6dc4f78b3a064028616afb2169917c6261e9`; metrics JSX fix `b80ecf52c37ba9385ce671e9110900cc3ca76c9b`; TaskCenter mount and post-save refresh `7e447bb2e1fcf4d2e98601814ef0e4f2cf4da4ae`.
 - Verified main blobs: `TaskQualityReviewCenter.tsx=a30c3e7296e0ef540a584b9b066d9f212b976ead`; `intelligence/index.ts=7408f9626b95e0b59f1e063b617386d2cd61d09a`; `TaskQualityReviewMetrics.tsx=74699e3160afbb77266ce557ad9fd1c04d1ea205`; `TaskCenter.tsx=dd1a62ac0719cabb2b90c1bded3023139b75e79a`.
 - Acceptance remains pending: quality-review migrations `20261106060000`, `20261106070000`, `20261106080000`, `20261106081000` and `20261106090000` must be applied in approved non-production before confirming persisted reads/writes and exact aggregate counts. This session did not run tests/build/browser/CI, apply migrations, or access Bolt/Supabase; no runtime PASS is claimed.
-- The independent reported parser issue in `SupplierQuoteWorkspace.tsx:380` is not changed by this P1 task-quality work and remains an outstanding build blocker until its actual source path is repaired.
+- The two parser defects recorded by the prior P2 public build are now corrected at source: `TaskQualityReviewMetrics.tsx` uses a valid JSX expression for its `detail` prop (commit `b80ecf52c37ba9385ce671e9110900cc3ca76c9b`), and `SupplierQuoteWorkspace.tsx` now wraps the workspace section and comparison print portal in a JSX Fragment (commit `42cb6d23ce51e92e7c44c2779b556ac3e921d9d4`). These are source corrections only; a fresh exact-head public build is still required and no build PASS is claimed.
 
 ## NEXT_ACTION — P1 body continuation
 
 1. Preserve the task-quality review form and centre; apply the five quality-review migrations only in approved non-production, then confirm manager save, customer denial, append-only event protection, stale/idempotent replay and aggregate denominators.
-2. Resume the remaining public-build parser issue in `SupplierQuoteWorkspace.tsx:380` using its actual current-main source path, without altering quote-engine behavior.
+2. Re-run the public build/Playwright critical path on the latest exact `main` SHA to confirm both JSX parser corrections; no re-test or build PASS is recorded yet.
 3. Keep the three customer amendment migrations and open-PO ATP migration unapplied until approved database access is available; then run their documented runtime acceptance in sequence.
 
 ## P3 hardening increment — Growth Radar source confidence — 2026-11-06
