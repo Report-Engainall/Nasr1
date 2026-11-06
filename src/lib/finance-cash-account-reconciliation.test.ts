@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseCashReconciliationWorkspace } from "./finance-cash-account-reconciliation";
+import { supabase } from "@/lib/supabase";
+import {
+  parseCashReconciliationWorkspace,
+  voidBankStatement,
+} from "./finance-cash-account-reconciliation";
 
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: vi.fn() } }));
 
@@ -111,6 +115,14 @@ describe("cash opening and bank reconciliation workspace parser", () => {
         line_count: 0,
         matched_count: 0,
         latest_run: null,
+        is_voided: false,
+        void_reason: null,
+        voided_by: null,
+        voided_at: null,
+        is_voided: false,
+        void_reason: null,
+        voided_by: null,
+        voided_at: null,
       }],
     });
     expect(() => parseCashReconciliationWorkspace(source))
@@ -149,4 +161,123 @@ describe("cash opening and bank reconciliation workspace parser", () => {
     });
     expect(() => parseCashReconciliationWorkspace(source)).toThrow("تغطية حركات كشف البنك");
   });
+
+  it("accepts a voided statement only with a complete immutable void record", () => {
+    const parsed = parseCashReconciliationWorkspace(workspace({
+      statements: [{
+        id: statementId,
+        mapping_id: accountId,
+        evidence_id: evidenceId,
+        statement_reference: "BANK-VOID-2026-11",
+        period_from: "2026-11-01",
+        period_to: "2026-11-05",
+        opening_balance: "1000.00",
+        closing_balance: "1000.00",
+        currency: "YER",
+        created_by: actorId,
+        created_at: asOf,
+        lines: [],
+        line_count: 0,
+        matched_count: 0,
+        latest_run: null,
+        is_voided: true,
+        void_reason: "كشف مكرر من البنك",
+        voided_by: actorId,
+        voided_at: asOf,
+      }],
+    }));
+    expect(parsed.statements[0]).toMatchObject({
+      isVoided: true,
+      voidReason: "كشف مكرر من البنك",
+      voidedBy: actorId,
+      voidedAt: asOf,
+    });
+  });
+
+  it("rejects void metadata that is missing the reason, actor or timestamp", () => {
+    expect(() => parseCashReconciliationWorkspace(workspace({
+      statements: [{
+        id: statementId,
+        mapping_id: accountId,
+        evidence_id: evidenceId,
+        statement_reference: "BANK-VOID-2026-11",
+        period_from: "2026-11-01",
+        period_to: "2026-11-05",
+        opening_balance: "1000.00",
+        closing_balance: "1000.00",
+        currency: "YER",
+        created_by: actorId,
+        created_at: asOf,
+        lines: [],
+        line_count: 0,
+        matched_count: 0,
+        latest_run: null,
+        is_voided: true,
+        void_reason: null,
+        voided_by: actorId,
+        voided_at: asOf,
+      }],
+    }))).toThrow("بيانات إلغاء كشف البنك غير مكتملة أو متعارضة.");
+  });
+
+  it("rejects void metadata attached to a statement reported as active", () => {
+    expect(() => parseCashReconciliationWorkspace(workspace({
+      statements: [{
+        id: statementId,
+        mapping_id: accountId,
+        evidence_id: evidenceId,
+        statement_reference: "BANK-VOID-2026-11",
+        period_from: "2026-11-01",
+        period_to: "2026-11-05",
+        opening_balance: "1000.00",
+        closing_balance: "1000.00",
+        currency: "YER",
+        created_by: actorId,
+        created_at: asOf,
+        lines: [],
+        line_count: 0,
+        matched_count: 0,
+        latest_run: null,
+        is_voided: false,
+        void_reason: "سبب غير متسق",
+        voided_by: actorId,
+        voided_at: asOf,
+      }],
+    }))).toThrow("بيانات إلغاء كشف البنك غير مكتملة أو متعارضة.");
+  });
+
+  it("calls the tenant-scoped void RPC and validates its affirmative replay result", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({
+      data: { statement_id: statementId, void_id: proposalId, voided: true, replayed: true },
+      error: null,
+    } as never);
+    await expect(voidBankStatement({ statementId, reason: "كشف مكرر من البنك" })).resolves.toEqual({
+      statementId,
+      voidId: proposalId,
+      replayed: true,
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith("void_finance_bank_statement", {
+      p_statement_id: statementId,
+      p_reason: "كشف مكرر من البنك",
+    });
+  });
+
+  it("rejects an RPC response that claims a void for another statement or omits voided=true", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({
+      data: { statement_id: proposalId, void_id: accountId, voided: false, replayed: false },
+      error: null,
+    } as never);
+    await expect(voidBankStatement({ statementId, reason: "سبب صحيح" }))
+      .rejects.toThrow("لم يؤكد الخادم إلغاء كشف البنك");
+  });
+
+  it("propagates a failed void RPC without treating it as a successful cancellation", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({
+      data: null,
+      error: { message: "statement is already verified" },
+    } as never);
+    await expect(voidBankStatement({ statementId, reason: "سبب صحيح" }))
+      .rejects.toThrow("statement is already verified");
+  });
+
 });
