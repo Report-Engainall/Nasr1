@@ -386,6 +386,13 @@ export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchase
 
   useEffect(() => { void load(); },[load]);
   useEffect(() => {
+    if (!initialPurchaseOrderId || loading) return;
+    const target = orders.find((order) => order.id === initialPurchaseOrderId);
+    if (!target) return;
+    setStatusFilter("all");
+    setSelectedId(target.id);
+  }, [initialPurchaseOrderId, loading, orders]);
+  useEffect(() => {
     if (!initialPurchaseOrderId || loading || !orders.some((order) => order.id === initialPurchaseOrderId)) return;
     setStatusFilter("all");
     setSelectedId(initialPurchaseOrderId);
