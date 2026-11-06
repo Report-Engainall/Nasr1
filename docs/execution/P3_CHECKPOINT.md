@@ -1658,3 +1658,51 @@ Continue only with source-backed intelligence gaps. Additional collision resolut
 ### Next P3 action
 
 Continue with independently source-backed Section 50 gaps only if a persisted same-tenant source exists. Quote conversion needs an immutable quote-to-order reference and product-unavailable demand needs a retained search event/cohort. Do not synthesize either signal from current quote status or catalog reads.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-BUSINESS-HEALTH-PRODUCT-CONCENTRATION-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Canonical scope: Section 51 — product concentration is now calculable from issued customer invoice lines, net of same-line posted return credit memos, independently per currency. This is not a profit or cash-receipt metric.
+
+### Implemented on main
+
+1. **Finance-authorized, tenant-scoped aggregate RPC**
+   - Added `supabase/migrations/20261106210000_business_health_product_revenue_concentration.sql`.
+   - Adds `fetch_business_health_product_revenue_concentration(p_from,p_to,p_as_of)`, gated by `can_manage_finance()`, active same-tenant profile and a bounded 366-day UTC period.
+   - Selects same-tenant customer invoices in `issued`, `partially_paid`, or `paid` status by `issued_at` in the selected period and as-of cutoff. Draft and void invoices are excluded.
+   - Groups by currency; does not combine currencies or expose product IDs/names, customer names, invoice IDs, order IDs or raw rows.
+   - Gross value is the sum of invoice-item `line_total`. Net line value subtracts only `posted` return credit-memo item `credited_subtotal` linked to the same invoice item, invoice, product, tenant and currency. Draft/void and reversed credit memos are not subtracted.
+   - Concentration is the top-five product share of net invoice-line value within each currency. No tax, payment receipt, FX conversion, gross margin or profit is inferred.
+   - A line with a missing/foreign product, mismatched credit memo, over-credit, or invoice without lines makes that currency incomplete. The net amount and concentration percentage are withheld for that currency. A zero/non-positive denominator yields NEEDS_REVIEW and no ratio.
+   - SQL hardening fixes: all unresolved invoice lines count in the unmapped/withheld partition (`cccf643182face731eac3fff115f35b79f5ae7fa`); zero net amount is withheld rather than presented as a valid zero (`841e5d5833ceea93260ec9a3b2acf14a0e3ddb7a`).
+   - Migration commit: `bbd8255bffe167cfa967ed7a4096748bd62a3fe5`.
+
+2. **Strict client and period/source correlation**
+   - Added `src/lib/intelligence/product-revenue-concentration-client.ts`.
+   - Validates same period/as-of instant, one row per ISO currency, exact line coverage reconciliation, count totals, formula ID/version, complete-vs-partial semantics and top-five percentage against the net amount.
+   - A malformed percentage, amount, count, duplicate currency or coverage mismatch fails closed. Non-VERIFIED currencies must return null net/top-five/percentage values.
+   - Commits: client `c0c3659e705a25ff24e848c818b5ca574f48cf70`; strict nullable-percentage guard `da0d0dcd6083b7dfac064d6a36dbef402a3d2848`; timestamp instant normalization `0a5969993e5047e501602c22dfa82352e05e59d7`.
+
+3. **Existing Business Health Map integration**
+   - Extended `src/lib/intelligence/business-health-map.ts` with a source-aligned product-concentration result and a dedicated calculation state: VERIFIED, PARTIAL, NEEDS_REVIEW, EMPTY or NOT_CALCULABLE.
+   - Requires the concentration snapshot to match the map's period and as-of instant. On mismatch, the concentration is withheld and the map remains under review.
+   - Unavailable/denied product concentration does not erase the cashflow, inventory, replenishment or customer-focus components; it adds a truthful unavailable warning and keeps the aggregate map from appearing fully verified.
+   - Engine commits: `38ad8b3476f7da603cb251e9c0adad6a620eb50f` and instant-alignment guard `279065411c40c83488a760500aade3223226f5e3`.
+
+4. **Existing assistant source composition and Arabic display**
+   - Extended `src/lib/intelligence/business-health-assistant-client.ts` to read product concentration in parallel using the exact inventory period and as-of snapshot; DENIED/UNAVAILABLE/ERROR remains separately visible and does not fabricate figures.
+   - Existing BusinessHealthMap displays invoice counts, invoice-line coverage, gross line value, net line value after posted credits, top-five net value and concentration percentage per currency. Unresolved currencies show withheld counts/reasons and no percentage.
+   - Commits: assistant source composition `3a34cd32a77bed51d4cbc0a0ecb1624aaec2146c`; RTL map display `dc8f0d3936df3f0b60c674bf5ad8486c61c11bfb`.
+   - Existing acceptance leaves `REF-BUSINESS-HEALTH-MAP-001` and `REF-NL-BUSINESS-HEALTH-ASSISTANT-001` updated in place at `3e754b58984fddbc546f9a4d3218441253df458d`; no duplicate row was created.
+
+### Acceptance boundary
+
+- Migration is source-only until the approved Bolt/non-production database workflow applies it. No database was modified.
+- No test/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operation was run. No PASS, runtime or production claim is made.
+- No invoice, return, credit memo, receipt, journal, ledger, payment, inventory or pricing record is written or altered by this feature.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+Continue with independently source-backed Section 51/52–63 gaps. Do not calculate DSO/DPO/CCC, realized profit, cash liquidity, or supplier spend without their required average balances, currency-specific amounts and complete source periods.
