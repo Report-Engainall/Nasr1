@@ -10,6 +10,7 @@ import {
   reviewCashOpeningBalance,
   submitCashOpeningBalance,
   uploadCashAccountEvidence,
+  voidBankStatement,
   type BankMatchCandidate,
   type CashAccountEvidence,
   type CashEvidenceKind,
@@ -54,8 +55,9 @@ export function CashAccountReconciliationWorkspace() {
       setWorkspace(next);
       setMappingId((current) => current && next.accounts.some((item) => item.id === current)
         ? current : next.accounts[0]?.id ?? "");
-      setSelectedStatementId((current) => current && next.statements.some((item) => item.id === current)
-        ? current : next.statements.find((item) => item.latestRun?.outcome !== "VERIFIED")?.id ?? next.statements[0]?.id ?? "");
+      setSelectedStatementId((current) => current && next.statements.some((item) =>
+        item.id === current && !item.isVoided && item.latestRun?.outcome !== "VERIFIED")
+        ? current : next.statements.find((item) => !item.isVoided && item.latestRun?.outcome !== "VERIFIED")?.id ?? "");
       setError("");
     } catch (cause) {
       setError(errorMessage(cause));
@@ -151,7 +153,7 @@ export function CashAccountReconciliationWorkspace() {
 
   async function addStatementLine(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedStatement) return;
+    if (!selectedStatement || selectedStatement.isVoided || selectedStatement.latestRun?.outcome === "VERIFIED") return;
     await perform(async () => {
       await recordBankStatementLine({
         statementId: selectedStatement.id,
@@ -169,6 +171,8 @@ export function CashAccountReconciliationWorkspace() {
   }
 
   async function loadCandidates(statementId: string, lineId: string) {
+    const statement = workspace?.statements.find((item) => item.id === statementId);
+    if (!statement || statement.isVoided || statement.latestRun?.outcome === "VERIFIED" || busy) return;
     setError("");
     try {
       const found = await fetchBankMatchCandidates(statementId, lineId);
@@ -182,6 +186,8 @@ export function CashAccountReconciliationWorkspace() {
   }
 
   async function matchLine(statementId: string, lineId: string) {
+    const statement = workspace?.statements.find((item) => item.id === statementId);
+    if (!statement || statement.isVoided || statement.latestRun?.outcome === "VERIFIED" || busy) return;
     const selected = selectedCandidates[lineId];
     if (!selected) return;
     const [journalEntryId, lineNumber] = selected.split(":");
@@ -194,12 +200,32 @@ export function CashAccountReconciliationWorkspace() {
   }
 
   async function finalizeStatement(statementId: string) {
+    const statement = workspace?.statements.find((item) => item.id === statementId);
+    if (!statement || statement.isVoided || statement.latestRun?.outcome === "VERIFIED" || busy) return;
     const reason = window.prompt("ملاحظة المراجعة وسبب إقفال محاولة المطابقة");
     if (!reason || reason.trim().length < 3) return;
     await perform(async () => await finalizeBankStatementReconciliation({ statementId, reason: reason.trim() }),
       (result) => result && typeof result === "object" && "outcome" in result && result.outcome === "VERIFIED"
         ? "اكتملت المطابقة: رصيد الإقفال يساوي رصيد الافتتاح والحركات، وكل حركات الكشف ودفتر الأستاذ متطابقة."
         : "سُجلت نتيجة NEEDS_REVIEW مع فروق الكشف والأستاذ والسطور غير المطابقة؛ لم يُعتمد الرصيد.");
+  }
+
+
+  async function voidStatement(statementId: string) {
+    const statement = workspace?.statements.find((item) => item.id === statementId);
+    if (!statement || statement.isVoided || statement.latestRun?.outcome === "VERIFIED" || busy) return;
+    const reason = window.prompt("سبب إلغاء كشف البنك (3 أحرف على الأقل)");
+    if (!reason || reason.trim().length < 3) return;
+    const result = await perform(
+      () => voidBankStatement({ statementId, reason: reason.trim() }),
+      (value) => value.replayed
+        ? "كشف البنك ملغى مسبقاً بالسبب نفسه؛ لم تُكرر عملية الإلغاء."
+        : "تم إلغاء كشف البنك مع حفظ السبب والمنفذ والتوقيت. لا يمكن إضافة حركات أو مطابقة هذا الكشف.",
+    );
+    if (result) {
+      setCandidates({});
+      setSelectedCandidates({});
+    }
   }
 
   const evidenceLabel = (item: CashAccountEvidence) => item.fileName + " · " + item.evidenceKind + " · " + item.createdAt.slice(0, 10);
@@ -366,18 +392,32 @@ export function CashAccountReconciliationWorkspace() {
                           <strong>{statement.statementReference} · {statement.periodFrom} — {statement.periodTo}</strong>
                           <p className="text-xs text-muted-foreground">{statement.lineCount} حركة · {statement.matchedCount} مطابقة · {statement.currency}</p>
                         </div>
-                        <span className="text-xs">{statement.latestRun?.outcome ?? "لم تجر المطابقة"}</span>
+                        <span className="text-xs">{statement.isVoided ? "ملغى" : statement.latestRun?.outcome ?? "لم تجر المطابقة"}</span>
                       </div>
                       <p className="text-xs">بداية الكشف: {fmt(statement.openingBalance, statement.currency)} · نهاية الكشف: {fmt(statement.closingBalance, statement.currency)}</p>
+                      {statement.isVoided ? (
+                        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs" role="status">
+                          <p>أُلغي هذا الكشف. سبب الإلغاء: {statement.voidReason}</p>
+                          <p>المنفذ: {statement.voidedBy} · الوقت: {statement.voidedAt}</p>
+                          <p>الإلغاء لا يحذف الكشف أو حركاته ولا ينشئ أي قيد محاسبي.</p>
+                        </div>
+                      ) : null}
                       {statement.latestRun ? (
                         <div className="rounded-md border p-2 text-xs">
                           <p>فرق الكشف: {fmt(statement.latestRun.statementDifference, statement.currency)} · فرق الأستاذ: {fmt(statement.latestRun.ledgerDifference, statement.currency)}</p>
                           <p>حركات كشف غير مطابقة: {statement.latestRun.unmatchedStatementLines} · قيود أستاذ غير مطابقة: {statement.latestRun.unmatchedLedgerLines}</p>
                         </div>
                       ) : null}
-                      <button type="button" className="btn secondary" onClick={() => setSelectedStatementId(statement.id)}>
-                        {selectedStatementId === statement.id ? "الكشف المحدد" : "اختيار هذا الكشف لإضافة الحركات"}
-                      </button>
+                      {!statement.isVoided && statement.latestRun?.outcome !== "VERIFIED" ? (
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" className="btn secondary" disabled={busy}
+                            onClick={() => setSelectedStatementId(statement.id)}>
+                            {selectedStatementId === statement.id ? "الكشف المحدد" : "اختيار هذا الكشف لإضافة الحركات"}
+                          </button>
+                          <button type="button" className="btn secondary" disabled={busy}
+                            onClick={() => void voidStatement(statement.id)}>إلغاء الكشف مع السبب</button>
+                        </div>
+                      ) : null}
                       {statement.lines.length ? (
                         <div className="overflow-x-auto">
                           <table className="w-full min-w-[720px] text-sm">
@@ -392,7 +432,7 @@ export function CashAccountReconciliationWorkspace() {
                                 <td className="p-2">{fmt(line.signedAmount, statement.currency)}</td>
                                 <td className="p-2">{line.matchId ? "مطابق مع قيد " + line.journalEntryId : "غير مطابق"}</td>
                                 <td className="p-2">
-                                  {!line.matchId ? (
+                                  {!line.matchId && !statement.isVoided && statement.latestRun?.outcome !== "VERIFIED" ? (
                                     <div className="flex flex-wrap items-center gap-1">
                                       <button type="button" className="btn secondary" onClick={() => void loadCandidates(statement.id, line.id)}>
                                         جلب قيود مطابقة
@@ -416,23 +456,25 @@ export function CashAccountReconciliationWorkspace() {
                                         </>
                                       ) : candidates[line.id] ? <span className="text-xs text-muted-foreground">لا يوجد قيد مرشح مطابق بالمبلغ والحساب والفترة.</span> : null}
                                     </div>
-                                  ) : <span className="text-xs text-muted-foreground">تم الربط</span>}
+                                  ) : <span className="text-xs text-muted-foreground">{line.matchId ? "تم الربط" : statement.isVoided ? "موقوف بسبب إلغاء الكشف" : "موقوف بعد اعتماد المطابقة"}</span>}
                                 </td>
                               </tr>
                             ))}</tbody>
                           </table>
                         </div>
                       ) : <p className="text-sm text-muted-foreground">أضف حركات الكشف يدوياً وفق المستند الأصلي.</p>}
-                      {statement.latestRun?.outcome !== "VERIFIED" ? (
+                      {!statement.isVoided && statement.latestRun?.outcome !== "VERIFIED" ? (
                         <button type="button" className="btn primary" disabled={busy}
                           onClick={() => void finalizeStatement(statement.id)}>احتساب الفروق وإقفال محاولة المطابقة</button>
+                      ) : statement.isVoided ? (
+                        <p className="text-sm" role="status">الكشف ملغى ومغلق؛ جميع إجراءات الإضافة والمطابقة والإقفال معطلة.</p>
                       ) : <p className="text-sm">تم إقفال هذا الكشف بمطابقة موثقة. لا يقبل تعديلاً لاحقاً.</p>}
                     </article>
                   ))}
               </div>
 
               {selectedStatement && selectedStatement.mappingId === mappingId &&
-               selectedStatement.latestRun?.outcome !== "VERIFIED" ? (
+               !selectedStatement.isVoided && selectedStatement.latestRun?.outcome !== "VERIFIED" ? (
                 <form onSubmit={(event) => void addStatementLine(event)} className="rounded-lg border p-3 space-y-2">
                   <h5 className="font-semibold">إضافة حركة إلى: {selectedStatement.statementReference}</h5>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
