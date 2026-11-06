@@ -90,7 +90,7 @@ export function CustomerAccountProfilePage() {
           </article>
           <article className="rounded-xl border p-4">
             <span className="text-xs text-muted-foreground">البريد الإلكتروني</span>
-            <strong className="mt-2 block text-base" dir="ltr">{user.email}</strong>
+            <strong className="mt-2 block text-base" dir="ltr">{user.email.trim() || "لا يوجد بريد إلكتروني مرتبط بهذا الحساب"}</strong>
           </article>
         </section>
         <section className="mt-4 rounded-xl border p-4">
