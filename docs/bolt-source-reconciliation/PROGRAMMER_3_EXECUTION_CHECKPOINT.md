@@ -880,3 +880,30 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - Test source added but NOT RUN. No build, typecheck, lint, CI, browser, DB, Supabase, Bolt, Preview, Vercel or production operation was run.
 - No runtime PASS is claimed; the exact-head regression remains for the later Bolt/CI acceptance pass.
+
+
+## P3 ENGINE HARDENING — TASK INTELLIGENCE REPORT SOURCE RECONCILIATION — 2026-11-06
+
+- Final code/test main SHA: `e4f8912995480d3cd933beae22a2427bf7eb7f38`.
+- Parser change commit: `5d45c3f742d6c17838cbad9cfeda80ecbcf772d2`.
+- Regression source creation: `dbd4e3ba7c693540f4ff8551454c5ff54c0d82f7`.
+- Regression fixture typing correction: `e4f8912995480d3cd933beae22a2427bf7eb7f38`.
+
+### Delivered
+- Aligned the client parser with the existing Section 58 SQL contract in `20261106050000_intelligence_task_reports.sql`.
+- Manager risk population now must reconcile exactly: returned rows = returned count = min(total count, 25); completePopulation must equal total <=25. Non-manager scope must return null totals/counts, false completeness and no manager risk rows.
+- Removed the incorrect client assumption that a non-MANAGER report cannot contain manager risk rows. A manager-authorized DAILY/WEEKLY/MONTHLY report may contain the same server-authorized high/critical risk summary; the MANAGER report still requires manager authorization.
+- Manager risk rows now validate task/profile/source UUIDs, non-future creation time, ageMinutes recomputation from asOf, isOverdue and overdueMinutes recomputation from dueAt/asOf. Contradictory rows are rejected.
+- Role summaries validate open-risk subsets, reopened event/task ordering, resolved/completed parity and nullability of reopen/average metrics when there are no resolved tasks. Source and weekly summaries validate reopened event count >= distinct reopened task count.
+- Duplicate visible roles, duplicate source-group identities, duplicate weekly points and non-Monday/out-of-window week starts are rejected.
+- Added parser regressions for normal and manager-authorized daily reports, exact 25-row cap behavior, risk population contradictions, forged/future task ages, overdue mismatches, duplicate dimensions and subset-count violations.
+- No SQL, migration, route, backend function or data was changed; the source-of-truth remains the existing tenant-scoped report RPC.
+
+### Exact files/blobs
+- `src/lib/intelligence/task-intelligence-reports.ts` — `d4cf6fa16ff2f38ed40a4d9a3ef3f3768dd7db23`
+- `src/lib/intelligence/task-intelligence-reports.test.ts` — `6a51d26b11c81df69991217dfae9be13226ff1d8`
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression tests are authored/typed but NOT RUN. No build, typecheck, lint, CI, browser, DB, Supabase migration, Bolt, Preview, Vercel or production operation was run.
+- No test PASS or authenticated manager/non-manager runtime proof is claimed.
