@@ -41,7 +41,7 @@ import {
   type InvoiceAmount,
   type PaymentAmount,
 } from "@/lib/commerce-utils";
-import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
+import { fetchProducts, fetchResolvedProductPrices, fetchSettingsMap } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
@@ -53,6 +53,7 @@ import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
 import { fetchCustomerCompanyContacts, saveCustomerCompanyContact, deleteCustomerCompanyContact, type CustomerCompanyContact, type CustomerCompanyContactInput } from "@/lib/customer-company-contacts";
 import { loadOfflineCartDraft, mergeOfflineCartDraft, saveOfflineCartDraft } from "@/lib/offline-cart";
+import { resolveStorefrontPricePresentation } from "@/lib/storefront-price-visibility";
 import {
   clearLegacyOfflineCatalogCache,
   clearOfflineCatalogCache,
@@ -254,6 +255,11 @@ type AssistantProductRow = {
   base_price?: number | string | null;
   status: string;
 };
+
+function customerStorefrontPriceSuffix(policyValue: unknown, value: unknown): string {
+  const presentation = resolveStorefrontPricePresentation(policyValue, value);
+  return presentation.visible ? " · " + formatCurrency(presentation.amount) : "";
+}
 
 function resolvedProductPriceLabel(value: unknown): string {
   const amount =
@@ -1654,6 +1660,7 @@ function Reorder() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [priceVisibilityPolicy, setPriceVisibilityPolicy] = useState<unknown>(undefined);
   const load = useCallback(async () => {
     setError("");
     const tenantScope = await getCurrentTenantScope().catch((cause) => {
@@ -1662,7 +1669,7 @@ function Reorder() {
     });
     if (!tenantScope) return;
     const { organizationId: orgId } = tenantScope;
-    const [p, t] = await Promise.all([
+    const [p, t, publicSettings] = await Promise.all([
       supabase
         .from("products")
         .select("id,name,item_code,barcode,unit,status")
@@ -1675,7 +1682,9 @@ function Reorder() {
         .select("id,name,created_at,updated_at,source_order_id")
         .order("updated_at", { ascending: false })
         .limit(100),
+      fetchSettingsMap().catch(() => null),
     ]);
+    setPriceVisibilityPolicy(publicSettings?.show_price_on_cards);
     if (p.error || t.error)
       setError("تعذر تحميل المنتجات أو قوالب إعادة الطلب. تحقق من ترحيل قاعدة البيانات.");
     else {
@@ -1810,7 +1819,7 @@ function Reorder() {
               <div>
                 <strong>{p.name}</strong>
                 <div style={quiet}>
-                  {p.item_code} · {resolvedProductPriceLabel(p.base_price)}
+                  {p.item_code}{customerStorefrontPriceSuffix(priceVisibilityPolicy, p.base_price)}
                 </div>
               </div>
               <input
