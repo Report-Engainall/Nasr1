@@ -2091,3 +2091,12 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Commits `abbcb4701bde27621abd26a72466b36404bf20fc` and `3528578d591d27329234c515b2ffdc16db91392e` distinguish an authorized, fully covered zero-decision result (`EMPTY`) from source failure (`UNAVAILABLE`) and incomplete coverage (`PARTIAL`).
 - P3 checkpoint commit: `35a24e0200e1051fcc6ae8bc874a9b67659bb47a`; matrix follow-up: `dbc43cd1e3b7c0e6a1a69cdde314694f2082c671`.
 - No database, migration, RPC, P1 route, paid provider, Vercel credit or runtime/test operation was used. Acceptance remains pending.
+
+
+## P3 body update — 2026-11-06 — Section 53 shift actions connected
+
+- P3 code delivery: migration `dc492566a0c97e06b3389a7605a4b965b150dbc4`; client commits `b1de680dd84170d924ad15430e7f1bedf508a2bd`, `44fd4cfb31c4cac312f8f924c2adb37c8ac92d9a`; UI commits `64c0b2d2223f0ad14b41dfdf1952357756aea761`, `adb06cda0bc8ecb3c8faac034af5676c1d74a312`, `233640c0e58e93baee375044d873947c742952d4`.
+- The existing `ShiftOperationsCenter` now has server-confirmed actions for opening/operational-closeout snapshots, per-currency physical cash counts, outgoing-owner/manager handover recording and incoming-owner acceptance. Handover reference lookup is a new additive RPC restricted to the incoming owner; acceptance remains the existing append-only server command.
+- Retry keys stay stable across ambiguous outcomes; edited payloads reset the key. UI does not post a journal, payment, inventory mutation, task-status change or financial close.
+- P3 checkpoint: `8cfaaa55352d1e1d07f00dd564839393b2ffeff0`; existing matrix leaf `INT-SHIFT-001` updated at `3319c21e9919a5f9e5f8df0b85e2cb25e862d0b7`.
+- Migrations `20261106010000_intelligence_shift_operations.sql` and `20261106180000_intelligence_shift_handover_acceptance_lookup.sql` remain source-only. No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production proof is claimed.
