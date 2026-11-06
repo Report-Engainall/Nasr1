@@ -158,7 +158,7 @@ function calculateDeadStockExposure(args: {
       return {
         exposure: null,
         exposureStatus: "NEEDS_REVIEW",
-        currency: null,
+        currency: (sourceCurrency as string).trim().toUpperCase(),
         unitCost: null,
         warnings: ["EXPOSURE_PRECISION_INVALID"],
       };
@@ -178,7 +178,7 @@ function calculateDeadStockExposure(args: {
     return {
       exposure: null,
       exposureStatus: "NEEDS_REVIEW",
-      currency: null,
+      currency: (sourceCurrency as string).trim().toUpperCase(),
       unitCost: null,
       warnings: ["EXPOSURE_OVERFLOW"],
     };

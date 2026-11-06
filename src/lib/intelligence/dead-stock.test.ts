@@ -96,6 +96,7 @@ describe("dead-stock engine",()=>{
   const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv-precision"),{...evidence("qty-precision"),period:null},evidence("cost-precision","YER")],products:[p],rule});
   expect(r.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW",currency:null});
   expect(r.items[0].warnings).toContain("EXPOSURE_PRECISION_INVALID");
+  expect(r.totalsByCurrency).toEqual([{currency:"YER",exposure:null,verifiedItems:0,withheldItems:1}]);
  });
 
  it("sums currency exposure totals as integer cents without accumulation drift",()=>{
