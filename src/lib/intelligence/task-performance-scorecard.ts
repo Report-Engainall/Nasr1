@@ -1,4 +1,5 @@
 import {parseTaskQualityMetrics,type TaskQualityMetrics} from "./task-quality-reviews";
+import {roundedPercentageHundredths} from "./financial-precision";
 
 export type TaskPerformanceRole =
   | "sales"
@@ -116,7 +117,9 @@ const UNAVAILABLE_METRICS = new Set<TaskPerformanceUnavailableMetric>([
 ]);
 
 function percentage(numerator: number, denominator: number): number | null {
-  return denominator > 0 ? Math.round((numerator * 10000) / denominator) / 100 : null;
+  if (denominator <= 0) return null;
+  const rounded = roundedPercentageHundredths(BigInt(numerator), BigInt(denominator));
+  return rounded === null ? null : Number(rounded) / 100;
 }
 
 function parseGroup(value: unknown): TaskPerformanceGroup | null {

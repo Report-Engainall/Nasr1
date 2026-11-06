@@ -178,4 +178,45 @@ describe("parseTaskPerformanceScorecard", () => {
     }];
     expect(parseTaskPerformanceScorecard(data)?.coverage.traceabilityCoveragePercent).toBeNull();
   });
+  it("uses exact integer rounding for large task coverage ratios at a half-hundredth boundary", () => {
+    const data = fixture();
+    const denominator = 9_007_199_253_760_000;
+    const numerator = 1_111_938_747_876_672;
+    data.scope = {
+      visibleRoles: ["accountant", "sales"],
+      completePopulation: true,
+      visibleTaskCount: denominator,
+    };
+    data.coverage = {
+      sourceLinkedTaskCount: denominator,
+      idempotencyKeyCount: numerator,
+      traceableTaskCount: 0,
+      idempotencyKeyCoveragePercent: 12.35,
+      traceabilityCoveragePercent: 0,
+    };
+    data.resolution = {
+      completedTaskCount: 0,
+      sampleCount: 0,
+      excludedCount: 0,
+    };
+    data.groups = [{
+      taskType: "invoice_collection",
+      taskRole: "accountant",
+      taskCount: denominator,
+      completedCount: 0,
+      resolutionSampleCount: 0,
+      resolutionExcludedCount: 0,
+      medianResolutionMinutes: null,
+      p90ResolutionMinutes: null,
+      sourceLinkedTaskCount: denominator,
+      idempotencyKeyCount: numerator,
+      traceableTaskCount: 0,
+      idempotencyKeyCoveragePercent: 12.35,
+      traceabilityCoveragePercent: 0,
+    }];
+
+    const parsed = parseTaskPerformanceScorecard(data);
+    expect(parsed?.coverage.idempotencyKeyCoveragePercent).toBe(12.35);
+  });
+
 });
