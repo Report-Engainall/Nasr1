@@ -217,6 +217,8 @@ describe("supplier quote comparison assistant intent", () => {
       "قارن عروض الموردين",
       "مقارنة أسعار الموردين",
       "ما أقل تكلفة للوحدة بين الموردين؟",
+      "اعرض سجل أسعار عروض الموردين",
+      "كيف تغير سعر المورد عبر العروض المحفوظة؟",
     ]) {
       expect(planNaturalLanguageQuery(question)).toMatchObject({
         status: "READY",
@@ -226,9 +228,12 @@ describe("supplier quote comparison assistant intent", () => {
     }
   });
 
-  it("does not present the latest bounded quote inbox as historical analysis", () => {
-    expect(planNaturalLanguageQuery("قارن عروض الموردين خلال الشهر الماضي")).toMatchObject({
-      status: "UNSUPPORTED",
-    });
+  it("does not pretend the bounded latest quote sample is a complete date-window history", () => {
+    for (const question of [
+      "قارن عروض الموردين خلال الشهر الماضي",
+      "سجل تغير أسعار الموردين خلال آخر 90 يوم",
+    ]) {
+      expect(planNaturalLanguageQuery(question)).toMatchObject({ status: "UNSUPPORTED" });
+    }
   });
 });
