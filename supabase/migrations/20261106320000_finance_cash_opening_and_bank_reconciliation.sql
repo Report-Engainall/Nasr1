@@ -264,6 +264,7 @@ REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER
   public.finance_cash_opening_balance_proposals,
   public.finance_cash_opening_balance_reviews,
   public.finance_bank_statements,
+  public.finance_bank_statement_voids,
   public.finance_bank_statement_lines,
   public.finance_bank_statement_line_matches,
   public.finance_bank_statement_reconciliation_runs FROM PUBLIC,anon,authenticated;
