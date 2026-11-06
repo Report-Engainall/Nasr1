@@ -7,6 +7,7 @@ import type { ProcessBottleneckResult } from "./process-bottlenecks";
 import type { CashflowScheduleSnapshot } from "./cashflow-schedule-client";
 import type { TaskIntelligenceReport, TaskIntelligenceReportKind } from "./task-intelligence-reports";
 import type { TaskQualityMetrics } from "./task-quality-reviews";
+import type { DecisionOutcomeState, DecisionOutcomeView } from "./decision-outcome-client";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
@@ -17,13 +18,14 @@ export type ProcessTaskIntent="OPEN_TASKS_OVERVIEW"|"REOPENED_TASKS_OVERVIEW";
 export type TaskIntelligenceReportIntent="DAILY_TASK_REPORT"|"WEEKLY_TASK_REPORT"|"MONTHLY_TASK_REPORT"|"MANAGER_TASK_RISKS";
 export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
 export type TaskQualityIntent="TASK_QUALITY_OVERVIEW";
+export type DecisionOutcomesIntent="DECISION_OUTCOMES_OVERVIEW"|"DECISIONS_PENDING_REVIEW"|"DECISIONS_AWAITING_EXECUTION";
 export type CustomerServiceIntent=
  |"CUSTOMER_SERVICE_OVERVIEW"
  |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
  |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
  |"CUSTOMER_SERVICE_UNASSIGNED";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -233,6 +235,23 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"ملخص كامل للحالات النشطة داخل المؤسسة الحالية، محسوب على توقيت خادمي واحد؛ يعرض عدد المفتوح والمتأخر عن أول استجابة والمتجاوز لموعد الحل وغير المسند والعاجل والعالي. لا يعيد أسماء العملاء أو تفاصيل الحالات."
   };
  }
+ const decisionPendingQuestion=/(القرارات قيد المراجعه|قرارات قيد المراجعه|قرارات بانتظار المراجعه|قرارات تنتظر المراجعه|القرارات بانتظار الاعتماد|قرارات تنتظر الاعتماد)/.test(normalizedQuestion);
+ const decisionExecutionQuestion=/(القرارات بانتظار التنفيذ|قرارات بانتظار التنفيذ|القرارات المعتمده للتنفيذ|قرارات تنتظر الاسناد|قرارات بانتظار الاسناد)/.test(normalizedQuestion);
+ const decisionOverviewQuestion=/(ملخص القرارات|حاله القرارات|وضع القرارات|دوره القرارات|قرارات النظام|سجل القرارات)/.test(normalizedQuestion);
+ if(decisionPendingQuestion||decisionExecutionQuestion||decisionOverviewQuestion){
+  if(/(اخر|الماضي|الماضيه|السابق|من تاريخ|بين تاريخ|خلال|منذ|هذا الشهر|هذا الاسبوع|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"مصدر دورة القرارات يعرض لقطة حالية بصفحات محدودة؛ لا يقدم سجل أحداث تاريخياً أو مقارنة زمنية لهذا السؤال."
+  };
+  const intent:DecisionOutcomesIntent=decisionPendingQuestion?"DECISIONS_PENDING_REVIEW":
+   decisionExecutionQuestion?"DECISIONS_AWAITING_EXECUTION":"DECISION_OUTCOMES_OVERVIEW";
+  return {
+   status:"READY",intent,normalizedQuestion,sourceRpc:"fetch_decision_outcomes",
+   filterDescription:intent==="DECISIONS_PENDING_REVIEW"?"قرارات حالتها الحالية IN_REVIEW ضمن صفحة السجلات المصرح بها.":
+    intent==="DECISIONS_AWAITING_EXECUTION"?"قرارات معتمدة أو مسندة ولم يبدأ تنفيذها بعد ضمن صفحة السجلات المصرح بها.":
+    "توزيع الحالات الحالية لدورة القرارات ضمن صفحة السجلات المصرح بها؛ لا يتضمن أسماء المسؤولين أو تفاصيل القرار."
+  };
+ }
  const taskQualityQuestion=/(جوده المهام|جوده التوصيات|دقه التوصيات|قابليه تنفيذ المهام|الانذارات الكاذبه|التنبيهات الصحيحه|مراجعات جوده المهام|جوده التنبيهات|جوده قرارات التوصيه)/.test(normalizedQuestion);
  if(taskQualityQuestion)return {
   status:"READY",intent:"TASK_QUALITY_OVERVIEW",normalizedQuestion,
@@ -330,7 +349,14 @@ export interface NaturalLanguageCustomerServiceResult {
   unassignedCount:number;urgentCount:number;highCount:number;
  };
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult;
+export interface NaturalLanguageDecisionOutcomesResult {
+ kind:"DECISION_OUTCOMES";state:"READY"|"EMPTY"|"PARTIAL";intent:DecisionOutcomesIntent;
+ answer:string;sourceRpc:"fetch_decision_outcomes";queriedAt:string;
+ totalCount:number;inspectedCount:number;primaryCount:number;completePopulation:boolean;
+ countsByState:Record<DecisionOutcomeState,number>;
+}
+
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -637,6 +663,39 @@ export function resolveExpectedCollectionsIntent(
  };
 }
 
+
+/** Projects only aggregate counts from the authorized, current decision page; no owner or business payload is exposed. */
+export function resolveDecisionOutcomesIntent(
+ intent:DecisionOutcomesIntent,items:DecisionOutcomeView[],totalCount:number,queriedAt:string,
+):NaturalLanguageDecisionOutcomesResult {
+ const countsByState:Record<DecisionOutcomeState,number>={
+  PROPOSED:0,IN_REVIEW:0,APPROVED:0,REJECTED:0,ASSIGNED:0,EXECUTING:0,EXECUTED:0,MEASURED:0,
+ };
+ for(const item of items)countsByState[item.state]+=1;
+ const selected=items.filter(item=>{
+  if(intent==="DECISIONS_PENDING_REVIEW")return item.state==="IN_REVIEW";
+  if(intent==="DECISIONS_AWAITING_EXECUTION")return item.state==="APPROVED"||item.state==="ASSIGNED";
+  return true;
+ });
+ const completePopulation=items.length===totalCount;
+ const state:NaturalLanguageDecisionOutcomesResult["state"]=!completePopulation?"PARTIAL":selected.length===0?"EMPTY":"READY";
+ const labels:Record<DecisionOutcomesIntent,string>={
+  DECISION_OUTCOMES_OVERVIEW:"القرارات",
+  DECISIONS_PENDING_REVIEW:"القرارات قيد المراجعة",
+  DECISIONS_AWAITING_EXECUTION:"القرارات المعتمدة بانتظار بدء التنفيذ",
+ };
+ const answer=state==="PARTIAL"
+  ?"أعاد المصدر "+selected.length+" نتيجة مطابقة ضمن "+items.length+" قراراً مفحوصاً من أصل "+totalCount+"؛ هذه الصفحة جزئية ولا تمثل كامل التوزيع أو جميع القرارات المطابقة."
+  :state==="EMPTY"
+   ?"لا توجد "+labels[intent]+" في كامل نطاق السجلات الذي أعاده المصدر."
+   :intent==="DECISION_OUTCOMES_OVERVIEW"
+    ?"يعرض سجل المصدر "+totalCount+" قراراً. قُرئت جميع السجلات وأُحصيت الحالات الحالية لكل قرار."
+    :"يوجد "+selected.length+" من "+totalCount+" ضمن فئة "+labels[intent]+".";
+ return {
+  kind:"DECISION_OUTCOMES",state,intent,answer,sourceRpc:"fetch_decision_outcomes",queriedAt,
+  totalCount,inspectedCount:items.length,primaryCount:selected.length,completePopulation,countsByState,
+ };
+}
 
 /** Projects the aggregate-only, complete tenant service snapshot without exposing case/customer details. */
 export function resolveCustomerServiceIntent(
