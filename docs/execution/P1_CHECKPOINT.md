@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-040
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at this checkpoint base: `bd7cb81607951fb652b8b3cd38fe9715a894a636`.
+- P1 product-code commit: `a6101171ee7fe3fe75b3240dbdc57a263cbd4e67`.
+- P1 scope: truthful customer feedback for alternate-unit selection in the existing storefront product-detail flow.
+
+## BODY-040 — distinguish successful unit additions from stock errors
+
+- The alternate-unit conversion integration already committed in BODY-036 shows a confirmation containing the selected package count and its equivalent base-unit quantity.
+- Corrected the shared storefront cart-action banner to classify this confirmation as a polite success status with positive styling. Validation, availability and other cart failures remain assertive error alerts.
+- No stock/order/business rule, server payload, persistence contract or price visibility behavior changed.
+- File changed: `src/components/Storefront.tsx`. Code commit: `a6101171ee7fe3fe75b3240dbdc57a263cbd4e67`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; no runtime PASS is claimed.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run for BODY-040.
+- This checkpoint records the already-merged product-code change; it does not alter the concurrent BODY-039 product-save contract entry below.
+- Project-wide 95% P1 completion remains unclaimed.
+
+## Next P1 action
+
+Continue from the latest live `main` with the next concrete, non-P3 workflow gap. Preserve all concurrently merged product-save work and do not repeat accepted BODY-032 through BODY-040 absent a reproducible defect.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-039
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
