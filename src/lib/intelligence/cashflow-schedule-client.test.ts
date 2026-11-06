@@ -182,6 +182,18 @@ describe("tenant-bound cashflow aggregate client", () => {
     expect(result.data.schedule.warnings).toContain("One open receipt has no uniquely evidenced invoice due date.");
   });
 
+  it("retains known customer inflows as PARTIAL when the supplier payable RPC fails", async () => {
+    rpc.mockImplementation(async (name: string) => name === "get_intelligence_aggregate"
+      ? { data: response(), error: null }
+      : { data: null, error: { code: "PGRST202", message: "supplier RPC unavailable" } });
+    const result = await fetchCashflowSchedule(request());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.schedule.entries.map((entry) => entry.direction)).toEqual(["INFLOW"]);
+    expect(result.data.schedule.status).toBe("NEEDS_REVIEW");
+    expect(result.data.schedule.warnings).toContain("Supplier payable schedule is unavailable; zero outflows are not assumed.");
+  });
+
   it("withholds supplier outflows rather than assuming zero when source evidence linkage is missing", async () => {
     const invalid = supplierOutflowResponse();
     (invalid.entries[0].amount.lineage as Record<string, unknown>).evidenceIds = ["supplier-invoice:not-in-response"];

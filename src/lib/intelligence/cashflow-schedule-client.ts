@@ -565,14 +565,18 @@ export async function fetchCashflowSchedule(
     }
     const base = parseCashflowScheduleResponse(data, request);
     if (!base.ok) return base;
-    const supplier = await supabase.rpc("fetch_supplier_payable_cashflow_schedule", {
-      p_from: request.period.from,
-      p_to: request.period.to,
-      p_as_of: request.asOf,
-      p_currency: request.currency ?? null,
-    });
-    if (supplier.error) return combineSupplierOutflows(base, null);
-    return combineSupplierOutflows(base, parseSupplierPayableScheduleResponse(supplier.data, request));
+    try {
+      const supplier = await supabase.rpc("fetch_supplier_payable_cashflow_schedule", {
+        p_from: request.period.from,
+        p_to: request.period.to,
+        p_as_of: request.asOf,
+        p_currency: request.currency ?? null,
+      });
+      if (supplier.error) return combineSupplierOutflows(base, null);
+      return combineSupplierOutflows(base, parseSupplierPayableScheduleResponse(supplier.data, request));
+    } catch {
+      return combineSupplierOutflows(base, null);
+    }
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بخدمة التدفق النقدي؛ لم تُعرض أرقام تقديرية." };
   }
