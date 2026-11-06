@@ -3033,6 +3033,7 @@ export function StaffFinancePage() {
   const loadAging = useCallback(async (offset: number) => {
     setAgingLoading(true);
     setAgingError("");
+    setAgingExportError("");
     try {
       const result = await supabase.rpc("fetch_staff_receivables_aging", {
         p_limit: RECEIVABLES_AGING_PAGE_SIZE,
