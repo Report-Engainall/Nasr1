@@ -1829,3 +1829,30 @@ Continue Section 56 only when source contracts provide import-batch completeness
 ### Next P3 action
 
 Continue Section 54 only with additional timestamp/sequence facts already represented by authorized source rows. Do not calculate internal hands-on time, employee productivity or causal attribution when the current event schema cannot distinguish waiting from work.
+
+
+## P3 PRODUCT UPDATE — 2026-11-06 — TASK INTELLIGENCE INSIGHT PACK
+
+- Code delivery: `d9e6ff4768e8fa826bf1eb22d9a1ab3d88710965` (merged to official `main`; subsequent P1 descendant preserved).
+- Added deterministic `buildTaskIntelligenceInsights()` and Arabic `TaskIntelligenceInsights` view, mounted inside the existing Section 58 report response in the natural-language assistant. No new route or second task-report reader.
+- The pack emits 15 independently keyed insight cards from the existing authenticated `fetch_task_intelligence_report` DTO:
+  1. tasks created during the selected period;
+  2. first-time completions;
+  3. current open backlog;
+  4. overdue open tasks with an explicit due date;
+  5. overdue share of the current open backlog (withheld when denominator is zero or counts do not reconcile);
+  6. high/critical open tasks;
+  7. role with the largest open queue;
+  8. role with the largest overdue queue;
+  9. slowest role-average resolution among cohorts with at least three first completions;
+  10. source/role/priority reopen-rate hotspot with at least three first completions;
+  11. observed reopen events;
+  12. manager-only exact total of high/critical open risks;
+  13. manager-only overdue risks in the returned risk population;
+  14. manager-only unassigned risks in the returned risk population;
+  15. manager-only risks aged 48 hours or more in the returned risk population.
+- The three manager detail counts remain PARTIAL when the server's top-25 risk page is not the complete population; the separately supplied manager total remains labelled as an aggregate count. Non-manager reports withhold manager-only indicators.
+- All metrics are descriptive. The engine does not infer financial impact, employee performance, causality, delay causes or external waiting; it does not assign, reprioritize, close or otherwise mutate tasks.
+- Overflow, zero-denominator and minimum-sample cases are withheld rather than filled with synthetic values. Suggested next steps are review guidance only.
+- Exact paths: `src/lib/intelligence/task-intelligence-insights.ts`, `src/components/intelligence/TaskIntelligenceInsights.tsx`, `src/components/intelligence/NaturalLanguageAssistant.tsx`, `src/components/intelligence/index.ts`, `src/lib/intelligence/index.ts`.
+- Runtime/Bolt acceptance remains pending; no execution or production readiness is claimed.
