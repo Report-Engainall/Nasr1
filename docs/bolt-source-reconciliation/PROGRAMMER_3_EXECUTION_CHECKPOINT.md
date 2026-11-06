@@ -693,3 +693,16 @@ Documentation commits:
 - Exact new source blobs at code cursor: client `15d8db41e3fbc351821ea8450ab55370f524d165`; component `498a568c7cc3da8c6ad748d668e15039a2bfe4f6`; library barrel `b4926fae4aef7518b824b37396c22236d5b30d7c`; component barrel `b8939d2b3dd76138b635525d178a3e0e174d989e`.
 - Status: `PARTIAL_P3_IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / P2_PROVIDER_STATUS_SOURCE_OPEN / ACCEPTANCE_PENDING`.
 - Remaining: source RPC lacks free-tier/zero-rate evidence, quota remaining/reset, cooldown, privacy class, last response, error counts and provider fallback counts. P2 must publish those safely; no parallel RPC was created. No test/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. No PASS claim.
+
+
+## P3 engine hardening — 2026-11-06 — Growth Radar completeness and count consistency
+
+- Code/test cursor: `f677a0abe6c6626907affb6bcdf3cac041392e6f`.
+- Fixed `buildGrowthOpportunityRadar()` so an omitted optional `sourceSnapshotVerified` can never be interpreted as complete source coverage. Only an explicit `true` yields a VERIFIED population; omitted/false coverage with signals remains NEEDS_REVIEW, and an empty unconfirmed population is UNAVAILABLE.
+- Added machine-readable warnings for incomplete versus unconfirmed population coverage.
+- Product-unavailable demand now rejects impossible source ratios where distinct searchers exceed total unavailable search events.
+- Regression source tests added/updated for all four confidence scenarios and the impossible searcher-to-event count; tests remain NOT RUN.
+- Files: `src/lib/intelligence/growth-opportunities.ts`; `src/lib/intelligence/growth-opportunities.test.ts`.
+- Commits: `51cebd4a47c9cfaa23888e3d0b9799f96beab61c`, `13858915589ecbf990adf87a777f444a12bf87c8`, `d5d24e7879c1701c76310b0ec61a896bb7359a0b`, `f677a0abe6c6626907affb6bcdf3cac041392e6f`.
+- Blobs: engine `740a9913715181927d9e402fd395f3e5e551cc62`; tests `ab89ce9ec5aeda4331c79af93f79eb5ec4738464`.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No test/build/typecheck/lint/CI/browser/Bolt/DB/production execution was run; no PASS claim.
