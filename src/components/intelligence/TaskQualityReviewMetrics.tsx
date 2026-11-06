@@ -92,7 +92,7 @@ export function TaskQualityReviewMetrics({ quality }: TaskQualityReviewMetricsPr
         <MetricCard title="التنبيهات الصحيحة" value={number(quality.alerts.truePositiveCount)} detail="أثبتت المراجعة أن التنبيه مدعوم بالمصدر." />
         <MetricCard title="تنبيهات بانتظار المراجعة" value={number(quality.alerts.needsReviewCount)} detail="مستبعدة من مقام نسبة الإنذارات الكاذبة حتى حسمها." />
         <MetricCard title="الأسباب المتكررة" value={number(quality.repeatedCauses.length)} detail={number(quality.causeReviewCount) + " مراجعة سلبية مصنفة"} />
-        <MetricCard title="المهام التي تمت مراجعتها" value={number(quality.scope.reviewedTaskCount)} detail="من " + number(quality.scope.visibleTaskCount) + " مهمة مرئية للمدير" />
+        <MetricCard title="المهام التي تمت مراجعتها" value={number(quality.scope.reviewedTaskCount)} detail={"من " + number(quality.scope.visibleTaskCount) + " مهمة مرئية للمدير"} />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-2"><h5 className="text-sm font-semibold">أسباب عدم قابلية التنفيذ</h5><ReasonRows items={quality.actionability.notActionableReasons} /></div>
