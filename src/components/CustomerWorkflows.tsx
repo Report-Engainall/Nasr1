@@ -3071,13 +3071,13 @@ export function StaffQuotesPage() {
     return () => window.removeEventListener("afterprint", clearAfterPrint);
   }, [printDocument]);
 
-  function closePricingDialog() {
+  const closePricingDialog = useCallback(() => {
     setChosen(null);
     setDialogReady(false);
     const opener = quoteOpenerRef.current;
     quoteOpenerRef.current = null;
     opener?.focus();
-  }
+  }, []);
 
   useEffect(() => {
     if (!chosen) return;
@@ -3125,7 +3125,7 @@ export function StaffQuotesPage() {
 
     document.addEventListener("keydown", handleDialogKeyDown);
     return () => document.removeEventListener("keydown", handleDialogKeyDown);
-  }, [chosen, dialogReady]);
+  }, [chosen, dialogReady, closePricingDialog]);
 
   function printSavedQuote() {
     if (!chosen) return;
