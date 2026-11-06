@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — customer order XLSX and return request A4 print — 2026-11-06
+
+- Customer order XLSX: main commit `a8b093527c580ce2fde67248072f591b9b57729c`; builder blob `0e9784a8943ed0824378afa8a790dafbf9a94413`; UI blob `05c21aee4f76a2e7aff15eb8446fd8f190765576`. Four Arabic worksheets use the loaded customer order projection; excludes prices, costs, margins and identifiers. Added matrix leaf `DLV-011-CUSTOMER-ORDER-XLSX-001`.
+- Customer return print: main commit `6ac5bd9bee33de74cee0bbe15358f0b80337f814`; `CustomerReturnsPage.tsx` blob `e4f3001096acd5ce4f3b529406bf2301c84a6cf2`. Per-request A4 print output excludes money/internal identifiers and explicitly disclaims physical receipt, final approval, credit memo and refund. Added matrix leaf `DLV-011-CUSTOMER-RETURN-REQUEST-PRINT-001`.
+- Both outputs are `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; source only. No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — consolidated customer returns history — 2026-11-06
 
 - BODY-057 commits: history component `b54906d6452fc9e59119ae63b29acb3787c3cb8e`; staff link fix `059e67277463f02d3c55b00fe011b1d75a14eb6d`; route `fa96fd9754589c395adf0e4315452c1ece56634f`; route tree `8373a07c9feff4204d9fefb1b3274d224b412f77`; navigation `c08f56f3b716f3eaa2dd4165a10ede6ffe63f7d7`; footer `6ae7a21b1d130ea77b7b1bcb02f7a9f6f3ebc7f6`; Help `b0736e47ceb9845c90e57b5fa9fba0b33deb0b36` (icon fix `b51acd3f8b4bb7e95679bf15aa1562ac0f2a4ceb)); profile `e849baa6f01c666d1706333d18201e8a45911ee3`; Arabic order status `4f6c9abc898ac84b6b0fb82f30e41224dfedd121`.
