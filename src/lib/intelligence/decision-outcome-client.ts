@@ -156,7 +156,8 @@ function parseCandidateSnapshot(value: unknown): DecisionCandidateSnapshot | nul
   const raw = record(value);
   const proof = record(raw?.proof);
   if (!raw || !proof) return null;
-  const priority = raw.priority;
+  const priority = raw.priority === "P0" || raw.priority === "P1" || raw.priority === "P2" || raw.priority === "P3"
+    ? raw.priority : null;
   const score = priority === "P0" ? 400 : priority === "P1" ? 300 : priority === "P2" ? 200 : priority === "P3" ? 100 : null;
   const evidenceIds = Array.isArray(proof.evidenceIds) && proof.evidenceIds.length >= 1 && proof.evidenceIds.length <= 500 && proof.evidenceIds.every(id => str(id,500)) ? proof.evidenceIds as string[] : null;
   const metricKeys = Array.isArray(proof.metricKeys) && proof.metricKeys.length >= 1 && proof.metricKeys.length <= 50 && proof.metricKeys.every(key => str(key,150)) ? proof.metricKeys as string[] : null;
@@ -301,7 +302,7 @@ function parseCommandResult(value: unknown): DecisionOutcomeCommandResult {
 }
 function validateProposal(input: {
   candidateId: string; ruleId: string; ruleVersion: string; ownerProfileId: string;
-  expectedOutcome: string; reason: string;
+  expectedOutcome: string; reason: string; candidateSnapshot?: DecisionCandidateSnapshot;
 }): string | null {
   if (!str(input.candidateId, 150) || !str(input.ruleId, 150) ||
       !str(input.ruleVersion, 80) || !UUID.test(input.ownerProfileId) ||
