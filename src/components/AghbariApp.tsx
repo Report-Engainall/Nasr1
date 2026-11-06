@@ -844,7 +844,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   </>;
   const lowStock = products?.filter((product) => {
     const quantity = product.inventory?.quantity_available;
-    const reorderPoint = product.inventory?.reorder_point ?? product.min_stock;
+    const reorderPoint = product.inventory?.reorder_point ?? product.min_stock_level;
     return getInventoryAvailabilityStatus(quantity, reorderPoint) === 'low';
   }).slice(0, 4) ?? [];
   const salesValue = stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح';
@@ -1089,7 +1089,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
           const qty = p.inventory?.quantity_available;
-          const reorderPoint = p.inventory?.reorder_point ?? p.min_stock;
+          const reorderPoint = p.inventory?.reorder_point ?? p.min_stock_level;
           const stockStatus = getInventoryAvailabilityStatus(qty, reorderPoint);
           const low = stockStatus === 'low';
           return <tr key={p.id}>
