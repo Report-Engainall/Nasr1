@@ -217,7 +217,7 @@ function cashAmountValue(value: unknown): value is number | null {
   return value === null || isSafeShiftCashAmount(value);
 }
 function countValue(value: unknown): value is number | null {
-  return value === null || (Number.isInteger(value) && (value as number) >= 0);
+  return value === null || (Number.isSafeInteger(value) && (value as number) >= 0);
 }
 function stringList(value: unknown, max = 500): string[] | null {
   if (!Array.isArray(value) || value.length > max || value.some(item => !text(item, 500))) return null;

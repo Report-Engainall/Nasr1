@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculateShiftCashVariance,
-  isSafeShiftCashAmount,
-} from "./shift-operations";
+import { calculateShiftCashVariance, isSafeShiftCashAmount } from "./shift-operations";
 
 describe("shift cash cent precision", () => {
   it("accepts ordinary non-negative amounts represented to two decimal places", () => {
@@ -19,13 +16,13 @@ describe("shift cash cent precision", () => {
     expect(isSafeShiftCashAmount(Number.MAX_SAFE_INTEGER)).toBe(false);
   });
 
-  it("calculates cash variance using integer cents, not floating subtraction", () => {
+  it("calculates cash variance using integer cents", () => {
     expect(calculateShiftCashVariance(100.2, 100.25)).toBe(0.05);
     expect(calculateShiftCashVariance(100.25, 100.2)).toBe(-0.05);
     expect(calculateShiftCashVariance(0, 0)).toBe(0);
   });
 
-  it("withholds variance when either amount is outside the accepted precision", () => {
+  it("withholds variance when either amount is outside accepted cent precision", () => {
     expect(calculateShiftCashVariance(100.001, 100.25)).toBeNull();
     expect(calculateShiftCashVariance(100.25, 100.001)).toBeNull();
   });
