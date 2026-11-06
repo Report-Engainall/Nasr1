@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-051 — SEARCHABLE CUSTOMER HELP CENTER
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product code commits: help page `68f736b0b3adb7b136873aaac27001b4ce2dc467`; route registration `3e9290f6b2918777c78aeca25fbb967ceab0c7c7`; global navigation `1232f996abf312851698162e887b3222edf474ca`; storefront footer `d81267e9e12ac3da5fc14b890cc3b5a0ba68ebf9`.
+- Scope: fill a missing customer-facing help entrypoint; reuse existing routes and the existing customer-service case workflow.
+
+## BODY-051 — searchable Arabic customer help center
+
+- Added `/help` as a real TanStack file route and registered it in `src/routeTree.gen.ts`.
+- Built a responsive RTL help page with a normalized Arabic search over 10 product-supported FAQs, grouped by orders, account/delivery, invoices/account and customer service.
+- Added direct links to existing orders, reorder, delivery addresses, invoices, quotes, company members and service-case pages. The global navigation and storefront footer both expose the help center.
+- FAQ statements describe current behavior only: order submission is distinct from quote acceptance; customer-facing price visibility follows server policy; order detail shows saved statuses (not GPS delivery tracking); the support portal is scoped to the authenticated company's permissions and does not expose internal staff notes.
+- No new business table, RPC, message sender, policy workflow or paid provider was introduced. The help center is read-only navigation/education and sends case creation to the existing `/service-cases` workflow.
+- Files changed: `src/routes/help.tsx`, `src/routeTree.gen.ts`, `src/routes/__root.tsx`, `src/components/store/StoreFooter.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- Code is committed on `main`; static source presence and route/nav references were re-read from GitHub.
+- No tests, build, typecheck, lint, CI, browser, Bolt, database, preview or production checks were run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue uncovered customer/storefront functions from the canonical route and feature requirements. Keep any returned-order edit-and-resubmit workflow blocked until an authorized atomic P2 amendment command exists; do not imitate it with generic cart submission.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-050 — CUSTOMER QUOTE PIPELINE MOUNT
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
