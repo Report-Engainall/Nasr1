@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { Login } from "@/components/Login";
@@ -68,7 +69,42 @@ export function CustomerReturnsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [printRecord, setPrintRecord] = useState<{ order: CustomerOrderRow; request: CustomerReturnRequestRecord; customerName: string } | null>(null);
   const requestGeneration = useRef(0);
+
+  useEffect(() => {
+    if (!printRecord || typeof window === "undefined" || typeof document === "undefined" ||
+        typeof window.print !== "function") return;
+    const body = document.body;
+    const previousMode = body.getAttribute("data-print-mode");
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute("data-print-mode");
+      else body.setAttribute("data-print-mode", previousMode);
+      window.removeEventListener("afterprint", restore);
+      setPrintRecord(null);
+    };
+    body.setAttribute("data-print-mode", "customer-return-request");
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => {
+      try {
+        window.print();
+      } catch {
+        setError("تعذر فتح نافذة طباعة طلب الإرجاع.");
+        restore();
+      }
+    }, 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", restore);
+      if (!restored && body.getAttribute("data-print-mode") === "customer-return-request") {
+        if (previousMode === null) body.removeAttribute("data-print-mode");
+        else body.setAttribute("data-print-mode", previousMode);
+      }
+    };
+  }, [printRecord]);
 
   const load = useCallback(async () => {
     const generation = ++requestGeneration.current;
@@ -241,7 +277,15 @@ export function CustomerReturnsPage() {
                   ))}</tbody>
                 </table>
               </div>
-              <footer className="mt-3 flex justify-end">
+              <footer className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={printRecord !== null}
+                  onClick={() => setPrintRecord({ order, request, customerName: user.name })}
+                >
+                  طباعة / حفظ PDF
+                </button>
                 <a href={"/orders/"+order.id} className="inline-flex items-center gap-2 text-sm text-primary hover:underline">فتح الطلب الأصلي <ArrowLeft size={15}/></a>
               </footer>
             </article>
@@ -261,6 +305,51 @@ export function CustomerReturnsPage() {
       <p className="mt-4 text-xs leading-6 text-muted-foreground">
         تُفحص طلباتك بصفحات من 20 طلباً. عدد طلبات الإرجاع المعروض يخص الطلبات في الصفحة الحالية فقط، وليس إجمالي سجل المؤسسة أو كل الصفحات غير المحمّلة.
       </p>
+      {printRecord && typeof document !== "undefined" ? createPortal(
+        <div className="customer-return-print-root" dir="rtl">
+          <style>{`@media print {
+            @page { size: A4; margin: 12mm; }
+            body * { visibility: hidden !important; }
+            .customer-return-print-area, .customer-return-print-area * { visibility: visible !important; }
+            .customer-return-print-area {
+              position: absolute !important; top: 0 !important; right: 0 !important;
+              left: 0 !important; width: auto !important; max-width: none !important;
+              margin: 0 !important; padding: 0 !important; border: 0 !important;
+              box-shadow: none !important; background: #fff !important;
+            }
+          }`}</style>
+          <article className="customer-return-print-area mx-auto w-full max-w-4xl bg-white p-6 text-slate-900" dir="rtl">
+            <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-teal-700 pb-4">
+              <div><h1 className="text-2xl font-bold text-teal-800">الأغبري</h1><p className="mt-1 text-xs text-slate-600">شركة الأغبري للمواد الغذائية — صنعاء، اليمن</p></div>
+              <div className="text-left"><strong>طلب إرجاع عميل</strong><p className="mt-1 text-sm">{printRecord.request.request_number}</p><p className="text-xs">{formatDate(printRecord.request.created_at)}</p></div>
+            </header>
+            <section className="mt-5 grid gap-2 text-sm sm:grid-cols-2">
+              <p><span className="text-slate-500">العميل: </span><strong>{printRecord.customerName || "حساب العميل"}</strong></p>
+              <p><span className="text-slate-500">الطلب الأصلي: </span><strong>{printRecord.order.order_number}</strong></p>
+              <p><span className="text-slate-500">حالة طلب الإرجاع: </span><strong>{statusLabels[printRecord.request.status] ?? printRecord.request.status}</strong></p>
+              <p><span className="text-slate-500">سبب الإرجاع: </span><strong>{reasonLabels[printRecord.request.reason] ?? printRecord.request.reason}</strong></p>
+            </section>
+            <section className="mt-5">
+              <h2 className="mb-2 font-bold">الأصناف المطلوب إرجاعها</h2>
+              <table className="w-full border-collapse text-sm">
+                <thead><tr className="border-y bg-slate-50 text-right"><th className="p-2">الصنف</th><th className="p-2">الرمز</th><th className="p-2">الكمية</th><th className="p-2">الوحدة</th></tr></thead>
+                <tbody>{printRecord.request.items.map((item,index) => (
+                  <tr key={item.order_item_id+"-"+index} className="border-b">
+                    <td className="p-2">{item.product_name}</td><td className="p-2">{item.item_code ?? "—"}</td>
+                    <td className="p-2">{formatNumber(item.requested_quantity)}</td><td className="p-2">{item.unit ?? "—"}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </section>
+            {printRecord.request.notes ? <section className="mt-4"><h2 className="font-bold">ملاحظة العميل</h2><p className="mt-1 whitespace-pre-wrap text-sm">{printRecord.request.notes}</p></section> : null}
+            {printRecord.request.review_note ? <section className="mt-4 rounded-lg border p-3"><h2 className="font-bold">رد المراجعة المحفوظ</h2><p className="mt-1 whitespace-pre-wrap text-sm">{printRecord.request.review_note}</p></section> : null}
+            <footer className="mt-8 border-t pt-3 text-xs leading-6 text-slate-600">
+              هذا المستند يثبت بيانات طلب الإرجاع المسجلة في النظام فقط. لا يثبت استلام الأصناف أو قبولها نهائياً، ولا يمثل إشعاراً دائناً أو عملية رد مبلغ.
+            </footer>
+          </article>
+        </div>,
+        document.body,
+      ) : null}
     </main>
   );
 }
