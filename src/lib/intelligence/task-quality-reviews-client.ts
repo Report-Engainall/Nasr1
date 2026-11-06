@@ -74,15 +74,22 @@ export async function recordOperationalTaskQualityReview(input:RecordTaskQuality
   if(input.reasonCode)review.reasonCode=input.reasonCode;
   if(input.reasonNote?.trim())review.reasonNote=input.reasonNote.trim();
   if(input.decisionOutcomeId)review.decisionOutcomeId=input.decisionOutcomeId;
+  const eventId=input.eventId??crypto.randomUUID();
+  const idempotencyKey=input.idempotencyKey??crypto.randomUUID();
   const {data,error}=await supabase.rpc("record_operational_task_quality_review",{
    p_task_id:input.taskId,p_expected_task_updated_at:input.taskUpdatedAt,p_review_type:input.reviewType,
-   p_review:review,p_event_id:input.eventId??crypto.randomUUID(),p_idempotency_key:input.idempotencyKey??crypto.randomUUID(),
+   p_review:review,p_event_id:eventId,p_idempotency_key:idempotencyKey,
   });
   if(error)return failure(error);
   const result=asRow(data),event=asRow(result?.event);
   if(!result||result.ok!==true||typeof result.duplicate!=="boolean"||!event||
     typeof event.id!=="string"||!UUID.test(event.id)||event.taskId!==input.taskId||
-    event.reviewType!==input.reviewType||typeof event.eventId!=="string"||
+    event.reviewType!==input.reviewType||event.eventId!==eventId||
+    event.actionability!==(input.actionability??null)||
+    event.disposition!==(input.disposition??null)||
+    event.alertVerdict!==(input.alertVerdict??null)||
+    event.reasonCode!==(input.reasonCode??null)||
+    (event.decisionOutcomeId??null)!==(input.decisionOutcomeId??null)||
     !Number.isFinite(Date.parse(String(event.createdAt)))||
     (event.decisionOutcomeId!==null&&event.decisionOutcomeId!==undefined&&
       (typeof event.decisionOutcomeId!=="string"||!UUID.test(event.decisionOutcomeId)))){

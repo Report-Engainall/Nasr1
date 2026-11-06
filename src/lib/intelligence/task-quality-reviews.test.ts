@@ -18,7 +18,7 @@ const fixture=()=>({
   reviewedCount:2,truePositiveCount:1,falsePositiveCount:1,needsReviewCount:0,
   falseAlarmDenominator:2,falseAlarmRatePercent:50,
  },
- causeReviewCount:2,
+ causeReviewCount:4,
  repeatedCauses:[{reasonCode:"THRESHOLD_NOT_MET",affectedTaskCount:2,reviewCount:2}],
 });
 

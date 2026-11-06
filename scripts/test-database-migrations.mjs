@@ -5448,6 +5448,8 @@ async function main() {
   assert.equal(qualityMetrics.alerts.falseAlarmDenominator, 2);
   assert.equal(qualityMetrics.alerts.falseAlarmRatePercent, 100,
     "false-alarm rate uses false positives/(true positives+false positives), excluding needs-review");
+  assert.equal(qualityMetrics.causeReviewCount, 5,
+    "negative reason sample reconciles non-actionable, rejected, deferred and false-positive reviews");
   assert.ok(qualityMetrics.repeatedCauses.some((cause) =>
     cause.reasonCode === "THRESHOLD_NOT_MET" && cause.affectedTaskCount === 2),
     "repeated causes require the same reason across distinct reviewed tasks");
@@ -5508,6 +5510,8 @@ async function main() {
     "wrapper removes actionability metric from unavailable only when a valid denominator exists");
   assert.ok(!combinedQualityRows[0].result.unavailableMetrics.includes("FALSE_ALARM_RATE"),
     "wrapper removes false-alarm metric from unavailable only when reviewed true/false verdicts exist");
+  assert.ok(!combinedQualityRows[0].result.unavailableMetrics.includes("REPEATED_CAUSE_RATE"),
+    "wrapper marks repeated causes available only after a negative reason sample exists");
 
   const accountantManual = await db.unsafe(
     "select public.create_operational_task($1::text,$2::text,$3::text,$4::text,$5::timestamptz,$6::uuid) as id",
