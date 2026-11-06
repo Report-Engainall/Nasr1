@@ -49,6 +49,8 @@ export function renderPurchaseReceiptPrintHtml(receipt: PurchaseReceiptPrintDocu
       <td>${escapeHtml(item.product_name)}</td>
       <td>${escapeHtml(item.unit ?? "—")}</td>
       <td class="number">${escapeHtml(formatQuantity(item.quantity_received))}</td>
+      <td>${escapeHtml(item.batch_number ?? "غير مسجل")}</td>
+      <td>${escapeHtml(item.expiry_date ?? "غير مسجل")}</td>
       ${costs ? `<td class="number">${escapeHtml(formatMoney(item.unit_cost!, receipt.currency))}</td>
       <td class="number">${escapeHtml(formatMoney(item.line_total!, receipt.currency))}</td>` : ""}
     </tr>`).join("");
@@ -92,7 +94,7 @@ export function renderPurchaseReceiptPrintHtml(receipt: PurchaseReceiptPrintDocu
     </section>
     <table>
       <thead><tr>
-        <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>الكمية المستلمة بهذه الدفعة</th>
+        <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>الكمية المستلمة بهذه الدفعة</th><th>رقم الدفعة</th><th>تاريخ الانتهاء</th>
         ${costs ? "<th>تكلفة الوحدة</th><th>إجمالي البند</th>" : ""}
       </tr></thead>
       <tbody>${itemRows}</tbody>
@@ -170,9 +172,23 @@ export function PurchaseReceiptPrintActions({ purchaseOrderId }: { purchaseOrder
       {!loading && !error && history?.receipts.length === 0 && <p>لا توجد إيصالات استلام محفوظة لهذا الأمر.</p>}
       {!loading && history?.receipts.map((receipt) => (
         <article key={receipt.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
-          <div>
+          <div style={{ flex: "1 1 280px" }}>
             <strong>{receipt.receipt_number}</strong>
             <SavedReceiptMeta receivedAt={receipt.received_at} itemCount={receipt.item_count} />
+            {receipt.items.length > 0 ? (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: "pointer", fontSize: 12 }}>عرض دفعات الأصناف وتواريخ الانتهاء</summary>
+                <ul style={{ margin: "6px 0", paddingInlineStart: 20, fontSize: 12 }}>
+                  {receipt.items.map((item, index) => (
+                    <li key={item.item_code + ":" + index}>
+                      {item.product_name} — {formatQuantity(item.quantity_received)} {item.unit ?? ""}
+                      {" · الدفعة: " + (item.batch_number ?? "غير مسجلة")}
+                      {" · الانتهاء: " + (item.expiry_date ?? "غير مسجل")}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : <small style={{ display: "block", color: "var(--muted-foreground)" }}>تفاصيل الدفعة غير متاحة في هذا السجل القديم.</small>}
           </div>
           <button type="button" className="btn outline" onClick={() => void printSavedReceipt(receipt.id)} disabled={busyReceiptId !== null}>
             <Printer size={15} /> {busyReceiptId === receipt.id ? "جار تجهيز الإيصال…" : "طباعة الإيصال"}
