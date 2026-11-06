@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   createDefaultPersonalizationPreferences,
+  type ExternalChannelConsent,
   type PersonalizationPreferences,
 } from "@/lib/intelligence/personalization-governance";
 import {
@@ -101,8 +102,8 @@ describe("PersonalizationPrivacyPanel", () => {
   });
 
   it("revokes only the selected active channel consent after explicit confirmation", async () => {
-    const preferences = { ...initialPreferences(), notificationChannels: ["IN_APP", "EMAIL"] as const };
-    const consent = {
+    const preferences: PersonalizationPreferences = { ...initialPreferences(), notificationChannels: ["IN_APP", "EMAIL"] };
+    const consent: ExternalChannelConsent = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       organizationId: "org-a",
       profileId: "profile-a",
@@ -110,7 +111,7 @@ describe("PersonalizationPrivacyPanel", () => {
       destinationId: "account-email-id",
       destinationLabel: "nasr@example.test",
       purpose: "order_updates",
-      dataClasses: ["GENERAL"] as const,
+      dataClasses: ["GENERAL"],
       grantedAt: "2026-11-06T19:30:00.000Z",
       revokedAt: null,
       consentVersion: "consent-v1",

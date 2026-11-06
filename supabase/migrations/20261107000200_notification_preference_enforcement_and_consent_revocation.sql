@@ -57,7 +57,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  v_severity := CASE pg_catalog.lower(pg_catalog.coalesce(NEW.type,''))
+  v_severity := CASE pg_catalog.lower(coalesce(NEW.type,''))
     WHEN 'critical' THEN 'CRITICAL'
     WHEN 'security' THEN 'CRITICAL'
     WHEN 'warning' THEN 'HIGH'
@@ -80,7 +80,7 @@ BEGIN
       v_reason := 'PREFERENCES_INVALID';
     ELSE
       v_local_time := (
-        pg_catalog.coalesce(NEW.created_at,clock_timestamp()) AT TIME ZONE v_timezone
+        coalesce(NEW.created_at,clock_timestamp()) AT TIME ZONE v_timezone
       )::time;
       IF v_preferences.quiet_hours_start<v_preferences.quiet_hours_end THEN
         IF v_local_time>=v_preferences.quiet_hours_start
@@ -100,7 +100,7 @@ BEGIN
     )
     VALUES(
       NEW.id::text,NEW.organization_id,NEW.profile_id,
-      pg_catalog.left(pg_catalog.coalesce(NEW.type,'unknown'),80),
+      pg_catalog.left(coalesce(NEW.type,'unknown'),80),
       v_severity,v_reason
     )
     ON CONFLICT(notification_id) DO NOTHING;
