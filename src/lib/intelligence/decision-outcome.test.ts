@@ -66,4 +66,17 @@ describe("decision outcome transitions",()=>{
   const result=step(executable(),event("MEASURE",40,{measuredOutcome:measured({value:0})}));
   expect(result).toMatchObject({ok:true,outcome:{state:"MEASURED",measuredOutcome:{value:0,status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",formulaId:"orders.completed.count",formulaVersion:"1.0.0",evidenceIds:["actual-1"]}}});
  });
+ it("records a reasoned deferral and prevents an implicit return to review",()=>{
+  const review=step(initial(),event("SUBMIT_FOR_REVIEW",1));
+  if(!review.ok)throw new Error("submit failed");
+  const deferred=step(review.outcome,event("DEFER",2,{reason:"البيانات التشغيلية غير مكتملة"}));
+  expect(deferred).toMatchObject({ok:true,duplicate:false,outcome:{state:"DEFERRED",version:3,reason:"البيانات التشغيلية غير مكتملة"}});
+  if(!deferred.ok)throw new Error("deferral failed");
+  expect(step(deferred.outcome,event("SUBMIT_FOR_REVIEW",3))).toMatchObject({ok:false,reason:"INVALID_TRANSITION"});
+ });
+ it("requires a reason to defer a reviewed decision",()=>{
+  const review=step(initial(),event("SUBMIT_FOR_REVIEW",1));
+  if(!review.ok)throw new Error("submit failed");
+  expect(step(review.outcome,event("DEFER",2))).toMatchObject({ok:false,reason:"MISSING_REASON"});
+ });
 });
