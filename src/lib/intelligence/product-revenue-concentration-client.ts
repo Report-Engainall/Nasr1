@@ -125,7 +125,7 @@ export async function fetchProductRevenueConcentration(input: {
       const gross = amount(row.grossInvoiceLineAmount);
       const net = nullableAmount(row.netInvoiceLineAmount);
       const top5 = nullableAmount(row.top5NetInvoiceLineAmount);
-      const percent = row.top5ConcentrationPercent === null ? null : amount(row.top5ConcentrationPercent);
+      const percent = nullableAmount(row.top5ConcentrationPercent);
       if (gross === null || net === undefined || top5 === undefined || percent === undefined ||
           (row.status === "VERIFIED" &&
             (row.unmappedLineCount !== 0 || row.invalidCreditLineCount !== 0 || row.invoicesWithoutLines !== 0 ||
