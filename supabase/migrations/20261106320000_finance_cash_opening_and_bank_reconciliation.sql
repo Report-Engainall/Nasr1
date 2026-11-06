@@ -933,7 +933,7 @@ BEGIN
   INTO v_accounts
   FROM public.purchase_supplier_payment_settlement_accounts m
   JOIN public.accounting_accounts a ON a.id=m.accounting_account_id AND a.organization_id=m.organization_id
-  WHERE m.organization_id=v_org AND a.is_active;
+  WHERE m.organization_id=v_org AND m.is_active AND a.is_active;
 
   SELECT coalesce(jsonb_agg(jsonb_build_object(
     'id',e.id,'mapping_id',e.settlement_account_mapping_id,'evidence_kind',e.evidence_kind,
