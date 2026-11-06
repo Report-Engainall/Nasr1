@@ -338,7 +338,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"لقطة حالية لمراجعات المدير المحفوظة عبر نطاق المهام المصرح به؛ أحدث مراجعة لكل كيان ونوع. تعرض أسباب رفض/تأجيل التوصيات والإنذارات الكاذبة والأسباب المتكررة بعد المراجعة، ولا تدعم فترة تاريخية أو توزيعاً حسب الدور."
   };
  }
- const shiftOperationsQuestion=/(مركز الورديه|مركز اقفال اليوم|مركز اقفال الورديه|بدء الورديه|استلام الورديه|تسليم الورديه|جاهزيه الافتتاح|جاهزيه الاغلاق|جاهزيه اقفال الورديه|الاقفال التشغيلي|تقرير الورديه)/.test(normalizedQuestion);
+ const shiftOperationsQuestion=/(مركز الورديه|مركز اقفال اليوم|مركز اقفال الورديه|حاله الورديه|حاله التسليم|محضر التسليم|جاهزيه الافتتاح|جاهزيه الاغلاق|جاهزيه اقفال الورديه|الاقفال التشغيلي|تقرير الورديه)/.test(normalizedQuestion);
  if(shiftOperationsQuestion){
   const dates=[...normalizedQuestion.matchAll(/\d{4}-\d{2}-\d{2}/g)].map(match=>match[0]);
   const uniqueDates=[...new Set(dates)];

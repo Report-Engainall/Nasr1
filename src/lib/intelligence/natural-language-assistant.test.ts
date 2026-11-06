@@ -194,6 +194,16 @@ describe("shift operations assistant intent", () => {
     });
   });
 
+  it("does not turn shift-opening, handover or cash-count commands into read-only success", () => {
+    for (const command of [
+      "ابدأ الوردية بتاريخ 2026-11-06",
+      "استلم تسليم الوردية",
+      "سجل عد الصندوق",
+    ]) {
+      expect(planNaturalLanguageQuery(command)).toMatchObject({ status: "UNSUPPORTED" });
+    }
+  });
+
   it("does not invent a business date from a relative user-local expression", () => {
     expect(planNaturalLanguageQuery("مركز إقفال اليوم")).toMatchObject({
       status: "CLARIFICATION",
