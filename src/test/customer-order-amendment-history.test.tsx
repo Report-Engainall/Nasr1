@@ -84,8 +84,8 @@ describe("customer order amendment history UI", () => {
     expect(screen.getByText(/يرجى تقليل كمية السكر/)).toBeInTheDocument();
     expect(screen.getByText(/راجعها:.*مدير الاختبار/)).toBeInTheDocument();
     expect(screen.getAllByText("سكر أبيض")).toHaveLength(2);
-    expect(screen.getByText("تم تحديث الكمية")).toBeInTheDocument();
-    expect(screen.getByText("أُعيد تقديم التعديل إلى الإدارة — بانتظار المراجعة")).toBeInTheDocument();
+    expect(screen.getByText(/ملاحظة العميل: تم تحديث الكمية/)).toBeInTheDocument();
+    expect(screen.getByText(/حالة الطلب: أُعيد تقديم التعديل إلى الإدارة/)).toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("list_customer_order_amendment_history", { p_order_id: orderId });
   });
 
