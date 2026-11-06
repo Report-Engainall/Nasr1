@@ -1978,3 +1978,19 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 ### P3 next action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-007`: continue only a remaining independent P3-owned source-backed Section 53–63 requirement; preserve the comparison/page/tenant scope and do not add a parallel reconciliation writer.
+
+
+## P3 LIVE EXECUTION OVERRIDE — 2026-11-06 — PROCESS COMPARABLE WINDOWS
+
+- Main SHA at cursor update: `0e1d7e09a7f23062190e3051629e3de726ecbc94`.
+- P3 Section 54 leaf: `REF-PROCESS-COMPARABLE-WINDOWS-001`.
+- `buildProcessBottlenecks()` now calculates before/after deltas only when the baseline is strictly earlier than the current window and both inclusive UTC periods have the same duration. Otherwise, current findings remain available but all period comparisons are withheld with a clear reason.
+- Code commit `043e1697489b8d6ecc1af7a8c64bb7898f53b823`, final engine blob `597ac5476df3b9be0f04b4ba06317df9db1b9431`. Tests authored at `src/lib/intelligence/process-bottlenecks.test.ts`, commit `a8a3b0c2923eba508723d3cfc984f20a1eca4317`, blob `111bf261a0727e1354c1fdb3090ca235d5873855`; not run.
+- Existing matrix row `INT-PROCESS-001` updated at `780f1ea0622972e4e622e397bda4e2ca11eec44f`; P3 checkpoint `0e1d7e09a7f23062190e3051629e3de726ecbc94`.
+- No P1/P2-owned paths, DB migrations, queries or routes changed. No employee/causal attribution was added.
+- No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was performed; no PASS/runtime claim.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### P3 next action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-008`: proceed to another independent, source-backed Section 53–63 requirement; preserve the equal-period comparison guard.
