@@ -7,6 +7,7 @@ import {
 import type { DecisionMemoryMetricResult } from "@/lib/intelligence/decision-memory";
 import {
   commandDecisionOutcome,
+  deferDecisionOutcome,
   type DecisionOutcomeEventType,
   type DecisionOutcomeState,
 } from "@/lib/intelligence/decision-outcome-client";
@@ -33,6 +34,7 @@ const labels: Partial<Record<DecisionOutcomeEventType, string>> = {
   SUBMIT_FOR_REVIEW: "إرسال للمراجعة",
   APPROVE: "اعتماد القرار",
   REJECT: "رفض القرار",
+  DEFER: "تأجيل القرار مع حفظ السبب",
   ASSIGN: "تثبيت المسؤول المعتمد",
   START_EXECUTION: "بدء التنفيذ",
   COMPLETE_EXECUTION: "تسجيل اكتمال التنفيذ",
@@ -40,7 +42,7 @@ const labels: Partial<Record<DecisionOutcomeEventType, string>> = {
 
 function allowedEvents(state: DecisionOutcomeState, ownerProfileId: string | null): DecisionOutcomeEventType[] {
   if (state === "PROPOSED") return ["SUBMIT_FOR_REVIEW"];
-  if (state === "IN_REVIEW") return ["APPROVE", "REJECT"];
+  if (state === "IN_REVIEW") return ["APPROVE", "REJECT", "DEFER"];
   if (state === "APPROVED") return ownerProfileId ? ["ASSIGN"] : [];
   if (state === "ASSIGNED") return ["START_EXECUTION"];
   if (state === "EXECUTING") return ["COMPLETE_EXECUTION"];
@@ -179,16 +181,24 @@ export function DecisionOutcomeLifecycleControls({
     setFeedback("");
     setFeedbackError(false);
     try {
-      const result = await commandDecisionOutcome({
-        outcomeId,
-        expectedVersion: command.expectedVersion,
-        eventType: command.eventType,
-        reason: command.reason,
-        ...(command.eventType === "ASSIGN" && ownerProfileId ? { ownerProfileId } : {}),
-        eventId: command.eventId,
-        idempotencyKey: command.idempotencyKey,
-        ...(command.measuredOutcome ? { measuredOutcome: command.measuredOutcome } : {}),
-      });
+      const result = command.eventType === "DEFER"
+        ? await deferDecisionOutcome({
+            outcomeId,
+            expectedVersion: command.expectedVersion,
+            reason: command.reason,
+            eventId: command.eventId,
+            idempotencyKey: command.idempotencyKey,
+          })
+        : await commandDecisionOutcome({
+            outcomeId,
+            expectedVersion: command.expectedVersion,
+            eventType: command.eventType,
+            reason: command.reason,
+            ...(command.eventType === "ASSIGN" && ownerProfileId ? { ownerProfileId } : {}),
+            eventId: command.eventId,
+            idempotencyKey: command.idempotencyKey,
+            ...(command.measuredOutcome ? { measuredOutcome: command.measuredOutcome } : {}),
+          });
       if (result.ok) {
         setPending(null);
         setReason("");
@@ -297,6 +307,8 @@ export function DecisionOutcomeLifecycleControls({
         <p className="text-sm text-muted-foreground">اكتملت دورة القرار والقياس مسجل من مصدره. أي تصحيح لاحق يجب أن يبقى إلحاقياً في دفتر الذاكرة.</p>
       ) : state === "REJECTED" ? (
         <p className="text-sm text-muted-foreground">أُغلق القرار بالرفض؛ لا تتاح إعادة تشغيله أو تجاوز سجل الرفض من هذه البطاقة.</p>
+      ) : state === "DEFERRED" ? (
+        <p className="text-sm text-muted-foreground">تم تأجيل القرار مع حفظ السبب في سجل التدقيق؛ لا يُعاد إلى المراجعة تلقائياً.</p>
       ) : (
         <p className="text-sm text-muted-foreground">لا يوجد انتقال متاح لهذا الإصدار من القرار.</p>
       )}
