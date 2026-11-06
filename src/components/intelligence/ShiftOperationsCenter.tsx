@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth";
 import {
   acceptOperationalShiftHandover,
   captureOperationalShiftSnapshot,
+  startOperationalShift,
   fetchOperationalShiftHandoverAcceptance,
   recordOperationalShiftCashCount,
   recordOperationalShiftHandover,
@@ -155,6 +156,9 @@ export function ShiftOperationsCenter({
   const isOutgoingOwner = Boolean(user?.profileId && result?.handover.outgoingOwnerProfileId === user.profileId);
   const isIncomingOwner = Boolean(user?.profileId && result?.handover.incomingOwnerProfileId === user.profileId);
   const [commandBusy,setCommandBusy] = useState<string|null>(null);
+  const [startShiftKey,setStartShiftKey] = useState<string|null>(null);
+  const [startShiftLabel,setStartShiftLabel] = useState("");
+  const [startShiftDate,setStartShiftDate] = useState(result?.businessDate??"");
   const [cashCountKey,setCashCountKey] = useState<string|null>(null);
   const [handoverRecordKey,setHandoverRecordKey] = useState<string|null>(null);
   const [handoverAcceptKey,setHandoverAcceptKey] = useState<string|null>(null);
@@ -176,6 +180,9 @@ export function ShiftOperationsCenter({
   useEffect(()=>{
     setCommandError(null);
     setCommandNotice(null);
+    setStartShiftKey(null);
+    setStartShiftLabel("");
+    setStartShiftDate(result?.businessDate??"");
     setCashCountKey(null);
     setHandoverRecordKey(null);
     setHandoverAcceptKey(null);
@@ -213,6 +220,33 @@ export function ShiftOperationsCenter({
     });
     return ()=>{active=false;};
   },[result?.shiftId,result?.handover.recordedAt,result?.handover.acceptedAt,isIncomingOwner]);
+
+  async function startNextShift(event: FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!result || commandBusy)return;
+    if(startShiftLabel.trim().length<2 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(startShiftDate)){
+      setCommandError("أدخل اسم وردية صالحاً وتاريخ عمل صحيحاً.");
+      return;
+    }
+    const idempotencyKey=startShiftKey??crypto.randomUUID();
+    if(!startShiftKey)setStartShiftKey(idempotencyKey);
+    setCommandBusy("start-shift");
+    setCommandError(null);
+    setCommandNotice(null);
+    try{
+      const response=await startOperationalShift({
+        businessDate:startShiftDate,shiftLabel:startShiftLabel.trim(),
+        timeZone:result.organizationTimeZone,previousShiftId:result.shiftId,idempotencyKey,
+      });
+      if(!response.ok){setCommandError(response.message);return;}
+      setStartShiftKey(null);
+      setCommandNotice("أكد الخادم بدء الوردية الجديدة "+response.data.shiftLabel+
+        " وربطها بالوردية السابقة. أعد تحميل المركز لعرض سجل الوردية الجديدة.");
+      onRetry?.();
+    }catch{
+      setCommandError("تعذر بدء الوردية؛ لم يُعرض نجاح محلي.");
+    }finally{setCommandBusy(null);}
+  }
 
   async function saveCashCount(event: FormEvent<HTMLFormElement>){
     event.preventDefault();
@@ -356,6 +390,30 @@ export function ShiftOperationsCenter({
         <p className="mt-1 text-xs">{result.financialClose.statement}</p>
       </article>
     </div>
+    {canCaptureSnapshot?<section className="space-y-3 rounded-xl border p-3 print:hidden">
+      <div>
+        <h3 className="font-semibold">بدء وردية تالية</h3>
+        <p className="text-xs text-muted-foreground">تُنشأ وردية جديدة مرتبطة بهذه الوردية وبالمنطقة الزمنية المعتمدة ({result.organizationTimeZone}). لا يغلق هذا الإجراء الوردية الحالية، ولا يسجل عدّاً نقدياً أو إقفالاً مالياً.</p>
+      </div>
+      <form onSubmit={event=>void startNextShift(event)} className="grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1 text-sm">اسم الوردية
+          <input required minLength={2} maxLength={80} value={startShiftLabel}
+            onChange={event=>{setStartShiftKey(null);setStartShiftLabel(event.target.value);}}
+            className="rounded-lg border bg-background p-2" placeholder="مثال: الوردية المسائية"/>
+        </label>
+        <label className="grid gap-1 text-sm">تاريخ العمل
+          <input required type="date" value={startShiftDate}
+            onChange={event=>{setStartShiftKey(null);setStartShiftDate(event.target.value);}}
+            className="rounded-lg border bg-background p-2"/>
+        </label>
+        <div className="sm:col-span-2">
+          <button type="submit" disabled={commandBusy!==null||startShiftLabel.trim().length<2||!startShiftDate}
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+            {commandBusy==="start-shift"?"جارٍ بدء الوردية…":"بدء الوردية وربطها بالسابق"}
+          </button>
+        </div>
+      </form>
+    </section>:null}
     <section className="space-y-2">
       <h3 className="font-semibold">بدء الوردية واستلام العهدة</h3>
       <div className="grid gap-2 xl:grid-cols-2">{result.openingChecks.map(item=><CheckCard key={item.id} item={item}/>)}</div>
