@@ -155,6 +155,10 @@ export function ShiftOperationsCenter({
   const isOutgoingOwner = Boolean(user?.profileId && result?.handover.outgoingOwnerProfileId === user.profileId);
   const isIncomingOwner = Boolean(user?.profileId && result?.handover.incomingOwnerProfileId === user.profileId);
   const [commandBusy,setCommandBusy] = useState<string|null>(null);
+  const [cashCountKey,setCashCountKey] = useState<string|null>(null);
+  const [handoverRecordKey,setHandoverRecordKey] = useState<string|null>(null);
+  const [handoverAcceptKey,setHandoverAcceptKey] = useState<string|null>(null);
+  const [snapshotKeys,setSnapshotKeys] = useState<{OPENING:string|null;CLOSEOUT:string|null}>({OPENING:null,CLOSEOUT:null});
   const [commandError,setCommandError] = useState<string|null>(null);
   const [commandNotice,setCommandNotice] = useState<string|null>(null);
   const [cashPhase,setCashPhase] = useState<"OPENING"|"CLOSING">("OPENING");
@@ -172,6 +176,10 @@ export function ShiftOperationsCenter({
   useEffect(()=>{
     setCommandError(null);
     setCommandNotice(null);
+    setCashCountKey(null);
+    setHandoverRecordKey(null);
+    setHandoverAcceptKey(null);
+    setSnapshotKeys({OPENING:null,CLOSEOUT:null});
     setHandoverLookup(null);
     setSelectedHandoverRefs([]);
     setHandoverReason("");
@@ -214,6 +222,8 @@ export function ShiftOperationsCenter({
       setCommandError("اختر عملة مسجلة وأدخل مبلغ العد الفعلي الصحيح.");
       return;
     }
+    const idempotencyKey=cashCountKey??crypto.randomUUID();
+    if(!cashCountKey)setCashCountKey(idempotencyKey);
     setCommandBusy("cash");
     setCommandError(null);
     setCommandNotice(null);
@@ -221,9 +231,10 @@ export function ShiftOperationsCenter({
       const response=await recordOperationalShiftCashCount({
         shiftId:result.shiftId,phase:cashPhase,currency:cashCurrency,
         countedAmount:parsedAmount,note:cashNote,
-        correctionReason:cashCorrectionReason,
+        correctionReason:cashCorrectionReason,idempotencyKey,
       });
       if(!response.ok){setCommandError(response.message);return;}
+      setCashCountKey(null);
       setCashAmount("");
       setCashNote("");
       setCashCorrectionReason("");
@@ -243,15 +254,18 @@ export function ShiftOperationsCenter({
       setCommandError("اكتب سبباً واضحاً من خمسة أحرف على الأقل، واختر حتى 200 مرجع مفتوح.");
       return;
     }
+    const idempotencyKey=handoverRecordKey??crypto.randomUUID();
+    if(!handoverRecordKey)setHandoverRecordKey(idempotencyKey);
     setCommandBusy("handover");
     setCommandError(null);
     setCommandNotice(null);
     try{
       const response=await recordOperationalShiftHandover({
         currentShiftId:result.shiftId,openItemRefs:refs,
-        reason:handoverReason.trim(),note:handoverNote.trim()||undefined,
+        reason:handoverReason.trim(),note:handoverNote.trim()||undefined,idempotencyKey,
       });
       if(!response.ok){setCommandError(response.message);return;}
+      setHandoverRecordKey(null);
       setCommandNotice("أكد الخادم تسجيل محضر التسليم. ينتظر قبول المستلم المعيّن.");
       onRetry?.();
     }catch{
@@ -261,13 +275,16 @@ export function ShiftOperationsCenter({
 
   async function acceptHandover(){
     if(!handoverLookup?.handoverId || commandBusy)return;
+    const idempotencyKey=handoverAcceptKey??crypto.randomUUID();
+    if(!handoverAcceptKey)setHandoverAcceptKey(idempotencyKey);
     setCommandBusy("accept-handover");
     setCommandError(null);
     setCommandNotice(null);
     try{
-      const response=await acceptOperationalShiftHandover(handoverLookup.handoverId);
+      const response=await acceptOperationalShiftHandover(handoverLookup.handoverId,idempotencyKey);
       if(!response.ok){setCommandError(response.message);return;}
-      setHandoverLookup({handoverId:response.data.handoverId??handoverLookup.handoverId,acceptedAt:response.data.acceptedAt??null});
+      setHandoverAcceptKey(null);
+      setHandoverLookup({handoverId:response.data.handoverId??handoverLookup.handoverId,acceptedAt:response.data.acceptedAt??new Date().toISOString()});
       setCommandNotice(response.data.idempotentReplay
         ?"التسليم مقبول مسبقاً؛ أكد الخادم أن إعادة الإرسال مطابقة."
         :"أكد الخادم قبولك للتسليم وسُجل الحدث في سجل الوردية.");
@@ -279,12 +296,15 @@ export function ShiftOperationsCenter({
 
   async function captureShiftSnapshot(snapshotKind:"OPENING"|"CLOSEOUT"){
     if(!result || commandBusy)return;
+    const idempotencyKey=snapshotKeys[snapshotKind]??crypto.randomUUID();
+    if(!snapshotKeys[snapshotKind])setSnapshotKeys(current=>({...current,[snapshotKind]:idempotencyKey}));
     setCommandBusy(snapshotKind);
     setCommandError(null);
     setCommandNotice(null);
     try{
-      const response=await captureOperationalShiftSnapshot({shiftId:result.shiftId,snapshotKind});
+      const response=await captureOperationalShiftSnapshot({shiftId:result.shiftId,snapshotKind,idempotencyKey});
       if(!response.ok){setCommandError(response.message);return;}
+      setSnapshotKeys(current=>({...current,[snapshotKind]:null}));
       setCommandNotice("أكد الخادم حفظ لقطة "+(snapshotKind==="OPENING"?"الافتتاح":"الإقفال التشغيلي")+
         " رقم "+String(response.data.version??1)+" بتاريخ "+String(response.data.recordedAt??"غير متاح")+".");
       onRetry?.();
@@ -368,11 +388,11 @@ export function ShiftOperationsCenter({
               <p className="text-xs text-muted-foreground">اختر المراجع المفتوحة التي ستنتقل للمستلم. يعيد الخادم التحقق من المؤسسة والحالة والصلاحية قبل الحفظ.</p>
               <label className="grid gap-1 text-sm">
                 سبب التسليم
-                <textarea required minLength={5} maxLength={500} rows={2} value={handoverReason} onChange={event=>setHandoverReason(event.target.value)} className="rounded-lg border bg-background p-2" />
+                <textarea required minLength={5} maxLength={500} rows={2} value={handoverReason} onChange={event=>{setHandoverRecordKey(null);setHandoverReason(event.target.value);}} className="rounded-lg border bg-background p-2" />
               </label>
               <label className="grid gap-1 text-sm">
                 ملاحظة للمستلم (اختياري)
-                <textarea maxLength={2000} rows={2} value={handoverNote} onChange={event=>setHandoverNote(event.target.value)} className="rounded-lg border bg-background p-2" />
+                <textarea maxLength={2000} rows={2} value={handoverNote} onChange={event=>{setHandoverRecordKey(null);setHandoverNote(event.target.value);}} className="rounded-lg border bg-background p-2" />
               </label>
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">العناصر المفتوحة التي ستُذكر في المحضر ({selectedHandoverRefs.length}/200)</legend>
@@ -382,8 +402,8 @@ export function ShiftOperationsCenter({
                       const selected=selectedHandoverRefs.includes(item.sourceRef);
                       return <label key={item.id} className="flex items-start gap-2 text-sm">
                         <input type="checkbox" checked={selected} disabled={!selected&&selectedHandoverRefs.length>=200}
-                          onChange={event=>setSelectedHandoverRefs(current=>event.target.checked
-                            ?[...current,item.sourceRef]:current.filter(ref=>ref!==item.sourceRef))}/>
+                          onChange={event=>{setHandoverRecordKey(null);setSelectedHandoverRefs(current=>event.target.checked
+                            ?[...current,item.sourceRef]:current.filter(ref=>ref!==item.sourceRef));}}/>
                         <span><span className="font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{sourceLabels[item.sourceKey]} · {itemLabels[item.state]}</span></span>
                       </label>;
                     })}
@@ -399,9 +419,9 @@ export function ShiftOperationsCenter({
             <div className="space-y-2 rounded-lg border p-3 print:hidden">
               <p className="text-sm font-semibold">مراجعة المستلم</p>
               {handoverLookupLoading?<p role="status" className="text-xs text-muted-foreground">جارٍ التحقق من مرجع التسليم لدى الخادم…</p>:
-                handoverLookup?.handoverId?<button type="button" disabled={commandBusy!==null} onClick={()=>void acceptHandover()} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                handoverLookup?.handoverId && !handoverLookup.acceptedAt?<button type="button" disabled={commandBusy!==null} onClick={()=>void acceptHandover()} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
                   {commandBusy==="accept-handover"?"جارٍ قبول التسليم…":"مراجعة المحضر وقبول الاستلام"}
-                </button>:
+                </button>:handoverLookup?.acceptedAt?<p role="status" className="text-sm">أكد الخادم قبول هذا المحضر في {handoverLookup.acceptedAt}.</p>:
                 <p className="text-xs text-muted-foreground">لم يعرض الخادم محضراً قابلاً للقبول لهذا الحساب؛ لا يمكن قبول التسليم من واجهة المستخدم دون مرجع موثق.</p>}
             </div>
           ):null}
@@ -414,23 +434,23 @@ export function ShiftOperationsCenter({
       {result.cashControls.length?(
         <form onSubmit={event=>void saveCashCount(event)} className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-sm">المرحلة
-            <select value={cashPhase} onChange={event=>setCashPhase(event.target.value as "OPENING"|"CLOSING")} className="rounded-lg border bg-background p-2">
+            <select value={cashPhase} onChange={event=>{setCashCountKey(null);setCashPhase(event.target.value as "OPENING"|"CLOSING");}} className="rounded-lg border bg-background p-2">
               <option value="OPENING">عد افتتاح الصندوق</option><option value="CLOSING">عد إقفال الصندوق</option>
             </select>
           </label>
           <label className="grid gap-1 text-sm">العملة
-            <select value={cashCurrency} onChange={event=>setCashCurrency(event.target.value)} className="rounded-lg border bg-background p-2" required>
+            <select value={cashCurrency} onChange={event=>{setCashCountKey(null);setCashCurrency(event.target.value);}} className="rounded-lg border bg-background p-2" required>
               {result.cashControls.map(item=><option key={item.currency} value={item.currency}>{item.currency}</option>)}
             </select>
           </label>
           <label className="grid gap-1 text-sm">المبلغ المعدود فعلياً
-            <input type="number" inputMode="decimal" min="0" step="0.01" required value={cashAmount} onChange={event=>setCashAmount(event.target.value)} className="rounded-lg border bg-background p-2" />
+            <input type="number" inputMode="decimal" min="0" step="0.01" required value={cashAmount} onChange={event=>{setCashCountKey(null);setCashAmount(event.target.value);}} className="rounded-lg border bg-background p-2" />
           </label>
           <label className="grid gap-1 text-sm">ملاحظة العد (اختياري)
-            <input maxLength={1000} value={cashNote} onChange={event=>setCashNote(event.target.value)} className="rounded-lg border bg-background p-2" />
+            <input maxLength={1000} value={cashNote} onChange={event=>{setCashCountKey(null);setCashNote(event.target.value);}} className="rounded-lg border bg-background p-2" />
           </label>
           <label className="grid gap-1 text-sm sm:col-span-2">سبب التصحيح عند إعادة العد (إن وجد)
-            <input maxLength={500} value={cashCorrectionReason} onChange={event=>setCashCorrectionReason(event.target.value)} className="rounded-lg border bg-background p-2" />
+            <input maxLength={500} value={cashCorrectionReason} onChange={event=>{setCashCountKey(null);setCashCorrectionReason(event.target.value);}} className="rounded-lg border bg-background p-2" />
           </label>
           <div className="sm:col-span-2">
             <button type="submit" disabled={commandBusy!==null||!cashAmount.trim()||!cashCurrency} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
