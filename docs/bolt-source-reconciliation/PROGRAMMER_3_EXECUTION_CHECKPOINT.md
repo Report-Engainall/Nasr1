@@ -363,3 +363,40 @@ Documentation commits:
 - Source-specific clients continue to preserve their own denial/unavailable messages when they return typed failures.
 - Status: `IMPLEMENTED_ON_MAIN`; no tests/build/lint/typecheck/CI/runtime action was performed.
 
+
+
+## P3 incremental product-body checkpoint — Arabic Business Health assistant — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commits:** `3cde36503c7e7b8de406755de81c4cee25c7203d`, `a66abc8475f0b0faf722218a9128051081855210`  
+**Parent before code batch:** `6ea507597d0da44c3ddd2a93d4c31d0b4fc439e7`
+
+### Delivered on main
+
+- Added the allow-listed Arabic assistant intent `BUSINESS_HEALTH_OVERVIEW` for خريطة صحة الأعمال، صحة الأعمال، رأس المال المحجوز، and the financial/operational health overview.
+- Added `fetchBusinessHealthAssistantSummary()` as a read-only composition over the existing authenticated clients:
+  - `get_inventory_intelligence_aggregate` for the complete 92-day stock population.
+  - `get_intelligence_aggregate` for the 90-day cashflow schedule and the existing verified receivables measurement.
+  - `get_customer_retention_aggregate` for the 90-day customer-retention report.
+- All three requests share one client-captured `asOf`; no client tenant, organization, user or role override is sent. The implementation reuses `buildDeadStockReport`, `buildReplenishmentRecommendations`, `buildCashflowForecast`, `buildLiquiditySnapshot`, and `buildBusinessHealthMap`; it does not create a parallel health calculator, SQL query, RPC, or AI-provider call.
+- The liquidity composition deliberately leaves bank/cash opening balance and due obligations null when no source supplies them. Consequently net available liquidity and projected cash balances remain withheld; collection balances are not misrepresented as bank receipts.
+- Inventory denial stops the composite read. A denial from either cashflow or retention also returns DENIED; unavailable non-inventory sources produce an explicitly PARTIAL map with source-specific messages. There is no zero-fill fallback.
+- The existing `BusinessHealthMap` component is reused inside the existing Arabic assistant only for a matching question. `IntelligenceWorkspace.tsx`, `AghbariApp.tsx`, routes, migrations and P1-owned files were not modified.
+- Currency positions remain separate; no total capital-at-risk, DSO, DPO, CCC, product-revenue concentration or supplier-revenue concentration is inferred.
+
+### Exact changed files
+
+- `src/lib/intelligence/business-health-assistant-client.ts` (new)
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+
+### Acceptance boundary and remaining dependencies
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- The implementation has not been run against the not-yet-imported Bolt workspace or its connected database. RPC availability, role-denial behavior, exact source snapshot reconciliation and visible component behavior remain for Bolt's non-production E2E acceptance after import and database connection.
+- No tests, build, lint, typecheck, CI, browser, migration, Bolt, Preview, Vercel or production operation was run in this product-body batch. No PASS, runtime proof or production readiness is claimed.
+- Business Health's existing evidence gaps remain intentionally open: bank opening balances, due obligations, complete cash opening position and the source inputs for DSO/DPO/CCC and product/supplier revenue concentration. The composite assistant does not close these upstream data gaps.
+- Growth Radar's quote conversion/product demand evidence gaps and Section 52's non-cash comparable operational baselines remain withheld until exact tenant-scoped source DTOs and formulas exist. Section 56 still needs the P1 workspace mount of its existing comparison panel.
+
+**Next P3 action:** continue only with the next independently executable source-backed gap. Do not synthesize financial or operational history; keep P1-owned mounts and Bolt acceptance as explicit dependencies.
