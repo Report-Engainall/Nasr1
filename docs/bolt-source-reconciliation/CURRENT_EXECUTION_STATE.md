@@ -1943,3 +1943,21 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 ### Current P3 next action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-002`: continue only independently implementable, source-backed P3 gaps from the canonical intelligence reference; do not rebuild existing Section 50–63 engines, do not change P1/P2-owned integration files, and preserve migrations as source-only until the authorized database workflow is available.
+
+
+## P3 LIVE EXECUTION OVERRIDE — 2026-11-06 — NOTIFICATION DELIVERY POLICY AUDIT
+
+- Main SHA at checkpoint: `41626b93cbb32fc2e52cb32133c8e8065cb6e35b`.
+- P3 leaf: `REF-NOTIFICATION-DELIVERY-AUDIT-001`, canonical Section 59.
+- Added the payload-free `createNotificationDeliveryAuditMetadata()` contract in `src/lib/intelligence/personalization-governance.ts`; it recomputes the exact delivery-policy decision and rejects tampering before producing attempt-scoped metadata. It can reference a single matching external consent ID/version while omitting destination, email/phone, message content and financial/customer payload.
+- Fail-closed hardening rejects malformed consent collections and invalid recipient context as REVIEW, and refuses malformed/tampered audit input.
+- Exact source commits: `66396cffebeeabec964a66c325a6368930051170`, `2ed055480c1f4c58aac538449aeb8d8d8423b235`, `ddd1666e72f6d4ad2329789560e5c717fc7bc864`; final engine blob `91697a41adae66f09506e079c95a832ef27bc96d`.
+- Focused source tests added in `personalization-governance.test.ts`; commits `357028bf17819a551a926afcecace454243789f7`, `a004a3b0ff7beff7582d2b1227da772c945dec90`, `58be8bf4b1155165f90f55c22d52cc2421962243`; final test blob `98780d383a3a4e2238aee6d522af6b11b06a1015`. Authored but not run.
+- Acceptance leaf added to the existing central matrix: `REF-NOTIFICATION-DELIVERY-AUDIT-001`, commit `fe331f264281f43c2710b4b4611c1d34724bd011`.
+- Ownership: P1 still owns mounting `PersonalizationPrivacyPanel`; P2 owns the atomic audit writer and sender enforcement. This P3 contract does not dispatch, persist consent, write database rows or prove the sender is wired through policy.
+- No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS or production claim. External email/WhatsApp/SMS remains disabled/unproven until consent/audit/sender integration and provider receipt are accepted.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### P3 next action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-005`: continue the next independently implementable source-backed Section 53–63 item, without touching P1 routes or P2 sender/persistence paths.
