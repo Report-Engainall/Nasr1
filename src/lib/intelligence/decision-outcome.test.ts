@@ -79,4 +79,12 @@ describe("decision outcome transitions",()=>{
   if(!review.ok)throw new Error("submit failed");
   expect(step(review.outcome,event("DEFER",2))).toMatchObject({ok:false,reason:"MISSING_REASON"});
  });
+ it("resumes a deferred decision only through a new reasoned review event",()=>{
+  const review=step(initial(),event("SUBMIT_FOR_REVIEW",1));
+  if(!review.ok)throw new Error("submit failed");
+  const deferred=step(review.outcome,event("DEFER",2,{reason:"بانتظار مستند إضافي"}));
+  if(!deferred.ok)throw new Error("deferral failed");
+  const resumed=step(deferred.outcome,event("RESUBMIT_FOR_REVIEW",3,{reason:"وصل المستند وتمت مراجعته"}));
+  expect(resumed).toMatchObject({ok:true,duplicate:false,outcome:{state:"IN_REVIEW",version:4,reason:"وصل المستند وتمت مراجعته"}});
+ });
 });
