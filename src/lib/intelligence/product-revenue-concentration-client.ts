@@ -95,7 +95,7 @@ export async function fetchProductRevenueConcentration(input: {
 
     const raw = object(data);
     const rawPeriod = object(raw?.period);
-    if (!raw || !validTimestamp(raw.asOf) || raw.asOf !== input.asOf ||
+    if (!raw || !validTimestamp(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(input.asOf) ||
         !integer(raw.invoiceCount) || !integer(raw.invoiceWithoutLinesCount) ||
         !integer(raw.currencyCount) || !Array.isArray(raw.currencies) ||
         raw.currencies.length > 20 || raw.currencyCount !== raw.currencies.length ||
