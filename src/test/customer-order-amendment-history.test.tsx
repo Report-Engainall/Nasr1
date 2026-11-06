@@ -74,9 +74,9 @@ describe("customer order amendment history UI", () => {
     render(<CustomerOrderAmendmentHistory orderId={orderId} />);
     expect(await screen.findByText("النسخة 1")).toBeInTheDocument();
     expect(screen.getByText("النسخة 2")).toBeInTheDocument();
-    expect(screen.getByText("عميل الاختبار")).toBeInTheDocument();
+    expect(screen.getAllByText("عميل الاختبار")).toHaveLength(2);
     expect(screen.getByText("مدير الاختبار")).toBeInTheDocument();
-    expect(screen.getByText("سكر أبيض")).toBeInTheDocument();
+    expect(screen.getAllByText("سكر أبيض")).toHaveLength(2);
     expect(screen.getByText("تم تحديث الكمية")).toBeInTheDocument();
     expect(screen.getByText("أُعيد تقديم التعديل إلى الإدارة — بانتظار المراجعة")).toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("list_customer_order_amendment_history", { p_order_id: orderId });
