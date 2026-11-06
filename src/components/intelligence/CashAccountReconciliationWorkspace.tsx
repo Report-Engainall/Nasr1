@@ -78,8 +78,8 @@ export function CashAccountReconciliationWorkspace() {
   );
   const selectedStatement = workspace?.statements.find((item) => item.id === selectedStatementId) ?? null;
 
-  async function perform(action: () => Promise<void>, success: string | ((result: unknown) => string)) {
-    if (busy) return;
+  async function perform<T>(action: () => Promise<T>, success: string | ((result: T) => string)): Promise<T | undefined> {
+    if (busy) return undefined;
     setBusy(true);
     setError("");
     setNotice("");
@@ -90,7 +90,7 @@ export function CashAccountReconciliationWorkspace() {
       return result;
     } catch (cause) {
       setError(errorMessage(cause));
-      throw cause;
+      return undefined;
     } finally {
       setBusy(false);
     }
