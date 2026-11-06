@@ -11,6 +11,14 @@ import { downloadCustomerOrderWorkbookXlsx } from '@/lib/customer-order-xlsx';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
 
+function normalizeOrderNumberSearch(value: string): string {
+  return value.trim()
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[%_]/g, "")
+    .slice(0, 60);
+}
+
 type CustomerOrderSummary = Pick<Order, 'id' | 'order_number' | 'status' | 'total_items' | 'created_at'> & {
   quantity_review_required?: boolean;
   customer_adjustment_note?: string | null;
@@ -152,11 +160,52 @@ function MyOrdersStatusFilter({
   );
 }
 
-function MyOrdersCountNotice({ count, status }: { count: number; status: string }) {
+function MyOrdersCountNotice({ count, status, searchActive }: { count: number; status: string; searchActive: boolean }) {
+  const scope = status === "all" ? "طلب" : "طلب بهذه الحالة";
   return (
     <p role="status" aria-label="إجمالي نتائج الطلبات">
-      {'إجمالي النتائج: ' + formatNumber(count) + (status === 'all' ? ' طلب' : ' طلب بهذه الحالة')}
+      {"إجمالي النتائج: " + formatNumber(count) + " " + scope + (searchActive ? " مطابقة لرقم الطلب" : "")}
     </p>
+  );
+}
+
+function MyOrdersSearch({
+  value,
+  disabled,
+  onChange,
+  onSubmit,
+  onClear,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <form
+      className="no-print"
+      onSubmit={(event) => { event.preventDefault(); onSubmit(); }}
+      style={{ ...card, marginBottom: 12, display: "grid", gap: 10 }}
+      aria-label="البحث في سجل الطلبات"
+    >
+      <label htmlFor="customer-orders-number-search" style={{ fontWeight: 700 }}>ابحث برقم الطلب</label>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          id="customer-orders-number-search"
+          aria-label="رقم الطلب للبحث"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          maxLength={60}
+          placeholder="أدخل رقم الطلب أو جزءًا منه"
+          disabled={disabled}
+          style={{ flex: "1 1 220px", minWidth: 0, padding: 10, border: "1px solid #cbdad9", borderRadius: 9, background: "#fff", font: "inherit" }}
+        />
+        <button type="submit" className="sf-btn-primary" disabled={disabled}>بحث</button>
+        {value ? <button type="button" className="sf-btn-secondary" onClick={onClear} disabled={disabled}>مسح</button> : null}
+      </div>
+      <p style={{ margin: 0, color: "#71878c", fontSize: 12 }}>يمكن إدخال الأرقام العربية أو الإنجليزية؛ يجري البحث في جميع طلبات الحساب المصرّح بها قبل تطبيق ترقيم الصفحات.</p>
+    </form>
   );
 }
 
@@ -168,11 +217,11 @@ function MyOrdersErrorState({ error, onRetry }: { error: string; onRetry: () => 
   );
 }
 
-function MyOrdersEmptyState({ status }: { status: string }) {
+function MyOrdersEmptyState({ status, searchActive }: { status: string; searchActive: boolean }) {
   return (
     <div style={{ ...card, textAlign: 'center' }}>
       <FileText size={32} />
-      <p>{status === 'all' ? 'لا توجد طلبات بعد.' : 'لا توجد طلبات بهذه الحالة.'}</p>
+      <p>{searchActive ? "لا توجد طلبات تطابق رقم البحث." : status === 'all' ? 'لا توجد طلبات بعد.' : 'لا توجد طلبات بهذه الحالة.'}</p>
       <Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link>
     </div>
   );
@@ -276,6 +325,7 @@ function MyOrdersResults({
   error,
   totalCount,
   statusFilter,
+  searchActive,
   page,
   pageCount,
   onRetry,
@@ -286,6 +336,7 @@ function MyOrdersResults({
   error: string;
   totalCount: number | null;
   statusFilter: string;
+  searchActive: boolean;
   page: number;
   pageCount: number;
   onRetry: () => void;
@@ -296,8 +347,8 @@ function MyOrdersResults({
 
   return (
     <>
-      {totalCount !== null ? <MyOrdersCountNotice count={totalCount} status={statusFilter} /> : null}
-      {data && data.length === 0 && totalCount === 0 ? <MyOrdersEmptyState status={statusFilter} /> : null}
+      {totalCount !== null ? <MyOrdersCountNotice count={totalCount} status={statusFilter} searchActive={searchActive} /> : null}
+      {data && data.length === 0 && totalCount === 0 ? <MyOrdersEmptyState status={statusFilter} searchActive={searchActive} /> : null}
       {data && data.length > 0 ? (
         <MyOrdersTable
           orders={data}
@@ -318,6 +369,8 @@ function MyOrdersInner() {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [orderNumberQuery, setOrderNumberQuery] = useState('');
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
@@ -330,6 +383,7 @@ function MyOrdersInner() {
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });
       if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      if (orderNumberQuery) query = query.ilike('order_number', '%' + orderNumberQuery + '%');
       const { data: rows, error: queryError, count } = await query
         .range((page - 1) * CUSTOMER_ORDERS_PAGE_SIZE, page * CUSTOMER_ORDERS_PAGE_SIZE - 1);
       if (queryError) throw new Error('تعذر تحميل الطلبات');
@@ -351,7 +405,7 @@ function MyOrdersInner() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, orderNumberQuery]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -360,6 +414,24 @@ function MyOrdersInner() {
     <Shell>
       <h1 style={{ fontSize: 26, margin: '0 0 6px' }}>طلباتي</h1>
       <p style={{ color: '#7a9398', margin: '0 0 20px' }}>كل الطلبات المرسلة من حسابك وحالتها الحالية</p>
+      <MyOrdersSearch
+        value={searchDraft}
+        disabled={loading}
+        onChange={setSearchDraft}
+        onSubmit={() => {
+          setData(null);
+          setTotalCount(null);
+          setPage(1);
+          setOrderNumberQuery(normalizeOrderNumberSearch(searchDraft));
+        }}
+        onClear={() => {
+          setData(null);
+          setTotalCount(null);
+          setPage(1);
+          setSearchDraft('');
+          setOrderNumberQuery('');
+        }}
+      />
       <MyOrdersStatusFilter
         status={statusFilter}
         disabled={loading}
@@ -376,6 +448,7 @@ function MyOrdersInner() {
         error={error}
         totalCount={totalCount}
         statusFilter={statusFilter}
+        searchActive={orderNumberQuery.length > 0}
         page={page}
         pageCount={pageCount}
         onRetry={() => void load()}
