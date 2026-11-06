@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   fetchExecutiveLiquidityWorkspace,
   type ExecutiveLiquidityFetchResult,
@@ -127,7 +128,19 @@ function CashMovementsSection({ snapshot }: { snapshot: ExecutiveLiquiditySnapsh
           </table>
         </div>
       ) : <p className="text-sm text-muted-foreground">لا توجد حركات مصدرية مرحلة ضمن الفترة المحددة.</p>}
-      <EvidenceWarnings warnings={snapshot.cashMovementCoverage.warnings} />
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold">اكتمال تغطية الحركات النقدية</h4>
+          <span className="text-xs"><EvidenceStatusLabel status={snapshot.cashMovementCoverage.status} /> · {snapshot.cashMovementCoverage.completeness}</span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3 text-xs">
+          <p>قيود نقدية مرحلة غير مصنفة: <strong className="tabular-nums">{snapshot.cashMovementCoverage.unclassifiedPostedCashJournalLines.toLocaleString("ar-YE")}</strong></p>
+          <p>مصروفات نقدية غير مرتبطة: <strong className="tabular-nums">{snapshot.cashMovementCoverage.unlinkedCashExpenses.toLocaleString("ar-YE")}</strong></p>
+          <p>دفعات عملاء غير مرتبطة: <strong className="tabular-nums">{snapshot.cashMovementCoverage.unlinkedCustomerPayments.toLocaleString("ar-YE")}</strong></p>
+        </div>
+        <p className="text-xs text-muted-foreground">المصدر: {snapshot.cashMovementCoverage.formulaId}@{snapshot.cashMovementCoverage.formulaVersion} · وقت الاحتساب: {snapshot.cashMovementCoverage.calculatedAt}</p>
+        <EvidenceWarnings warnings={snapshot.cashMovementCoverage.warnings} />
+      </div>
     </section>
   );
 }
@@ -218,6 +231,7 @@ function ReceivablesSection({ snapshot }: { snapshot: ExecutiveLiquiditySnapshot
 export function ExecutiveLiquidityCommandCenter({ refreshKey = 0 }: ExecutiveLiquidityCommandCenterProps) {
   const [result, setResult] = useState<ExecutiveLiquidityFetchResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [manualRefreshKey, setManualRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -229,7 +243,7 @@ export function ExecutiveLiquidityCommandCenter({ refreshKey = 0 }: ExecutiveLiq
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [refreshKey]);
+  }, [refreshKey, manualRefreshKey]);
 
   const snapshot = result?.ok ? result.data : null;
 
@@ -242,7 +256,19 @@ export function ExecutiveLiquidityCommandCenter({ refreshKey = 0 }: ExecutiveLiq
             {snapshot ? "حتى " + snapshot.asOf + " · حركة الفترة " + snapshot.period.from + " — " + snapshot.period.to : "قراءة موحدة للصندوق والحسابات والذمم والتزامات الموردين"}
           </p>
         </div>
-        {snapshot ? <span className="text-xs">الصلاحية: {snapshot.effectiveRole === "admin" ? "مدير المؤسسة" : "مدير"}</span> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {snapshot ? <span className="text-xs">الصلاحية: {snapshot.effectiveRole === "admin" ? "مدير المؤسسة" : "مدير"}</span> : null}
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => setManualRefreshKey((value) => value + 1)}
+            disabled={loading}
+            aria-label="تحديث مركز القيادة المالية"
+          >
+            <RefreshCw size={15} aria-hidden="true" />
+            {loading ? "جارٍ التحديث…" : "تحديث المركز"}
+          </button>
+        </div>
       </header>
       {loading ? <p role="status" className="rounded-lg border p-3 text-sm">جارٍ تحميل المؤشرات المالية من مصادر المؤسسة...</p> : null}
       {!loading && result && !result.ok ? (
