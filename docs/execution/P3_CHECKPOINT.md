@@ -1032,3 +1032,40 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; 
 ### Next P3 action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-005`: continue only another independently implementable Section 53–63 product-body gap. Preserve the sender/P2 boundary; do not enable external channels before the sender consumes this policy and the approved consent/audit path is proven.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-TASK-QUALITY-SCOPE-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA before checkpoint append: `b2c769e61950e1b407e45288839f8c9161cba22f`.
+- Canonical areas: Section 57 read-only natural-language assistant and Section 58/61 task quality evidence.
+
+### Implemented on main
+
+1. **Expanded supported Arabic quality-review questions**
+   - The deterministic planner now recognizes manager-reviewed quality queries about repeated causes, recommendation rejection/deferral reasons, false alarms and valid notifications.
+   - These map only to the existing `fetch_operational_task_quality_metrics` RPC; no new data path or model/provider was introduced.
+   - Planner commit: `a1c1d661db0598c547c8e3dd63db65231c12c77c`; final planner blob: `381fce4804d562eeab09e6c01a0416cc796a6303`.
+
+2. **Fail-closed unsupported dimensions**
+   - Historical date windows are rejected because the current quality DTO reports latest saved reviews per entity/type and does not provide historical period filtering.
+   - Role/department slices are rejected because the current aggregate does not expose role/department breakdowns.
+   - The planner's filter description identifies the output as a current manager-reviewed aggregate, not a weekly/monthly or role-sliced report.
+
+3. **Source tests**
+   - Added coverage for Arabic synonyms, rejection/deferral reasons, repeated causes, false alarms, and unsupported date/role filters.
+   - Test commit: `3fac1f179af623c964f637fb109c91a1f2e96fb5`; final test blob: `669548a3d5c135ac844ec4976cd56c7f1242134c`. Tests were authored but NOT run.
+
+4. **Acceptance matrix**
+   - Updated the existing `REF-TASK-QUALITY-METRICS-ASSISTANT-001` row; commit `b2c769e61950e1b407e45288839f8c9161cba22f`.
+
+### Acceptance boundary
+
+- Existing manager-only source authorization is preserved. No client role filter or cross-tenant read was added.
+- No tests/build/typecheck/lint/CI/browser/database/Bolt/Preview/Vercel/production operation was executed. No PASS/runtime/production claim.
+- Quality review migrations and operational task source dependencies remain subject to their existing approved non-production DB acceptance.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-006`: continue another source-backed P3-owned product-body gap without broadening the quality source beyond its actual time/role capabilities.
