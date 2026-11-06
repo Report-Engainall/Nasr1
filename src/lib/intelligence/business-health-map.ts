@@ -5,6 +5,7 @@ import type { EvidencePeriod, EvidenceStatus } from "./types";
 import type { LiquidityPosition, LiquiditySnapshot } from "./liquidity";
 import type { ReplenishmentRecommendation } from "./replenishment";
 import type { ProductRevenueConcentrationSnapshot } from "./product-revenue-concentration-client";
+import type { SupplierPostedPayableActivitySnapshot } from "./supplier-posted-payable-activity-client";
 
 export const BUSINESS_HEALTH_MAP_POLICY_VERSION = "1.0.0";
 
@@ -26,6 +27,8 @@ export interface BusinessHealthMapInput {
   retention?: CustomerRetentionReport | null;
   productRevenueConcentration?: ProductRevenueConcentrationSnapshot | null;
   productRevenueConcentrationUnavailableReason?: string;
+  supplierPostedPayableActivity?: SupplierPostedPayableActivitySnapshot | null;
+  supplierPostedPayableActivityUnavailableReason?: string;
 }
 export interface BusinessHealthAmount {
   value: number | null;
@@ -107,11 +110,13 @@ export interface BusinessHealthMapResult {
     status: EvidenceStatus; sourcePeriod: EvidencePeriod;
   }>;
   productRevenueConcentration: ProductRevenueConcentrationSnapshot | null;
+  supplierPostedPayableActivity: SupplierPostedPayableActivitySnapshot | null;
   calculations: {
     cashConversionCycle: BusinessHealthCalculability;
     daysSalesOutstanding: BusinessHealthCalculability;
     daysPayableOutstanding: BusinessHealthCalculability;
     productRevenueConcentration: BusinessHealthCalculability;
+    supplierPostedPayableActivityConcentration: BusinessHealthCalculability;
     supplierRevenueConcentration: BusinessHealthCalculability;
   };
   /** Withheld until mutually exclusive source populations are proven. */
@@ -483,6 +488,28 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
         ["مصدر سطور فواتير المنتجات حسب العملة والفترة", "ربط الإشعارات الدائنة المنشورة بسطر الفاتورة الأصلي", "تغطية منتج مكتملة لكل سطر"],
         input.productRevenueConcentrationUnavailableReason ?? "مصدر تركّز قيمة الفواتير غير متاح في هذه اللقطة."
       );
+  const suppliedSupplierActivity = input.supplierPostedPayableActivity ?? null;
+  const supplierActivityAligned = Boolean(suppliedSupplierActivity &&
+    Date.parse(suppliedSupplierActivity.asOf) === Date.parse(input.asOf) &&
+    suppliedSupplierActivity.period.from === input.period.from &&
+    suppliedSupplierActivity.period.to === input.period.to);
+  const supplierPostedPayableActivity = supplierActivityAligned ? suppliedSupplierActivity : null;
+  if (suppliedSupplierActivity && !supplierActivityAligned) warnings.push("SUPPLIER_POSTED_PAYABLE_ACTIVITY_AS_OF_OR_PERIOD_MISMATCH");
+  if (!supplierPostedPayableActivity && input.supplierPostedPayableActivityUnavailableReason)
+    warnings.push("SUPPLIER_POSTED_PAYABLE_ACTIVITY_UNAVAILABLE");
+  const supplierActivityCalculation: BusinessHealthCalculability = supplierPostedPayableActivity
+    ? {
+        status: supplierPostedPayableActivity.status,
+        missingInputs: supplierPostedPayableActivity.currencies.filter(item=>item.status!=="VERIFIED")
+          .map(item=>item.currency+": لا يوجد مقام موجب لحساب تركّز قيود الاستلام الدائنة المنشورة"),
+        reason: supplierPostedPayableActivity.status==="VERIFIED"
+          ? "تركيز أعلى خمسة موردين محسوب داخل قيود الالتزامات الدائنة المنشورة والمربوطة بإيصالات الاستلام فقط؛ الإشعارات الدائنة المنشورة معروضة كحركة مدينة منفصلة."
+          : supplierPostedPayableActivity.status==="EMPTY"
+            ? "لا توجد قيود استلام أو إشعارات دائن للموردين مستوفية لنطاق المصدر المنشور خلال الفترة."
+            : "مصدر القيود متصالح، لكن توجد عملة بلا إجمالي دائن موجب؛ حُجب تركّزها دون مقام تقديري.",
+      }
+    : notCalculable(["قيود يومية منشورة ومربوطة بإيصالات الاستلام وإشعارات المورد الدائنة","تطابق مجاميع المصدر حسب العملة"],
+        input.supplierPostedPayableActivityUnavailableReason ?? "مصدر حركة الالتزامات المنشورة للموردين غير متاح لهذه اللقطة.");
   const calculations = {
     cashConversionCycle: notCalculable(
       ["DIO: أيام المخزون من متوسط المخزون وتكلفة المبيعات", "DSO: أيام التحصيل من متوسط الذمم والمبيعات الآجلة", "DPO: أيام السداد من متوسط الدائنين والمشتريات الآجلة"],
@@ -493,6 +520,7 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
     daysPayableOutstanding: notCalculable(["متوسط الذمم الدائنة", "المشتريات الآجلة أو تكلفة المبيعات المناسبة للفترة وعدد أيامها"],
       "الالتزامات المستحقة وحدها لا تمثل متوسط الدائنين أو مشتريات الفترة."),
     productRevenueConcentration: concentrationCalculation,
+    supplierPostedPayableActivityConcentration: supplierActivityCalculation,
     supplierRevenueConcentration: notCalculable(["إنفاق أو مشتريات مكتملة لكل مورد حسب العملة والفترة", "مجتمع الموردين الكامل وتغطية غير مقطوعة"],
       "لم تتوفر بعد مجموعة بيانات المشتريات الكاملة حسب المورد."),
   };
@@ -501,21 +529,27 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
     : concentrationCalculation.status === "NEEDS_REVIEW" ? "NEEDS_REVIEW" :
       concentrationCalculation.status === "NOT_CALCULABLE" || concentrationCalculation.status === "EMPTY"
         ? "UNAVAILABLE" : "NEEDS_REVIEW";
+  const supplierActivityEvidenceStatus: EvidenceStatus = supplierActivityCalculation.status === "VERIFIED"
+    ? "VERIFIED"
+    : supplierActivityCalculation.status === "NOT_CALCULABLE" || supplierActivityCalculation.status === "EMPTY"
+      ? "UNAVAILABLE" : "NEEDS_REVIEW";
   const attention = buildAttention(currencies, cashflow, replenishment);
   const status = rollup([
     ...currencies.map(position => position.status), cashflowStatus, stock.status, replenishment.status,
-    customer.status, concentrationEvidenceStatus,
+    customer.status, concentrationEvidenceStatus, supplierActivityEvidenceStatus,
   ]);
   warnings.push(
     ...(input.cashflow?.warnings ?? []), ...stock.warnings, ...replenishment.warnings, ...customer.warnings,
     ...currencies.flatMap(position => position.warnings),
     ...(productRevenueConcentration?.status === "PARTIAL" ? ["PRODUCT_REVENUE_CONCENTRATION_PARTIAL"] : []),
     ...(productRevenueConcentration?.status === "EMPTY" ? ["PRODUCT_REVENUE_CONCENTRATION_EMPTY"] : []),
+    ...(supplierPostedPayableActivity?.status === "NEEDS_REVIEW" ? ["SUPPLIER_POSTED_PAYABLE_ACTIVITY_NEEDS_REVIEW"] : []),
+    ...(supplierPostedPayableActivity?.status === "EMPTY" ? ["SUPPLIER_POSTED_PAYABLE_ACTIVITY_EMPTY"] : []),
   );
   return {
     id: input.id, generatedAt: input.generatedAt, asOf: input.asOf, period: input.period,
     policyVersion: BUSINESS_HEALTH_MAP_POLICY_VERSION, status, currencies, cashflow, stock, replenishment,
-    customerFocus: customer.rows, productRevenueConcentration, calculations, totalCapitalAtRisk: null,
+    customerFocus: customer.rows, productRevenueConcentration, supplierPostedPayableActivity, calculations, totalCapitalAtRisk: null,
     totalCapitalAtRiskReason: "الإجمالي محجوب لأن الذمم والتحصيلات والالتزامات والمخزون والوارد المجدول قد تتداخل؛ تُعرض المكونات منفصلة إلى أن تثبت مجموعات مصادر متنافية.",
     attention, warnings: unique(warnings),
   };

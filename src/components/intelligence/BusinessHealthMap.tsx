@@ -185,6 +185,47 @@ export function BusinessHealthMap({ result = null, state = "ready", onRetry }: B
           </p>
         </div>}
       </section>
+      <section className="space-y-3">
+        <div>
+          <h3 className="font-semibold">حركة الالتزامات المنشورة للموردين</h3>
+          <p className="text-xs text-muted-foreground">
+            المصدر هو قيود يومية منشورة ومربوطة بإيصالات الاستلام وإشعارات المورد الدائنة المنشورة فقط.
+            تركّز أعلى خمسة محسوب من الدائن في قيود الاستلام؛ مدينة الإشعارات الدائنة منفصلة.
+            لا يمثل هذا إجمالي المشتريات أو جميع فواتير الموردين أو التسويات النقدية أو رصيد الذمم الختامي.
+          </p>
+        </div>
+        {result.supplierPostedPayableActivity ? <>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>الفترة {result.supplierPostedPayableActivity.period.from} — {result.supplierPostedPayableActivity.period.to}
+              · كما في {new Date(result.supplierPostedPayableActivity.asOf).toLocaleString("ar-YE")}</span>
+            <EvidenceStatusLabel status={result.supplierPostedPayableActivity.status === "VERIFIED" ? "VERIFIED" :
+              result.supplierPostedPayableActivity.status === "EMPTY" ? "UNAVAILABLE" : "NEEDS_REVIEW"} />
+          </div>
+          {result.supplierPostedPayableActivity.status === "EMPTY" ?
+            <p role="status" className="rounded-lg border p-3 text-sm">لا توجد قيود مؤهلة ضمن نطاق المصدر والفترة؛ لم تُنشأ أصفار بديلة.</p> : null}
+          {result.supplierPostedPayableActivity.currencies.length ? <div className="grid gap-3 xl:grid-cols-2">
+            {result.supplierPostedPayableActivity.currencies.map(item => <article key={item.currency} className="space-y-2 rounded-lg border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <strong>{item.currency}</strong><EvidenceStatusLabel status={item.status === "VERIFIED" ? "VERIFIED" : "NEEDS_REVIEW"} />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-md bg-muted/30 p-2"><p className="text-xs text-muted-foreground">دائن قيود إيصالات الاستلام المنشورة</p><strong>{money(item.grossPayableCreditAmount,item.currency)}</strong></div>
+                <div className="rounded-md bg-muted/30 p-2"><p className="text-xs text-muted-foreground">مدين إشعارات المورد الدائنة المنشورة</p><strong>{money(item.postedSupplierCreditNoteDebitAmount,item.currency)}</strong></div>
+                <div className="rounded-md bg-muted/30 p-2"><p className="text-xs text-muted-foreground">صافي حركة الالتزام ضمن النطاق</p><strong>{money(item.netPayableMovementAmount,item.currency)}</strong></div>
+                <div className="rounded-md bg-muted/30 p-2"><p className="text-xs text-muted-foreground">حصة أعلى خمسة موردين من دائن الاستلام</p><strong>{item.top5GrossPayableCreditPercent===null ? "غير متاح" : formatEvidenceNumber(item.top5GrossPayableCreditPercent)+"%"}</strong></div>
+                <div className="rounded-md bg-muted/30 p-2"><p className="text-xs text-muted-foreground">قيمة دائن أعلى خمسة موردين</p><strong>{money(item.top5GrossPayableCreditAmount,item.currency)}</strong></div>
+              </div>
+              <p className="text-xs text-muted-foreground">الموردون ذوو حركة: {formatEvidenceNumber(item.supplierCount)} · القيود المؤهلة: {formatEvidenceNumber(item.sourceEntryCount)}</p>
+              {item.status!=="VERIFIED" ? <p role="status" className="text-xs text-muted-foreground">لا يوجد إجمالي دائن موجب لهذه العملة؛ حُجبت نسبة التركّز.</p> : null}
+            </article>)}
+          </div> : null}
+          <p className="text-xs text-muted-foreground">{result.supplierPostedPayableActivity.formulaDescription}</p>
+          <p className="text-xs text-muted-foreground">مجموعة القيود متصالحة بحسب مجاميع المصدر داخل النطاق المحدد، وليست إثباتاً لاكتمال كل التزامات الموردين.</p>
+        </> : <div role="status" className="rounded-lg border p-3 text-sm">
+          <strong>مصدر حركة الالتزامات المنشورة للموردين غير متاح لهذه اللقطة.</strong>
+          <p className="mt-1 text-xs text-muted-foreground">يظل تركّز إنفاق الموردين غير قابل للحساب ما لم تتوفر مجموعة مشتريات مكتملة ومثبتة حسب المورد.</p>
+        </div>}
+      </section>
       <section className="space-y-2">
         <h3 className="font-semibold">مؤشرات لا يمكن حسابها بالمدخلات الحالية</h3>
         {Object.entries(result.calculations).map(([key,item]) => <article key={key} className="rounded-lg border p-3 text-sm">

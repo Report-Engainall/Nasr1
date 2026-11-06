@@ -9,6 +9,7 @@ import { buildLiquiditySnapshot, type LiquidityCurrencyInput } from "./liquidity
 import { buildReplenishmentRecommendations } from "./replenishment";
 import type { MetricSnapshot } from "./types";
 import { fetchProductRevenueConcentration } from "./product-revenue-concentration-client";
+import { fetchSupplierPostedPayableActivity } from "./supplier-posted-payable-activity-client";
 
 export type BusinessHealthAssistantSource =
   | { status: "READY"; asOf: string; period: { from: string; to: string } }
@@ -38,6 +39,9 @@ export interface BusinessHealthAssistantSources {
   productRevenueConcentration:
     | { status: "READY"; invoiceCount: number; currencyCount: number; completePopulation: boolean; asOf: string }
     | { status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
+  supplierPostedPayableActivity:
+    | { sourceStatus: "READY"; resultStatus: "VERIFIED" | "NEEDS_REVIEW" | "EMPTY"; sourceEntryCount: number; currencyCount: number; completeSourceAggregation: boolean; asOf: string }
+    | { sourceStatus: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
 }
 
 export interface BusinessHealthAssistantData {
@@ -156,11 +160,16 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
   try {
     const inventoryRequest = createInventoryIntelligencePeriod(now, 92);
     const cashflowRequest = createCashflowScheduleRequest({ horizonDays: 90, now });
-    const [inventory, cashflow, retention, productRevenueConcentration] = await Promise.all([
+    const [inventory, cashflow, retention, productRevenueConcentration, supplierPostedPayableActivity] = await Promise.all([
       fetchInventoryIntelligence(inventoryRequest.period, inventoryRequest.asOf),
       fetchCashflowSchedule(cashflowRequest),
       fetchCustomerRetentionAggregate(90, inventoryRequest.asOf),
       fetchProductRevenueConcentration({
+        from: inventoryRequest.period.from,
+        to: inventoryRequest.period.to,
+        asOf: inventoryRequest.asOf,
+      }),
+      fetchSupplierPostedPayableActivity({
         from: inventoryRequest.period.from,
         to: inventoryRequest.period.to,
         asOf: inventoryRequest.asOf,
@@ -214,6 +223,9 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
         ? productRevenueConcentration.snapshot : null,
       productRevenueConcentrationUnavailableReason: productRevenueConcentration.ok
         ? undefined : productRevenueConcentration.message,
+      supplierPostedPayableActivity: supplierPostedPayableActivity.ok ? supplierPostedPayableActivity.snapshot : null,
+      supplierPostedPayableActivityUnavailableReason: supplierPostedPayableActivity.ok
+        ? undefined : supplierPostedPayableActivity.message,
       replenishment: {
         id: "business-health-replenishment-source:" + inventory.data.asOf,
         asOf: inventory.data.asOf,
@@ -261,13 +273,26 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
             status: productRevenueConcentration.status,
             message: productRevenueConcentration.message,
           },
+      supplierPostedPayableActivity: supplierPostedPayableActivity.ok
+        ? {
+            sourceStatus: "READY",
+            resultStatus: supplierPostedPayableActivity.snapshot.status,
+            sourceEntryCount: supplierPostedPayableActivity.snapshot.sourceEntryCount,
+            currencyCount: supplierPostedPayableActivity.snapshot.currencyCount,
+            completeSourceAggregation: supplierPostedPayableActivity.snapshot.completeSourceAggregation,
+            asOf: supplierPostedPayableActivity.snapshot.asOf,
+          }
+        : { sourceStatus: supplierPostedPayableActivity.status, message: supplierPostedPayableActivity.message },
     };
     const allSourcesReady =
       sources.inventory.status === "READY" &&
       sources.cashflow.status === "READY" &&
       sources.retention.status === "READY" &&
       sources.productRevenueConcentration.status === "READY" &&
-      sources.productRevenueConcentration.completePopulation;
+      sources.productRevenueConcentration.completePopulation &&
+      sources.supplierPostedPayableActivity.sourceStatus === "READY" &&
+      sources.supplierPostedPayableActivity.resultStatus === "VERIFIED" &&
+      sources.supplierPostedPayableActivity.completeSourceAggregation;
     const state = allSourcesReady && map.status === "VERIFIED" ? "READY" : "PARTIAL";
     const answer = state === "READY"
       ? "اكتملت قراءة مصادر خريطة صحة الأعمال عند " + map.asOf + "؛ عُرضت المؤشرات المثبتة فقط، مع إبقاء العملات منفصلة ومنع جمع المكونات المتداخلة."

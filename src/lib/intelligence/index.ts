@@ -16,6 +16,7 @@ export * from "./system-health";
 export * from "./rbac-contract";
 export * from "./growth-opportunities";
 export * from "./business-health-map";
+export * from "./supplier-posted-payable-activity-client";
 export * from "./customer-retention-client";
 export * from "./decision-memory";
 export * from "./shift-operations";
