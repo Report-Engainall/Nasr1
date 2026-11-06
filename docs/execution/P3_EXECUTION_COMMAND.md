@@ -2,7 +2,7 @@
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main` only  
-**Current documentation/source head at this override:** `251051a4cff0bef51ed453cf77b4fc9b5e937f0e`  
+**Current documentation/source head at this override:** `4041b82276ef340eb08f749dda071da35a32c91f`  
 **Latest P3 code-bearing commit:** `251051a4cff0bef51ed453cf77b4fc9b5e937f0e`  
 **Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
 **Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
