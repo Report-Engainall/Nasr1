@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1/P2 body update — customer return self-cancellation before review — 2026-11-06
+
+- Added `supabase/migrations/20261106230000_customer_return_request_customer_cancellation.sql`: authenticated approved customer can cancel only their own `submitted` return request. The function locks the request and linked review task; refuses if review has started; atomically marks the request cancelled, stores a 3–500 character reason and timestamp, cancels the pending review task, and records a tenant-scoped audit event. The read RPC returns cancellation evidence and the existing returnable-quantity calculation excludes cancelled requests. No inventory, invoice, credit memo, payment or refund effect.
+- Added `supabase/migrations/20261106231000_customer_return_source_task_reopen_guard.sql`: source-cancelled marker is preserved on task upserts and even a manager cannot reopen the obsolete review task. A future return request receives a new task/source event.
+- Added client parser fields/strict cancellation evidence validation and inline customer self-cancel controls; the button appears only for `submitted`. `under_review` explicitly reports that self-cancel is unavailable.
+- Main commits: migration `32d7aa28bf8d5af127e815901fb94a0e9d7ffc19`; task source/reopen guard `aa4feb8a96f7565c29e00df142ad7b7e14150a27`; parser `e717d05d8837b6a567e83a6d7cffee20011acc9b`, parser validation `06500b6cbe31c1f16b0d8aaaeb77729b286aadd1`; UI `3c05ec3d11a5ecaaea45dae30b2d494b5de9155e`.
+- Added acceptance leaf `DLV-008-CUSTOMER-RETURN-CANCEL-001`. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests, build, typecheck, lint, CI, browser, database migration application, Bolt, Preview or production operation was run. No PASS/runtime claim is made.
+
 ## P1 body update — customer return idempotent retry after reload — 2026-11-06
 
 - Updated `src/components/CustomerReturnRequest.tsx` to derive a SHA-256 fingerprint from the order/reason/notes/line payload and persist only that fingerprint plus the existing random idempotency key in tab-scoped `sessionStorage`. Identical retries after a reload reuse the same key; changed payloads use a new key. The notes and line payload are not written to browser storage.
