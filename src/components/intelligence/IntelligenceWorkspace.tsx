@@ -142,7 +142,7 @@ type DecisionTransitionOptions = {
 
 type DecisionTransitionHandler = (
   outcome: DecisionOutcomeView,
-  eventType: DecisionOutcomeEventType,
+  eventType: Exclude<DecisionOutcomeEventType, "DEFER" | "RESUBMIT_FOR_REVIEW">,
   options?: DecisionTransitionOptions,
 ) => void;
 

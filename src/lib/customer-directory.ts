@@ -53,7 +53,8 @@ function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryR
   if (row.email !== null && typeof row.email !== "string") return null;
   if (row.customer_code !== null && typeof row.customer_code !== "string") return null;
   if (row.tier !== null && typeof row.tier !== "string") return null;
-  if (typeof row.created_at !== "string" || !Number.isFinite(Date.parse(row.created_at))) return null;
+  const createdAt = row.created_at;
+  if (typeof createdAt !== "string" || !Number.isFinite(Date.parse(createdAt))) return null;
   if (row.current_balance !== undefined && row.current_balance !== null &&
       (typeof row.current_balance !== "number" || !Number.isFinite(row.current_balance))) return null;
   if (row.credit_limit !== undefined && row.credit_limit !== null &&
@@ -69,7 +70,7 @@ function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryR
     customer_code: typeof row.customer_code === "string" ? row.customer_code : null,
     tier: typeof row.tier === "string" ? row.tier : null,
     status: row.status,
-    created_at: row.created_at,
+    created_at: createdAt,
     ...(typeof row.current_balance === "number" || row.current_balance === null ? { current_balance: row.current_balance } : {}),
     ...(typeof row.credit_limit === "number" || row.credit_limit === null ? { credit_limit: row.credit_limit } : {}),
     ...(typeof row.profile_id === "string" || row.profile_id === null ? { profile_id: row.profile_id } : {}),
@@ -152,7 +153,7 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
       throw new Error('لم يؤكد الخادم بيانات صفحات دليل العملاء.');
     }
     const sanitizedRows = payload.rows.map(sanitizeCustomerManagerDirectoryRow);
-    const rows = sanitizedRows.filter((row): row is Customer => row !== null);
+    const rows = sanitizedRows.filter((row): row is CustomerDirectoryRow => row !== null);
     if (rows.length !== payload.rows.length || rows.length > pageSize) {
       throw new Error('أعاد الخادم سجلات غير صالحة لدليل العملاء.');
     }

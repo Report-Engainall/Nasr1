@@ -1651,7 +1651,7 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
               <td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td>
               <td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small><small>{c.email ?? '—'}</small></td>
               <td><span className="tier">{c.tier === 'vip' ? 'جملة الجملة' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td>
-              {!isCustomerManagerOnly && <><td className={typeof c.current_balance === 'number' && c.current_balance > 0 ? 'amount-danger' : ''}>{typeof c.current_balance === 'number' ? formatCurrency(c.current_balance) : 'غير متاح'}</td><td>{formatCurrency(c.credit_limit)}</td></>}
+              {!isCustomerManagerOnly && <><td className={typeof c.current_balance === 'number' && c.current_balance > 0 ? 'amount-danger' : ''}>{typeof c.current_balance === 'number' ? formatCurrency(c.current_balance) : 'غير متاح'}</td><td>{typeof c.credit_limit === "number" ? formatCurrency(c.credit_limit) : "غير متاح"}</td></>}
               <td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{CUSTOMER_STATUS_LABELS[c.status] ?? c.status}</span></td>
               <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}

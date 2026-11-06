@@ -4,10 +4,12 @@ import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@
 
 type AssistantResultPayload = Extract<NaturalLanguageAssistantResponse, { status: "RESULT" }>["result"];
 function isAssistantResultKind<K extends string>(
-  result: AssistantResultPayload,
+  response: NaturalLanguageAssistantResponse | null,
   kind: K,
-): result is Extract<AssistantResultPayload, { kind: K }> {
-  return result.kind === kind;
+): response is Extract<NaturalLanguageAssistantResponse, { status: "RESULT" }> & {
+  result: Extract<AssistantResultPayload, { kind: K }>;
+} {
+  return response !== null && response.status === "RESULT" && response.result.kind === kind;
 }
 import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
 import { TaskIntelligenceInsights } from "./TaskIntelligenceInsights";
@@ -107,7 +109,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    {response.status==="DENIED"?"غير مصرح":response.status==="UNAVAILABLE"?"المصدر غير متاح":response.status==="NOT_FOUND"?"لا توجد وردية مطابقة":"تعذر الاستعلام"}: {response.message}</div>:null}
   {response?.status==="NOT_FOUND"&&response.plan.sourceRpc==="fetch_operational_shift_workspace"?
     <StartFirstOperationalShiftForm businessDate={response.plan.businessDate??""} onStarted={()=>void submit()}/>:null}
-  {response?.status==="RESULT"&&isAssistantResultKind(response.result,"SALES_ORDER_STATUS")?<section dir="rtl" className="space-y-3 rounded-lg border p-3" aria-label="ملخص طلبات البيع">
+  {isAssistantResultKind(response,"SALES_ORDER_STATUS")?<section dir="rtl" className="space-y-3 rounded-lg border p-3" aria-label="ملخص طلبات البيع">
    <header className="flex flex-wrap items-center justify-between gap-2">
     <strong>{response.result.intent==="SALES_ORDERS_OPEN"?"الطلبات البيعية المفتوحة":response.result.intent==="SALES_ORDERS_PROCESSING"?"الطلبات قيد المعالجة":response.result.intent==="SALES_ORDERS_SHIPPED"?"الطلبات المشحونة":response.result.intent==="SALES_ORDERS_CANCELLED"?"الطلبات الملغاة":"ملخص حالات طلبات البيع"}</strong>
     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="EMPTY"?"لا توجد طلبات":response.result.state==="PARTIAL"?"تغطية جزئية":"لقطة كاملة"}</span>
@@ -131,7 +133,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    {!response.result.completePopulation?<p role="status" className="text-xs text-muted-foreground">توجد حالات طلب مخزنة خارج قاموس الحالات المعروف؛ لذلك بقيت النتيجة جزئية ولم تُصنّف تلك الطلبات تخميناً.</p>:null}
    <p className="text-xs text-muted-foreground">هذه قراءة تجميعية للموظف المخول داخل المؤسسة الحالية. لا تعرض أسماء العملاء أو معرفات الطلبات أو المبالغ أو السطور، ولا تنفذ أي تغيير على الطلبات.</p>
   </section>:null}
-  {response?.status==="RESULT"&&isAssistantResultKind(response.result,"DECISION_OUTCOMES")?<div className="space-y-3">
+  {isAssistantResultKind(response,"DECISION_OUTCOMES")?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
      <strong>{response.result.answer}</strong>
@@ -177,7 +179,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <DecisionMemoryBook result={response.result.memory} state="ready" onRetry={()=>void submit()}/>
    <p className="text-xs text-muted-foreground">تُستبعد الذاكرة الناقصة والوقائع بلا إثبات والقياسات غير المتوافقة من مسودات مراجعة القواعد. المسودات لا تغيّر قاعدة أو سعرًا أو حد ائتمان أو مخزون؛ أي تعديل لاحق يظل في مسار اعتماد منفصل. يشمل البحث جميع الصفحات التي جرى تحميلها والتحقق منها، بحد أقصى 5,100 قرار. يظل النطاق جزئياً عند تجاوز الحد أو تغير إجمالي المصدر أو عدم ثبات الصفحة الأولى؛ ولا يُعامل غياب السابقة من نطاق غير مكتمل كدليل على عدم وجودها.</p>
   </div>:null}
-  {response?.status==="RESULT"&&isAssistantResultKind(response.result,"COMMERCE_POLICY")?<div className="space-y-3">
+  {isAssistantResultKind(response,"COMMERCE_POLICY")?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
      <strong>حوكمة السياسات التجارية</strong>
@@ -418,7 +420,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    <p className="text-xs text-muted-foreground">المساعد يعرض مؤشرات مجمعة فقط؛ لا يكشف أسماء العملاء أو مراجعهم أو أرصدتهم أو أسعارهم، ولا ينشئ رسائل متابعة أو إجراءات تلقائية.</p>
   </div>:null}
 
-  {response?.status==="RESULT"&&isAssistantResultKind(response.result,"TASK_REPORT")?<div className="space-y-3 rounded-lg border p-3 text-sm">
+  {isAssistantResultKind(response,"TASK_REPORT")?<div className="space-y-3 rounded-lg border p-3 text-sm">
    <div className="flex flex-wrap items-center justify-between gap-2">
     <strong>{response.result.intent==="MANAGER_TASK_RISKS"?"تقرير مخاطر المهام للإدارة":response.result.intent==="DAILY_TASK_REPORT"?"التقرير اليومي للمهام":response.result.intent==="WEEKLY_TASK_REPORT"?"التقرير الأسبوعي للمهام":"التقرير الشهري للمهام"}</strong>
     <span className="rounded-full border px-2 py-1 text-xs">{response.result.state==="EMPTY"?"لا توجد سجلات مهام":"تغطية كاملة ضمن الأدوار المصرح بها"}</span>
