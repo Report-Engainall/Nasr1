@@ -14,6 +14,10 @@
     "e2e/storefront-price-visibility.spec.ts",
     "e2e/critical-path.spec.ts",
     "src/test/ai-gateway-logic.test.ts",
-    "src/test/password-reset-route-security.test.ts"
+    "src/test/password-reset-route-security.test.ts",
+    "src/components/CustomerWorkflows.tsx",
+    "src/test/customer-quotes-route-acceptance.test.tsx",
+    "src/components/AdminCustomer360.tsx",
+    "src/test/admin-customer-360-display.test.tsx"
   ]
 }
