@@ -11,7 +11,7 @@ import { PurchaseReceiptPrintActions, renderPurchaseReceiptPrintHtml } from "@/c
 
 const receiptId = "11111111-1111-4111-8111-111111111111";
 const historyPage = {
-  receipts: [{ id: receiptId, receipt_number: "PR-20261102-000001", received_at: "2026-11-02T10:00:00.000Z", item_count: 1 }],
+  receipts: [{ id: receiptId, receipt_number: "PR-20261102-000001", received_at: "2026-11-02T10:00:00.000Z", item_count: 1, items: [] }],
   total_count: 1, limit: 20, offset: 0, has_more: false,
 };
 const printDocument = {
