@@ -301,3 +301,164 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   }
   html.print-receivables-aging .receivables-aging-print-controls { display: none !important; }
 }
+
+
+/* Product detail: accessible zoom and source-bound same-category suggestions. */
+.sf-detail-image-trigger {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.sf-detail-image-trigger:focus-visible,
+.sf-related-card:focus-visible,
+.sf-image-lightbox-close:focus-visible {
+  outline: 3px solid var(--aghbari-accent, #c6a45b);
+  outline-offset: 3px;
+}
+.sf-detail-image-trigger img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+.sf-detail-image-hint {
+  position: absolute;
+  inset-inline-end: 12px;
+  bottom: 12px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  color: var(--aghbari-text);
+  background: rgba(255,255,255,.88);
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.sf-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(7, 19, 22, .9);
+}
+.sf-image-lightbox-panel {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(100%, 1200px);
+  max-height: 100%;
+}
+.sf-image-lightbox-panel img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100dvh - 72px);
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+}
+.sf-image-lightbox-close {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  inset-inline-end: 10px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 9px;
+  color: #fff;
+  background: rgba(12, 31, 35, .9);
+  font-size: 12px;
+  font-weight: 800;
+}
+.sf-related-products {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 18px;
+  background: var(--aghbari-surface);
+}
+.sf-related-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.sf-related-header h3 {
+  margin: 0;
+  color: var(--aghbari-text);
+  font-size: 17px;
+}
+.sf-related-header span {
+  color: var(--aghbari-text-muted);
+  font-size: 10px;
+}
+.sf-related-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.sf-related-card {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 12px;
+  color: var(--aghbari-text);
+  background: var(--aghbari-surface);
+  text-align: right;
+  cursor: pointer;
+}
+.sf-related-card:hover {
+  border-color: var(--aghbari-brand);
+  box-shadow: 0 5px 16px rgba(20, 70, 80, .08);
+}
+.sf-related-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 8px;
+  color: var(--aghbari-text-muted);
+  background: var(--aghbari-surface-soft);
+}
+.sf-related-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.sf-related-card strong {
+  overflow: hidden;
+  color: var(--aghbari-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-related-card small {
+  color: var(--aghbari-text-muted);
+  font-size: 10px;
+}
+.sf-related-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+}
+@media (max-width: 800px) {
+  .sf-related-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .sf-related-products { padding: 12px; }
+  .sf-related-grid { gap: 8px; }
+  .sf-related-card { padding: 7px; }
+}
