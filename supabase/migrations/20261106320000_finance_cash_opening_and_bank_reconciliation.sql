@@ -865,16 +865,17 @@ BEGIN
   LEFT JOIN public.finance_bank_statement_line_matches x
     ON x.organization_id=l.organization_id AND x.statement_line_id=l.id
   WHERE l.organization_id=v_org AND l.statement_id=v_statement.id;
-  SELECT count(*)::integer,coalesce(sum(l.debit-l.credit),0)::numeric(18,2)
+  SELECT
+    count(*) FILTER (WHERE NOT EXISTS(
+      SELECT 1 FROM public.finance_bank_statement_line_matches x
+      WHERE x.organization_id=v_org AND x.journal_entry_id=l.journal_entry_id AND x.journal_line_number=l.line_number
+    ))::integer,
+    coalesce(sum(l.debit-l.credit),0)::numeric(18,2)
   INTO v_unmatched_ledger,v_ledger_net
   FROM public.accounting_journal_lines l
   JOIN public.accounting_journal_entries e ON e.id=l.journal_entry_id AND e.organization_id=l.organization_id
   WHERE l.organization_id=v_org AND l.account_id=v_account_id
-    AND e.status='posted' AND e.entry_date BETWEEN v_statement.period_from AND v_statement.period_to
-    AND NOT EXISTS(
-      SELECT 1 FROM public.finance_bank_statement_line_matches x
-      WHERE x.organization_id=v_org AND x.journal_entry_id=l.journal_entry_id AND x.journal_line_number=l.line_number
-    );
+    AND e.status='posted' AND e.entry_date BETWEEN v_statement.period_from AND v_statement.period_to;
   v_statement_difference:=v_statement.statement_closing_balance-v_statement.statement_opening_balance-v_statement_net;
   v_ledger_difference:=v_ledger_net-v_statement_net;
   SELECT coalesce(max(r.run_number),0)+1 INTO v_run_number
