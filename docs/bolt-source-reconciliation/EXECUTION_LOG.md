@@ -2150,3 +2150,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - UI commands retain an idempotency key for an ambiguous retry, reset it when the payload changes and show success only from a validated RPC receipt. The database remains authoritative for authorization, tenant scope, source-reference validation, versioning and audit.
 - Existing matrix leaf `INT-SHIFT-001` updated at `3319c21e9919a5f9e5f8df0b85e2cb25e862d0b7`; P3 checkpoint `8cfaaa55352d1e1d07f00dd564839393b2ffeff0`; current execution state update follows.
 - Migrations are source-only. No tests/build/runtime/DB/Bolt/Preview/Vercel/production operation or live financial/inventory write was run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+
+## 2026-11-06 — REF-SHIFT-OPERATIONS-COMMANDS-UI-001 — start-next-shift added
+
+- Added start-next-shift UI within the existing `ShiftOperationsCenter` (commit `c7b52a0eb4f6b2b6c49aa0bb10710de63aa67c78`; blob `bee0642ccad9d38f73312450fb8dba527a87a7c5`).
+- Uses an explicit business date and label, server-derived active actor/organization, the organization's time zone from the current workspace, and the current shift as previous-shift reference. Reuses the existing audited, idempotent `start_operational_shift` RPC. Does not close the previous shift.
+- Matrix `INT-SHIFT-001`: `57655ad7c359ace1747aa4990b28daca36e71509`; P3 checkpoint: `3c6aeaefc980c295e43354c286a789d8bac13563`; state update: `b526cda95a26acf822c6b467c9bdea8cb9892311`.
+- No tests/build/runtime/DB/Bolt/Preview/Vercel/production acceptance run. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
