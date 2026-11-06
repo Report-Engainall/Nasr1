@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — manager task action shortlist — 2026-11-06
+
+- Code commit `e9aa25e237377e446fcf1a62bfd09f288e87ad69` enhances the existing Arabic manager-risk intent with “أهم خطوات الإدارة” and “أولويات الإدارة اليوم”. It uses the existing manager-only `fetch_task_intelligence_report(MANAGER)` RPC.
+- The assistant displays up to five server-ranked high/critical open risks with deterministic why-now and next-step explanations derived from saved priority/status/due/age facts. It distinguishes complete vs bounded manager-risk coverage and no longer exposes assignee/source entity UUIDs.
+- No assignment, completion, finance, inventory or other write action is triggered. The raw TaskCenter task-list API was deliberately not reused because its role filtering is client-side rather than an independent server-scoped assistant contract.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/database/Bolt/Preview/Vercel/production acceptance was run.
+
 ## P3 body update — Arabic role-scoped task performance read — 2026-11-06
 
 - Code commit `0578c3bb84e05654412ceb03f98539e7e6e2aefa` adds the Arabic `TASK_PERFORMANCE_OVERVIEW` intent and reuses the existing `fetchTaskPerformanceScorecard()` client/RPC and `TaskPerformanceScorecard` UI.
