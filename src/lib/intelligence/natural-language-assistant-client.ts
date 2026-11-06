@@ -20,6 +20,8 @@ import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { fetchBusinessHealthAssistantSummary } from "./business-health-assistant-client";
 import { fetchSalesOrderStatusSnapshot } from "./sales-order-status-summary-client";
+import { fetchProductPerformanceGrowthContext } from "./product-performance-growth-client";
+import { buildGrowthOpportunityRadar } from "./growth-opportunities";
 import { resolveSalesOrderStatusIntent, type SalesOrderStatusIntent } from "./sales-order-status-summary";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
  type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type ShiftOperationsIntent,resolveShiftOperationsIntent,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent,type TaskPerformanceIntent,type CommercePolicyIntent,resolveDecisionMemoryIntent } from "./natural-language-assistant";
@@ -248,16 +250,57 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
    const retention=await fetchCustomerRetentionAggregate(periodDays,new Date().toISOString());
    if(!retention.ok)return {status:retention.status,message:retention.message};
    if(plan.intent==="GROWTH_RADAR_OVERVIEW"){
-    const completePopulation=retention.data.status==="VERIFIED"&&retention.data.population.total!==null;
-    const radar=retention.growthRadar;
+    const customerPopulationComplete=retention.growthInputs.sourceSnapshotVerified&&
+      retention.data.population.total!==null;
+    const product=await fetchProductPerformanceGrowthContext(periodDays,retention.data.asOf);
+    const productPopulationComplete=product.ok&&product.context.completePopulation;
+    const completePopulation=customerPopulationComplete&&productPopulationComplete;
+    const evidenceRecords=[
+      ...retention.growthInputs.evidenceRecords,
+      ...(product.ok?product.context.evidenceRecords:[]),
+    ];
+    const metrics=[
+      ...retention.growthInputs.metrics,
+      ...(product.ok?product.context.metrics:[]),
+    ];
+    const signals=[
+      ...retention.growthInputs.signals,
+      ...(product.ok?product.context.signals:[]),
+    ];
+    let radar=buildGrowthOpportunityRadar({
+      id:retention.data.id,
+      generatedAt:retention.data.asOf,
+      asOf:retention.data.asOf,
+      evidenceRecords,
+      metrics,
+      signals,
+      sourceSnapshotVerified:completePopulation,
+    });
+    const combinedWarnings=[
+      ...radar.warnings,
+      ...retention.growthRadar.warnings,
+      ...(product.ok?product.context.warnings:["PRODUCT_PERFORMANCE_SOURCE_"+product.status]),
+    ];
+    if(!completePopulation&&radar.status!=="UNVERIFIED"){
+      radar={...radar,status:"NEEDS_REVIEW"};
+    }
+    radar={...radar,warnings:[...new Set(combinedWarnings)]};
+    const productSourceStatus: "READY"|"PARTIAL"|"UNAVAILABLE" =
+      !product.ok?"UNAVAILABLE":product.context.completePopulation?"READY":"PARTIAL";
     const answer=completePopulation
-     ?"رادار النمو قيّم "+radar.evaluatedSignals+" إشارة من مجتمع العملاء المكتمل، وأظهر "+radar.opportunities.length+" فرصة اجتازت العتبات و"+radar.withheld.length+" إشارة محجوبة."
-     :"تغطية مجتمع العملاء غير مكتملة؛ يعرض الرادار فقط الإشارات الفردية المثبتة من السجلات المستلمة ("+radar.opportunities.length+" فرصة و"+radar.withheld.length+" إشارة محجوبة)، ولا يمثل كامل فرص المؤسسة.";
+     ?"رادار النمو قيّم "+radar.evaluatedSignals+" إشارة من أدلة العملاء والمنتجات المكتملة، وأظهر "+radar.opportunities.length+" فرصة تجاوزت العتبات و"+radar.withheld.length+" إشارة محجوبة. يشمل تغير كميات الطلبات المؤكدة أو قيد المعالجة أو المشحونة أو المسلّمة مقارنة بفترة سابقة مساوية."
+     :"تغطية رادار النمو جزئية: مجتمع العملاء "+(customerPopulationComplete?"مكتمل":"غير مكتمل")+"، ومصدر أداء المنتجات "+(productSourceStatus==="READY"?"مكتمل":productSourceStatus==="PARTIAL"?"جزئي":"غير متاح")+". تُعرض فقط الإشارات ذات الأدلة الصالحة، ولا يُفسَّر غياب فرصة أو نقص مصدر على أنه عدم وجود طلب.";
     return {status:"RESULT",plan,result:{
      kind:"GROWTH_RADAR",state:completePopulation?"READY":"PARTIAL",
      intent:plan.intent as GrowthRadarIntent,answer,
-     sourceRpc:"get_customer_retention_aggregate",asOf:radar.asOf,
-     periodDays,completePopulation,radar,
+     sourceRpc:"get_customer_retention_aggregate+fetch_product_performance_growth_aggregate",
+     asOf:radar.asOf,periodDays,completePopulation,radar,
+     productSourceStatus,
+     productCoverage:product.ok?{
+      totalCount:product.context.totalProductUnitCount,
+      returnedCount:product.context.returnedProductUnitCount,
+      uncomparableUnitCount:product.context.uncomparableUnitCount,
+     }:null,
     }};
    }
    return {status:"RESULT",plan,result:resolveCustomerRetentionIntent(
