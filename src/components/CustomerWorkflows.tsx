@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   FileText,
+  FileSpreadsheet,
   Printer,
   RefreshCw,
   Save,
@@ -43,6 +44,7 @@ import {
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPaymentReceiptPrintActions";
+import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
@@ -931,9 +933,14 @@ function Statement() {
   const [error, setError] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [xlsxBusy, setXlsxBusy] = useState(false);
+  const [xlsxError, setXlsxError] = useState("");
+  const [summaryAsOfUtc, setSummaryAsOfUtc] = useState("");
+  const [creditDetailsAvailable, setCreditDetailsAvailable] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+    setXlsxError("");
     try {
       const r = await supabase.rpc("get_customer_account_statement");
       if (r.error) throw new Error("تعذر قراءة كشف الحساب. تحقق من نشر مخطط المالية.");
@@ -943,6 +950,7 @@ function Statement() {
         payments?: unknown;
         credits?: unknown;
         summary?: unknown;
+        summary_as_of_utc?: unknown;
       };
       if (!Array.isArray(payload.invoices) || payload.invoices.length > 200 ||
           !Array.isArray(payload.payments) || payload.payments.length > 500) {
@@ -952,12 +960,20 @@ function Statement() {
       setInvoices(payload.invoices as Invoice[]);
       setPayments(payload.payments as (PaymentAmount & { id?: string; paid_at?: string })[]);
       setCredits(parsedCredits);
+      setCreditDetailsAvailable(Array.isArray(payload.credits));
+      setSummaryAsOfUtc(
+        typeof payload.summary_as_of_utc === "string" && Number.isFinite(Date.parse(payload.summary_as_of_utc))
+          ? payload.summary_as_of_utc
+          : "",
+      );
       setStatementSummary(Object.prototype.hasOwnProperty.call(payload, "summary") ? payload.summary : undefined);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر قراءة بيانات كشف الحساب.");
       setInvoices([]);
       setPayments([]);
       setCredits([]);
+      setCreditDetailsAvailable(false);
+      setSummaryAsOfUtc("");
       setStatementSummary(undefined);
     } finally {
       setLoading(false);
@@ -1016,6 +1032,27 @@ function Statement() {
       setPdfBusy(false);
     }
   }, []);
+
+  const downloadStatementXlsx = useCallback(() => {
+    setXlsxBusy(true);
+    setXlsxError("");
+    try {
+      downloadCustomerAccountStatementWorkbookXlsx({
+        invoices,
+        payments,
+        credits,
+        summary: statementSummary,
+        summaryAsOfUtc,
+        generatedAt: new Date().toISOString(),
+        creditDetailsAvailable,
+      });
+    } catch (cause) {
+      setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لكشف الحساب.");
+    } finally {
+      setXlsxBusy(false);
+    }
+  }, [invoices, payments, credits, statementSummary, summaryAsOfUtc, creditDetailsAvailable]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -1030,15 +1067,28 @@ function Statement() {
         className="no-print"
         style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginBottom: 12 }}
       >
-        <button style={primary} onClick={() => void downloadStatementPdf()} disabled={pdfBusy}>
+        <button style={primary} onClick={() => void downloadStatementPdf()} disabled={pdfBusy || loading}>
           <FileText size={15} /> {pdfBusy ? "جارٍ إنشاء PDF..." : "تنزيل PDF عربي"}
         </button>
-        <button style={secondary} onClick={() => window.print()}>
+        <button
+          style={secondary}
+          onClick={downloadStatementXlsx}
+          disabled={loading || xlsxBusy || !totals.valid || statementSummary === undefined || !summaryAsOfUtc || !creditDetailsAvailable}
+        >
+          <FileSpreadsheet size={15} /> {xlsxBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel"}
+        </button>
+        <button style={secondary} onClick={() => window.print()} disabled={loading}>
           <Printer size={15} /> طباعة من المتصفح
         </button>
       </div>
       {error && <ErrorBox message={error} retry={() => void load()} />}
       {pdfError && <ErrorBox message={pdfError} retry={() => void downloadStatementPdf()} />}
+      {xlsxError && <ErrorBox message={xlsxError} retry={downloadStatementXlsx} />}
+      {!loading && !creditDetailsAvailable && (
+        <p role="note" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
+          تنزيل Excel غير متاح حتى يعيد الخادم تفاصيل الإشعارات الدائنة مع ملخص دفتر العميل الكامل.
+        </p>
+      )}
       {loading ? (
         <p role="status">جارٍ تحميل كشف الحساب...</p>
       ) : (
