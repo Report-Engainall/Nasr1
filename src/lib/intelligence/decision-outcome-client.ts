@@ -210,6 +210,8 @@ export async function fetchDecisionOutcomeCollection(): Promise<
 
   if (items.length !== Math.min(DECISION_MEMORY_PAGE_SIZE, total)) {
     reason = "PAGE_SIZE_MISMATCH";
+  } else if (seen.size !== items.length) {
+    reason = "DUPLICATE_RECORD";
   }
 
   for (
