@@ -102,12 +102,17 @@ export function readCustomerReturnHistoryPage(value: unknown): CustomerReturnHis
       requests: [entry.request],
       returnable_items: [],
     });
+    const request = summary.requests[0];
+    validHistoryTimestamp(request.created_at, "request.created_at");
+    if (!RETURN_HISTORY_UUID.test(request.id) || Date.parse(request.created_at) > Date.parse(asOf)) {
+      throw new Error("تاريخ أو معرّف طلب الإرجاع خارج حدود لقطة المصدر.");
+    }
     return {
       order_id: orderId,
       order_number: orderNumber,
       order_status: orderStatus,
       order_created_at: orderCreatedAt,
-      request: summary.requests[0],
+      request,
     };
   });
 
@@ -124,7 +129,7 @@ export function readCustomerReturnHistoryPage(value: unknown): CustomerReturnHis
       const previousTime = Date.parse(previous.created_at);
       const currentTime = Date.parse(current.created_at);
       if (previousTime < currentTime ||
-          (previousTime === currentTime && previous.id.localeCompare(current.id) < 0)) {
+          (previousTime === currentTime && previous.id.toLowerCase() < current.id.toLowerCase())) {
         throw new Error("ترتيب صفحة سجل المرتجعات لا يطابق مؤشر المصدر.");
       }
     }
