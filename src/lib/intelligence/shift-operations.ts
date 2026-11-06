@@ -192,6 +192,12 @@ export function calculateShiftCashVariance(expected: number, counted: number): n
   return varianceCents / 100;
 }
 
+/** A match is exact at the currency's supported cent precision; no hidden tolerance is applied. */
+export function classifyShiftCashVariance(variance: number | null): ShiftCashState {
+  if (variance === null || !Number.isFinite(variance)) return "UNKNOWN";
+  return variance === 0 ? "MATCHED" : "VARIANCE";
+}
+
 function record(value: unknown): UnknownRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as UnknownRecord : null;
@@ -538,7 +544,7 @@ function cashPoint(
     expected: input.expected,
     counted: input.counted,
     variance,
-    state: Math.abs(variance) <= 0.01 ? "MATCHED" : "VARIANCE",
+    state: classifyShiftCashVariance(variance),
   };
 }
 function buildCashControls(

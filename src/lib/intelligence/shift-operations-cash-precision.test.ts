@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateShiftCashVariance, isSafeShiftCashAmount } from "./shift-operations";
+import { calculateShiftCashVariance, classifyShiftCashVariance, isSafeShiftCashAmount } from "./shift-operations";
 
 describe("shift cash cent precision", () => {
   it("accepts ordinary non-negative amounts represented to two decimal places", () => {
@@ -25,5 +25,13 @@ describe("shift cash cent precision", () => {
   it("withholds variance when either amount is outside accepted cent precision", () => {
     expect(calculateShiftCashVariance(100.001, 100.25)).toBeNull();
     expect(calculateShiftCashVariance(100.25, 100.001)).toBeNull();
+  });
+
+  it("marks even a one-cent difference as a variance rather than silently matching it", () => {
+    expect(classifyShiftCashVariance(0)).toBe("MATCHED");
+    expect(classifyShiftCashVariance(0.01)).toBe("VARIANCE");
+    expect(classifyShiftCashVariance(-0.01)).toBe("VARIANCE");
+    expect(classifyShiftCashVariance(null)).toBe("UNKNOWN");
+    expect(classifyShiftCashVariance(Number.POSITIVE_INFINITY)).toBe("UNKNOWN");
   });
 });
