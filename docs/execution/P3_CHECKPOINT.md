@@ -1942,3 +1942,16 @@ Continue the next unimplemented intelligent product-body function. Do not rework
 ### Next action
 
 P1 mounts the exported panel in the current admin AI view. Continue P3 with another independent source-backed intelligent product capability; keep full AI operations closure open until P2 exposes the missing free-quota/provider-status contract and P1 mounts the panel.
+
+
+## P3 engine hardening — 2026-11-06 — fail-closed Growth Radar population and sample consistency
+
+- Code/test cursor after this increment: `f677a0abe6c6626907affb6bcdf3cac041392e6f`.
+- Starting source cursor: `0bac6dc4f78b3a064028616afb2169917c6261e9`; code/test additions are the commits listed below.
+- Fixed a confidence inversion in `buildGrowthOpportunityRadar()`: `sourceSnapshotVerified` is optional for backward-compatible callers, but its omission no longer implicitly promotes a result to `VERIFIED`. Only an explicit `true` certifies complete required source populations. Explicit `false` and omitted/unknown produce `NEEDS_REVIEW` while signals exist, and an empty unconfirmed population remains `UNAVAILABLE`.
+- Added explicit result warnings: `SOURCE_POPULATION_INCOMPLETE` or `SOURCE_POPULATION_COMPLETENESS_NOT_CONFIRMED`.
+- Hardened `PRODUCT_UNAVAILABLE_DEMAND`: distinct searchers cannot exceed total unavailable search events. Impossible denominators are withheld with `SAMPLE_INSUFFICIENT` rather than rendered as an opportunity.
+- Regression tests cover omitted/true/false population assertions, empty unconfirmed sources and impossible searcher-to-event relationships.
+- Exact commits: `51cebd4a47c9cfaa23888e3d0b9799f96beab61c` (population-completeness fail-closed fix); `13858915589ecbf990adf87a777f444a12bf87c8` (initial regression suite); `d5d24e7879c1701c76310b0ec61a896bb7359a0b` (searcher/event relationship guard); `f677a0abe6c6626907affb6bcdf3cac041392e6f` (regression assertion).
+- Exact final blobs: engine `740a9913715181927d9e402fd395f3e5e551cc62`; regression test `ab89ce9ec5aeda4331c79af93f79eb5ec4738464`.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source tests authored/updated but NOT run per current execution instruction. No build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production operation was run; no PASS or release claim.
