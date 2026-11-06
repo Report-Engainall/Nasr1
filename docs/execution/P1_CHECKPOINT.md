@@ -1,3 +1,32 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-035
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at this checkpoint base: `df9c67791fd9d95dda00b9563bae57108048102b`.
+- P1 code commit: `df9c67791fd9d95dda00b9563bae57108048102b` (parent `a1a188779357ae05b63b3169a1992115ac5d2c45`).
+- P1 owns catalog category UI and command integration. No P3 intelligence file or contract was changed.
+
+## BODY-035 — restore archived catalog categories
+
+- Implemented the missing restore transition for categories already soft-archived by the existing catalog command. Admin/manager users now see a restore action on archived categories in the existing Data Center list; the same tenant-scoped `fetchCategories` staff read already includes archived rows.
+- Added `restore_admin_catalog_category(uuid)` as an extension of the existing audited SECURITY DEFINER catalog command family. It requires an active same-tenant admin/manager, locks and rechecks the category, requires its parent to be active first, serializes with existing create/rename operations, and rejects a conflicting active category name under the same parent rather than merging identities.
+- Successful restore updates only `categories.is_active`, writes `catalog.category_restored` to the existing audit log, and returns an explicit confirmation. Repeated calls on an already-active category return `restored: false` without duplicating the audit event.
+- The UI validates the response, refreshes the existing category list, prevents concurrent archive/restore/rename actions and reports server conflicts instead of claiming success.
+- Files: `supabase/migrations/20261106120000_admin_catalog_category_restore.sql`; `src/lib/admin-catalog-commands.ts`; `src/components/AghbariApp.tsx`.
+- Functional scope delivered in this batch: 1 concrete missing restore workflow out of the 1 confirmed gap in the existing category lifecycle surface.
+- Migration status: `SOURCE_ONLY / NOT_APPLIED`. The database function has not been applied through Bolt or any live environment.
+
+## Delivery boundary
+
+- No tests, build, lint, typecheck, CI, Playwright, E2E, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run. No runtime PASS is claimed.
+- No parallel category CRUD, direct authenticated table mutation, package or paid provider was introduced.
+- The prior BODY-034 product archive/restore implementation remains on `main`. The project-wide 95% P1 target remains unclaimed because no complete remaining-requirement denominator has been established.
+
+## Next P1 action
+
+Continue from current `main` with the next concrete, source-backed product/admin workflow gap. Preserve existing server command ownership and do not repeat BODY-034/035.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-034
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
