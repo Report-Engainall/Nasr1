@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { StorefrontCategoryLandingPage } from "@/components/StorefrontCategoryLandingPage";
 
 export const Route = createFileRoute("/category/$slug/subcategory/$subcategorySlug")({
@@ -7,6 +7,19 @@ export const Route = createFileRoute("/category/$slug/subcategory/$subcategorySl
 });
 
 function SubcategoryPage() {
-  const { slug, subcategorySlug } = Route.useParams();
-  return <StorefrontCategoryLandingPage categorySlug={slug} subcategorySlug={subcategorySlug} />;
+  const { pathname } = useLocation();
+  const { subcategorySlug } = Route.useParams();
+  const segments = pathname.split("/").filter(Boolean);
+  let categorySlug = "";
+  try {
+    categorySlug = segments[0] === "category" && segments[2] === "subcategory"
+      ? decodeURIComponent(segments[1] ?? "")
+      : "";
+  } catch {
+    categorySlug = "";
+  }
+  if (!categorySlug) {
+    return <p role="alert" dir="rtl">تعذر تحديد التصنيف المطلوب. ارجع إلى قائمة التصنيفات وحاول مرة أخرى.</p>;
+  }
+  return <StorefrontCategoryLandingPage categorySlug={categorySlug} subcategorySlug={subcategorySlug} />;
 }

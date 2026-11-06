@@ -329,7 +329,7 @@ export async function registerSupplierSettlementAccount(input: {
   return {
     id: uuid(row.settlement_account_id, "ربط حساب التسوية"),
     accountingAccountId: uuid(row.accounting_account_id, "حساب الأستاذ"),
-    kind: row.settlement_kind,
+    kind: row.settlement_kind as SupplierPaymentSettlementKind,
     currency: currencyCode,
     displayName: requiredText(row.display_name, "اسم حساب التسوية"),
   };
@@ -476,7 +476,7 @@ export async function reconcileSupplierPayment(input: {
   }
   return {
     paymentId: uuid(row.payment_id, "سند السداد"),
-    action: row.action,
+    action: row.action as SupplierPaymentReconciliationAction,
     evidenceReference: requiredText(row.evidence_reference, "مرجع المطابقة"),
     replayed: row.replayed === true,
   };

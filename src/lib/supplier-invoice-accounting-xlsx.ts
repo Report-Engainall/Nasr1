@@ -221,8 +221,6 @@ function workbookSheets(document: SupplierInvoiceAccountingPrintDocument): Workb
       "تطابقت الفاتورة مع تكلفة الاستلام ولا توجد ضريبة أو فروق."]);
   } else {
     journal.push(["لا يوجد قيد صالح", "", "", "", "",
-      document.accountingStatus === "journal_void" ? "المسودة السابقة ملغاة؛ لا تمثل قيدًا صالحًا." :
-      document.accountingStatus === "journal_reversed" ? "القيد السابق له عكس؛ يلزم مراجعة دفتر الأستاذ." :
       "هذه معاينة مطابقة فقط؛ لم تُنشأ تسوية محاسبية بعد."]);
   }
 

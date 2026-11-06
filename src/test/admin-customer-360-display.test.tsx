@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

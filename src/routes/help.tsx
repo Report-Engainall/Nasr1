@@ -278,9 +278,9 @@ function HelpCenterPage() {
             <p className="mt-1 text-sm leading-7 text-muted-foreground">
               افتح حالة خدمة جديدة أو تابع مراسلات شركتك الحالية مع فريق الأغبري. تتطلب بوابة الحالات تسجيل الدخول وصلاحية الحساب المناسبة.
             </p>
-            <Link to="/service-cases" className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+            <a href="/service-cases" className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
               فتح مركز خدمة العملاء <ArrowLeft size={16} />
-            </Link>
+            </a>
           </div>
         </div>
       </section>

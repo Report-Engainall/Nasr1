@@ -22,6 +22,7 @@ function parseUnitOptions(value: unknown): ProductUnitOptions {
       !Array.isArray(value.units) || value.units.length > 20) {
     throw new Error("أعاد الخادم بيانات وحدات المنتج غير مكتملة.");
   }
+  const baseUnit = value.base_unit as string;
   const seen = new Set<string>();
   const units = value.units.map((candidate) => {
     if (!isRecord(candidate) || typeof candidate.unit_name !== "string" ||
@@ -32,7 +33,7 @@ function parseUnitOptions(value: unknown): ProductUnitOptions {
       throw new Error("يوجد تعريف وحدة بديلة أو معامل تحويل غير صالح.");
     }
     const key = candidate.unit_name.toLocaleLowerCase("ar");
-    if (key === value.base_unit.toLocaleLowerCase("ar") || seen.has(key)) {
+    if (key === baseUnit.toLocaleLowerCase("ar") || seen.has(key)) {
       throw new Error("أسماء الوحدات البديلة يجب أن تكون فريدة ومختلفة عن الوحدة الأساسية.");
     }
     seen.add(key);
@@ -41,7 +42,7 @@ function parseUnitOptions(value: unknown): ProductUnitOptions {
       base_units_per_unit: Number(candidate.base_units_per_unit),
     };
   });
-  return { base_unit: value.base_unit, units };
+  return { base_unit: baseUnit, units };
 }
 
 export async function fetchProductUnitOptions(productId: string): Promise<ProductUnitOptions> {
