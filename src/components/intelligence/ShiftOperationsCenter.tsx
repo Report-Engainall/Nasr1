@@ -1,3 +1,12 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import {
+  acceptOperationalShiftHandover,
+  captureOperationalShiftSnapshot,
+  fetchOperationalShiftHandoverAcceptance,
+  recordOperationalShiftCashCount,
+  recordOperationalShiftHandover,
+} from "@/lib/intelligence/shift-operations-client";
 import type {
   ShiftOperationsCenterResult,
   ShiftOperationalCheck,
@@ -133,10 +142,156 @@ function CashCard({item}:{item:ShiftCashControlResult}){
   </article>;
 }
 
+const SOURCE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export function ShiftOperationsCenter({
   result=null,state="ready",onRetry,onOpenItem,
 }:ShiftOperationsCenterProps){
+  const { user } = useAuth();
+  const roles = user?.roles ?? [];
+  const manager = roles.includes("admin") || roles.includes("manager");
+  const canRecordCash = manager || roles.includes("accountant");
+  const canCaptureSnapshot = Boolean(user?.isStaff || canRecordCash);
+  const isOutgoingOwner = Boolean(user?.profileId && result?.handover.outgoingOwnerProfileId === user.profileId);
+  const isIncomingOwner = Boolean(user?.profileId && result?.handover.incomingOwnerProfileId === user.profileId);
+  const [commandBusy,setCommandBusy] = useState<string|null>(null);
+  const [commandError,setCommandError] = useState<string|null>(null);
+  const [commandNotice,setCommandNotice] = useState<string|null>(null);
+  const [cashPhase,setCashPhase] = useState<"OPENING"|"CLOSING">("OPENING");
+  const [cashCurrency,setCashCurrency] = useState("");
+  const [cashAmount,setCashAmount] = useState("");
+  const [cashNote,setCashNote] = useState("");
+  const [cashCorrectionReason,setCashCorrectionReason] = useState("");
+  const [handoverReason,setHandoverReason] = useState("");
+  const [handoverNote,setHandoverNote] = useState("");
+  const [selectedHandoverRefs,setSelectedHandoverRefs] = useState<string[]>([]);
+  const [handoverLookup,setHandoverLookup] = useState<{handoverId:string|null;acceptedAt:string|null}|null>(null);
+  const [handoverLookupLoading,setHandoverLookupLoading] = useState(false);
   const effective=state==="ready"&&!result?"unavailable":state;
+
+  useEffect(()=>{
+    setCommandError(null);
+    setCommandNotice(null);
+    setHandoverLookup(null);
+    setSelectedHandoverRefs([]);
+    setHandoverReason("");
+    setHandoverNote("");
+    setCashAmount("");
+    setCashNote("");
+    setCashCorrectionReason("");
+    setCashCurrency(result?.cashControls[0]?.currency??"");
+  },[result?.shiftId]);
+
+  useEffect(()=>{
+    let active=true;
+    if(!result || !isIncomingOwner || !result.handover.recordedAt || result.handover.acceptedAt){
+      setHandoverLookup(null);
+      setHandoverLookupLoading(false);
+      return;
+    }
+    setHandoverLookupLoading(true);
+    void fetchOperationalShiftHandoverAcceptance(result.shiftId).then(response=>{
+      if(!active)return;
+      if(response.ok){
+        setHandoverLookup({handoverId:response.data.handoverId,acceptedAt:response.data.acceptedAt});
+      }else{
+        setHandoverLookup(null);
+        setCommandError(response.message);
+      }
+    }).catch(()=>{
+      if(active)setCommandError("تعذر تحميل مرجع قبول التسليم من الخادم.");
+    }).finally(()=>{
+      if(active)setHandoverLookupLoading(false);
+    });
+    return ()=>{active=false;};
+  },[result?.shiftId,result?.handover.recordedAt,result?.handover.acceptedAt,isIncomingOwner]);
+
+  async function saveCashCount(event: React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!result || commandBusy)return;
+    const parsedAmount=Number(cashAmount);
+    if(!cashCurrency || !cashAmount.trim() || !Number.isFinite(parsedAmount) || parsedAmount<0){
+      setCommandError("اختر عملة مسجلة وأدخل مبلغ العد الفعلي الصحيح.");
+      return;
+    }
+    setCommandBusy("cash");
+    setCommandError(null);
+    setCommandNotice(null);
+    try{
+      const response=await recordOperationalShiftCashCount({
+        shiftId:result.shiftId,phase:cashPhase,currency:cashCurrency,
+        countedAmount:parsedAmount,note:cashNote,
+        correctionReason:cashCorrectionReason,
+      });
+      if(!response.ok){setCommandError(response.message);return;}
+      setCashAmount("");
+      setCashNote("");
+      setCashCorrectionReason("");
+      setCommandNotice("أكد الخادم حفظ العد الفعلي بصفته نسخة "+String(response.data.version??1)+
+        (response.data.idempotentReplay?" (إعادة إرسال مطابقة).":"."));
+      onRetry?.();
+    }catch{
+      setCommandError("تعذر تسجيل العد النقدي؛ لم يُعرض نجاح محلي.");
+    }finally{setCommandBusy(null);}
+  }
+
+  async function saveHandover(event: React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!result || commandBusy)return;
+    const refs=[...new Set(selectedHandoverRefs)];
+    if(handoverReason.trim().length<5 || refs.length>200){
+      setCommandError("اكتب سبباً واضحاً من خمسة أحرف على الأقل، واختر حتى 200 مرجع مفتوح.");
+      return;
+    }
+    setCommandBusy("handover");
+    setCommandError(null);
+    setCommandNotice(null);
+    try{
+      const response=await recordOperationalShiftHandover({
+        currentShiftId:result.shiftId,openItemRefs:refs,
+        reason:handoverReason.trim(),note:handoverNote.trim()||undefined,
+      });
+      if(!response.ok){setCommandError(response.message);return;}
+      setCommandNotice("أكد الخادم تسجيل محضر التسليم. ينتظر قبول المستلم المعيّن.");
+      onRetry?.();
+    }catch{
+      setCommandError("تعذر تسجيل محضر التسليم؛ لم يُعرض نجاح محلي.");
+    }finally{setCommandBusy(null);}
+  }
+
+  async function acceptHandover(){
+    if(!handoverLookup?.handoverId || commandBusy)return;
+    setCommandBusy("accept-handover");
+    setCommandError(null);
+    setCommandNotice(null);
+    try{
+      const response=await acceptOperationalShiftHandover(handoverLookup.handoverId);
+      if(!response.ok){setCommandError(response.message);return;}
+      setHandoverLookup({handoverId:response.data.handoverId??handoverLookup.handoverId,acceptedAt:response.data.acceptedAt??null});
+      setCommandNotice(response.data.idempotentReplay
+        ?"التسليم مقبول مسبقاً؛ أكد الخادم أن إعادة الإرسال مطابقة."
+        :"أكد الخادم قبولك للتسليم وسُجل الحدث في سجل الوردية.");
+      onRetry?.();
+    }catch{
+      setCommandError("تعذر قبول التسليم؛ لم يتغير عرضه محلياً.");
+    }finally{setCommandBusy(null);}
+  }
+
+  async function captureShiftSnapshot(snapshotKind:"OPENING"|"CLOSEOUT"){
+    if(!result || commandBusy)return;
+    setCommandBusy(snapshotKind);
+    setCommandError(null);
+    setCommandNotice(null);
+    try{
+      const response=await captureOperationalShiftSnapshot({shiftId:result.shiftId,snapshotKind});
+      if(!response.ok){setCommandError(response.message);return;}
+      setCommandNotice("أكد الخادم حفظ لقطة "+(snapshotKind==="OPENING"?"الافتتاح":"الإقفال التشغيلي")+
+        " رقم "+String(response.data.version??1)+" بتاريخ "+String(response.data.recordedAt??"غير متاح")+".");
+      onRetry?.();
+    }catch{
+      setCommandError("تعذر حفظ لقطة الوردية؛ لم يُعرض نجاح محلي.");
+    }finally{setCommandBusy(null);}
+  }
   if(effective!=="ready") return <IntelligenceStatePanel state={effective} onRetry={onRetry} errorMessage="تعذر تحميل مركز الوردية." />;
   if(!result) return <IntelligenceStatePanel state="unavailable" unavailableMessage="بيانات الوردية غير متاحة؛ لم يتم توليد قوائم أو أرصدة افتراضية." />;
   const openingLabel=result.openingReadiness==="READY"?"جاهز للاستلام":result.openingReadiness==="ATTENTION"?"توجد عناصر تحتاج معالجة":"مصادر الافتتاح غير مكتملة";
@@ -149,9 +304,19 @@ export function ShiftOperationsCenter({
         <p className="text-xs text-muted-foreground">{result.shiftLabel} · {result.businessDate} · {result.organizationTimeZone}</p>
         <p className="text-xs text-muted-foreground">آخر قراءة للمصادر: {result.asOf} · تم إنشاء العرض: {result.generatedAt}</p>
       </div>
-      <button type="button" className="rounded-lg border px-3 py-2 text-sm print:hidden" onClick={()=>window.print()}>
-        طباعة تقرير الوردية
-      </button>
+      <div className="flex flex-wrap gap-2 print:hidden">
+        {canCaptureSnapshot?<>
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={commandBusy!==null} onClick={()=>void captureShiftSnapshot("OPENING")}>
+            {commandBusy==="OPENING"?"جارٍ حفظ لقطة الافتتاح…":"حفظ لقطة الافتتاح"}
+          </button>
+          <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={commandBusy!==null} onClick={()=>void captureShiftSnapshot("CLOSEOUT")}>
+            {commandBusy==="CLOSEOUT"?"جارٍ حفظ لقطة الإقفال…":"حفظ لقطة الإقفال التشغيلي"}
+          </button>
+        </>:null}
+        <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={()=>window.print()}>
+          طباعة تقرير الوردية
+        </button>
+      </div>
     </header>
     <p className="text-sm text-muted-foreground">هذا المركز يجمع أدلة التشغيل ويعرض أهلية الإقفال فقط. لا يرحّل قيوداً، ولا يغلق الصندوق أو الطلبات، ولا يغيّر المخزون أو ينقل مسؤولية المهام تلقائياً.</p>
     <div className="grid gap-3 lg:grid-cols-3">
@@ -197,9 +362,86 @@ export function ShiftOperationsCenter({
           {result.handover.openItemRefs.length?<div><p className="text-xs">العناصر المرحّلة للوردية الحالية: {result.handover.openItemRefs.length}</p><ul className="list-disc ps-5 text-xs">{result.handover.openItemRefs.map(ref=><li key={ref} dir="ltr">{ref}</li>)}</ul></div>:null}
           {result.handover.note?<p className="text-sm">{result.handover.note}</p>:null}
           <p className="text-xs">الإثبات: <EvidenceReferences ids={result.handover.evidenceIds}/></p>
+          {!result.handover.recordedAt && (isOutgoingOwner || manager)?(
+            <form onSubmit={event=>void saveHandover(event)} className="space-y-3 rounded-lg border p-3 print:hidden">
+              <h4 className="text-sm font-semibold">تسجيل محضر التسليم</h4>
+              <p className="text-xs text-muted-foreground">اختر المراجع المفتوحة التي ستنتقل للمستلم. يعيد الخادم التحقق من المؤسسة والحالة والصلاحية قبل الحفظ.</p>
+              <label className="grid gap-1 text-sm">
+                سبب التسليم
+                <textarea required minLength={5} maxLength={500} rows={2} value={handoverReason} onChange={event=>setHandoverReason(event.target.value)} className="rounded-lg border bg-background p-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                ملاحظة للمستلم (اختياري)
+                <textarea maxLength={2000} rows={2} value={handoverNote} onChange={event=>setHandoverNote(event.target.value)} className="rounded-lg border bg-background p-2" />
+              </label>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">العناصر المفتوحة التي ستُذكر في المحضر ({selectedHandoverRefs.length}/200)</legend>
+                {result.items.filter(item=>item.state!=="RESOLVED"&&item.state!=="UNKNOWN"&&SOURCE_UUID.test(item.sourceRef)).length?
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border p-2">
+                    {result.items.filter(item=>item.state!=="RESOLVED"&&item.state!=="UNKNOWN"&&SOURCE_UUID.test(item.sourceRef)).map(item=>{
+                      const selected=selectedHandoverRefs.includes(item.sourceRef);
+                      return <label key={item.id} className="flex items-start gap-2 text-sm">
+                        <input type="checkbox" checked={selected} disabled={!selected&&selectedHandoverRefs.length>=200}
+                          onChange={event=>setSelectedHandoverRefs(current=>event.target.checked
+                            ?[...current,item.sourceRef]:current.filter(ref=>ref!==item.sourceRef))}/>
+                        <span><span className="font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{sourceLabels[item.sourceKey]} · {itemLabels[item.state]}</span></span>
+                      </label>;
+                    })}
+                  </div>
+                :<p className="text-xs text-muted-foreground">لا توجد عناصر مفتوحة ذات مراجع صالحة في الصفحة الحالية؛ يمكن تسجيل المحضر بسبب وملاحظة فقط.</p>}
+              </fieldset>
+              <button type="submit" disabled={commandBusy!==null||handoverReason.trim().length<5} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                {commandBusy==="handover"?"جارٍ تسجيل المحضر…":"تسجيل التسليم لدى الخادم"}
+              </button>
+            </form>
+          ):null}
+          {result.handover.recordedAt && result.handover.acceptedAt===null && isIncomingOwner?(
+            <div className="space-y-2 rounded-lg border p-3 print:hidden">
+              <p className="text-sm font-semibold">مراجعة المستلم</p>
+              {handoverLookupLoading?<p role="status" className="text-xs text-muted-foreground">جارٍ التحقق من مرجع التسليم لدى الخادم…</p>:
+                handoverLookup?.handoverId?<button type="button" disabled={commandBusy!==null} onClick={()=>void acceptHandover()} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                  {commandBusy==="accept-handover"?"جارٍ قبول التسليم…":"مراجعة المحضر وقبول الاستلام"}
+                </button>:
+                <p className="text-xs text-muted-foreground">لم يعرض الخادم محضراً قابلاً للقبول لهذا الحساب؛ لا يمكن قبول التسليم من واجهة المستخدم دون مرجع موثق.</p>}
+            </div>
+          ):null}
         </article>
       }
     </section>
+    {canRecordCash?<section className="space-y-3 rounded-xl border p-3 print:hidden">
+      <div><h3 className="font-semibold">تسجيل العد النقدي الفعلي</h3>
+        <p className="text-xs text-muted-foreground">يسجل مبلغ العد الذي أدخله المستخدم كدليل مستقل لكل عملة ومرحلة. لا ينشئ قيداً ولا يغير الرصيد المتوقع؛ صلاحية finance يعيد الخادم التحقق منها.</p></div>
+      {result.cashControls.length?(
+        <form onSubmit={event=>void saveCashCount(event)} className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm">المرحلة
+            <select value={cashPhase} onChange={event=>setCashPhase(event.target.value as "OPENING"|"CLOSING")} className="rounded-lg border bg-background p-2">
+              <option value="OPENING">عد افتتاح الصندوق</option><option value="CLOSING">عد إقفال الصندوق</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">العملة
+            <select value={cashCurrency} onChange={event=>setCashCurrency(event.target.value)} className="rounded-lg border bg-background p-2" required>
+              {result.cashControls.map(item=><option key={item.currency} value={item.currency}>{item.currency}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">المبلغ المعدود فعلياً
+            <input type="number" inputMode="decimal" min="0" step="0.01" required value={cashAmount} onChange={event=>setCashAmount(event.target.value)} className="rounded-lg border bg-background p-2" />
+          </label>
+          <label className="grid gap-1 text-sm">ملاحظة العد (اختياري)
+            <input maxLength={1000} value={cashNote} onChange={event=>setCashNote(event.target.value)} className="rounded-lg border bg-background p-2" />
+          </label>
+          <label className="grid gap-1 text-sm sm:col-span-2">سبب التصحيح عند إعادة العد (إن وجد)
+            <input maxLength={500} value={cashCorrectionReason} onChange={event=>setCashCorrectionReason(event.target.value)} className="rounded-lg border bg-background p-2" />
+          </label>
+          <div className="sm:col-span-2">
+            <button type="submit" disabled={commandBusy!==null||!cashAmount.trim()||!cashCurrency} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+              {commandBusy==="cash"?"جارٍ تسجيل العد…":"حفظ العد الفعلي"}
+            </button>
+          </div>
+        </form>
+      ):<p className="text-sm text-muted-foreground">لا توجد عملات عهدة محملة من مصدر الوردية؛ لم نضف عملاً غير مثبت.</p>}
+    </section>:null}
+    {commandError?<p role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive">{commandError}</p>:null}
+    {commandNotice?<p role="status" className="rounded-lg border p-3 text-sm">{commandNotice}</p>:null}
     <section className="space-y-2">
       <h3 className="font-semibold">السجلات التي لا تزال تحتاج متابعة</h3>
       {result.items.filter(item=>item.state!=="RESOLVED").length?
