@@ -302,12 +302,24 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
     "توزيع الحالات الحالية لدورة القرارات ضمن صفحة السجلات المصرح بها؛ لا يتضمن أسماء المسؤولين أو تفاصيل القرار."
   };
  }
- const taskQualityQuestion=/(جوده المهام|جوده التوصيات|دقه التوصيات|قابليه تنفيذ المهام|الانذارات الكاذبه|التنبيهات الصحيحه|مراجعات جوده المهام|جوده التنبيهات|جوده قرارات التوصيه)/.test(normalizedQuestion);
- if(taskQualityQuestion)return {
-  status:"READY",intent:"TASK_QUALITY_OVERVIEW",normalizedQuestion,
-  sourceRpc:"fetch_operational_task_quality_metrics",
-  filterDescription:"مراجعات المدير المحفوظة لقابلية التنفيذ وقرارات التوصيات وصحة التنبيهات؛ أحدث مراجعة لكل كيان ونوع، مع استبعاد المؤجل وما ينتظر المراجعة من مقامات النسب."
- };
+ const taskQualityQuestion=/(جوده المهام|جوده التوصيات|دقه التوصيات|قابليه تنفيذ المهام|الانذارات الكاذبه|التنبيهات الصحيحه|التنبيهات الخاطئه|مراجعات جوده المهام|جوده التنبيهات|جوده قرارات التوصيه|اسباب رفض التوصيات|اسباب تاجيل التوصيات|الاسباب المتكرره|اسباب التكرار|سبب تكرار المهام|اسباب عدم قابليه التنفيذ)/.test(normalizedQuestion);
+ if(taskQualityQuestion){
+  const historicalQualityWindow=/(اليوم|امس|البارحه|الاسبوع الماضي|الاسبوع السابق|هذا الاسبوع|الاسبوع الحالي|الشهر الماضي|الشهر السابق|هذا الشهر|الشهر الحالي|اخر\\s*(?:[0-9]+\\s*)?(?:يوم|ايام|اسبوع|اسابيع|شهر|اشهر)|خلال|منذ|بين تاريخ|من تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion);
+  if(historicalQualityWindow)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"مؤشرات جودة المهام تقرأ أحدث مراجعة محفوظة لكل كيان ونوع ولا توفر ترشيحاً تاريخياً؛ لا يمكن نسب الإنذارات الكاذبة أو أسباب الرفض إلى أسبوع أو شهر محدد من هذا المصدر."
+  };
+  const roleScopedQuality=/(حسب الدور|حسب القسم|المبيعات|المحاسبه|المخزن|المخازن|المشتريات|الاداره|العمليات|فريق المبيعات|فريق المخزن)/.test(normalizedQuestion);
+  if(roleScopedQuality)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"مصدر مراجعات الجودة يعيد مؤشرات المدير ضمن نطاقه المصرح به دون تقسيم حسب الدور أو القسم؛ لم تُستنتج أرقام فرعية."
+  };
+  return {
+   status:"READY",intent:"TASK_QUALITY_OVERVIEW",normalizedQuestion,
+   sourceRpc:"fetch_operational_task_quality_metrics",
+   filterDescription:"لقطة حالية لمراجعات المدير المحفوظة عبر نطاق المهام المصرح به؛ أحدث مراجعة لكل كيان ونوع. تعرض أسباب رفض/تأجيل التوصيات والإنذارات الكاذبة والأسباب المتكررة بعد المراجعة، ولا تدعم فترة تاريخية أو توزيعاً حسب الدور."
+  };
+ }
  return {status:"UNSUPPORTED",normalizedQuestion,
   explanation:"لم يتعرف المساعد على نية قراءة معتمدة. لا ينشئ SQL ولا ينفذ أوامر أو تغييرات من اللغة الطبيعية."};
 }
