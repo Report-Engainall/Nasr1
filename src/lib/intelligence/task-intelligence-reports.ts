@@ -1,3 +1,5 @@
+import type { TaskQualityMetrics } from "./task-quality-reviews";
+
 export type TaskIntelligenceReportKind = "DAILY" | "WEEKLY" | "MONTHLY" | "MANAGER";
 export type TaskIntelligenceRole = "sales" | "accountant" | "warehouse" | "purchasing" | "management" | "operations";
 export type TaskIntelligencePriority = "low" | "medium" | "high" | "critical";
@@ -87,6 +89,8 @@ export interface TaskIntelligenceReport {
     improvementOutcomes: null;
     employeeComparisonPerformed: false;
   };
+  /** Latest manager review snapshot; independent of the task report period. */
+  qualityReviewSnapshot: TaskQualityMetrics | null;
   limitations: string[];
 }
 
@@ -252,6 +256,7 @@ export function parseTaskIntelligenceReport(
       repeatedCauses: null, improvementOutcomes: null,
       employeeComparisonPerformed: false,
     },
+    qualityReviewSnapshot: null,
     limitations: row.limitations as string[],
   };
 }
