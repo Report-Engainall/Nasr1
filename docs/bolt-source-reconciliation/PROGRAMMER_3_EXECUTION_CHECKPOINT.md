@@ -228,3 +228,35 @@ Documentation commits:
 - Approved non-production acceptance must prove: eligible exact-period/currency baseline loads the source proof; missing/wrong baseline and partial/unverified source do not offer measurement; exact server invoice/payment set and amount transition once; wrong amount/evidence/date/currency is rejected; same-key replay is duplicate without a second event; wrong tenant/role is denied; reload shows the source measurement and decision-memory comparison. Keep full cash-receipts and other metric measurements withheld.
 
 **Next P3 action:** resume from live `main`; continue only independent source-backed intelligence gaps. Growth-radar quote conversion and unavailable-product demand remain withheld until same-tenant evidence DTOs exist; Business Health unsupported components remain withheld until the required P2 payloads are complete.
+
+
+## P3 incremental product-body checkpoint — Arabic Growth Radar assistant read path — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commit:** `33212afd4b332177a64f18f0cdd2e21ce6a677e7`  
+**Parent:** `affd73ff1c890ac48ce65c21e0723ff21bce48d3`
+
+### Delivered on main
+
+- Added the allow-listed Arabic intent `GROWTH_RADAR_OVERVIEW` to the existing natural-language assistant.
+- The read path reuses the existing tenant-scoped `get_customer_retention_aggregate` client and the exact same deterministic `buildGrowthOpportunityRadar` output. No new RPC, SQL, model call, source table read or parallel radar was introduced.
+- The current customer-retention client constructs only two signal kinds from its verified order evidence: `REPEAT_PURCHASE` and `CUSTOMER_ACTIVITY_DECLINE`. The assistant shows the existing `GrowthOpportunityRadar` component, including source values, periods, sample sizes, reason codes and withheld-signal reasons.
+- The response exposes whether the customer population is complete (`retention.data.status === VERIFIED` with a non-null verified population total). When incomplete, it labels the view as partial and says explicitly that it covers only the individually evidenced rows returned, not all company opportunities.
+- Current-source limits are stated in the UI: quote-to-order conversion and unavailable-product search demand are not supplied by this customer-orders contract; absence is not interpreted as zero demand. The view makes no profit/purchase promise and performs no business write.
+- Corrected the component title from “profitable growth opportunities” to “documented growth opportunities” so it matches the deterministic engine's no-profit-forecast boundary.
+
+### Exact changed files
+
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+- `src/components/intelligence/GrowthOpportunityRadar.tsx`
+
+### State and limits
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No P1 workspace mount, business route, RPC or migration was modified.
+- No tests, build, lint, typecheck, CI, browser, database, Bolt, Preview, Vercel or production operation was run in this product-body batch. No PASS or runtime proof is claimed.
+- Growth source gaps remain open: the current DTO does not contain quote-to-order linkage, nor a verified unavailable-product-search aggregate; product performance-change signals also require paired full-period metrics and evidence not currently emitted by the retention source.
+
+**Next P3 action:** continue from live `main`; do not synthesize the missing growth signals. Keep these source gaps explicitly withheld until their authenticated, complete metric/evidence DTOs exist.

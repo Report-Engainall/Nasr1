@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — Arabic Growth Radar assistant read path — 2026-11-06
+
+- Commit `33212afd4b332177a64f18f0cdd2e21ce6a677e7` adds the Arabic `GROWTH_RADAR_OVERVIEW` intent using the existing tenant-scoped customer-retention aggregate and deterministic GrowthOpportunityRadar result.
+- Current source signals are repeat-purchase and customer-activity decline only; full-population completeness is carried to the UI, and partial population is labelled partial. Quote conversion, unavailable-product search demand and product performance are not inferred from absent data.
+- Corrected the radar heading to “رادار فرص النمو الموثقة”; no profit prediction, automatic order or business write is claimed.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/database/Bolt/Preview/Vercel/production proof was run for this code batch.
+
 ## P3 body update — constrained decision measurement from cashflow source — 2026-11-06
 
 - Commit `9a5e8c67f04adcfc488e91978983a3ac3014101e` connects the existing decision MEASURE command to a read-only, exact-period cashflow source request, but only for a saved verified `cashflow.expected_collections` baseline using `nasr1.receivables-outstanding@1` and the exact same currency/period.

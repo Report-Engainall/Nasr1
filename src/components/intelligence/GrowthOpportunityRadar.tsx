@@ -101,7 +101,7 @@ export function GrowthOpportunityRadar({
     <section dir="rtl" className="space-y-3 rounded-xl border p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold">رادار فرص النمو المربحة</h2>
+          <h2 className="text-lg font-semibold">رادار فرص النمو الموثقة</h2>
           <p className="text-xs text-muted-foreground">محرك حتمي · سياسة {result.opportunities[0]?.policyVersion ?? "1.0.0"} · حتى {result.asOf}</p>
         </div>
         <div className="text-xs">
