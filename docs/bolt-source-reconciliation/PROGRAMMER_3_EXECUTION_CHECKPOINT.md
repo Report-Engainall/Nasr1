@@ -70,6 +70,37 @@ Continue only with remaining P3-owned gaps backed by existing authenticated sour
 - Bolt must later validate authorization/tenant denial, exact-basis history grouping, created_at order, inclusion of saved quote states, same/future timestamp refusal, zero-baseline percentage withholding, first/latest source reconciliation, 200-row PARTIAL, visible null commercial terms and absence of purchasing side effects.
 
 
+### Supplemental P3 increment — actual supplier performance joined to saved offers — 2026-11-06
+
+- Code parent: `d05f343bfb40a6501d2048d53cb661787ba45c92`.
+- Commits: `e12e229662c7e1f2e734510be206581eeefeb870` — typed same-tenant performance join; `9255504d928a94e02af4e3f772893c57d08dca1b` — concurrent quote/performance reads over one captured 90-day UTC period; `eb65659a797d72ae1d1b0cde3e5d1750866034d6` — Arabic result presentation; `dcabfeafceaafb817afda64b309cd7f83aa5c805` — performance evidence tests; `f211ef873e083b0f9ff101321ffdd119371acfd7` — Arabic query synonyms and example; `8ac09e9081e1b76eafda5113ce898396ebbf7b49` — narrow absence semantics.
+
+#### Added behavior
+
+- The supplier quote comparison now reads the existing `fetch_supplier_performance_snapshot` client in parallel with `fetch_purchase_supplier_quotes`, using a captured 90-calendar-day UTC window. The existing server functions independently resolve the authenticated organization and require the purchasing-management capability.
+- Quote supplier identity is joined to performance `supplierId` inside the engine; no supplier UUID or order identity is rendered in the panel.
+- The UI separates quoted `delivery_days` (supplier promise) from actual median receipt lead time derived from purchase orders and receipts. On-time adherence is sourced from the awarded quote promise; it is never inferred from the requested quote terms alone.
+- Actual median lead time is displayed only when the supplier has at least 3 completed lead-time samples. On-time percentage is displayed only with at least 3 promised-delivery samples. Sample counts remain visible when a rate is withheld.
+- When a supplier is absent from a complete performance population, the result says there were no eligible purchase orders for that supplier in the measured period. When the supplier source page is partial, absence is `NOT_IN_RETURNED_PAGE` and is not interpreted as no activity.
+- If the performance reader is denied, unavailable or errors, the price/quote comparison is preserved, the overall result becomes PARTIAL, and the performance component is explicitly unavailable. No zero-fill.
+- No supplier score, weighted ranking, forecast, landed-cost estimate, delivery promise inferred from actual lead time, award, PO creation or business write was added.
+
+#### Exact paths
+
+- `src/lib/intelligence/supplier-quote-comparison-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/SupplierQuoteComparisonAssistant.tsx`
+- `src/lib/intelligence/supplier-quote-comparison-assistant.test.ts`
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant.test.ts`
+
+#### Acceptance boundary
+
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Source tests authored but NOT run. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production action was run. No PASS/runtime claim.
+- Bolt must verify both readers derive the same authenticated tenant and enforce purchasing role; complete and partial supplier-performance page semantics; identity join; 90-day UTC period disclosure; 3-sample gates; actual vs promised lead-time separation; denied/unavailable performance with quote comparison preserved; and no supplier/order UUID or business write in the rendered assistant result.
+
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SHIFT-OPERATIONS-ASSISTANT-001
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.

@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — supplier quote and actual performance decision support — 2026-11-06
+
+- P3 code parent `d05f343bfb40a6501d2048d53cb661787ba45c92`; performance-join commits: `e12e229662c7e1f2e734510be206581eeefeb870`, `9255504d928a94e02af4e3f772893c57d08dca1b`, `eb65659a797d72ae1d1b0cde3e5d1750866034d6`, `dcabfeafceaafb817afda64b309cd7f83aa5c805`, `f211ef873e083b0f9ff101321ffdd119371acfd7`, `8ac09e9081e1b76eafda5113ce898396ebbf7b49`.
+- Reuses existing `fetch_supplier_performance_snapshot` with the existing quote source for a 90-day UTC period. Server resolves the organization and authorizes both reads. Join is on supplier ID within those server-scoped results; identifiers do not render.
+- Promised quote delivery days remain separate from actual receipt median. Median and on-time rate require 3+ samples independently. Complete-period absence means no eligible PO for performance in that window; partial-page absence remains unknown.
+- Denied/unavailable performance preserves the quote result as PARTIAL. No synthetic score, supplier ranking, award, PO, stock/payment/ledger write or new RPC/schema/provider.
+- Tests authored, NOT RUN; no build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production acceptance. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; same supplier quote matrix leaf updated in place.
+
+
 ## P3 body update — supplier commercial terms and bounded quote-price history — 2026-11-06
 
 - Source code parent `9a0ab3ec8546f298433c79c43a28663839455af1`; extension commits are listed in the canonical P3 checkpoint.

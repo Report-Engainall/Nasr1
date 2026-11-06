@@ -2102,3 +2102,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - 200-row/no-cursor source remains PARTIAL at limit; no free-date-window claim. No composite ranking or write side effect.
 - Exact paths and Bolt gates are in `docs/execution/P3_CHECKPOINT.md`; existing matrix leaf updated in place. Tests authored, NOT RUN; no build/CI/browser/Bolt/DB/Preview/Vercel/production action; no PASS/runtime claim.
 
+## 2026-11-06 — REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001 — actual supplier performance joined to supplier quote comparison
+
+- Code parent `d05f343bfb40a6501d2048d53cb661787ba45c92`; commits `e12e229662c7e1f2e734510be206581eeefeb870`, `9255504d928a94e02af4e3f772893c57d08dca1b`, `eb65659a797d72ae1d1b0cde3e5d1750866034d6`, `dcabfeafceaafb817afda64b309cd7f83aa5c805`, `f211ef873e083b0f9ff101321ffdd119371acfd7`, `8ac09e9081e1b76eafda5113ce898396ebbf7b49`.
+- Quote comparison now uses the existing supplier performance read model over a captured 90-day UTC window. It shows actual order/receipt counts, backlog, median actual lead time and on-time rate with independent three-sample minimums. Quoted promise and actual receipt performance remain distinct.
+- Same-server-tenant supplier join only; no identifiers exposed. Partial supplier page does not infer absence; denied/unavailable performance leaves price comparison visible but PARTIAL.
+- No score, prediction or purchase/stock/finance write. Source tests authored but NOT RUN; no build/runtime/Bolt/DB/Preview/Vercel/production operation. Matrix leaf updated in place.
+
