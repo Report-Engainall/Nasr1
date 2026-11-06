@@ -26,6 +26,8 @@ export interface CustomerReturnRequestRecord {
   reason: CustomerReturnReason;
   notes: string | null;
   review_note: string | null;
+  customer_cancelled_at: string | null;
+  customer_cancellation_reason: string | null;
   created_at: string;
   items: CustomerReturnRequestItem[];
 }
@@ -90,6 +92,8 @@ export function readCustomerReturnSummary(value: unknown): CustomerReturnSummary
       reason,
       notes: nullableText(entry.notes),
       review_note: nullableText(entry.review_note),
+      customer_cancelled_at: nullableText(entry.customer_cancelled_at),
+      customer_cancellation_reason: nullableText(entry.customer_cancellation_reason),
       created_at: requiredText(entry.created_at, "created_at"),
       items,
     };
