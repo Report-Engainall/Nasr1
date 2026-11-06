@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildDecisionPolicyReviewSuggestions,
   searchSimilarDecisionMemory,
   type DecisionMemoryMetricResult,
   type DecisionMemoryRecord,
@@ -184,5 +185,91 @@ describe("decision memory precedent search", () => {
       decisionId: "decision-target",
       limit: 1000,
     })).toThrow("decision_memory_search_input_invalid");
+  });
+  it("creates review-only rule suggestions from verified measured lessons", () => {
+    const result = buildDecisionPolicyReviewSuggestions([
+      decision({ decisionId: "measured-one", lessons: ["تعديل نقطة إعادة الطلب بعد مراجعة الدليل"] }),
+      decision({
+        decisionId: "measured-two",
+        createdAt: "2026-11-12T10:00:00.000Z",
+        lessons: ["مراجعة فترة التوريد"],
+        metricComparison: {
+          status: "VERIFIED",
+          expected: metric({ value: 12, evidenceIds: ["invoice:two"] }),
+          actual: metric({ value: 7, evidenceIds: ["movement:two"] }),
+          difference: -5,
+          differencePercent: -41.67,
+          reason: null,
+        },
+      }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      ruleId: "inventory.replenishment",
+      ruleVersion: "2",
+      status: "DRAFT_REQUIRES_HUMAN_REVIEW",
+      observations: [{ decisionId: "measured-two" }, { decisionId: "measured-one" }],
+    });
+    expect(result[0].lessons).toEqual(expect.arrayContaining([
+      "تعديل نقطة إعادة الطلب بعد مراجعة الدليل",
+      "مراجعة فترة التوريد",
+    ]));
+    expect(result[0].evidenceIds).toEqual(expect.arrayContaining(["invoice:two", "movement:two"]));
+    expect(result[0].reviewInstruction).toContain("لا يغيّر هذا الاقتراح القاعدة");
+  });
+
+  it("keeps suggestions separate when rule version or metric context changes", () => {
+    const differentRuleVersion = decision({
+      decisionId: "rule-version-three",
+      ruleVersion: "3",
+    });
+    const differentFormula = decision({
+      decisionId: "other-formula",
+      metricComparison: {
+        status: "VERIFIED",
+        expected: metric({ formulaId: "inventory.stockout-events.v2", formulaVersion: "2" }),
+        actual: metric({ formulaId: "inventory.stockout-events.v2", formulaVersion: "2" }),
+        difference: 0,
+        differencePercent: 0,
+        reason: null,
+      },
+    });
+    const result = buildDecisionPolicyReviewSuggestions([
+      decision(),
+      differentRuleVersion,
+      differentFormula,
+    ]);
+    expect(result).toHaveLength(3);
+  });
+
+  it("withholds suggestions for unmeasured, partial, unreviewed or unsupported outcomes", () => {
+    const records = [
+      decision({ decisionId: "partial", memoryStatus: "PARTIAL" }),
+      decision({ decisionId: "not-measured", state: "EXECUTED" }),
+      decision({ decisionId: "lessons-unreviewed", lessonsReviewed: false }),
+      decision({
+        decisionId: "no-evidence",
+        metricComparison: {
+          status: "VERIFIED",
+          expected: metric({ evidenceIds: [] }),
+          actual: metric(),
+          difference: -6,
+          differencePercent: -60,
+          reason: null,
+        },
+      }),
+      decision({
+        decisionId: "context-mismatch",
+        metricComparison: {
+          status: "VERIFIED",
+          expected: metric({ currency: "YER" }),
+          actual: metric({ currency: "USD" }),
+          difference: -6,
+          differencePercent: -60,
+          reason: null,
+        },
+      }),
+    ];
+    expect(buildDecisionPolicyReviewSuggestions(records)).toEqual([]);
   });
 });
