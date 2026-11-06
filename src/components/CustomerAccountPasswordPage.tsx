@@ -83,7 +83,7 @@ export function CustomerAccountPasswordPage() {
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
           <div>
             <strong className="block">الحساب الحالي</strong>
-            <span className="text-sm text-muted-foreground" dir="ltr">{user.email}</span>
+            <span className="text-sm text-muted-foreground" dir="ltr">{user.email.trim() || "حساب مرتبط برقم هاتف"}</span>
           </div>
           <span className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground">
             <ShieldCheck size={15}/> جلسة مصادقة نشطة
