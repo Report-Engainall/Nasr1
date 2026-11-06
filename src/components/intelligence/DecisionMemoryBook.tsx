@@ -370,6 +370,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
     <section className="space-y-2 rounded-xl border p-3" aria-label="مقترحات مراجعة القواعد من نتائج القرارات">
       <div><h3 className="font-semibold">مقترحات مراجعة القواعد من نتائج القرارات</h3>
         <p className="mt-1 text-xs text-muted-foreground">مسودات مراجعة مشتقة فقط من قرارات مقاسة وذاكرة مكتملة ودروس راجعها المستخدم وقياسات متوافقة ذات أدلة. لا تُعدّل القواعد أو الأسعار أو حدود الائتمان أو المخزون، ولا تفترض أن التوصية سببت النتيجة.</p>
+        {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">هذه المسودات مشتقة من القرارات المحملة فقط ({result.loadedCount} من {result.totalCount}) وليست مراجعة شاملة لكل التاريخ.</p>:null}
       </div>
       {policyReviewSuggestions.length?<div className="space-y-2">
         <p className="text-xs text-muted-foreground">عدد مسودات المراجعة: {policyReviewSuggestions.length}</p>
@@ -395,7 +396,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           <p className="text-xs text-muted-foreground">الأدلة المحفوظة: <EvidenceReferences ids={suggestion.evidenceIds}/></p>
         </article>)}
         {policyReviewSuggestions.length>8?<p className="text-xs text-muted-foreground">تُعرض أول 8 مسودات من أصل {policyReviewSuggestions.length}؛ البقية محسوبة ولم تُحذف.</p>:null}
-      </div>:<p className="text-sm text-muted-foreground">لا توجد حالياً مسودات مراجعة مستوفية الشروط. لا تُنشأ من قرارات غير مقاسة أو ذاكرة ناقصة أو نتائج بلا دليل.</p>}
+      </div>:<p className="text-sm text-muted-foreground">لا توجد مسودات مراجعة مستوفية الشروط ضمن القرارات المحملة حالياً. لا تُنشأ من قرارات غير مقاسة أو ذاكرة ناقصة أو نتائج بلا دليل.</p>}
     </section>
     <div className="grid gap-2 sm:grid-cols-4">
       <article className="rounded-lg border p-3"><p className="text-xs">قرارات محمّلة</p><strong className="text-xl">{result.loadedCount}</strong></article>
