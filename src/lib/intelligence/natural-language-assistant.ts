@@ -12,6 +12,7 @@ import type { GrowthOpportunityRadarResult } from "./growth-opportunities";
 import type { TaskPerformanceScorecard } from "./task-performance-scorecard";
 import type { BusinessHealthMapResult } from "./business-health-map";
 import type { ShiftOperationsCenterResult } from "./shift-operations";
+import type { CustomerQuotePipelineResult } from "./customer-quote-pipeline";
 import type { SupplierQuoteComparisonAssistantResult } from "./supplier-quote-comparison-assistant";
 import { buildDecisionPolicyReviewSuggestions, type DecisionMemoryBookResult } from "./decision-memory";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
@@ -31,14 +32,15 @@ export type CommercePolicyIntent="COMMERCE_POLICY_OVERVIEW"|"COMMERCE_POLICY_SOU
 export type DecisionOutcomesIntent="DECISION_OUTCOMES_OVERVIEW"|"DECISIONS_PENDING_REVIEW"|"DECISIONS_AWAITING_EXECUTION"|"DECISIONS_DEFERRED";
 export type DecisionMemoryIntent="DECISION_MEMORY_OVERVIEW";
 export type ShiftOperationsIntent="SHIFT_OPERATIONS_OVERVIEW";
+export type CustomerQuotePipelineIntent="CUSTOMER_QUOTE_PIPELINE_OVERVIEW";
 export type SupplierQuoteComparisonIntent="SUPPLIER_QUOTE_COMPARISON_OVERVIEW";
 export type CustomerServiceIntent=
  |"CUSTOMER_SERVICE_OVERVIEW"
  |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
  |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
  |"CUSTOMER_SERVICE_UNASSIGNED";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|DecisionMemoryIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent|BusinessHealthIntent|ShiftOperationsIntent|SupplierQuoteComparisonIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard"|"fetch_commerce_policy_catalog"|"fetch_operational_shift_workspace"|"fetch_purchase_supplier_quotes";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|DecisionMemoryIntent|GrowthRadarIntent|TaskPerformanceIntent|CommercePolicyIntent|BusinessHealthIntent|ShiftOperationsIntent|SupplierQuoteComparisonIntent|CustomerQuotePipelineIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes"|"fetch_task_performance_scorecard"|"fetch_commerce_policy_catalog"|"fetch_operational_shift_workspace"|"fetch_purchase_supplier_quotes"|"fetch_customer_quote_pipeline";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind;businessDate?:string}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -340,6 +342,21 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"لقطة حالية لمراجعات المدير المحفوظة عبر نطاق المهام المصرح به؛ أحدث مراجعة لكل كيان ونوع. تعرض أسباب رفض/تأجيل التوصيات والإنذارات الكاذبة والأسباب المتكررة بعد المراجعة، ولا تدعم فترة تاريخية أو توزيعاً حسب الدور."
   };
  }
+ const customerQuotePipelineQuestion=/(مسار عروض العملاء|مسار عروض الاسعار للعملاء|ملخص عروض العملاء|ملخص طلبات التسعير|حاله عروض العملاء|حاله عروض الاسعار للعملاء|معدل قبول عروض العملاء|نسبه قبول عروض العملاء|قبول عروض الاسعار)/.test(normalizedQuestion);
+ if(customerQuotePipelineQuestion){
+  const dayMatch=normalizedQuestion.match(/(?:اخر|خلال|لفتره|فتره)[^0-9]{0,8}(30|60|90|180|365)[^0-9]*(?:يوما?|ايام)/);
+  const unsupportedTime=/(اليوم|امس|غدا|الشهر الحالي|الشهر الماضي|الاسبوع الماضي|السنه الماضيه|من تاريخ|بين تاريخ|[0-9]{4}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion);
+  if(unsupportedTime)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"مصدر مسار العروض يدعم نوافذ متحركة محددة بالأيام UTC فقط؛ لا يحوّل اليوم أو الشهر التقويمي أو التاريخ الحر إلى فترة مختلفة."
+  };
+  const periodDays=(dayMatch?Number(dayMatch[1]):90) as 30|60|90|180|365;
+  return {
+   status:"READY",intent:"CUSTOMER_QUOTE_PIPELINE_OVERVIEW",normalizedQuestion,
+   sourceRpc:"fetch_customer_quote_pipeline",periodDays,
+   filterDescription:"مجتمع عروض العملاء المنشأة خلال آخر "+periodDays+" يوماً UTC حسب created_at، مع الحالات الحالية كما في لقطة الخادم. قبول العرض لا يعني إنشاء طلب بيع."
+  };
+ }
  const supplierQuoteComparisonQuestion=/(مقارنه عروض الموردين|قارن عروض الموردين|مقارنه اسعار الموردين|قارن اسعار الموردين|مقارنه عروض التوريد|اقل سعر.*(الموردين|مورد)|اقل تكلفه.*(الموردين|مورد)|العروض الوارده من الموردين|سجل اسعار عروض الموردين|تاريخ اسعار الموردين|تغير اسعار عروض الموردين|التغير التاريخي لاسعار الموردين|كيف تغير سعر المورد|مقارنه عروض الموردين.*(اداء|التزام|توريد)|اداء التوريد للموردين مع العروض|مقارنه السعر باداء التوريد)/.test(normalizedQuestion);
  if(supplierQuoteComparisonQuestion){
   if(/(الاسبوع الماضي|الشهر الماضي|السنه الماضيه|اخر (7|30|90) يوم|خلال (7|30|90) يوم|من تاريخ|بين تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
@@ -503,6 +520,9 @@ export interface NaturalLanguageDecisionMemoryResult {
  kind:"DECISION_MEMORY";state:DecisionMemoryBookResult["status"];intent:DecisionMemoryIntent;
  answer:string;sourceRpc:"fetch_decision_outcomes";queriedAt:string;memory:DecisionMemoryBookResult;
 }
+export interface NaturalLanguageCustomerQuotePipelineResult extends CustomerQuotePipelineResult {
+ intent:"CUSTOMER_QUOTE_PIPELINE_OVERVIEW";
+}
 export interface NaturalLanguageShiftOperationsResult {
  kind:"SHIFT_OPERATIONS";state:ShiftOperationsCenterResult["status"];intent:ShiftOperationsIntent;
  answer:string;sourceRpc:"fetch_operational_shift_workspace";businessDate:string;
@@ -528,7 +548,7 @@ export interface NaturalLanguageBusinessHealthResult {
  };
 }
 
-export type NaturalLanguageResolvedResult=SupplierQuoteComparisonAssistantResult|NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageDecisionMemoryResult|NaturalLanguageShiftOperationsResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult|NaturalLanguageBusinessHealthResult;
+export type NaturalLanguageResolvedResult=SupplierQuoteComparisonAssistantResult|NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageDecisionMemoryResult|NaturalLanguageShiftOperationsResult|NaturalLanguageCustomerQuotePipelineResult|NaturalLanguageGrowthRadarResult|NaturalLanguageTaskPerformanceResult|NaturalLanguageCommercePolicyResult|NaturalLanguageBusinessHealthResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {

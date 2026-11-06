@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { fetchSupplierInvoiceWorkspace } from "@/lib/supplier-invoices";
 import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
 import { fetchSupplierPerformance } from "./supplier-performance-client";
+import { fetchCustomerQuotePipeline } from "./customer-quote-pipeline-client";
 import { createInventoryIntelligencePeriod,fetchInventoryIntelligence } from "./inventory-intelligence-client";
 import { fetchProcessBottlenecks } from "./process-bottlenecks-client";
 import { fetchTaskIntelligenceReport } from "./task-intelligence-reports-client";
@@ -89,6 +90,15 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     sourceRpc:"fetch_task_performance_scorecard",
     queriedAt:new Date().toISOString(),scorecard,
    }};
+  }
+  if(plan.sourceRpc==="fetch_customer_quote_pipeline"){
+   const periodDays=plan.periodDays??90;
+   const to=new Date().toISOString().slice(0,10);
+   const fromDate=new Date(to+"T00:00:00.000Z");
+   fromDate.setUTCDate(fromDate.getUTCDate()-(periodDays-1));
+   const pipeline=await fetchCustomerQuotePipeline({from:fromDate.toISOString().slice(0,10),to});
+   if(!pipeline.ok)return {status:pipeline.status,message:pipeline.message};
+   return {status:"RESULT",plan,result:{...pipeline.result,intent:"CUSTOMER_QUOTE_PIPELINE_OVERVIEW"}};
   }
   if(plan.sourceRpc==="fetch_purchase_supplier_quotes"){
    const queriedAt=new Date().toISOString();
