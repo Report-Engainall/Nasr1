@@ -1267,6 +1267,162 @@ function Statement() {
   );
 }
 
+export function CustomerPaymentsPage() {
+  return (
+    <Gate>
+      <CustomerPayments />
+    </Gate>
+  );
+}
+
+type CustomerPaymentHistoryRow = PaymentAmount & {
+  id?: string;
+  paid_at?: string;
+};
+
+function CustomerPayments() {
+  const [payments, setPayments] = useState<CustomerPaymentHistoryRow[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await supabase.rpc("get_customer_account_statement");
+      if (result.error || !result.data || typeof result.data !== "object") {
+        throw new Error("تعذر قراءة سجل الدفعات من دفتر الحساب المصرّح به.");
+      }
+      const payload = result.data as { invoices?: unknown; payments?: unknown };
+      if (!Array.isArray(payload.invoices) || payload.invoices.length > 200 ||
+          !Array.isArray(payload.payments) || payload.payments.length > 500) {
+        throw new Error("أعاد الخادم تفاصيل دفعات غير مكتملة أو تجاوزت حدود القراءة.");
+      }
+      const parsed: CustomerPaymentHistoryRow[] = [];
+      for (const candidate of payload.payments) {
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+          throw new Error("توجد حركة دفع لا تطابق عقد دفتر الحساب؛ لم تُعرض بيانات جزئية.");
+        }
+        const row = candidate as Record<string, unknown>;
+        const amount = typeof row.amount === "number" || typeof row.amount === "string"
+          ? Number(row.amount)
+          : NaN;
+        if (typeof row.invoice_id !== "string" ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.invoice_id) ||
+            !Number.isFinite(amount) || amount < 0 ||
+            (row.id !== undefined && (typeof row.id !== "string" ||
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id))) ||
+            (row.paid_at !== undefined && (typeof row.paid_at !== "string" || !Number.isFinite(Date.parse(row.paid_at)))) {
+          throw new Error("إحدى حركات الدفع تحتوي مرجعاً أو مبلغاً أو تاريخاً غير صالح.");
+        }
+        parsed.push({
+          invoice_id: row.invoice_id,
+          amount: row.amount as number | string,
+          ...(typeof row.id === "string" ? { id: row.id } : {}),
+          ...(typeof row.paid_at === "string" ? { paid_at: row.paid_at } : {}),
+        });
+      }
+      setInvoices(payload.invoices as Invoice[]);
+      setPayments(parsed);
+    } catch (cause) {
+      setInvoices([]);
+      setPayments([]);
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل الدفعات.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const invoiceById = useMemo(() => new Map(invoices.map(invoice => [invoice.id, invoice])), [invoices]);
+  const filtered = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("ar");
+    if (!term) return payments;
+    return payments.filter(payment => {
+      const invoice = invoiceById.get(payment.invoice_id);
+      return [
+        invoice?.invoice_number ?? "",
+        payment.paid_at ? formatDateShort(payment.paid_at) : "",
+        payment.invoice_id,
+      ].some(value => value.toLocaleLowerCase("ar").includes(term));
+    });
+  }, [invoiceById, payments, search]);
+
+  const detailMayBePartial = payments.length >= 500 || invoices.length >= 200;
+  return (
+    <WorkspaceShell
+      title="دفعاتي"
+      subtitle="حركات الدفعات المسجلة في دفتر حسابك. هذه الشاشة للقراءة فقط ولا تنشئ دفعة أو إيصال سداد."
+    >
+      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link to="/statement" style={secondary}>كشف الحساب</Link>
+          <Link to="/invoices" style={secondary}>الفواتير</Link>
+        </div>
+        <button type="button" style={secondary} onClick={() => void load()} disabled={loading}>
+          <RefreshCw size={15} /> تحديث الدفعات
+        </button>
+      </div>
+      {error && <ErrorBox message={error} retry={() => void load()} />}
+      {!error && detailMayBePartial && (
+        <p role="status" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
+          هذه قائمة تفاصيل محدودة بآخر 500 دفعة و200 فاتورة من مصدر كشف الحساب. لا تمثل هذه الصفحة وحدها كامل دفتر العميل.
+        </p>
+      )}
+      <section style={{ ...card, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18 }}>سجل الدفعات</h2>
+            <p style={{ ...quiet, marginTop: 6 }}>عدد الحركات المحمّلة: {payments.length.toLocaleString("ar-YE")} · المعروض: {filtered.length.toLocaleString("ar-YE")}</p>
+          </div>
+          <label className="search-field" style={{ minWidth: 220 }}>
+            <Search size={16} />
+            <input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث برقم الفاتورة أو التاريخ" maxLength={120} />
+          </label>
+        </div>
+      </section>
+      {loading ? (
+        <p role="status">جارٍ تحميل الدفعات من دفتر الحساب...</p>
+      ) : !error && filtered.length === 0 ? (
+        <EmptyBox>{search ? "لا توجد دفعات تطابق البحث." : "لا توجد دفعات مسجلة ضمن تفاصيل القراءة الحالية."}</EmptyBox>
+      ) : !error ? (
+        <section style={{ ...card, padding: 0, overflowX: "auto" }}>
+          <table style={tableStyle}>
+            <thead>
+              <tr style={{ textAlign: "right", background: "#f4f8f9" }}>
+                <th style={{ padding: 12 }}>تاريخ الدفع</th>
+                <th>الفاتورة المرتبطة</th>
+                <th>المبلغ</th>
+                <th>العملة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((payment, index) => {
+                const invoice = invoiceById.get(payment.invoice_id);
+                const key = payment.id ?? payment.invoice_id + "-" + (payment.paid_at ?? "undated") + "-" + index;
+                return (
+                  <tr key={key} style={{ borderTop: "1px solid #edf2f3" }}>
+                    <td style={{ padding: 12 }}>{payment.paid_at ? formatDateShort(payment.paid_at) : "تاريخ غير متاح"}</td>
+                    <td>{invoice?.invoice_number ?? "فاتورة خارج تفاصيل القراءة الحالية"}</td>
+                    <td>{invoice ? formatAccountMoney(payment.amount, invoice.currency) : "غير متاح"}</td>
+                    <td>{invoice?.currency ?? "غير متاحة"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+      <p style={{ ...quiet, marginTop: 12 }}>
+        مصدر البيانات هو أمر قراءة كشف الحساب المصرّح به. لا تعرض الشاشة تفاصيل مالية لدفعة لا تتوفر فاتورتها ضمن تفاصيل القراءة المحمّلة.
+      </p>
+    </WorkspaceShell>
+  );
+}
+
 export function QuoteWorkspacePage() {
   return (
     <Gate>
