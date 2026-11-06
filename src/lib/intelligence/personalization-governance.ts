@@ -111,6 +111,100 @@ export interface NotificationDeliveryDecision {
   externalContextAllowed: boolean;
 }
 
+export interface NotificationDeliveryAuditMetadata {
+  eventType: "NOTIFICATION_DELIVERY_POLICY_EVALUATED";
+  deliveryAttemptId: string;
+  organizationId: string;
+  recipientProfileId: string;
+  actorProfileId: string;
+  purpose: string;
+  channel: NotificationChannel;
+  severity: NotificationSeverity;
+  dataClass: NotificationDataClass;
+  policyVersion: string;
+  preferencesUpdatedAt: string | null;
+  decisionStatus: NotificationDeliveryDecision["status"];
+  decisionReason: NotificationDeliveryReason;
+  detailLevel: NotificationDeliveryDecision["detailLevel"];
+  reducedMotion: NotificationDeliveryDecision["reducedMotion"];
+  personalizationMode: NotificationDeliveryDecision["personalizationMode"];
+  consentId: string | null;
+  consentVersion: string | null;
+  occurredAt: string;
+}
+
+/**
+ * Produces payload-free, attempt-scoped metadata for the P2 transactional audit writer.
+ * Recomputes the delivery decision and rejects caller-supplied decision drift.
+ * The server must re-derive actor, tenant, recipient, capability and consent at write time.
+ */
+export function createNotificationDeliveryAuditMetadata(
+  input: NotificationDeliveryInput & { deliveryAttemptId: string; actorProfileId: string },
+  suppliedDecision: NotificationDeliveryDecision,
+): NotificationDeliveryAuditMetadata | null {
+  if (!isNonEmptyString(input.deliveryAttemptId) || input.deliveryAttemptId.length > 128 ||
+      !isNonEmptyString(input.actorProfileId) || input.actorProfileId.length > 128 ||
+      !isNonEmptyString(input.recipient?.organizationId) ||
+      !isNonEmptyString(input.recipient?.profileId) ||
+      !isNonEmptyString(input.event?.purpose) ||
+      !Number.isFinite(Date.parse(input.asOf)) ||
+      !knownChannels.has(input.channel) ||
+      !validEvent(input.event)) {
+    return null;
+  }
+
+  const expected = resolveNotificationDelivery(input);
+  if (suppliedDecision.status !== expected.status ||
+      suppliedDecision.reason !== expected.reason ||
+      suppliedDecision.channel !== expected.channel ||
+      suppliedDecision.detailLevel !== expected.detailLevel ||
+      suppliedDecision.reducedMotion !== expected.reducedMotion ||
+      suppliedDecision.personalizationMode !== expected.personalizationMode ||
+      suppliedDecision.externalContextAllowed !== expected.externalContextAllowed) {
+    return null;
+  }
+
+  let consentId: string | null = null;
+  let consentVersion: string | null = null;
+  if (input.channel !== "IN_APP") {
+    const matches = (input.externalConsents ?? []).filter(consent =>
+      consent.organizationId === input.recipient.organizationId &&
+      consent.profileId === input.recipient.profileId &&
+      consent.channel === input.channel &&
+      consent.destinationId === input.recipient.destinationId &&
+      consent.purpose === input.event.purpose,
+    );
+    if (matches.length === 1 &&
+        isNonEmptyString(matches[0].id) &&
+        isNonEmptyString(matches[0].consentVersion)) {
+      consentId = matches[0].id;
+      consentVersion = matches[0].consentVersion;
+    }
+  }
+
+  return {
+    eventType: "NOTIFICATION_DELIVERY_POLICY_EVALUATED",
+    deliveryAttemptId: input.deliveryAttemptId,
+    organizationId: input.recipient.organizationId,
+    recipientProfileId: input.recipient.profileId,
+    actorProfileId: input.actorProfileId,
+    purpose: input.event.purpose,
+    channel: input.channel,
+    severity: input.event.severity,
+    dataClass: input.event.dataClass,
+    policyVersion: PERSONALIZATION_POLICY_VERSION,
+    preferencesUpdatedAt: input.preferences?.updatedAt ?? null,
+    decisionStatus: expected.status,
+    decisionReason: expected.reason,
+    detailLevel: expected.detailLevel,
+    reducedMotion: expected.reducedMotion,
+    personalizationMode: expected.personalizationMode,
+    consentId,
+    consentVersion,
+    occurredAt: input.asOf,
+  };
+}
+
 export interface PersonalizationExperience {
   status: "READY" | "REVIEW";
   mode: "PERSONALIZED" | "ROLE_BASED_ONLY" | "UNAVAILABLE";
