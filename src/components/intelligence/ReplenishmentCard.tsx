@@ -1,5 +1,6 @@
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fetchProducts } from "@/lib/api";
 import { ReplenishmentPurchaseDraft } from "./ReplenishmentPurchaseDraft";
 import { EvidenceReferences, EvidenceStatusLabel, EvidenceWarnings, formatEvidenceNumber, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 
@@ -12,6 +13,29 @@ export interface ReplenishmentCardProps {
 
 export function ReplenishmentCard({ recommendations, state = "ready", onRetry, canManagePurchases = false }: ReplenishmentCardProps) {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
+  const [productNames, setProductNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    if (!recommendations?.length) {
+      setProductNames({});
+      return () => { active = false; };
+    }
+    void fetchProducts().then((products) => {
+      if (!active) return;
+      const labels: Record<string, string> = {};
+      for (const product of products) {
+        const name = typeof product.name === "string" ? product.name.trim() : "";
+        if (!name) continue;
+        labels[product.id] = name;
+        const itemCode = typeof product.item_code === "string" ? product.item_code.trim() : "";
+        if (itemCode && !labels[itemCode]) labels[itemCode] = name;
+      }
+      setProductNames(labels);
+    }).catch(() => {
+      if (active) setProductNames({});
+    });
+    return () => { active = false; };
+  }, [recommendations]);
   const [draftOpen, setDraftOpen] = useState(false);
   const selectableRecommendations = (recommendations ?? []).filter((item) =>
     item.status === "VERIFIED" && item.action === "RECOMMEND" &&
@@ -46,7 +70,10 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry, c
         {recommendations.map((item) => (
           <article key={item.productRef} aria-label={item.productRef} className="rounded-xl border bg-card p-4 text-card-foreground">
             <header className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="font-semibold">{item.productRef}</h4>
+              <h4 className="font-semibold">{productNames[item.productRef] ?? item.productRef}</h4>
+              {productNames[item.productRef] && productNames[item.productRef] !== item.productRef ? (
+                <span className="text-xs text-muted-foreground">{item.productRef}</span>
+              ) : null}
               <span className="text-xs"><EvidenceStatusLabel status={item.status} /></span>
             </header>
             <p className="mt-2 text-sm font-semibold">
