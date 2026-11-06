@@ -41,7 +41,7 @@ export interface PromotionPolicyOverlapReview {
   withheldCount: number;
   candidates: PromotionPolicyOverlapPair[];
   withheldReasons: Array<{
-    reason: "SOURCE_CHANGED" | "SCOPE_NOT_COMPARABLE" | "SOURCE_DATE_MISSING";
+    reason: "SOURCE_CHANGED" | "SCOPE_NOT_COMPARABLE" | "SOURCE_DATE_MISSING" | "SOURCE_STATUS_UNAVAILABLE";
     count: number;
   }>;
 }
@@ -76,23 +76,29 @@ function timestamp(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function ids(value: unknown): Set<string> | null {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 500) return null;
-  if (value.some(item => typeof item !== "string" || !UUID.test(item))) return null;
-  return new Set((value as string[]).map(item => item.toLowerCase()));
+function readIds(value: unknown): { present: boolean; valid: boolean; ids: Set<string> } {
+  if (value === undefined || value === null) return { present: false, valid: true, ids: new Set() };
+  if (!Array.isArray(value) || value.length > 500 ||
+      value.some(item => typeof item !== "string" || !UUID.test(item))) {
+    return { present: true, valid: false, ids: new Set() };
+  }
+  return { present: true, valid: true, ids: new Set((value as string[]).map(item => item.toLowerCase())) };
 }
 
 /**
  * Only compare explicit same-dimension scopes. A promotion with no explicit
- * scope, or mixed product/category scope, is withheld rather than treated as
- * a wildcard or guessed to cover every product.
+ * scope, malformed arrays, or mixed non-empty product/category scope is
+ * withheld rather than treated as a wildcard or guessed to cover all products.
  */
 function parseScope(source: Row): Scope | null {
-  const products = ids(source.product_ids);
-  const categories = ids(source.category_ids);
-  if (products && categories) return null;
-  if (products) return { kind: "PRODUCT", ids: products };
-  if (categories) return { kind: "CATEGORY", ids: categories };
+  const products = readIds(source.product_ids);
+  const categories = readIds(source.category_ids);
+  if (!products.valid || !categories.valid) return null;
+  const hasProducts = products.ids.size > 0;
+  const hasCategories = categories.ids.size > 0;
+  if (hasProducts && hasCategories) return null;
+  if (hasProducts) return { kind: "PRODUCT", ids: products.ids };
+  if (hasCategories) return { kind: "CATEGORY", ids: categories.ids };
   return null;
 }
 
@@ -142,6 +148,7 @@ export function buildPromotionPolicyOverlapReview(
   let sourceChangedCount = 0;
   let scopeNotComparableCount = 0;
   let sourceDateMissingCount = 0;
+  let sourceStatusUnavailableCount = 0;
 
   for (const policy of promotions) {
     if (policy.sourceChanged) {
@@ -149,7 +156,15 @@ export function buildPromotionPolicyOverlapReview(
       continue;
     }
     const source = row(policy.currentSource);
-    if (!source || source.is_active !== true) continue;
+    if (!source) {
+      sourceStatusUnavailableCount += 1;
+      continue;
+    }
+    if (source.is_active === false) continue;
+    if (source.is_active !== true) {
+      sourceStatusUnavailableCount += 1;
+      continue;
+    }
 
     const start = timestamp(policy.effectiveFrom);
     const end = policy.effectiveUntil === null ? null : timestamp(policy.effectiveUntil);
@@ -238,6 +253,9 @@ export function buildPromotionPolicyOverlapReview(
       : []),
     ...(sourceDateMissingCount
       ? [{ reason: "SOURCE_DATE_MISSING" as const, count: sourceDateMissingCount }]
+      : []),
+    ...(sourceStatusUnavailableCount
+      ? [{ reason: "SOURCE_STATUS_UNAVAILABLE" as const, count: sourceStatusUnavailableCount }]
       : []),
   ];
   const withheldCount = withheldReasons.reduce((sum, item) => sum + item.count, 0);
