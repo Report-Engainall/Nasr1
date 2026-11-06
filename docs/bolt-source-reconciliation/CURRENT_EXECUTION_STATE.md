@@ -2859,3 +2859,25 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Acceptance boundary: source implementation and regression source only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
 - NEXT_ACTION_ID: `REF-NL-SUPPLIER-QUOTE-COMPARISON-ASSISTANT-001` — exact-SHA Bolt non-production acceptance for SQL rounding parity, same-tenant purchasing authorization, comparison basis, history basis, performance sample gates and zero-write behavior.
 
+
+
+## P3 AI GOVERNANCE HARDENING — SANITIZER FALLBACK AND OPERATIONS TELEMETRY INTEGRITY — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Starting main SHA: `055313bc534bd2d8e68aa491f640c45530110398`.
+- Exact source/test commit: `833b98cfa6ee3da43656214c761393b0a11b0a7c`.
+- Updated the existing deterministic free-quota router in `src/lib/intelligence/free-ai-policy.ts`:
+  - The sanitizer call is now fail-closed. If the sanitizer throws, reports success with a non-string question, returns an empty question, or exceeds the 1200-character gateway input limit, the route returns `UNSAFE_QUESTION` and falls back to `RULE_BASED` or `MODEL_UNAVAILABLE`; no provider is selected.
+  - The sanitized question is trimmed and is the only question value returned in the selected route. `paidSpendLimit` remains exactly zero.
+- Hardened `summarizeAiOperations()` in the same file:
+  - Enforces a maximum of 5000 events, unique bounded event IDs, allow-listed provider/mode/status values, bounded safe reason codes, parseable event timestamps not later than `asOf`, and elapsed time null or a safe integer from 0–600000 ms.
+  - A malformed, duplicate, future or unbounded event population throws and is withheld; it is not partially summarized as a healthy population.
+  - Latest event time is selected by parsed instant; failure reason codes are de-duplicated and sorted. Arbitrary prompt/provider payload/secret properties are never projected.
+- Regression source added to `src/lib/intelligence/free-ai-policy.test.ts` for sanitizer exceptions, malformed/non-text/overlong sanitized questions, duplicate/future/malformed telemetry events, and valid latest-event/error-code aggregation.
+- Exact blobs:
+  - `src/lib/intelligence/free-ai-policy.ts` — `11b47c74a8fd57f4547b85d85eca15c9b7ad5b88`.
+  - `src/lib/intelligence/free-ai-policy.test.ts` — `1f88bcf6ec5e1374e7bd4faeb4fedea11d28f7f1`.
+- The change does not activate, configure, or call an external AI provider. It does not alter Edge Function credentials, provider URLs, budget limits, quotas, privacy grants, database permissions or production settings. No paid spend, provider request, prompt, personal data or business data was sent.
+- Acceptance boundary: source and regression tests only. Tests NOT RUN. No build/typecheck/CI/browser/DB/Bolt/Preview/Vercel/production operation or PASS is claimed.
+- NEXT_ACTION_ID: `REF-AI-FALLBACK-001` — exact-SHA acceptance of sanitizer fail-closed behavior, quota evidence eligibility, deterministic fallback, telemetry population validation, privacy and zero-paid-spend boundaries. Keep runtime provider activation disabled until free-tier, zero-cost and data-egress claims are proven from current provider evidence and owner approval.
+
