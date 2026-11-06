@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  ArrowLeft, BookOpen, ClipboardList, FileText, Headphones, Lock,
+  ArrowLeft, BookOpen, ClipboardList, FileText, Headphones, Lock, RotateCcw,
   MapPin, MessageCircle, Package, Search, ShoppingBag, Users,
 } from "lucide-react";
 
@@ -116,6 +116,13 @@ const articles: HelpArticle[] = [
     keywords: "السعر اسعار مبلغ اجمالي خصوصية tier",
   },
   {
+    id: "returns-history",
+    category: "الطلبات",
+    question: "أين أتابع طلبات الإرجاع؟",
+    answer: "افتح «مرتجعاتي» لعرض طلبات الإرجاع المرتبطة بطلبات حسابك، وحالتها، وسببها، والكميات، ورد المراجعة. تُحمّل طلبات الحساب على صفحات من 20 طلباً أصلياً، ويظهر عدد المرتجعات للصفحة الحالية فقط. يمكنك فتح الطلب الأصلي من كل سجل.",
+    keywords: "مرتجعاتي إرجاع مرتجع حالة مراجعة طلبات",
+  },
+  {
     id: "support-case",
     category: "خدمة العملاء",
     question: "كيف أرسل شكوى أو استفساراً؟",
@@ -133,6 +140,7 @@ const articles: HelpArticle[] = [
 
 const actions = [
   { to: "/orders", label: "متابعة طلباتي", detail: "عرض الطلبات وحالاتها المحفوظة", icon: ClipboardList },
+  { to: "/returns", label: "مرتجعاتي", detail: "متابعة طلبات الإرجاع وقراراتها", icon: RotateCcw },
   { to: "/payments", label: "دفعاتي", detail: "عرض حركات السداد المسجلة في الحساب", icon: FileText },
   { to: "/profile", label: "ملفي الشخصي", detail: "بيانات الهوية وروابط الحساب", icon: UserRound },
   { to: "/account/password", label: "كلمة المرور", detail: "تحديث كلمة مرور الحساب الحالي", icon: Lock },
