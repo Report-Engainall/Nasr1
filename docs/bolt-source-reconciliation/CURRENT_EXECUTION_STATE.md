@@ -1,5 +1,13 @@
 # VERIFIED CHECKPOINT — 2026-11-06 — CUSTOMER AMENDMENT TEST CORRECTIONS
 
+## P3 CODE UPDATE — EXACT-CENT EVIDENCE SOURCE COMPARISON — 2026-11-06
+
+- Current P3 code SHA on `main`: `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`.
+- Evidence source comparison now parses currency metric values at exact two-decimal minor-unit scale and computes the monetary difference using signed integer cents.
+- Decimal-text numeric values are supported; sub-cent/over-precision input and unsafe difference are withheld explicitly. Non-currency metric behavior and the complete context/lineage gates remain unchanged.
+- Regression source is added but NOT RUN. No build/CI/Bolt/database/production operation or runtime acceptance is claimed.
+- P1 mount and P2 authorized same-tenant snapshot/reconciliation persistence dependencies remain open.
+
 ## P3 CODE UPDATE — CASHFLOW EXACT-CENT ARITHMETIC — 2026-11-06
 
 - Current P3 code SHA on `main`: `ea0545d6e4d9a6b75cb3e250190dc42ba818c989`.

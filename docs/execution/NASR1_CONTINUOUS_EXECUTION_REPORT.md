@@ -1,3 +1,13 @@
+# EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 EVIDENCE CURRENCY EXACT-CENT COMPARISON
+
+- Source/test commit `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e` hardens `src/lib/intelligence/evidence-source-comparison.ts`.
+- Currency metrics now accept supported decimal-text source values through the shared minor-unit parser and calculate signed deltas using exact integer cents. Sub-cent/over-precision inputs return `WITHHELD / METRIC_VALUE_PRECISION_INVALID`; unsafe differences are withheld as `COMPARISON_ARITHMETIC_UNSAFE`.
+- Regression source in `src/lib/intelligence/evidence-source-comparison.test.ts` covers text-decimal parity, a one-cent variance, sub-cent rejection and difference overflow.
+- No source query/RPC, SQL, role/tenant authorization, workspace mount, client persistence, business data or money write was changed.
+- Tests authored but NOT RUN. No build/typecheck/lint/CI/browser/Bolt/database/Preview/Vercel/production operation or runtime PASS is claimed. P1 mount and P2 authorized snapshot/disposition dependencies remain open.
+
+---
+
 # EXECUTION REPORT ADDENDUM — 2026-11-06 — P3 CASHFLOW EXACT-CENT ARITHMETIC
 
 - P3 code commit `e4d97cf68f95531b0a33c2e3a4800355d6c6c5e6` replaced floating-point cash movement accumulation with the repository's shared exact-decimal minor-unit helper. Commit `ea0545d6e4d9a6b75cb3e250190dc42ba818c989` advanced the formula identity to `cashflow.scheduled-net@1.1.0`.

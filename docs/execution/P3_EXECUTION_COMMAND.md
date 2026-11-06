@@ -2,8 +2,8 @@
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main` only  
-**Current code-bearing main SHA at this override:** `ea0545d6e4d9a6b75cb3e250190dc42ba818c989`  
-**Latest P3 code-bearing commit:** `ea0545d6e4d9a6b75cb3e250190dc42ba818c989`  
+**Current code-bearing main SHA at this override:** `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`  
+**Latest P3 code-bearing commit:** `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`  
 **Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
 **Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
 
@@ -22,10 +22,12 @@ The Section 61 task-quality system, persisted decision lifecycle, constrained ca
 Latest P3 delivery in this session:
 - `e4d97cf68f95531b0a33c2e3a4800355d6c6c5e6` — cashflow scheduled movements switched to exact integer-cent parsing and aggregation.
 - `ea0545d6e4d9a6b75cb3e250190dc42ba818c989` — cashflow formula version advanced to `1.1.0`, with regression-source update.
-- Source: `src/lib/intelligence/cashflow-forecast.ts`; regression source: `src/lib/intelligence/cashflow-forecast.test.ts`.
+- `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e` — Evidence Source Comparison now reads numeric-text currency metrics in exact minor units and withholds sub-cent/unsafe differences.
+- Cashflow source/test: `src/lib/intelligence/cashflow-forecast.ts` / `src/lib/intelligence/cashflow-forecast.test.ts`.
+- Evidence comparison source/test: `src/lib/intelligence/evidence-source-comparison.ts` / `src/lib/intelligence/evidence-source-comparison.test.ts`.
 - Shared precision dependency: existing `src/lib/intelligence/financial-precision.ts` (unchanged).
 
-The forecast now rejects sub-cent/over-precision monetary values, uses BigInt minor units for sums, withholds overflow, respects offset-aware UTC `asOf` dates and permits a verified negative opening balance. It remains a scheduled-movements calculation only: P2's verified opening cash and complete supplier/expense outflow source contracts remain open, so no unsupported closing/net projection is generated. Tests were authored but NOT RUN.
+The cashflow forecast uses exact integer cents and retains its incomplete-source suppression. The evidence comparison engine now avoids float subtraction for currency deltas and supports decimal-text values without silently rounding sub-cent data. Both increments have source-level regression coverage, NOT RUN.
 
 ## Immediate P3 execution order
 

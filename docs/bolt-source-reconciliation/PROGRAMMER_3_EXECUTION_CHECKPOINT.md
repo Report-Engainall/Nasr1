@@ -1,3 +1,33 @@
+## P3 EVIDENCE ENGINE HARDENING — EXACT-CENT CURRENCY SOURCE COMPARISON — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Source/test commit: `00a688ee2b209c5f17cdb36fc6bdc060bcdaf54e`.
+- Engine blob: `src/lib/intelligence/evidence-source-comparison.ts` — `b89863491012c123f6b0aeb58723ff763aee4925`.
+- Regression source blob: `src/lib/intelligence/evidence-source-comparison.test.ts` — `0c7f0a46acf4ae3164360d33f9e7c16a73f214d9`.
+
+### Implemented
+- Currency metric values returned as decimal text from the source (for example `"0.29"`) are now parsed through the existing exact minor-unit helper instead of being rejected as non-number or converted through floating-point subtraction.
+- Monetary values are compared at two decimal places using signed integer minor units. A one-cent variance remains a one-cent variance; subtraction cannot manufacture or erase cents through binary floating-point behavior.
+- Sub-cent/over-precision or out-of-bound currency values now produce `WITHHELD / METRIC_VALUE_PRECISION_INVALID`; the engine does not round them silently.
+- A difference whose absolute minor-unit result exceeds the helper's safe bound is withheld as `COMPARISON_ARITHMETIC_UNSAFE`, even where the two individual source amounts were separately representable.
+- Non-currency metrics retain their prior numeric validation and comparison behavior. Unit, currency, UOM, period, as-of-instant and formula identity gates remain unchanged.
+- Regression source covers decimal-text currency values, a one-cent source variance, sub-cent withholding and an unsafe difference between two individually representable amounts.
+
+### Boundaries retained
+- No source adapter, query, RPC, SQL migration, role grant, tenant key, UI mount, client write or persisted reconciliation disposition was added.
+- The stable comparison key is still resolved by the authorized caller; P1 workspace mounting and P2 authorized same-tenant snapshot/disposition contracts remain separate open dependencies.
+- No averaging, currency conversion, rounding of source inputs, source mutation or automatic financial correction was introduced.
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression tests were authored but NOT RUN. No build, typecheck, lint, CI, browser, Bolt, database, Preview, Vercel or production operation was run. No PASS/runtime acceptance is claimed.
+- Later exact-SHA acceptance must include numeric-text and numeric currency inputs, exact one-cent variance, sub-cent rejection, negative amount parity, arithmetic-overflow withholding, and the existing unit/currency/UOM/period/as-of/formula/evidence gates.
+
+### Next P3 action
+Continue with the next independently source-backed Section 52–63 requirement. Do not invent source-side joins, tenant identity, completeness or reconciliation dispositions to close P1/P2 dependencies.
+
+---
+
 ## P3 FINANCIAL ENGINE HARDENING — CASHFLOW EXACT-CENT ARITHMETIC — 2026-11-06
 
 - Repository/branch: `Report-Engainall/Nasr1` / `main`.
