@@ -2488,3 +2488,10 @@ Continue the next unimplemented intelligent product-body function from the lates
 ### Exact evidence boundary
 - These source commits and docs updates were confirmed on `main`; no database migration was applied, and no tests/build/typecheck/CI/browser/Preview/production run was performed during this increment.
 - Current build status is not a pass: the latest available Vercel status continued to return the build-rate-limit failure URL. No source-build success is inferred from the commits.
+
+## P1 UI reconciliation — mobile admin navigation focus — 2026-11-06
+
+- The current `main` source already contains the P1 mobile drawer focus repair in `src/components/AghbariApp.tsx`, commit `05148d4683878e4b9c9b178a9261c21d88135433`. It waits for the drawer's own clip-path transition and no longer waits on descendant hover animations; the existing route-remount handler restores focus to the newly mounted menu trigger.
+- Current behavioral test source `src/test/admin-mobile-navigation-acceptance.test.tsx` blob `c0e093190c5dbd1f96ec9fafbe23ee3e96ff3abb` contains four cases for initial focus/Escape/trigger restoration, descendant hover transitions, delayed drawer transition, and route-remount focus restoration.
+- The historical P2 finance/task-print focus failure referenced `b52271629f054f5d9750e2d4dbf247e22c90f8c7` (commit created 2026-10-30), which predates the focus source repair dated 2026-11-02. This corrects the stale-evidence boundary only; the exact current-head P2 Playwright replay is still required. No CI status was returned for the focus-fix commit and no Playwright PASS is claimed.
+- Acceptance row `DLV-002` was updated in place in matrix commit `8aae4a009dd868927297bd104dc53320b9fe33d6`; status remains OPEN pending current-head browser/route/viewport acceptance.
