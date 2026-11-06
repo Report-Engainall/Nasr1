@@ -4,6 +4,7 @@ import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@
 import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
 import { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
 import { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
+import type { TaskIntelligenceManagerRisk, TaskIntelligenceRole } from "@/lib/intelligence/task-intelligence-reports";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
@@ -46,6 +47,26 @@ function invoiceStatus(status:NaturalLanguageInvoiceMatch["matchStatus"]):string
 function orderStatus(status:NaturalLanguagePurchaseOrder["status"]):string {
  return status==="submitted"?"مرسل بانتظار الاستلام":"مستلم جزئياً";
 }
+function taskRiskRoleLabel(role:TaskIntelligenceRole):string {
+ return ({sales:"المبيعات",accountant:"المحاسبة والتحصيل",warehouse:"المخازن",purchasing:"المشتريات",management:"الإدارة",operations:"العمليات"} as const)[role];
+}
+function taskRiskWhyNow(risk:TaskIntelligenceManagerRisk,asOf:string):string {
+ if(risk.isOverdue)return risk.overdueMinutes===null
+  ?"تجاوز موعد الاستحقاق المسجل في المصدر."
+  :"تجاوز موعد الاستحقاق المسجل بنحو "+count(Math.round(risk.overdueMinutes))+" دقيقة.";
+ const due=risk.dueAt?Date.parse(risk.dueAt):Number.NaN;
+ const snapshot=Date.parse(asOf);
+ if(Number.isFinite(due)&&Number.isFinite(snapshot)&&due>=snapshot&&due-snapshot<=24*60*60*1000)
+  return "موعد الاستحقاق خلال 24 ساعة.";
+ return risk.priority==="critical"?"أولوية حرجة ضمن المهام المفتوحة.":"أولوية مرتفعة ضمن المهام المفتوحة.";
+}
+function taskRiskNextStep(risk:TaskIntelligenceManagerRisk):string {
+ if(risk.status==="in_progress")return "راجع آخر تقدم مسجل، وتأكد من توثيق نتيجة التنفيذ في مركز المهام.";
+ return risk.assignedProfileId===null
+  ?"راجع مرجع المصدر، ثم عيّن مسؤولاً مخولاً أو أبقها في قائمة الدور حتى يستلمها شخص مؤهل."
+  :"تحقق من استلام المسؤول للمهمة وتابع موعدها عبر مركز المهام.";
+}
+
 export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOrder}:NaturalLanguageAssistantProps) {
  const [question,setQuestion]=useState("");const [response,setResponse]=useState<NaturalLanguageAssistantResponse|null>(null);
  const [loading,setLoading]=useState(false);
@@ -313,14 +334,30 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     </table></div>
    </div>:null}
    {response.result.report.reportKind==="MANAGER"?<div className="space-y-2">
-    <div className="flex flex-wrap justify-between gap-2"><strong>المخاطر المفتوحة عالية/حرجة الأولوية</strong><span className="text-xs text-muted-foreground">{count(response.result.report.scope.managerRiskTotalCount??0)} إجمالي · {count(response.result.report.managerRisks.length)} معروض</span></div>
-    {response.result.report.managerRisks.length===0?<p className="text-muted-foreground">لا توجد مهام مفتوحة عالية/حرجة الأولوية في النطاق المصرح به.</p>:<div className="space-y-2">{response.result.report.managerRisks.map(risk=><article key={risk.id} className="rounded-md border p-3">
-     <div className="flex flex-wrap justify-between gap-2"><strong>{risk.title}</strong><span>{risk.priority==="critical"?"حرجة":"عالية"}</span></div>
-     <p className="mt-1 text-xs text-muted-foreground">الدور: {risk.taskRole} · الحالة: {risk.status} · عمر المهمة: {count(Math.round(risk.ageMinutes))} دقيقة · الاستحقاق: {risk.dueAt??"غير محدد"}</p>
-     <p className="text-xs">مرجع المكلف: {risk.assignedProfileId??"غير مسند"} · سبب التأخير: {risk.delayReason??"غير مسجل في المصدر"} · القرار الإداري المطلوب: {risk.requiredManagementDecision??"غير مسجل في المصدر"}</p>
-     {risk.sourceEntityType&&risk.sourceEntityId?<p className="mt-1 text-xs text-muted-foreground">مرجع المصدر: {risk.sourceEntityType} / {risk.sourceEntityId}</p>:null}
-    </article>)}</div>}
-    {!response.result.report.scope.managerRiskCompletePopulation?<p className="text-xs text-muted-foreground">تعرض القائمة أعلى 25 مهمة فقط؛ العدد الإجمالي مستقل عن عدد الصفوف المعروضة.</p>:null}
+    <div className="flex flex-wrap justify-between gap-2">
+     <strong>أهم خمس خطوات للمتابعة الإدارية</strong>
+     <span className="text-xs text-muted-foreground">
+      {response.result.report.scope.managerRiskTotalCount===null?"الإجمالي غير متاح":count(response.result.report.scope.managerRiskTotalCount)+" إجمالي"}
+      · {count(response.result.report.managerRisks.length)} أعادها المصدر
+     </span>
+    </div>
+    {response.result.report.managerRisks.length===0?<p className="rounded-md border p-3 text-muted-foreground">لا توجد مهام مفتوحة عالية/حرجة الأولوية في النطاق الإداري الذي أجازه المصدر.</p>:
+     <div className="space-y-2">
+      {response.result.report.managerRisks.slice(0,5).map((risk,index)=><article key={risk.id} className="rounded-md border p-3">
+       <div className="flex flex-wrap justify-between gap-2">
+        <strong>{index+1}. {risk.title}</strong>
+        <span>{risk.priority==="critical"?"حرجة":"عالية"}</span>
+       </div>
+       <p className="mt-1 text-xs text-muted-foreground">الدور: {taskRiskRoleLabel(risk.taskRole)} · الحالة: {risk.status==="pending"?"بانتظار التنفيذ":"قيد التنفيذ"} · عمر المهمة: {count(Math.round(risk.ageMinutes))} دقيقة · الاستحقاق: {risk.dueAt??"غير محدد"}</p>
+       <p className="mt-2 text-sm"><strong>سبب التقديم:</strong> {taskRiskWhyNow(risk,response.result.report.asOf)}</p>
+       <p className="mt-1 text-sm"><strong>الخطوة المقترحة:</strong> {taskRiskNextStep(risk)}</p>
+       <p className="mt-1 text-xs text-muted-foreground">حالة الإسناد: {risk.assignedProfileId===null?"غير مسند":"يوجد مسؤول مسجل"}{risk.sourceEntityType?" · نوع المصدر: "+risk.sourceEntityType:""}</p>
+      </article>)}
+     </div>}
+    {!response.result.report.scope.managerRiskCompletePopulation?
+     <p className="text-xs text-muted-foreground">هذه أعلى خمس مهام ضمن الصفوف التي أعادها المصدر، وليست كامل قائمة المخاطر. إجمالي السجلات مستقل عن عدد الصفوف المعروضة؛ لا يُفترض أن المهام غير المعروضة أقل أهمية.</p>
+     :response.result.report.managerRisks.length>5?
+      <p className="text-xs text-muted-foreground">يعرض هذا الملخص أول خمس مهام بحسب ترتيب المصدر المعتمد للأولوية والاستحقاق والعمر؛ بقية السجلات متاحة في تقرير مخاطر المهام.</p>:null}
    </div>:null}
    <div className="rounded-md border p-3 text-xs">
     <strong>تعريفات القياس وحدوده</strong>
