@@ -3480,7 +3480,7 @@ function formatExactMoneyCents(value: bigint): string {
   return (value / 100n).toString() + "." + (value % 100n).toString().padStart(2, "0");
 }
 
-export function StaffFinancePage() {
+export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: string } = {}) {
   const { user } = useAuth();
   const canManageFinance = Boolean(
     user?.roles.some((role) => role === "admin" || role === "manager" || role === "accountant"),
@@ -3625,6 +3625,11 @@ export function StaffFinancePage() {
       void loadAging(0);
     }
   }, [load, loadAging, canManageFinance]);
+  useEffect(() => {
+    if (initialInvoiceId && invoices.some((invoice) => invoice.id === initialInvoiceId)) {
+      setInvoiceId(initialInvoiceId);
+    }
+  }, [initialInvoiceId, invoices]);
   const outstanding = (i: Invoice): number | null => {
     if (i.status === "void") return 0;
     const raw = i.outstanding_amount;
