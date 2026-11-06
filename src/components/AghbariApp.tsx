@@ -2457,10 +2457,13 @@ function Reports() {
 }
 function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon: IconType }) { return <article className="report-metric"><Icon size={23} /><span>{label}</span><strong>{value}</strong></article>; }
 
-function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
+function DataCenter({ onNotice, initialImportJobId }: { onNotice: (m: string) => void; initialImportJobId?: string }) {
   const { user } = useAuth();
   const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [section, setSection] = useState<'categories' | 'import' | 'onyx'>('categories');
+  useEffect(() => {
+    if (initialImportJobId && canManageImports) setSection('import');
+  }, [initialImportJobId, canManageImports]);
   const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
   const [name, setName] = useState('');
   const [categoryCode, setCategoryCode] = useState('');
@@ -2569,7 +2572,7 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
           </Button>
         </div>
       </div>
-      <UnifiedImportEngine onNotice={onNotice} />
+      <UnifiedImportEngine onNotice={onNotice} initialJobId={initialImportJobId} />
     </>;
   }
 
