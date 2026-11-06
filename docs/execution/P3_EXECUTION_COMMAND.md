@@ -1,3 +1,59 @@
+# CURRENT P3 SESSION ENTRY — TWO-IMPLEMENTER LIVE OVERRIDE — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Branch:** `main` only  
+**Current documentation/source head at this override:** `e8b9241be11bf84f8d385ecda7c74fae5180bdcb`  
+**Latest P3 code-bearing commit:** `a66abc8475f0b0faf722218a9128051081855210`  
+**Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
+**Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
+
+## Binding role split — exactly two implementers
+
+- **P1:** body completion from the original product specification and executive implementation appendix; owns commerce surfaces, app shell, routes, navigation and the mounts explicitly assigned to P1.
+- **P3:** body completion from the canonical Intelligent Engines Reference; owns deterministic intelligence engines, decision/learning logic, evidence contracts, intelligence clients and standalone intelligence components, plus tightly scoped source migrations where the existing authenticated tenant/security contract is already established.
+- There is no assigned third/P2 programmer. Do not wait for or invent one. A missing cross-cutting tenant/authentication/security foundation is a real dependency: do not bypass it or fake it; continue independent P3 work and record the exact blocked source contract.
+- P3 does not edit P1-owned `AghbariApp.tsx`, routes, commerce pages, global navigation or `IntelligenceWorkspace.tsx`. Reuse existing components and deliver exported, composable intelligence features for P1 to mount when a P1-owned mount is required.
+- Do not create duplicate engines, pages, CRUD, routes or mock data. Keep server-derived tenant, actor and role boundaries. Never infer financial, stock, employee or customer facts without source evidence.
+
+## Resume from live work — no repeated discovery
+
+The Section 61 task-quality system, persisted decision lifecycle, constrained cashflow measurement, Arabic decision assistant, Growth Radar reader, task performance/manager shortlist, policy catalog reader, notification delivery policy audit, evidence source comparison, process equal-window comparison and current Business Health assistant composition already exist in the live source tree. Read their current checkpoints/matrix rows before changing them; do not recreate them.
+
+Latest P3 delivery in this session:
+- `3cde36503c7e7b8de406755de81c4cee25c7203d` — Arabic Business Health assistant integration.
+- `a66abc8475f0b0faf722218a9128051081855210` — explicit cashflow snapshot contract correction.
+- Documentation checkpoint: `e8b9241be11bf84f8d385ecda7c74fae5180bdcb`.
+
+Files of that delivery:
+- `src/lib/intelligence/business-health-assistant-client.ts` (new)
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+
+The new Arabic Business Health intent reuses authenticated inventory, cashflow and customer-retention clients and existing deterministic health engines. It deliberately withholds unsupported opening cash, due obligations, net liquidity, projected bank balances, DSO/DPO/CCC and revenue concentration. It does not call an external AI provider or perform a business write.
+
+## Immediate P3 execution order
+
+1. Continue from the latest live acceptance matrix and P3 checkpoint. Select the next independently implementable OPEN/PARTIAL P3 requirement from Sections 52–63 by functional weight and evidence readiness.
+2. Prefer real decision/outcome/learning completion from existing tenant-scoped source data; do not infer operational baselines or historical results.
+3. Continue Section 53–56 and 59–63 gaps without rebuilding completed engines. For Evidence Source Comparison, the engine/panel exist; its caller must supply two authorized, same-tenant snapshots and a stable authorized join key. Do not invent a source adapter.
+4. Close Growth Radar gaps only when quote-to-order, unavailable-product demand or product-performance evidence is supplied by a complete, authenticated source contract.
+5. Keep all unavailable or incomplete metrics explicit. A feature is not complete merely because a type, panel, planner intent or unmounted component exists.
+
+## Execution and evidence rules
+
+- Body completion is the immediate priority; do not spend the product-build session repeating repository scans or running tests/build/lint/typecheck/CI/E2E. Do not delete, weaken or disable tests/guards.
+- Read live `main` before each write. Commit to `main` only with fast-forward expected-SHA compare-and-swap. Never force-push, reset, clean or overwrite another writer.
+- Do not consume Vercel deployments/Preview credits, paid AI, subscriptions or external provider quotas. No production database writes or live channel sends without explicit authorization.
+- Source-only migrations remain unapplied until the later approved Bolt non-production database workflow. Mark runtime/database acceptance pending; never claim PASS without exact-SHA evidence.
+- After each meaningful body increment, update `docs/execution/P3_CHECKPOINT.md`, `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`, the central acceptance matrix and global execution state/log as applicable.
+- Use GitHub commits and repository notifications as the durable handoff. Never claim that a notification reached a person unless GitHub confirms it.
+- Do not claim the target 95% until all remaining P3 requirements have a defined functional weighting denominator and the completed numerator is evidenced. Report the actual open requirements and ownership dependencies.
+
+The historical instructions below are retained for traceability; this live two-implementer override supersedes their stale dates, SHA pointers and old P2 allocation.
+
+---
+
 # CURRENT P3 SESSION ENTRY — LIVE OVERRIDE 2026-10-30
 
 ## P3 LIVE OVERRIDE — 2026-10-30 — CURRENT CODE SHA `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e`

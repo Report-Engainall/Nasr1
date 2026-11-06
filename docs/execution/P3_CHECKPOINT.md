@@ -1,3 +1,39 @@
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-BUSINESS-HEALTH-ASSISTANT-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent before the code batch: `6ea507597d0da44c3ddd2a93d4c31d0b4fc439e7`.
+- Code commits: `3cde36503c7e7b8de406755de81c4cee25c7203d`, `a66abc8475f0b0faf722218a9128051081855210`.
+- Documentation cursor at this checkpoint: `e8b9241be11bf84f8d385ecda7c74fae5180bdcb`.
+
+### Implemented on main
+
+- Added Arabic intent `BUSINESS_HEALTH_OVERVIEW` to the existing allow-listed natural-language assistant.
+- Added `fetchBusinessHealthAssistantSummary()` in `src/lib/intelligence/business-health-assistant-client.ts`, composing the existing tenant-authenticated readers for inventory (92 days), cashflow schedule (90 days) and customer retention (90 days) with a single caller-captured `asOf`.
+- Reused `buildDeadStockReport`, `buildReplenishmentRecommendations`, `buildCashflowForecast`, `buildLiquiditySnapshot` and `buildBusinessHealthMap`; no parallel health engine, SQL, RPC, route or provider call was added.
+- Reused the existing `BusinessHealthMap` component inside the existing Arabic assistant result. No P1-owned `IntelligenceWorkspace.tsx`, app shell, route or commerce file was changed.
+- Bank opening balance and supplier obligations remain NULL when no source provides them. Consequently net liquidity and projected cash balance are withheld. Collections are not mislabeled as cash receipts. Currency scopes remain separate; total capital-at-risk, DSO, DPO, CCC and product/supplier revenue concentration remain uncalculated.
+- Inventory denial, cashflow denial and retention denial are preserved as DENIED. Unavailable non-inventory components produce a PARTIAL result with source-specific messages; no zero-fill or mock fallback exists.
+
+### Exact changed code files
+
+- `src/lib/intelligence/business-health-assistant-client.ts` (new)
+- `src/lib/intelligence/natural-language-assistant.ts`
+- `src/lib/intelligence/natural-language-assistant-client.ts`
+- `src/components/intelligence/NaturalLanguageAssistant.tsx`
+
+### Acceptance boundary
+
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/database/Bolt/Preview/Vercel/production operation was run for this body-only increment. No PASS/runtime/production claim.
+- Bolt must later prove all three RPC readers on the same snapshot, role denial, tenant isolation, source count/period reconciliation, PARTIAL/unavailable behavior and no side effects on the exact imported SHA.
+- Business Health source gaps remain open: bank/cash opening balance, due obligations, DSO/DPO/CCC inputs, product/supplier revenue concentration and non-overlapping capital populations.
+
+### Next P3 action
+
+Continue the next weighted, independently implementable P3-owned OPEN/PARTIAL requirement from Sections 52–63 using the live matrix. Prioritize real decision/outcome learning supported by existing source evidence; do not fabricate baselines, growth signals or financial values. Preserve P1 ownership boundaries and Bolt acceptance as later stages.
+
+---
+
 ## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-TASK-QUALITY-REVIEWS-001
 
 - Repository: `Report-Engainall/Nasr1`; branch `main`.

@@ -2058,3 +2058,14 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime claim.
 - Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - Next P3 action: `P3-SECTION-52-63-INDEPENDENT-GAPS-008`.
+
+## 2026-11-06 — REF-NL-BUSINESS-HEALTH-ASSISTANT-001 — Arabic evidence-backed Business Health query
+
+- Code commit `3cde36503c7e7b8de406755de81c4cee25c7203d`: added Arabic Business Health planner intent, read-only result contract and assistant UI using the existing BusinessHealthMap.
+- Code commit `a66abc8475f0b0faf722218a9128051081855210`: made the new composer use the explicit `CashflowScheduleSnapshot` contract.
+- Composer reads existing inventory, cashflow and retention aggregate clients with a common `asOf`, then reuses existing dead-stock, replenishment, cashflow, liquidity and Business Health engines. No new SQL/RPC/migration/provider or business write.
+- Missing opening cash and due obligations remain withheld; projected balances, net liquidity, DSO/DPO/CCC and unsupported revenue concentration are not fabricated. Currency positions remain separate.
+- Exact changed code paths: `src/lib/intelligence/business-health-assistant-client.ts` (new), `src/lib/intelligence/natural-language-assistant.ts`, `src/lib/intelligence/natural-language-assistant-client.ts`, `src/components/intelligence/NaturalLanguageAssistant.tsx`.
+- Docs: matrix leaf `REF-NL-BUSINESS-HEALTH-ASSISTANT-001`; canonical P3 checkpoint and live two-implementer command refreshed in this documentation commit (see latest main).
+- No tests/build/typecheck/lint/CI/browser/database/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production claim. Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+

@@ -1,5 +1,15 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — Arabic Business Health assistant — 2026-11-06
+
+- P3 code commits: `3cde36503c7e7b8de406755de81c4cee25c7203d` and `a66abc8475f0b0faf722218a9128051081855210`; latest documentation checkpoint commit before this update: `e8b9241be11bf84f8d385ecda7c74fae5180bdcb`.
+- Added Arabic `BUSINESS_HEALTH_OVERVIEW` intent and a read-only composite client reusing existing tenant-scoped inventory, cashflow and customer-retention readers plus the existing deterministic health engines.
+- Requests share one client-captured asOf. No new RPC, SQL, migration, route, external AI call or business write was added.
+- Missing bank opening balance and due obligations remain unavailable; net liquidity and projected bank balance are withheld. DSO/DPO/CCC and unsupported revenue concentration remain uncalculated; currencies are not combined.
+- Changed paths are limited to `src/lib/intelligence/business-health-assistant-client.ts` (new), `natural-language-assistant.ts`, `natural-language-assistant-client.ts`, and `NaturalLanguageAssistant.tsx`. P1 workspace, app shell, commerce pages and routes were not changed.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/typecheck/lint/CI/browser/database/Bolt/Preview/Vercel/production acceptance was run; no PASS/runtime claim.
+- Exact acceptance and limitations are recorded in `docs/execution/P3_CHECKPOINT.md`, `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md` and matrix leaf `REF-NL-BUSINESS-HEALTH-ASSISTANT-001`.
+
 ## P3 body update — source-neutral assistant read failures — 2026-11-06
 
 - Commit `95d8be1c29b96ddd65a6f67ab76dcf24bd38655a` removes the misleading generic denial message that referred to purchasing/finance roles for unrelated assistant queries.
