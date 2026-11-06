@@ -132,7 +132,7 @@ export function DecisionOutcomeLifecycleControls({
       }
       setMeasurementProof(metric);
       setProofStatus("READY");
-      setFeedback("تم جلب إثبات مصدر التحصيلات للفترة والعملة وخط الأساس نفسيهما. سيعيد الخادم مطابقة مجموعة الفواتير والمدفوعات بالكامل قبل الحفظ.");
+      setFeedback("تم جلب إثبات مصدر رصيد الذمم للفترة والعملة وخط الأساس نفسيهما. سيعيد الخادم مطابقة مجموعة الفواتير والمدفوعات بالكامل قبل الحفظ.");
       setFeedbackError(false);
     } catch {
       setProofStatus("WITHHELD");
@@ -253,7 +253,7 @@ export function DecisionOutcomeLifecycleControls({
         <p className="text-sm text-muted-foreground">لا يمكن تثبيت الإسناد: لم يرجع المصدر معرف مسؤول موثوقاً لهذا القرار.</p>
       ) : state === "EXECUTED" ? (
         <div className="space-y-2 rounded-lg border p-3">
-          <h5 className="text-sm font-semibold">قياس النتيجة الفعلية — تحصيلات العملاء فقط</h5>
+          <h5 className="text-sm font-semibold">قياس رصيد التحصيلات المستحقة — لا يمثل المقبوضات البنكية</h5>
           {expectedMetric?.metricKey === "cashflow.expected_collections" ? (
             <p className="text-xs text-muted-foreground">
               خط الأساس: {expectedMetric.value.toLocaleString("ar-YE")} {expectedMetric.currency} ·
@@ -264,21 +264,21 @@ export function DecisionOutcomeLifecycleControls({
             <p className="text-xs text-muted-foreground">لا يوجد خط أساس معتمد من مقياس التحصيلات لهذه الدورة؛ ستظل النتيجة غير مقاسة.</p>
           )}
           <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={busy || pending !== null || !expectedMetric} onClick={() => void loadMeasurementProof()}>
-            {proofStatus === "LOADING" ? "جارٍ قراءة المصدر..." : "قراءة إثبات التحصيلات من المصدر"}
+            {proofStatus === "LOADING" ? "جارٍ قراءة المصدر..." : "قراءة رصيد الذمم من المصدر"}
           </button>
           {proofStatus === "READY" && measurementProof ? (
             <div className="rounded-md border p-2 text-xs">
-              <p>النتيجة المصدرية: <strong>{measurementProof.value.toLocaleString("ar-YE")} {measurementProof.currency}</strong></p>
+              <p>الرصيد المتبقي حسب المصدر: <strong>{measurementProof.value.toLocaleString("ar-YE")} {measurementProof.currency}</strong></p>
               <p>وقت المصدر: {measurementProof.asOf} · الأدلة: {measurementProof.evidenceIds.length}</p>
               <p>الفترة: {measurementProof.period.from} — {measurementProof.period.to}</p>
             </div>
           ) : null}
           <label className="block space-y-1 text-sm">
-            سبب إقفال القياس
+            سبب اعتماد القياس
             <textarea className="w-full rounded-lg border bg-background p-2" rows={2} maxLength={2000}
               value={reason} disabled={busy || pending !== null}
               onChange={event => setReason(event.target.value)}
-              placeholder="اشرح نتيجة القياس أو سبب اختلافها عن خط الأساس..." />
+              placeholder="اشرح اعتماد هذا القياس أو سبب اختلاف الرصيد عن خط الأساس..." />
           </label>
           {pending?.eventType === "MEASURE" ? (
             <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={busy} onClick={() => void submit("MEASURE", pending.measuredOutcome)}>
@@ -291,7 +291,7 @@ export function DecisionOutcomeLifecycleControls({
               {busy ? "جارٍ حفظ القياس..." : "اعتماد النتيجة المصدرية"}
             </button>
           )}
-          <p className="text-xs text-muted-foreground">الخادم يعيد احتساب كامل مجموعة الفواتير والمدفوعات داخل المؤسسة، ويرفض أي فرق في الإجمالي أو العملة أو الفترة أو الأدلة. لا يُرسل هذا الأمر دفعة أو قيداً مالياً.</p>
+          <p className="text-xs text-muted-foreground">هذه القيمة هي رصيد الفواتير غير المسدد المستحق ضمن الفترة وقت القياس، وليست مجموع المقبوضات البنكية أو كشف حركة التحصيل. يعيد الخادم احتساب مجموعة الفواتير والمدفوعات داخل المؤسسة ويرفض اختلاف الإجمالي أو العملة أو الفترة أو الأدلة؛ ولا ينشئ الأمر دفعة أو قيداً مالياً.</p>
         </div>
       ) : state === "MEASURED" ? (
         <p className="text-sm text-muted-foreground">اكتملت دورة القرار والقياس مسجل من مصدره. أي تصحيح لاحق يجب أن يبقى إلحاقياً في دفتر الذاكرة.</p>

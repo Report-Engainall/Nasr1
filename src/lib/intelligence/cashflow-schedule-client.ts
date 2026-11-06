@@ -44,6 +44,7 @@ export interface CashflowScheduleSnapshot {
   measurementMetrics: CashflowMeasurementProof[];
   warnings: string[];
 }
+/** Verified source snapshot of outstanding receivables due in the requested period; this is not a bank-receipts total. */
 export interface CashflowMeasurementProof {
   metricKey: "cashflow.expected_collections";
   value: number;

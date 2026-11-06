@@ -197,3 +197,34 @@ Documentation commits:
 - Current main includes both code commits `ee5bba71952b899c6bb86bad9accec70b785ff9e` and `a259462c29feb3b3407f3c159aa4ce3af3adabc4`; the next checkpoint is the authoritative source cursor.
 
 **Next P3 action:** continue only with independent missing product behavior backed by existing tenant-scoped source contracts. Keep growth-radar quote conversion/product demand and Business Health completeness withheld where the source DTO/evidence pairing remains absent; do not synthesize figures to satisfy the target ratio.
+
+
+## P3 incremental product-body checkpoint — source-backed decision measurement — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Code commit:** `9a5e8c67f04adcfc488e91978983a3ac3014101e`  
+**Parent:** `6e26470b9fc8b9d6d3f6ed87dd12ea1c21aa26a9`
+
+### Delivered on main
+
+- Added an exact-period cashflow request builder that reuses the stored baseline's period and currency and passes the existing read-only `get_intelligence_aggregate` contract. The regular 7/30/90-day request path remains unchanged.
+- Connected the existing `DecisionOutcomeLifecycleControls` to the existing `command_decision_outcome` MEASURE event only when the saved, verified baseline is `cashflow.expected_collections`, currency-backed, and uses `nasr1.receivables-outstanding@1`.
+- The component requests a fresh source snapshot for the exact baseline period/currency, then requires complete/acceptable schedule and top-level quality, exactly one matching metric, later `asOf`, exact period/formula, non-empty unique evidence IDs and membership of every metric evidence ID in the returned source evidence records.
+- Only that source-returned proof is submitted. The event and idempotency IDs and the frozen measurement payload are retained on ambiguous retry. The command's server-side function independently recomputes the full same-tenant invoice/payment evidence set and amount before it can transition to `MEASURED`.
+- Measurement remains withheld for all other metric keys, currencies/formula mismatches, stale or invalid periods, incomplete source results, absent evidence, or missing expected baseline. No user-entered numeric amount is accepted.
+- UI wording now distinguishes the measured value accurately: it is the remaining outstanding balance of customer invoices due in the period at the measurement timestamp, **not** total bank receipts or a bank cash movement. The command does not create a payment or ledger posting.
+
+### Exact changed files
+
+- `src/lib/intelligence/cashflow-schedule-client.ts`
+- `src/components/intelligence/DecisionOutcomeLifecycleControls.tsx`
+- `src/components/intelligence/DecisionMemoryBook.tsx`
+
+### Acceptance boundary
+
+- Source status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Existing migration `20261031020000_decision_outcome_persistence.sql` already defines this constrained MEASURE contract; no new migration or schema mutation was added.
+- No tests, build, lint, typecheck, CI, browser, database migration, Bolt, Preview, Vercel or production action was run for this body-only batch. No PASS or runtime proof is claimed.
+- Approved non-production acceptance must prove: eligible exact-period/currency baseline loads the source proof; missing/wrong baseline and partial/unverified source do not offer measurement; exact server invoice/payment set and amount transition once; wrong amount/evidence/date/currency is rejected; same-key replay is duplicate without a second event; wrong tenant/role is denied; reload shows the source measurement and decision-memory comparison. Keep full cash-receipts and other metric measurements withheld.
+
+**Next P3 action:** resume from live `main`; continue only independent source-backed intelligence gaps. Growth-radar quote conversion and unavailable-product demand remain withheld until same-tenant evidence DTOs exist; Business Health unsupported components remain withheld until the required P2 payloads are complete.

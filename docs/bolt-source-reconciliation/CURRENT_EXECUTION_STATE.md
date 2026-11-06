@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — constrained decision measurement from cashflow source — 2026-11-06
+
+- Commit `9a5e8c67f04adcfc488e91978983a3ac3014101e` connects the existing decision MEASURE command to a read-only, exact-period cashflow source request, but only for a saved verified `cashflow.expected_collections` baseline using `nasr1.receivables-outstanding@1` and the exact same currency/period.
+- The UI requires complete/acceptable source and schedule quality, matching formula and period, a later measurement timestamp, unique evidence IDs contained in the returned evidence records; the server still recomputes the full same-tenant invoice/payment set and amount. Ambiguous retry retains the same event/idempotency IDs and proof payload.
+- Semantics are explicitly bounded: the recorded amount is the outstanding customer-invoice balance due in the selected period at the measurement timestamp, not the sum of bank receipts or bank cash movements. No payment or ledger posting is created; user-entered amounts and other metric keys remain blocked.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/database/Bolt/Preview/Vercel/production acceptance was run in this body-only continuation.
+
 ## P3 product-body update — Arabic decision outcome assistant — 2026-11-06
 
 - Code commit `a259462c29feb3b3407f3c159aa4ce3af3adabc4` adds three read-only Arabic decision intents on the existing `fetch_decision_outcomes` RPC: overview, pending review, and awaiting execution.
