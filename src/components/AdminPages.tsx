@@ -753,14 +753,27 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     try {
       const requestKey = exportRequestKey.current ?? crypto.randomUUID();
       exportRequestKey.current = requestKey;
+      const orderNumber = order.order_number ?? order.order_code;
+      if (!orderNumber.trim()) {
+        onNotice('رقم الطلب غير متاح؛ أوقف تصدير أونكس حتى استعادة مرجع الطلب.');
+        return;
+      }
       const workbookInput = {
         orderId: order.id,
-        orderNumber: order.order_number,
+        orderNumber,
         orderStatus: order.status,
         orderCreatedAt: order.created_at,
         customerCode: order.customer?.customer_code ?? '',
         customerName: order.customer?.business_name ?? '',
-        items,
+        items: items.map((item) => ({
+          item_code: item.item_code ?? item.product_code,
+          product_name_snapshot: item.product_name_snapshot ?? item.product_name,
+          unit_snapshot: item.unit_snapshot ?? item.unit ?? null,
+          quantity: item.quantity,
+          approved_quantity: item.approved_quantity ?? null,
+          unit_price_snapshot: item.approved_unit_price ?? item.unit_price_snapshot ?? item.unit_price,
+          approved_unit_price: item.approved_unit_price ?? null,
+        })),
         sourceSnapshotId: selectedExportSnapshotId || null,
       };
       // Validate the workbook before writing a durable audit event.
@@ -787,7 +800,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = onyxOrderWorkbookFilename(order.order_number);
+      anchor.download = onyxOrderWorkbookFilename(workbookInput.orderNumber);
       anchor.style.display = 'none';
       document.body.appendChild(anchor);
       anchor.click();

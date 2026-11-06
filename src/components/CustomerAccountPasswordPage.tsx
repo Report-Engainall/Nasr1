@@ -17,6 +17,7 @@ export function CustomerAccountPasswordPage() {
 
   if (!ready) return <main className="storefront" dir="rtl" role="status">جارٍ التحقق من الحساب...</main>;
   if (!user) return <Login />;
+  const activeUser = user;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,7 +51,7 @@ export function CustomerAccountPasswordPage() {
         }
         throw new Error("تعذر تحديث كلمة المرور. تحقق من اتصال المصادقة ثم أعد المحاولة.");
       }
-      if (data.user?.id !== user.id) {
+      if (data.user?.id !== activeUser.id) {
         throw new Error("لم يؤكد موفر المصادقة تحديث كلمة مرور الحساب الحالي.");
       }
       setPassword("");
@@ -138,7 +139,7 @@ export function CustomerAccountPasswordPage() {
             <button type="submit" className="btn primary" disabled={busy || !password || !confirmation}>
               <KeyRound size={16}/>{busy ? "جارٍ تحديث كلمة المرور..." : "حفظ كلمة المرور الجديدة"}
             </button>
-            <Link to="/forgot-password" className="text-sm text-primary hover:underline">استخدام استعادة كلمة المرور بدلاً من ذلك</Link>
+            <a href="/forgot-password" className="text-sm text-primary hover:underline">استخدام استعادة كلمة المرور بدلاً من ذلك</a>
           </div>
         </form>
       </section>

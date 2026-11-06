@@ -13,7 +13,7 @@ import {
 
 function key(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID().replaceAll("-", "");
+    return crypto.randomUUID().replace(/-/g, "");
   }
   throw new Error("تعذر توليد مفتاح idempotency آمن في هذا المتصفح.");
 }

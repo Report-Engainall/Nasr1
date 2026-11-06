@@ -1082,6 +1082,7 @@ export function ProductDetail({
   onAdd,
   onWishlist,
   onCompare,
+  onOpenRelated,
 }: {
   product: ProductWithInventory;
   relatedProducts: ProductWithInventory[];
