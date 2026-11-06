@@ -636,3 +636,14 @@ Documentation commits:
 - Growth Radar's quote conversion/product demand evidence gaps and Section 52's non-cash comparable operational baselines remain withheld until exact tenant-scoped source DTOs and formulas exist. Section 56 still needs the P1 workspace mount of its existing comparison panel.
 
 **Next P3 action:** continue only with the next independently executable source-backed gap. Do not synthesize financial or operational history; keep P1-owned mounts and Bolt acceptance as explicit dependencies.
+
+## P3 checkpoint — 2026-11-06 — supplier posted-payable concentration trend
+
+- Source commit: a632ff99e1cd3f2e478cbb81872bb8033e586e80, parent f8f4b10c66b0a86bc0b50a4f5d227af1c42d567b.
+- Extended the existing Section 51 map with buildSupplierPayableConcentrationTrend(): top-five concentration of source-linked POSTED supplier receipt payable credits across adjacent equal-length UTC periods, separated by currency.
+- The assistant captures one asOf, fetches the immediately preceding equal-length supplier-activity period, and passes both snapshots to the existing map. The UI discloses period and percentage-point movement; it does not imply identical suppliers, complete supplier spend, closing payable or cash settlement.
+- Missing currencies, unverified currencies, incompatible source/formula/asOf, non-adjacent/unequal windows and supplier populations of five or fewer are withheld; no zero-fill. Partial coverage remains PARTIAL.
+- Files: src/lib/intelligence/supplier-payable-concentration-trend.ts (new), supplier-payable-concentration-trend.test.ts (new), business-health-map.ts, business-health-assistant-client.ts, components/intelligence/BusinessHealthMap.tsx.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Source tests authored, NOT run. The pre-existing supplier-activity SQL migration is not applied. No build/runtime/Bolt/DB/Preview/Vercel/production acceptance was run.
+- Exact blobs: b50bc2b8014adb81d247c8c36aa207660a63fa22, 3a3f133221ba0c34c8e68ebca1fad07e332aed31, a7601662d91125757b881434a8b677b050cac7b9, 30271edd3eb20b5b7f195e1b29735a4758f10b2c, a2686cb1fde5a3779bf981c16647493d36c22366.
+- Next: Section 52/56 learning outputs may be extended only from verified measured outcomes and evidence snapshots; no causal claim or automatic policy mutation.

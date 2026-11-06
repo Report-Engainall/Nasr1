@@ -2232,3 +2232,12 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Key commits: SQL `bbd8255bffe167cfa967ed7a4096748bd62a3fe5`; SQL hardening `cccf643182face731eac3fff115f35b79f5ae7fa`, `841e5d5833ceea93260ec9a3b2acf14a0e3ddb7a`; client `c0c3659e705a25ff24e848c818b5ca574f48cf70`, `da0d0dcd6083b7dfac064d6a36dbef402a3d2848`, `0a5969993e5047e501602c22dfa82352e05e59d7`; map engine `38ad8b3476f7da603cb251e9c0adad6a620eb50f`, `279065411c40c83488a760500aade3223226f5e3`; assistant `3a34cd32a77bed51d4cbc0a0ecb1624aaec2146c`; map UI `dc8f0d3936df3f0b60c674bf5ad8486c61c11bfb`.
 - Matrix leaves `REF-BUSINESS-HEALTH-MAP-001` and `REF-NL-BUSINESS-HEALTH-ASSISTANT-001` updated at `3e754b58984fddbc546f9a4d3218441253df458d`; P3 checkpoint `103599e30692d6114ec0dc44409807c207bd81ed`.
 - Migration source-only. No tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production claim.
+
+## P3 state update — 2026-11-06 — supplier payable concentration trend
+
+- Main code commit: a632ff99e1cd3f2e478cbb81872bb8033e586e80 (based on P1 descendant f8f4b10c66b0a86bc0b50a4f5d227af1c42d567b); later P1 work was preserved by appending documentation on current main.
+- Section 51 BusinessHealthMap now compares top-five concentration of source-linked POSTED supplier receipt payable credits across the current and immediately preceding equal-length UTC period, by currency, using one identical asOf.
+- The assistant/UI disclose both periods and percentage-point movement; no cash/settlement, complete supplier spend, closing payable or same-five-suppliers inference is made. Missing/incomparable currencies remain withheld; partial results remain PARTIAL.
+- Source files: business-health-map.ts, business-health-assistant-client.ts, BusinessHealthMap.tsx, new supplier-payable-concentration-trend.ts and its tests.
+- Exact blob SHAs: b50bc2b8014adb81d247c8c36aa207660a63fa22, 3a3f133221ba0c34c8e68ebca1fad07e332aed31, a7601662d91125757b881434a8b677b050cac7b9, 30271edd3eb20b5b7f195e1b29735a4758f10b2c, a2686cb1fde5a3779bf981c16647493d36c22366.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run. Existing 20261106220000_business_health_supplier_posted_payable_activity.sql remains unapplied; no DB/runtime/production operation performed. No PASS claim.

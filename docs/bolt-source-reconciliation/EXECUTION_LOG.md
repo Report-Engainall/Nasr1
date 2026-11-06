@@ -2204,3 +2204,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Existing BusinessHealthMap integration `38ad8b3476f7da603cb251e9c0adad6a620eb50f`, timestamp alignment `279065411c40c83488a760500aade3223226f5e3`; assistant source composer `3a34cd32a77bed51d4cbc0a0ecb1624aaec2146c`; map UI `dc8f0d3936df3f0b60c674bf5ad8486c61c11bfb`.
 - Existing matrix leaves updated at `3e754b58984fddbc546f9a4d3218441253df458d`; P3 checkpoint `103599e30692d6114ec0dc44409807c207bd81ed`; current state appended below.
 - Migration is source-only. No tests/build/CI/browser/DB/Bolt/Preview/Vercel/production acceptance run; no PASS/runtime claim. Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+
+## 2026-11-06 — REF-BUSINESS-HEALTH-SUPPLIER-CONCENTRATION-TREND-001
+
+- Code commit a632ff99e1cd3f2e478cbb81872bb8033e586e80 adds a deterministic Section 51 trend over source-linked POSTED supplier receipt payable credits. The engine compares the top-five share in adjacent equal-length UTC periods by currency, with exact shared asOf.
+- The existing BusinessHealthMap/Arabic assistant now read and display the prior period, percentage-point delta, direction, sample counts and withheld reasons. It never treats missing currency as zero and requires more than five suppliers in both periods.
+- Exact blobs: map engine b50bc2b8014adb81d247c8c36aa207660a63fa22; assistant 3a3f133221ba0c34c8e68ebca1fad07e332aed31; UI a7601662d91125757b881434a8b677b050cac7b9; trend engine 30271edd3eb20b5b7f195e1b29735a4758f10b2c; tests a2686cb1fde5a3779bf981c16647493d36c22366.
+- The scope remains payable-credit concentration, not total supplier spend, end balance, payment or DPO. Missing/invalid coverage remains PARTIAL or NOT_COMPARABLE.
+- Matrix rows REF-BUSINESS-HEALTH-MAP-001 and REF-NL-BUSINESS-HEALTH-ASSISTANT-001 updated in place; no duplicate leaf.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests were authored but NOT run; existing SQL migration remains source-only. No build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance run.

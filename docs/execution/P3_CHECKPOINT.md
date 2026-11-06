@@ -1706,3 +1706,37 @@ Continue with independently source-backed Section 50 gaps only if a persisted sa
 ### Next P3 action
 
 Continue with independently source-backed Section 51/52–63 gaps. Do not calculate DSO/DPO/CCC, realized profit, cash liquidity, or supplier spend without their required average balances, currency-specific amounts and complete source periods.
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-BUSINESS-HEALTH-SUPPLIER-CONCENTRATION-TREND-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Product-code commit: a632ff99e1cd3f2e478cbb81872bb8033e586e80 (parent f8f4b10c66b0a86bc0b50a4f5d227af1c42d567b); this note is appended on the current main descendant so concurrent P1 commits remain intact.
+
+### Delivered on main
+
+- Extended the existing Section 51 Business Health Map with a deterministic supplier concentration trend. It compares the top-five share of source-linked, POSTED supplier receipt payable credits across immediately adjacent, equal-length UTC windows, by currency.
+- Both reads use one captured asOf; the prior period is derived from the exact current source period, not an approximate calendar-month substitution.
+- A comparison is withheld for differing asOf, unequal/non-adjacent windows, source-scope or formula mismatch, missing currency in either period, review-state rows, missing concentration values, or five-or-fewer suppliers in either period.
+- The output is a percentage-point delta, not a supplier spend forecast, complete purchasing spend, closing payable, cash settlement, DPO, or a statement that the same five suppliers remain the top five across periods.
+- When only a subset of currencies is comparable, the trend is PARTIAL and discloses withheld currencies; absent prior/current currencies are never zero-filled.
+- The existing Arabic Business Health Map shows current and baseline period, both percentages, delta/direction, supplier and entry counts, and withholding reason. No new route, parallel dashboard or supplier ledger was introduced.
+
+### Exact changed source paths
+
+- src/lib/intelligence/supplier-payable-concentration-trend.ts (new deterministic engine).
+- src/lib/intelligence/supplier-payable-concentration-trend.test.ts (new source tests).
+- src/lib/intelligence/business-health-map.ts.
+- src/lib/intelligence/business-health-assistant-client.ts.
+- src/components/intelligence/BusinessHealthMap.tsx.
+
+### Acceptance boundary
+
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Tests were authored but NOT run. No build, typecheck, lint, CI, browser, Bolt, database migration application, Preview, Vercel or production operation was run.
+- The existing supplier-activity migration 20261106220000_business_health_supplier_posted_payable_activity.sql remains source-only until the authorized Bolt non-production import/acceptance path. No live database or financial record was modified.
+- Exact source blobs: map engine b50bc2b8014adb81d247c8c36aa207660a63fa22; assistant composer 3a3f133221ba0c34c8e68ebca1fad07e332aed31; map UI a7601662d91125757b881434a8b677b050cac7b9; new trend engine 30271edd3eb20b5b7f195e1b29735a4758f10b2c; source tests a2686cb1fde5a3779bf981c16647493d36c22366.
+- No PASS/runtime/production claim.
+
+### Next P3 action
+
+Continue with Section 52/56 decision learning only from verified measured-outcome and evidence snapshots. Do not infer causality, rewrite policy, or change business rules automatically. Keep full supplier spend, closing supplier balance, DSO/DPO/CCC and non-cash operational baselines withheld without their required complete source contracts.
