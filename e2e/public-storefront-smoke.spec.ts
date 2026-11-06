@@ -736,7 +736,7 @@ test("daily decision board stays keyboard-operable and fits mobile and desktop C
     await expect(board.getByRole("status").first()).toContainText("تغطية جزئية");
     const savedDecisions = board.getByRole("list", { name: "قرارات محفوظة مرتبة للمتابعة" });
     await expect(savedDecisions).toBeVisible();
-    await expect(savedDecisions.getByRole("listitem")).toHaveCount(2);
+    await expect(savedDecisions.locator(":scope > li")).toHaveCount(2);
     expect(await savedDecisions.locator("h3").allTextContents()).toEqual([
       "قرار اختبار A — عنوان عربي طويل لا يتسبب في تجاوز عرض الشاشة على الهاتف.",
       "قرار اختبار Z — الترتيب ثابت حتى عندما تتساوى حقول المتابعة والتاريخ والانحراف المثبت.",
