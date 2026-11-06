@@ -18,7 +18,7 @@ const recommendations: ReplenishmentRecommendation[] = [
 ];
 
 describe("ReplenishmentCard", () => {
-  it("shows recommendations without creating a purchase and withholds unknown quantity", () => {
+  it("shows recommendations without creating a purchase and withholds unknown quantity", async () => {
     render(<ReplenishmentCard recommendations={recommendations} />);
     const known = screen.getByRole("article", { name: "SKU-LOW" });
     expect(await within(known).findByRole("heading", { name: "سكر أبيض" })).toBeInTheDocument();
