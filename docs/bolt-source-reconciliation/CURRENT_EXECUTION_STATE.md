@@ -1,5 +1,12 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P3 body update — Arabic commerce policy catalog read — 2026-11-06
+
+- Commit `c94d2360b8e5db31fee3efdd43d813b515edc642` adds Arabic read intents for policy lifecycle overview and changed source fingerprints using the existing `fetch_commerce_policy_catalog` RPC/client.
+- Output is aggregate-only: scheduled/effective/expired/superseded counts, sourceChanged count, asOf and returned/total coverage. IDs, owners, rules, rationale and source payloads are not displayed; incomplete catalog pages remain PARTIAL.
+- Existing policy RPC authorization is preserved; no registration, activation, simulation, rollback or business write is triggered.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. No tests/build/lint/typecheck/CI/browser/database/Bolt/Preview/Vercel/production acceptance was run.
+
 ## P3 body update — manager task action shortlist — 2026-11-06
 
 - Code commit `e9aa25e237377e446fcf1a62bfd09f288e87ad69` enhances the existing Arabic manager-risk intent with “أهم خطوات الإدارة” and “أولويات الإدارة اليوم”. It uses the existing manager-only `fetch_task_intelligence_report(MANAGER)` RPC.
