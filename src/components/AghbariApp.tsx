@@ -6,14 +6,14 @@ import {
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
-  createCustomer, createProduct, createPricingRule, deletePricingRule, fetchAiAlerts,
+  createCustomer, createPricingRule, deletePricingRule, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
-import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
+import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -890,6 +890,7 @@ export function ProductModal({
     refetch: refetchCategories,
   } = useFetch(fetchCategories);
   const [name, setName] = useState(product?.name ?? '');
+  const [description, setDescription] = useState(product?.description ?? '');
   const [productStatus, setProductStatus] = useState<'active' | 'inactive'>(product?.status === 'inactive' ? 'inactive' : 'active');
   const [nameEn, setNameEn] = useState(product?.name_en ?? '');
   const [code, setCode] = useState(product?.item_code ?? '');
@@ -899,6 +900,9 @@ export function ProductModal({
   const [isFeatured, setIsFeatured] = useState(product?.is_featured ?? false);
   const [sortOrder, setSortOrder] = useState(String(product?.sort_order ?? 0));
   const [price, setPrice] = useState(String(product?.base_price ?? ''));
+  const [priceWholesaleOfWholesale, setPriceWholesaleOfWholesale] = useState('');
+  const [priceWholesale, setPriceWholesale] = useState('');
+  const [priceRetail, setPriceRetail] = useState('');
   const [minOrderQuantity, setMinOrderQuantity] = useState(String(product?.min_order_quantity ?? 1));
   const [orderQuantityMultiple, setOrderQuantityMultiple] = useState(String(product?.order_quantity_multiple ?? 1));
   const [category, setCategory] = useState(product?.category_id ?? '');
@@ -970,10 +974,34 @@ export function ProductModal({
 
   async function save() {
     if (saveInFlight.current || saving) return;
-    if (!name.trim() || !code.trim() || !unit.trim() || !price) { setError('أكمل الحقول المطلوبة، بما فيها الوحدة الأساسية.'); return; }
+    if (!name.trim() || !code.trim() || !unit.trim() || price.trim() === '' || description.length > 2000) {
+      setError('أكمل الحقول المطلوبة، بما فيها الوحدة الأساسية، وتأكد أن الوصف لا يتجاوز 2000 حرف.');
+      return;
+    }
     if (unit.trim().length > 40) { setError('الوحدة الأساسية لا تتجاوز 40 حرفًا.'); return; }
-    const priceValue = Number(price);
-    if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
+    function parsePriceValue(raw: string, label: string): number {
+      if (raw.trim() === '') throw new Error(label + ' مطلوب.');
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0 || value > 999999999999 || Math.round(value * 100) !== value * 100) {
+        throw new Error(label + ' يجب أن يكون مبلغًا صحيحًا حتى خانتين عشريتين.');
+      }
+      return value;
+    }
+    let priceValue: number;
+    let vipPriceValue: number | null = null;
+    let wholesalePriceValue: number | null = null;
+    let retailPriceValue: number | null = null;
+    try {
+      priceValue = parsePriceValue(price, 'السعر الأساسي');
+      if (!product) {
+        vipPriceValue = parsePriceValue(priceWholesaleOfWholesale, 'سعر جملة الجملة');
+        wholesalePriceValue = parsePriceValue(priceWholesale, 'سعر الجملة');
+        retailPriceValue = parsePriceValue(priceRetail, 'سعر التجزئة');
+      }
+    } catch (priceCause) {
+      setError(priceCause instanceof Error ? priceCause.message : 'تحقق من أسعار المنتج.');
+      return;
+    }
     const minimumValue = Number(minOrderQuantity);
     const multipleValue = Number(orderQuantityMultiple);
     const sortOrderValue = Number(sortOrder);
@@ -984,10 +1012,43 @@ export function ProductModal({
     setSaving(true); setError('');
     let productSaved = false;
     try {
-      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, is_featured: isFeatured, sort_order: sortOrderValue, unit: unit.trim(), status: productStatus };
-      const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || null,
+        name_en: nameEn.trim() || null,
+        item_code: code.trim(),
+        sku: sku.trim() || null,
+        barcode: barcode.trim() || null,
+        base_price: priceValue,
+        min_order_quantity: minimumValue,
+        order_quantity_multiple: multipleValue,
+        category_id: category || null,
+        is_featured: isFeatured,
+        sort_order: sortOrderValue,
+        unit: unit.trim(),
+        status: productStatus,
+      };
+      let savedProductId: string;
+      if (product) {
+        const saved = await updateProduct(product.id, payload);
+        savedProductId = saved.id;
+      } else {
+        if (vipPriceValue === null || wholesalePriceValue === null || retailPriceValue === null) {
+          throw new Error('أدخل أسعار الشرائح الثلاث قبل إنشاء المنتج.');
+        }
+        const created = await saveAdminCatalogProduct(null, {
+          ...payload,
+          price_wholesale_of_wholesale: vipPriceValue,
+          price_wholesale: wholesalePriceValue,
+          price_retail: retailPriceValue,
+        });
+        if (!created.created || !created.id) {
+          throw new Error('لم يؤكد الخادم إنشاء المنتج؛ لم يتم إعلان النجاح.');
+        }
+        savedProductId = created.id;
+      }
       productSaved = true;
-      if (!(await persistProductImageChanges(saved.id))) return;
+      if (!(await persistProductImageChanges(savedProductId))) return;
       onSaved();
     } catch (cause) {
       if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
@@ -1011,6 +1072,9 @@ export function ProductModal({
       <Field label="اسم المنتج بالإنجليزية (اختياري)">
         <input value={nameEn} onChange={(e) => setNameEn(e.target.value)} maxLength={240} disabled={saving} dir="auto" />
       </Field>
+      <Field label="وصف المنتج (اختياري)">
+        <textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={3} disabled={saving} placeholder="أدخل وصفًا دقيقًا للمنتج وخصائصه." />
+      </Field>
       <div className="form-grid">
         <Field label="رمز المنتج">
           <input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} />
@@ -1023,7 +1087,7 @@ export function ProductModal({
           <input
             type="number"
             min="0"
-            max="999999999999.99"
+            max="999999999999"
             step="0.01"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
@@ -1031,6 +1095,27 @@ export function ProductModal({
           />
         </Field>
       </div>
+      {!product && (
+        <>
+          <p className="text-muted" style={{ margin: '4px 0 8px', fontSize: 12, lineHeight: 1.7 }}>
+            يلزم تحديد أسعار الشرائح عند إنشاء المنتج. لا تُستنسخ أسعار التجزئة إلى الجملة تلقائيًا.
+          </p>
+          <div className="form-grid">
+            <Field label="سعر جملة الجملة">
+              <input type="number" min="0" max="999999999999" step="0.01" value={priceWholesaleOfWholesale}
+                onChange={(event) => setPriceWholesaleOfWholesale(event.target.value)} disabled={saving} />
+            </Field>
+            <Field label="سعر الجملة">
+              <input type="number" min="0" max="999999999999" step="0.01" value={priceWholesale}
+                onChange={(event) => setPriceWholesale(event.target.value)} disabled={saving} />
+            </Field>
+            <Field label="سعر التجزئة">
+              <input type="number" min="0" max="999999999999" step="0.01" value={priceRetail}
+                onChange={(event) => setPriceRetail(event.target.value)} disabled={saving} />
+            </Field>
+          </div>
+        </>
+      )}
       <div className="form-grid">
         <Field label="SKU (اختياري)">
           <input value={sku} onChange={(e) => setSku(e.target.value)} maxLength={80} disabled={saving} dir="auto" />
