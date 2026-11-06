@@ -80,7 +80,7 @@ function DecisionProgress({ state }: { state: DecisionMemoryRecord["state"] }) {
         const current = step.state === state;
         return (
           <li key={step.state} className={[
-            "rounded-md border px-2 py-2 text-center text-xs",
+            "min-w-0 break-words rounded-md border px-2 py-2 text-center text-xs",
             current ? "border-primary bg-primary/10 font-semibold" : complete ? "border-primary/50" : "text-muted-foreground",
           ].join(" ")} aria-current={current ? "step" : undefined}>
             {step.label}
@@ -118,22 +118,22 @@ function DecisionCard({
   const hypotheses = record.hypotheses.filter(item => item.text.trim());
 
   return (
-    <article className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label={"قرار " + record.proposedResult}>
+    <article className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby={"daily-decision-" + record.decisionId}>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h3 className="break-words text-base font-semibold">{record.proposedResult}</h3>
+          <h3 id={"daily-decision-" + record.decisionId} className="break-words text-base font-semibold">{record.proposedResult}</h3>
           <p className="mt-1 break-all text-xs text-muted-foreground" dir="ltr">
             {record.ruleId}@{record.ruleVersion} · {record.decisionId.slice(0, 8)}
           </p>
         </div>
-        <span className="w-fit rounded-full border px-3 py-1 text-xs font-medium">
+        <span className="w-fit max-w-full shrink-0 break-words rounded-full border px-3 py-1 text-xs font-medium">
           {stateLabels[record.state]}
         </span>
       </header>
 
       <DecisionProgress state={record.state}/>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="min-w-0 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-lg bg-muted/40 p-3">
           <p className="text-xs text-muted-foreground">مالك القرار</p>
           <strong className="mt-1 block break-words text-sm">{record.owner || "غير معيّن"}</strong>
@@ -146,7 +146,7 @@ function DecisionCard({
         </div>
         <div className="rounded-lg bg-muted/40 p-3">
           <p className="text-xs text-muted-foreground">أولوية P0–P3</p>
-          <strong className="mt-1 block text-sm">غير محفوظة في عقد القرار الحالي</strong>
+          <strong className="mt-1 block break-words text-sm">غير محفوظة في عقد القرار الحالي</strong>
         </div>
       </div>
 
@@ -273,25 +273,25 @@ export function DailyDecisionBoard({
   const now = Date.now();
   const records = [...result.records].sort((left, right) => compareOrder(left, right, now));
   return (
-    <section dir="rtl" className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="لوحة القرارات اليومية">
+    <section dir="rtl" className="min-w-0 space-y-3 rounded-xl border p-3 sm:p-4" aria-labelledby="daily-decision-board-title">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">لوحة متابعة القرارات اليومية</h2>
+          <h2 id="daily-decision-board-title" className="text-lg font-semibold">لوحة متابعة القرارات اليومية</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             قرارات محفوظة من مصدر الخادم؛ ترتيب المتابعة يبدأ بالموعد المتأخر ثم حالة دورة القرار ثم مقدار الانحراف المثبت.
           </p>
         </div>
-        <span className="w-fit rounded-full border px-3 py-1 text-xs">
+        <span role="status" aria-live="polite" className="w-fit max-w-full rounded-full border px-3 py-1 text-xs break-words">
           {result.status === "VERIFIED" ? "تغطية مكتملة" : result.status === "PARTIAL" ? "تغطية جزئية" : result.status === "EMPTY" ? "لا توجد قرارات" : "المصدر غير متاح"}
         </span>
       </header>
 
-      <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+      <div className="min-w-0 break-words rounded-lg border p-3 text-xs text-muted-foreground">
         لا يحتوي عقد القرارات المحفوظة حالياً على درجة الأولوية P0–P3 أو أثر متوقع مستقل عن خط الأساس؛ لذلك لا نختلق ترتيب أولوية أو أثراً مالياً. تظهر هذه الحقول صراحة كغير محفوظة، وتُعرض المقارنة فقط عندما تكون الفترة والمعادلة والأدلة متوافقة.
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        <article className="rounded-lg bg-muted/40 p-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <article className="min-w-0 rounded-lg bg-muted/40 p-3">
           <p className="text-xs text-muted-foreground">قرارات محفوظة</p>
           <strong className="text-xl tabular-nums">{result.totalCount}</strong>
         </article>
@@ -313,11 +313,13 @@ export function DailyDecisionBoard({
       ) : records.length === 0 ? (
         <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.</p>
       ) : (
-        <div className="space-y-3">
+        <ol className="min-w-0 space-y-3" aria-label="قرارات محفوظة مرتبة للمتابعة">
           {records.map(record => (
-            <DecisionCard key={record.decisionId} record={record} now={now} onChanged={onRetry}/>
+            <li key={record.decisionId} className="min-w-0">
+              <DecisionCard record={record} now={now} onChanged={onRetry}/>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
       {result.status === "PARTIAL" || result.loadedCount < result.totalCount ? (
         <p className="text-xs text-muted-foreground" role="status">
