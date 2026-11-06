@@ -2464,6 +2464,9 @@ function DataCenter({ onNotice, initialImportJobId }: { onNotice: (m: string) =>
   useEffect(() => {
     if (initialImportJobId && canManageImports) setSection('import');
   }, [initialImportJobId, canManageImports]);
+  useEffect(() => {
+    if (initialImportJobId && canManageImports) setSection('import');
+  }, [initialImportJobId, canManageImports]);
   const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
   const [name, setName] = useState('');
   const [categoryCode, setCategoryCode] = useState('');
