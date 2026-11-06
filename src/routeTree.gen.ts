@@ -36,6 +36,7 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as ReorderRouteImport } from './routes/reorder'
+import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as StatementRouteImport } from './routes/statement'
@@ -155,6 +156,11 @@ const OrdersRoute = OrdersRouteImport.update({
 const QuotesRoute = QuotesRouteImport.update({
   id: '/quotes',
   path: '/quotes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReturnsRoute = ReturnsRouteImport.update({
+  id: '/returns',
+  path: '/returns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReorderRoute = ReorderRouteImport.update({
@@ -433,6 +439,7 @@ export interface FileRoutesByFullPath {
   '/quotes': typeof QuotesRoute
   '/profile': typeof ProfileRoute
   '/reorder': typeof ReorderRoute
+  '/returns': typeof ReturnsRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/statement': typeof StatementRoute
@@ -501,6 +508,7 @@ export interface FileRoutesByTo {
   '/quotes': typeof QuotesRoute
   '/profile': typeof ProfileRoute
   '/reorder': typeof ReorderRoute
+  '/returns': typeof ReturnsRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/statement': typeof StatementRoute
@@ -569,6 +577,7 @@ export interface FileRoutesById {
   '/quotes': typeof QuotesRoute
   '/profile': typeof ProfileRoute
   '/reorder': typeof ReorderRoute
+  '/returns': typeof ReturnsRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/statement': typeof StatementRoute
@@ -639,6 +648,7 @@ export interface FileRouteTypes {
     | '/quotes'
     | '/profile'
     | '/reorder'
+    | '/returns'
     | '/reset-password'
     | '/statement'
     | '/wishlist'
@@ -702,6 +712,7 @@ export interface FileRouteTypes {
     | '/quotes'
     | '/profile'
     | '/reorder'
+    | '/returns'
     | '/reset-password'
     | '/statement'
     | '/wishlist'
@@ -765,6 +776,7 @@ export interface FileRouteTypes {
     | '/quotes'
     | '/profile'
     | '/reorder'
+    | '/returns'
     | '/reset-password'
     | '/statement'
     | '/wishlist'
@@ -812,6 +824,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  ReturnsRoute: typeof ReturnsRoute
   ProfileRoute: typeof ProfileRoute
   AccountPasswordRoute: typeof AccountPasswordRoute
   PaymentsRoute: typeof PaymentsRoute
@@ -991,6 +1004,13 @@ declare module '@tanstack/react-router' {
       path: '/quotes'
       fullPath: '/quotes'
       preLoaderRoute: typeof QuotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/returns': {
+      id: '/returns'
+      path: '/returns'
+      fullPath: '/returns'
+      preLoaderRoute: typeof ReturnsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reorder': {
@@ -1390,6 +1410,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrdersRoute: OrdersRouteWithChildren,
   QuotesRoute: QuotesRoute,
   ReorderRoute: ReorderRoute,
+  ReturnsRoute: ReturnsRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   StatementRoute: StatementRoute,
