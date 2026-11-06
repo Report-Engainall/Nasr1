@@ -179,7 +179,6 @@ DECLARE
   v_org uuid;
   v_order public.orders%ROWTYPE;
   v_amendments jsonb;
-  v_return_events jsonb;
 BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'تسجيل الدخول مطلوب لعرض سجل تعديل الطلب';
@@ -268,28 +267,10 @@ BEGIN
     AND a.order_id = v_order.id
     AND a.customer_id = v_order.customer_id;
 
-  SELECT coalesce(
-    jsonb_agg(
-      jsonb_build_object(
-        'changed_at', h.created_at,
-        'changed_by', actor.full_name,
-        'reason', h.notes
-      )
-      ORDER BY h.created_at, h.id
-    ),
-    '[]'::jsonb
-  )
-  INTO v_return_events
-  FROM public.order_status_history h
-  LEFT JOIN public.profiles actor ON actor.id = h.changed_by
-  WHERE h.order_id = v_order.id
-    AND h.to_status = 'returned_for_adjustment';
-
   RETURN jsonb_build_object(
     'order_id', v_order.id,
     'order_number', v_order.order_number,
     'order_status', v_order.status,
-    'return_events', v_return_events,
     'amendments', v_amendments
   );
 END;
@@ -301,6 +282,6 @@ GRANT EXECUTE ON FUNCTION public.list_customer_order_amendment_history(uuid) TO 
 COMMENT ON TABLE public.customer_order_amendment_line_snapshots IS
   'Append-only before/after quantity snapshots for every customer order amendment version; contains no price or financial fields.';
 COMMENT ON FUNCTION public.list_customer_order_amendment_history(uuid) IS
-  'Read-only, same-tenant and order-owner/staff authorized amendment history with immutable line snapshots, submit/review actors and the reasoned return-event timeline.';
+  'Read-only, same-tenant and order-owner/staff authorized amendment history with immutable line snapshots and actor display names.';
 
 COMMIT;
