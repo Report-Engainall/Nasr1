@@ -6,6 +6,7 @@ import type { ReplenishmentRecommendation } from "./replenishment";
 import type { ProcessBottleneckResult } from "./process-bottlenecks";
 import type { CashflowScheduleSnapshot } from "./cashflow-schedule-client";
 import type { TaskIntelligenceReport, TaskIntelligenceReportKind } from "./task-intelligence-reports";
+import type { TaskQualityMetrics } from "./task-quality-reviews";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
@@ -15,8 +16,9 @@ export type ProcessBottleneckIntent="PROCESS_BOTTLENECK_OVERVIEW";
 export type ProcessTaskIntent="OPEN_TASKS_OVERVIEW"|"REOPENED_TASKS_OVERVIEW";
 export type TaskIntelligenceReportIntent="DAILY_TASK_REPORT"|"WEEKLY_TASK_REPORT"|"MONTHLY_TASK_REPORT"|"MANAGER_TASK_RISKS";
 export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate";
+export type TaskQualityIntent="TASK_QUALITY_OVERVIEW";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -208,6 +210,12 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   return {status:"CLARIFICATION",normalizedQuestion,explanation:"حددت أوامر الشراء، لكن حالة الأمر المطلوبة غير واضحة.",
    clarification:"هل تريد الأوامر المفتوحة، أم بانتظار الاستلام، أم المستلمة جزئياً؟"};
  }
+ const taskQualityQuestion=/(جوده المهام|جوده التوصيات|دقه التوصيات|قابليه تنفيذ المهام|الانذارات الكاذبه|التنبيهات الصحيحه|مراجعات جوده المهام|جوده التنبيهات|جوده قرارات التوصيه)/.test(normalizedQuestion);
+ if(taskQualityQuestion)return {
+  status:"READY",intent:"TASK_QUALITY_OVERVIEW",normalizedQuestion,
+  sourceRpc:"fetch_operational_task_quality_metrics",
+  filterDescription:"مراجعات المدير المحفوظة لقابلية التنفيذ وقرارات التوصيات وصحة التنبيهات؛ أحدث مراجعة لكل كيان ونوع، مع استبعاد المؤجل وما ينتظر المراجعة من مقامات النسب."
+ };
  return {status:"UNSUPPORTED",normalizedQuestion,
   explanation:"لم يتعرف المساعد على نية قراءة معتمدة. لا ينشئ SQL ولا ينفذ أوامر أو تغييرات من اللغة الطبيعية."};
 }
