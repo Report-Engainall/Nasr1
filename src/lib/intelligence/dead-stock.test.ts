@@ -59,7 +59,8 @@ describe("dead-stock engine",()=>{
    availableQuantity:metric("qty","QUANTITY",10,undefined,"CARTON"),quantityUnit:"EA",unitCost:metric("cost","CURRENCY_PER_UNIT",4,"YER"),costQuantityUnit:"EA",
    soldQuantityWindow:metric("sold","QUANTITY",1),averageInventoryWindow:metric("avg","QUANTITY",20)};
   const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv"),evidence("qty"),evidence("cost","YER"),evidence("sold"),evidence("avg")],products:[p],rule});
-  expect(r.items[0]).toMatchObject({financialExposure:null,exposureStatus:"UNVERIFIED"});
+  expect(r.items[0]).toMatchObject({financialExposure:null,exposureStatus:"UNVERIFIED",currency:"YER"});
+  expect(r.totalsByCurrency).toEqual([{currency:"YER",exposure:null,verifiedItems:0,withheldItems:1}]);
  });
  it("rejects movement coverage that extends beyond the as-of day",()=>{
   const p={productRef:"P-FUTURE-COVERAGE",lastMovementAt:"2026-06-01T00:00:00Z",movementCoverage:{status:"VERIFIED" as const,period:{from:"2026-07-31",to:"2026-10-31"},completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv"]},

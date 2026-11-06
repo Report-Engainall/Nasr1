@@ -140,6 +140,9 @@ function calculateDeadStockExposure(args: {
     product.costQuantityUnit && product.costQuantityUnit.trim() !== quantityUnit,
   );
   const sourceCurrency = source?.currency;
+  const trustedCurrency = cost.status === "VERIFIED" && sourceCurrency?.trim()
+    ? sourceCurrency.trim().toUpperCase()
+    : null;
   const canCalculate =
     quantity.status === "VERIFIED" &&
     cost.status === "VERIFIED" &&
@@ -158,7 +161,7 @@ function calculateDeadStockExposure(args: {
       return {
         exposure: null,
         exposureStatus: "NEEDS_REVIEW",
-        currency: (sourceCurrency as string).trim().toUpperCase(),
+        currency: trustedCurrency,
         unitCost: null,
         warnings: ["EXPOSURE_PRECISION_INVALID"],
       };
@@ -170,7 +173,7 @@ function calculateDeadStockExposure(args: {
       return {
         exposure: calculated,
         exposureStatus: "VERIFIED",
-        currency: sourceCurrency as string,
+        currency: trustedCurrency,
         unitCost: cost.value,
         warnings: [],
       };
@@ -178,7 +181,7 @@ function calculateDeadStockExposure(args: {
     return {
       exposure: null,
       exposureStatus: "NEEDS_REVIEW",
-      currency: (sourceCurrency as string).trim().toUpperCase(),
+      currency: trustedCurrency,
       unitCost: null,
       warnings: ["EXPOSURE_OVERFLOW"],
     };
@@ -199,7 +202,7 @@ function calculateDeadStockExposure(args: {
       quantity.status === "UNVERIFIED" || cost.status === "UNVERIFIED" || legacyCostUnitConflict
         ? "UNVERIFIED"
         : "NEEDS_REVIEW",
-    currency: null,
+    currency: trustedCurrency,
     unitCost: null,
     warnings,
   };
