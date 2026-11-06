@@ -141,7 +141,7 @@ BEGIN
            count(DISTINCT ins.id)::integer AS invoice_count,
            count(rl.invoice_item_id)::integer AS invoice_line_count,
            count(*) FILTER (WHERE rl.same_tenant_product_id IS NOT NULL AND NOT rl.line_unresolved)::integer AS mapped_line_count,
-           count(*) FILTER (WHERE rl.same_tenant_product_id IS NULL)::integer AS unmapped_line_count,
+           count(*) FILTER (WHERE rl.line_unresolved)::integer AS unmapped_line_count,
            count(*) FILTER (WHERE rl.mismatched_credit_item_count>0 OR rl.posted_credit>rl.line_total)::integer AS invalid_credit_line_count,
            coalesce(sum(rl.line_total) FILTER (WHERE rl.invoice_item_id IS NOT NULL),0)::numeric AS gross_invoice_line_amount,
            count(DISTINCT ins.id) FILTER (WHERE rl.invoice_item_id IS NOT NULL)::integer AS invoices_with_lines
