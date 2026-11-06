@@ -464,8 +464,11 @@ export interface NaturalLanguageCustomerRetentionResult {
 }
 export interface NaturalLanguageGrowthRadarResult {
  kind:"GROWTH_RADAR";state:"READY"|"PARTIAL";intent:GrowthRadarIntent;
- answer:string;sourceRpc:"get_customer_retention_aggregate";asOf:string;periodDays:30|60|90|180|365;
+ answer:string;sourceRpc:"get_customer_retention_aggregate+fetch_product_performance_growth_aggregate";
+ asOf:string;periodDays:30|60|90|180|365;
  completePopulation:boolean;radar:GrowthOpportunityRadarResult;
+ productSourceStatus:"READY"|"PARTIAL"|"UNAVAILABLE";
+ productCoverage:{totalCount:number;returnedCount:number;uncomparableUnitCount:number}|null;
 }
 export interface NaturalLanguageTaskPerformanceResult {
  kind:"TASK_PERFORMANCE";state:TaskPerformanceScorecard["status"];
