@@ -2231,3 +2231,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Exact blobs: engine bb666a0438706859704a55aa9d44f439d4cdcd53; tests 5cffc6dc7cb5616688d558b579a9e3fda449be65; UI ea49c1959acedf96ff6ded44f03108314687a123.
 - Matrix row REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001 updated in place.
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance; no score/SLA/persistence claim.
+
+## 2026-11-06 — REF-PROCESS-BOTTLENECK-EVIDENCE-GUARDS-001
+
+- Commit 07685959ba93f96b31daeb0acb625c3b5ff7518d hardens process-bottleneck DTO validation and stage-comparison completeness.
+- Rejects duplicate aggregate identities, completion timestamps outside selected UTC windows, P90 below median, future queue-open timestamps and queue age not matching source asOf within 0.01 minute.
+- Discloses per-stage withholding for low current/baseline samples and missing stages rather than silently skipping or zero-filling.
+- Files: process-bottlenecks.ts and process-bottlenecks.test.ts; blobs a999aef73f201b5c242eb8fa4761143a3ebeb4a8 and e7ac0eca0df3e1713922cff6cd62ecd60ade3870.
+- Matrix row INT-PROCESS-001 updated in place.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no build/CI/browser/Bolt/DB/Preview/Vercel/production acceptance; no PASS claim.

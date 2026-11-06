@@ -1800,3 +1800,32 @@ Continue with evidence-backed Section 56 source trust / comparison only where th
 ### Next P3 action
 
 Continue Section 56 only when source contracts provide import-batch completeness, duplicate-key counts, aggregate checks and source-specific freshness SLA. Persisted reconciliation dispositions remain a server-backed P2 audit workflow.
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-PROCESS-BOTTLENECK-EVIDENCE-GUARDS-001
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Code commit: 07685959ba93f96b31daeb0acb625c3b5ff7518d (parent bfe4ad9f2f9c21c73a561072c427e91819cb879c).
+
+### Delivered on main
+
+- Hardened Section 54 process bottleneck snapshot parsing: reject duplicated metric identities per window/process/stage/wait class; reject completion timestamps outside their declared UTC period; reject P90 below median; and reconcile each open-queue age to sourceTimestamp/asOf to 0.01 minute, rejecting future openedAt values.
+- Before/after analysis now explicitly records per-stage withholding when current or baseline sample is below n=3, when a matching stage is missing in the baseline, or when a baseline stage is absent in the current period. Missing stages are never treated as zero-duration.
+- Existing ProcessBottlenecksPanel already renders withheldReasons; this feature makes its explanations complete rather than silently dropping comparisons.
+- No SQL or P2 source changes. No employee performance ranking or causal attribution.
+
+### Exact changed source paths
+
+- src/lib/intelligence/process-bottlenecks.ts.
+- src/lib/intelligence/process-bottlenecks.test.ts.
+
+### Acceptance boundary
+
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING.
+- Source tests authored for duplicate identities, out-of-window timestamps, quantile ordering, queue age reconciliation/future queue timestamps, low baseline sample and absent stages; NOT run.
+- No build/typecheck/lint/CI/browser/Bolt/DB/Preview/Vercel/production operation was run.
+- Exact blobs: engine a999aef73f201b5c242eb8fa4761143a3ebeb4a8; tests e7ac0eca0df3e1713922cff6cd62ecd60ade3870.
+- No PASS/runtime/production claim.
+
+### Next P3 action
+
+Continue Section 54 only with additional timestamp/sequence facts already represented by authorized source rows. Do not calculate internal hands-on time, employee productivity or causal attribution when the current event schema cannot distinguish waiting from work.

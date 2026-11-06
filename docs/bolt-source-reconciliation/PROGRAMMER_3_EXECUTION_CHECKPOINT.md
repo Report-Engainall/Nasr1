@@ -670,3 +670,13 @@ Documentation commits:
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored, NOT run. No build/runtime/browser/Bolt/DB/production acceptance.
 - Exact blobs: bb666a0438706859704a55aa9d44f439d4cdcd53; 5cffc6dc7cb5616688d558b579a9e3fda449be65; ea49c1959acedf96ff6ded44f03108314687a123.
 - Next: Section 56 score only when true source contracts provide completeness, duplicate keys, aggregate consistency and freshness SLA; persisted reconciliation decisions require P2 authorized audit persistence.
+
+## P3 checkpoint — 2026-11-06 — fail-closed process bottleneck evidence
+
+- Code commit: 07685959ba93f96b31daeb0acb625c3b5ff7518d (parent bfe4ad9f2f9c21c73a561072c427e91819cb879c).
+- Section 54 parser rejects duplicate stage/window identities, completion events outside declared UTC windows, P90 below median, future queue-open timestamps and queue ages inconsistent with the captured asOf (0.01-minute tolerance).
+- Section 54 before/after comparison now publishes withholding reasons for low current/baseline samples and stages missing from either window; it never zero-fills a missing stage. Existing panel renders these reasons.
+- Files: process-bottlenecks.ts; process-bottlenecks.test.ts.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored, NOT run. No SQL/build/runtime/Bolt/DB/production acceptance.
+- Exact blobs: a999aef73f201b5c242eb8fa4761143a3ebeb4a8; e7ac0eca0df3e1713922cff6cd62ecd60ade3870.
+- Next: keep wait-vs-work and employee attribution unavailable until authorized source events support them.

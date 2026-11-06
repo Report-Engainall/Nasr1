@@ -2274,3 +2274,11 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 - Files: evidence-source-comparison.ts; evidence-source-comparison.test.ts; EvidenceSourceComparisonPanel.tsx.
 - Blobs: bb666a0438706859704a55aa9d44f439d4cdcd53; 5cffc6dc7cb5616688d558b579a9e3fda449be65; ea49c1959acedf96ff6ded44f03108314687a123.
 - Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no runtime/DB/production claim.
+
+## P3 state update — 2026-11-06 — Section 54 process bottleneck evidence guards
+
+- Code commit 07685959ba93f96b31daeb0acb625c3b5ff7518d hardens process-bottleneck parsing: duplicate metric identity, out-of-period completion timestamps, P90 below median, future queue start and inconsistent queue age are rejected.
+- Before/after comparisons now explicitly disclose low current/baseline samples and stages missing from either period; missing stages are not zero-filled.
+- Files: src/lib/intelligence/process-bottlenecks.ts; src/lib/intelligence/process-bottlenecks.test.ts.
+- Blobs: a999aef73f201b5c242eb8fa4761143a3ebeb4a8; e7ac0eca0df3e1713922cff6cd62ecd60ade3870.
+- Status: IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING. Tests authored but NOT run; no SQL/build/runtime/DB/production acceptance.
