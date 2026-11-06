@@ -1529,3 +1529,44 @@ Continue with the next independently implementable Section 50–63 P3 gap. Bolt 
 - Commits: `42c953e5f38764eff2e51a8a1acf8ee2440b01f4` (form; blob `70fbcfa52fa536cfb37d22c7ae9ecad4dd167e2b`), `ea3d0fb1c3a931b3cf5367404926b6123ad5a998` (typed NOT_FOUND plan; blob `12144439aa083d590b9b9b5688356aea89ab120f`), `b855a403b7040a8fe9cd55fa17917418dee17847` (existing assistant mount; blob `f1fa8dbfea254f2b074bc594e210bb744d4369be`).
 - Existing matrix leaf `INT-SHIFT-001` updated in place at `76ed7934bfc6de85d3fd30ffa881cee54e94db7a`.
 - No database migration was needed for this form; it reuses the existing source-only Section 53 `start_operational_shift` contract. No test/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run; no PASS/runtime/production claim.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-NL-SALES-ORDER-STATUS-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Section 57 gap addressed: the Arabic administrative assistant previously covered purchase orders and supplier invoices but did not expose a distinct, safe aggregate intent for customer sales-order lifecycle status.
+
+### Implemented on main
+
+1. **Tenant-scoped aggregate source**
+   - Added `supabase/migrations/20261106190000_intelligence_sales_order_status_summary.sql`.
+   - Adds `fetch_intelligence_sales_order_status_summary()`, requiring an authenticated active staff profile in the current organization.
+   - Returns only current-organization counts by the seven known statuses, total count, as-of timestamp, scope and unknown-status count.
+   - No customer name, order UUID, order amount, line, payment or row-level detail is returned. It is read-only and does not generate SQL from user text.
+   - An empty population is `EMPTY`; a future/null/unknown status keeps the result `PARTIAL` and is counted separately rather than coerced into another category.
+   - Migration commit: `d7876f7cb7aff2dea08f6f570219ef9309b43a66`.
+
+2. **Strict parser, resolver and authenticated client**
+   - Added `src/lib/intelligence/sales-order-status-summary.ts` with count reconciliation, explicit known-status taxonomy and Arabic answer projections for overview/open/processing/shipped/cancelled.
+   - Added `src/lib/intelligence/sales-order-status-summary-client.ts` to call only the fixed aggregate RPC and preserve DENIED/UNAVAILABLE/ERROR; malformed responses fail closed.
+   - Commits: engine `cc3cffec727464c34612a17b7873cd87583f3004`; client `a8e19dafa119056128423424c019f06b5080a3e9`.
+
+3. **Arabic assistant integration**
+   - Added allow-listed deterministic intents for explicit sales/customer orders. Ambiguous generic "orders" requests ask whether the user means customer sales orders or purchase orders; historical date/window questions are explicitly unsupported by this current-snapshot source.
+   - Connected the resolver through the existing natural-language assistant client and added an RTL summary panel with the count by each state, as-of timestamp, matching count and unknown-status partial warning.
+   - No order/customer identities, amount or line details are exposed, and no write action is available from this intent.
+   - Commits: planner/resolver `f3921721d4623d63395d04885492bff82f8a694a`; client integration `09bdf840e915236638a8790d870c50e017fb6db0`; UI `ef1717bf8a0f1b9ae248dffb511defbf1ef1ea74`.
+
+4. **Acceptance tracking**
+   - Updated existing `REF-NL-ADMIN-ASSISTANT-057` matrix leaf in place at `eec22f0d982765afc40b3a7c7bdb55e79b8f237a`; no duplicate requirement row created.
+
+### Acceptance boundary
+
+- Migration is source-only until the authorized Bolt/non-production DB workflow applies and accepts it.
+- No tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt/Preview/Vercel/production operation was run for this increment. No PASS, runtime or production claim is made.
+- No order mutation, customer data export, financial write, paid provider, AI quota or deployment credit was used.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+Continue with another independently implementable P3 product-body gap backed by an existing source contract. Do not infer order conversion, order ageing or historical trends from this status-only snapshot; those require authoritative event timestamps/period aggregates and separate acceptance.
