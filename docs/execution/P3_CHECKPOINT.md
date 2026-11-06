@@ -945,3 +945,45 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; 
 ### Next P3 action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-003`: continue the next source-backed Section 52–63 gap after precedent search. Preserve the page-scope disclosure; do not silently claim complete history until the read API supplies a tenant-authorized bounded search contract.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-DECISION-LEARNING-TO-POLICY-REVIEW-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA before checkpoint append: `abceb79f990af5d7d43a1fe744aabf14216354c8`.
+- Canonical coverage: Section 52 decision memory / learning loop, with a guarded handoff to Section 55 policy governance. This extends the prior precedent-search checkpoint; it does not replace it.
+
+### Implemented on main
+
+1. **Deterministic precedent retrieval**
+   - `searchSimilarDecisionMemory()` normalizes Arabic text, ranks same-rule and shared-context matches, excludes the selected/future decisions, and compares actual metric context by metric key, unit, currency, UOM, exact period, formula ID and version.
+   - The UI selects a reference decision and displays older matches with the saved problem/action/lessons and explicit comparison limits.
+   - Search is scoped to records returned by the existing authorized source. The UI warns when the source is paginated.
+   - Final engine blob: `5cb634e803def37766a3794daed8057a2106cb48`; initial search commit: `6a118fba165848b78cdf7eef26680622c0e8ec85`.
+
+2. **Evidence-gated rule-review drafts from learning outcomes**
+   - Added `buildDecisionPolicyReviewSuggestions()` to derive grouped review drafts only from decisions that are `MEASURED`, have `VERIFIED` memory, a reviewed non-empty lesson, verified expected and actual metrics, matching metric context and non-empty evidence IDs.
+   - Groups are separated by exact rule ID/version, metric key, unit, currency, UOM, period, formula ID and formula version.
+   - Each draft carries the measured observations, lessons and combined evidence references. Its instruction requires a human review and the existing simulation/approval flow; it never changes any rule, price, credit limit or inventory state.
+   - Logic commit: `a5076c219c102dadb350beedd5765973e2241bde`; empty-lesson hardening: `46546d358cb729d775d1a8af125241e7a00cd136`.
+
+3. **Decision Memory Book presentation**
+   - Existing book now presents precedent search and policy-review drafts, and explicitly marks both as page-scoped when the source returns a partial history.
+   - UI commits: `489b76fa0608699b14726d39cecba57526c1a60c`, `4b9f1b28ea8c7d2574d1180c58bbdbaeececfac8`, `0c6475a9fd27875f02d0eb8b2b9455e34ba5a6d1`; final UI blob: `ffce894457bf0d84589699df18cb9e0627160e02`.
+
+4. **Focused source tests**
+   - `decision-memory-search.test.ts` covers Arabic matching, prior-only ordering, same-rule ranking, context mismatch, missing actual metric, bounded input, verified policy-review draft generation, grouping by rule/version/metric context and withholding incomplete/unreviewed outcomes.
+   - Test commits: `6ab23d33663cd263711f321def900da8b20082d4`, `a0ed819d3023fafd655e81bc513ba068337f268d`; final test blob: `fe8bd71409e156f00635cdd8013b46118bb7d755`. Tests were authored but NOT run.
+
+### Acceptance boundary
+
+- Existing matrix row `REF-DECISION-MEMORY-BOOK-001` updated in commit `abceb79f990af5d7d43a1fe744aabf14216354c8`.
+- No SQL migration was added for these read-only projections. No new RPC, model/provider call, dependency or paid service was introduced.
+- No tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operation was run. No PASS or production readiness is claimed.
+- Search and suggestions are limited to the authorized page already loaded. A complete historical search requires a separately accepted tenant-authorized bounded search/pagination contract.
+- The migration set for decision memory and defer/resume remains source-only and awaits approved non-production database acceptance.
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-004`: advance to the next genuinely unimplemented source-backed item in Sections 53–63. Preserve all page-scope and no-automatic-policy-change guarantees. Do not rebuild existing engines or alter P1/P2-owned routes, workspace or database runtime paths.
