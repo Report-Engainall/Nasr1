@@ -219,6 +219,7 @@ describe("supplier quote comparison assistant intent", () => {
       "ما أقل تكلفة للوحدة بين الموردين؟",
       "اعرض سجل أسعار عروض الموردين",
       "كيف تغير سعر المورد عبر العروض المحفوظة؟",
+      "قارن عروض الموردين مع أداء التوريد والالتزام",
     ]) {
       expect(planNaturalLanguageQuery(question)).toMatchObject({
         status: "READY",
