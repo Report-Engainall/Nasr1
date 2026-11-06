@@ -1069,3 +1069,48 @@ Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. Source implementation only; 
 ### Next P3 action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-006`: continue another source-backed P3-owned product-body gap without broadening the quality source beyond its actual time/role capabilities.
+
+
+## P3 PRODUCT CHECKPOINT — 2026-11-06 — REF-EVIDENCE-SOURCE-COMPARISON-001
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA observed before checkpoint append: `4e8b58bf1d496ec5880a649802c9c36fbef3d808`.
+- Canonical requirement: Section 56 — when sources differ, show both values, each source/date and the comparison key; never average without an approved calculation rule.
+
+### Implemented on main
+
+1. **Deterministic verified-source comparison**
+   - Added `compareEvidenceMetricSources()` in `src/lib/intelligence/evidence-source-comparison.ts`.
+   - Revalidates both input Evidence Passports through the existing `buildEvidencePassport()` rules.
+   - Requires one unique matching metric in each passport, an explicit comparison key, independently VERIFIED/COMPLETE/ACCEPTABLE source lineage, the same metric key/unit/currency/UOM/exact period/as-of/formula ID and formula version.
+   - Returns `MATCHED`, `VARIANCE`, `NOT_COMPARABLE` or `WITHHELD`. Incompatible but individually trusted values remain separate with their source metadata and no delta; unverified values are hidden. No average is calculated and no source is mutated.
+   - Includes source name/kind/version/timestamp/as-of/status/completeness/quality, without exposing raw source record IDs. A zero baseline preserves the absolute difference and marks percentage as undefined.
+   - Final engine blob: `455b05d48c81f430efcad118bbde8179b22ce9e5`.
+   - Code commits: `e71e4562c924af9b0c4be3184019fb3c0bc6bd34`, `a3089b9ec6786a4c48d2e17c25b364156f081938`, `17bdd9065698f28e2ef46b7ff908a0c8b48ef0d7`, `5963ee490af24188d7399d8eff97ff78c5192333`.
+
+2. **Arabic comparison panel**
+   - Added `EvidenceSourceComparisonPanel` with left/right values, source names and timestamps, exact period/unit/currency/UOM/formula metadata, difference and percentage when comparable, and explicit reasons when comparison is withheld.
+   - Supports loading/empty/error/unavailable/ready states. It displays no average, source ID or write action.
+   - Component blob: `066119a863c9d4d16ea193a25645ca6504ee5f98`; commit `255e7e540fa52ceb3b3e04b794e2c7eaee227e28`.
+   - Library and component barrel exports added in commits `2ff9958c4f8f6750838897a5f8009bde2cc54123` and `9dc03531d7266e1fa93da7b42607349f4a44081b`.
+
+3. **Focused source tests**
+   - Pure engine suite: `src/lib/intelligence/evidence-source-comparison.test.ts`, blob `6a268fc838eb8d2298c495db8939daebcd0661ef`; commit `4cf57836c8465a7d3ecaf804ae01f835f3985556`.
+   - UI suite: `src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx`, blob `56e0ef43c8bdcd2d282c69485defabefb1b16a6a`; commits `c7c2821b1c641653552224d8bce88ab228bbdc94` and `1cce100c83af78100c3a221461ed5e4ec8782069`.
+   - Tests cover matching sources, variance without averaging, context mismatch, weak evidence, null values, zero baseline, comparison-key requirements, panel states and retry. Tests were authored but NOT run.
+
+4. **P1 mounting handoff and acceptance row**
+   - Added Section 56 mount contract to existing `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`; commit `52e4c1804e9f0291ef0a19e659e43b117fa2770d`.
+   - Updated existing matrix row `REF-DATA-RELIABILITY-EVIDENCE-PASSPORT-001`; commit `4e8b58bf1d496ec5880a649802c9c36fbef3d808`.
+
+### Ownership and acceptance boundary
+
+- The new panel is exported but NOT mounted. P1 owns placing it once beside the existing Evidence Passport in the current intelligence/evidence surface; no P1 workspace, route or app-shell file was changed.
+- The caller must supply two existing same-tenant, already-authorized source snapshots and a stable join key resolved by the authorized source. The P3 helper is a deterministic projection, not an authorization or entity-matching service.
+- Persisted reconciliation dispositions (matched/variance/ignored/review/settled), owner/reason, and audit history remain a separate P2-owned transaction. No client write, table, RPC, data source, paid service or external provider was added here.
+- Source tests/build/typecheck/lint/CI/browser/DB/Bolt/Preview/Vercel/production operations were NOT run. No PASS or runtime/production claim is made.
+- Status: `IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / ACCEPTANCE_PENDING`.
+
+### Next P3 action
+
+`P3-SECTION-52-63-INDEPENDENT-GAPS-007`: continue to another genuinely missing P3-owned, source-backed Section 53–63 requirement. Preserve exact source comparison rules and do not create a second evidence workspace or reconciliation writer.
