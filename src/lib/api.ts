@@ -2407,7 +2407,12 @@ export async function recordCustomerInteraction(input: {
 // ─── Purchase orders and atomic inventory receiving ───
 const purchaseIdempotencyKey = /^[A-Za-z0-9_-]{16,128}$/;
 export type PurchaseOrderLineCommand = { product_id: string; quantity: number; unit_cost: number | null };
-export type PurchaseReceiptLineCommand = { item_id: string; quantity: number };
+export type PurchaseReceiptLineCommand = {
+  item_id: string;
+  quantity: number;
+  batch_number?: string | null;
+  expiry_date?: string | null;
+};
 export type PurchaseOrderCommandResult = { purchase_order: PurchaseOrder; idempotent_replay: boolean };
 export type PurchaseReceiptCommandResult = {
   purchase_order: PurchaseOrder;
@@ -2485,6 +2490,7 @@ export async function receivePurchaseOrder(input:{
   if(!input.lines.length||input.lines.length>100) throw new Error('اختر من بند واحد إلى 100 بند للاستلام.');
   if(input.notes.trim().length>2000) throw new Error('ملاحظات الاستلام لا تتجاوز 2000 حرف.');
   const seen=new Set<string>();
+  const normalizedLines: PurchaseReceiptLineCommand[]=[];
   for(const line of input.lines){
     assertPurchaseUuid(line.item_id,'معرّف بند أمر الشراء');
     if(seen.has(line.item_id)) throw new Error('لا تكرر بند أمر الشراء داخل إيصال واحد.');
@@ -2493,9 +2499,24 @@ export async function receivePurchaseOrder(input:{
        !Number.isSafeInteger(Math.round(line.quantity*1000))||Math.round(line.quantity*1000)!==line.quantity*1000) {
       throw new Error('كمية الاستلام يجب أن تكون موجبة وبحد أقصى ثلاث منازل عشرية.');
     }
+    const batchNumber=(line.batch_number??'').trim();
+    const expiryDate=(line.expiry_date??'').trim();
+    if(batchNumber.length>100) throw new Error('رقم الدفعة لا يتجاوز 100 حرف.');
+    if(expiryDate){
+      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiryDate)) throw new Error('تاريخ الانتهاء يجب أن يكون بصيغة سنة-شهر-يوم.');
+      const parsedDate=new Date(expiryDate+'T00:00:00.000Z');
+      if(!Number.isFinite(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==expiryDate) throw new Error('تاريخ الانتهاء غير صالح.');
+      if(!batchNumber) throw new Error('أدخل رقم الدفعة عند تحديد تاريخ الانتهاء.');
+    }
+    normalizedLines.push({
+      item_id:line.item_id,
+      quantity:line.quantity,
+      batch_number:batchNumber||null,
+      expiry_date:expiryDate||null,
+    });
   }
   const {data,error}=await supabase.rpc('receive_purchase_order',{
-    p_purchase_order_id:input.purchaseOrderId,p_lines:input.lines,
+    p_purchase_order_id:input.purchaseOrderId,p_lines:normalizedLines,
     p_notes:input.notes.trim()||null,p_idempotency_key:input.idempotencyKey,
   });
   if(error) throw error;
