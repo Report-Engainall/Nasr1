@@ -1,3 +1,30 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-055 — PHONE + PASSWORD SIGN-IN
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Product commits: Auth phone normalization and sign-in `9386f10d699ba3cde1e827e1e1c9d26f212a958e`, corrected E.164 normalizer `750580d67a91acc006546eff643c6037f6ccbd50`; login UI `4067958f8bf80f39220b5338173a4f59cc3a9406`; phone-only account labels `c551fb3bf31d599b7c5b257f551884109878c24a` and `de77468477d804aae910f43c4b09389947cce804`; Help Center disclosure `8030278a8a6ffe040328fcab144722fdbfa5c218`.
+- Scope: add password login by telephone number alongside the existing email/password path.
+
+## BODY-055 — phone-number password login
+
+- Added an explicit «تسجيل الدخول برقم الهاتف» switch in the sign-in form; registration and password recovery remain email-based.
+- Added one shared phone normalizer in the Auth layer. It accepts international E.164 numbers, Yemen +967/00967 formats, and local Yemeni mobile numbers with or without a leading zero, and rejects malformed values before calling Auth.
+- Calls the existing Supabase Auth `signInWithPassword({ phone, password })` path. Email login remains on `signInWithPassword({ email, password })`.
+- Added explicit messages for invalid phone format, unconfirmed phone and disabled/unsupported phone provider. Profile/security pages now handle phone-only identities that have no email address.
+- The UI and Auth code do not enable the provider or send SMS. Runtime use requires Supabase Phone Auth enabled and an existing confirmed phone identity. New phone sign-up/OTP is NOT implemented because no approved SMS provider/configuration has been provided; no paid provider is enabled.
+- Files changed: `src/lib/auth.tsx`, `src/components/Login.tsx`, `src/routes/help.tsx`, `src/routes/profile.tsx`, `src/components/CustomerAccountPasswordPage.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / AUTH_PROVIDER_CONFIGURATION_AND_ACCEPTANCE_PENDING`.
+
+## Delivery evidence boundary
+
+- GitHub source was re-read for phone normalization, Auth credential selection, UI switch/validation, and phone-only account labels.
+- No tests, build, typecheck, lint, CI, browser, Bolt Auth settings, SMS provider setup, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue missing account/commerce functions. Phone sign-up/OTP remains blocked until the owner approves a phone verification provider and its cost/configuration; do not send paid SMS or claim the channel is live.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-054 — CUSTOMER PROFILE OVERVIEW ROUTE
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
