@@ -271,3 +271,74 @@ export async function fetchUnavailableProductSearchDemand(
     };
   }
 }
+
+export type UnavailableProductDemandFollowUpResult =
+  | { ok: true; taskId: string; reused: boolean; searchCount: number; distinctSearchers: number }
+  | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR" | "NOT_ELIGIBLE"; message: string };
+
+/**
+ * Manager-authorized, explicit action for a verified product demand signal.
+ * The server re-derives the sample and enforces one task per product/window.
+ */
+export async function createUnavailableProductDemandFollowUpTask(input: {
+  productId: string;
+  period: EvidencePeriod;
+  asOf: string;
+}): Promise<UnavailableProductDemandFollowUpResult> {
+  if (!UUID.test(input.productId) ||
+      !day(input.period.from) || !day(input.period.to) ||
+      input.period.from > input.period.to ||
+      !timestamp(input.asOf) ||
+      input.period.to !== new Date(Date.parse(input.asOf)).toISOString().slice(0, 10)) {
+    return { ok: false, status: "ERROR", message: "مرجع الصنف أو فترة دليل الطلب غير صالحة." };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("create_unavailable_product_demand_follow_up_task", {
+      p_product_id: input.productId,
+      p_from: input.period.from,
+      p_to: input.period.to,
+      p_as_of: input.asOf,
+    });
+    if (error) {
+      const failure = error as { code?: string };
+      if (failure.code === "42501" || failure.code === "28000" || failure.code === "PGRST301") {
+        return { ok: false, status: "DENIED", message: "إنشاء مهمة متابعة طلب الأصناف متاح للمدير أو المسؤول المخوّل فقط." };
+      }
+      if (failure.code === "PGRST202" || failure.code === "42883") {
+        return { ok: false, status: "UNAVAILABLE", message: "مسار إنشاء مهمة مراجعة الطلب غير متاح قبل تطبيق ترحيل الوظيفة." };
+      }
+      return { ok: false, status: "ERROR", message: "تعذر إنشاء مهمة مراجعة طلب الصنف من مصدره الموثق." };
+    }
+
+    const raw = object(data);
+    if (!raw || !["CREATED", "REUSED", "NOT_ELIGIBLE"].includes(String(raw.status)) ||
+        raw.sideEffects !== (raw.status === "NOT_ELIGIBLE" ? "NONE" : "OPERATIONAL_TASK_ONLY")) {
+      return { ok: false, status: "ERROR", message: "استجابة إنشاء مهمة طلب الصنف لا تطابق عقد الخدمة." };
+    }
+    if (raw.status === "NOT_ELIGIBLE") {
+      const reason = raw.reason === "DEMAND_PERIOD_NOT_FULLY_TRACKED"
+        ? "الفترة تتجاوز بداية التتبع الفعلية؛ لم تُنشأ مهمة من سجل ناقص."
+        : raw.reason === "PRODUCT_NOT_ACTIVE_IN_CURRENT_ORGANIZATION"
+          ? "الصنف لم يعد نشطاً داخل المؤسسة الحالية."
+          : "العينة الحالية لا تحقق حد خمسة مشاهدات وثلاثة عملاء مميزين.";
+      return { ok: false, status: "NOT_ELIGIBLE", message: reason };
+    }
+    if (typeof raw.taskId !== "string" || !UUID.test(raw.taskId) ||
+        !count(raw.searchCount) || raw.searchCount < 5 ||
+        !count(raw.distinctSearchers) || raw.distinctSearchers < 3 ||
+        raw.distinctSearchers > raw.searchCount) {
+      return { ok: false, status: "ERROR", message: "بيانات المهمة أو عينة الطلب غير مكتملة." };
+    }
+    return {
+      ok: true,
+      taskId: raw.taskId,
+      reused: raw.status === "REUSED",
+      searchCount: raw.searchCount,
+      distinctSearchers: raw.distinctSearchers,
+    };
+  } catch {
+    return { ok: false, status: "ERROR", message: "تعذر الاتصال بمسار مهمة مراجعة الطلب." };
+  }
+}
+

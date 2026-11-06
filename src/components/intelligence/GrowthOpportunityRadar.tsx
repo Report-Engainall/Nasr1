@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { createUnavailableProductDemandFollowUpTask } from "@/lib/intelligence/unavailable-product-search-demand-client";
 import type { GrowthOpportunity, GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import { EvidenceReferences, EvidenceStatusLabel, formatEvidenceNumber, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
 
@@ -29,9 +32,17 @@ function numberLabel(value: number | null, unit: string, currency?: string, unit
 function GrowthOpportunityCard({
   opportunity,
   onOpenRecord,
+  canCreateFollowUpTask,
+  followUpBusy,
+  followUpMessage,
+  onCreateFollowUpTask,
 }: {
   opportunity: GrowthOpportunity;
   onOpenRecord?: GrowthOpportunityRadarProps["onOpenRecord"];
+  canCreateFollowUpTask: boolean;
+  followUpBusy: boolean;
+  followUpMessage: string | null;
+  onCreateFollowUpTask: (opportunity: GrowthOpportunity) => void;
 }) {
   const current = numberLabel(opportunity.observedValue, opportunity.unit, opportunity.currency, opportunity.unitOfMeasure);
   const baseline = opportunity.baselineValue === null
@@ -73,11 +84,24 @@ function GrowthOpportunityCard({
         <p>النتيجة المتوقعة: {opportunity.expectedOutcome}</p>
         {opportunity.warnings.map(warning => <p key={warning} className="text-muted-foreground">{warning}</p>)}
       </section>
-      {onOpenRecord ? (
-        <footer className="mt-3 border-t pt-3">
-          <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={() => onOpenRecord(opportunity.kind, opportunity.subjectRef)}>
-            فتح السجل المرتبط
-          </button>
+      {onOpenRecord || (canCreateFollowUpTask && opportunity.kind === "PRODUCT_UNAVAILABLE_DEMAND") ? (
+        <footer className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+          {onOpenRecord ? (
+            <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={() => onOpenRecord(opportunity.kind, opportunity.subjectRef)}>
+              فتح السجل المرتبط
+            </button>
+          ) : null}
+          {canCreateFollowUpTask && opportunity.kind === "PRODUCT_UNAVAILABLE_DEMAND" ? (
+            <button
+              type="button"
+              className="rounded-lg border px-3 py-2 text-sm"
+              disabled={followUpBusy}
+              onClick={() => onCreateFollowUpTask(opportunity)}
+            >
+              {followUpBusy ? "جارٍ إنشاء مهمة المراجعة…" : "إنشاء مهمة مراجعة للمشتريات"}
+            </button>
+          ) : null}
+          {followUpMessage ? <p className="w-full text-xs text-muted-foreground" role="status">{followUpMessage}</p> : null}
         </footer>
       ) : null}
     </article>
@@ -90,6 +114,34 @@ export function GrowthOpportunityRadar({
   onRetry,
   onOpenRecord,
 }: GrowthOpportunityRadarProps) {
+  const { user } = useAuth();
+  const canCreateFollowUpTask = Boolean(
+    user && Array.isArray(user.roles) &&
+    (user.roles.includes("admin") || user.roles.includes("manager")),
+  );
+  const [busyOpportunityId, setBusyOpportunityId] = useState<string | null>(null);
+  const [followUpMessages, setFollowUpMessages] = useState<Record<string, string>>({});
+
+  async function createFollowUpTask(opportunity: GrowthOpportunity) {
+    if (!canCreateFollowUpTask || opportunity.kind !== "PRODUCT_UNAVAILABLE_DEMAND" || busyOpportunityId) return;
+    setBusyOpportunityId(opportunity.id);
+    setFollowUpMessages(current => ({ ...current, [opportunity.id]: "" }));
+    const result = await createUnavailableProductDemandFollowUpTask({
+      productId: opportunity.subjectRef,
+      period: opportunity.period,
+      asOf: opportunity.asOf,
+    });
+    setBusyOpportunityId(null);
+    setFollowUpMessages(current => ({
+      ...current,
+      [opportunity.id]: result.ok
+        ? result.reused
+          ? "المهمة موجودة مسبقاً للفترة نفسها؛ أُعيد استخدام المهمة دون إنشاء نسخة."
+          : "أُنشئت مهمة مراجعة المشتريات في قائمة المهام."
+        : result.message,
+    }));
+  }
+
   if (state !== "ready") {
     return <IntelligenceStatePanel state={state} onRetry={onRetry} errorMessage="تعذر تحميل رادار فرص النمو." />;
   }
@@ -118,7 +170,15 @@ export function GrowthOpportunityRadar({
         </div>
       ) : null}
       {result.opportunities.map(opportunity => (
-        <GrowthOpportunityCard key={opportunity.id} opportunity={opportunity} onOpenRecord={onOpenRecord} />
+        <GrowthOpportunityCard
+          key={opportunity.id}
+          opportunity={opportunity}
+          onOpenRecord={onOpenRecord}
+          canCreateFollowUpTask={canCreateFollowUpTask}
+          followUpBusy={busyOpportunityId === opportunity.id}
+          followUpMessage={followUpMessages[opportunity.id] || null}
+          onCreateFollowUpTask={createFollowUpTask}
+        />
       ))}
       {result.withheld.length > 0 ? (
         <details className="rounded-lg border p-3">
