@@ -265,9 +265,12 @@ export interface ImportJobRow {
 export type CustomerTier = 1 | 2 | 3
 export const TIER_LABELS: Record<number, string> = { 1: 'جملة الجملة', 2: 'جملة', 3: 'تجزئة' }
 export const ORDER_STATUS_LABELS: Record<string, string> = {
-  new: 'جديد', received: 'تم الاستلام', reviewing: 'قيد المراجعة', returned: 'معاد للتعديل',
-  approved: 'معتمد', preparing: 'قيد التجهيز', prepared: 'تم التجهيز', dispatched: 'خرج للتسليم',
-  delivered: 'تم التسليم', cancelled: 'ملغي', rejected: 'مرفوض', invoiced: 'حوّل إلى فاتورة',
+  new: 'جديد', draft: 'مسودة', pending: 'بانتظار المراجعة', received: 'تم الاستلام',
+  reviewing: 'قيد المراجعة', returned: 'معاد للتعديل', needs_customer_amendment: 'بانتظار تعديل العميل',
+  returned_for_adjustment: 'أُعيد للعميل للتعديل', confirmed: 'مؤكد', approved: 'معتمد',
+  processing: 'قيد التجهيز', preparing: 'قيد التجهيز', prepared: 'تم التجهيز',
+  shipped: 'تم الشحن', dispatched: 'خرج للتسليم', delivered: 'تم التسليم',
+  cancelled: 'ملغي', rejected: 'مرفوض', invoiced: 'حوّل إلى فاتورة',
 }
 export const CUSTOMER_STATUS_LABELS: Record<string, string> = {
   pending: 'بانتظار الموافقة', approved: 'معتمد', rejected: 'مرفوض', frozen: 'مجمّد', blocked: 'محظور', archived: 'مؤرشف',
