@@ -82,7 +82,7 @@ DECLARE v_case_id uuid; v_deadline timestamptz;
 BEGIN
   IF NEW.source_event_key LIKE 'customer-service-case:%' THEN
     BEGIN
-      v_case_id:=pg_catalog.substring(NEW.source_event_key FROM 23)::uuid;
+      v_case_id:=pg_catalog.substr(NEW.source_event_key,23)::uuid;
     EXCEPTION WHEN invalid_text_representation THEN RETURN NEW;
     END;
     SELECT resolution_due_at INTO v_deadline FROM public.customer_service_cases
