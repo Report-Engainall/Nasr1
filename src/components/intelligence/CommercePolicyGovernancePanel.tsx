@@ -223,6 +223,7 @@ export function CommercePolicyGovernancePanel() {
                 {promotionOverlapReview.withheldReasons.map(item=><li key={item.reason}>
                   {item.reason==="SOURCE_CHANGED"?"بصمة المصدر تغيرت منذ تسجيل السياسة":
                     item.reason==="SCOPE_NOT_COMPARABLE"?"نطاق المنتج/الفئة غير صريح أو غير قابل للمقارنة":
+                    item.reason==="SOURCE_STATUS_UNAVAILABLE"?"حالة تفعيل المصدر غير متاحة أو غير صالحة":
                     "تاريخ السريان في سجل المصدر غير صالح أو مفقود"} · {item.count}
                 </li>)}
               </ul>
