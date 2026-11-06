@@ -205,7 +205,7 @@ function AdminWorkspaceContent({
     case "offers":
       return <Offers onNotice={onNotice} />;
     case "suppliers":
-      return <Suppliers onNotice={onNotice} />;
+      return <Suppliers onNotice={onNotice} initialSearch={recordContext?.kind === "supplier" ? recordContext.title : undefined} />;
     case "purchase-orders":
       return <PurchaseOrdersPage />;
     case "devices":
@@ -758,7 +758,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
               {!workspaceSearchLoading && !workspaceSearchError && workspaceSearchResults.length === 0 &&
                 <div className="px-3 py-2 text-sm text-muted-foreground" role="status">لا توجد سجلات مطابقة ضمن صلاحيات هذا الحساب.</div>}
               {workspaceSearchResults.map((item) => (
-                <CommandItem key={item.kind + ":" + item.id} shouldFilter={false}
+                <CommandItem key={item.kind + ":" + item.id}
                   value={`${item.kind} ${item.title} ${item.subtitle} ${item.id}`} keywords={[commandSearch]}
                   onSelect={() => openWorkspaceSearchResult(item)}>
                   <Search size={16} aria-hidden="true" />
