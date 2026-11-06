@@ -143,7 +143,11 @@ function metricSide(
   metric: MetricSnapshot,
   records: readonly EvidenceRecord[],
 ): EvidenceMetricComparisonSide {
-  const value = typeof metric.value === "number" &&
+  const evidenceTrusted = metric.status === "VERIFIED" &&
+    metric.completeness === "COMPLETE" &&
+    metric.quality === "ACCEPTABLE";
+  const value = evidenceTrusted &&
+      typeof metric.value === "number" &&
       Number.isFinite(metric.value) &&
       Math.abs(metric.value) <= Number.MAX_SAFE_INTEGER
     ? metric.value
