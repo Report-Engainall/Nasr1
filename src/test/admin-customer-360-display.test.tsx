@@ -7,6 +7,7 @@ import type { Customer } from "@/lib/types";
 
 const mocks = vi.hoisted(() => ({
   fetchSummary: vi.fn(),
+  fetchRetention: vi.fn(),
   scopedCustomerId: "customer-360-1" as string | null,
   createQuery: (scopedCustomerId: string | null) => {
     const query = {
@@ -25,6 +26,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => ({
   fetchStaffCustomer360Summary: mocks.fetchSummary,
+}));
+
+vi.mock("@/lib/customer-retention-client", () => ({
+  fetchCustomerRetentionReport: mocks.fetchRetention,
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -142,6 +147,7 @@ describe("Admin Customer 360 source-lineage display", () => {
   beforeEach(() => {
     mocks.scopedCustomerId = "customer-360-1";
     mocks.fetchSummary.mockReset().mockResolvedValue(summary);
+    mocks.fetchRetention.mockReset().mockRejectedValue(new Error("synthetic retention-source failure"));
   });
 
   afterEach(() => {
@@ -367,5 +373,72 @@ describe("Admin Customer 360 source-lineage display", () => {
     expect(Object.keys(projected.customer)).not.toContain("id");
     expect(JSON.stringify(projected)).not.toContain("customer_id");
   });
+
+  it("renders a verified customer retention assessment from the matched customer record", async () => {
+    mocks.fetchRetention.mockResolvedValueOnce({
+      id: "retention-report-001",
+      asOf: "2026-10-30T04:00:00.000Z",
+      period: { from: "2026-08-02", to: "2026-10-30" },
+      previousPeriod: { from: "2026-05-04", to: "2026-08-01" },
+      status: "VERIFIED",
+      population: {
+        total: 1, activeCurrentPeriod: 1, priorPeriodCohort: 1,
+        retainedCustomers: 1, repeatPurchaseCustomers: 1,
+      },
+      retentionRate: 100,
+      repeatPurchaseRate: 100,
+      averageOrdersPerActiveCustomer: 3,
+      activity: {
+        active30Days: 1, cooling31To60Days: 0, atRisk61To90Days: 0,
+        inactiveOver90Days: 0, noOrderDate: 0,
+      },
+      focusByCurrency: [],
+      customers: [{
+        customerRef: customer.id, orderCountCurrent: 3, orderCountPrevious: 1,
+        lastOrderAt: "2026-10-29T10:00:00.000Z", daysSinceLastOrder: 1,
+        activity: "ACTIVE", repeatCustomer: true, status: "VERIFIED",
+      }],
+      warnings: [],
+    });
+
+    render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
+    const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
+    expect(await within(dialog).findByText("العميل نشط ضمن فترة القياس. استمر في المتابعة حسب سجل التواصل واحتياج العميل.")).toBeInTheDocument();
+    expect(within(dialog).getByText("معدل الاحتفاظ بالمجموعة السابقة")).toBeInTheDocument();
+    expect(within(dialog).getByText("100٪")).toBeInTheDocument();
+    expect(within(dialog).getByText("طلبات الفترة الحالية: count:3")).toBeInTheDocument();
+  });
+
+  it("withholds retention rates and activity classification when source coverage is incomplete", async () => {
+    mocks.fetchRetention.mockResolvedValueOnce({
+      id: "retention-report-partial",
+      asOf: "2026-10-30T04:00:00.000Z",
+      period: { from: "2026-08-02", to: "2026-10-30" },
+      previousPeriod: { from: "2026-05-04", to: "2026-08-01" },
+      status: "NEEDS_REVIEW",
+      population: {
+        total: null, activeCurrentPeriod: null, priorPeriodCohort: null,
+        retainedCustomers: null, repeatPurchaseCustomers: null,
+      },
+      retentionRate: null,
+      repeatPurchaseRate: null,
+      averageOrdersPerActiveCustomer: null,
+      activity: {
+        active30Days: null, cooling31To60Days: null, atRisk61To90Days: null,
+        inactiveOver90Days: null, noOrderDate: null,
+      },
+      focusByCurrency: [],
+      customers: [],
+      warnings: ["FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED"],
+    });
+
+    render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
+    const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
+    expect(await within(dialog).findByText("التصنيف محجوب لحين اكتمال الأدلة")).toBeInTheDocument();
+    expect(within(dialog).getByText(/حالة الدليل: NEEDS_REVIEW/)).toBeInTheDocument();
+    expect(within(dialog).queryByText("معدل الاحتفاظ بالمجموعة السابقة")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("العميل نشط")).not.toBeInTheDocument();
+  });
+
 
 });
