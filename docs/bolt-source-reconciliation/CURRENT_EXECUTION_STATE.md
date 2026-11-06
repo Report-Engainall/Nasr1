@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — authenticated account password change — 2026-11-06
+
+- BODY-053 commits: password UI `d3aa3a2bbdd2b103d19617b264005804cca43daa`; route `8ea2063bfa80abd8cd51afefc76b301d71d9c476`; route tree `c03e62be3d19bb00bde904b3d9f7b71e223f9483`; Help Center `bfb1b567df4e463f0319f7205401a277510a7524`.
+- Added authenticated `/account/password`; new value and confirmation are validated in the UI then sent to Supabase Auth `updateUser` using the active session. Returned auth identity must match the current user before success. Password is not stored in app DB/local/session storage.
+- Reauthentication failures are surfaced without success and direct the user to existing password recovery. No new password RPC/table/migration/provider.
+- Added matrix leaf `DLV-006-ACCOUNT-PASSWORD-CHANGE-001`. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — customer payment history route — 2026-11-06
 
 - BODY-052 commits on `main`: CustomerPaymentsPage `a8f99af47f2f07f0ae2448595e60234116d1ac73`; route `0c8d1428c0b07e2fa00fdc3b23a1c127153a5844`; route-tree `2951fff959abe2f44d51c9b240f38ba83c465b25`; navigation `0df9b39d40adef06332397967b70f1a05c3875bf`; footer `3bbce03c22acadbc565aebfcad757551b6c41389`; help `c6bbf686e49a4e53365785cff591311428928af2`.
