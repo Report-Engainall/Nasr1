@@ -4,8 +4,19 @@ import { buildGrowthOpportunityRadar, type GrowthOpportunityRadarResult, type Gr
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
+export interface CustomerRetentionGrowthInputs {
+  evidenceRecords: EvidenceRecord[];
+  metrics: MetricSnapshot[];
+  signals: GrowthOpportunitySignal[];
+  sourceSnapshotVerified: boolean;
+}
 export type CustomerRetentionAggregateResult =
-  | { ok: true; data: CustomerRetentionReport; growthRadar: GrowthOpportunityRadarResult }
+  | {
+      ok: true;
+      data: CustomerRetentionReport;
+      growthRadar: GrowthOpportunityRadarResult;
+      growthInputs: CustomerRetentionGrowthInputs;
+    }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -225,6 +236,16 @@ export async function fetchCustomerRetentionAggregate(
       id: raw.id, asOf, period: currentPeriod, previousPeriod,
       evidenceRecords: safeEvidence, coverage, customers, salesByCurrency,
     });
+    const sourceSnapshotVerified = report.status === "VERIFIED" &&
+      coverage.status === "VERIFIED" && coverage.completeness === "COMPLETE" &&
+      coverage.quality === "ACCEPTABLE" && !coverage.truncated &&
+      coverage.returnedCustomerCount === coverage.expectedCustomerCount;
+    const growthInputs: CustomerRetentionGrowthInputs = {
+      evidenceRecords: safeEvidence,
+      metrics: retentionMetrics,
+      signals: growthSignals,
+      sourceSnapshotVerified,
+    };
     const growthRadar = buildGrowthOpportunityRadar({
       id: raw.id,
       generatedAt: asOf,
@@ -232,8 +253,9 @@ export async function fetchCustomerRetentionAggregate(
       evidenceRecords: safeEvidence,
       metrics: retentionMetrics,
       signals: growthSignals,
+      sourceSnapshotVerified,
     });
-    return { ok: true, data: report, growthRadar };
+    return { ok: true, data: report, growthRadar, growthInputs };
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بخدمة تحليلات الاحتفاظ بالعملاء." };
   }
