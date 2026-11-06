@@ -1,4 +1,26 @@
-# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-030
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-031
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Latest P1 code delivery: `51daf271923dc89a654b35890b2f2faf3997dbd7`.
+- No P3-owned engine, RPC, DTO or migration file was modified in BODY-031.
+
+## BODY-031 — staff receivables-aging XLSX
+
+- Added a role-gated Excel action to the existing Staff Finance receivables-aging report beside its Arabic print output. It reuses the exact `fetch_staff_receivables_aging` payload already loaded by the page; no alternate query, server mutation or copied data source was introduced.
+- The workbook contains three sheets: report scope, the full per-currency summary returned by the server, and the currently displayed 200-row invoice-detail page.
+- The projection validates the server page cursor/has-more contract, unique invoices and currencies, age-bucket/date semantics, exact-cent amount reconciliation, and the sum of all six age buckets against each currency's full open balance. It also reconciles the per-currency invoice counts to the source's full open-invoice count.
+- It explicitly distinguishes complete currency summary from bounded current-page detail; preserves unknown due dates in their own bucket, keeps currencies separate, writes business text as literal cells, and excludes internal invoice/customer/tenant/profile identifiers, costs and margins.
+- Files: `src/lib/receivables-aging-xlsx.ts`; integrated in `src/components/CustomerWorkflows.tsx`.
+- Source commits: XLSX builder `34eb38271f6abaa79b0cf048c5eff6173bc7238e`; Staff Finance UI `ec3bc25982caf13896ef59a74a31474a6e0ba8e9`; refresh error-state fix `51daf271923dc89a654b35890b2f2faf3997dbd7`.
+- Acceptance leaf: `DLV-011-RECEIVABLES-AGING-XLSX-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No migration, package, paid provider or Vercel operation was added. No tests/build/lint/CI/browser/E2E/database/Bolt/Preview operation was run; no runtime PASS is claimed.
+
+## Next P1 action
+Mount P3's newly delivered `TaskQualityReviewForm` in the existing Task Center per `docs/execution/contracts/P3_TASK_QUALITY_REVIEW_P1_HANDOFF.md`. P1 owns only the product UI integration; P3 retains engine, RPC, DTO and persistence ownership.
+
+---
+
+# Historical P1 checkpoint — BODY-COMPLETION-ON-MAIN-030
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
 - Latest P1 product-code SHA: `61c40c123b2116ac1b6d149ccb94bcc194417dff`.
