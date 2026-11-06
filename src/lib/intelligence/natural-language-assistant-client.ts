@@ -21,6 +21,7 @@ import { buildReplenishmentRecommendations } from "./replenishment";
 import { fetchBusinessHealthAssistantSummary } from "./business-health-assistant-client";
 import { fetchSalesOrderStatusSnapshot } from "./sales-order-status-summary-client";
 import { fetchProductPerformanceGrowthContext } from "./product-performance-growth-client";
+import { fetchUnavailableProductSearchDemand } from "./unavailable-product-search-demand-client";
 import { buildGrowthOpportunityRadar } from "./growth-opportunities";
 import { resolveSalesOrderStatusIntent, type SalesOrderStatusIntent } from "./sales-order-status-summary";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
@@ -252,20 +253,27 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
    if(plan.intent==="GROWTH_RADAR_OVERVIEW"){
     const customerPopulationComplete=retention.growthInputs.sourceSnapshotVerified&&
       retention.data.population.total!==null;
-    const product=await fetchProductPerformanceGrowthContext(periodDays,retention.data.asOf);
+    const [product,unavailableDemand]=await Promise.all([
+      fetchProductPerformanceGrowthContext(periodDays,retention.data.asOf),
+      fetchUnavailableProductSearchDemand(periodDays,retention.data.asOf),
+    ]);
     const productPopulationComplete=product.ok&&product.context.completePopulation;
-    const completePopulation=customerPopulationComplete&&productPopulationComplete;
+    const unavailableDemandPopulationComplete=unavailableDemand.ok&&unavailableDemand.context.completePopulation;
+    const completePopulation=customerPopulationComplete&&productPopulationComplete&&unavailableDemandPopulationComplete;
     const evidenceRecords=[
       ...retention.growthInputs.evidenceRecords,
       ...(product.ok?product.context.evidenceRecords:[]),
+      ...(unavailableDemand.ok?unavailableDemand.context.evidenceRecords:[]),
     ];
     const metrics=[
       ...retention.growthInputs.metrics,
       ...(product.ok?product.context.metrics:[]),
+      ...(unavailableDemand.ok?unavailableDemand.context.metrics:[]),
     ];
     const signals=[
       ...retention.growthInputs.signals,
       ...(product.ok?product.context.signals:[]),
+      ...(unavailableDemand.ok?unavailableDemand.context.signals:[]),
     ];
     let radar=buildGrowthOpportunityRadar({
       id:retention.data.id,
@@ -280,6 +288,9 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
       ...radar.warnings,
       ...retention.growthRadar.warnings,
       ...(product.ok?product.context.warnings:["PRODUCT_PERFORMANCE_SOURCE_"+product.status]),
+      ...(unavailableDemand.ok
+        ? unavailableDemand.context.warnings
+        : ["UNAVAILABLE_PRODUCT_SEARCH_SOURCE_"+unavailableDemand.status]),
     ];
     if(!completePopulation&&radar.status!=="UNVERIFIED"){
       radar={...radar,status:"NEEDS_REVIEW"};
@@ -287,19 +298,28 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     radar={...radar,warnings:[...new Set(combinedWarnings)]};
     const productSourceStatus: "READY"|"PARTIAL"|"UNAVAILABLE" =
       !product.ok?"UNAVAILABLE":product.context.completePopulation?"READY":"PARTIAL";
+    const unavailableDemandSourceStatus: "READY"|"PARTIAL"|"UNAVAILABLE" =
+      !unavailableDemand.ok?"UNAVAILABLE":
+      unavailableDemand.context.completePopulation?"READY":"PARTIAL";
     const answer=completePopulation
-     ?"رادار النمو قيّم "+radar.evaluatedSignals+" إشارة من أدلة العملاء والمنتجات المكتملة، وأظهر "+radar.opportunities.length+" فرصة تجاوزت العتبات و"+radar.withheld.length+" إشارة محجوبة. يشمل تغير كميات الطلبات المؤكدة أو قيد المعالجة أو المشحونة أو المسلّمة مقارنة بفترة سابقة مساوية."
-     :"تغطية رادار النمو جزئية: مجتمع العملاء "+(customerPopulationComplete?"مكتمل":"غير مكتمل")+"، ومصدر أداء المنتجات "+(productSourceStatus==="READY"?"مكتمل":productSourceStatus==="PARTIAL"?"جزئي":"غير متاح")+". تُعرض فقط الإشارات ذات الأدلة الصالحة، ولا يُفسَّر غياب فرصة أو نقص مصدر على أنه عدم وجود طلب.";
+     ?"رادار النمو قيّم "+radar.evaluatedSignals+" إشارة من أدلة العملاء والمنتجات والبحث المكتمل، وأظهر "+radar.opportunities.length+" فرصة تجاوزت العتبات و"+radar.withheld.length+" إشارة محجوبة. يتضمن البحث منتجات ظهرت في نتائج العملاء وكان رصيدها المتاح صفراً وقت التسجيل، دون حفظ نص البحث أو هوية العميل."
+     :"تغطية رادار النمو جزئية: مجتمع العملاء "+(customerPopulationComplete?"مكتمل":"غير مكتمل")+"، وأداء المنتجات "+(productSourceStatus==="READY"?"مكتمل":productSourceStatus==="PARTIAL"?"جزئي":"غير متاح")+"، وطلب الأصناف غير المتاحة "+(unavailableDemandSourceStatus==="READY"?"مكتمل":unavailableDemandSourceStatus==="PARTIAL"?"جزئي":"غير متاح")+". لا تعني الفترة السابقة لبداية التتبع غياب الطلب، ولا يُفسر نقص المصدر على أنه عدم وجود فرصة.";
     return {status:"RESULT",plan,result:{
      kind:"GROWTH_RADAR",state:completePopulation&&radar.status==="VERIFIED"?"READY":"PARTIAL",
      intent:plan.intent as GrowthRadarIntent,answer,
-     sourceRpc:"get_customer_retention_aggregate+fetch_product_performance_growth_aggregate",
+     sourceRpc:"get_customer_retention_aggregate+fetch_product_performance_growth_aggregate+fetch_unavailable_product_search_demand",
      asOf:radar.asOf,periodDays,completePopulation,radar,
      productSourceStatus,
      productCoverage:product.ok?{
       totalCount:product.context.totalProductUnitCount,
       returnedCount:product.context.returnedProductUnitCount,
       uncomparableUnitCount:product.context.uncomparableUnitCount,
+     }:null,
+     unavailableDemandSourceStatus,
+     unavailableDemandCoverage:unavailableDemand.ok?{
+      totalCount:unavailableDemand.context.totalProductCount,
+      returnedCount:unavailableDemand.context.returnedProductCount,
+      coverageStartedOn:unavailableDemand.context.coverageStartedOn,
      }:null,
     }};
    }

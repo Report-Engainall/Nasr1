@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/storefront-catalog';
+import { recordStorefrontUnavailableProductSearch } from '@/lib/intelligence/unavailable-product-search-demand-client';
 import { useFetch } from '@/lib/useFetch';
 import { formatNumber } from '@/lib/format';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
@@ -279,6 +280,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const wishlistRevisionRef = useRef(0);
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const previousOnlineRef = useRef(isOnline);
+  const unavailableSearchObservationKeysRef = useRef(new Set<string>());
   const [customerCartHydratedFor, setCustomerCartHydratedFor] = useState('');
   const [customerCartSyncState, setCustomerCartSyncState] = useState<'idle' | 'loading' | 'synced' | 'pending' | 'error'>('idle');
   const [customerCartRetryCount, setCustomerCartRetryCount] = useState(0);
@@ -322,6 +324,52 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       window.removeEventListener('offline', offline);
     };
   }, []);
+
+  useEffect(() => {
+    const normalizedQuery = normalizeCatalogSearchQuery(query).trim();
+    if (!authReady || !persistentCartProfileId || !user?.id || user.isStaff ||
+        !Array.isArray(user.roles) || !user.roles.includes('customer') ||
+        !isPagedView || view !== 'shop' || !isOnline ||
+        availableOnly || normalizedQuery.length < 2 ||
+        normalizedQuery !== debouncedQuery.trim() ||
+        productsLoading || productsError ||
+        !pageInfo || pageInfo.page !== catalogPage ||
+        pageInfo.identityKey !== storefrontIdentityKey) return;
+
+    const unavailableIds = pageInfo.items
+      .filter(product => product.inventory &&
+        typeof product.inventory.quantity_available === 'number' &&
+        product.inventory.quantity_available === 0)
+      .map(product => product.id);
+
+    if (!unavailableIds.length) return;
+    const key = [
+      storefrontIdentityKey,
+      normalizedQuery,
+      activeCat,
+      catalogPage,
+      unavailableIds.slice().sort().join(','),
+    ].join('|');
+    if (unavailableSearchObservationKeysRef.current.has(key)) return;
+    unavailableSearchObservationKeysRef.current.add(key);
+    if (unavailableSearchObservationKeysRef.current.size > 200) {
+      const oldest = unavailableSearchObservationKeysRef.current.values().next().value;
+      if (oldest) unavailableSearchObservationKeysRef.current.delete(oldest);
+    }
+
+    // The RPC rechecks the exact search, same-tenant product IDs and current zero
+    // availability before persisting a pseudonymous daily observation. No query or
+    // customer identifier is stored by the tracking contract.
+    void recordStorefrontUnavailableProductSearch({
+      search: normalizedQuery,
+      categoryId: activeCat || null,
+      productIds: unavailableIds,
+    });
+  }, [
+    authReady, persistentCartProfileId, user?.id, user?.isStaff, user?.roles,
+    isPagedView, view, isOnline, availableOnly, query, debouncedQuery,
+    productsLoading, productsError, pageInfo, catalogPage, storefrontIdentityKey, activeCat,
+  ]);
 
   useEffect(() => {
     // Only cache full-catalog data explicitly fetched for the current confirmed guest identity.
