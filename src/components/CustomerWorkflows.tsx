@@ -1721,7 +1721,7 @@ function Reorder() {
         p_lines: lines,
         p_source_order_id: null,
       });
-      if (r.error) throw new Error("تعذر حفظ القالب: " + r.error.message);
+      if (r.error) throw new Error("تعذر حفظ القالب. تحقق من الاتصال والصلاحيات ثم حاول مجددًا.");
       if (typeof r.data !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.data)) {
         throw new Error("لم يؤكد الخادم حفظ قالب صالح؛ لم تُعرض نتيجة نجاح.");
       }
@@ -1743,7 +1743,7 @@ function Reorder() {
         .from("reorder_template_items")
         .select("product_id,quantity")
         .eq("template_id", t.id);
-      if (r.error) throw new Error("تعذر قراءة أصناف القالب: " + r.error.message);
+      if (r.error) throw new Error("تعذر قراءة أصناف القالب. حاول مجددًا.");
       const draft = normalizeCartDraft(
         (r.data ?? [])
           .filter((x: ReorderTemplateLine) => x.product_id)
