@@ -1,5 +1,14 @@
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
+## P1 body update — authenticated profile overview — 2026-11-06
+
+- BODY-054 commits: profile route/page `6607901b4b65e9a2471f66ce03463d1cf6029c93`; route-tree `3bc60712c7549033c00b1453e7e4133a67934ea8`; account navigation `88b17e4de227f1ac36f9eb37765cffc3abcb7d88`; footer `48ed9df9ad1dc7f4b286082401d646617347eee0`; Help Center `9f24fd1ec8a649abba57834529b613e5e8ec7710`.
+- Added `/profile` with authenticated user name/email/roles and role-appropriate links. Global «الحساب» now targets the profile overview instead of the login route.
+- Read-only intentionally. The legacy broad `own_profile_update` RLS policy/table grant was identified; no profile/business mutation was enabled until a narrow field-allowlisted server contract and grant tightening exist.
+- Acceptance leaf `DLV-006-CUSTOMER-PROFILE-OVERVIEW-001` added. State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- No tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No PASS claimed.
+
+
 ## P1 body update — authenticated account password change — 2026-11-06
 
 - BODY-053 commits: password UI `d3aa3a2bbdd2b103d19617b264005804cca43daa`; route `8ea2063bfa80abd8cd51afefc76b301d71d9c476`; route tree `c03e62be3d19bb00bde904b3d9f7b71e223f9483`; Help Center `bfb1b567df4e463f0319f7205401a277510a7524`.
