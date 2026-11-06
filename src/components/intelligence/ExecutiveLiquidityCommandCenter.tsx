@@ -238,16 +238,15 @@ function CustomerAgingDecisionSection({
   onDecisionSaved,
 }: {
   result: CustomerReceivableAgingResult | null;
-  userProfileId?: string;
+  userProfileId?: string | null;
   onDecisionSaved?: () => void;
 }) {
   const [busyKey,setBusyKey] = useState<string|null>(null);
   const [message,setMessage] = useState<string|null>(null);
-  const [manualItems] = useState(10);
   const rows = result?.ok ? result.data.items
     .filter(item=>item.overdueAmount>0)
     .sort((a,b)=>(b.oldestAgeDays??-1)-(a.oldestAgeDays??-1) || b.overdueAmount-a.overdueAmount)
-    .slice(0,manualItems) : [];
+    .slice(0,10) : [];
   const saveDecision = async (item: CustomerReceivableAgingItem) => {
     if (!userProfileId || busyKey) return;
     const evidenceIds=[...new Set(item.agingBuckets.filter(bucket=>bucket.bucket.startsWith("OVERDUE_")).flatMap(bucket=>bucket.evidenceIds))].slice(0,500);
