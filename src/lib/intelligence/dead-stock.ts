@@ -1,4 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
+import {decimalToMinorUnits,minorUnitsToNumber} from "./financial-precision";
 import type {EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 
 export type DeadStockClass="ACTIVE"|"SLOW_MOVING"|"STAGNANT"|"ZERO_MOVEMENT"|"UNKNOWN";
@@ -21,7 +22,7 @@ export interface DeadStockReport {
  warnings:string[];
 }
 const EXPOSURE_FORMULA="dead-stock.exposure";
-const EXPOSURE_VERSION="1.0.0";
+const EXPOSURE_VERSION="1.1.0";
 function isoDay(value:string):number|null {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
  const time=Date.parse(value+"T00:00:00.000Z");
@@ -148,8 +149,24 @@ function calculateDeadStockExposure(args: {
     cost.value !== null;
 
   if (canCalculate) {
-    const calculated = (quantity.value as number) * (cost.value as number);
-    if (Number.isFinite(calculated) && Math.abs(calculated) <= Number.MAX_SAFE_INTEGER) {
+    // Quantity and unit cost are sourced decimals (up to six fractional places).
+    // Multiply at scale 12, then round the non-negative currency result half-up to cents.
+    const quantityMicros = decimalToMinorUnits(quantity.metric?.value, 6, true);
+    const unitCostMicros = decimalToMinorUnits(cost.metric?.value, 6, true);
+    if (quantityMicros === null || unitCostMicros === null ||
+        quantityMicros < 0n || unitCostMicros < 0n) {
+      return {
+        exposure: null,
+        exposureStatus: "NEEDS_REVIEW",
+        currency: null,
+        unitCost: null,
+        warnings: ["EXPOSURE_PRECISION_INVALID"],
+      };
+    }
+    const productScale12 = quantityMicros * unitCostMicros;
+    const roundedCurrencyCents = (productScale12 + 5_000_000_000n) / 10_000_000_000n;
+    const calculated = minorUnitsToNumber(roundedCurrencyCents, 2);
+    if (calculated !== null) {
       return {
         exposure: calculated,
         exposureStatus: "VERIFIED",
@@ -240,12 +257,21 @@ export function buildDeadStockReport(input:{
   };
  });
  const currencies=[...new Set(items.map(item=>item.currency).filter((c):c is string=>Boolean(c)))];
+ const totalWarnings:string[]=[];
  const totalsByCurrency=currencies.map(currency=>{
   const group=items.filter(item=>item.currency===currency),unknown=group.some(item=>item.financialExposure===null);
-  return {currency,exposure:unknown?null:group.reduce((sum,item)=>sum+(item.financialExposure??0),0),verifiedItems:group.filter(item=>item.exposureStatus==="VERIFIED").length,withheldItems:group.filter(item=>item.exposureStatus!=="VERIFIED").length};
+  let totalCents:bigint|null=unknown?null:0n;
+  if(totalCents!==null)for(const item of group){
+   const cents=decimalToMinorUnits(item.financialExposure,2);
+   if(cents===null){totalCents=null;break;}
+   totalCents+=cents;
+  }
+  const exposure=totalCents===null?null:minorUnitsToNumber(totalCents,2);
+  if(!unknown&&exposure===null)totalWarnings.push("TOTAL_EXPOSURE_OVERFLOW");
+  return {currency,exposure,verifiedItems:group.filter(item=>item.exposureStatus==="VERIFIED").length,withheldItems:group.filter(item=>item.exposureStatus!=="VERIFIED").length};
  });
  const noPopulationEvidence=items.length===0;
- const warnings=[...new Set([...items.flatMap(item=>item.warnings),...(noPopulationEvidence?["NO_PRODUCT_POPULATION_EVIDENCE"]:[])])];
+ const warnings=[...new Set([...items.flatMap(item=>item.warnings),...totalWarnings,...(noPopulationEvidence?["NO_PRODUCT_POPULATION_EVIDENCE"]:[])])];
  const statuses=items.map(item=>item.movementStatus);
  const status:EvidenceStatus=noPopulationEvidence?"UNAVAILABLE":statuses.includes("UNVERIFIED")?"UNVERIFIED":statuses.includes("UNAVAILABLE")?"UNAVAILABLE":statuses.includes("NEEDS_REVIEW")?"NEEDS_REVIEW":"VERIFIED";
  return {id:input.id,asOf:input.asOf,period:input.period,ruleId:rule.id,ruleVersion:rule.version,status,items,totalsByCurrency,warnings};

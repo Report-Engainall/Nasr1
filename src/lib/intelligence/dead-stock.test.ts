@@ -3,7 +3,7 @@ import {buildDeadStockReport} from "./dead-stock";
 import type {EvidenceRecord,MetricSnapshot} from "./types";
 const asOf="2026-10-30T07:00:00Z",period={from:"2026-07-31",to:"2026-10-30"};
 const evidence=(id:string,currency?:string):EvidenceRecord=>({id,source:{kind:"RPC",name:"inventory.movement_history",version:"v1"},sourceTimestamp:asOf,asOf,period,currency,status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",warnings:[]});
-const metric=(id:string,unit:MetricSnapshot["unit"],value:number,currency?:string,uom:string|null="EA"):MetricSnapshot=>({id,key:id,value,unit,currency,...((unit==="QUANTITY"||unit==="CURRENCY_PER_UNIT")&&uom?{unitOfMeasure:uom}:{}),status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id+".formula",formulaVersion:"1",transformations:[]},warnings:[]});
+const metric=(id:string,unit:MetricSnapshot["unit"],value:number|string,currency?:string,uom:string|null="EA"):MetricSnapshot=>({id,key:id,value,unit,currency,...((unit==="QUANTITY"||unit==="CURRENCY_PER_UNIT")&&uom?{unitOfMeasure:uom}:{}),status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id+".formula",formulaVersion:"1",transformations:[]},warnings:[]});
 const rule={id:"dead-stock-days",version:"1.0",activeWithinDays:30,stagnantAfterDays:90,lowTurnoverRatio:0.1,turnoverWindowDays:92};
 describe("dead-stock engine",()=>{
  it("accepts point-in-time available quantity separately from the historical movement window",()=>{
@@ -82,4 +82,38 @@ describe("dead-stock engine",()=>{
   expect(r.items[0].classification).toBe("UNKNOWN");
   expect(r.items[0].movementStatus).toBe("UNVERIFIED");
  });
+ it("rounds unit-cost exposure to exact cents using decimal source values",()=>{
+  const p={productRef:"P-CENT",lastMovementAt:null,movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-cent"]},
+   availableQuantity:metric("qty-cent","QUANTITY","0.100000"),quantityUnit:"EA",unitCost:metric("cost-cent","CURRENCY_PER_UNIT","0.050000","YER"),costQuantityUnit:"EA",soldQuantityWindow:null,averageInventoryWindow:null};
+  const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv-cent"),{...evidence("qty-cent"),period:null},evidence("cost-cent","YER")],products:[p],rule});
+  expect(r.items[0]).toMatchObject({financialExposure:0.01,exposureStatus:"VERIFIED",currency:"YER",formulaVersion:"1.1.0"});
+  expect(r.totalsByCurrency).toEqual([{currency:"YER",exposure:0.01,verifiedItems:1,withheldItems:0}]);
+ });
+
+ it("withholds exposure when quantity or unit cost exceeds supported decimal precision",()=>{
+  const p={productRef:"P-PRECISION",lastMovementAt:null,movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-precision"]},
+   availableQuantity:metric("qty-precision","QUANTITY","0.1000001"),quantityUnit:"EA",unitCost:metric("cost-precision","CURRENCY_PER_UNIT","0.05","YER"),costQuantityUnit:"EA",soldQuantityWindow:null,averageInventoryWindow:null};
+  const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv-precision"),{...evidence("qty-precision"),period:null},evidence("cost-precision","YER")],products:[p],rule});
+  expect(r.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW",currency:null});
+  expect(r.items[0].warnings).toContain("EXPOSURE_PRECISION_INVALID");
+ });
+
+ it("sums currency exposure totals as integer cents without accumulation drift",()=>{
+  const products=["A","B","C"].map(ref=>({
+   productRef:"P-"+ref,lastMovementAt:null,
+   movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-"+ref]},
+   availableQuantity:metric("qty-"+ref,"QUANTITY","1.000000"),quantityUnit:"EA",
+   unitCost:metric("cost-"+ref,"CURRENCY_PER_UNIT","0.10","YER"),costQuantityUnit:"EA",
+   soldQuantityWindow:null,averageInventoryWindow:null,
+  }));
+  const records=products.flatMap(product=>[
+   evidence(product.movementCoverage.evidenceIds[0]),
+   {...evidence(product.availableQuantity.id),period:null},
+   evidence(product.unitCost!.id,"YER"),
+  ]);
+  const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:records,products,rule});
+  expect(r.items.map(item=>item.financialExposure)).toEqual([0.1,0.1,0.1]);
+  expect(r.totalsByCurrency).toEqual([{currency:"YER",exposure:0.3,verifiedItems:3,withheldItems:0}]);
+ });
+
 });
