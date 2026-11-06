@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
-import { searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
+import { buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
 import type {
   DecisionMemoryBookResult,
   DecisionMemoryRecord,
@@ -310,6 +310,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
   const [precedentTargetId,setPrecedentTargetId]=useState("");
   const [precedentQuery,setPrecedentQuery]=useState("");
   const searchTarget=result?.records.find(record=>record.decisionId===precedentTargetId)??result?.records[0]??null;
+  const policyReviewSuggestions=result?buildDecisionPolicyReviewSuggestions(result.records):[];
   const precedentMatches=searchTarget&&result
     ?searchSimilarDecisionMemory({records:result.records,decisionId:searchTarget.decisionId,query:precedentQuery,limit:8})
     :[];
@@ -366,6 +367,36 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         </li>)}
       </ol>:<p className="text-sm text-muted-foreground">لا توجد سابقة أقدم مطابقة ضمن السجلات المحملة حالياً. جرّب مصطلحات أوسع أو تحقق من نطاق الصفحة.</p>}
     </section>:null}
+    <section className="space-y-2 rounded-xl border p-3" aria-label="مقترحات مراجعة القواعد من نتائج القرارات">
+      <div><h3 className="font-semibold">مقترحات مراجعة القواعد من نتائج القرارات</h3>
+        <p className="mt-1 text-xs text-muted-foreground">مسودات مراجعة مشتقة فقط من قرارات مقاسة وذاكرة مكتملة ودروس راجعها المستخدم وقياسات متوافقة ذات أدلة. لا تُعدّل القواعد أو الأسعار أو حدود الائتمان أو المخزون، ولا تفترض أن التوصية سببت النتيجة.</p>
+      </div>
+      {policyReviewSuggestions.length?<div className="space-y-2">
+        <p className="text-xs text-muted-foreground">عدد مسودات المراجعة: {policyReviewSuggestions.length}</p>
+        {policyReviewSuggestions.slice(0,8).map(suggestion=><article key={suggestion.id} className="rounded-lg border p-3 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong className="text-sm">مراجعة قاعدة القرار {suggestion.ruleId}@{suggestion.ruleVersion}</strong>
+            <span className="text-xs">مسودة تتطلب اعتماداً بشرياً</span>
+          </div>
+          <p className="text-xs text-muted-foreground">المؤشر: {suggestion.metricKey} · الوحدة: {suggestion.unit} · العملة: {suggestion.currency??"غير منطبقة"} · الفترة: {suggestion.period.from} — {suggestion.period.to} · المعادلة: {suggestion.formulaId}@{suggestion.formulaVersion}</p>
+          <p className="text-xs">قرارات القياس المتطابقة في السياق: {suggestion.observations.length} · مجموع مراجع الأدلة: {suggestion.evidenceIds.length}</p>
+          <div className="space-y-2">
+            {suggestion.observations.slice(0,5).map(observation=><div key={observation.decisionId} className="rounded-md bg-muted/40 p-2">
+              <p className="text-xs">القرار {observation.decisionId.slice(0,8)} · {observation.createdAt}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {metricLine("المتوقع",observation.expected)}
+                {metricLine("الفعلي",observation.actual)}
+              </div>
+              <p className="text-xs">الفارق المرصود: {number(observation.difference)} · التغير: {observation.differencePercent===null?"النسبة غير معرفة لخط أساس صفري":number(observation.differencePercent)+"%"}</p>
+              <p className="text-xs">الدروس: {observation.lessons.join("؛ ")}</p>
+            </div>)}
+          </div>
+          <p className="text-xs"><strong>الإجراء المقترح للمراجعة:</strong> {suggestion.reviewInstruction}</p>
+          <p className="text-xs text-muted-foreground">الأدلة المحفوظة: <EvidenceReferences ids={suggestion.evidenceIds}/></p>
+        </article>)}
+        {policyReviewSuggestions.length>8?<p className="text-xs text-muted-foreground">تُعرض أول 8 مسودات من أصل {policyReviewSuggestions.length}؛ البقية محسوبة ولم تُحذف.</p>:null}
+      </div>:<p className="text-sm text-muted-foreground">لا توجد حالياً مسودات مراجعة مستوفية الشروط. لا تُنشأ من قرارات غير مقاسة أو ذاكرة ناقصة أو نتائج بلا دليل.</p>}
+    </section>
     <div className="grid gap-2 sm:grid-cols-4">
       <article className="rounded-lg border p-3"><p className="text-xs">قرارات محمّلة</p><strong className="text-xl">{result.loadedCount}</strong></article>
       <article className="rounded-lg border p-3"><p className="text-xs">ذاكرة مكتملة</p><strong className="text-xl">{result.completeCount}</strong></article>
