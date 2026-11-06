@@ -232,83 +232,83 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
     };
   }, [printDocument]);
 
+  async function addInvoiceEvidence(file: File) {
+  if (!selectedInvoice || evidenceBusy) return;
+  setEvidenceBusy(true);
+  setEvidenceError("");
+  setError("");
+  setNotice("");
+  try {
+    const saved = await uploadSupplierInvoiceEvidence({ invoiceId: selectedInvoice.id, file });
+    const refreshed = await fetchSupplierInvoiceEvidence(selectedInvoice.id);
+    if (!refreshed.some((item) => item.id === saved.id && item.contentSha256 === saved.contentSha256)) {
+      throw new Error("رُفع الملف لكن لم يظهر سجل مرفقه في قراءة الخادم اللاحقة.");
+    }
+    setEvidenceRows(refreshed);
+    setEvidenceLinks({});
+    setNotice("حُفظ مستند الدليل في تخزين خاص وربط بالفاتورة مع بصمة SHA-256. سجل المرفق غير قابل للاستبدال أو الحذف من الواجهة.");
+  } catch (cause) {
+    setEvidenceError(cause instanceof Error ? cause.message : "تعذر رفع مستند الفاتورة.");
+  } finally {
+    setEvidenceBusy(false);
+  }
+}
+
+async function saveDueDate() {
+  if (!selectedInvoice || dueDateBusy) return;
+  if (selectedInvoice.matchStatus !== "matched" || Number(selectedInvoice.taxAmount) !== 0) {
+    setDueDateError("لا يُسجل استحقاق التدفق النقدي قبل اكتمال مطابقة الفاتورة وتسوية الضريبة.");
+    return;
+  }
+  if (!evidenceRows.some((item) => item.id === dueDateEvidenceId)) {
+    setDueDateError("ارفع مستند فاتورة المورد واختر مرفقًا محفوظًا قبل تسجيل تاريخ الاستحقاق.");
+    return;
+  }
+  if (dueDateDraft < selectedInvoice.invoiceDate) {
+    setDueDateError("تاريخ الاستحقاق لا يمكن أن يسبق تاريخ فاتورة المورد.");
+    return;
+  }
+  setDueDateBusy(true);
+  setDueDateError("");
+  setError("");
+  setNotice("");
+  try {
+    if (!globalThis.crypto?.randomUUID) throw new Error("المتصفح لا يدعم مفتاح منع التكرار الآمن؛ لم يُرسل تاريخ الاستحقاق.");
+    const result = await recordSupplierInvoiceDueDate({
+      invoiceId: selectedInvoice.id,
+      dueDate: dueDateDraft,
+      sourceEvidenceId: dueDateEvidenceId,
+      sourceReference: dueDateSourceReference.trim() || selectedInvoice.invoiceNumber,
+      reason: dueDateReason,
+      idempotencyKey: globalThis.crypto.randomUUID(),
+    });
+    await refreshDueDates();
+    setDueDateReason("");
+    setNotice(result.replayed
+      ? "تاريخ الاستحقاق محفوظ مسبقًا بنفس مستند المصدر."
+      : "حُفظ تاريخ الاستحقاق مع ربطه بمرفق الفاتورة وسجل التدقيق؛ لم تُنشأ دفعة أو حركة نقدية.");
+  } catch (cause) {
+    setDueDateError(cause instanceof Error ? cause.message : "تعذر حفظ تاريخ استحقاق المورد.");
+  } finally {
+    setDueDateBusy(false);
+  }
+}
+
+async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
+  if (evidenceLinkBusy) return;
+  setEvidenceLinkBusy(evidence.id);
+  setEvidenceError("");
+  try {
+    const url = await createSupplierInvoiceEvidenceSignedUrl(evidence.storagePath);
+    setEvidenceLinks((current) => ({ ...current, [evidence.id]: url }));
+  } catch (cause) {
+    setEvidenceError(cause instanceof Error ? cause.message : "تعذر فتح رابط مستند الفاتورة.");
+  } finally {
+    setEvidenceLinkBusy(null);
+  }
+}
+
   const load = useCallback(async (requestedOffset = offset, requestedOrderId?: string | null) => {
-    async function addInvoiceEvidence(file: File) {
-    if (!selectedInvoice || evidenceBusy) return;
-    setEvidenceBusy(true);
-    setEvidenceError("");
-    setError("");
-    setNotice("");
-    try {
-      const saved = await uploadSupplierInvoiceEvidence({ invoiceId: selectedInvoice.id, file });
-      const refreshed = await fetchSupplierInvoiceEvidence(selectedInvoice.id);
-      if (!refreshed.some((item) => item.id === saved.id && item.contentSha256 === saved.contentSha256)) {
-        throw new Error("رُفع الملف لكن لم يظهر سجل مرفقه في قراءة الخادم اللاحقة.");
-      }
-      setEvidenceRows(refreshed);
-      setEvidenceLinks({});
-      setNotice("حُفظ مستند الدليل في تخزين خاص وربط بالفاتورة مع بصمة SHA-256. سجل المرفق غير قابل للاستبدال أو الحذف من الواجهة.");
-    } catch (cause) {
-      setEvidenceError(cause instanceof Error ? cause.message : "تعذر رفع مستند الفاتورة.");
-    } finally {
-      setEvidenceBusy(false);
-    }
-  }
-
-  async function saveDueDate() {
-    if (!selectedInvoice || dueDateBusy) return;
-    if (selectedInvoice.matchStatus !== "matched" || Number(selectedInvoice.taxAmount) !== 0) {
-      setDueDateError("لا يُسجل استحقاق التدفق النقدي قبل اكتمال مطابقة الفاتورة وتسوية الضريبة.");
-      return;
-    }
-    if (!evidenceRows.some((item) => item.id === dueDateEvidenceId)) {
-      setDueDateError("ارفع مستند فاتورة المورد واختر مرفقًا محفوظًا قبل تسجيل تاريخ الاستحقاق.");
-      return;
-    }
-    if (dueDateDraft < selectedInvoice.invoiceDate) {
-      setDueDateError("تاريخ الاستحقاق لا يمكن أن يسبق تاريخ فاتورة المورد.");
-      return;
-    }
-    setDueDateBusy(true);
-    setDueDateError("");
-    setError("");
-    setNotice("");
-    try {
-      if (!globalThis.crypto?.randomUUID) throw new Error("المتصفح لا يدعم مفتاح منع التكرار الآمن؛ لم يُرسل تاريخ الاستحقاق.");
-      const result = await recordSupplierInvoiceDueDate({
-        invoiceId: selectedInvoice.id,
-        dueDate: dueDateDraft,
-        sourceEvidenceId: dueDateEvidenceId,
-        sourceReference: dueDateSourceReference.trim() || selectedInvoice.invoiceNumber,
-        reason: dueDateReason,
-        idempotencyKey: globalThis.crypto.randomUUID(),
-      });
-      await refreshDueDates();
-      setDueDateReason("");
-      setNotice(result.replayed
-        ? "تاريخ الاستحقاق محفوظ مسبقًا بنفس مستند المصدر."
-        : "حُفظ تاريخ الاستحقاق مع ربطه بمرفق الفاتورة وسجل التدقيق؛ لم تُنشأ دفعة أو حركة نقدية.");
-    } catch (cause) {
-      setDueDateError(cause instanceof Error ? cause.message : "تعذر حفظ تاريخ استحقاق المورد.");
-    } finally {
-      setDueDateBusy(false);
-    }
-  }
-
-  async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
-    if (evidenceLinkBusy) return;
-    setEvidenceLinkBusy(evidence.id);
-    setEvidenceError("");
-    try {
-      const url = await createSupplierInvoiceEvidenceSignedUrl(evidence.storagePath);
-      setEvidenceLinks((current) => ({ ...current, [evidence.id]: url }));
-    } catch (cause) {
-      setEvidenceError(cause instanceof Error ? cause.message : "تعذر فتح رابط مستند الفاتورة.");
-    } finally {
-      setEvidenceLinkBusy(null);
-    }
-  }
-
   if (!canUseFinance) { setLoading(false); return null; }
     setLoading(true);
     setError("");
