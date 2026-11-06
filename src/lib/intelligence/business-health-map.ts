@@ -4,6 +4,7 @@ import type { DeadStockClass, DeadStockReport } from "./dead-stock";
 import type { EvidencePeriod, EvidenceStatus } from "./types";
 import type { LiquidityPosition, LiquiditySnapshot } from "./liquidity";
 import type { ReplenishmentRecommendation } from "./replenishment";
+import type { ProductRevenueConcentrationSnapshot } from "./product-revenue-concentration-client";
 
 export const BUSINESS_HEALTH_MAP_POLICY_VERSION = "1.0.0";
 
@@ -23,6 +24,8 @@ export interface BusinessHealthMapInput {
   deadStock?: DeadStockReport | null;
   replenishment?: BusinessHealthReplenishmentSource | null;
   retention?: CustomerRetentionReport | null;
+  productRevenueConcentration?: ProductRevenueConcentrationSnapshot | null;
+  productRevenueConcentrationUnavailableReason?: string;
 }
 export interface BusinessHealthAmount {
   value: number | null;
@@ -84,7 +87,7 @@ export interface BusinessHealthAttention {
   evidenceIds: string[];
 }
 export interface BusinessHealthCalculability {
-  status: "NOT_CALCULABLE";
+  status: "NOT_CALCULABLE" | "VERIFIED" | "PARTIAL" | "NEEDS_REVIEW" | "EMPTY";
   missingInputs: string[];
   reason: string;
 }
@@ -103,6 +106,7 @@ export interface BusinessHealthMapResult {
     currency: string; top5SalesConcentration: number | null; customerCount: number | null;
     status: EvidenceStatus; sourcePeriod: EvidencePeriod;
   }>;
+  productRevenueConcentration: ProductRevenueConcentrationSnapshot | null;
   calculations: {
     cashConversionCycle: BusinessHealthCalculability;
     daysSalesOutstanding: BusinessHealthCalculability;
@@ -447,6 +451,38 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
   const replenishment = buildReplenishment(input.replenishment, input.asOf);
   const customer = buildCustomerFocus(input.retention, input.asOf);
 
+  const suppliedConcentration = input.productRevenueConcentration ?? null;
+  const concentrationAligned = Boolean(
+    suppliedConcentration &&
+    suppliedConcentration.asOf === input.asOf &&
+    suppliedConcentration.period.from === input.period.from &&
+    suppliedConcentration.period.to === input.period.to
+  );
+  const productRevenueConcentration = concentrationAligned ? suppliedConcentration : null;
+  if (suppliedConcentration && !concentrationAligned) warnings.push("PRODUCT_REVENUE_CONCENTRATION_AS_OF_OR_PERIOD_MISMATCH");
+  if (!productRevenueConcentration && input.productRevenueConcentrationUnavailableReason) {
+    warnings.push("PRODUCT_REVENUE_CONCENTRATION_UNAVAILABLE");
+  }
+  const concentrationCalculation: BusinessHealthCalculability = productRevenueConcentration
+    ? {
+        status: productRevenueConcentration.status,
+        missingInputs: productRevenueConcentration.currencies
+          .filter(item => item.status !== "VERIFIED")
+          .flatMap(item => [
+            ...(item.unmappedLineCount ? [item.currency + ": سطور بلا منتج مرتبط"] : []),
+            ...(item.invalidCreditLineCount ? [item.currency + ": إشعارات دائنة غير متطابقة"] : []),
+            ...(item.invoicesWithoutLines ? [item.currency + ": فواتير بلا سطور"] : []),
+          ]),
+        reason: productRevenueConcentration.status === "VERIFIED"
+          ? "تركيز أعلى خمسة منتجات محسوب من قيمة سطور الفواتير الصادرة بعد طرح الإشعارات الدائنة المنشورة، لكل عملة مستقلة."
+          : productRevenueConcentration.status === "EMPTY"
+            ? "لا توجد فواتير صادرة ضمن الفترة؛ لا يوجد مجتمع يمكن حساب التركّز عليه."
+            : "لم تُعرض نسب التركّز للعملات التي لا يكتمل ربط جميع سطور فواتيرها وإشعاراتها الدائنة.",
+      }
+    : notCalculable(
+        ["مصدر سطور فواتير المنتجات حسب العملة والفترة", "ربط الإشعارات الدائنة المنشورة بسطر الفاتورة الأصلي", "تغطية منتج مكتملة لكل سطر"],
+        input.productRevenueConcentrationUnavailableReason ?? "مصدر تركّز قيمة الفواتير غير متاح في هذه اللقطة."
+      );
   const calculations = {
     cashConversionCycle: notCalculable(
       ["DIO: أيام المخزون من متوسط المخزون وتكلفة المبيعات", "DSO: أيام التحصيل من متوسط الذمم والمبيعات الآجلة", "DPO: أيام السداد من متوسط الدائنين والمشتريات الآجلة"],
@@ -456,23 +492,30 @@ export function buildBusinessHealthMap(input: BusinessHealthMapInput): BusinessH
       "الذمم المتأخرة وحدها لا تمثل متوسط الذمم ولا تكفي لحساب أيام التحصيل."),
     daysPayableOutstanding: notCalculable(["متوسط الذمم الدائنة", "المشتريات الآجلة أو تكلفة المبيعات المناسبة للفترة وعدد أيامها"],
       "الالتزامات المستحقة وحدها لا تمثل متوسط الدائنين أو مشتريات الفترة."),
-    productRevenueConcentration: notCalculable(["إيراد مكتمل لكل منتج حسب العملة والفترة", "مجتمع كامل غير مقطوع وعدد السجلات المتوقع"],
-      "مجموعة البيانات المتاحة لتركيز الإيراد تخص العملاء؛ لم يثبت مصدر إيراد المنتجات."),
+    productRevenueConcentration: concentrationCalculation,
     supplierRevenueConcentration: notCalculable(["إنفاق أو مشتريات مكتملة لكل مورد حسب العملة والفترة", "مجتمع الموردين الكامل وتغطية غير مقطوعة"],
       "لم تتوفر بعد مجموعة بيانات المشتريات الكاملة حسب المورد."),
   };
+  const concentrationEvidenceStatus: EvidenceStatus = concentrationCalculation.status === "VERIFIED"
+    ? "VERIFIED"
+    : concentrationCalculation.status === "NEEDS_REVIEW" ? "NEEDS_REVIEW" :
+      concentrationCalculation.status === "NOT_CALCULABLE" || concentrationCalculation.status === "EMPTY"
+        ? "UNAVAILABLE" : "NEEDS_REVIEW";
   const attention = buildAttention(currencies, cashflow, replenishment);
   const status = rollup([
-    ...currencies.map(position => position.status), cashflowStatus, stock.status, replenishment.status, customer.status,
+    ...currencies.map(position => position.status), cashflowStatus, stock.status, replenishment.status,
+    customer.status, concentrationEvidenceStatus,
   ]);
   warnings.push(
     ...(input.cashflow?.warnings ?? []), ...stock.warnings, ...replenishment.warnings, ...customer.warnings,
     ...currencies.flatMap(position => position.warnings),
+    ...(productRevenueConcentration?.status === "PARTIAL" ? ["PRODUCT_REVENUE_CONCENTRATION_PARTIAL"] : []),
+    ...(productRevenueConcentration?.status === "EMPTY" ? ["PRODUCT_REVENUE_CONCENTRATION_EMPTY"] : []),
   );
   return {
     id: input.id, generatedAt: input.generatedAt, asOf: input.asOf, period: input.period,
     policyVersion: BUSINESS_HEALTH_MAP_POLICY_VERSION, status, currencies, cashflow, stock, replenishment,
-    customerFocus: customer.rows, calculations, totalCapitalAtRisk: null,
+    customerFocus: customer.rows, productRevenueConcentration, calculations, totalCapitalAtRisk: null,
     totalCapitalAtRiskReason: "الإجمالي محجوب لأن الذمم والتحصيلات والالتزامات والمخزون والوارد المجدول قد تتداخل؛ تُعرض المكونات منفصلة إلى أن تثبت مجموعات مصادر متنافية.",
     attention, warnings: unique(warnings),
   };
