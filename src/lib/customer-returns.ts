@@ -75,6 +75,16 @@ export function readCustomerReturnSummary(value: unknown): CustomerReturnSummary
     const status = requiredText(entry.status, "status") as CustomerReturnRequestStatus;
     const reason = requiredText(entry.reason, "reason") as CustomerReturnReason;
     if (!statuses.has(status) || !reasons.has(reason)) throw new Error("حالة أو سبب المرتجع غير معتمد.");
+    const customerCancelledAt = nullableText(entry.customer_cancelled_at);
+    const customerCancellationReason = nullableText(entry.customer_cancellation_reason);
+    if (customerCancelledAt !== null && !Number.isFinite(Date.parse(customerCancelledAt))) {
+      throw new Error("تاريخ سحب طلب الإرجاع غير صالح؛ لم يُعرض سجل غير موثوق.");
+    }
+    if (customerCancelledAt !== null &&
+        (customerCancellationReason === null || customerCancellationReason.trim().length < 3 ||
+         customerCancellationReason.length > 500 || status !== "cancelled")) {
+      throw new Error("بيانات سحب طلب الإرجاع لا تطابق حالة السجل.");
+    }
     const items = entry.items.map((line): CustomerReturnRequestItem => {
       if (!isRecord(line)) throw new Error("سطر مرتجع غير صالح.");
       return {
@@ -92,8 +102,8 @@ export function readCustomerReturnSummary(value: unknown): CustomerReturnSummary
       reason,
       notes: nullableText(entry.notes),
       review_note: nullableText(entry.review_note),
-      customer_cancelled_at: nullableText(entry.customer_cancelled_at),
-      customer_cancellation_reason: nullableText(entry.customer_cancellation_reason),
+      customer_cancelled_at: customerCancelledAt,
+      customer_cancellation_reason: customerCancellationReason,
       created_at: requiredText(entry.created_at, "created_at"),
       items,
     };
