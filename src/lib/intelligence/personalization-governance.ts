@@ -142,7 +142,9 @@ export function createNotificationDeliveryAuditMetadata(
   input: NotificationDeliveryInput & { deliveryAttemptId: string; actorProfileId: string },
   suppliedDecision: NotificationDeliveryDecision,
 ): NotificationDeliveryAuditMetadata | null {
-  if (!isNonEmptyString(input.deliveryAttemptId) || input.deliveryAttemptId.length > 128 ||
+  if (!input || typeof input !== "object" ||
+      !suppliedDecision || typeof suppliedDecision !== "object" ||
+      !isNonEmptyString(input.deliveryAttemptId) || input.deliveryAttemptId.length > 128 ||
       !isNonEmptyString(input.actorProfileId) || input.actorProfileId.length > 128 ||
       !isNonEmptyString(input.recipient?.organizationId) ||
       !isNonEmptyString(input.recipient?.profileId) ||
@@ -332,6 +334,15 @@ function decision(
 function externalConsentStatus(input: NotificationDeliveryInput, preferences: PersonalizationPreferences):
   { status: "ALLOW" } | { status: "DENY" | "REVIEW"; reason: NotificationDeliveryReason } {
   const recipient = input.recipient;
+  if (!recipient || typeof recipient !== "object" ||
+      !isNonEmptyString(recipient.organizationId) || !isNonEmptyString(recipient.profileId)) {
+    return { status: "REVIEW", reason: "RECIPIENT_CONTEXT_INVALID" };
+  }
+  if (input.externalConsents !== undefined &&
+      (!Array.isArray(input.externalConsents) ||
+       input.externalConsents.some(consent => !consent || typeof consent !== "object"))) {
+    return { status: "REVIEW", reason: "EXTERNAL_CONSENT_INVALID" };
+  }
   if (!recipient.destinationVerified || !isNonEmptyString(recipient.destinationId)) {
     return { status: "DENY", reason: "EXTERNAL_RECIPIENT_UNVERIFIED" };
   }
@@ -571,6 +582,11 @@ function validateExternalPersonalizationConsent(
 } {
   if (!input.preferences?.externalProcessingEnabled) {
     return { status: "DENY", reason: "EXTERNAL_PROCESSING_DISABLED" };
+  }
+  if (input.externalConsents !== undefined &&
+      (!Array.isArray(input.externalConsents) ||
+       input.externalConsents.some(consent => !consent || typeof consent !== "object"))) {
+    return { status: "REVIEW", reason: "EXTERNAL_CONSENT_INVALID" };
   }
   if (!isNonEmptyString(input.provider) || !isNonEmptyString(input.model)) {
     return { status: "REVIEW", reason: "EXTERNAL_CONSENT_INVALID" };
