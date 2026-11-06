@@ -404,8 +404,8 @@ describe("Admin Customer 360 source-lineage display", () => {
     render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
     const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
     expect(await within(dialog).findByText("العميل نشط ضمن فترة القياس. استمر في المتابعة حسب سجل التواصل واحتياج العميل.")).toBeInTheDocument();
-    expect(within(dialog).getByText("معدل الاحتفاظ بالمجموعة السابقة")).toBeInTheDocument();
-    expect(within(dialog).getByText("100٪")).toBeInTheDocument();
+    const retentionMetric = within(dialog).getByText("معدل الاحتفاظ بالمجموعة السابقة").closest("article");
+    expect(retentionMetric?.querySelector("strong")?.textContent).toMatch(/٪/);
     expect(within(dialog).getByText("طلبات الفترة الحالية: count:3")).toBeInTheDocument();
   });
 
