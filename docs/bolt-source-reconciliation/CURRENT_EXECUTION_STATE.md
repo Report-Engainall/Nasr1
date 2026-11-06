@@ -1,3 +1,43 @@
+# P1 BODY EXECUTION — 2026-11-06 — CUSTOMER ORDER AMENDMENT VERSIONS / INTELLIGENCE UI RECONCILIATION
+
+## BODY-071 — customer order return, resubmission and immutable version history
+
+- Target repository/branch: `Report-Engainall/Nasr1` / `main` only.
+- Starting main SHA for this execution: `57ec44c9481a84723dc640a0a5a6cffef95dce88`.
+- Current main SHA when this checkpoint was written: `a5767ffe72a0b38e80f772b25d32bc725557de42`.
+- Added `supabase/migrations/20261106270000_customer_order_amendment_version_snapshots.sql`: append-only amendment-line snapshots with the original order/item relationship, product name/code/UOM, previous quantity, proposed quantity and submission timestamp. Submission capture is transactional and fails closed unless the snapshot count matches the amendment line count. Existing pending submissions are backfilled only when their staged item set is still present. The history table is read-only for authenticated clients; writes are only by the security-definer submission trigger. UPDATE/DELETE are rejected.
+- The amendment parent row is also protected: its submitted identity/content cannot be rewritten or deleted; only a one-time `pending_review -> approved/rejected` review decision with reviewer and timestamp is allowed.
+- Added `list_customer_order_amendment_history(uuid)`, which checks the authenticated profile, active tenant, order ownership or staff role, and returns the order status, each version, before/after lines, submitter/reviewer display names, timestamps, notes and review decision.
+- Added `CustomerOrderAmendmentHistory.tsx` and mounted it in the customer order-detail screen and staff order-review screen. Customer view now shows the administration's return reason and the exact product/quantity inputs. The latest version reports the resubmitted/awaiting-review state rather than relying only on the parent order state.
+- Added `return_order_for_customer_amendment(uuid,text)` in `20261106280000_customer_order_return_command.sql`. It accepts only a pending, unconfirmed, unstaged order with no reservation/sale movement and no other pending amendment; requires a 3–1000 character reason; records audit and status history; and sends an in-tenant notification to the customer. The staff UI invokes this RPC and verifies the server response before reporting success.
+- Existing `review_order_lines` closes the customer amendment as approved/rejected in the same transaction as the review action; the line snapshots are independent of staged item fields, so rejection/discard no longer destroys the previous submitted version. Resubmission generates a new amendment row/version linked to the same order.
+- Existing finalized versions submitted before this migration whose staged proposal fields were already cleared cannot be reconstructed. Only currently pending rows are eligible for backfill; all submissions after applying the migration are captured.
+- Added source-level migration/security and React UI tests: `src/test/customer-order-amendment-history-migration.test.ts` and `src/test/customer-order-amendment-history.test.tsx`.
+- No database migration has been applied in Supabase/Bolt from this session; no live order data was mutated. Runtime acceptance is therefore pending.
+
+## P1 intelligence UI status — liquidity and replenishment
+
+- Liquidity UI was already mounted in `/admin/intelligence`: `EvidencePassport`, `LiquiditySummary` and `CashflowForecastCard` are present. Forecast horizons are 7/30/90 days and outputs stay separated by currency with evidence/source/as-of/period metadata.
+- The current cashflow source is still only the scheduled collection/receivables DTO. `IntelligenceWorkspace` supplies `openingBalances: []` and constructs each liquidity position with `availableBalance: null` and `dueObligations: null`; the UI correctly withholds net liquidity and projected balance. It does not yet provide a reconciled cashbox/bank balance, payment-allocation-aware receivables/partial-payments, supplier obligations/outflows or trustworthy stagnant-stock acquisition cost and daily inventory snapshots. These remain P2 source/aggregate dependencies; no currency combination or FX assumption was introduced.
+- Replenishment UI and manual draft flow were already mounted in `/admin/intelligence`. The recommendation card shows ATP, reorder point, confirmed incoming PO remainder, coverage after incoming, lead-time demand, target, recommended quantity and server UOM. It permits manager selection and explicit supplier/warehouse review before calling the existing idempotent purchase-draft RPC. No auto-submit, supplier notification, inventory movement or GL posting is performed.
+- Updated `ReplenishmentCard.tsx` to resolve the current product name from the tenant product catalog and retain the SKU/productRef as a secondary reference; it falls back to productRef if the catalog read is unavailable. Added a focused product-name assertion to its component test.
+- The open-PO aggregate source migration `20261105230000_intelligence_replenishment_open_purchase_orders.sql` is already on main. Its application and runtime validation remain pending; do not mark the aggregate runtime accepted merely because the SQL source and UI exist.
+
+## Exact-head evidence and unresolved CI blockers
+
+- GitHub Actions `P1 Targeted TypeScript Assurance` completed SUCCESS on exact main SHA `a5767ffe72a0b38e80f772b25d32bc725557de42` after the new replenishment product-label/test commits.
+- The broader `Aghbari Commerce checks` run on its preceding exact SHA `7f90377c1d32080bb6aaeb3d46e1f5bc5e432ba5` failed in existing tests outside this feature: `personalization-governance.test.ts:386` expected `REQUESTER_NOT_AUTHORIZED` but received `SUBJECT_OWNERSHIP_NOT_VERIFIED`; `process-bottlenecks.ts:205,209` threw `ReferenceError: Cannot access 'withheld' before initialization`. The latest-head commerce run was still in progress when this checkpoint was prepared; no unit-test PASS is claimed.
+- `P2 Playwright Critical Paths` on exact SHA `7f90377c1d32080bb6aaeb3d46e1f5bc5e432ba5` failed at its public UI build stage due TSX/parser errors in other existing files including `SupplierQuoteWorkspace.tsx:380` and `TaskQualityReviewMetrics.tsx:95`; authenticated infrastructure passed, but order/tenant browser scenarios were skipped. This is not runtime acceptance for the new order history.
+- `P1 Secret Scan` on exact SHA `7f90377c1d32080bb6aaeb3d46e1f5bc5e432ba5` scanned 4,345 commits across 1 remote branch and 124 tags and reported 3 historical findings in the redacted artifact. The synthetic deleted-secret canary passed. Do not treat the history scan as clear; findings require separate redacted triage.
+- Vercel commit status for `7f90377c1d32080bb6aaeb3d46e1f5bc5e432ba5` returned failure URL `https://vercel.com/injaz2?upgradeToPro=build-rate-limit`; it is a build-rate-limit response, not successful deployment evidence.
+- No migration application, Bolt runtime, production runtime, full typecheck/build, or end-to-end customer-order acceptance was performed here. No PASS claim is made for those paths.
+
+## NEXT_ACTION
+
+1. Apply the two customer amendment migrations (20261106270000 and 20261106280000) in the target Supabase/Bolt database, then run focused migration/UI tests and end-to-end return → customer edit → resubmit → reject → resubmit → approve acceptance against the deployed schema.
+2. P2: deliver and wire the missing tenant-scoped cashbox/bank balance, paid/partial receivables, supplier obligations and actual/forecast outflow aggregates. Keep unavailable fields withheld; never derive cash from receivables or add different currencies.
+3. Apply and accept the existing open-PO ATP migration; verify partial receipts, excluded statuses, UOM mismatch and draft-only purchase semantics.
+
 # ACTIVE TWO-IMPLEMENTER EXECUTION OVERRIDE — 2026-11-06
 
 ## P1/P2 body update — server-filtered return history — 2026-11-06
