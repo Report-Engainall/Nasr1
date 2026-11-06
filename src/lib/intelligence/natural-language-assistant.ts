@@ -17,8 +17,13 @@ export type ProcessTaskIntent="OPEN_TASKS_OVERVIEW"|"REOPENED_TASKS_OVERVIEW";
 export type TaskIntelligenceReportIntent="DAILY_TASK_REPORT"|"WEEKLY_TASK_REPORT"|"MONTHLY_TASK_REPORT"|"MANAGER_TASK_RISKS";
 export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
 export type TaskQualityIntent="TASK_QUALITY_OVERVIEW";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent;
-export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics";
+export type CustomerServiceIntent=
+ |"CUSTOMER_SERVICE_OVERVIEW"
+ |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
+ |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
+ |"CUSTOMER_SERVICE_UNASSIGNED";
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent;
+export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
@@ -210,6 +215,24 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
   return {status:"CLARIFICATION",normalizedQuestion,explanation:"حددت أوامر الشراء، لكن حالة الأمر المطلوبة غير واضحة.",
    clarification:"هل تريد الأوامر المفتوحة، أم بانتظار الاستلام، أم المستلمة جزئياً؟"};
  }
+ const customerServiceQuestion=/(خدمه العملاء|حالات العملاء|حاله عميل|شكاوي العملاء|شكاوي|بلاغات العملاء|طلبات الخدمه|مركز الخدمه|دعم العملاء)/.test(normalizedQuestion);
+ const customerServiceSlaQuestion=/(sla|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|لم يتم الرد|موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات)/.test(normalizedQuestion);
+ const customerServiceUnassignedQuestion=/(حالات غير مسنده|الحالات غير المسنده|حالات بلا مسؤول|حالات بدون مسؤول|حالات لم تسند|حالات غير موزعه)/.test(normalizedQuestion);
+ if(customerServiceQuestion||customerServiceSlaQuestion||customerServiceUnassignedQuestion){
+  if(/(اخر|الماضي|الماضيه|السابقة|السابقه|من تاريخ|بين تاريخ|خلال|منذ [0-9]|20\\d{2}-\\d{2}-\\d{2})/.test(normalizedQuestion))return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"ملخص خدمة العملاء لقطة حالية عند وقت الاستعلام؛ لا يدعم تاريخاً ماضياً أو مقارنة زمنية. لا أستبدل ذلك بآخر سجلات الحالات."
+  };
+  const intent:CustomerServiceIntent=customerServiceUnassignedQuestion?"CUSTOMER_SERVICE_UNASSIGNED":
+   /موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|لم يتم الرد/.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":
+   /موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات/.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESOLUTION_OVERDUE":
+   customerServiceSlaQuestion?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":"CUSTOMER_SERVICE_OVERVIEW";
+  return {
+   status:"READY",intent,normalizedQuestion,
+   sourceRpc:"get_customer_service_work_queue_summary",
+   filterDescription:"ملخص كامل للحالات النشطة داخل المؤسسة الحالية، محسوب على توقيت خادمي واحد؛ يعرض عدد المفتوح والمتأخر عن أول استجابة والمتجاوز لموعد الحل وغير المسند والعاجل والعالي. لا يعيد أسماء العملاء أو تفاصيل الحالات."
+  };
+ }
  const taskQualityQuestion=/(جوده المهام|جوده التوصيات|دقه التوصيات|قابليه تنفيذ المهام|الانذارات الكاذبه|التنبيهات الصحيحه|مراجعات جوده المهام|جوده التنبيهات|جوده قرارات التوصيه)/.test(normalizedQuestion);
  if(taskQualityQuestion)return {
   status:"READY",intent:"TASK_QUALITY_OVERVIEW",normalizedQuestion,
@@ -298,7 +321,16 @@ export interface NaturalLanguageTaskQualityResult {
  kind:"TASK_QUALITY";state:TaskQualityMetrics["status"];intent:TaskQualityIntent;
  answer:string;sourceRpc:"fetch_operational_task_quality_metrics";queriedAt:string;quality:TaskQualityMetrics;
 }
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult;
+export interface NaturalLanguageCustomerServiceResult {
+ kind:"CUSTOMER_SERVICE";state:"READY"|"EMPTY";intent:CustomerServiceIntent;
+ answer:string;sourceRpc:"get_customer_service_work_queue_summary";queriedAt:string;asOf:string;
+ scope:"ALL_ACTIVE_CASES_IN_CURRENT_ORGANIZATION";completePopulation:true;
+ primaryCount:number;summary:{
+  openCount:number;responseOverdueCount:number;resolutionOverdueCount:number;
+  unassignedCount:number;urgentCount:number;highCount:number;
+ };
+}
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {
@@ -605,6 +637,37 @@ export function resolveExpectedCollectionsIntent(
  };
 }
 
+
+/** Projects the aggregate-only, complete tenant service snapshot without exposing case/customer details. */
+export function resolveCustomerServiceIntent(
+ intent:CustomerServiceIntent,
+ snapshot:import("./customer-service-intelligence-client").CustomerServiceIntelligenceSnapshot,
+ queriedAt:string,
+):NaturalLanguageCustomerServiceResult {
+ const summary=snapshot.summary;
+ const primaryCount=intent==="CUSTOMER_SERVICE_OVERVIEW"?summary.openCount:
+  intent==="CUSTOMER_SERVICE_RESPONSE_OVERDUE"?summary.responseOverdueCount:
+  intent==="CUSTOMER_SERVICE_RESOLUTION_OVERDUE"?summary.resolutionOverdueCount:
+  summary.unassignedCount;
+ const state=primaryCount===0?"EMPTY":"READY";
+ const answer=intent==="CUSTOMER_SERVICE_OVERVIEW"
+  ?state==="EMPTY"?"لا توجد حالات خدمة عملاء نشطة حالياً في المؤسسة.":"توجد "+summary.openCount+" حالة نشطة. منها "+summary.responseOverdueCount+" تجاوزت موعد أول استجابة، و"+summary.resolutionOverdueCount+" تجاوزت موعد الحل، و"+summary.unassignedCount+" غير مسندة. الحالات العاجلة: "+summary.urgentCount+"، والعالية: "+summary.highCount+"."
+  :intent==="CUSTOMER_SERVICE_RESPONSE_OVERDUE"
+   ?state==="EMPTY"?"لا توجد حالات نشطة تجاوزت موعد أول استجابة حتى "+snapshot.asOf+".":"توجد "+primaryCount+" حالة نشطة تجاوزت موعد أول استجابة حتى "+snapshot.asOf+"."
+   :intent==="CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
+    ?state==="EMPTY"?"لا توجد حالات نشطة تجاوزت موعد الحل حتى "+snapshot.asOf+".":"توجد "+primaryCount+" حالة نشطة تجاوزت موعد الحل حتى "+snapshot.asOf+"."
+    :state==="EMPTY"?"كل الحالات النشطة مسندة حالياً؛ لا توجد حالات بلا مسؤول.":"توجد "+primaryCount+" حالة نشطة بلا مسؤول مسند.";
+ return {
+  kind:"CUSTOMER_SERVICE",state,intent,answer,
+  sourceRpc:"get_customer_service_work_queue_summary",queriedAt,asOf:snapshot.asOf,
+  scope:snapshot.scope,completePopulation:true,primaryCount,
+  summary:{
+   openCount:summary.openCount,responseOverdueCount:summary.responseOverdueCount,
+   resolutionOverdueCount:summary.resolutionOverdueCount,unassignedCount:summary.unassignedCount,
+   urgentCount:summary.urgentCount,highCount:summary.highCount,
+  },
+ };
+}
 
 /** Projects authorized task queue/reopen counts only after the task-role coverage gate succeeds. */
 export function resolveProcessTasksIntent(
