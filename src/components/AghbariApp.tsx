@@ -1649,7 +1649,7 @@ function Orders({ onViewDetail }: { onViewDetail: (id: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchOrders);
   return <><Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام حتى التسليم" icon={ShoppingCart} /><div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} طلب في النظام</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button></div></div><section className="panel table-panel">{loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>رقم الطلب</th><th>العميل</th><th>التاريخ</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th><th /></tr></thead><tbody>{data?.map((o) => <tr key={o.id}><td><strong>#{o.order_number}</strong></td><td>{o.customer?.business_name ?? '—'}</td><td>{formatDateShort(o.created_at)}</td><td>{formatNumber(o.total_items)}</td><td>{formatCurrency(o.total_amount)}</td><td><span className={`badge ${o.status === 'delivered' ? 'success' : o.status === 'processing' ? 'info' : 'warning'}`}>{orderLabel(o.status)}</span></td><td><Button variant="outline" onClick={() => onViewDetail(o.id)}>تفاصيل</Button></td></tr>)}</tbody></table>{!data?.length && <Empty text="لا توجد طلبات" />}</TableWrap>}</section></>;
 }
-function orderLabel(status: string) { return ({ draft: 'مسودة', pending: 'جديد', confirmed: 'مؤكد', processing: 'قيد التجهيز', delivered: 'تم التسليم' }[status] ?? status); }
+function orderLabel(status: string) { return ORDER_STATUS_LABELS[status] ?? status; }
 
 const PRICING_SCOPES = new Set(['default', 'all', 'product', 'category']);
 
