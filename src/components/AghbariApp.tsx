@@ -207,7 +207,7 @@ function AdminWorkspaceContent({
     case "suppliers":
       return <Suppliers onNotice={onNotice} initialSearch={recordContext?.kind === "supplier" ? recordContext.title : undefined} />;
     case "purchase-orders":
-      return <PurchaseOrdersPage />;
+      return <PurchaseOrdersPage initialPurchaseOrderId={recordContext?.kind === "purchase_order" ? recordContext.id : undefined} />;
     case "devices":
       return <DeviceManagement onNotice={onNotice} />;
     case "reports":
@@ -301,7 +301,7 @@ function AdminWorkspaceContent({
         }}
       />;
     case "data":
-      return <DataCenter onNotice={onNotice} />;
+      return <DataCenter onNotice={onNotice} initialImportJobId={recordContext?.kind === "import" ? recordContext.id : undefined} />;
     case "operations":
       return <OperationsCenter onNotice={onNotice} />;
     case "settings":
