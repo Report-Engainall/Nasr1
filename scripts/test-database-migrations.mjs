@@ -5384,6 +5384,27 @@ async function main() {
   );
   assert.equal(qualityNeedsReview.result.ok, true, "unresolved alert review remains a distinct non-final verdict");
 
+  const staleQualityTaskVersion = await db.unsafe(
+    "select updated_at from public.ai_tasks where id=$1 and organization_id=$2",
+    [invoiceTask[0].id,organizationId],
+  );
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.ai_tasks set updated_at=clock_timestamp() where id=$1 and organization_id=$2",
+    [invoiceTask[0].id,organizationId],
+  );
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "task quality review rejects a stale task version",
+    () => db.unsafe(
+      "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text)",
+      [invoiceTask[0].id,staleQualityTaskVersion[0].updated_at,"ACTIONABILITY",db.json({actionability:"ACTIONABLE"}),"ci-quality-stale-event","ci-quality-stale-key"],
+    ),
+    /task changed after the review was opened/i,
+    "40001",
+  );
+
   const qualityReplayRows = await db.unsafe(
     "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
     [
@@ -5441,6 +5462,11 @@ async function main() {
     () => db.unsafe("delete from public.operational_task_quality_events where id=$1", [qualityFalsePositiveA.result.event.id]),
     /permission denied/i,
   );
+  await expectFailure(
+    "authenticated manager cannot read raw task quality events directly",
+    () => db.unsafe("select id from public.operational_task_quality_events where organization_id=$1 limit 1",[organizationId]),
+    /permission denied/i,
+  );
 
   await db.unsafe("reset role");
   const qualityCountBeforeCustomer = (await db.unsafe(
@@ -5458,6 +5484,12 @@ async function main() {
     /administrator or manager permission required/i,
     "42501",
   );
+  const restrictedQualityRows = await db.unsafe(
+    "select public.fetch_operational_task_quality_metrics() as result",
+  );
+  assert.equal(restrictedQualityRows[0].result.status,"RESTRICTED","customer receives only the quality review permission state");
+  assert.equal(Object.keys(restrictedQualityRows[0].result).sort().join(","),"reasonCode,status",
+    "customer cannot infer counts or rejection/false-alarm reasons from manager quality metrics");
   await db.unsafe("reset role");
   const qualityCountAfterCustomer = (await db.unsafe(
     "select count(*)::integer as count from public.operational_task_quality_events where organization_id=$1",
