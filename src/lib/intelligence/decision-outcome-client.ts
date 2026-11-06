@@ -8,7 +8,7 @@ export type DecisionOutcomeState =
   | "ASSIGNED" | "EXECUTING" | "EXECUTED" | "MEASURED";
 export type DecisionOutcomeEventType =
   | "SUBMIT_FOR_REVIEW" | "APPROVE" | "REJECT" | "DEFER" | "ASSIGN"
-  | "START_EXECUTION" | "COMPLETE_EXECUTION" | "MEASURE";
+  | "START_EXECUTION" | "COMPLETE_EXECUTION" | "MEASURE" | "RESUBMIT_FOR_REVIEW";
 
 export interface DecisionOutcomeEventView {
   id: string;
@@ -270,5 +270,36 @@ export async function deferDecisionOutcome(input: {
     return parseCommandResult(data);
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر إرسال تأجيل القرار إلى الخادم." };
+  }
+}
+
+/** Returns a deferred decision to review through a separate, auditable command. */
+export async function resumeDeferredDecisionOutcome(input: {
+  outcomeId: string;
+  expectedVersion: number;
+  reason: string;
+  eventId?: string;
+  idempotencyKey?: string;
+}): Promise<DecisionOutcomeCommandResult> {
+  const reason = input.reason.trim();
+  if (!UUID.test(input.outcomeId) ||
+      !Number.isInteger(input.expectedVersion) || input.expectedVersion < 1 ||
+      reason.length < 3 || reason.length > 2000 ||
+      (input.eventId !== undefined && !UUID.test(input.eventId)) ||
+      (input.idempotencyKey !== undefined && !UUID.test(input.idempotencyKey))) {
+    return { ok: false, status: "ERROR", message: "أدخل سبب إعادة القرار للمراجعة وتحقق من إصداره." };
+  }
+  try {
+    const { data, error } = await supabase.rpc("resume_deferred_decision_outcome", {
+      p_outcome_id: input.outcomeId,
+      p_event_id: input.eventId ?? crypto.randomUUID(),
+      p_idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+      p_expected_version: input.expectedVersion,
+      p_reason: reason,
+    });
+    if (error) return { ok: false, ...safeFailure(error) };
+    return parseCommandResult(data);
+  } catch {
+    return { ok: false, status: "UNAVAILABLE", message: "تعذر إعادة القرار المؤجل إلى المراجعة." };
   }
 }
