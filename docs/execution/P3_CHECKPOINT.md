@@ -2038,3 +2038,37 @@ P1 mounts the exported panel in the current admin AI view. Continue P3 with anot
 
 ### Next P3 action
 Continue with a separate existing-source intelligent capability; do not expand this pack into a composite score or cause attribution unless source contracts add independently verified outcome and timing dimensions.
+
+
+## P3 ENGINE HARDENING — COMMERCE POLICY CATALOGUE AND PROMOTION OVERLAP — 2026-11-06
+
+- Exact parent main SHA: `c8e129025d92c362ee29302b9ce4e7f28972a336`.
+- Code commit: `843fd8e952f385686fcefc45b28be69cc7ab2134`.
+- Section 55 existing `CommercePolicyGovernancePanel` already consumes `buildPromotionPolicyOverlapReview()`; this increment hardens its source boundary rather than creating another panel or policy engine.
+
+### Delivered
+- Extracted `parseCommercePolicyCatalog()` as the strict testable boundary used by `fetchCommercePolicyCatalog()`.
+- Catalog response is rejected unless:
+  - as-of is a parseable timestamp;
+  - total/returned counts are non-negative safe integers and returned does not exceed total;
+  - returned count equals the actual array length;
+  - `completePopulation` exactly agrees with returned count versus total count;
+  - all policy entries parse and policy IDs are unique.
+- This protects the overlap analyzer from treating a truncated, inconsistent or duplicated policy registry response as a complete population.
+- Added engine regression cases for matching explicit product scopes and intersecting effective windows; different products; disjoint windows; changed source fingerprint; unavailable activation status; missing source date; malformed IDs; product/category cross-scope non-comparability; incomplete catalog; no self-pairing; invalid as-of; and candidate display cap preserving the full pair count.
+- Added client parser regression cases for complete/partial populations, inconsistent count/flag metadata, duplicate IDs and invalid as-of.
+- Existing overlap engine remains deliberately conservative: candidate means "potential overlap requiring review", never proof of forbidden discount stacking. No commercial rules, discounts, inventory, GL or policy precedence are modified.
+
+### Exact files/blobs
+- `src/lib/intelligence/commerce-policy-governance-client.ts` — `7d9c9b808fe14ac7c264568d450236f8f1b7c83a`
+- `src/lib/intelligence/commerce-policy-governance-client.test.ts` — `34fcc2f4f6cc697d262544dd7a036a64c005cb40`
+- `src/lib/intelligence/commerce-policy-overlap-review.test.ts` — `1447689e542bf5b8655eba7cb903274c1a328feb`
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- The new tests are source-only and NOT RUN. No build, typecheck, lint, CI, browser, DB, Supabase migration, Bolt, Preview, Vercel or production operation was run.
+- The catalogue migration `20261106030000_intelligence_commerce_policy_governance.sql` remains subject to the existing non-production migration and authorization acceptance process.
+- No test PASS or runtime/production claim is made.
+
+### Next P3 action
+Continue only from source-backed intelligence gaps in Sections 45–64; do not add a second policy engine or infer discount-stacking semantics.
