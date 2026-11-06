@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, Headphones, PackageCheck,
-  CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
+  CircleDollarSign, Database, Download, FileSpreadsheet, FileText, LayoutDashboard, LogOut, Menu, Package, Printer,
   Pencil, Plus, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
+  fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
@@ -56,6 +57,10 @@ import {
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { IntelligenceWorkspace } from '@/components/intelligence/IntelligenceWorkspace';
+import { ProductActivityPrintSheet } from '@/components/ProductActivityPrintSheet';
+import { projectProductActivityPrintDocument } from '@/lib/product-activity-print';
+import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
+import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
 
 type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
 type IconType = typeof LayoutDashboard;
@@ -1942,6 +1947,88 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
 function Offers({ onNotice }: { onNotice: (m: string) => void }) { return <PromotionManager onNotice={onNotice} />; }
 
 function Reports() {
+  const { user } = useAuth();
+  const canViewProductActivity = Boolean(user?.roles.some((role) =>
+    role === 'admin' || role === 'manager' || role === 'accountant',
+  ));
+  const [productActivityReport, setProductActivityReport] = useState<StoreProductActivityReport | null>(null);
+  const [productActivityLoading, setProductActivityLoading] = useState(false);
+  const [productActivityError, setProductActivityError] = useState('');
+  const [productActivityActionMessage, setProductActivityActionMessage] = useState('');
+  const [productActivityRefreshKey, setProductActivityRefreshKey] = useState(0);
+  useEffect(() => {
+    let active = true;
+    if (!canViewProductActivity) {
+      setProductActivityReport(null);
+      setProductActivityError('');
+      setProductActivityLoading(false);
+      return () => { active = false; };
+    }
+    setProductActivityReport(null);
+    setProductActivityError('');
+    setProductActivityLoading(true);
+    void fetchStoreProductActivityReport()
+      .then((report) => {
+        if (active) setProductActivityReport(report);
+      })
+      .catch((cause) => {
+        if (active) {
+          setProductActivityReport(null);
+          setProductActivityError(cause instanceof Error
+            ? cause.message
+            : 'تعذر تحميل تقرير حركة الأصناف من الخادم.');
+        }
+      })
+      .finally(() => {
+        if (active) setProductActivityLoading(false);
+      });
+    return () => { active = false; };
+  }, [canViewProductActivity, productActivityRefreshKey]);
+  const productActivityPrint = useMemo(() => {
+    if (!productActivityReport) return { document: null, error: '' };
+    try {
+      return { document: projectProductActivityPrintDocument(productActivityReport), error: '' };
+    } catch (cause) {
+      return {
+        document: null,
+        error: cause instanceof Error ? cause.message : 'بيانات التقرير غير مكتملة للطباعة.',
+      };
+    }
+  }, [productActivityReport]);
+  function downloadProductActivityReport() {
+    if (!productActivityReport || productActivityReport.truncated
+      || productActivityReport.products.length !== productActivityReport.total_products) {
+      setProductActivityActionMessage('التقرير غير مكتمل؛ تم إيقاف تصدير XLSX حتى لا يظهر ملف جزئي على أنه كامل.');
+      return;
+    }
+    try {
+      downloadProductActivityWorkbookXlsx(productActivityReport);
+      setProductActivityActionMessage('تم بدء تنزيل ملف Excel الكامل لحركة الأصناف.');
+    } catch (cause) {
+      setProductActivityActionMessage(cause instanceof Error
+        ? cause.message
+        : 'تعذر إنشاء ملف Excel لحركة الأصناف.');
+    }
+  }
+  function printProductActivityReport() {
+    if (!productActivityPrint.document) {
+      setProductActivityActionMessage(productActivityPrint.error || 'لا تتوفر بيانات كاملة للطباعة.');
+      return;
+    }
+    const root = document.documentElement;
+    const cleanup = () => {
+      root.classList.remove('print-product-activity');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    root.classList.add('print-product-activity');
+    window.addEventListener('afterprint', cleanup, { once: true });
+    try {
+      window.print();
+    } catch {
+      cleanup();
+      setProductActivityActionMessage('تعذر فتح نافذة الطباعة في هذا المتصفح.');
+    }
+  }
   const { data: stats, loading, error } = useFetch(fetchDashboardStats);
   const { data: products, loading: productsLoading, error: productsError } = useFetch(fetchProducts);
   const { data: orders, loading: ordersLoading, error: ordersError } = useFetch(fetchOrders);
@@ -1973,6 +2060,101 @@ function Reports() {
       <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
       <ReportMetric label="الأصناف منخفضة المخزون" value={!stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount)} icon={AlertTriangle} />
     </div>}
+    {canViewProductActivity && (
+      <>
+        <section className="panel product-activity-report" style={{ marginTop: 16 }}>
+          <div className="panel-head">
+            <div>
+              <h2>تقرير حركة الأصناف والركود</h2>
+              <p>بيانات كاملة من تقرير الخادم للمؤسسة الحالية: حركة 30 و90 يومًا ومتاح المخزون في المخازن النشطة، دون أسعار أو تكاليف أو هوامش.</p>
+            </div>
+            <Activity size={22} />
+          </div>
+          <div className="product-activity-toolbar">
+            <Button variant="secondary" onClick={() => setProductActivityRefreshKey((value) => value + 1)} disabled={productActivityLoading}>
+              <RefreshCw size={15} /> تحديث التقرير
+            </Button>
+            <Button variant="secondary" onClick={printProductActivityReport}
+              disabled={!productActivityPrint.document || productActivityLoading}>
+              <Printer size={15} /> طباعة PDF
+            </Button>
+            <Button onClick={downloadProductActivityReport}
+              disabled={!productActivityReport || productActivityReport.truncated
+                || productActivityReport.products.length !== productActivityReport.total_products
+                || productActivityLoading}>
+              <FileSpreadsheet size={15} /> تنزيل Excel
+            </Button>
+          </div>
+          {productActivityActionMessage && <p className="report-note" role="status" aria-live="polite">{productActivityActionMessage}</p>}
+          {productActivityLoading ? <Loading /> : productActivityError
+            ? <div role="alert">
+                <ErrorBox message={productActivityError} />
+                <Button variant="secondary" onClick={() => setProductActivityRefreshKey((value) => value + 1)}>إعادة المحاولة</Button>
+              </div>
+            : productActivityReport ? (
+              <>
+                <div className="product-activity-report-meta">
+                  <span>تاريخ الإنشاء: <bdi>{new Date(productActivityReport.generated_at).toLocaleString('ar-YE')}</bdi></span>
+                  <span>النافذة: {formatNumber(productActivityReport.recent_days)} يومًا</span>
+                  <span>حد الركود: {formatNumber(productActivityReport.slow_days)} يومًا</span>
+                  <strong>{formatNumber(productActivityReport.returned_products)} من {formatNumber(productActivityReport.total_products)} صنفًا</strong>
+                </div>
+                {productActivityReport.truncated && (
+                  <p className="product-activity-incomplete" role="alert">
+                    التقرير يتجاوز حد 5000 صف. المعروض أدناه جزء للمعاينة فقط؛ تم تعطيل الطباعة والتصدير حتى لا يُسلّم ملف ناقص على أنه تقرير كامل.
+                  </p>
+                )}
+                <div className="report-grid product-activity-metrics">
+                  <ReportMetric label="نشط آخر 30 يومًا" value={formatNumber(productActivityReport.summary.active_last_30_days)} icon={Activity} />
+                  <ReportMetric label="بطيء 31–90 يومًا" value={formatNumber(productActivityReport.summary.slow_moving_90_days)} icon={TrendingUp} />
+                  <ReportMetric label="راكد أكثر من 90 يومًا" value={formatNumber(productActivityReport.summary.stagnant_over_90_days)} icon={AlertTriangle} />
+                  <ReportMetric label="لم يُبع سابقًا" value={formatNumber(productActivityReport.summary.never_sold)} icon={Package} />
+                  <ReportMetric label="رصيد غير متاح" value={formatNumber(productActivityReport.summary.stock_unknown_count)} icon={Database} />
+                </div>
+                {productActivityReport.products.length === 0
+                  ? <Empty text="لا توجد أصناف في تقرير حركة الأصناف." />
+                  : (
+                    <>
+                      <TableWrap>
+                        <table>
+                          <thead><tr>
+                            <th>كود الصنف</th><th>الصنف</th><th>الوحدة</th><th>حالة الحركة</th>
+                            <th>مباع 30 يومًا</th><th>مباع 90 يومًا</th><th>آخر بيع</th><th>المتاح</th>
+                          </tr></thead>
+                          <tbody>
+                            {productActivityReport.products.slice(0, 100).map((row) => (
+                              <tr key={row.product_id}>
+                                <td><bdi>{row.item_code || 'دون رمز'}</bdi></td>
+                                <td>{row.product_name}</td>
+                                <td>{row.unit || 'غير محددة'}</td>
+                                <td>{PRODUCT_ACTIVITY_STATUS_LABELS[row.activity_status]}</td>
+                                <td>{formatNumber(row.sold_quantity_last_30_days)}</td>
+                                <td>{formatNumber(row.sold_quantity_last_90_days)}</td>
+                                <td>{row.last_sold_at ? formatDateShort(row.last_sold_at) : 'لم يُسجل بيع'}</td>
+                                <td>{row.available_quantity === null ? 'غير متاح' : formatNumber(row.available_quantity)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </TableWrap>
+                      {productActivityReport.products.length > 100 && (
+                        <p className="report-note">تعرض المعاينة أول 100 صنف فقط؛ ملف Excel والطباعة يعتمدان جميع صفوف التقرير عندما يكون كاملاً.</p>
+                      )}
+                    </>
+                  )}
+                {productActivityPrint.error && (
+                  <p className="report-note" role="status">الطباعة غير متاحة: {productActivityPrint.error}</p>
+                )}
+              </>
+            ) : <Empty text="لم تصل بيانات تقرير حركة الأصناف من الخادم." />}
+        </section>
+        {productActivityPrint.document && (
+          <div className="product-activity-print-only" aria-hidden="true">
+            <ProductActivityPrintSheet document={productActivityPrint.document} />
+          </div>
+        )}
+      </>
+    )}
     <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
     <ExecutiveStoreAnalytics />
     <section className="panel" style={{ marginTop: 16 }}>
