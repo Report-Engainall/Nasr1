@@ -2073,3 +2073,14 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 ### P3 next action
 
 `P3-SECTION-52-63-INDEPENDENT-GAPS-008`: proceed to another independent, source-backed Section 53–63 requirement; preserve the equal-period comparison guard.
+
+
+## P3 body update — 2026-11-06 — REF-DECISION-MEMORY-PAGED-READ-001
+
+- Latest P3 code-bearing delivery on official `main`: `23be2d51ce0c6cab19fad18ff0be16ca058e70b0`; latest P3 checkpoint: `3633af43382ec91a9e98ec08960ad317d530de23`.
+- Section 52/57 Arabic decision-memory reads now page through the existing authenticated `fetch_decision_outcomes` RPC in batches of 100, up to 5,100 records. Completion requires stable totals, exact page sizes, unique IDs and an unchanged first-page fingerprint. Any inconsistent read or source population over the bound remains `PARTIAL`.
+- Decision-memory composition receives page-coverage certainty; it cannot report VERIFIED merely because a returned item count happens to equal the server total after a consistency failure. DecisionMemoryBook presents 25 cards per view while precedent search operates over the entire loaded collection.
+- Code commits: `fd8e4f3d5cf35bdcc4ced4e6378913c40414f12d`, `2aa90f254aa4d8b05ad18f4a926a858f4072d492`, `a630a85b813e586f4ecd613c5efb95fe24c8a10b`, `22dd4ed30c4d08e4290d94cc6e6abc1dc2a6343c`, `4763dae8c959efa304f388d1aee52d982c4f8ebb`, `0e436a9734b04e55010915aee266ca3407b9a17b`, `23be2d51ce0c6cab19fad18ff0be16ca058e70b0`.
+- Existing matrix leaf `REF-DECISION-MEMORY-BOOK-001` updated in place at `4805bff266e815cf6335d31694af25bc3ae7610c`; P3 checkpoint `docs/execution/P3_CHECKPOINT.md` and execution log are maintained separately.
+- No migration, new RPC, new table, P1-owned route/workspace, P2 persistence path, production database, paid provider, AI quota or Vercel credit was used. No tests/build/typecheck/lint/CI/browser/E2E/DB/Bolt operation was run; no PASS/runtime/production claim.
+- Next P3 work remains constrained by source evidence: additional operational decision metrics require persisted pre-change baselines and same-tenant post-change evidence with matching metric formula, units/currency, period and source lineage. Bolt must later verify page authorization, tenant isolation, consistency guards, older-page precedent selection and no side effects on this exact main lineage.
