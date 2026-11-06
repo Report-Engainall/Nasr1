@@ -597,11 +597,15 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         || (data as Record<string, unknown>).status !== 'returned_for_adjustment') {
         throw new Error('لم يؤكد الخادم إعادة الطلب للعميل؛ لم تُعرض العملية كناجحة.');
       }
+      const customerNotified = (data as Record<string, unknown>).customer_notified === true;
+      const successMessage = customerNotified
+        ? 'أُعيد الطلب إلى العميل وحُفظ السبب في سجل الحالة وأُرسل إشعار داخل التطبيق. لم تنشئ عملية الإعادة حجزًا مخزنيًا أو فاتورة أو قيدًا ماليًا.'
+        : 'أُعيد الطلب وحُفظ السبب في سجل الحالة، لكن لم يوجد ملف عميل مرتبط لإرسال إشعار داخل التطبيق. لم تنشئ عملية الإعادة حجزًا مخزنيًا أو فاتورة أو قيدًا ماليًا.';
       setReturnReason('');
-      setReturnFeedback({ kind: 'success', message: 'أُعيد الطلب إلى العميل مع تسجيل السبب وإشعاره. لم يُحجز المخزون ولم تُصدر فاتورة.' });
+      setReturnFeedback({ kind: 'success', message: successMessage });
       await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
       onBlockedChange(false);
-      onNotice('أُعيد الطلب إلى العميل للتعديل مع حفظ السبب في سجل الحالة.');
+      onNotice(successMessage);
     } catch (cause) {
       setReturnFeedback({
         kind: 'error',
