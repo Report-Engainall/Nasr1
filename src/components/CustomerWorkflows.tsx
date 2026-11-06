@@ -47,6 +47,7 @@ import { CustomerPaymentReceiptPrintActions } from "@/components/CustomerPayment
 import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-account-statement-xlsx";
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
+import { downloadCustomerQuoteWorkbookXlsx } from "@/lib/customer-quote-xlsx";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
@@ -1729,6 +1730,27 @@ function Quotes() {
                   <Printer size={16} /> طباعة عرض السعر
                 </button>
               )}
+              {(() => {
+                const exportDocument = projectCustomerQuotePrintDocument(q, quoteItems[q.id] ?? []);
+                return exportDocument ? (
+                  <button
+                    type="button"
+                    className="customer-quote-xlsx-trigger"
+                    style={secondary}
+                    disabled={busy}
+                    onClick={() => {
+                      try {
+                        downloadCustomerQuoteWorkbookXlsx(exportDocument);
+                        setNotice("تم إعداد كشف عرض السعر المعتمد بصيغة Excel. لا يحتوي الملف على سعر الهدف أو التكلفة أو الهامش.");
+                      } catch (cause) {
+                        setError(cause instanceof Error ? cause.message : "تعذر إعداد ملف Excel لعرض السعر.");
+                      }
+                    }}
+                  >
+                    <FileSpreadsheet size={16} /> تنزيل Excel
+                  </button>
+                ) : null;
+              })()}
               {q.status === "quoted" && (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button disabled={busy} style={primary} onClick={() => void answer(q.id, true)}>

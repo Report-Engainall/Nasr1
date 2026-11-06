@@ -1,3 +1,20 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-062 — CUSTOMER QUOTE XLSX EXPORT
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent/base SHA: `2b69036fc190cc6133187191f0cd6f0a48489c00`.
+- Added `src/lib/customer-quote-xlsx.ts`: three Arabic worksheets for the server-approved customer quote header, quoted line items and quote scope/limitations. It consumes only `CustomerQuotePrintDocument`, the existing strict customer allowlist.
+- Added «تنزيل Excel» to each customer quote card only when the existing quote projection is valid (server-priced `quoted` or `accepted` state, and every line has a valid approved unit price and quantity). Reuses the already-loaded quote/line rows; no duplicate query or mutation.
+- Excludes target prices, costs, margins, raw rows and internal identifiers. The workbook explicitly disclaims invoice/order/payment semantics and does not infer tax, discounts or a payable total.
+- Files changed: `src/lib/customer-quote-xlsx.ts` (new), `src/components/CustomerWorkflows.tsx`.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Evidence boundary: source-only commit; no tests/build/typecheck/lint/CI/browser/Bolt/database/Preview/production operation was run. No runtime PASS is claimed.
+
+## Next P1 action
+
+Continue uncovered commerce/account actions from existing server-owned data/contracts. Keep profile/business edits and returned-order amendment blocked until their tenant-bound server commands exist. Do not alter P3 engines or introduce live external providers.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-061 — STAFF SALES ORDER XLSX
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
