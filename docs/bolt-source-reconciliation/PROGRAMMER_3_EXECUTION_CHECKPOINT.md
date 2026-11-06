@@ -1,3 +1,51 @@
+# P3 INCREMENTAL PRODUCT BODY CHECKPOINT — 2026-11-06
+
+**Repository:** `Report-Engainall/Nasr1` · **branch:** `main`  
+**Verified source-code cursor:** `e75c85f07fa3633b225a4dfa85e5a6ce2cfaab40`  
+**Current documentation cursor at checkpoint update:** `4b17f498cfa5d12f4818dc29870f2f8ed2eb2d91`
+
+## Implemented in this continuation
+
+- Added `fetchOperationalTaskQualityMetrics()` to the existing quality client. It reads `fetch_operational_task_quality_metrics` directly, validates with `parseTaskQualityMetrics`, and preserves `RESTRICTED` / `UNAVAILABLE` instead of inventing metrics.
+- Changed `fetchTaskPerformanceScorecard()` to read the base performance scorecard and quality RPC independently. A missing quality migration no longer suppresses an otherwise valid base scorecard.
+- Extracted the existing quality metrics panel into reusable `TaskQualityReviewMetrics`, exported through the intelligence component barrel, and reused it in the existing scorecard without touching P1's `IntelligenceWorkspace.tsx`.
+- Expanded the quality panel to report actionable-rate, recommendation approve/reject/defer counts, false-alarm rate, true-positive alerts, false-positive alerts, pending alert reviews, reason frequencies, affected-task counts and repeated causes.
+- Extended `TaskQualityReviewForm` with an optional, paginated selector backed by `fetch_decision_outcomes`. It can link only an exact ID returned by the source; without a selected ID, the quality review remains unlinked. The review RPC remains the tenant/authorization boundary and does not change decision state.
+- Extended the allow-listed Arabic assistant with `TASK_QUALITY_OVERVIEW`. It resolves quality/recommendation/alert-review questions through the same read-only RPC and displays the reusable panel. `queriedAt` is labelled as query time, not the last review/source update.
+- Updated the P1 handoff and added matrix leaf `REF-TASK-QUALITY-METRICS-ASSISTANT-001`.
+
+## Source commits
+
+1. `bacd2ac862a914a19865a7e4ecc5508f90d71535` — direct quality metrics reader.
+2. `d13a41f5c88586c43c3aa69b5ecac711eab400ca` — independent scorecard and quality reads.
+3. `e12ada7858bbb784da02a4891cc8efd08284a8cf` — reusable quality metrics component.
+4. `c990d9d7426827b0fecc2c2a9eda5a4cff8fb06f` — existing scorecard consumes the reusable component.
+5. `9cb5e41c859f54db2a30fd084195d7d5bbe0f010` — decision selection in quality review form.
+6. `aa29aff5174fdeee85b7cf6ee2fd9c47b20348e5` — component barrel export.
+7. `8598f5c2dfbbf909bf95d696439d5b36b1420f2b` — explicit correct/pending alert counts.
+8. `40104d187359b1e75ca50402a2995ca4b8723d32` — Arabic quality intent planner.
+9. `8da3a4d61f64102d19518600eae0d0119bdc887a` — natural-language result contract.
+10. `9d67bc2a80d48c4bce04134db22445e5788369e7` — quality RPC resolver.
+11. `e75c85f07fa3633b225a4dfa85e5a6ce2cfaab40` — assistant result UI.
+
+Documentation commits:
+- `693adc7d069218073da9cd70c81bcca73f6bf165` — P1 integration handoff updated.
+- `4b17f498cfa5d12f4818dc29870f2f8ed2eb2d91` — acceptance matrix leaf recorded.
+
+## Remaining / boundary
+
+- P1 still needs to mount `TaskQualityReviewForm` in its existing `TaskCenter.tsx` card using the actual `task.id` and `task.updated_at`, existing manager/admin presentation gate, current refresh callback and `key={task.id}`. P3 did not edit P1-owned files.
+- P1 still needs to mount `NaturalLanguageAssistant` in the existing intelligence workspace with the established authorized navigation callbacks. P3 did not edit `IntelligenceWorkspace.tsx`.
+- The quality migration `20261106090000_operational_task_quality_reviews.sql` and prerequisite task scorecard/audit migrations remain source-only pending the approved Bolt non-production workflow.
+- Section 52 is not fully closed: the current persisted expected-baseline selector is limited to `cashflow.expected_collections`. Comparable operational baselines/actuals for order lateness, receiving, supplier settlement and inventory variance remain unimplemented until their exact source tables, metric formulas, tenant scopes and evidence IDs are grounded. Do not estimate those values.
+- No weighted denominator is defined for all remaining P3 requirements in the matrix; a truthful 95% closure percentage cannot be certified from this delivery. Do not substitute file counts or number of commits.
+- No tests, build, lint, typecheck, CI, browser, database migration application, Bolt runtime, Preview, Vercel or production operation was run in this body-only continuation. No PASS or runtime proof is claimed.
+
+**Next P3 action:** extend Section 52 only where exact tenant-scoped operational source evidence and deterministic formula contracts exist; preserve `WITHHELD` for unsupported sources. Continue P3-owned Sections 53–56 and 59–63 gaps from the live matrix without duplicating completed engines.  
+**Status:** source code `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`; release readiness is not asserted.
+
+---
+
 # P3 Execution Checkpoint — live resume record
 
 ## Current state — 2026-10-25 05:10 +03:00
