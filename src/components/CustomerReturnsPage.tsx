@@ -89,16 +89,23 @@ export function CustomerReturnsPage() {
       if (rows.some(row => !validOrder(row))) {
         throw new Error("أعاد الخادم بيانات طلب غير مكتملة؛ لم يتم عرض سجل مرتجعات جزئي.");
       }
-      const checked = await Promise.all((rows as CustomerOrderRow[]).map(async order => {
-        const { data: summaryData, error: summaryError } = await supabase.rpc("list_my_customer_return_requests", {
-          p_order_id: order.id,
-        });
-        if (summaryError) {
-          throw new Error("تعذر قراءة سجل المرتجعات للطلب " + order.order_number + ".");
-        }
-        const summary = readCustomerReturnSummary(summaryData);
-        return { ...order, requests: summary.requests };
-      }));
+      const checked: OrderReturns[] = [];
+      const orderRows = rows as CustomerOrderRow[];
+      // Keep the per-order authorization RPC fan-out bounded for accounts with many orders.
+      for (let offset = 0; offset < orderRows.length; offset += 5) {
+        const batch = await Promise.all(orderRows.slice(offset, offset + 5).map(async order => {
+          const { data: summaryData, error: summaryError } = await supabase.rpc("list_my_customer_return_requests", {
+            p_order_id: order.id,
+          });
+          if (summaryError) {
+            throw new Error("تعذر قراءة سجل المرتجعات للطلب " + order.order_number + ".");
+          }
+          const summary = readCustomerReturnSummary(summaryData);
+          return { ...order, requests: summary.requests };
+        }));
+        if (generation !== requestGeneration.current) return;
+        checked.push(...batch);
+      }
       if (generation !== requestGeneration.current) return;
       setTotalOrders(count);
       setOrders(checked);
