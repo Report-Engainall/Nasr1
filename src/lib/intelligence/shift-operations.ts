@@ -383,10 +383,11 @@ export function parseShiftOperationsSnapshot(value: unknown): ShiftOperationsSna
   const cashControls = Array.isArray(raw?.cashControls) ? raw.cashControls.map(parseCashControl) : null;
   const handover = parseHandover(raw?.handover);
   const evidenceRecords = Array.isArray(raw?.evidenceRecords) ? raw.evidenceRecords.map(parseEvidenceRecord) : null;
+  const organizationTimeZone = typeof raw?.organizationTimeZone === "string" ? raw.organizationTimeZone : "";
   let validTimeZone = false;
   try {
-    if (typeof raw?.organizationTimeZone === "string") {
-      new Intl.DateTimeFormat("en-US", { timeZone: raw.organizationTimeZone }).format(new Date());
+    if (organizationTimeZone.trim()) {
+      new Intl.DateTimeFormat("en-US", { timeZone: organizationTimeZone }).format(new Date());
       validTimeZone = true;
     }
   } catch { validTimeZone = false; }
@@ -413,7 +414,7 @@ export function parseShiftOperationsSnapshot(value: unknown): ShiftOperationsSna
     previousShiftId: typeof raw.previousShiftId === "string" ? raw.previousShiftId : null,
     shiftLabel: raw.shiftLabel,
     businessDate: raw.businessDate,
-    organizationTimeZone: raw.organizationTimeZone,
+    organizationTimeZone,
     asOf: raw.asOf,
     generatedAt: raw.generatedAt,
     currentOwnerProfileId: typeof raw.currentOwnerProfileId === "string" ? raw.currentOwnerProfileId : null,

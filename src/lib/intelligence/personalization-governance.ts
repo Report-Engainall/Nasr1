@@ -583,10 +583,13 @@ export interface PersonalizationSignalsResult {
 
 function validateExternalPersonalizationConsent(
   input: ResolvePersonalizationSignalsInput,
-): { status: "ALLOW" } | {
+): {
+  status: "ALLOW";
+  reason: PersonalizationSignalsResult["reason"];
+  consent: ExternalPersonalizationConsent;
+} | {
   status: "DENY" | "REVIEW";
   reason: PersonalizationSignalsResult["reason"];
-  consent?: ExternalPersonalizationConsent;
 } {
   if (!input.preferences?.externalProcessingEnabled) {
     return { status: "DENY", reason: "EXTERNAL_PROCESSING_DISABLED" };

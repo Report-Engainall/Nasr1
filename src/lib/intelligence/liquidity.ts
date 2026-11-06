@@ -133,7 +133,7 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
   ];
   warnings.push(...positionWarnings.map(w=>position.currency+":"+w));
   return {
-   currency:position.currency,asOf:input.asOf,period:input.period,status,completeness:status==="VERIFIED"?"COMPLETE":"PARTIAL",
+   currency:position.currency,asOf:input.asOf,period:input.period,status,completeness:status==="VERIFIED"?"COMPLETE" as const:"PARTIAL" as const,
    availableBalance:available.value,availableBalanceStatus:available.status,
    expectedCollections:collections.value,expectedCollectionsStatus:collections.status,
    overdueReceivables:overdue.value,overdueReceivablesStatus:overdue.status,

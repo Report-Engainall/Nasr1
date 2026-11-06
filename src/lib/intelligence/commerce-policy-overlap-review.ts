@@ -54,7 +54,7 @@ interface Scope {
 interface PromotionEntry {
   policy: CommercePolicyMetadata;
   source: Row;
-  scope: Scope | null;
+  scope: Scope;
   start: number;
   end: number | null;
   sourceStart: number;

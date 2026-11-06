@@ -25,7 +25,7 @@ export function buildSalesScenario(input:{id:string;createdAt:string;asOf:string
   limits.minimumChangePercent>=-100&&limits.maximumChangePercent<=500&&limits.minimumChangePercent<=limits.maximumChangePercent;
  const baselineValid=metric.status==="VERIFIED"&&metric.completeness==="COMPLETE"&&metric.quality==="ACCEPTABLE"&&metric.unit==="CURRENCY"&&
   metric.currency===input.currency&&metric.asOf===input.asOf&&metric.lineage.evidenceIds.length>0&&Boolean(metric.lineage.formulaId.trim())&&
-  Boolean(metric.lineage.formulaVersion.trim())&&Number.isFinite(base)&&input.forecast.ready&&Math.abs(base-input.forecast.expectedTotal)<0.005;
+  Boolean(metric.lineage.formulaVersion.trim())&&base!==null&&Number.isFinite(base)&&input.forecast.ready&&Math.abs(base-input.forecast.expectedTotal)<0.005;
  const assumptionsValid=input.assumptions.length>0&&input.assumptions.every(a=>a.id.trim()&&a.label.trim()&&a.owner.trim()&&
   Number.isFinite(a.changePercent)&&limitsValid&&a.changePercent>=limits.minimumChangePercent&&a.changePercent<=limits.maximumChangePercent&&
   a.changePercent>=-100&&a.changePercent<=500);
@@ -38,12 +38,12 @@ export function buildSalesScenario(input:{id:string;createdAt:string;asOf:string
  const change=(factor-1)*100;
  const combinedWithinBounds=Number.isFinite(change)&&limitsValid&&change>=limits.minimumChangePercent&&change<=limits.maximumChangePercent&&change>=-100&&change<=500;
  if(assumptionsValid&&!combinedWithinBounds)limitations.push("COMPOUNDED_SCENARIO_OUT_OF_BOUNDS");
- const result=baselineValid&&assumptionsValid&&combinedWithinBounds?calculateWhatIfSales(base,change):null;
+ const result=baselineValid&&base!==null&&assumptionsValid&&combinedWithinBounds?calculateWhatIfSales(base,change):null;
  if(baselineValid&&assumptionsValid&&result===null)limitations.push("SCENARIO_RESULT_UNSAFE");
  const valid=result!==null&&limitations.length===0;
  return {id:input.id,baselineId:metric.id,createdAt:input.createdAt,asOf:input.asOf,currency:input.currency,
-  baseline:baselineValid?base:null,assumptions:input.assumptions,result:valid?result:null,
-  changeAmount:valid?Number(((result as number)-base).toFixed(2)):null,status:valid?"SIMULATED":"WITHHELD",
+  baseline:baselineValid&&base!==null?base:null,assumptions:input.assumptions,result:valid?result:null,
+  changeAmount:valid&&base!==null?Number(((result as number)-base).toFixed(2)):null,status:valid?"SIMULATED":"WITHHELD",
   formulaId:"sales.what-if.compound",formulaVersion:"1.0.0",sourceEvidenceIds:baselineValid?metric.lineage.evidenceIds:[],
   assumptionBoundary:"USER_SUPPLIED",accountingFact:false,limitations};
 }

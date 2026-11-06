@@ -130,7 +130,7 @@ export function parseAiGatewayBudgetSnapshot(value: unknown): AiGatewayBudgetSna
   };
 }
 
-function safeFailure(error: unknown): Pick<AiGatewayBudgetResult, "ok" | "status" | "message"> {
+function safeFailure(error: unknown): Extract<AiGatewayBudgetResult, { ok: false }> {
   const raw = record(error);
   if (raw?.code === "42501" || raw?.code === "PGRST301") {
     return {
