@@ -248,7 +248,6 @@ function PwaUpdatePrompt() {
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [available, setAvailable] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [error, setError] = useState("");
   const reloadAfterControllerChange = useRef(false);
 
   useEffect(() => {
@@ -311,7 +310,6 @@ function PwaUpdatePrompt() {
   function applyUpdate() {
     if (!registration?.waiting || applying) return;
     setApplying(true);
-    setError("");
     reloadAfterControllerChange.current = true;
     registration.waiting.postMessage({ type: "AGHBARI_ACTIVATE_UPDATE" });
   }
@@ -361,7 +359,6 @@ function PwaUpdatePrompt() {
         <X size={14}/>
         لاحقاً
       </button>
-      {error ? <span role="alert">{error}</span> : null}
     </div>
   );
 }
