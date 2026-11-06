@@ -517,7 +517,14 @@ export function buildGrowthOpportunityRadar(input: {
     return rank[a.priority] - rank[b.priority] || a.kind.localeCompare(b.kind) || a.subjectRef.localeCompare(b.subjectRef);
   });
 
-  let status: EvidenceStatus = input.sourceSnapshotVerified === false ? "NEEDS_REVIEW" : "VERIFIED";
+  // A caller must explicitly certify the complete required source population.
+  // An omitted flag is unknown coverage, never an implicit VERIFIED assertion.
+  const populationWarning = input.sourceSnapshotVerified === true
+    ? null
+    : input.sourceSnapshotVerified === false
+      ? "SOURCE_POPULATION_INCOMPLETE"
+      : "SOURCE_POPULATION_COMPLETENESS_NOT_CONFIRMED";
+  let status: EvidenceStatus = input.sourceSnapshotVerified === true ? "VERIFIED" : "NEEDS_REVIEW";
   if (input.signals.length === 0) status = input.sourceSnapshotVerified === true ? "VERIFIED" : "UNAVAILABLE";
   else if (withheld.length > 0) status = opportunities.length > 0 ? "NEEDS_REVIEW" :
     withheld.some(item => item.reason === "METRIC_NOT_VERIFIED" || item.reason === "METRIC_AMBIGUOUS") ? "UNVERIFIED" : "NEEDS_REVIEW";
@@ -530,6 +537,10 @@ export function buildGrowthOpportunityRadar(input: {
     opportunities,
     withheld,
     summary,
-    warnings: [...new Set([...passport.warnings, ...(withheld.length ? ["SOME_SIGNALS_WITHHELD"] : [])])],
+    warnings: [...new Set([
+      ...passport.warnings,
+      ...(withheld.length ? ["SOME_SIGNALS_WITHHELD"] : []),
+      ...(populationWarning ? [populationWarning] : []),
+    ])],
   };
 }
