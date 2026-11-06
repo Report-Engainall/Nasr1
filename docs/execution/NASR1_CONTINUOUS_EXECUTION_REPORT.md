@@ -1275,3 +1275,18 @@ Keep migration versions unique and preserve dependency order:
 
 ---
 
+
+
+# EXECUTION REPORT ADDENDUM — 2026-11-07 — RECEIVABLE AGEING + IMMUTABLE DECISION PRIORITY
+
+- Repository: `Report-Engainall/Nasr1`; branch `main`; exact source head `ce87c0d6db6c04c0dffe82b160176b7db8fa3e42`.
+- Added `20261107000100_executive_liquidity_customer_aging_decision_snapshots.sql` for tenant-scoped receivable ageing and immutable decision-candidate snapshots.
+- The ageing source groups outstanding and overdue balances by customer and currency. It includes invoice/payment evidence, ageing buckets and coverage state; bucket sums must reconcile exactly to the customer/currency outstanding amount. The client rejects malformed currencies and inconsistent totals, preserves PARTIAL source state, and fails closed on permission denial.
+- Decision proposals now carry a server-validated immutable candidate snapshot: P0–P3 priority, score, risk, impact status and currency, expiry, owner, evidence IDs, metric keys, source as-of and formula versions. The atomic RPC records proposal + snapshot + audit event and enforces organization scope, authorization and idempotency. The board ranks only saved evidence-backed candidates; cross-currency impact is not compared.
+- Collection actions and verified dead-stock actions are wired into the same proposal flow; dead-stock exposure is withheld unless cost and movement evidence are verified. Suggestions do not post journals, payments or inventory changes.
+- Added client regression coverage for multi-currency separation, bucket reconciliation, malformed currencies, partial-source preservation, finance denial, snapshot parsing and atomic snapshot persistence.
+- Fixed strict TypeScript boundaries across decision ordering, deferred decision status, nullable ATP, inventory result unions, assistant result discriminants, customer-directory data transfer objects and SLA operations composition; corrected the existing customer portal migration comment target to match the actual function.
+- Source commit sequence: `a6385eca11fb44b5961145817739f73841101322`, `58cc7e4fa05f834d306870fd256e1cb3930edbd1`, `c0ef76ca251caebaafb7b3512bac3af46735e351`, `ce87c0d6db6c04c0dffe82b160176b7db8fa3e42`.
+- Matrix leaf: `DLV-010-CUSTOMER-RECEIVABLE-AGING-DECISION-SNAPSHOTS-001` — `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- CI on the exact current SHA was running at the time of this addendum. No tests are claimed as PASS until final CI results are read. The migration has not been applied to a database; Bolt connection, browser/E2E and production acceptance remain external.
+- NEXT: exact-SHA CI closure, ordered non-production migration application, cross-tenant/role/idempotency/immutability validation, exact multi-currency reconciliation and no-side-effect assertions. Then update the leaf with evidence.
