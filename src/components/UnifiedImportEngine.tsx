@@ -96,7 +96,7 @@ function describeRetryableImportStatus(
     ". استخدم الملف الأصلي نفسه للاستئناف.";
 }
 
-export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice: (message: string) => void; refreshVersion?: number }) {
+export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId }: { onNotice: (message: string) => void; refreshVersion?: number; initialJobId?: string }) {
   const { user } = useAuth();
   const canRollbackImport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const { data: jobs, loading, error, refetch } = useFetch(fetchImportJobs, [refreshVersion]);
@@ -117,6 +117,13 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
   const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string; offset: number; hasMore: boolean } | null>(null);
   const rowErrorRequestId = useRef(0);
   const pausedRef = useRef(false);
+  useEffect(() => {
+    if (!initialJobId || loading || !jobs?.some((job) => job.id === initialJobId)) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById("admin-import-job-" + initialJobId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialJobId, loading, jobs]);
   const cancelRef = useRef(false);
   const runningRef = useRef(false);
 
@@ -848,7 +855,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           {loading ? <Loading /> : error ? <ErrorBox message={error} /> : jobs?.length ? <TableWrap><table>
             <thead><tr><th>الملف</th><th>المصدر</th><th>الحالة</th><th>DQS</th><th>الصفوف</th><th>التاريخ</th><th>الاستئناف</th><th>أخطاء الصفوف</th>{canRollbackImport && <th>التراجع</th>}</tr></thead>
             <tbody>{jobs.map((job) => <Fragment key={job.id}>
-              <tr>
+              <tr
+                id={"admin-import-job-" + job.id}
+                aria-current={initialJobId === job.id ? "true" : undefined}
+                style={initialJobId === job.id ? { outline: "2px solid var(--primary)", outlineOffset: "-2px", background: "var(--accent, rgba(15, 118, 110, .08))" } : undefined}
+              >
                 <td><strong>{job.file_name ?? "—"}</strong><small>{job.file_hash?.slice(0, 16) ?? "—"}…</small></td>
                 <td>{job.source_system || "manual"}<small>{job.external_source_reference || "لا يوجد مرجع خارجي"}</small></td>
                 <td><span className={"badge " + (job.status === "completed" ? "success" : ["rejected", "failed", "cancelled", "rolled_back"].includes(job.status) ? "danger" : "warning")}>{job.status === "manual_mapping_required" ? "تعيين يدوي" : job.status === "manual_review" ? "مراجعة بشرية" : job.status === "rolled_back" ? "تم التراجع مع حفظ التاريخ" : job.status}</span></td>
