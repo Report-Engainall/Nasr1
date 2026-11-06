@@ -22,8 +22,14 @@ type AmendmentVersion = {
   reviewedBy: string | null;
   lines: AmendmentLine[];
 };
+type AmendmentReturnEvent = {
+  changedAt: string;
+  changedBy: string | null;
+  reason: string | null;
+};
 type AmendmentHistory = {
   orderStatus: string;
+  returnEvents: AmendmentReturnEvent[];
   versions: AmendmentVersion[];
 };
 
@@ -67,6 +73,18 @@ function parseHistory(value: unknown, orderId: string): AmendmentHistory | null 
   if (!isRecord(value) || value.order_id !== orderId ||
       typeof value.order_status !== "string" ||
       !Array.isArray(value.amendments) || value.amendments.length > 500) return null;
+
+  const rawReturnEvents = value.return_events === undefined ? [] : value.return_events;
+  if (!Array.isArray(rawReturnEvents) || rawReturnEvents.length > 100) return null;
+  const returnEvents: AmendmentReturnEvent[] = [];
+  for (const rawEvent of rawReturnEvents) {
+    if (!isRecord(rawEvent) || !validTimestamp(rawEvent.changed_at)) return null;
+    returnEvents.push({
+      changedAt: rawEvent.changed_at,
+      changedBy: optionalText(rawEvent.changed_by, 200),
+      reason: optionalText(rawEvent.reason, 2000),
+    });
+  }
 
   const seenVersions = new Set<string>();
   const versions: AmendmentVersion[] = [];
@@ -113,7 +131,7 @@ function parseHistory(value: unknown, orderId: string): AmendmentHistory | null 
       lines,
     });
   }
-  return { orderStatus: value.order_status, versions };
+  return { orderStatus: value.order_status, returnEvents, versions };
 }
 
 function dateLabel(value: string): string {
@@ -194,8 +212,24 @@ export function CustomerOrderAmendmentHistory({
         {error}
         <button type="button" className="ms-2 underline" onClick={() => setRetry((value) => value + 1)}>إعادة المحاولة</button>
       </div> : null}
-      {!loading && !error && history?.versions.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">لا توجد نسخ تعديل مرسلة لهذا الطلب حتى الآن.</p>
+      {!loading && !error && history?.versions.length === 0 && history.returnEvents.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">لا توجد أحداث إرجاع أو نسخ تعديل مسجلة لهذا الطلب حتى الآن.</p>
+      ) : null}
+
+      {history && history.returnEvents.length > 0 ? (
+        <section className="mt-4 rounded-lg border border-amber-300/60 p-3" aria-label="سجل إعادة الطلب إلى العميل">
+          <h3 className="font-semibold">سجل إعادة الطلب إلى العميل</h3>
+          <ol className="mt-2 space-y-2">
+            {history.returnEvents.map((event, index) => (
+              <li key={event.changedAt + ":" + index} className="text-sm">
+                <p className="text-xs text-muted-foreground">
+                  أعاد الطلب: {event.changedBy ?? "مستخدم غير متاح"} · {dateLabel(event.changedAt)}
+                </p>
+                {event.reason ? <p className="mt-1 leading-6">{event.reason}</p> : null}
+              </li>
+            ))}
+          </ol>
+        </section>
       ) : null}
 
       {history && history.versions.length > 0 ? (
