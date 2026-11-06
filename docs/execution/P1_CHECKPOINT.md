@@ -1,3 +1,35 @@
+# P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-044
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA at checkpoint base: `6355ff66673e0d044eb0a36d191550b7e01efa47`.
+- P1 code commits: `3ad45a6e492897f3424ac3406994116f9867b713` and `546f26301354571cb4f09f31252791403512f0a1`.
+- Files changed: `src/components/AghbariApp.tsx`, `src/aghbari.css`.
+- Existing source modules reused: `src/lib/api.ts` (`fetchStoreProductActivityReport`), `src/lib/product-activity-print.ts`, `src/lib/product-activity-xlsx.ts`, and `src/components/ProductActivityPrintSheet.tsx`.
+- Existing server function reused: `get_store_product_activity_report()`; its active-role gate calls `can_manage_finance()`, whose current contract permits active admin, manager and accountant profiles.
+
+## BODY-044 — mount source-backed product activity PDF/print and XLSX outputs
+
+- The product-activity RPC, complete report parser, allowlisted print projection, XLSX workbook builder and print-sheet component were already present on `main`, but none was mounted from the existing admin Reports view. This batch integrated them into that current screen; it did not create a duplicate report route or a second source.
+- Added a role-gated report card for admin/manager/accountant, matching the server `can_manage_finance()` capability. The client does not request the report for other roles; server-side tenant/role enforcement remains authoritative.
+- Loads `fetchStoreProductActivityReport()` from the existing tenant-scoped RPC and presents counts for recent movement, slow movement, stagnant items, never-sold items and unavailable stock. The screen preview is capped at 100 rows, while output actions receive the complete parsed server report, not the visible preview.
+- XLSX uses the existing two-sheet workbook builder (detail and summary). It is disabled when the server truncates beyond 5,000 rows or the returned row count differs from the organization total; the builder independently rejects partial results.
+- Print/PDF uses the existing strict allowlist projection and print sheet. Projection rejects truncated/inconsistent reports, omits internal product UUIDs and excludes costs, margins and price tiers. The print stylesheet scopes printing to this document and formats A4 landscape with repeated table headers.
+- Includes report refresh, loading/error/retry states, and action feedback. It does not infer unknown stock as zero or transform a partial report into a complete output.
+- State: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`. The existing RPC/migration was not applied or re-run here; no runtime/browser acceptance is claimed.
+- Functional scope: one previously orphaned role-scoped report integration wired to both PDF/print and XLSX outputs. This is a bounded scope count, not a project-wide completion percentage.
+
+## Delivery boundary
+
+- No tests, Playwright, E2E, build, lint, typecheck, CI, CodeInspector, database application, Bolt sync, Preview, production or Vercel operation was run.
+- No P3-owned engine, component, DTO, RPC or migration was changed. No new report source, mock data, dependency or paid provider was introduced.
+- Project-wide 95% P1 completion remains unclaimed; the accepted/remainder denominator and weighting are not established.
+
+## Next P1 action
+
+Continue from the current live `main` with the next independently confirmed P1 commerce/administration gap. Keep existing report outputs and customer price privacy intact; do not duplicate a report whose source module already exists.
+
+---
+
 # P1 ACTIVE CHECKPOINT OVERRIDE — 2026-11-06 — BODY-COMPLETION-ON-MAIN-043
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
