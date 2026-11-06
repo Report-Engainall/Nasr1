@@ -284,7 +284,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  }
  const decisionPendingQuestion=/(القرارات قيد المراجعه|قرارات قيد المراجعه|قرارات بانتظار المراجعه|قرارات تنتظر المراجعه|القرارات بانتظار الاعتماد|قرارات تنتظر الاعتماد)/.test(normalizedQuestion);
  const decisionExecutionQuestion=/(القرارات بانتظار التنفيذ|قرارات بانتظار التنفيذ|القرارات المعتمده للتنفيذ|قرارات تنتظر الاسناد|قرارات بانتظار الاسناد)/.test(normalizedQuestion);
- const decisionDeferredQuestion=/(القرارات المؤجله|قرارات مؤجله|قرارات تم تاجيلها|قرارات تاجلت|سجل القرارات المؤجله)/.test(normalizedQuestion);
+ const decisionDeferredQuestion=/(القرارات المؤجله|قرارات مؤجله|القرارات التي تم تاجيلها|قرارات التي تم تاجيلها|قرارات تم تاجيلها|القرارات التي تاجلت|قرارات تاجلت|سجل القرارات المؤجله)/.test(normalizedQuestion);
  const decisionOverviewQuestion=/(ملخص القرارات|حاله القرارات|وضع القرارات|دوره القرارات|قرارات النظام|سجل القرارات)/.test(normalizedQuestion);
  if(decisionPendingQuestion||decisionExecutionQuestion||decisionDeferredQuestion||decisionOverviewQuestion){
   if(/(اخر|الماضي|الماضيه|السابق|من تاريخ|بين تاريخ|خلال|منذ|هذا الشهر|هذا الاسبوع|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
