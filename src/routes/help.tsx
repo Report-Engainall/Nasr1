@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft, BookOpen, ClipboardList, FileText, Headphones, Lock, RotateCcw,
-  MapPin, MessageCircle, Package, Search, ShoppingBag, Users,
+  MapPin, MessageCircle, Package, Search, ShoppingBag, UserRound, Users,
 } from "lucide-react";
 
 export const Route = createFileRoute("/help")({
