@@ -3,7 +3,7 @@
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main` only  
 **Current documentation/source head at this override:** `9b70d56c1502e679698e65e576289dd5b1e9a3a8`  
-**Latest P3 code-bearing commit:** `9b70d56c1502e679698e65e576289dd5b1e9a3a8`  
+**Latest P3 code-bearing commit:** `82899058fac253bdaafe5de4ad754b60e7c637ec`  
 **Latest P3 detailed checkpoint:** `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`  
 **Canonical P3 checkpoint:** `docs/execution/P3_CHECKPOINT.md`
 
@@ -176,4 +176,21 @@ P1 يملك UI؛ P2 backend/data/security؛ P3 intelligence/evidence/release. W0
 - Acceptance boundary: implementation and regression source only. Tests were NOT RUN. No build, typecheck, CI, browser, database migration apply, Bolt, Preview, Vercel or production operation was performed. No PASS/runtime acceptance is claimed.
 - Dependencies still open: apply and accept the existing decision outcome/deferral/resubmission/decision-memory migrations in approved Bolt non-production; verify role/tenant denials, idempotency and stale versions, append-only event/audit, history-count parity, exact measured evidence, and no financial/stock side effects. The persisted P0–P3 candidate priority/impact/risk/expiry snapshot is still absent and must not be inferred by P3 or P1.
 - NEXT_ACTION_ID: `REF-DECISION-OUTCOME-001` — Bolt source/database acceptance on the exact code SHA; then continue to another independently source-backed P3 capability.
+
+
+
+## P3 LEARNING LOOP HARDENING — EXPECTED/ACTUAL FORMULA COMPATIBILITY — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Starting main SHA: `c4898abc6091697b3a2eff8247467afe7eacfa1b`.
+- Exact engine/test commit: `82899058fac253bdaafe5de4ad754b60e7c637ec`.
+- Hardened the existing `evaluateDecisionLearning()` contract in `src/lib/intelligence/learning-loop.ts`: matching metric key/unit/currency/period is no longer sufficient to subtract expected and actual values when evidence-passport formula IDs or formula versions differ.
+- A formula ID or version mismatch now emits `FORMULA_MISMATCH`, makes the evaluation `NEEDS_REVIEW`, and withholds expected value, actual value and variance. Existing source timestamp, evidence, currency, period, arithmetic-overflow and rule-version behavior remains unchanged.
+- Added regression source for formula-ID mismatch and formula-version mismatch in `src/lib/intelligence/learning-loop.test.ts`.
+- Exact blobs:
+  - `src/lib/intelligence/learning-loop.ts`: `6fae5052f11ef58711fe6ae1ed69f154b1c10857`.
+  - `src/lib/intelligence/learning-loop.test.ts`: `dc681cb4a1fe3f30817510f028ce8f65ad96021f`.
+- Acceptance boundary: source and tests only. Tests NOT RUN. No build/typecheck/CI/DB/Bolt/browser/Preview/production operation or test PASS is claimed.
+- No AI model training, automatic policy change, pricing change, credit change, stock movement or financial posting was added.
+- NEXT_ACTION_ID: `REF-NL-DECISION-MEMORY-ASSISTANT-001` — exact-SHA acceptance of comparable/non-comparable expected-versus-actual evidence, then continue only with the next source-backed P3 gap.
 
