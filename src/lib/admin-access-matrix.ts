@@ -69,10 +69,10 @@ export function pageAccessReason(role: string, view: AdminViewId): string {
 }
 
 export type AdminOperationId =
-  | "pricing_rules_write" | "pricing_rules_approve" | "product_lifecycle"
+  | "pricing_rules_write" | "pricing_rule_submit" | "pricing_rules_approve" | "product_lifecycle"
   | "inventory_reorder_point" | "inventory_transfer" | "stock_count_edit" | "stock_count_finalize"
-  | "customer_lifecycle" | "customer_activation" | "customer_360" | "imports_manage"
-  | "purchase_orders_manage" | "finance_manage" | "role_assignment" | "audit_intelligence";
+  | "customer_lifecycle" | "customer_activation" | "customer_360" | "imports_stage" | "imports_finalize"
+  | "purchase_orders_manage" | "operational_task_status" | "finance_manage" | "role_assignment" | "audit_intelligence" | "pricing_rule_submit" | "imports_stage" | "imports_finalize" | "operational_task_status";
 
 export const ADMIN_OPERATION_RULES: ReadonlyArray<{
   id: AdminOperationId;
@@ -82,7 +82,8 @@ export const ADMIN_OPERATION_RULES: ReadonlyArray<{
   limit: string;
   denial: string;
 }> = [
-  { id: "pricing_rules_write", label: "إنشاء وتعديل وتعطيل قواعد التسعير", area: "الأسعار", allowedRoles: ["admin", "manager"], limit: "القواعد المقفلة أو غير المدعومة تظل محكومة بحالتها ومسار الموافقة الأصلي.", denial: "تحتاج إدارة قواعد الأسعار إلى دور مدير النظام أو المدير." },
+  { id: "pricing_rules_write", label: "تعديل القواعد القائمة وشبكة الأسعار", area: "الأسعار", allowedRoles: ["admin", "manager"], limit: "شبكة الأسعار وتعديل القاعدة القائمة محصوران بمدير النظام أو المدير؛ القواعد ذات الموافقة المقفلة لا تعدل مباشرة.", denial: "تعديل القواعد القائمة وشبكة الأسعار يتطلب دور مدير النظام أو المدير." },
+  { id: "pricing_rule_submit", label: "تقديم قاعدة تسعير جديدة للموافقة", area: "الأسعار", allowedRoles: ["admin", "manager", "staff"], limit: "يستطيع موظف التشغيل تقديم قاعدة جديدة فقط؛ يحولها الخادم إلى قاعدة تتطلب موافقة ولا يسمح له بتعديل القاعدة القائمة أو شبكة الأسعار.", denial: "تقديم قواعد التسعير الجديدة يتطلب دورًا تشغيليًا في المؤسسة؛ الحساب المالي أو مسؤول العملاء لا يملكان هذا المسار." },
   { id: "pricing_rules_approve", label: "اعتماد قواعد التسعير", area: "الأسعار", allowedRoles: ["admin", "manager"], limit: "الاعتماد يمر عبر إجراء الموافقة الحالي في الخادم.", denial: "الموافقة على قواعد التسعير محصورة بمدير النظام أو المدير." },
   { id: "product_lifecycle", label: "أرشفة المنتج وإعادة تفعيله", area: "البيانات الأساسية", allowedRoles: ["admin", "manager"], limit: "الأرشفة تحفظ سجل المنتج ولا تحذف الأصل أو تغير رصيد المخزون.", denial: "تغيير دورة حياة المنتج محصور بمدير النظام أو المدير." },
   { id: "inventory_reorder_point", label: "تعديل حد إعادة الطلب", area: "المخزون", allowedRoles: ["admin", "manager"], limit: "يتطلب رصيد مستودع مثبتًا وسببًا للتعديل؛ لا يُنشأ رصيد افتراضي عند غياب المصدر.", denial: "تعديل حد إعادة الطلب محصور بمدير النظام أو المدير." },
@@ -91,9 +92,11 @@ export const ADMIN_OPERATION_RULES: ReadonlyArray<{
   { id: "stock_count_finalize", label: "اعتماد الجرد أو إلغاؤه", area: "المخزون", allowedRoles: ["admin", "manager"], limit: "الاعتماد يطبق الفروقات بمعاملة خادمية واحدة؛ الإلغاء يتطلب سببًا.", denial: "الإقفال النهائي للجرد وإلغاؤه محصوران بمدير النظام أو المدير." },
   { id: "customer_lifecycle", label: "تغيير حالة العميل أو شريحته", area: "العملاء", allowedRoles: ["admin", "manager", "customer_manager"], limit: "تغيير الحالة يتطلب الحالة المتوقعة والسبب، ويسجل التغيير في التدقيق.", denial: "تتطلب دورة العميل صلاحية مدير أو مسؤول العملاء." },
   { id: "customer_activation", label: "تنشيط حساب العميل وإرسال الدعوة", area: "العملاء", allowedRoles: ["admin", "manager", "staff", "customer_manager"], limit: "التنشيط منفصل عن تغيير الحالة والشريحة ويطبق موافقات الخادم.", denial: "لا يملك هذا الدور صلاحية تنشيط حسابات العملاء." },
-  { id: "customer_360", label: "عرض ملف العميل 360", area: "العملاء", allowedRoles: ["admin", "manager"], limit: "العرض لا يوسع صلاحية مسؤول العملاء ولا يمنح وصولًا ماليًا.", denial: "عرض ملف العميل 360 محصور بمدير النظام أو المدير." },
-  { id: "imports_manage", label: "إدارة الاستيراد والتصنيفات", area: "البيانات", allowedRoles: ["admin", "manager"], limit: "الاستيراد يمر بالمعاينة والتحقق قبل اعتماد الكتابة على البيانات الأصلية.", denial: "إدارة الاستيراد والتصنيفات محصورة بمدير النظام أو المدير." },
+  { id: "customer_360", label: "عرض ملف العميل 360", area: "العملاء والمالية", allowedRoles: ["admin", "manager", "accountant"], limit: "ملف 360 يتطلب صلاحية المالية؛ دور مسؤول العملاء لا يكتسب وصول الفواتير والتحصيل بمجرد إدارة ملف العميل.", denial: "عرض ملف العميل 360 يتطلب صلاحية المالية: مدير النظام أو المدير أو المحاسب." },
+  { id: "imports_stage", label: "إنشاء دفعة الاستيراد ورفع الملف ومعاينته", area: "البيانات", allowedRoles: ["admin", "manager", "staff"], limit: "المعاينة والرفع وتجهيز الدفعة لا تنشر لقطة بيانات ولا تستبدل مصدرًا حيًا.", denial: "رفع وتجهيز الاستيراد يتطلب دورًا تشغيليًا في المؤسسة." },
+  { id: "imports_finalize", label: "اعتماد الاستيراد ونشر اللقطة", area: "البيانات", allowedRoles: ["admin", "manager"], limit: "الاعتماد يتطلب اكتمال manifest والشرائح وبصمة إعدادات المطابقة؛ الاستبدال الكامل لا يقبل ملفًا غير مثبت كبيانات كاملة.", denial: "اعتماد الاستيراد ونشر اللقطة محصوران بمدير النظام أو المدير." },
   { id: "purchase_orders_manage", label: "إدارة أوامر الشراء والاستلام", area: "المشتريات", allowedRoles: ["admin", "manager"], limit: "الكميات والاستلامات مرتبطة بسجل أمر الشراء وحركات المخزون المعتمدة.", denial: "إدارة أوامر الشراء محصورة بمدير النظام أو المدير." },
+  { id: "operational_task_status", label: "تحديث حالة المهمة التشغيلية", area: "المهام", allowedRoles: ["admin", "manager", "staff", "accountant"], limit: "يعتمد السماح على مسار المهمة (مبيعات، مستودع، مشتريات، محاسبة، إدارة أو تشغيل) ودور المستخدم؛ تظهر للموظف مهامه المصرح بها فقط.", denial: "لا يملك هذا الدور صلاحية رؤية مسار المهمة أو تحديث حالتها." },
   { id: "finance_manage", label: "إدارة الفواتير والتحصيل", area: "المالية", allowedRoles: ["admin", "manager", "accountant"], limit: "المحاسب يصل إلى المالية والمهام فقط؛ لا يكتسب صلاحيات التسعير أو المخزون أو الطلبات.", denial: "تتطلب المالية دور مدير النظام أو المدير أو المحاسب." },
   { id: "role_assignment", label: "إسناد أدوار مستخدمي المؤسسة", area: "إدارة النظام", allowedRoles: ["admin"], limit: "يتم عبر RPC محمي ومقيد بالمؤسسة، مع حماية الحساب الحالي وآخر مدير نشط وتسجيل التدقيق.", denial: "تعديل أدوار المستخدمين محصور بمدير النظام؛ لا يمكن للحساب تعديل أدواره بنفسه." },
   { id: "audit_intelligence", label: "عرض سجل التدقيق ومركز ذكاء الأعمال", area: "الإدارة", allowedRoles: ["admin", "manager"], limit: "العرض والتحليل لا يستبدلان أمر المصدر عند تنفيذ القرار أو المعاملة.", denial: "سجل التدقيق ومركز ذكاء الأعمال محصوران بمدير النظام أو المدير." },
