@@ -2,12 +2,12 @@
 
 ## P3 body update — 2026-11-06
 
-- P3 latest code-bearing delivery is `eabde4b160cab74b1856ca80a178e88968fc5dc0`; current main/documentation cursor after P3 handoff, matrix and checkpoint updates: `ebcd2408d5a10e5bbd997776782830fdd368e42e`.
+- P3 latest code-bearing delivery is `eabde4b160cab74b1856ca80a178e88968fc5dc0`; the latest P3 checkpoint refresh immediately before this state refresh is commit `b6f4e7d6ec413b3e0a091b94d9d5e93c2d630fde`.
 - Extended Section 61 quality review reads/UI and Section 57 Arabic assistant: independent direct quality RPC read, scorecard composition that survives an unavailable quality migration, reusable metrics panel, explicit true/false/pending alert counts, optional decision linking using only IDs returned by `fetch_decision_outcomes`, and allow-listed Arabic read-only quality queries.
 - Extended Section 57 with aggregate-only customer-service intelligence: tenant-scoped open/response-SLA/resolution-SLA/unassigned/priority counts from a new RPC, strict detail-rejecting DTO, four Arabic intents, current-snapshot-only planner and an Arabic metrics panel. New matrix leaf `REF-NL-CUSTOMER-SERVICE-INTELLIGENCE-001`; Bolt handoff `docs/execution/contracts/P3_CUSTOMER_SERVICE_INTELLIGENCE_HANDOFF.md`.
 - P3 handoff: `docs/execution/contracts/P3_TASK_QUALITY_REVIEW_P1_HANDOFF.md`. Added matrix leaf `REF-TASK-QUALITY-METRICS-ASSISTANT-001`. Detailed exact commit chain and boundaries are in `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`.
 - P1 integration mounts are now present: P1 commit `4eb080d6ee44a74a36086a6cb9014e8d0fb4004b` mounts `TaskQualityReviewForm` in `TaskCenter.tsx` with actual task.id/task.updated_at, canManage, key={task.id} and loadTasks refresh; current `IntelligenceWorkspace.tsx` mounts `NaturalLanguageAssistant` with authorized source-navigation callbacks. P3 did not edit P1-owned components.
-- Quality/scorecard/audit migrations remain source-only pending Bolt non-production acceptance. No tests/build/lint/CI/browser/DB/Bolt/Preview/Vercel/production run or PASS is claimed.
+- Quality/scorecard/audit migrations and the new customer-service aggregate migration `20261106100000_customer_service_intelligence_summary.sql` remain source-only pending approved Bolt non-production acceptance. Focused parser/planner tests are committed but were not run; no tests/build/lint/CI/browser/DB/Bolt/Preview/Vercel/production PASS is claimed.
 - P3 next action: extend Section 52 only with exact tenant-scoped operational evidence/formulas; do not infer baselines. For Section 57, historical SLA trend analytics remain unsupported until an append-only tenant-scoped event source and full-period aggregate exist. The new customer-service summary migration remains unapplied pending approved non-production Bolt acceptance. No weighted 95% closure ratio is certifiable without a defined matrix weighting denominator.
 
 ## P3 next action
