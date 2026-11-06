@@ -2392,3 +2392,12 @@ Before every future write: fetch live `main`, inspect changed files/ownership, s
 
 ### Next P3 action
 Continue the next unimplemented intelligent product-body function from the latest P3 checkpoint. Do not reopen decision-board UI or privacy preference storage unless P2 adds the missing outcome priority/impact contract or sender/consent dependencies.
+
+## P3 incremental delivery — AI Gateway Operations partial read surface — 2026-11-06
+
+- Code-bearing SHA: `91bee9d04cd5ea80f4d6f99228a798529fd1e769`; source commits: `befd0017595d987723331280b29dadad7d072f0f`, `819a8faf06b431897c9021e0a0336ad605fad269`, `50c60626332ab48c2bc6bfb0e6fb54ade4bbb1e6`, `91bee9d04cd5ea80f4d6f99228a798529fd1e769`.
+- P3 added a strict reader and reusable Arabic operations panel over the existing admin/manager `get_ai_gateway_budget()` RPC. It shows configured state, stored primary/fallback models, cost/token totals, active reservations and limits; omits tenant IDs, base URLs, secrets and prompts.
+- The view is read-only and does not reserve quota, call a model or mutate provider configuration. It warns that gateway cost estimates/limits do not certify provider billing or zero paid spend.
+- It explicitly withholds free-tier verification, zero-rate proof, quota remaining/reset, cooldown, privacy classification, last response, per-attempt errors and fallback counts because the current RPC does not return them.
+- P1 mount handoff: `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`. Keep the mount within the existing admin AI view.
+- Status: `PARTIAL_P3_IMPLEMENTED_ON_MAIN / P1_MOUNT_PENDING / P2_PROVIDER_STATUS_SOURCE_OPEN / ACCEPTANCE_PENDING`. No tests/build/CI/browser/DB/Bolt/Preview/Vercel/production execution was performed; no PASS or production claim.
