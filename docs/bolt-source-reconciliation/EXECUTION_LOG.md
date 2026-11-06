@@ -2304,3 +2304,43 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P2: apply the above migrations in approved non-production, supply the missing liquidity opening-balance/future-outflow sources, extend immutable decision priority/impact persistence, and connect preference/consent policy to the transactional notification sender.
 - P3: retain fail-closed currency/evidence semantics and deterministic engines; do not infer missing values or mark any workstream accepted from source presence alone.
 - The central acceptance matrix rows for these nine affected IDs were updated in place. Status remains source-implemented/partial with runtime acceptance pending; no PASS/production claim.
+
+
+## P3 PRODUCT BODY DELIVERY — TASK QUALITY INSIGHT PACK — 2026-11-06
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Starting main SHA: `d77b4fb3bf794b535754c5c38cab16a58cc47459`.
+- Code commit: `9bfb207f2e9c4cd8074866d2f320d7ce3305080e`.
+- Regression test correction: `277e01f20a21b5634a36fad0bc26cdc2c4cd8405`.
+- Documentation base: `1d73d601f9ec813ca1d82fb128e5ff8e69816b1d`; concurrent work was incorporated as parent, not overwritten.
+
+### Delivered
+- Added deterministic `buildTaskQualityInsights()` over the existing validated manager-scoped `TaskQualityMetrics` DTO. No new RPC, table, migration, external provider or tenant selector.
+- Integrated six Arabic operational readings inside the existing `TaskQualityReviewMetrics` panel already mounted by `TaskQualityReviewCenter` in `TaskCenter`:
+  1. Review coverage over visible tasks, including unreviewed count.
+  2. Actionability among decisive ACTIONABLE/NOT_ACTIONABLE judgments; DEFERRED stays outside the denominator.
+  3. Approval share among APPROVED/REJECTED only; deferred decisions stay outside the denominator.
+  4. False-alarm rate among TRUE_POSITIVE/FALSE_POSITIVE; NEEDS_REVIEW remains outside the denominator.
+  5. Deferred disposition share, reported separately rather than treating deferred as rejected.
+  6. Most repeated reason across distinct task IDs, using existing repeated-cause evidence.
+- Zero denominators are withheld, not rendered as 0%. Samples below five decisive judgments are explicitly marked LOW_SAMPLE. Empty, restricted and unavailable states remain explicit.
+- Each insight carries evidence counts, interpretation boundaries and a safe next review action.
+- No composite task-quality score, employee performance rating, causal inference, unsupported historical trend, synthetic baseline, task mutation or automatic policy change.
+- Existing metrics DTO remains the only data authority; raw review event rows are not read by the browser.
+
+### Exact files and blobs
+- `src/lib/intelligence/task-quality-insights.ts` — `ecfbad3e16608f1b3e94c331dfb9850518f46b4d`
+- `src/lib/intelligence/task-quality-insights.test.ts` — `1e58e6c9fb053a3f459eb5415db1738cbf50da2e`
+- `src/components/intelligence/TaskQualityInsightsPanel.tsx` — `2da48b56c21bef8334eac0585f5cd8cc083ce66d`
+- `src/components/intelligence/TaskQualityReviewMetrics.tsx` — `aea17e5f14f32ae2e986569b651f997d724e1e56`
+- `src/lib/intelligence/index.ts` and `src/components/intelligence/index.ts` export the engine and panel.
+
+### Acceptance boundary
+- Status: `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
+- Regression tests are authored/updated but NOT RUN per current instruction. No build, typecheck, lint, CI, browser, database, Bolt, Preview, Vercel or production operation was run.
+- The threshold of five is an evidence-quality label only, not a business-risk threshold. The pack does not assert trend stability or decision quality from small cohorts.
+- Existing task-quality prerequisite migrations and RPC still require approved non-production application and server authorization/replay/stale-version acceptance.
+- No PASS, runtime, browser or production proof is claimed.
+
+### Next P3 action
+Continue with a separate existing-source intelligent capability; do not expand this pack into a composite score or cause attribution unless source contracts add independently verified outcome and timing dimensions.
