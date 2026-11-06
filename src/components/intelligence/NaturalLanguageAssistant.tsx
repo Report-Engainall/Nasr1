@@ -2,6 +2,7 @@ import { useState } from "react";
 import { runNaturalLanguageAssistantQuery,type NaturalLanguageAssistantResponse } from "@/lib/intelligence/natural-language-assistant-client";
 import type { NaturalLanguageInvoiceMatch,NaturalLanguagePurchaseOrder } from "@/lib/intelligence/natural-language-assistant";
 import { TaskQualityReviewMetrics } from "./TaskQualityReviewMetrics";
+import { GrowthOpportunityRadar } from "./GrowthOpportunityRadar";
 export interface NaturalLanguageAssistantProps {onOpenSupplierInvoice?:(invoiceId:string)=>void;onOpenPurchaseOrder?:(purchaseOrderId:string)=>void;}
 const qty=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:0});
 const rate=new Intl.NumberFormat("ar-YE",{maximumFractionDigits:1});
@@ -61,7 +62,7 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
     placeholder="مثال: ما أوامر الشراء المفتوحة؟" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm"/>
    <button type="submit" disabled={loading||!question.trim()} className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50">{loading?"جارٍ الاستعلام…":"اسأل"}</button>
   </form>
-  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
+  <p className="text-xs text-muted-foreground">أمثلة: أوامر الشراء المفتوحة، الأوامر بانتظار الاستلام، المستلمة جزئياً، فواتير المورد ذات فروق السعر، ومعدل الاحتفاظ وتكرار الشراء ومخاطر الخمول ورادار فرص النمو المبنية على طلبات العملاء المثبتة وأداء الموردين والركود واحتياج إعادة التوريد واختناقات العمليات والتحصيلات المستحقة من فواتير العملاء خلال 7 أو 30 أو 90 يوماً، والمهام المفتوحة وإعادة فتح المهام، والتقرير اليومي أو الأسبوعي أو الشهري للمهام، ومخاطر المهام للإدارة، وملخص القرارات والقرارات قيد المراجعة والقرارات بانتظار التنفيذ، وجودة المهام والتوصيات والإنذارات بعد المراجعة، وحالات خدمة العملاء المفتوحة، وتأخر أول استجابة، وتجاوز موعد الحل، والحالات غير المسندة. لا يُستنتج التأخير من عمر الأمر أو من تاريخ إنشائه.</p>
   {response?.status==="CLARIFICATION"||response?.status==="UNSUPPORTED"?<div role="status" className="rounded-lg border p-3 text-sm">
    <p>{response.plan.explanation}</p>{response.plan.clarification?<p className="mt-2 font-medium">{response.plan.clarification}</p>:null}</div>:null}
   {response&&["DENIED","UNAVAILABLE","ERROR"].includes(response.status)?<div role="alert" className="rounded-lg border p-3 text-sm">
@@ -230,6 +231,18 @@ export function NaturalLanguageAssistant({onOpenSupplierInvoice,onOpenPurchaseOr
    </div>:null}
    {response.result.withheldReasons.length?<div role="status" className="rounded-lg border p-3 text-xs"><strong>قيود القياس</strong><ul className="mt-1 list-disc space-y-1 ps-5">{response.result.withheldReasons.map(reason=><li key={reason}>{reason}</li>)}</ul></div>:null}
    <p className="text-xs text-muted-foreground">المؤشرات تشغيلية فقط؛ لا تعرض أسعار الموردين أو أرصدتهم، ولا تنشئ أوامر شراء. لا يُحسب متوسط زمن التوريد من متوسطات الموردين المنفصلة.</p>
+  </div>:null}
+  {response?.status==="RESULT"&&response.result.kind==="GROWTH_RADAR"?<div className="space-y-3">
+   <div className="rounded-lg border p-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <strong>رادار فرص النمو</strong>
+     <span className="rounded-full border px-2 py-1 text-xs">{response.result.completePopulation?"مجتمع العملاء مكتمل":"تغطية جزئية — فرص السجلات المثبتة فقط"}</span>
+    </div>
+    <p className="mt-2">{response.result.answer}</p>
+    <p className="mt-1 text-xs text-muted-foreground">المصدر: {response.result.sourceRpc} · كما في {response.result.asOf} · نافذة التحليل: {response.result.periodDays} يوماً، ومقارنتها بفترة سابقة مساوية.</p>
+   </div>
+   <GrowthOpportunityRadar result={response.result.radar} state="ready"/>
+   <p className="text-xs text-muted-foreground">العقد الحالي ينتج إشارات تكرار الشراء وتراجع نشاط العميل من أدلة الطلبات فقط. تحويل عرض السعر إلى طلب والبحث عن منتج غير متاح لا يدخلان في هذا المصدر، ولا يُفسَّر غيابهما على أنه صفر طلب. الفرص المعروضة ليست توقعاً للربح أو وعداً بالشراء ولا تنفذ إجراءً تلقائياً.</p>
   </div>:null}
   {response?.status==="RESULT"&&response.result.kind==="CUSTOMER_RETENTION"?<div className="space-y-3">
    <div className="rounded-lg border p-3 text-sm">

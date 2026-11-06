@@ -8,6 +8,7 @@ import type { CashflowScheduleSnapshot } from "./cashflow-schedule-client";
 import type { TaskIntelligenceReport, TaskIntelligenceReportKind } from "./task-intelligence-reports";
 import type { TaskQualityMetrics } from "./task-quality-reviews";
 import type { DecisionOutcomeState, DecisionOutcomeView } from "./decision-outcome-client";
+import type { GrowthOpportunityRadarResult } from "./growth-opportunities";
 export type SupplierInvoiceIntent="SUPPLIER_INVOICES_UNMATCHED"|"SUPPLIER_INVOICES_PRICE_REVIEW"|"SUPPLIER_INVOICES_MATCHED";
 export type PurchaseOrderIntent="PURCHASE_ORDERS_OPEN"|"PURCHASE_ORDERS_AWAITING_RECEIPT"|"PURCHASE_ORDERS_PARTIAL_RECEIPT";
 export type CustomerRetentionIntent="CUSTOMER_RETENTION_OVERVIEW"|"CUSTOMER_REPEAT_PURCHASE"|"CUSTOMER_DORMANCY_RISK";
@@ -18,13 +19,14 @@ export type ProcessTaskIntent="OPEN_TASKS_OVERVIEW"|"REOPENED_TASKS_OVERVIEW";
 export type TaskIntelligenceReportIntent="DAILY_TASK_REPORT"|"WEEKLY_TASK_REPORT"|"MONTHLY_TASK_REPORT"|"MANAGER_TASK_RISKS";
 export type ExpectedCollectionsIntent="EXPECTED_CUSTOMER_COLLECTIONS";
 export type TaskQualityIntent="TASK_QUALITY_OVERVIEW";
+export type GrowthRadarIntent="GROWTH_RADAR_OVERVIEW";
 export type DecisionOutcomesIntent="DECISION_OUTCOMES_OVERVIEW"|"DECISIONS_PENDING_REVIEW"|"DECISIONS_AWAITING_EXECUTION";
 export type CustomerServiceIntent=
  |"CUSTOMER_SERVICE_OVERVIEW"
  |"CUSTOMER_SERVICE_RESPONSE_OVERDUE"
  |"CUSTOMER_SERVICE_RESOLUTION_OVERDUE"
  |"CUSTOMER_SERVICE_UNASSIGNED";
-export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent;
+export type NaturalLanguageIntent=SupplierInvoiceIntent|PurchaseOrderIntent|CustomerRetentionIntent|SupplierPerformanceIntent|InventoryIntent|ProcessBottleneckIntent|ProcessTaskIntent|TaskIntelligenceReportIntent|ExpectedCollectionsIntent|TaskQualityIntent|CustomerServiceIntent|DecisionOutcomesIntent|GrowthRadarIntent;
 export type NaturalLanguageSourceRpc="fetch_purchase_supplier_invoice_workspace"|"fetch_purchase_orders"|"get_customer_retention_aggregate"|"fetch_supplier_performance_snapshot"|"get_inventory_intelligence_aggregate"|"fetch_process_bottleneck_snapshot"|"fetch_task_intelligence_report"|"get_intelligence_aggregate"|"fetch_operational_task_quality_metrics"|"get_customer_service_work_queue_summary"|"fetch_decision_outcomes";
 export type NaturalLanguagePlanResult=
  |{status:"READY";intent:NaturalLanguageIntent;normalizedQuestion:string;sourceRpc:NaturalLanguageSourceRpc;filterDescription:string;periodDays?:30|60|90|180|365;horizonDays?:7|30|90;taskReportKind?:TaskIntelligenceReportKind}
@@ -155,6 +157,23 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    ?"SUPPLIER_DELIVERY_ADHERENCE":"SUPPLIER_PERFORMANCE_OVERVIEW";
   return {status:"READY",intent,normalizedQuestion,sourceRpc:"fetch_supplier_performance_snapshot",periodDays,
    filterDescription:"مؤشرات المشتريات الفعلية للموردين في نافذة UTC بطول "+periodDays+" يوماً؛ لا تشمل أسعاراً أو أرصدة أو درجات جودة غير مثبتة."};
+ }
+ const growthRadarQuestion=/(رادار النمو|فرص النمو|فرص تجاريه|فرص متابعه العملاء|فرص اعاده الشراء|فرص تكرار الشراء|عملاء يحتاجون متابعه|فرص النمو للعملاء)/.test(normalizedQuestion);
+ if(growthRadarQuestion){
+  const dayMatch=normalizedQuestion.match(/(?:اخر\\s*)?(30|60|90|180|365)\\s*(?:يوما?|ايام)/);
+  const monthPeriod=/اخر شهر/.test(normalizedQuestion)?30:
+   /اخر 3 اشهر/.test(normalizedQuestion)?90:/اخر 6 اشهر/.test(normalizedQuestion)?180:
+   /اخر سنه/.test(normalizedQuestion)?365:null;
+  const hasDateConstraint=/(من تاريخ|بين تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2}|الربع|هذا الشهر|الشهر الحالي|الاسبوع الحالي)/.test(normalizedQuestion);
+  const hasSupportedPeriod=Boolean(dayMatch||monthPeriod!==null);
+  if(hasDateConstraint||/(اخر|خلال|منذ|الفتره)/.test(normalizedQuestion)&&!hasSupportedPeriod)return {
+   status:"UNSUPPORTED",normalizedQuestion,
+   explanation:"رادار النمو الحالي يقارن نوافذ UTC متساوية من 30 أو 60 أو 90 أو 180 أو 365 يوماً؛ لا يدعم تاريخاً حراً أو فترة تقويمية."
+  };
+  const periodDays=(dayMatch?Number(dayMatch[1]):monthPeriod??90) as 30|60|90|180|365;
+  return {status:"READY",intent:"GROWTH_RADAR_OVERVIEW",normalizedQuestion,
+   sourceRpc:"get_customer_retention_aggregate",periodDays,
+   filterDescription:"إشارات تكرار الشراء وتراجع نشاط العميل فقط من مجتمع الطلبات الحالي، عبر فترتين متساويتين وأدلة مصدر موثقة؛ لا تشمل تحويل عروض الأسعار أو البحث عن منتجات غير متاحة ما لم يوردهما مصدر مستقل."};
  }
  const retentionQuestion=/(احتفاظ|استبقاء|تكرار الشراء|شراء متكرر|متكرر|نشاط العملاء|نشطون|الخمول|خاملون|معرضون للخمول|معرضين للخمول|معرض للخمول|فتور)/.test(normalizedQuestion);
  if(retentionQuestion){
@@ -291,6 +310,12 @@ export interface NaturalLanguageCustomerRetentionResult {
  activity:{active30Days:number|null;cooling31To60Days:number|null;atRisk61To90Days:number|null;inactiveOver90Days:number|null;noOrderDate:number|null};
  warnings:string[];
 }
+export interface NaturalLanguageGrowthRadarResult {
+ kind:"GROWTH_RADAR";state:"READY"|"PARTIAL";intent:GrowthRadarIntent;
+ answer:string;sourceRpc:"get_customer_retention_aggregate";asOf:string;periodDays:30|60|90|180|365;
+ completePopulation:boolean;radar:GrowthOpportunityRadarResult;
+}
+
 export interface NaturalLanguageSupplierPerformanceResult {
  kind:"SUPPLIER_PERFORMANCE";state:"READY"|"PARTIAL"|"EMPTY";intent:SupplierPerformanceIntent;
  answer:string;sourceRpc:"fetch_supplier_performance_snapshot";asOf:string;period:{from:string;to:string};
@@ -356,7 +381,7 @@ export interface NaturalLanguageDecisionOutcomesResult {
  countsByState:Record<DecisionOutcomeState,number>;
 }
 
-export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult;
+export type NaturalLanguageResolvedResult=NaturalLanguageInvoiceResult|NaturalLanguagePurchaseOrderResult|NaturalLanguageCustomerRetentionResult|NaturalLanguageSupplierPerformanceResult|NaturalLanguageInventoryResult|NaturalLanguageProcessBottleneckResult|NaturalLanguageProcessTasksResult|NaturalLanguageTaskReportResult|NaturalLanguageExpectedCollectionsResult|NaturalLanguageTaskQualityResult|NaturalLanguageCustomerServiceResult|NaturalLanguageDecisionOutcomesResult|NaturalLanguageGrowthRadarResult;
 export function resolveSupplierInvoiceIntent(
  intent:SupplierInvoiceIntent,records:SupplierInvoiceRecord[],metadata:{invoiceCount:number;hasMore:boolean;asOfDate:string},
 ):NaturalLanguageInvoiceResult {

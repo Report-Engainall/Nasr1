@@ -12,7 +12,7 @@ import { fetchDecisionOutcomes } from "./decision-outcome-client";
 import { buildDeadStockReport } from "./dead-stock";
 import { buildReplenishmentRecommendations } from "./replenishment";
 import { planNaturalLanguageQuery,resolvePurchaseOrderIntent,resolveSupplierInvoiceIntent,
- type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent } from "./natural-language-assistant";
+ type NaturalLanguagePlanResult,type NaturalLanguageResolvedResult,type SupplierInvoiceIntent,type PurchaseOrderIntent,type CustomerRetentionIntent,resolveCustomerRetentionIntent,type SupplierPerformanceIntent,resolveSupplierPerformanceIntent,type InventoryIntent,resolveInventoryIntent,type ProcessBottleneckIntent,resolveProcessBottlenecksIntent,type ProcessTaskIntent,resolveProcessTasksIntent,type TaskIntelligenceReportIntent,resolveTaskIntelligenceReport,type ExpectedCollectionsIntent,resolveExpectedCollectionsIntent,type TaskQualityIntent,type CustomerServiceIntent,resolveCustomerServiceIntent,type DecisionOutcomesIntent,resolveDecisionOutcomesIntent,type GrowthRadarIntent } from "./natural-language-assistant";
 export type NaturalLanguageAssistantResponse=
  |{status:"RESULT";plan:Extract<NaturalLanguagePlanResult,{status:"READY"}>;result:NaturalLanguageResolvedResult}
  |{status:"CLARIFICATION"|"UNSUPPORTED";plan:Exclude<NaturalLanguagePlanResult,{status:"READY"}>}
@@ -127,8 +127,22 @@ export async function runNaturalLanguageAssistantQuery(question:string):Promise<
     plan.intent as SupplierPerformanceIntent,supplier.result)};
   }
   if(plan.sourceRpc==="get_customer_retention_aggregate"){
-   const retention=await fetchCustomerRetentionAggregate(plan.periodDays??90,new Date().toISOString());
+   const periodDays=plan.periodDays??90;
+   const retention=await fetchCustomerRetentionAggregate(periodDays,new Date().toISOString());
    if(!retention.ok)return {status:retention.status,message:retention.message};
+   if(plan.intent==="GROWTH_RADAR_OVERVIEW"){
+    const completePopulation=retention.data.status==="VERIFIED"&&retention.data.population.total!==null;
+    const radar=retention.growthRadar;
+    const answer=completePopulation
+     ?"رادار النمو قيّم "+radar.evaluatedSignals+" إشارة من مجتمع العملاء المكتمل، وأظهر "+radar.opportunities.length+" فرصة اجتازت العتبات و"+radar.withheld.length+" إشارة محجوبة."
+     :"تغطية مجتمع العملاء غير مكتملة؛ يعرض الرادار فقط الإشارات الفردية المثبتة من السجلات المستلمة ("+radar.opportunities.length+" فرصة و"+radar.withheld.length+" إشارة محجوبة)، ولا يمثل كامل فرص المؤسسة.";
+    return {status:"RESULT",plan,result:{
+     kind:"GROWTH_RADAR",state:completePopulation?"READY":"PARTIAL",
+     intent:plan.intent as GrowthRadarIntent,answer,
+     sourceRpc:"get_customer_retention_aggregate",asOf:radar.asOf,
+     periodDays,completePopulation,radar,
+    }};
+   }
    return {status:"RESULT",plan,result:resolveCustomerRetentionIntent(
     plan.intent as CustomerRetentionIntent,retention.data)};
   }
