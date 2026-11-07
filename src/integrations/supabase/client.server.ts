@@ -38,7 +38,7 @@ function createSupabaseAdminClient() {
       ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
       ...(!SUPABASE_SERVICE_ROLE_KEY ? ['SUPABASE_SERVICE_ROLE_KEY'] : []),
     ];
-    const message = `Missing server database secret(s): ${missing.join(', ')}. Configure the trusted database credentials in Bolt project secrets.`;
+    const message = `Missing server database secret(s): ${missing.join(', ')}. Configure the trusted Supabase credentials in the server environment.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
