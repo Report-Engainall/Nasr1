@@ -308,9 +308,9 @@ function DecisionCyclePanel({
   const showItems = !outcomesLoading && outcomes.length > 0;
 
   return (
-    <section className="panel space-y-3">
+    <section className="panel space-y-3" aria-labelledby="saved-decision-register-heading">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2"><ShieldCheck size={18} /><h2>دورة القرارات المحفوظة</h2></div>
+        <div className="flex items-center gap-2"><ShieldCheck size={18} /><h2 id="saved-decision-register-heading">دورة القرارات المحفوظة</h2></div>
         <span className="text-xs text-muted-foreground">{outcomeResult?.ok ? outcomeResult.total + " قرار" : ""}</span>
       </div>
       <p className="report-note">كل انتقال يحفظ بإصدار متوقع ومفتاح منع تكرار وسجل تدقيق ذري. لا يتغير وضع القرار محلياً قبل استجابة الخادم.</p>

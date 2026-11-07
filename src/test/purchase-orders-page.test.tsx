@@ -136,10 +136,10 @@ describe('purchase orders page',()=>{
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
     fireEvent.change(screen.getAllByLabelText('الصنف')[0],{target:{value:'product-1'}});
-    fireEvent.click(screen.getByRole('button',{name:/إضافة صنف/}));
+    fireEvent.click(screen.getAllByRole('button',{name:/إضافة صنف/})[0]);
     fireEvent.change(screen.getAllByLabelText('الصنف')[1],{target:{value:'product-1'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/الصنف مكرر/);
+    expect((await screen.findByText(/الصنف مكرر/)).closest('[role="alert"]')?.textContent).toMatch(/الصنف مكرر/);
     expect(mocks.createPurchaseOrder).not.toHaveBeenCalled();
   });
 
@@ -150,7 +150,7 @@ describe('purchase orders page',()=>{
     fireEvent.change(screen.getAllByLabelText('الصنف').at(-1)!,{target:{value:'product-1'}});
     fireEvent.change(screen.getByLabelText('الكمية المطلوبة'),{target:{value:'1.0001'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/الكمية يجب أن تكون موجبة/);
+    expect((await screen.findByText(/الكمية يجب أن تكون موجبة/)).closest('[role="alert"]')?.textContent).toMatch(/الكمية يجب أن تكون موجبة/);
     expect(mocks.createPurchaseOrder).not.toHaveBeenCalled();
   });
 
@@ -161,7 +161,7 @@ describe('purchase orders page',()=>{
     fireEvent.change(screen.getAllByLabelText('الصنف').at(-1)!,{target:{value:'product-1'}});
     fireEvent.change(screen.getByLabelText('تكلفة الوحدة (اختياري)'),{target:{value:'12.345'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/تكلفة الوحدة يجب أن تكون غير سالبة/);
+    expect((await screen.findByText(/تكلفة الوحدة يجب أن تكون غير سالبة/)).closest('[role="alert"]')?.textContent).toMatch(/تكلفة الوحدة يجب أن تكون غير سالبة/);
     expect(mocks.createPurchaseOrder).not.toHaveBeenCalled();
   });
 
@@ -172,7 +172,7 @@ describe('purchase orders page',()=>{
     fireEvent.click(screen.getByRole('button',{name:/PO-20261019-000001/}));
     fireEvent.change(await screen.findByLabelText('كمية الاستلام سكر'),{target:{value:'2.001'}});
     fireEvent.click(screen.getByRole('button',{name:/ترحيل إيصال الاستلام/}));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/كمية استلام سكر/);
+    expect((await screen.findByText(/كمية استلام سكر/)).closest('[role="alert"]')?.textContent).toMatch(/كمية استلام سكر/);
     expect(mocks.receivePurchaseOrder).not.toHaveBeenCalled();
   });
 

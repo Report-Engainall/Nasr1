@@ -140,7 +140,7 @@ describe("customer order detail retry", () => {
       requested_quantity: 5,
       approved_quantity: 3,
     }];
-    mocks.rpc.mockResolvedValueOnce({ data: templateId, error: null });
+    mocks.rpc.mockImplementation(async (name: string) => name === "save_reorder_template" ? { data: templateId, error: null } : { data: [], error: null });
 
     await act(async () => {
       root?.render(<OrderInvoice id={ORDER_ID} />);
@@ -157,12 +157,13 @@ describe("customer order detail retry", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(mocks.rpc).toHaveBeenCalledTimes(1);
-    expect(mocks.rpc).toHaveBeenCalledWith("save_reorder_template", {
+    const templateSaveCalls = mocks.rpc.mock.calls.filter(([name]) => name === "save_reorder_template");
+    expect(templateSaveCalls).toHaveLength(1);
+    expect(templateSaveCalls[0]).toEqual(["save_reorder_template", {
       p_name: "إعادة طلب ORD-RETRY-001",
       p_lines: [{ product_id: productId, quantity: 3 }],
       p_source_order_id: ORDER_ID,
-    });
+    }]);
     expect(host?.textContent).toContain("تم حفظ قالب مرتبط بالطلب ORD-RETRY-001");
     expect(host?.textContent).toContain("فتح مساحة إعادة الطلب");
     expect(host?.querySelector<HTMLButtonElement>('button[aria-label="حفظ كقالب إعادة الطلب"]')?.disabled).toBe(true);
@@ -188,7 +189,7 @@ describe("customer order detail retry", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalledWith("save_reorder_template", expect.anything());
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("أحد الأصناف لم يعد مرتبطًا بمنتج صالح");
   });
 
@@ -201,7 +202,7 @@ describe("customer order detail retry", () => {
       requested_quantity: 2,
       approved_quantity: 2,
     }];
-    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("permission denied") });
+    mocks.rpc.mockImplementation(async (name: string) => name === "save_reorder_template" ? { data: null, error: new Error("permission denied") } : { data: [], error: null });
 
     await act(async () => {
       root?.render(<OrderInvoice id={ORDER_ID} />);

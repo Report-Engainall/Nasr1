@@ -120,14 +120,14 @@ describe("TaskCenter role-boundary and print integration", () => {
   it("shows warehouse receipt work to staff while keeping return approval management-only", async () => {
     setUser(["staff"]);
     const { unmount } = render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
     expect(screen.getByTestId("return-receipt-queue")).toBeInTheDocument();
     expect(screen.queryByTestId("return-review-queue")).not.toBeInTheDocument();
     unmount();
 
     setUser(["manager"]);
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
     expect(screen.getByTestId("return-review-queue")).toBeInTheDocument();
     expect(screen.getByTestId("return-receipt-queue")).toBeInTheDocument();
   });
@@ -136,8 +136,8 @@ describe("TaskCenter role-boundary and print integration", () => {
     setUser(["staff"]);
     render(<TaskCenter onNotice={vi.fn()} />);
 
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
-    expect(screen.getByRole("heading", { name: "حركة جرد المخزن" })).toBeInTheDocument();
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
+    expect(screen.getByRole("heading", { level: 2, name: "حركة جرد المخزن" })).toBeInTheDocument();
     expect(screen.queryByText("مراجعة قيد محاسبي خاص")).not.toBeInTheDocument();
 
     const printRoot = document.querySelector(".operational-task-print");
@@ -164,7 +164,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     ]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "مراجعة جرد المخزن" });
+    await screen.findByRole("heading", { level: 2, name: "مراجعة جرد المخزن" });
 
     const printRoot = document.querySelector(".operational-task-print");
     expect(printRoot).not.toBeNull();
@@ -182,7 +182,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     ]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "مهمة بيع مرئية" });
+    await screen.findByRole("heading", { level: 2, name: "مهمة بيع مرئية" });
     expect(screen.queryByText("مهمة محاسبة مخفية")).not.toBeInTheDocument();
 
     const openMetrics = screen.getByText("المهام المفتوحة").closest("article");
@@ -199,7 +199,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     setUser(["manager"]);
     render(<TaskCenter onNotice={vi.fn()} />);
 
-    await screen.findByRole("heading", { name: "مراجعة قيد محاسبي خاص" });
+    await screen.findByRole("heading", { level: 2, name: "مراجعة قيد محاسبي خاص" });
     fireEvent.change(screen.getByPlaceholderText("عنوان المهمة أو التفاصيل أو مرجع المصدر"), {
       target: { value: "طلب عميل" },
     });
@@ -226,7 +226,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     ]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "طلب عميل محدد للطباعة" });
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل محدد للطباعة" });
 
     fireEvent.change(screen.getByPlaceholderText("عنوان المهمة أو التفاصيل أو مرجع المصدر"), {
       target: { value: "طلب عميل محدد" },
@@ -262,7 +262,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     ]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "مهمة مبيعات حرجة متأخرة" });
+    await screen.findByRole("heading", { level: 2, name: "مهمة مبيعات حرجة متأخرة" });
 
     const printRoot = document.querySelector(".operational-task-print") as HTMLElement;
     const summary = printRoot.querySelector(".task-print-summary-cards") as HTMLElement;
@@ -284,7 +284,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     setUser(["manager"]);
     render(<TaskCenter onNotice={vi.fn()} />);
 
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
     fireEvent.click(screen.getAllByRole("button", { name: "استلام" })[0]);
 
     await waitFor(() => expect(mocks.setOperationalTaskStatus).toHaveBeenCalledWith(
@@ -304,7 +304,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     const onNotice = vi.fn();
     render(<TaskCenter onNotice={onNotice} />);
 
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
     await waitFor(() => expect(mocks.fetchOperationalTaskAssignees).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: /مهمة يدوية/ }));
 
@@ -359,9 +359,9 @@ describe("TaskCenter role-boundary and print integration", () => {
     ]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
 
-    let card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+    let card = screen.getByRole("heading", { level: 2, name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
     let assignee = within(card).getByLabelText("المسؤول الجديد للمهمة: طلب عميل للتجهيز") as HTMLSelectElement;
     expect(within(assignee).getByRole("option", { name: "موظف المبيعات البديل" })).toBeInTheDocument();
     expect(within(assignee).queryByRole("option", { name: "محاسب المؤسسة" })).not.toBeInTheDocument();
@@ -371,7 +371,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     await waitFor(() => expect(mocks.assignOperationalTask).toHaveBeenNthCalledWith(1, "sales-order", "profile-sales-b"));
     await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
 
-    card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+    card = screen.getByRole("heading", { level: 2, name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
     assignee = within(card).getByLabelText("المسؤول الجديد للمهمة: طلب عميل للتجهيز") as HTMLSelectElement;
     expect(assignee.value).toBe("profile-sales-b");
     fireEvent.change(assignee, { target: { value: "" } });
@@ -394,9 +394,9 @@ describe("TaskCenter role-boundary and print integration", () => {
       .mockResolvedValueOnce([{ ...sourceTask, priority: "critical", due_at: "2026-11-05T11:30:00.000Z" }]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
 
-    const card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+    const card = screen.getByRole("heading", { level: 2, name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
     fireEvent.change(within(card).getByLabelText("أولوية المهمة: طلب عميل للتجهيز"), { target: { value: "critical" } });
     const dueAt = "2026-11-05T14:30";
     fireEvent.change(within(card).getByLabelText("موعد استحقاق المهمة: طلب عميل للتجهيز"), { target: { value: dueAt } });
@@ -431,10 +431,10 @@ describe("TaskCenter role-boundary and print integration", () => {
       .mockResolvedValueOnce([{ ...manualTask, title: "مراجعة طلبات الموردين", description: "مطابقة أمر الشراء مع الإيصال" }, sourceTask]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "مهمة يدوية" });
-    await screen.findByRole("heading", { name: "مهمة مولدة من طلب" });
-    const manualCard = screen.getByRole("heading", { name: "مهمة يدوية" }).closest("article") as HTMLElement;
-    const sourceCard = screen.getByRole("heading", { name: "مهمة مولدة من طلب" }).closest("article") as HTMLElement;
+    await screen.findByRole("heading", { level: 2, name: "مهمة يدوية" });
+    await screen.findByRole("heading", { level: 2, name: "مهمة مولدة من طلب" });
+    const manualCard = screen.getByRole("heading", { level: 2, name: "مهمة يدوية" }).closest("article") as HTMLElement;
+    const sourceCard = screen.getByRole("heading", { level: 2, name: "مهمة مولدة من طلب" }).closest("article") as HTMLElement;
     expect(within(manualCard).getByRole("button", { name: "تعديل نص المهمة" })).toBeInTheDocument();
     expect(within(sourceCard).queryByRole("button", { name: "تعديل نص المهمة" })).not.toBeInTheDocument();
 
@@ -470,8 +470,8 @@ describe("TaskCenter role-boundary and print integration", () => {
       .mockResolvedValueOnce([{ ...sourceTask, status: "pending", resolution_note: null }]);
 
     render(<TaskCenter onNotice={vi.fn()} />);
-    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
-    const card = screen.getByRole("heading", { name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
+    await screen.findByRole("heading", { level: 2, name: "طلب عميل للتجهيز" });
+    const card = screen.getByRole("heading", { level: 2, name: "طلب عميل للتجهيز" }).closest("article") as HTMLElement;
 
     fireEvent.click(within(card).getByRole("button", { name: "إلغاء المهمة" }));
     const reasonInput = within(card).getByLabelText("سبب إلغاء المهمة: طلب عميل للتجهيز") as HTMLTextAreaElement;

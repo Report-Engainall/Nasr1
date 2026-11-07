@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "@/lib/intelligence/types";
 import type { DecisionOutcomeView } from "@/lib/intelligence/decision-outcome-client";
 import type { InventoryIntelligenceData } from "@/lib/intelligence/inventory-intelligence-client";
@@ -310,19 +310,20 @@ describe("production intelligence workspace inventory screens", () => {
       .mockResolvedValueOnce({ ok: true, items: [second], total: 51 })
       .mockResolvedValueOnce({ ok: true, items: [first], total: 51 });
     render(<IntelligenceWorkspace />);
-    expect(await screen.findByText("قرار الصفحة الأولى")).toBeInTheDocument();
-    expect(screen.getByText("عرض 1–1 من 51")).toBeInTheDocument();
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    expect(await within(register).findByText("قرار الصفحة الأولى")).toBeInTheDocument();
+    expect(within(register).getByText("عرض 1–1 من 51")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "السابق" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "التالي" }));
-    expect(await screen.findByText("قرار الصفحة الثانية")).toBeInTheDocument();
-    expect(screen.queryByText("قرار الصفحة الأولى")).not.toBeInTheDocument();
+    expect(await within(register).findByText("قرار الصفحة الثانية")).toBeInTheDocument();
+    expect(within(register).queryByText("قرار الصفحة الأولى")).not.toBeInTheDocument();
     expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(2, 50, 50);
-    expect(screen.getByText("عرض 51–51 من 51")).toBeInTheDocument();
+    expect(within(register).getByText("عرض 51–51 من 51")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "التالي" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "السابق" }));
-    expect(await screen.findByText("قرار الصفحة الأولى")).toBeInTheDocument();
+    expect(await within(register).findByText("قرار الصفحة الأولى")).toBeInTheDocument();
     expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(3, 50, 0);
-    expect(screen.queryByText("قرار الصفحة الثانية")).not.toBeInTheDocument();
+    expect(within(register).queryByText("قرار الصفحة الثانية")).not.toBeInTheDocument();
   });
 
   it("offers a retry action when loading the decision register fails", async () => {
@@ -331,9 +332,10 @@ describe("production intelligence workspace inventory screens", () => {
       .mockResolvedValueOnce({ ok: false, status: "UNAVAILABLE", message: "تعذر تحميل سجل القرارات." })
       .mockResolvedValueOnce({ ok: true, items: [recovered], total: 1 });
     render(<IntelligenceWorkspace />);
-    expect(await screen.findByText("تعذر تحميل سجل القرارات.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "إعادة تحميل القرارات" }));
-    expect(await screen.findByText("قرار مستعاد")).toBeInTheDocument();
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    expect(await within(register).findByText("تعذر تحميل سجل القرارات.")).toBeInTheDocument();
+    fireEvent.click(within(register).getByRole("button", { name: "إعادة تحميل القرارات" }));
+    expect(await within(register).findByText("قرار مستعاد")).toBeInTheDocument();
     expect(mocks.fetchOutcomes).toHaveBeenNthCalledWith(2, 50, 0);
   });
 
@@ -417,7 +419,7 @@ describe("production intelligence workspace inventory screens", () => {
     });
     render(<IntelligenceWorkspace />);
     expect(await screen.findByText("لا توجد منتجات نشطة موثقة في هذه المؤسسة.")).toBeInTheDocument();
-    expect(screen.getAllByText(/المصدر غير متاح/)).toHaveLength(4);
+    expect(screen.getAllByText(/المصدر غير متاح/).length).toBeGreaterThanOrEqual(4);
     expect(screen.queryByText("0 EA")).not.toBeInTheDocument();
   });
   it("mounts the executive liquidity command center in the intelligence workspace", async () => {

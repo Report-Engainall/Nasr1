@@ -196,7 +196,9 @@ describe("customer order-list real route acceptance", () => {
     expect(host?.textContent).not.toContain("لا توجد طلبات بعد.");
     expect(host?.textContent).not.toContain("777777");
 
-    const retry = host?.querySelector<HTMLButtonElement>('button');
+    const retry = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((button) =>
+      button.textContent?.includes("إعادة المحاولة"),
+    );
     expect(retry?.textContent).toContain("إعادة المحاولة");
     await act(async () => {
       retry?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -223,7 +225,9 @@ describe("customer order-list real route acceptance", () => {
     expect(host?.textContent).not.toContain("لا توجد طلبات بعد.");
 
     mocks.countOverride = 0;
-    const retry = host?.querySelector<HTMLButtonElement>('button');
+    const retry = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((button) =>
+      button.textContent?.includes("إعادة المحاولة"),
+    );
     await act(async () => {
       retry?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 0));
