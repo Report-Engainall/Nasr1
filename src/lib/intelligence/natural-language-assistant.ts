@@ -309,7 +309,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    explanation:"ملخص خدمة العملاء لقطة حالية عند وقت الاستعلام؛ لا يدعم تاريخاً ماضياً أو مقارنة زمنية. لا أستبدل ذلك بآخر سجلات الحالات."
   };
   const intent:CustomerServiceIntent=customerServiceUnassignedQuestion?"CUSTOMER_SERVICE_UNASSIGNED":
-   اول استجابه|الاستجابه الاولى|اول رد|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":
+   /اول استجابه|الاستجابه الاولى|اول رد|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد/.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":
    /موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات/.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESOLUTION_OVERDUE":
    customerServiceSlaQuestion?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":"CUSTOMER_SERVICE_OVERVIEW";
   return {
