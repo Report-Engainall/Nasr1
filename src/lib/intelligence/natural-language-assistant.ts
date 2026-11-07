@@ -229,7 +229,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    explanation:"مصدر الاحتفاظ يدعم نوافذ محددة فقط (30 أو 60 أو 90 أو 180 أو 365 يوماً)، ولا يطبق تواريخ حرة أو فترات تقويمية غير مطابقة."
   };
   const intent:CustomerRetentionIntent=/(الخمول|خاملون|معرضون للخمول|معرضين للخمول|معرض للخمول|فتور)/.test(normalizedQuestion)
-   ?"CUSTOMER_DORMANCY_RISK":/(تكرار الشراء|شراء متكرر|متكرر)/.test(normalizedQuestion)
+   ?"CUSTOMER_DORMANCY_RISK":/(تكرار الشراء|شراء متكرر|العملاء المتكررون|العملاء متكررو الشراء)/.test(normalizedQuestion)
    ?"CUSTOMER_REPEAT_PURCHASE":"CUSTOMER_RETENTION_OVERVIEW";
   return {status:"READY",intent,normalizedQuestion,sourceRpc:"get_customer_retention_aggregate",periodDays,
    filterDescription:"مجتمع العملاء الكامل من أوامر المؤسسة النشطة غير الملغاة؛ مقارنة نافذتين متتاليتين متساويتين بطول "+periodDays+" يوماً؛ قراءة مجمعة فقط."};
@@ -257,14 +257,15 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"ملخص مجمع حالي لطلبات البيع داخل المؤسسة التي يسمح دور الموظف برؤيتها، مصنف حسب حالات الطلب المعتمدة؛ لا يعيد أسماء العملاء أو معرفات الطلبات أو المبالغ أو تفاصيل السطور."
   };
  }
- const purchaseQuestion=/(امر|اوامر|شراء|مشتريات|توريد)/.test(normalizedQuestion);
+ const supplierQuoteComparisonQuestion=/(مقارنه عروض الموردين|قارن عروض الموردين|مقارنه اسعار الموردين|قارن اسعار الموردين|مقارنه عروض التوريد|اقل سعر.*(الموردين|مورد)|اقل تكلفه.*(الموردين|مورد)|العروض الوارده من الموردين|سجل اسعار عروض الموردين|تاريخ اسعار الموردين|تغير اسعار عروض الموردين|التغير التاريخي لاسعار الموردين|كيف تغير سعر المورد|مقارنه عروض الموردين.*(اداء|التزام|توريد)|اداء التوريد للموردين مع العروض|مقارنه السعر باداء التوريد)/.test(normalizedQuestion);
+ const purchaseQuestion=/(امر|اوامر|شراء|مشتريات|توريد)/.test(normalizedQuestion) && !supplierQuoteComparisonQuestion;
  const invoiceQuestion=normalizedQuestion.includes("فاتور");
  const supplierQuestion=normalizedQuestion.includes("مورد");
  if(purchaseQuestion&&/(متاخر|تاخر|متاخره)/.test(normalizedQuestion))return {
   status:"UNSUPPORTED",normalizedQuestion,
   explanation:"مصدر أوامر الشراء الحالي لا يقدم تاريخ استحقاق موحداً معتمداً. لا أستنتج التأخير من عمر الأمر أو تاريخ إنشائه."
  };
- if(/اليوم|امس|غدا|هذا الشهر|الشهر الحالي|خلال/.test(normalizedQuestion))return {
+ if((purchaseQuestion || invoiceQuestion) && /اليوم|امس|غدا|هذا الشهر|الشهر الحالي|خلال/.test(normalizedQuestion))return {
   status:"UNSUPPORTED",normalizedQuestion,
   explanation:"هذا المسار لا يطبق مرشحاً زمنياً حراً بعد. لا أستطيع إرجاع أحدث السجلات ثم وصفها بأنها نتائج الفترة المطلوبة."
  };
@@ -351,7 +352,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  }
  const taskQualityQuestion=/(جوده المهام|جوده التوصيات|دقه التوصيات|قابليه تنفيذ المهام|الانذارات الكاذبه|التنبيهات الصحيحه|التنبيهات الخاطئه|مراجعات جوده المهام|جوده التنبيهات|جوده قرارات التوصيه|اسباب رفض التوصيات|اسباب تاجيل التوصيات|الاسباب المتكرره|اسباب التكرار|سبب تكرار المهام|اسباب عدم قابليه التنفيذ)/.test(normalizedQuestion);
  if(taskQualityQuestion){
-  const historicalQualityWindow=/(اليوم|امس|البارحه|الاسبوع الماضي|الاسبوع السابق|هذا الاسبوع|الاسبوع الحالي|الشهر الماضي|الشهر السابق|هذا الشهر|الشهر الحالي|اخر\\s*(?:[0-9]+\\s*)?(?:يوم|ايام|اسبوع|اسابيع|شهر|اشهر)|خلال|منذ|بين تاريخ|من تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion);
+  const historicalQualityWindow=/(اليوم|امس|البارحه|الاسبوع الماضي|الاسبوع السابق|هذا الاسبوع|الاسبوع الحالي|الشهر الماضي|الشهر السابق|هذا الشهر|الشهر الحالي|اخر\s*(?:[0-9]+\s*)?(?:يوم|ايام|اسبوع|اسابيع|شهر|اشهر)|خلال|منذ|بين تاريخ|من تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion);
   if(historicalQualityWindow)return {
    status:"UNSUPPORTED",normalizedQuestion,
    explanation:"مؤشرات جودة المهام تقرأ أحدث مراجعة محفوظة لكل كيان ونوع ولا توفر ترشيحاً تاريخياً؛ لا يمكن نسب الإنذارات الكاذبة أو أسباب الرفض إلى أسبوع أو شهر محدد من هذا المصدر."
@@ -382,7 +383,6 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    filterDescription:"مجتمع عروض العملاء المنشأة خلال آخر "+periodDays+" يوماً UTC حسب created_at، مع الحالات الحالية كما في لقطة الخادم. قبول العرض لا يعني إنشاء طلب بيع."
   };
  }
- const supplierQuoteComparisonQuestion=/(مقارنه عروض الموردين|قارن عروض الموردين|مقارنه اسعار الموردين|قارن اسعار الموردين|مقارنه عروض التوريد|اقل سعر.*(الموردين|مورد)|اقل تكلفه.*(الموردين|مورد)|العروض الوارده من الموردين|سجل اسعار عروض الموردين|تاريخ اسعار الموردين|تغير اسعار عروض الموردين|التغير التاريخي لاسعار الموردين|كيف تغير سعر المورد|مقارنه عروض الموردين.*(اداء|التزام|توريد)|اداء التوريد للموردين مع العروض|مقارنه السعر باداء التوريد)/.test(normalizedQuestion);
  if(supplierQuoteComparisonQuestion){
   if(/(الاسبوع الماضي|الشهر الماضي|السنه الماضيه|اخر (7|30|90) يوم|خلال (7|30|90) يوم|من تاريخ|بين تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
    status:"UNSUPPORTED",normalizedQuestion,
