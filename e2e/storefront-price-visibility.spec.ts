@@ -350,8 +350,8 @@ test("Chromium displays cart and order-review amounts only from complete server 
 
   await expect(cart.locator(".sf-order-pricing-total")).toBeVisible();
   await expect(order.locator(".sf-order-pricing-total")).toBeVisible();
-  await expect(cart.locator(".sf-order-pricing-unit")).toContainText("سعر الوحدة:");
-  await expect(order.locator(".sf-order-pricing-unit")).toContainText("سعر الوحدة:");
+  await expect(cart.locator(".sf-order-pricing-unit")).toContainText("سعر الوحدة بعد الخصم:");
+  await expect(order.locator(".sf-order-pricing-unit")).toContainText("سعر الوحدة بعد الخصم:");
   await expect(cart.locator(".sf-order-pricing-lines")).toContainText("صنف اختبار سياسة إظهار السعر");
   await expect(order.locator(".sf-order-pricing-lines")).toContainText("صنف اختبار سياسة إظهار السعر");
   expect(await cart.locator(".sf-order-pricing-unit").innerText()).toContain("٤٣٬٢١٠");
