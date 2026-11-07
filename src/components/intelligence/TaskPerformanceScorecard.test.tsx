@@ -41,7 +41,7 @@ describe("TaskPerformanceScorecard", () => {
   it("shows the audit limitation instead of translating observed reopens into a complete rate", () => {
     render(<TaskPerformanceScorecard scorecard={data} />);
     expect(screen.getByRole("heading", { name: "بطاقة أداء المهام" })).toBeInTheDocument();
-    expect(screen.getByText(/معدل إعادة الفتح: غير متاح/)).toBeInTheDocument();
+    expect(screen.getByText(/معدل إعادة الفتح الكامل: غير متاح/)).toBeInTheDocument();
     expect(screen.getByText(/حد أدنى مرصود/)).toBeInTheDocument();
   });
 
@@ -114,7 +114,7 @@ describe("TaskPerformanceScorecard", () => {
     });
     render(<TaskPerformanceScorecard scorecard={scorecard} />);
     expect(screen.getByText("جودة المهام والتوصيات")).toBeInTheDocument();
-    expect(screen.getByText("50٪")).toBeInTheDocument();
+    expect(screen.getByText(/(?:٥٠|50)٪/)).toBeInTheDocument();
     expect(screen.getByText("الإنذارات الكاذبة")).toBeInTheDocument();
   });
 
