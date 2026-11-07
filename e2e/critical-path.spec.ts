@@ -501,7 +501,7 @@ async function runOrderTenantIsolationAcceptance(browser: Browser): Promise<void
         const staffQuoteCard = managerPage.locator("article").filter({ hasText: quoteNumber }).first();
         await expect(staffQuoteCard).toBeVisible({ timeout: 30_000 });
         await staffQuoteCard.getByRole("button", { name: "فتح / تسعير", exact: true }).click();
-        await expect(managerPage.getByRole("dialog", { name: "تسعير عرض" })).toBeVisible();
+        await expect(managerPage.getByRole("dialog", { name: `تسعير ${quoteNumber}` })).toBeVisible();
         const quotePrice = managerPage.locator('input[type="number"]').first();
         await expect(quotePrice).toBeEnabled();
         await quotePrice.fill("125");
