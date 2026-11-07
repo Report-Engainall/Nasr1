@@ -71,6 +71,7 @@ BEGIN
          coalesce(avg(CASE
            -- Only NULL or truly empty cells are missing. Whitespace-only cells are malformed.
            WHEN coalesce(r.data->>'date','') = '' THEN 100.0
+           WHEN pg_catalog.btrim(coalesce(r.data->>'date','')) = '' THEN 0.0
            WHEN public.is_valid_import_quality_date(r.data->>'date') IS TRUE THEN 100.0
            ELSE 0.0 END),0)
     INTO v_total,v_valid,v_unique,v_consistent,v_temporal
