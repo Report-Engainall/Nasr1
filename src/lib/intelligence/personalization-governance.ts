@@ -901,11 +901,10 @@ export function resolvePrivacyDataRequest(
     return privacyRequestDecision(input, "REVIEW_REQUIRED", "INVALID_REQUEST");
   }
 
-  if (input.actorAuthorized !== true) {
+  // Collapse failed requester/subject authorization into one denial. Distinguishing
+  // ownership from requester authorization can become an existence/ownership oracle.
+  if (input.actorAuthorized !== true || input.subjectOwnershipVerified !== true) {
     return privacyRequestDecision(input, "DENIED", "REQUESTER_NOT_AUTHORIZED");
-  }
-  if (input.subjectOwnershipVerified !== true) {
-    return privacyRequestDecision(input, "DENIED", "SUBJECT_OWNERSHIP_NOT_VERIFIED");
   }
   if (input.recordOrganizationId !== input.organizationId) {
     return privacyRequestDecision(input, "DENIED", "RECORD_SCOPE_MISMATCH");
