@@ -301,7 +301,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    clarification:"هل تريد الأوامر المفتوحة، أم بانتظار الاستلام، أم المستلمة جزئياً؟"};
  }
  const customerServiceQuestion=/(خدمات العملاء|خدمه العملاء|حالات خدمه العملاء|حالات العملاء|حاله عميل|شكاوي العملاء|شكاوي|بلاغات العملاء|طلبات الخدمه|مركز الخدمه|دعم العملاء|حالات الدعم)/.test(normalizedQuestion);
- const customerServiceSlaQuestion=/(sla|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد|موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات)/.test(normalizedQuestion);
+ const customerServiceSlaQuestion=/(sla|اول استجابه|الاستجابه الاولى|اول رد|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد|موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات)/.test(normalizedQuestion);
  const customerServiceUnassignedQuestion=/(غير المسنده|بلا مسؤول|بدون مسؤول|لم تسند|غير موزعه)/.test(normalizedQuestion);
  if(customerServiceQuestion||customerServiceSlaQuestion||customerServiceUnassignedQuestion){
   if(/(اخر|الماضي|الماضيه|السابقة|السابقه|من تاريخ|بين تاريخ|خلال|منذ|هذا الشهر|هذا الاسبوع|الشهر الحالي|الاسبوع الحالي|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
@@ -309,7 +309,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    explanation:"ملخص خدمة العملاء لقطة حالية عند وقت الاستعلام؛ لا يدعم تاريخاً ماضياً أو مقارنة زمنية. لا أستبدل ذلك بآخر سجلات الحالات."
   };
   const intent:CustomerServiceIntent=customerServiceUnassignedQuestion?"CUSTOMER_SERVICE_UNASSIGNED":
-   /موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد/.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":
+   اول استجابه|الاستجابه الاولى|اول رد|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":
    /موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات/.test(normalizedQuestion)?"CUSTOMER_SERVICE_RESOLUTION_OVERDUE":
    customerServiceSlaQuestion?"CUSTOMER_SERVICE_RESPONSE_OVERDUE":"CUSTOMER_SERVICE_OVERVIEW";
   return {
