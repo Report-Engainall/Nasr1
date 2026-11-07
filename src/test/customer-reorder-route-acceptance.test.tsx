@@ -269,7 +269,7 @@ describe("customer reorder real route acceptance", () => {
     await saveTemplate();
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
-      "تعذر حفظ القالب: synthetic template-save refusal",
+      "تعذر حفظ القالب. تحقق من الاتصال والصلاحيات ثم حاول مجددًا.",
     );
     expect(host?.textContent).not.toContain("تم حفظ قالب إعادة الطلب");
     expect(mocks.saveCalls).toHaveLength(1);

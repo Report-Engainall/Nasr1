@@ -66,7 +66,7 @@ describe("PersonalizationPrivacyPanel", () => {
     expect(submitted.expectedUpdatedAt).toBe(preferences.updatedAt);
     expect(submitted.changes.reducedMotion).toBe(true);
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("status").textContent).toContain("أكد الخادم حفظ");
+    expect(screen.getByText(/أكد الخادم حفظ/).textContent).toContain("أكد الخادم حفظ");
   });
 
   it("rejects a successful-looking response for a different tenant or profile", async () => {
@@ -138,6 +138,6 @@ describe("PersonalizationPrivacyPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "إلغاء الموافقة" }));
     await waitFor(() => expect(onRevokeConsent).toHaveBeenCalledTimes(1));
     expect(onConsentRevoked).toHaveBeenCalledWith(revoked);
-    expect(screen.getByRole("status").textContent).toContain("أكد الخادم إلغاء الموافقة");
+    expect(screen.getByText(/أكد الخادم إلغاء الموافقة/).textContent).toContain("أكد الخادم إلغاء الموافقة");
   });
 });

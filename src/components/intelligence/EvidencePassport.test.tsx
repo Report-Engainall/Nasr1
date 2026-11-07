@@ -106,7 +106,7 @@ describe("EvidencePassport", () => {
     expect(within(cards[1]).getByText(/SOURCE_VALUE_MISSING/)).toBeInTheDocument();
 
     expect(screen.getByText("يحتاج مراجعة")).toBeInTheDocument();
-    expect(screen.getByText(/general_ledger/)).toBeInTheDocument();
+    expect(screen.getAllByText(/general_ledger/).length).toBeGreaterThan(1);
   });
 
   it("does not render a fabricated source list when the passport has no evidence records", () => {

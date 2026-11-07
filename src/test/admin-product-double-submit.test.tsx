@@ -55,7 +55,7 @@ const existingProduct: ProductWithInventory = {
 
 function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText("اسم المنتج"), { target: { value: "منتج الاختبار" } });
-  fireEvent.change(screen.getByLabelText("الوحدة الأساسية"), { target: { value: "كرتون" } });
+  fireEvent.change(screen.getByLabelText(/الوحدة الأساسية/), { target: { value: "كرتون" } });
   fireEvent.change(screen.getByLabelText("رمز المنتج"), { target: { value: "TEST-001" } });
   fireEvent.change(screen.getByLabelText("السعر الأساسي"), { target: { value: "25.00" } });
   fireEvent.change(screen.getByLabelText("سعر جملة الجملة"), { target: { value: "25.00" } });

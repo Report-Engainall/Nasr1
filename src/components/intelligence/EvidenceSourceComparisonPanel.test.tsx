@@ -13,6 +13,7 @@ function comparison(overrides: Partial<EvidenceSourceComparison> = {}): Evidence
     sourceVersion: "v1",
     sourceTimestamp: "2026-11-06T19:55:00.000Z",
     asOf: "2026-11-06T20:00:00.000Z",
+    sourceAgeMilliseconds: 300_000,
     status: "VERIFIED" as const,
     completeness: "COMPLETE" as const,
     quality: "ACCEPTABLE" as const,

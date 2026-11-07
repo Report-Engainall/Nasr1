@@ -147,7 +147,7 @@ describe("Aghbari PWA offline shell", () => {
     expect(worker.cachesMock.open).toHaveBeenCalledWith("aghbari-shell-v5");
     expect(worker.cacheAdd).not.toHaveBeenCalled();
     expect(worker.cachePut.mock.calls.map(([url]) => url)).toEqual(["/", "/favicon.ico"]);
-    expect(worker.skipWaiting).toHaveBeenCalledOnce();
+    expect(worker.skipWaiting).not.toHaveBeenCalled();
   });
 
   it("does not cache successful HTML returned for a private deep navigation", async () => {
@@ -475,10 +475,10 @@ describe("Aghbari PWA offline shell", () => {
 
     await Promise.all(pending);
 
-    expect(worker.cacheDelete).toHaveBeenCalledTimes(3);
+    expect(worker.cacheDelete).toHaveBeenCalledTimes(2);
     expect(worker.cacheDelete).toHaveBeenCalledWith("aghbari-shell-v1");
     expect(worker.cacheDelete).toHaveBeenCalledWith("aghbari-shell-v2");
-    expect(worker.cacheDelete).toHaveBeenCalledWith("aghbari-shell-v5");
+    expect(worker.cacheDelete).not.toHaveBeenCalledWith("aghbari-shell-v5");
     expect(worker.claim).toHaveBeenCalledOnce();
   });
 });

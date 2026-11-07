@@ -1512,17 +1512,14 @@ export function Empty({ text }: { text: string }) { return <div className="empty
 export function Button({
   children,
   variant = 'primary',
-  onClick,
-  disabled,
   type = 'button',
-}: {
-  children: React.ReactNode;
+  className,
+  ...buttonProps
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
-  onClick?: () => void;
-  disabled?: boolean;
-  type?: 'button' | 'submit' | 'reset';
 }) {
-  return <button type={type} className={`btn ${variant}`} onClick={onClick} disabled={disabled}>{children}</button>;
+  const classes = ['btn', variant, className].filter(Boolean).join(' ');
+  return <button type={type} className={classes} {...buttonProps}>{children}</button>;
 }
 export function TableWrap({ children }: { children: React.ReactNode }) { return <div className="table-wrap">{children}</div>; }
 export function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
