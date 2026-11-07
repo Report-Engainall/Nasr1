@@ -7,9 +7,9 @@ const supplierDueDates = readFileSync(join(process.cwd(), "supabase/migrations/2
 
 describe("executive liquidity command-center migration contract", () => {
   it("contains one complete function and no duplicated or orphaned SQL tail", () => {
-    expect(migration.match(/CREATE OR REPLACE FUNCTION public\\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
-    expect(migration.match(/\\$function\\$;/g)).toHaveLength(1);
-    expect(migration.match(/COMMENT ON FUNCTION public\\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
+    expect(migration.match(/CREATE OR REPLACE FUNCTION public\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
+    expect(migration.match(/\$function\$;/g)).toHaveLength(1);
+    expect(migration.match(/COMMENT ON FUNCTION public\.fetch_executive_liquidity_workspace/g)).toHaveLength(1);
     const unresolvedStart = migration.indexOf("unresolved AS (");
     const unresolvedEnd = migration.indexOf("valid_balances AS (", unresolvedStart);
     expect(unresolvedStart).toBeGreaterThanOrEqual(0);

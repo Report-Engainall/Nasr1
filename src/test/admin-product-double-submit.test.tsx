@@ -57,6 +57,9 @@ function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText("اسم المنتج"), { target: { value: "منتج الاختبار" } });
   fireEvent.change(screen.getByLabelText("رمز المنتج"), { target: { value: "TEST-001" } });
   fireEvent.change(screen.getByLabelText("السعر الأساسي"), { target: { value: "25.00" } });
+  fireEvent.change(screen.getByLabelText("سعر جملة الجملة"), { target: { value: "25.00" } });
+  fireEvent.change(screen.getByLabelText("سعر الجملة"), { target: { value: "25.00" } });
+  fireEvent.change(screen.getByLabelText("سعر التجزئة"), { target: { value: "25.00" } });
 }
 
 describe("admin product form submission", () => {
@@ -107,6 +110,9 @@ describe("admin product form submission", () => {
       sku: null,
       barcode: null,
       base_price: 25,
+      price_wholesale_of_wholesale: 25,
+      price_wholesale: 25,
+      price_retail: 25,
       min_order_quantity: 1,
       order_quantity_multiple: 1,
       category_id: null,
