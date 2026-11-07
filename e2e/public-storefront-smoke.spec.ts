@@ -548,6 +548,10 @@ test("login supports keyboard-only focus and password-visibility control", async
   expect(emailFocus.outlineWidth).toBeGreaterThanOrEqual(3);
   expect(emailFocus.outlineColor).toBe("rgb(20, 83, 45)");
 
+  const phoneLogin = page.getByRole("button", { name: "تسجيل الدخول برقم الهاتف" });
+  await page.keyboard.press("Tab");
+  await expect(phoneLogin).toBeFocused();
+
   await page.keyboard.press("Tab");
   await expect(password).toBeFocused();
   await page.keyboard.press("Tab");
