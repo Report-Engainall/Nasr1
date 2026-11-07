@@ -178,17 +178,24 @@ function serverPreview(surface: "cart" | "orders", mode: PricingPreviewMode): Re
     item_code: "PRICE-POLICY-CI-011",
     unit: "كرتون",
     quantity: 2,
+    original_unit_price: previewUnitPrice,
+    discount_per_unit: 0,
+    discount_amount: 0,
+    promotion_title: null,
     unit_price: previewUnitPrice,
     line_total: previewLineTotal,
   };
   const response: Record<string, unknown> = {
     visible: true,
     surface,
+    promotion_pricing_version: 1,
     items: [item],
     item_count: 1,
+    discount_total: 0,
     currency: "YER",
     total_amount: previewTotal,
     customer_tier_visible: false,
+    customer_tier_label: null,
   };
 
   if (mode === "missing-unit-price") delete item.unit_price;
@@ -204,7 +211,7 @@ const pricePreviewProfileFixture = {
   profile_id: "a1000000-0000-0000-0000-000000000101",
   full_name: "مشتري اختبار سياسة السعر",
   email: "price-preview-buyer@example.test",
-  roles: ["buyer"],
+  roles: ["customer"],
 };
 
 const pricingPreviewUnavailableFixture = {
