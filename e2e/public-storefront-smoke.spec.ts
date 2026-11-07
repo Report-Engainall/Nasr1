@@ -783,3 +783,70 @@ test("daily decision board stays keyboard-operable and fits mobile and desktop C
   expect(pageErrors, "The real decision-board component must not throw browser errors in its isolated harness.")
     .toEqual([]);
 });
+
+test("admin access matrix compares every role and keeps wide tables keyboard-scrollable", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  const fixturePath = "/e2e/fixtures/admin-access-matrix.html";
+  const fixtureBase = process.env.E2E_PRICE_FIXTURE_BASE_URL;
+  const fixtureUrl = fixtureBase ? new URL(fixturePath, fixtureBase).toString() : fixturePath;
+
+  for (const viewport of [{ width: 360, height: 800 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    const response = await page.goto(fixtureUrl);
+    expect(response?.status(), "The isolated access-matrix fixture must be served by the component harness.").toBe(200);
+
+    const matrix = page.getByRole("region", { name: "مصفوفة الوصول والعمليات حسب الدور" });
+    const pages = page.getByRole("region", { name: "جدول مقارنة الوصول إلى الصفحات حسب الدور" });
+    const operations = page.getByRole("region", { name: "جدول مقارنة العمليات وحدودها حسب الدور" });
+    await expect(matrix).toBeVisible();
+    await expect(pages).toBeVisible();
+    await expect(operations).toBeVisible();
+
+    const pageTable = pages.getByRole("table", { name: "مصفوفة وصول الصفحات حسب الدور" });
+    const operationTable = operations.getByRole("table", { name: "مصفوفة العمليات وحدودها حسب الدور" });
+    const roles = ["مدير النظام", "مدير", "موظف تشغيل", "محاسب", "مسؤول العملاء", "عميل"];
+    for (const role of roles) {
+      await expect(pageTable.getByRole("columnheader", { name: role })).toBeVisible();
+      await expect(operationTable.getByRole("columnheader", { name: role })).toBeVisible();
+    }
+
+    await expect(pages.getByTestId("page-finance-staff")).toContainText("ممنوع");
+    await expect(pages.getByTestId("page-finance-staff")).toContainText("تتطلب مساحة المالية");
+    await expect(operations.getByTestId("operation-pricing_rules_write-staff")).toContainText("ممنوع");
+    await expect(operations.getByTestId("operation-pricing_rules_write-staff")).toContainText("تعديل القواعد القائمة");
+
+    const layout = await page.evaluate(() => ({
+      lang: document.documentElement.lang.toLowerCase(),
+      direction: getComputedStyle(document.documentElement).direction,
+      viewportWidth: window.innerWidth,
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      pageClientWidth: document.querySelector('[aria-label="جدول مقارنة الوصول إلى الصفحات حسب الدور"]')?.clientWidth ?? 0,
+      pageScrollWidth: document.querySelector('[aria-label="جدول مقارنة الوصول إلى الصفحات حسب الدور"]')?.scrollWidth ?? 0,
+    }));
+    expect(layout.lang).toMatch(/^ar(?:-|$)/);
+    expect(layout.direction).toBe("rtl");
+    expect(layout.documentWidth, "Access matrix caused document-level horizontal overflow at " + viewport.width + "px.")
+      .toBeLessThanOrEqual(layout.viewportWidth + 1);
+    expect(layout.pageClientWidth).toBeGreaterThan(0);
+    if (viewport.width === 360) {
+      expect(layout.pageScrollWidth).toBeGreaterThan(layout.pageClientWidth);
+    }
+
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await expect(pages).toBeFocused();
+    const focus = await pages.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+    });
+    expect(focus.outlineStyle).not.toBe("none");
+    expect(focus.outlineWidth).toBeGreaterThan(0);
+    await page.keyboard.press("Tab");
+    await expect(operations).toBeFocused();
+  }
+
+  expect(pageErrors, "The real access-matrix component must not throw browser errors in its isolated harness.").toEqual([]);
+});
+

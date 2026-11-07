@@ -11,6 +11,8 @@ describe("admin access matrix UI", () => {
 
     expect(screen.getByRole("table", { name: "مصفوفة وصول الصفحات حسب الدور" })).toBeTruthy();
     expect(screen.getByRole("table", { name: "مصفوفة العمليات وحدودها حسب الدور" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "جدول مقارنة الوصول إلى الصفحات حسب الدور" })).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("region", { name: "جدول مقارنة العمليات وحدودها حسب الدور" })).toHaveAttribute("tabindex", "0");
 
     for (const role of ADMIN_ACCESS_ROLES) {
       expect(screen.getAllByRole("columnheader", { name: role.label })).toHaveLength(2);

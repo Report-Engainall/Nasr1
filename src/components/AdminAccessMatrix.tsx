@@ -78,7 +78,7 @@ function AllRolesComparison({ views }: { views: readonly AdminViewId[] }) {
           <h3 id="all-role-pages-title" className="font-semibold">مقارنة الوصول إلى الصفحات</h3>
           <p className="mt-1 text-xs text-slate-500">كل صف يمثل مساحة إدارية؛ سبب المنع ظاهر في خلية الدور غير المسموح له.</p>
         </div>
-        <div className="overflow-x-auto rounded-lg border">
+        <div role="region" aria-label="جدول مقارنة الوصول إلى الصفحات حسب الدور" tabIndex={0} className="overflow-x-auto rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           <table aria-label="مصفوفة وصول الصفحات حسب الدور" className="min-w-[1180px] w-full border-collapse text-sm">
             <thead className="bg-slate-50 text-right">
               <tr>
@@ -121,7 +121,7 @@ function AllRolesComparison({ views }: { views: readonly AdminViewId[] }) {
           <h3 id="all-role-operations-title" className="font-semibold">مقارنة العمليات وحدود التعديل</h3>
           <p className="mt-1 text-xs text-slate-500">تعرض حدود الأسعار والمخزون والمالية، وما يمنع كل دور من تنفيذ العملية.</p>
         </div>
-        <div className="overflow-x-auto rounded-lg border">
+        <div role="region" aria-label="جدول مقارنة العمليات وحدودها حسب الدور" tabIndex={0} className="overflow-x-auto rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           <table aria-label="مصفوفة العمليات وحدودها حسب الدور" className="min-w-[1180px] w-full border-collapse text-sm">
             <thead className="bg-slate-50 text-right">
               <tr>
@@ -191,7 +191,7 @@ function SingleRoleDetails({ selectedRole }: { selectedRole: AdminRoleId }) {
 
       <section className="space-y-3" aria-label="العمليات وحدود التعديل">
         <h3 className="font-semibold">العمليات وحدود تعديل الأسعار والمخزون والمالية</h3>
-        <div className="overflow-x-auto rounded-lg border">
+        <div role="region" aria-label="جدول عمليات الدور المحدد وحدوده" tabIndex={0} className="overflow-x-auto rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           <table className="min-w-[760px] w-full border-collapse text-sm">
             <thead className="bg-slate-50 text-right"><tr><th className="p-3">المجال / العملية</th><th className="p-3">القرار</th><th className="p-3">الحد أو سبب الرفض</th></tr></thead>
             <tbody>{ADMIN_OPERATION_RULES.map((item) => {
