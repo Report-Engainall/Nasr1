@@ -4005,11 +4005,12 @@ async function main() {
   );
   const qualityScoreJobId = qualityScoreJobResult[0].id;
   await db.unsafe(
-    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'valid',$3::jsonb,'[]'::jsonb)",
+     "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'valid',$3::jsonb,'[]'::jsonb),($1,3,'valid',$4::jsonb,'[]'::jsonb)",
     [
       qualityScoreJobId,
       db.json({ item_code: "DQS-INVALID-DATE-1", quantity: "1", revenue: "10", price: "10", date: "2026-02-31" }),
       db.json({ item_code: "DQS-VALID-DATE-2", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
+       db.json({ item_code: "DQS-WHITESPACE-DATE-3", quantity: "1", revenue: "10", price: "10", date: "   " }),
     ],
   );
   const qualityStatusJobResult = await db.unsafe(
@@ -4062,10 +4063,10 @@ async function main() {
     "P0002",
   );
   const qualityScore = await db.unsafe("select public.calculate_import_job_quality($1::uuid) as result", [qualityScoreJobId]);
-  assert.equal(qualityScore[0]?.result?.total_rows, 2, "quality score counts both rows from the scoped job");
-  assert.equal(Number(qualityScore[0]?.result?.components?.temporal_referential_integrity), 50,
-    "an impossible calendar date scores invalid while the real leap-day date scores valid");
-  process.stdout.write("PASS import quality RPC: tenant-scoped IDs, denial parity, and impossible-date scoring\\n");
+   assert.equal(qualityScore[0]?.result?.total_rows, 3, "quality score counts all three scoped rows");
+   assert.equal(Number(qualityScore[0]?.result?.components?.temporal_referential_integrity), 33.33,
+     "impossible calendar and whitespace-only dates are invalid while a real leap-day date remains valid");
+   process.stdout.write("PASS import quality RPC: tenant-scoped IDs, denial parity, impossible-date and whitespace-date scoring\\n");
   const qualityStatusScore = await db.unsafe("select public.calculate_import_job_quality($1::uuid) as result", [qualityStatusJobId]);
   assert.equal(qualityStatusScore[0]?.result?.total_rows, 5, "DQS status semantics fixture must include valid and four non-valid states");
   assert.equal(Number(qualityStatusScore[0]?.result?.components?.validity), 20,
