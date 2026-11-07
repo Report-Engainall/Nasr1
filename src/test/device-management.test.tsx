@@ -345,8 +345,8 @@ describe('central device and session management', () => {
     expect(onNotice).not.toHaveBeenCalled();
     expect(host?.querySelectorAll('[role="alert"]').length).toBeGreaterThan(0);
     expect(host?.textContent).toContain('تعذر تأكيد إبطال الجلسة المحددة');
-    // A failed refresh clears the list instead of retaining potentially stale session data.
-    expect(host?.textContent).toContain('موظف الاختبار');
+    // A failed or ambiguous acknowledgement must not leave stale session rows visible.
+    expect(host?.textContent).not.toContain('موظف الاختبار');
   });
 
   it('rejects a success-shaped acknowledgement for a different session id', async () => {
@@ -377,7 +377,7 @@ describe('central device and session management', () => {
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
       'تعذر تأكيد إبطال الجلسة المحددة',
     );
-    expect(host?.textContent).toContain('موظف الاختبار');
+    expect(host?.textContent).not.toContain('موظف الاختبار');
   });
 
   it('rejects a session-revocation acknowledgement without a valid server timestamp', async () => {
@@ -411,7 +411,7 @@ describe('central device and session management', () => {
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
       'تعذر تأكيد إبطال الجلسة المحددة',
     );
-    expect(host?.textContent).toContain('موظف الاختبار');
+    expect(host?.textContent).not.toContain('موظف الاختبار');
   });
 
   it('does not call organization session RPCs for a non-admin role or permit organization revocation', async () => {

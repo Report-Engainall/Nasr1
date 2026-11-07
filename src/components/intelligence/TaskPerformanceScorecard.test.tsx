@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TaskPerformanceScorecard } from "./TaskPerformanceScorecard";
 import { parseTaskPerformanceScorecard } from "@/lib/intelligence/task-performance-scorecard";
@@ -114,8 +114,12 @@ describe("TaskPerformanceScorecard", () => {
     });
     render(<TaskPerformanceScorecard scorecard={scorecard} />);
     expect(screen.getByText("جودة المهام والتوصيات")).toBeInTheDocument();
-    expect(screen.getAllByText(/(?:٥٠|50)٪/)).toHaveLength(2);
-    expect(screen.getByText("الإنذارات الكاذبة")).toBeInTheDocument();
+    const actionabilityCard = screen.getByText("قابلية التنفيذ").closest("article");
+    const falseAlarmCard = screen.getByText("الإنذارات الكاذبة").closest("article");
+    expect(actionabilityCard).not.toBeNull();
+    expect(falseAlarmCard).not.toBeNull();
+    expect(within(actionabilityCard as HTMLElement).getByText(/(?:٥٠|50)٪/)).toBeInTheDocument();
+    expect(within(falseAlarmCard as HTMLElement).getByText(/(?:٥٠|50)٪/)).toBeInTheDocument();
   });
 
   it("keeps unavailable and error states explicit and retryable", () => {

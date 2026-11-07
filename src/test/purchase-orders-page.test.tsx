@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
 const receiptPrintMocks=vi.hoisted(()=>({history:vi.fn(),print:vi.fn()}));
 vi.mock('@/lib/purchase-receipt-print',()=>({
@@ -135,11 +135,12 @@ describe('purchase orders page',()=>{
     render(<PurchaseOrdersPage/>);
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
-    const firstDraftProduct = document.querySelector<HTMLSelectElement>(".po-lines .po-line select");
-    expect(firstDraftProduct).not.toBeNull();
-    fireEvent.change(firstDraftProduct!,{target:{value:'product-1'}});
-    fireEvent.click(screen.getAllByRole('button',{name:/إضافة صنف/})[0]);
-    const draftProducts = document.querySelectorAll<HTMLSelectElement>(".po-lines .po-line select");
+    const draftPanel = screen.getByRole('region', { name: 'مسودة أمر شراء جديدة' });
+    const draft = within(draftPanel);
+    const firstDraftProduct = draft.getAllByLabelText('الصنف')[0] as HTMLSelectElement;
+    fireEvent.change(firstDraftProduct,{target:{value:'product-1'}});
+    fireEvent.click(draft.getByRole('button',{name:/إضافة صنف/}));
+    const draftProducts = draft.getAllByLabelText('الصنف') as HTMLSelectElement[];
     expect(draftProducts).toHaveLength(2);
     fireEvent.change(draftProducts[1],{target:{value:'product-1'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));

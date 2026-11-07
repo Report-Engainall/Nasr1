@@ -677,6 +677,9 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
       onNotice('أكد الخادم إبطال الجلسة المحددة لمستخدم المؤسسة، وسُجل الإجراء في سجل التدقيق.');
       await loadOrganizationSessions();
     } catch {
+      setOrganizationSessions([]);
+      setOrganizationSessionsCursor(null);
+      setOrganizationSessionsHasMore(false);
       setSessionsError('تعذر تأكيد إبطال الجلسة المحددة. لم تُعرض رسالة نجاح؛ أعد تحميل السجل وتحقق من الحالة قبل المحاولة مجددًا.');
     } finally {
       revocationInFlight.current = false;

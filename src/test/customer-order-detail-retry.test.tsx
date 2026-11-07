@@ -31,6 +31,18 @@ import { OrderInvoice } from "@/components/CustomerOrders";
 
 const ORDER_ID = "11111111-1111-4111-8111-111111111111";
 
+function amendmentHistoryResult() {
+  return {
+    data: {
+      order_id: ORDER_ID,
+      order_status: "pending",
+      amendments: [],
+      return_events: [],
+    },
+    error: null,
+  };
+}
+
 function makeQuery(table: string) {
   const responseFor = () => {
     if (table === "orders") {
@@ -91,7 +103,11 @@ describe("customer order detail retry", () => {
     mocks.orderFailuresRemaining = 1;
     mocks.orderItems = [];
     mocks.rpc.mockReset();
-    mocks.rpc.mockResolvedValue({ data: [], error: null });
+    mocks.rpc.mockImplementation(async (name: string) =>
+      name === "list_customer_order_amendment_history"
+        ? amendmentHistoryResult()
+        : { data: [], error: null },
+    );
     mocks.from.mockReset();
     mocks.from.mockImplementation((table: string) => makeQuery(table));
     host = document.createElement("div");
@@ -140,7 +156,11 @@ describe("customer order detail retry", () => {
       requested_quantity: 5,
       approved_quantity: 3,
     }];
-    mocks.rpc.mockImplementation(async (name: string) => name === "save_reorder_template" ? { data: templateId, error: null } : { data: [], error: null });
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "list_customer_order_amendment_history") return amendmentHistoryResult();
+      if (name === "save_reorder_template") return { data: templateId, error: null };
+      return { data: [], error: null };
+    });
 
     await act(async () => {
       root?.render(<OrderInvoice id={ORDER_ID} />);
@@ -202,7 +222,11 @@ describe("customer order detail retry", () => {
       requested_quantity: 2,
       approved_quantity: 2,
     }];
-    mocks.rpc.mockImplementation(async (name: string) => name === "save_reorder_template" ? { data: null, error: new Error("permission denied") } : { data: [], error: null });
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "list_customer_order_amendment_history") return amendmentHistoryResult();
+      if (name === "save_reorder_template") return { data: null, error: new Error("permission denied") };
+      return { data: [], error: null };
+    });
 
     await act(async () => {
       root?.render(<OrderInvoice id={ORDER_ID} />);

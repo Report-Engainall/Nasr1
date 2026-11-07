@@ -384,9 +384,9 @@ describe("production intelligence workspace inventory screens", () => {
     expect(forecast).toHaveTextContent("غير متاح"); // No verified opening balance: projection remains withheld.
 
     const scheduledHeading = await screen.findByRole("heading", { name: "متابعة التحصيلات المجدولة" });
-    const scheduledSection = scheduledHeading.closest("section");
-    expect(scheduledSection).not.toBeNull();
-    const persist = within(scheduledSection as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" });
+    const scheduledCard = scheduledHeading.closest("article");
+    expect(scheduledCard).not.toBeNull();
+    const persist = within(scheduledCard as HTMLElement).getByRole("button", { name: "حفظ الإجراء في دورة القرارات" });
     fireEvent.click(persist);
     await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
       candidateId: "cashflow.expected_collections:YER:2026-10-31:2026-11-30",
