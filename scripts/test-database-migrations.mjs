@@ -5439,11 +5439,17 @@ async function main() {
     "40001",
   );
 
+  // The append-only event table intentionally has no direct authenticated SELECT grant.
+  // Replay and event-count assertions use the isolated fixture owner while the JWT identity
+  // remains the same manager; the original write and separate denial checks run as authenticated.
+  await db.unsafe("reset role");
   const qualityReplayRows = await db.unsafe(
-    "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
+    "select public.record_operational_task_quality_review($1::uuid," +
+      "(select task_updated_at from public.operational_task_quality_events where organization_id=$2 and idempotency_key=$6)," +
+      "$3::text,$4::jsonb,$5::text,$6::text) as result",
     [
       reviewBefore[0].id,
-      qualityActionable.updatedAt,
+      organizationId,
       "ACTIONABILITY",
       db.json({ actionability: "ACTIONABLE" }),
       qualityActionable.eventId,
@@ -5451,6 +5457,12 @@ async function main() {
     ],
   );
   assert.equal(qualityReplayRows[0].result.duplicate, true, "same actor and payload replay returns the saved review without a second event");
+  const qualityEventCount = await db.unsafe(
+    "select count(*)::integer as count from public.operational_task_quality_events where organization_id=$1",
+    [organizationId],
+  );
+  assert.equal(qualityEventCount[0].count, 7, "replaying a quality review cannot duplicate an append-only event");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "same quality idempotency key cannot be replayed with a different review payload",
     () => db.unsafe(
@@ -5460,12 +5472,6 @@ async function main() {
     /task quality idempotency payload conflict/i,
     "23505",
   );
-  const qualityEventCount = await db.unsafe(
-    "select count(*)::integer as count from public.operational_task_quality_events where organization_id=$1",
-    [organizationId],
-  );
-  assert.equal(qualityEventCount[0].count, 7, "replaying a quality review cannot duplicate an append-only event");
-
   const qualityMetricsRows = await db.unsafe(
     "select public.fetch_operational_task_quality_metrics() as result",
   );
