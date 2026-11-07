@@ -600,7 +600,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     display: block !important;
     width: 100% !important;
     color: #17282c !important;
-    background: #fff !important;
+    background: var(--aghbari-paper) !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

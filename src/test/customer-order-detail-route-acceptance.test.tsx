@@ -60,6 +60,7 @@ function makeQuery(table: string) {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
     order: vi.fn(() => query),
+    limit: vi.fn(() => query),
     maybeSingle: () => {
       const result = mocks.results[table] ?? { data: [], error: null };
       return Promise.resolve({ data: result.data[0] ?? null, error: result.error });

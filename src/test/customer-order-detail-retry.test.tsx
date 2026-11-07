@@ -71,6 +71,7 @@ function makeQuery(table: string) {
     select: () => query,
     eq: () => query,
     order: () => query,
+    limit: () => query,
     maybeSingle: () => Promise.resolve(responseFor()),
     then<TResult1 = { data: unknown; error: Error | null }, TResult2 = never>(
       onfulfilled?: ((value: { data: unknown; error: Error | null }) => TResult1 | PromiseLike<TResult1>) | null,

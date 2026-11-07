@@ -55,6 +55,7 @@ const existingProduct: ProductWithInventory = {
 
 function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText("اسم المنتج"), { target: { value: "منتج الاختبار" } });
+  fireEvent.change(screen.getByLabelText("الوحدة الأساسية"), { target: { value: "كرتون" } });
   fireEvent.change(screen.getByLabelText("رمز المنتج"), { target: { value: "TEST-001" } });
   fireEvent.change(screen.getByLabelText("السعر الأساسي"), { target: { value: "25.00" } });
   fireEvent.change(screen.getByLabelText("سعر جملة الجملة"), { target: { value: "25.00" } });
@@ -105,6 +106,7 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.createProduct).toHaveBeenCalledWith({
       name: "منتج الاختبار",
+      description: null,
       name_en: null,
       item_code: "TEST-001",
       sku: null,
@@ -156,6 +158,7 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.updateProduct).toHaveBeenCalledWith("product-created", {
       name: "منتج معدّل",
+      description: null,
       name_en: null,
       item_code: "TEST-002",
       sku: null,

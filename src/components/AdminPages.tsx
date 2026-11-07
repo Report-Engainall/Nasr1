@@ -70,7 +70,7 @@ function NotificationRow({
           </Button>
         )}
         {!notification.is_read && (
-          <Button variant="ghost" onClick={() => onRead(notification.id)}>
+          <Button variant="ghost" aria-label={`تعليم التنبيه كمقروء: ${notification.title}`} onClick={() => onRead(notification.id)}>
             تعليم كمقروء
           </Button>
         )}
