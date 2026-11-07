@@ -731,7 +731,7 @@ test("daily decision board stays keyboard-operable and fits mobile and desktop C
     expect(response?.status(), "The isolated decision-board fixture must be served by the component harness.")
       .toBe(200);
 
-    const board = page.getByRole("region", { name: "لوحة القرارات اليومية" });
+    const board = page.getByRole("region", { name: "لوحة متابعة القرارات اليومية" });
     await expect(board).toBeVisible();
     await expect(board.getByRole("status").first()).toContainText("تغطية جزئية");
     const savedDecisions = board.getByRole("list", { name: "قرارات محفوظة مرتبة للمتابعة" });
