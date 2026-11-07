@@ -42,43 +42,38 @@ const CUSTOMER_MANAGER_DIRECTORY_FIELDS = [
   'contact_name', 'phone', 'email', 'customer_code', 'tier', 'status', 'created_at',
 ] as const;
 
-function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryRow | null {
+function sanitizeCustomerDirectoryRow(value: unknown, includeFinancialFields = false): CustomerDirectoryRow | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (typeof row.id !== 'string' || typeof row.business_name !== 'string' ||
-      typeof row.status !== 'string') return null;
-
-  if (row.contact_name !== null && typeof row.contact_name !== "string") return null;
-  if (row.phone !== null && typeof row.phone !== "string") return null;
-  if (row.email !== null && typeof row.email !== "string") return null;
-  if (row.customer_code !== null && typeof row.customer_code !== "string") return null;
-  if (row.tier !== null && typeof row.tier !== "string") return null;
+  if (typeof row.id !== 'string' || typeof row.business_name !== 'string' || typeof row.status !== 'string') return null;
+  for (const field of ['contact_name', 'phone', 'email', 'customer_code', 'tier'] as const) {
+    if (row[field] !== null && typeof row[field] !== 'string') return null;
+  }
   const createdAt = row.created_at;
-  if (typeof createdAt !== "string" || !Number.isFinite(Date.parse(createdAt))) return null;
-  if (row.current_balance !== undefined && row.current_balance !== null &&
-      (typeof row.current_balance !== "number" || !Number.isFinite(row.current_balance))) return null;
-  if (row.credit_limit !== undefined && row.credit_limit !== null &&
-      (typeof row.credit_limit !== "number" || !Number.isFinite(row.credit_limit))) return null;
-  if (row.profile_id !== undefined && row.profile_id !== null && typeof row.profile_id !== "string") return null;
-
+  if (typeof createdAt !== 'string' || !Number.isFinite(Date.parse(createdAt))) return null;
+  if (includeFinancialFields) {
+    if (row.current_balance !== undefined && row.current_balance !== null &&
+        (typeof row.current_balance !== 'number' || !Number.isFinite(row.current_balance))) return null;
+    if (row.credit_limit !== undefined && row.credit_limit !== null &&
+        (typeof row.credit_limit !== 'number' || !Number.isFinite(row.credit_limit))) return null;
+    if (row.profile_id !== undefined && row.profile_id !== null && typeof row.profile_id !== 'string') return null;
+  }
   const safe: CustomerDirectoryRow = {
-    id: row.id,
-    business_name: row.business_name,
-    contact_name: typeof row.contact_name === "string" ? row.contact_name : null,
-    phone: typeof row.phone === "string" ? row.phone : null,
-    email: typeof row.email === "string" ? row.email : null,
-    customer_code: typeof row.customer_code === "string" ? row.customer_code : null,
-    tier: typeof row.tier === "string" ? row.tier : null,
-    status: row.status,
-    created_at: createdAt,
-    ...(typeof row.current_balance === "number" || row.current_balance === null ? { current_balance: row.current_balance } : {}),
-    ...(typeof row.credit_limit === "number" || row.credit_limit === null ? { credit_limit: row.credit_limit } : {}),
-    ...(typeof row.profile_id === "string" || row.profile_id === null ? { profile_id: row.profile_id } : {}),
+    id: row.id, business_name: row.business_name,
+    contact_name: typeof row.contact_name === 'string' ? row.contact_name : null,
+    phone: typeof row.phone === 'string' ? row.phone : null,
+    email: typeof row.email === 'string' ? row.email : null,
+    customer_code: typeof row.customer_code === 'string' ? row.customer_code : null,
+    tier: typeof row.tier === 'string' ? row.tier : null,
+    status: row.status, created_at: createdAt,
   };
-  // The manager projection intentionally omits finance-only fields.
+  if (includeFinancialFields) {
+    if (typeof row.current_balance === 'number' || row.current_balance === null) safe.current_balance = row.current_balance;
+    if (typeof row.credit_limit === 'number' || row.credit_limit === null) safe.credit_limit = row.credit_limit;
+    if (typeof row.profile_id === 'string' || row.profile_id === null) safe.profile_id = row.profile_id;
+  }
   return safe;
 }
-
 
 /** Remove PostgREST filter grammar and wildcard characters from user-provided search text. */
 export function normalizeCustomerDirectorySearch(value: string): string {
@@ -148,7 +143,7 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
     ) {
       throw new Error('لم يؤكد الخادم بيانات صفحات دليل العملاء.');
     }
-    const sanitizedRows = payload.rows.map(sanitizeCustomerManagerDirectoryRow);
+    const sanitizedRows = payload.rows.map((value) => sanitizeCustomerDirectoryRow(value, false));
     const rows = sanitizedRows.filter((row): row is CustomerDirectoryRow => row !== null);
     if (rows.length !== payload.rows.length || rows.length > pageSize) {
       throw new Error('أعاد الخادم سجلات غير صالحة لدليل العملاء.');
@@ -195,7 +190,7 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
 
     const rows: CustomerDirectoryRow[] = [];
     for (const [index, value] of (data ?? []).entries()) {
-      const row = sanitizeCustomerManagerDirectoryRow(value);
+      const row = sanitizeCustomerDirectoryRow(value, true)
       if (!row) throw new Error('أعاد دليل العملاء سجلاً لا يطابق عقد العرض المصرح به (' + (index + 1) + ').');
       rows.push(row);
     }

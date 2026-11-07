@@ -28,6 +28,7 @@ type MockQuery = PromiseLike<MockResult> & {
   select: (columns?: string) => MockQuery;
   eq: (column: string, value: unknown) => MockQuery;
   order: (column: string) => MockQuery;
+  in: (column: string, values: unknown[]) => MockQuery;
 };
 
 const ORGANIZATION_ID = "a0000000-0000-0000-0000-000000000001";
@@ -53,6 +54,10 @@ function makeQuery(table: string): MockQuery {
     },
     order(column) {
       query.orderBy = column;
+      return builder;
+    },
+    in(column, values) {
+      query.filters.push({ column, value: values });
       return builder;
     },
     then(onfulfilled, onrejected) {

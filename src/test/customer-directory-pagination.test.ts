@@ -19,6 +19,15 @@ vi.mock('@/lib/supabase', () => ({
 
 import { fetchCustomerDirectoryPage, normalizeCustomerDirectorySearch } from '@/lib/customer-directory';
 
+function customerRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'customer-26', business_name: 'شركة اختبار', contact_name: null, phone: null,
+    email: null, customer_code: null, tier: null, current_balance: 0, credit_limit: 0,
+    status: 'active', created_at: '2026-11-01T00:00:00.000Z', profile_id: null,
+    ...overrides,
+  };
+}
+
 function query() {
   const q = {
     select(columns: string, options?: unknown) { mocks.selects.push({ columns, options }); return q; },
@@ -60,14 +69,14 @@ describe('customer directory query contract', () => {
   });
 
   it('uses tenant scope, explicit columns, exact count, a stable sort, and a bounded page', async () => {
-    mocks.defaultResponse = { data: [{ id: 'customer-26' }], error: null, count: 51 };
+    mocks.defaultResponse = { data: [customerRow()], error: null, count: 51 };
     const result = await fetchCustomerDirectoryPage({ search: '  متجر النور  ', page: 2, pageSize: 25 });
 
     expect(result).toMatchObject({ totalCount: 51, page: 2, pageSize: 25 });
     expect(result.rows).toHaveLength(1);
     expect(mocks.equals).toContainEqual(['organization_id', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']);
     expect(mocks.selects).toEqual([{
-      columns: 'id,business_name,contact_name,phone,email,customer_code,tier,current_balance,credit_limit,status,created_at',
+      columns: 'id,business_name,contact_name,phone,email,customer_code,tier,current_balance,credit_limit,status,created_at,profile_id',
       options: { count: 'exact' },
     }]);
     expect(mocks.orders).toEqual([
@@ -112,7 +121,7 @@ describe('customer directory query contract', () => {
   });
 
   it('returns customers with missing contact details and skips server filters for an empty query', async () => {
-    const sparseCustomer = { id: 'no-contact', business_name: 'سجل بلا بيانات اتصال', contact_name: null, phone: null, email: null };
+    const sparseCustomer = customerRow({ id: 'no-contact', business_name: 'سجل بلا بيانات اتصال' });
     mocks.defaultResponse = { data: [sparseCustomer], error: null, count: 1 };
     const result = await fetchCustomerDirectoryPage({ search: '   ' });
     expect(result.rows).toEqual([sparseCustomer]);
@@ -123,7 +132,7 @@ describe('customer directory query contract', () => {
   it('clamps an out-of-range page against the exact count after deletions', async () => {
     mocks.responses.push(
       { data: [], error: null, count: 25 },
-      { data: [{ id: 'last-customer' }], error: null, count: 25 },
+      { data: [customerRow({ id: 'last-customer' })], error: null, count: 25 },
     );
     const result = await fetchCustomerDirectoryPage({ page: 2, pageSize: 25 });
     expect(mocks.ranges).toEqual([[25, 49], [0, 24]]);

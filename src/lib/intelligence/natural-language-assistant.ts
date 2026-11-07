@@ -215,7 +215,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
    sourceRpc:"get_customer_retention_aggregate",periodDays,
    filterDescription:"إشارات تكرار الشراء وتراجع نشاط العميل فقط من مجتمع الطلبات الحالي، عبر فترتين متساويتين وأدلة مصدر موثقة؛ لا تشمل تحويل عروض الأسعار أو البحث عن منتجات غير متاحة ما لم يوردهما مصدر مستقل."};
  }
- const retentionQuestion=/(احتفاظ|استبقاء|تكرار الشراء|شراء متكرر|متكرر|نشاط العملاء|نشطون|الخمول|خاملون|معرضون للخمول|معرضين للخمول|معرض للخمول|فتور)/.test(normalizedQuestion);
+ const retentionQuestion=/(احتفاظ|استبقاء|تكرار الشراء|شراء متكرر|العملاء المتكررون|العملاء متكررو الشراء|نشاط العملاء|نشطون|الخمول|خاملون|معرضون للخمول|معرضين للخمول|معرض للخمول|فتور)/.test(normalizedQuestion);
  if(retentionQuestion){
   const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90|180|365)\s*(?:يوما?|ايام)/);
   const monthPeriod=/اخر شهر/.test(normalizedQuestion)?30:
@@ -304,7 +304,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  const customerServiceSlaQuestion=/(sla|اول استجابه|الاستجابه الاولى|اول رد|موعد الاستجابه|تجاوز.*الاستجابه|تاخر.*الاستجابه|تاخر الرد|لم يتم الرد|موعد الحل|تجاوز.*الحل|تاخر.*حل الحالات)/.test(normalizedQuestion);
  const customerServiceUnassignedQuestion=/(غير المسنده|بلا مسؤول|بدون مسؤول|لم تسند|غير موزعه)/.test(normalizedQuestion);
  if(customerServiceQuestion||customerServiceSlaQuestion||customerServiceUnassignedQuestion){
-  if(/(اخر|الماضي|الماضيه|السابقة|السابقه|من تاريخ|بين تاريخ|خلال|منذ|هذا الشهر|هذا الاسبوع|الشهر الحالي|الاسبوع الحالي|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion))return {
+  if(/(?:^|\s)(اخر|الماضي|الماضيه|السابقة|السابقه|من تاريخ|بين تاريخ|خلال|منذ|هذا الشهر|هذا الاسبوع|الشهر الحالي|الاسبوع الحالي)(?=\s|$)|20[0-9]{2}-[0-9]{2}-[0-9]{2}/.test(normalizedQuestion))return {
    status:"UNSUPPORTED",normalizedQuestion,
    explanation:"ملخص خدمة العملاء لقطة حالية عند وقت الاستعلام؛ لا يدعم تاريخاً ماضياً أو مقارنة زمنية. لا أستبدل ذلك بآخر سجلات الحالات."
   };

@@ -92,7 +92,7 @@ test("purchase manager creates, exports and physically receives a tenant-scoped 
       await manager.getByRole("button", { name: "إنشاء مسودة أمر شراء", exact: true }).click();
       await expect(manager.getByRole("heading", { name: "مسودة أمر شراء جديدة" })).toBeVisible();
       await manager.getByLabel("المورد", { exact: true }).selectOption(supplierId);
-      await manager.getByLabel("المخزن المستلم").selectOption(warehouseId);
+      await manager.locator(".po-create-grid").getByLabel("المخزن المستلم").selectOption(warehouseId);
       await manager.locator(".po-lines select").selectOption(productId);
       await manager.getByLabel("الكمية المطلوبة").fill("2.125");
       // Unknown supplier cost is intentional: it must stay NULL/blank, never zero.
