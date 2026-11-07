@@ -5321,8 +5321,9 @@ async function main() {
 
   // REF-SECTION-61-TASK-QUALITY-REVIEWS-001: append-only manager reviews, reason codes and calibrated metrics.
   async function recordQualityReview(taskId, reviewType, review, suffix, eventId, idempotencyKey) {
+    // postgres.js converts timestamptz to millisecond Date values; preserve PostgreSQL microseconds for optimistic-version checks.
     const taskVersion = await db.unsafe(
-      "select updated_at from public.ai_tasks where id=$1 and organization_id=$2",
+      "select updated_at::text as updated_at from public.ai_tasks where id=$1 and organization_id=$2",
       [taskId, organizationId],
     );
     assert.equal(taskVersion.length, 1, "quality reviews attach only to a persisted task in the active organization");
@@ -5404,7 +5405,7 @@ async function main() {
   assert.equal(qualityNeedsReview.result.ok, true, "unresolved alert review remains a distinct non-final verdict");
 
   const staleQualityTaskVersion = await db.unsafe(
-    "select updated_at from public.ai_tasks where id=$1 and organization_id=$2",
+    "select updated_at::text as updated_at from public.ai_tasks where id=$1 and organization_id=$2",
     [invoiceTask[0].id,organizationId],
   );
   await db.unsafe("reset role");
