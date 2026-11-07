@@ -73,4 +73,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun run vitest run src/test/ai-gateway-logic.test.ts src/test/password-reset-route-security.test.ts src/test/customer-quotes-route-acceptance.test.tsx src/test/admin-customer-360-display.test.tsx
+          bun run vitest run src/test/ai-gateway-logic.test.ts src/test/password-reset-route-security.test.ts src/test/customer-quotes-route-acceptance.test.tsx src/test/admin-customer-360-display.test.tsx src/test/admin-access-matrix-ui.test.tsx
