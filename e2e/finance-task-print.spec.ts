@@ -721,7 +721,8 @@ test("general journal voucher and full financial statements print in authorized 
   try {
     await signIn(manager, requiredEnv("E2E_MANAGER_EMAIL"), requiredEnv("E2E_MANAGER_PASSWORD"));
     await manager.goto("/admin/finance");
-    await expect(manager.getByRole("heading", { name: "دفتر الأستاذ العام وقيود اليومية" })).toBeVisible({ timeout: 30_000 });
+    const ledgerWorkspace = manager.getByRole("region", { name: "دفتر الأستاذ العام", exact: true });
+    await expect(ledgerWorkspace.getByRole("heading", { name: "دفتر الأستاذ العام وقيود اليومية", exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(manager.getByRole("button", { name: "طباعة القوائم المالية", exact: true })).toBeEnabled({ timeout: 30_000 });
     await ensureJournalRow(manager);
     await assertPrintDocument(manager, "طباعة القيد", "مستند قيد اليومية", ["تفاصيل القيد المزدوج", "الإجمالي المتوازن", "مدين", "دائن"]);
