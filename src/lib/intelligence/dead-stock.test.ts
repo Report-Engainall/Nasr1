@@ -85,7 +85,7 @@ describe("dead-stock engine",()=>{
  });
  it("rounds unit-cost exposure to exact cents using decimal source values",()=>{
   const p={productRef:"P-CENT",lastMovementAt:null,movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-cent"]},
-   availableQuantity:metric("qty-cent","QUANTITY","0.100000"),quantityUnit:"EA",unitCost:metric("cost-cent","CURRENCY_PER_UNIT","0.050000","YER"),costQuantityUnit:"EA",soldQuantityWindow:null,averageInventoryWindow:null};
+   availableQuantity:{...metric("qty-cent","QUANTITY","0.100000"),period:null},quantityUnit:"EA",unitCost:metric("cost-cent","CURRENCY_PER_UNIT","0.050000","YER"),costQuantityUnit:"EA",soldQuantityWindow:null,averageInventoryWindow:null};
   const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv-cent"),{...evidence("qty-cent"),period:null},evidence("cost-cent","YER")],products:[p],rule});
   expect(r.items[0]).toMatchObject({financialExposure:0.01,exposureStatus:"VERIFIED",currency:"YER",formulaVersion:"1.1.0"});
   expect(r.totalsByCurrency).toEqual([{currency:"YER",exposure:0.01,verifiedItems:1,withheldItems:0}]);
@@ -93,9 +93,9 @@ describe("dead-stock engine",()=>{
 
  it("withholds exposure when quantity or unit cost exceeds supported decimal precision",()=>{
   const p={productRef:"P-PRECISION",lastMovementAt:null,movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-precision"]},
-   availableQuantity:metric("qty-precision","QUANTITY","0.1000001"),quantityUnit:"EA",unitCost:metric("cost-precision","CURRENCY_PER_UNIT","0.05","YER"),costQuantityUnit:"EA",soldQuantityWindow:null,averageInventoryWindow:null};
+   availableQuantity:{...metric("qty-precision","QUANTITY","0.1000001"),period:null},quantityUnit:"EA",unitCost:metric("cost-precision","CURRENCY_PER_UNIT","0.05","YER"),costQuantityUnit:"EA",soldQuantityWindow:null,averageInventoryWindow:null};
   const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv-precision"),{...evidence("qty-precision"),period:null},evidence("cost-precision","YER")],products:[p],rule});
-  expect(r.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW",currency:null});
+  expect(r.items[0]).toMatchObject({financialExposure:null,exposureStatus:"NEEDS_REVIEW",currency:"YER"});
   expect(r.items[0].warnings).toContain("EXPOSURE_PRECISION_INVALID");
   expect(r.totalsByCurrency).toEqual([{currency:"YER",exposure:null,verifiedItems:0,withheldItems:1}]);
  });
@@ -104,7 +104,7 @@ describe("dead-stock engine",()=>{
   const products=["A","B","C"].map(ref=>({
    productRef:"P-"+ref,lastMovementAt:null,
    movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv-"+ref]},
-   availableQuantity:metric("qty-"+ref,"QUANTITY","1.000000"),quantityUnit:"EA",
+   availableQuantity:{...metric("qty-"+ref,"QUANTITY","1.000000"),period:null},quantityUnit:"EA",
    unitCost:metric("cost-"+ref,"CURRENCY_PER_UNIT","0.10","YER"),costQuantityUnit:"EA",
    soldQuantityWindow:null,averageInventoryWindow:null,
   }));
