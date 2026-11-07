@@ -1,4 +1,4 @@
-// Re-exports the Lovable Cloud client with a loose schema type so the existing
+// Re-exports the project-owned Supabase client with a loose schema type so the existing
 // data layer (src/lib/api.ts) keeps its own hand-written contracts in src/lib/types.ts.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as typedClient } from '@/integrations/supabase/client';
