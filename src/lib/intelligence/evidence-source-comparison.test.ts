@@ -144,8 +144,13 @@ describe("verified evidence source comparison", () => {
       metric: {
         unit: "CURRENCY",
         currency: "YER",
-        formulaId: "revenue.net",
-        formulaVersion: "1",
+        lineage: {
+          evidenceIds: ["evidence-1"],
+          calculatedAt: "2026-11-06T20:01:00.000Z",
+          formulaId: "revenue.net",
+          formulaVersion: "1",
+          transformations: ["COUNT(status=completed)"],
+        },
       },
       evidence: { currency: "YER" },
     });
@@ -153,8 +158,13 @@ describe("verified evidence source comparison", () => {
       metric: {
         unit: "CURRENCY",
         currency: "USD",
-        formulaId: "revenue.net",
-        formulaVersion: "2",
+        lineage: {
+          evidenceIds: ["evidence-1"],
+          calculatedAt: "2026-11-06T20:01:00.000Z",
+          formulaId: "revenue.net",
+          formulaVersion: "2",
+          transformations: ["COUNT(status=completed)"],
+        },
         period: { from: "2026-09-01", to: "2026-09-30" },
       },
       evidence: {
