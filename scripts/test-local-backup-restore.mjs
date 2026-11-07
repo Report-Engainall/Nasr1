@@ -286,7 +286,7 @@ function canonicalizeBooleanExpression(value) {
 }
 
 function canonicalizeCheckConstraintLine(line) {
-  const match = line.match(/^(\\s*CONSTRAINT\\s+.*?\\s+CHECK\\s*)\\((.*)\\)(,?)$/);
+  const match = line.match(/^(\s*CONSTRAINT\s+.*?\s+CHECK\s*)\((.*)\)(,?)$/);
   if (!match) return line;
   return match[1] + "(" + canonicalizeBooleanExpression(match[2]).sql + ")" + match[3];
 }
@@ -303,10 +303,10 @@ function canonicalSchemaDump(url) {
     "--dbname=" + url,
   ]);
   const canonical = schemaDump
-    .split(/\\r?\\n/)
-    .filter((line) => !/^\\\\(?:un)?restrict(?:\\s|$)/.test(line))
+    .split(/\r?\n/)
+    .filter((line) => !/^\\(?:un)?restrict(?:\s|$)/.test(line))
     .map(canonicalizeCheckConstraintLine)
-    .join("\\n")
+    .join("\n")
     .trim();
   assert.ok(canonical.length > 1000, "schema-only dump is unexpectedly small");
   return canonical;
