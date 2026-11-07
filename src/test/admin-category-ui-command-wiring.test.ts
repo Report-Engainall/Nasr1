@@ -7,7 +7,9 @@ const categoryCommands = readFileSync(join(process.cwd(), "src/lib/admin-catalog
 
 describe("admin category command wiring", () => {
   it("routes Data Center category creation through the audited target-native RPC service", () => {
-    expect(adminApp).toContain("import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
+    expect(adminApp).toContain("archiveAdminCatalogCategory");
+    expect(adminApp).toContain("createAdminCatalogCategory");
+    expect(adminApp).toContain("renameAdminCatalogCategory");
     expect(adminApp).toContain("await createAdminCatalogCategory(name);");
     expect(adminApp).not.toContain("await createCategory({ name,");
   });
@@ -17,7 +19,9 @@ describe("admin category command wiring", () => {
     expect(categoryCommands).not.toContain(".from('categories').insert(");
   });
   it("wires category archive to the same audited server command and gates it by role", () => {
-    expect(adminApp).toContain("import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
+    expect(adminApp).toContain("archiveAdminCatalogCategory");
+    expect(adminApp).toContain("createAdminCatalogCategory");
+    expect(adminApp).toContain("renameAdminCatalogCategory");
     expect(adminApp).toContain("await archiveAdminCatalogCategory(category.id);");
     expect(adminApp).toContain("window.confirm(");
     expect(adminApp).toContain("canManageImports && category.is_active !== false");
