@@ -5323,7 +5323,7 @@ async function main() {
   async function recordQualityReview(taskId, reviewType, review, suffix, eventId, idempotencyKey) {
     // postgres.js converts timestamptz to millisecond Date values; preserve PostgreSQL microseconds for optimistic-version checks.
     const taskVersion = await db.unsafe(
-      "select updated_at::text as updated_at from public.ai_tasks where id=$1 and organization_id=$2",
+      "select to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z') as expected_version from public.ai_tasks where id=$1 and organization_id=$2",
       [taskId, organizationId],
     );
     assert.equal(taskVersion.length, 1, "quality reviews attach only to a persisted task in the active organization");
@@ -5331,7 +5331,7 @@ async function main() {
       "select updated_at::text as current_version,$3::timestamptz::text as expected_version," +
         "updated_at IS NOT DISTINCT FROM $3::timestamptz as matches " +
         "from public.ai_tasks where id=$1 and organization_id=$2",
-      [taskId, organizationId, taskVersion[0].updated_at],
+      [taskId, organizationId, taskVersion[0].expected_version],
     );
     assert.equal(
       versionCheck[0]?.matches,
@@ -5341,9 +5341,9 @@ async function main() {
     );
     const rows = await db.unsafe(
       "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
-      [taskId, taskVersion[0].updated_at, reviewType, db.json(review), eventId ?? ("ci-quality-event-" + suffix + "-" + randomUUID()), idempotencyKey ?? ("ci-quality-idem-" + suffix + "-" + randomUUID())],
+      [taskId, taskVersion[0].expected_version, reviewType, db.json(review), eventId ?? ("ci-quality-event-" + suffix + "-" + randomUUID()), idempotencyKey ?? ("ci-quality-idem-" + suffix + "-" + randomUUID())],
     );
-    return { result: rows[0].result, updatedAt: taskVersion[0].updated_at, eventId, idempotencyKey };
+    return { result: rows[0].result, updatedAt: taskVersion[0].expected_version, eventId, idempotencyKey };
   }
 
   const qualityActionable = await recordQualityReview(
@@ -5417,7 +5417,7 @@ async function main() {
   assert.equal(qualityNeedsReview.result.ok, true, "unresolved alert review remains a distinct non-final verdict");
 
   const staleQualityTaskVersion = await db.unsafe(
-    "select updated_at::text as updated_at from public.ai_tasks where id=$1 and organization_id=$2",
+    "select to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z') as expected_version from public.ai_tasks where id=$1 and organization_id=$2",
     [invoiceTask[0].id,organizationId],
   );
   await db.unsafe("reset role");
@@ -5431,7 +5431,7 @@ async function main() {
     "task quality review rejects a stale task version",
     () => db.unsafe(
       "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text)",
-      [invoiceTask[0].id,staleQualityTaskVersion[0].updated_at,"ACTIONABILITY",db.json({actionability:"ACTIONABLE"}),"ci-quality-stale-event","ci-quality-stale-key"],
+      [invoiceTask[0].id,staleQualityTaskVersion[0].expected_version,"ACTIONABILITY",db.json({actionability:"ACTIONABLE"}),"ci-quality-stale-event","ci-quality-stale-key"],
     ),
     /task changed after the review was opened/i,
     "40001",
