@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { replaceAsciiControlCharacters } from "./replace-ascii-control-characters";
 
 export type AdminWorkspaceSearchKind = "product" | "customer" | "order" | "supplier" | "invoice" | "decision" | "audit" | "purchase_order" | "task" | "import";
 export type AdminWorkspaceSearchItem = {
@@ -46,7 +47,7 @@ function parseSearchItem(value: unknown): AdminWorkspaceSearchItem | null {
 /** Read-only, bounded reference search. Financial values and protected record payloads are never returned. */
 export async function searchAdminWorkspaceRecords(query: string, limit = 30): Promise<AdminWorkspaceSearchItem[]> {
   if (typeof query !== "string") throw new Error("عبارة البحث غير صالحة.");
-  const normalized = query.normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const normalized = replaceAsciiControlCharacters(query.normalize("NFKC"), " ").replace(/\s+/g, " ").trim();
   if (normalized.length < 2) return [];
   if (normalized.length > 120) throw new Error("عبارة البحث تتجاوز الحد المسموح (120 حرفًا).");
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("حجم نتائج البحث خارج النطاق المسموح.");
