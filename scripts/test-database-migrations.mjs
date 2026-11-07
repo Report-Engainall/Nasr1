@@ -5327,6 +5327,18 @@ async function main() {
       [taskId, organizationId],
     );
     assert.equal(taskVersion.length, 1, "quality reviews attach only to a persisted task in the active organization");
+    const versionCheck = await db.unsafe(
+      "select updated_at::text as current_version,$3::timestamptz::text as expected_version," +
+        "updated_at IS NOT DISTINCT FROM $3::timestamptz as matches " +
+        "from public.ai_tasks where id=$1 and organization_id=$2",
+      [taskId, organizationId, taskVersion[0].updated_at],
+    );
+    assert.equal(
+      versionCheck[0]?.matches,
+      true,
+      "test must send the exact task version read from PostgreSQL: " +
+        JSON.stringify({ current: versionCheck[0]?.current_version, expected: versionCheck[0]?.expected_version }),
+    );
     const rows = await db.unsafe(
       "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
       [taskId, taskVersion[0].updated_at, reviewType, db.json(review), eventId ?? ("ci-quality-event-" + suffix + "-" + randomUUID()), idempotencyKey ?? ("ci-quality-idem-" + suffix + "-" + randomUUID())],
