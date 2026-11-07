@@ -5321,27 +5321,27 @@ async function main() {
 
   // REF-SECTION-61-TASK-QUALITY-REVIEWS-001: append-only manager reviews, reason codes and calibrated metrics.
   async function recordQualityReview(taskId, reviewType, review, suffix, eventId, idempotencyKey) {
-    // Lock the task row while reading updated_at and recording the review. This keeps
-    // unrelated task refresh/status writes from racing the optimistic-version check.
+    // Lock the task row and pass its exact timestamp inside SQL. Never round-trip
+    // timestamptz through JavaScript, whose Date representation drops microseconds.
     const resolvedEventId = eventId ?? ("ci-quality-event-" + suffix + "-" + randomUUID());
     const resolvedIdempotencyKey = idempotencyKey ?? ("ci-quality-idem-" + suffix + "-" + randomUUID());
     return db.begin(async (tx) => {
-      // The fixture connection is postgres; briefly elevate only to take the row lock,
-      // then restore authenticated before exercising the SECURITY DEFINER RPC.
+      // Briefly elevate only to take the row lock, then restore authenticated for the RPC.
       await tx.unsafe("set role postgres");
-      const taskVersion = await tx.unsafe(
-        "select updated_at::text as updated_at from public.ai_tasks where id=$1 and organization_id=$2 for update",
+      const lockedTask = await tx.unsafe(
+        "select id from public.ai_tasks where id=$1 and organization_id=$2 for update",
         [taskId, organizationId],
       );
-      assert.equal(taskVersion.length, 1, "quality reviews attach only to a persisted task in the active organization");
+      assert.equal(lockedTask.length, 1, "quality reviews attach only to a persisted task in the active organization");
       await tx.unsafe("set role authenticated");
       const rows = await tx.unsafe(
-        "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
-        [taskId, taskVersion[0].updated_at, reviewType, db.json(review), resolvedEventId, resolvedIdempotencyKey],
+        "select public.record_operational_task_quality_review($1::uuid," +
+          "(select t.updated_at from public.ai_tasks t where t.id=$1 and t.organization_id=$2)," +
+          "$3::text,$4::jsonb,$5::text,$6::text) as result",
+        [taskId, organizationId, reviewType, db.json(review), resolvedEventId, resolvedIdempotencyKey],
       );
       return {
         result: rows[0].result,
-        updatedAt: taskVersion[0].updated_at,
         eventId: resolvedEventId,
         idempotencyKey: resolvedIdempotencyKey,
       };
@@ -5439,10 +5439,12 @@ async function main() {
   );
 
   const qualityReplayRows = await db.unsafe(
-    "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
+    "select public.record_operational_task_quality_review($1::uuid," +
+      "(select task_updated_at from public.operational_task_quality_events where organization_id=$2 and idempotency_key=$6)," +
+      "$3::text,$4::jsonb,$5::text,$6::text) as result",
     [
       reviewBefore[0].id,
-      qualityActionable.updatedAt,
+      organizationId,
       "ACTIONABILITY",
       db.json({ actionability: "ACTIONABLE" }),
       qualityActionable.eventId,
