@@ -94,8 +94,10 @@ test("purchase manager creates, exports and physically receives a tenant-scoped 
       const draftPanel = manager.getByRole("region", { name: "مسودة أمر شراء جديدة" });
       await draftPanel.getByLabel("المورد", { exact: true }).selectOption(supplierId);
       await draftPanel.getByLabel("المخزن المستلم", { exact: true }).selectOption(warehouseId);
-      await draftPanel.getByLabel("الصنف", { exact: true }).selectOption(productId);
-      await expect(draftPanel.getByLabel("الصنف", { exact: true })).toHaveValue(productId);
+      const draftProductSelect = draftPanel.locator(".po-line select");
+      await expect(draftProductSelect).toHaveCount(1);
+      await draftProductSelect.selectOption(productId);
+      await expect(draftProductSelect).toHaveValue(productId);
       await draftPanel.getByLabel("الكمية المطلوبة", { exact: true }).fill("2.125");
       // Unknown supplier cost is intentional: it must stay NULL/blank, never zero.
       await draftPanel.getByLabel("تكلفة الوحدة (اختياري)", { exact: true }).fill("");
