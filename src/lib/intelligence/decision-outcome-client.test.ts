@@ -218,6 +218,7 @@ describe("persisted decision outcome client", () => {
     const deferred = {
       ...outcome,
       state: "DEFERRED",
+      updatedAt: "2026-10-31T11:00:00.000Z",
       version: 2,
       reason,
       eventCount: 2,
@@ -300,6 +301,7 @@ describe("persisted decision outcome client", () => {
     const deferred = {
       ...outcome,
       state: "DEFERRED",
+      updatedAt: "2026-10-31T11:00:00.000Z",
       version: 2,
       eventCount: 2,
       history: [...outcome.history, {
@@ -316,6 +318,7 @@ describe("persisted decision outcome client", () => {
     const resumed = {
       ...deferred,
       state: "IN_REVIEW",
+      updatedAt: "2026-10-31T12:00:00.000Z",
       version: 3,
       reason,
       eventCount: 3,
