@@ -807,8 +807,8 @@ test("admin access matrix compares every role and keeps wide tables keyboard-scr
     const operationTable = operations.getByRole("table", { name: "مصفوفة العمليات وحدودها حسب الدور" });
     const roles = ["مدير النظام", "مدير", "موظف تشغيل", "محاسب", "مسؤول العملاء", "عميل"];
     for (const role of roles) {
-      await expect(pageTable.getByRole("columnheader", { name: role })).toBeVisible();
-      await expect(operationTable.getByRole("columnheader", { name: role })).toBeVisible();
+      await expect(pageTable.getByRole("columnheader", { name: role, exact: true })).toBeVisible();
+      await expect(operationTable.getByRole("columnheader", { name: role, exact: true })).toBeVisible();
     }
 
     await expect(pages.getByTestId("page-finance-staff")).toContainText("ممنوع");
