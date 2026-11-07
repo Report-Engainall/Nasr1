@@ -38,7 +38,7 @@ function createSupabaseClient() {
       ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
       ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
     ];
-    const message = `Missing database environment variable(s): ${missing.join(', ')}. Configure the Bolt Database connection and its client-safe environment values.`;
+    const message = `Missing database environment variable(s): ${missing.join(', ')}. Configure the client-safe Supabase environment values.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
