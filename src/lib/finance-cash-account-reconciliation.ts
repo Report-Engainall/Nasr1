@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { replaceAsciiControlCharacters } from "./replace-ascii-control-characters";
 
 export type CashSettlementKind = "cash" | "bank";
 export type CashEvidenceKind = "opening_balance" | "cash_count" | "bank_statement";
@@ -371,8 +372,10 @@ export async function uploadCashAccountEvidence(input: {
   if (!globalThis.crypto?.randomUUID || !globalThis.crypto?.subtle) {
     throw new Error("المتصفح لا يدعم توليد مفتاح آمن وبصمة SHA-256؛ لم يُرفع الملف.");
   }
-  const safeName = input.file.name.replace(/\//g, "_").replace(/\\/g, "_")
-    .replace(/[\u0000-\u001f\u007f]/g, "_").trim().slice(0, 180);
+  const safeName = replaceAsciiControlCharacters(
+    input.file.name.replace(/\//g, "_").replace(/\\/g, "_"),
+    "_",
+  ).trim().slice(0, 180);
   if (!safeName) throw new Error("اسم المستند غير صالح.");
   const digest = await globalThis.crypto.subtle.digest("SHA-256", await input.file.arrayBuffer());
   const contentSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
