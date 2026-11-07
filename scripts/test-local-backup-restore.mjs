@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -159,7 +159,7 @@ function catalogJsonSha256(url, label, sql) {
   return createHash("sha256").update(JSON.stringify(parsed)).digest("hex");
 }
 
-function definitionSignatures(url) {
+function canonicalSchemaDump(url) {
   // pg_dump's schema-only form covers relations, columns, constraints, indexes,
   // types, functions, policies and triggers. PostgreSQL 17 emits a randomized
   // psql restriction token; remove only those wrapper lines before fingerprinting.
@@ -169,12 +169,17 @@ function definitionSignatures(url) {
     "--no-acl",
     "--dbname=" + url,
   ]);
-  const canonicalSchemaDump = schemaDump
+  const canonical = schemaDump
     .split(/\r?\n/)
     .filter((line) => !/^\\(?:un)?restrict(?:\s|$)/.test(line))
     .join("\n")
     .trim();
-  assert.ok(canonicalSchemaDump.length > 1000, "schema-only dump is unexpectedly small");
+  assert.ok(canonical.length > 1000, "schema-only dump is unexpectedly small");
+  return canonical;
+}
+
+function definitionSignatures(url) {
+  const canonicalSchema = canonicalSchemaDump(url);
 
   const routinesSql = [
     "SELECT COALESCE(jsonb_agg(jsonb_build_array(",
@@ -210,7 +215,7 @@ function definitionSignatures(url) {
   ].join(" ");
 
   return {
-    schemaSha256: createHash("sha256").update(canonicalSchemaDump).digest("hex"),
+    schemaSha256: createHash("sha256").update(canonicalSchema).digest("hex"),
     routineSha256: catalogJsonSha256(url.toString(), "routine", routinesSql),
     policySha256: catalogJsonSha256(url.toString(), "RLS policy", policiesSql),
     triggerSha256: catalogJsonSha256(url.toString(), "user trigger", triggersSql),
@@ -263,6 +268,22 @@ async function main() {
     );
     const sourceDefinitions = definitionSignatures(sourceUrl.toString());
     const restoredDefinitions = definitionSignatures(restoreUrl.toString());
+    if (restoredDefinitions.schemaSha256 !== sourceDefinitions.schemaSha256) {
+      const sourceSchemaPath = join(workDir, "source-schema.sql");
+      const restoredSchemaPath = join(workDir, "restored-schema.sql");
+      writeFileSync(sourceSchemaPath, canonicalSchemaDump(sourceUrl.toString()), "utf8");
+      writeFileSync(restoredSchemaPath, canonicalSchemaDump(restoreUrl.toString()), "utf8");
+      const schemaDiff = spawnSync("diff", ["-u", sourceSchemaPath, restoredSchemaPath], {
+        encoding: "utf8",
+        timeout: 30_000,
+        maxBuffer: 4 * 1024 * 1024,
+      });
+      process.stderr.write(
+        "BACKUP_RESTORE_SCHEMA_DEFINITION_DIFF (first 30000 chars):\\n" +
+        (schemaDiff.stdout || schemaDiff.stderr || "diff utility produced no output").slice(0, 30_000) +
+        "\\n",
+      );
+    }
     assert.deepEqual(
       restoredDefinitions,
       sourceDefinitions,
