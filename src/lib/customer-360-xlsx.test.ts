@@ -152,7 +152,7 @@ describe("staff customer 360 XLSX export", () => {
     // The detail sheet has only the one latest invoice row despite the full-ledger count of 29.
     expect(invoices).toContain("INV-0009");
     expect(invoices).not.toContain("<v>29</v>");
-    expect(files.size).toBe(14); // 6 package files + 8 worksheets.
+    expect(files.size).toBe(15); // 6 package files + 9 worksheets.
   });
 
   it("keeps business IDs as strings, XML-escapes untrusted text and never emits formulas", () => {
