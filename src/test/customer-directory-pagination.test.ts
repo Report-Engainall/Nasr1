@@ -137,7 +137,10 @@ describe('customer directory query contract', () => {
     const result = await fetchCustomerDirectoryPage({ page: 2, pageSize: 25 });
     expect(mocks.ranges).toEqual([[25, 49], [0, 24]]);
     expect(result).toMatchObject({ page: 1, totalCount: 25 });
-    expect(result.rows).toEqual([{ id: 'last-customer' }]);
+    expect(result.rows).toMatchObject([{ id: 'last-customer', business_name: 'شركة اختبار', status: 'active' }]);
+    // Staff receive the explicit financial projection selected by the staff query contract.
+    expect(result.rows[0]).toHaveProperty('current_balance', 0);
+    expect(result.rows[0]).toHaveProperty('credit_limit', 0);
   });
 
   it('fails closed when the exact count is unavailable or the query fails', async () => {
