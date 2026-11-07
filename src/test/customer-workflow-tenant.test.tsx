@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   getCurrentTenantScope: vi.fn(),
   fetchProducts: vi.fn(),
   fetchResolvedProductPrices: vi.fn(),
+  fetchSettingsMap: vi.fn(),
   from: vi.fn(),
   rpc: vi.fn(),
   signOut: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock("@/lib/supabase", () => ({
 vi.mock("@/lib/api", () => ({
   fetchProducts: mocks.fetchProducts,
   fetchResolvedProductPrices: mocks.fetchResolvedProductPrices,
+  fetchSettingsMap: mocks.fetchSettingsMap,
 }));
 
 
@@ -175,6 +177,7 @@ describe("customer quote workspace tenant boundary", () => {
     });
     mocks.fetchProducts.mockResolvedValue([]);
     mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, 1000])));
+    mocks.fetchSettingsMap.mockResolvedValue({ show_price_on_cards: false });
     mocks.from.mockImplementation((table: string) => makeQuery(table));
     mocks.rpc.mockResolvedValue({ data: null, error: null });
   });
