@@ -93,7 +93,7 @@ function PurchaseOrderCreatePanel({ activeSuppliers, warehouses, products, busy,
           </select>
         </label>
         <label className="po-field">المخزن المستلم
-          <select value={warehouseId} onChange={(event) => onWarehouseChange(event.target.value)} disabled={busy || !warehouses.length}>
+          <select aria-label="المخزن المستلم" value={warehouseId} onChange={(event) => onWarehouseChange(event.target.value)} disabled={busy || !warehouses.length}>
             <option value="">اختر مخزنًا نشطًا</option>
             {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}{warehouse.code ? " · " + warehouse.code : ""}</option>)}
           </select>
