@@ -140,12 +140,18 @@ function validPricing(surface: "cart" | "orders") {
       item_code: "SKU-001",
       unit: "carton",
       quantity: 2,
+      original_unit_price: 1234,
+      discount_per_unit: 0,
+      discount_amount: 0,
+      promotion_title: null,
       unit_price: 1234,
       line_total: 2468,
     }],
     item_count: 1,
     currency: "YER",
     total_amount: 2468,
+    discount_total: 0,
+    promotion_pricing_version: 1,
     customer_tier_visible: false,
   };
 }
