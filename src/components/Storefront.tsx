@@ -1236,6 +1236,18 @@ export function ProductDetail({
     setRequestedUnitQuantity(minimum);
   }
 
+  // HTML number inputs must advertise the same legal increment enforced by the server-side order rule.
+  // Display units can represent several base units, so reduce the base-unit multiple by their GCD.
+  const quantityStep = (() => {
+    let left = quantityMultiple;
+    let right = selectedUnit.base_units_per_unit;
+    while (right !== 0) {
+      const remainder = left % right;
+      left = right;
+      right = remainder;
+    }
+    return quantityMultiple / Math.max(1, left);
+  })();
   const nextLowerQuantity = findAdjacentValidDisplayQuantity(-1);
   const nextHigherQuantity = findAdjacentValidDisplayQuantity(1);
 
@@ -1330,7 +1342,7 @@ export function ProductDetail({
                   inputMode="numeric"
                   min={minimumDisplayQuantity ?? 1}
                   max={maximumDisplayQuantity}
-                  step={1}
+                  step={quantityStep}
                   value={requestedUnitQuantity}
                   aria-label="كمية الطلب"
                   onChange={(event) => normalizeRequestedQuantity(event.currentTarget.value)}
