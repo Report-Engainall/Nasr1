@@ -67,6 +67,12 @@ jobs:
           done
       # Full-tree tsc is not a valid gate yet: legacy recovery files under src/ are not part of the active TanStack app and have unresolved React Router/Zustand dependencies. Unit tests, lint, build and route smoke checks remain the acceptance gates until that legacy tree is separated.
       - name: Unit tests
+        env:
+          # Syntactically valid, non-routable test-only config. Unit tests never use a real tenant.
+          VITE_SUPABASE_URL: https://supabase-unit-test.invalid
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_unit_test_only
+          SUPABASE_URL: https://supabase-unit-test.invalid
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_unit_test_only
         run: npm test
       - name: Focused TypeScript check for P2 Outbox handler and tests
         run: >-
