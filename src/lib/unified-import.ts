@@ -647,8 +647,8 @@ export class StreamingCsvParser {
 
 /**
  * Mirrors public.is_valid_import_quality_date(text) exactly for the local DQS preview.
- * Empty/whitespace dates are treated as missing (not malformed); non-empty values
- * must be real calendar dates in one of the server-supported formats.
+ * NULL or truly empty cells are missing; whitespace-only cells are malformed.
+ * Non-empty values must be real calendar dates in one of the server-supported formats.
  */
 function isValidImportQualityDate(raw: unknown): boolean {
   if (raw === null || raw === undefined || raw === "") return true;
