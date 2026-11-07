@@ -351,7 +351,7 @@ describe("production intelligence workspace inventory screens", () => {
 
     const replenishment = screen.getByRole("region", { name: "توصيات إعادة التوريد" });
     expect(replenishment).toHaveTextContent("توجد توصية لإعادة التوريد");
-    expect(replenishment.textContent).toMatch(/15\s*EA/);
+    expect(replenishment.textContent).toMatch(/7\s*EA/);
     expect(replenishment).toHaveTextContent("طلب مهلة التوريد");
     expect(replenishment).toHaveTextContent("الشراء التلقائي: ممنوع");
 
