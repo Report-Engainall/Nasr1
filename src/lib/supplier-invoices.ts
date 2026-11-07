@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { replaceAsciiControlCharacters } from "./replace-ascii-control-characters";
 
 export type SupplierInvoiceMatchStatus =
   | "matched"
@@ -552,12 +553,10 @@ export async function uploadSupplierInvoiceEvidence(input: {
   if (!globalThis.crypto?.randomUUID || !globalThis.crypto?.subtle) {
     throw new Error("المتصفح لا يدعم إنشاء بصمة SHA-256 ومفتاح ملف آمن؛ لم يُرفع المرفق.");
   }
-  const safeName = input.file.name
-    .replace(/\//g, "_")
-    .replace(/\\/g, "_")
-    .replace(/[\u0000-\u001f\u007f]/g, "_")
-    .trim()
-    .slice(0, 180);
+  const safeName = replaceAsciiControlCharacters(
+    input.file.name.replace(/\//g, "_").replace(/\\/g, "_"),
+    "_",
+  ).trim().slice(0, 180);
   if (!safeName) throw new Error("اسم ملف الدليل غير صالح.");
   const digest = await globalThis.crypto.subtle.digest("SHA-256", await input.file.arrayBuffer());
   const contentSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
