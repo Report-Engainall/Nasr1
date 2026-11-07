@@ -77,7 +77,7 @@ describe("staff catalog service", () => {
 
     await expect(saveAdminCatalogProduct(PRODUCT_ID, PRODUCT_INPUT))
       .resolves.toMatchObject({ id: PRODUCT_ID, created: false });
-    expect(mocks.rpc).toHaveBeenCalledWith("save_admin_catalog_product", SAVE_PRODUCT_RPC_ARGS);
+    expect(mocks.rpc).toHaveBeenCalledWith("save_admin_product_with_metadata", SAVE_PRODUCT_RPC_ARGS);
   });
 
   it("fails closed on invalid fields and server rejection", async () => {
