@@ -3655,7 +3655,7 @@ async function main() {
     { item_code: "000126", product_name: "Sugar", quantity: "10", revenue: "450", date: "2026-01-02" },
   ];
   await db.unsafe(
-    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'valid',$3::jsonb,'[]'::jsonb)",
+     "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'valid',$3::jsonb,'[]'::jsonb)",
     [importJob.id, db.json(importRows[0]), db.json(importRows[1])],
   );
 
@@ -3709,7 +3709,7 @@ async function main() {
   );
   const multiChunkJob = multiChunkJobResult[0].result;
   await db.unsafe(
-    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'rejected',$2::jsonb,$3::jsonb)",
+     "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'rejected',$2::jsonb,$3::jsonb)",
     [multiChunkJob.id, db.json({ item_code: "000999", quantity: "not-a-number" }), db.json(["الحقل quantity يجب أن يكون رقمًا صالحًا"])],
   );
   const multiChunkSessionResult = await db.unsafe(
@@ -4131,7 +4131,7 @@ async function main() {
   );
   assert.equal(partialMergeChunk[0].result.complete, true);
   await db.unsafe(
-    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+     "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
     [partialMergeJob.id, db.json({ item_code: "000127", product_name: "Tea", quantity: "1", revenue: "5", price: "5", date: "2026-01-03" })],
   );
   await db.unsafe(
@@ -4352,7 +4352,7 @@ async function main() {
     );
     assert.equal(chunk[0].result.complete, true, "full-dataset fixture upload must have a complete manifest");
     await db.unsafe(
-      "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+     "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
       [job.id, db.json({ item_code: itemCode, product_name: productName, quantity: "4", revenue: "40", price: "10", date: "2026-01-04" })],
     );
     await db.unsafe(
