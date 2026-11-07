@@ -498,7 +498,7 @@ async function main() {
     () => rpc(admin,
       "select public.save_admin_product_with_metadata($1::uuid,$2::jsonb) result",
       [created.id, admin.json({ ...metadataPayload, is_featured: "true" })]),
-    /product metadata fields are invalid/i,
+    /product metadata fields have invalid types/i,
     "metadata type failures are rejected before core or metadata mutations",
   );
   const afterRejectedMetadata = await root.unsafe(
