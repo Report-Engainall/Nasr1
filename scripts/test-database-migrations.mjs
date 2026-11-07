@@ -5329,7 +5329,7 @@ async function main() {
       // Briefly elevate only to take the row lock, then restore authenticated for the RPC.
       await tx.unsafe("set role postgres");
       const lockedTask = await tx.unsafe(
-        "select id from public.ai_tasks where id=$1 and organization_id=$2 for update",
+        "select updated_at::text as updated_at from public.ai_tasks where id=$1 and organization_id=$2 for update",
         [taskId, organizationId],
       );
       assert.equal(lockedTask.length, 1, "quality reviews attach only to a persisted task in the active organization");
@@ -5342,6 +5342,7 @@ async function main() {
       );
       return {
         result: rows[0].result,
+        updatedAt: lockedTask[0].updated_at,
         eventId: resolvedEventId,
         idempotencyKey: resolvedIdempotencyKey,
       };
@@ -5439,12 +5440,10 @@ async function main() {
   );
 
   const qualityReplayRows = await db.unsafe(
-    "select public.record_operational_task_quality_review($1::uuid," +
-      "(select task_updated_at from public.operational_task_quality_events where organization_id=$2 and idempotency_key=$6)," +
-      "$3::text,$4::jsonb,$5::text,$6::text) as result",
+    "select public.record_operational_task_quality_review($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::text,$6::text) as result",
     [
       reviewBefore[0].id,
-      organizationId,
+      qualityActionable.updatedAt,
       "ACTIONABILITY",
       db.json({ actionability: "ACTIONABLE" }),
       qualityActionable.eventId,
