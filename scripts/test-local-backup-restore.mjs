@@ -159,10 +159,143 @@ function catalogJsonSha256(url, label, sql) {
   return createHash("sha256").update(JSON.stringify(parsed)).digest("hex");
 }
 
+function stripCompleteParentheses(value) {
+  let expression = value.trim();
+  while (expression.startsWith("(") && expression.endsWith(")")) {
+    let depth = 0;
+    let singleQuoted = false;
+    let doubleQuoted = false;
+    let dollarTag = null;
+    let closesAtEnd = false;
+
+    for (let index = 0; index < expression.length; index += 1) {
+      const character = expression[index];
+      if (dollarTag) {
+        if (expression.startsWith(dollarTag, index)) {
+          index += dollarTag.length - 1;
+          dollarTag = null;
+        }
+        continue;
+      }
+      if (singleQuoted) {
+        if (character === "'" && expression[index + 1] === "'") { index += 1; continue; }
+        if (character === "'") singleQuoted = false;
+        continue;
+      }
+      if (doubleQuoted) {
+        if (character === '"' && expression[index + 1] === '"') { index += 1; continue; }
+        if (character === '"') doubleQuoted = false;
+        continue;
+      }
+      if (character === "'") { singleQuoted = true; continue; }
+      if (character === '"') { doubleQuoted = true; continue; }
+      if (character === "$") {
+        const tag = expression.slice(index).match(/^\$[A-Za-z_0-9]*\$/)?.[0];
+        if (tag) { dollarTag = tag; index += tag.length - 1; continue; }
+      }
+      if (character === "(") depth += 1;
+      else if (character === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          closesAtEnd = index === expression.length - 1;
+          if (!closesAtEnd) break;
+        }
+        if (depth < 0) break;
+      }
+    }
+
+    if (!closesAtEnd || depth !== 0 || singleQuoted || doubleQuoted || dollarTag) break;
+    expression = expression.slice(1, -1).trim();
+  }
+  return expression;
+}
+
+function splitTopLevelBoolean(value, operator) {
+  const parts = [];
+  const keyword = operator.toUpperCase();
+  let depth = 0;
+  let singleQuoted = false;
+  let doubleQuoted = false;
+  let dollarTag = null;
+  let start = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (dollarTag) {
+      if (value.startsWith(dollarTag, index)) {
+        index += dollarTag.length - 1;
+        dollarTag = null;
+      }
+      continue;
+    }
+    if (singleQuoted) {
+      if (character === "'" && value[index + 1] === "'") { index += 1; continue; }
+      if (character === "'") singleQuoted = false;
+      continue;
+    }
+    if (doubleQuoted) {
+      if (character === '"' && value[index + 1] === '"') { index += 1; continue; }
+      if (character === '"') doubleQuoted = false;
+      continue;
+    }
+    if (character === "'") { singleQuoted = true; continue; }
+    if (character === '"') { doubleQuoted = true; continue; }
+    if (character === "$") {
+      const tag = value.slice(index).match(/^\$[A-Za-z_0-9]*\$/)?.[0];
+      if (tag) { dollarTag = tag; index += tag.length - 1; continue; }
+    }
+    if (character === "(") { depth += 1; continue; }
+    if (character === ")") { depth -= 1; continue; }
+    if (depth !== 0 || value.slice(index, index + keyword.length).toUpperCase() !== keyword) continue;
+
+    const before = index === 0 ? " " : value[index - 1];
+    const after = value[index + keyword.length] ?? " ";
+    if (/[A-Za-z0-9_$]/.test(before) || /[A-Za-z0-9_$]/.test(after)) continue;
+    if (keyword === "AND" && /\bBETWEEN\s*$/i.test(value.slice(start, index).trimEnd())) continue;
+
+    parts.push(value.slice(start, index).trim());
+    index += keyword.length - 1;
+    start = index + 1;
+  }
+
+  if (parts.length === 0) return [value.trim()];
+  parts.push(value.slice(start).trim());
+  return parts;
+}
+
+function canonicalizeBooleanExpression(value) {
+  const expression = stripCompleteParentheses(value);
+  const disjunction = splitTopLevelBoolean(expression, "OR");
+  if (disjunction.length > 1) {
+    return {
+      operator: "OR",
+      sql: disjunction.map((term) => canonicalizeBooleanExpression(term).sql).join(" OR "),
+    };
+  }
+
+  const conjunction = splitTopLevelBoolean(expression, "AND");
+  if (conjunction.length > 1) {
+    const terms = conjunction.map(canonicalizeBooleanExpression);
+    return {
+      operator: "AND",
+      sql: terms.map((term) => term.operator === "OR" ? "(" + term.sql + ")" : term.sql).join(" AND "),
+    };
+  }
+
+  return { operator: "ATOM", sql: expression };
+}
+
+function canonicalizeCheckConstraintLine(line) {
+  const match = line.match(/^(\\s*CONSTRAINT\\s+.*?\\s+CHECK\\s*)\\((.*)\\)(,?)$/);
+  if (!match) return line;
+  return match[1] + "(" + canonicalizeBooleanExpression(match[2]).sql + ")" + match[3];
+}
+
 function canonicalSchemaDump(url) {
-  // pg_dump's schema-only form covers relations, columns, constraints, indexes,
-  // types, functions, policies and triggers. PostgreSQL 17 emits a randomized
-  // psql restriction token; remove only those wrapper lines before fingerprinting.
+  // pg_dump schema output can retain redundant parentheses around associative
+  // CHECK conjunctions that PostgreSQL normalizes when restoring the same DDL.
+  // Normalize only boolean grouping in CHECK constraints; preserve operators,
+  // literals, atom text, constraint names and every other schema definition.
   const schemaDump = runTool("pg_dump", [
     "--schema-only",
     "--no-owner",
@@ -170,14 +303,14 @@ function canonicalSchemaDump(url) {
     "--dbname=" + url,
   ]);
   const canonical = schemaDump
-    .split(/\r?\n/)
-    .filter((line) => !/^\\(?:un)?restrict(?:\s|$)/.test(line))
-    .join("\n")
+    .split(/\\r?\\n/)
+    .filter((line) => !/^\\\\(?:un)?restrict(?:\\s|$)/.test(line))
+    .map(canonicalizeCheckConstraintLine)
+    .join("\\n")
     .trim();
   assert.ok(canonical.length > 1000, "schema-only dump is unexpectedly small");
   return canonical;
 }
-
 function definitionSignatures(url) {
   const canonicalSchema = canonicalSchemaDump(url);
 
