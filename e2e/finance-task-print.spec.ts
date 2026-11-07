@@ -722,6 +722,7 @@ test("general journal voucher and full financial statements print in authorized 
     await signIn(manager, requiredEnv("E2E_MANAGER_EMAIL"), requiredEnv("E2E_MANAGER_PASSWORD"));
     await manager.goto("/admin/finance");
     const ledgerWorkspace = manager.getByRole("region", { name: "دفتر الأستاذ العام", exact: true });
+    await expect(ledgerWorkspace).toHaveCount(1);
     await expect(ledgerWorkspace.getByRole("heading", { name: "دفتر الأستاذ العام وقيود اليومية", exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(manager.getByRole("button", { name: "طباعة القوائم المالية", exact: true })).toBeEnabled({ timeout: 30_000 });
     await ensureJournalRow(manager);
