@@ -48,6 +48,6 @@ describe("admin access matrix UI", () => {
     expect(screen.getByTestId("single-page-products")).toBeTruthy();
     expect(screen.getByTestId("single-page-finance")).toHaveTextContent("ممنوع");
     expect(screen.getByText("العمليات المتاحة")).toBeTruthy();
-    expect(screen.getByText("موظف تشغيل")).toBeTruthy();
+    expect((screen.getByRole("combobox", { name: "الدور محل المراجعة" }) as HTMLSelectElement).value).toBe("staff");
   });
 });
