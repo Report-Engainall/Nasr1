@@ -461,9 +461,11 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(manager.getByRole("heading", { name: "أوامر الشراء والاستلام" })).toBeVisible({ timeout: 20_000 });
     await manager.getByRole("button", { name: "إنشاء مسودة أمر شراء" }).click();
 
-    const supplierSelect = manager.getByLabel("المورد");
-    const warehouseSelect = manager.getByLabel("المخزن المستلم");
-    const productSelect = manager.getByLabel("الصنف").first();
+    const purchaseOrderDraft = manager.getByRole("region", { name: "مسودة أمر شراء جديدة", exact: true });
+    await expect(purchaseOrderDraft).toBeVisible();
+    const supplierSelect = purchaseOrderDraft.getByLabel("المورد", { exact: true });
+    const warehouseSelect = purchaseOrderDraft.getByLabel("المخزن المستلم", { exact: true });
+    const productSelect = purchaseOrderDraft.getByLabel("الصنف", { exact: true });
     await expect(supplierSelect).toBeEnabled({ timeout: 20_000 });
     await expect(warehouseSelect).toBeEnabled({ timeout: 20_000 });
     await expect(productSelect).toBeEnabled({ timeout: 20_000 });
