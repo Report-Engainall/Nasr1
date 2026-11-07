@@ -49,7 +49,7 @@ describe("EvidenceSourceComparisonPanel", () => {
   it("renders both source values, names and source timestamps without averaging", () => {
     render(<EvidenceSourceComparisonPanel comparison={comparison()} />);
     expect(screen.getByText("الفرق المحسوب")).toBeInTheDocument();
-    expect(screen.getByText("الفرق المحسوب").parentElement?.textContent).toContain("4");
+    expect(screen.getByText("الفرق المحسوب").parentElement?.textContent).toContain("٤");
     expect(screen.getByText("operational.orders")).toBeInTheDocument();
     expect(screen.getByText("analytics.orders")).toBeInTheDocument();
     expect(screen.getAllByText(/2026-11-06T19:55:00.000Z/)).toHaveLength(2);
@@ -67,7 +67,7 @@ describe("EvidenceSourceComparisonPanel", () => {
     expect(screen.getByText("المصدر الأول")).toBeInTheDocument();
     expect(screen.getByText("المصدر الثاني")).toBeInTheDocument();
     expect(screen.getByText(/العملة مختلفة أو غير محددة/)).toBeInTheDocument();
-    expect(screen.getByText(/المعادلة أو إصدارها مختلف/)).toBeInTheDocument();
+    expect(screen.getByText(/معادلة الحساب أو إصدارها مختلف/)).toBeInTheDocument();
     expect(screen.queryByText("الفرق المحسوب")).toBeNull();
   });
 
