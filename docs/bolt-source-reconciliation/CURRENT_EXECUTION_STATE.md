@@ -3070,3 +3070,32 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - External acceptance prerequisites remain: apply the decision snapshot migration and all ordered dependencies to a controlled non-production tenant; verify tenant isolation, finance denial, exact balance/bucket reconciliation, snapshot immutability, same-payload replay and changed-payload rejection, UI loading/empty/error states, and no financial side effects.
 - NEXT_ACTION_ID: `DLV-010-CUSTOMER-RECEIVABLE-AGING-DECISION-SNAPSHOTS-001` — finish exact-SHA CI, apply the migration on Bolt/Supabase non-production, and record database-backed acceptance evidence before enabling these analytics in operational decisions.
 - NEXT_ACTION_ID (parallel): `DLV-001` — continue mapping all mandatory canonical requirements to stable leaf acceptance IDs and exact tests; the global 100% coverage gate remains OPEN.
+
+## P1 DELIVERY — 2026-11-07 — UNIFIED ADMIN ROLE / PAGE / OPERATION ACCESS MATRIX
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Exact current main SHA: `d81e2668c17f04ccb0beff8d9d17dcb93c284c85`.
+- Source implementation commit: `61d707d4ae55e9e1663ab5b184ed5853a229cb07`.
+- P1 workflow wiring commit: `fca5eba3a72aa78eeb5b4e99e717bff4084df088`.
+- Test correction commit: `d81e2668c17f04ccb0beff8d9d17dcb93c284c85`.
+- Changed paths:
+  - `src/components/AdminAccessMatrix.tsx`
+  - `src/test/admin-access-matrix-ui.test.tsx`
+  - `.github/workflows/p1-targeted-typecheck.yml`
+- Replaced the previous one-role-at-a-time default with a simultaneous comparison for all six defined roles. The matrix shows every registered admin page and operation, whether each role is allowed or denied, and the policy limit or role-level denial reason. Retained the single-role detailed view as an optional inspection mode.
+- Added role summary counts and a clear boundary note: this matrix is explanatory only; server RPC authorization, tenant/resource scope, workflow state and RLS remain authoritative. No permission policy, SQL, RPC, RLS rule or role assignment was changed.
+- Added UI regression tests for all role/page/operation cells, representative finance and pricing denials/allowances, and switching to single-role detail.
+- Added the new test to the scoped P1 workflow so it runs on every exact-main P1 assurance cycle.
+- Exact-SHA evidence on `d81e2668c17f04ccb0beff8d9d17dcb93c284c85`:
+  - P1 Targeted TypeScript Assurance: run `42381047282` — SUCCESS.
+  - Scoped Vitest: 5/5 files passed; `src/test/admin-access-matrix-ui.test.tsx` passed 2/2 tests.
+  - Strict P1 typecheck and supplemental P1 TypeScript AST budget check: SUCCESS.
+  - P1 Secret Scan: run `42381047237` — SUCCESS.
+  - Free Static Analysis: run `42381047270` — SUCCESS.
+  - One-main-branch cleanup: run `42381047292` — SUCCESS.
+  - Full Aghbari Commerce run `42381047228`: FAILURE in unrelated existing test areas (including intelligence workspace, decision/evidence readers, promotion overlap, dead-stock and natural-language assistant tests). Do not transfer this result to the matrix UI test; do not mark the full project roll-up green.
+  - P2 Playwright run `42381047251` was still IN_PROGRESS at this checkpoint. The authenticated customer/tenant job is separately skipped when protected fixtures are unavailable.
+- Acceptance boundary: P1 component/targeted regression and type assurance pass on the exact SHA. Admin-authenticated browser proof of the settings surface at 360px/1280px, keyboard and screen-reader interaction remains pending. No Bolt database, production database, deployment or production operation was changed or verified.
+- Matrix leaf: `DLV-002-ADMIN-ROLE-ACCESS-COMPARISON-001` — `IMPLEMENTED_ON_MAIN / P1_TARGETED_CI_PASS / P2_BROWSER_ACCEPTANCE_PENDING`.
+- NEXT P1 ACTION: `DLV-002-ADMIN-ROLE-MATRIX-BROWSER-ACCEPTANCE-001` — obtain the authorized non-production admin browser fixture; verify the settings surface at 360px and 1280px, horizontal table access, keyboard navigation, accessible names and role/operation reasons. Keep this UI leaf separate from server-side authorization acceptance.
+- Project-level open gates remain unchanged: DLV-001 coverage mapping is OPEN; finance receivable-ageing, supplier/cash opening and statement migrations remain database-acceptance pending; overall release remains NO-GO.

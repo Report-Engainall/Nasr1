@@ -2649,3 +2649,13 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Main commits: `e7bdb8578559198e8f7991f7a0844d69bfc37929`, `ad9c9a0a0a037fe30b7211a2c45e765b63cf7478`, `becc7cba5d386285973c301ebb8690a2f5b3cd50`, `03f5fe128df2420223ba25b0fd4697af672ceaa7`, `62f4311b3b0001bd6c63f06df244343dbe072f81`, `e2d14639bbbca85e11473133f8ab57d5ae042e17`, `5d8345ff0bc409ddc088e0ddb8f0344cf5d3a308`.
 - NEXT_ACTION_ID: `DLV-010-CASH-OPENING-BANK-RECONCILIATION-001` — deploy the ordered migrations in non-production and execute the documented DB/browser acceptance matrix before any balance is surfaced.
 
+## P1 DELIVERY — 2026-11-07 — ADMIN ROLE ACCESS COMPARISON
+
+- Main source implementation: `61d707d4ae55e9e1663ab5b184ed5853a229cb07`; current exact tested main: `d81e2668c17f04ccb0beff8d9d17dcb93c284c85`.
+- Added side-by-side six-role comparison of all registered admin pages and operations in `src/components/AdminAccessMatrix.tsx`; displays allow/deny status plus policy boundary or denial reason. Retained single-role details. The UI does not mutate or override server authorization/RLS.
+- Added `src/test/admin-access-matrix-ui.test.tsx` and included it in `.github/workflows/p1-targeted-typecheck.yml`.
+- Exact SHA P1 workflow `42381047282`: SUCCESS. Strict P1 TypeScript/type graph and AST budget checks completed successfully; scoped suite 5/5 files passed, matrix UI test 2/2 passed.
+- Exact SHA supplementary checks: secret scan `42381047237` SUCCESS; static analysis `42381047270` SUCCESS; one-main cleanup `42381047292` SUCCESS.
+- Full Aghbari Commerce run `42381047228` remains FAILURE on unrelated pre-existing test surfaces; P2 public Playwright `42381047251` was still running at checkpoint time. No full-project PASS claimed.
+- No SQL, RPC, RLS, role assignment, database, Bolt or production change.
+- Next P1 action: authenticated admin browser acceptance of the matrix at 360px/1280px, keyboard navigation, and accessible table interaction. Matrix leaf remains browser-acceptance pending.

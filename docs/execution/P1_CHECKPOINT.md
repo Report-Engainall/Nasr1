@@ -232,3 +232,14 @@ Continue missing route-register account and commerce functions. Keep offline wri
 
 - GitHub source re-read on `main`: blob `e4f3001096acd5ce4f3b529406bf2301c84a6cf2`. Source contains the per-request trigger, A4 page rule, portal print sheet and request-only disclaimer.
 - No tests, build, typecheck, lint, CI, browser, Bolt, database, Preview or production operation was run. No runtime PASS is claimed.
+
+## P1 DELIVERY — 2026-11-07 — ADMIN ROLE ACCESS COMPARISON
+
+- Main source implementation: `61d707d4ae55e9e1663ab5b184ed5853a229cb07`; current exact tested main: `d81e2668c17f04ccb0beff8d9d17dcb93c284c85`.
+- Added side-by-side six-role comparison of all registered admin pages and operations in `src/components/AdminAccessMatrix.tsx`; displays allow/deny status plus policy boundary or denial reason. Retained single-role details. The UI does not mutate or override server authorization/RLS.
+- Added `src/test/admin-access-matrix-ui.test.tsx` and included it in `.github/workflows/p1-targeted-typecheck.yml`.
+- Exact SHA P1 workflow `42381047282`: SUCCESS. Strict P1 TypeScript/type graph and AST budget checks completed successfully; scoped suite 5/5 files passed, matrix UI test 2/2 passed.
+- Exact SHA supplementary checks: secret scan `42381047237` SUCCESS; static analysis `42381047270` SUCCESS; one-main cleanup `42381047292` SUCCESS.
+- Full Aghbari Commerce run `42381047228` remains FAILURE on unrelated pre-existing test surfaces; P2 public Playwright `42381047251` was still running at checkpoint time. No full-project PASS claimed.
+- No SQL, RPC, RLS, role assignment, database, Bolt or production change.
+- Next P1 action: authenticated admin browser acceptance of the matrix at 360px/1280px, keyboard navigation, and accessible table interaction. Matrix leaf remains browser-acceptance pending.
