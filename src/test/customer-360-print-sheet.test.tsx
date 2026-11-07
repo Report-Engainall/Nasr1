@@ -35,6 +35,7 @@ function makeDocument(
     financeByCurrency: [],
     topProducts: [],
     recommendations: [],
+    interactions: [],
   };
 }
 

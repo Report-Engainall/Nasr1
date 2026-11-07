@@ -1,5 +1,5 @@
 
-:root { font-family: 'Cairo', Tahoma, sans-serif; color: var(--aghbari-text); background: var(--background); font-synthesis: none; text-rendering: optimizeLegibility; }
+:root { --aghbari-paper: #fff; --aghbari-warning-surface: #fff8e8; font-family: 'Cairo', Tahoma, sans-serif; color: var(--aghbari-text); background: var(--background); font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; background: var(--background); }
 button, input, select, textarea { font: inherit; }
@@ -361,7 +361,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   max-height: calc(100dvh - 72px);
   object-fit: contain;
   border-radius: 12px;
-  background: #fff;
+  background: var(--aghbari-paper);
 }
 .sf-image-lightbox-close {
   position: absolute;
@@ -496,7 +496,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border: 1px solid #e6bd76;
   border-radius: 10px;
   color: #704800;
-  background: #fff8e8;
+  background: var(--aghbari-warning-surface);
   font-size: 12px;
   line-height: 1.7;
 }
@@ -509,7 +509,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .product-activity-print-sheet {
   direction: rtl;
   color: #17282c;
-  background: #fff;
+  background: var(--aghbari-paper);
   font-family: Arial, sans-serif;
   font-size: 9pt;
 }

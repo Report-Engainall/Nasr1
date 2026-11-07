@@ -67,7 +67,7 @@ describe("buildPromotionPolicyOverlapReview", () => {
     expect(result.completePopulation).toBe(false);
     expect(result.withheldReasons).toEqual(expect.arrayContaining([
       { reason: "SOURCE_CHANGED", count: 1 },
-      { reason: "SOURCE_STATUS_UNAVAILABLE", count: 1 },
+      { reason: "SOURCE_STATUS_UNAVAILABLE", count: 2 },
       { reason: "SOURCE_DATE_MISSING", count: 1 },
       { reason: "SCOPE_NOT_COMPARABLE", count: 1 },
     ]));

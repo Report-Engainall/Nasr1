@@ -10,7 +10,7 @@ describe("admin category command wiring", () => {
     expect(adminApp).toContain("archiveAdminCatalogCategory");
     expect(adminApp).toContain("createAdminCatalogCategory");
     expect(adminApp).toContain("renameAdminCatalogCategory");
-    expect(adminApp).toContain("await createAdminCatalogCategory(name);");
+    expect(adminApp).toContain("await createAdminCatalogCategory(categoryName, parentCategoryId || null, code || null);");
     expect(adminApp).not.toContain("await createCategory({ name,");
   });
 

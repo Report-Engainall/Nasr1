@@ -143,9 +143,8 @@ describe("product image lifecycle", () => {
       expected_image_url: OLD_URL,
       object_path: OLD_PATH,
     });
-    expect(mocks.events.indexOf("database-unlink")).toBeLessThan(
-      mocks.events.indexOf("storage-delete"),
-    );
+    expect(mocks.events).toEqual(["database-unlink"]);
+    expect(mocks.events).not.toContain("storage-delete");
   });
 
   it("clears a legacy or foreign URL without turning it into a storage-delete path", async () => {
