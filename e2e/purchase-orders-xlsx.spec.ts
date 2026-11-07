@@ -91,14 +91,16 @@ test("purchase manager creates, exports and physically receives a tenant-scoped 
       await expect(manager.getByRole("heading", { name: "أوامر الشراء والاستلام" })).toBeVisible();
       await manager.getByRole("button", { name: "إنشاء مسودة أمر شراء", exact: true }).click();
       await expect(manager.getByRole("heading", { name: "مسودة أمر شراء جديدة" })).toBeVisible();
-      await manager.getByLabel("المورد", { exact: true }).selectOption(supplierId);
-      await manager.locator(".po-create-grid:visible").getByLabel("المخزن المستلم", { exact: true }).selectOption(warehouseId);
-      await manager.locator(".po-lines:visible .po-line").first().locator("select").selectOption(productId);
-      await manager.getByLabel("الكمية المطلوبة").fill("2.125");
+      const draftPanel = manager.getByRole("region", { name: "مسودة أمر شراء جديدة" });
+      await draftPanel.getByLabel("المورد", { exact: true }).selectOption(supplierId);
+      await draftPanel.getByLabel("المخزن المستلم", { exact: true }).selectOption(warehouseId);
+      await draftPanel.getByLabel("الصنف", { exact: true }).selectOption(productId);
+      await expect(draftPanel.getByLabel("الصنف", { exact: true })).toHaveValue(productId);
+      await draftPanel.getByLabel("الكمية المطلوبة", { exact: true }).fill("2.125");
       // Unknown supplier cost is intentional: it must stay NULL/blank, never zero.
-      await manager.getByLabel("تكلفة الوحدة (اختياري)").fill("");
-      await manager.getByLabel("ملاحظات داخلية للشراء/المخزن").fill(internalNote);
-      await manager.getByRole("button", { name: "حفظ مسودة أمر الشراء", exact: true }).click();
+      await draftPanel.getByLabel("تكلفة الوحدة (اختياري)", { exact: true }).fill("");
+      await draftPanel.getByLabel("ملاحظات داخلية للشراء/المخزن", { exact: true }).fill(internalNote);
+      await draftPanel.getByRole("button", { name: "حفظ مسودة أمر الشراء", exact: true }).click();
       await expect(manager.locator(".po-notice")).toContainText("حُفظت مسودة أمر الشراء", { timeout: 20_000 });
     });
 
