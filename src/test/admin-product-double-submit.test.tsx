@@ -244,11 +244,15 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.createProduct).toHaveBeenCalledWith({
       name: "منتج الاختبار",
+      description: null,
       name_en: null,
       item_code: "TEST-001",
       sku: null,
       barcode: null,
       base_price: 25,
+      price_wholesale_of_wholesale: 25,
+      price_wholesale: 25,
+      price_retail: 25,
       min_order_quantity: 1,
       order_quantity_multiple: 1,
       category_id: "category-1",
@@ -296,6 +300,7 @@ describe("admin product form submission", () => {
     expect(mocks.updateProduct).toHaveBeenCalledTimes(2);
     expect(mocks.updateProduct).toHaveBeenNthCalledWith(1, "product-created", {
       name: "منتج الاختبار",
+      description: null,
       name_en: null,
       item_code: "TEST-001",
       sku: null,

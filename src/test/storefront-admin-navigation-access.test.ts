@@ -38,7 +38,7 @@ describe("storefront dashboard navigation access", () => {
     expect(adminApp).toContain("const isVisible =");
     expect(adminApp).toContain("const hasActiveMotion =");
     expect(adminApp).toContain("firstItem.focus({ preventScroll: true })");
-    expect(adminApp).toContain("animation.playState === 'running' || animation.playState === 'pending'");
+    expect(adminApp).toContain("(animation) => animation.playState === 'running'");
     expect(adminApp).toContain("cancelled = true");
     expect(adminApp).toContain("const navigateAdmin = (id: View, restoreMobileFocus: boolean) =>");
     expect(adminApp).toContain("'.mobile-menu[aria-controls=\"admin-sidebar\"]'");

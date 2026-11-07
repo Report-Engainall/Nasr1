@@ -142,7 +142,7 @@ describe("customer reorder real route acceptance", () => {
           mocks.saveFailures -= 1;
           return { data: null, error: { message: "synthetic template-save refusal" } };
         }
-        return { data: { template_id: "33333333-3333-4333-8333-333333333333" }, error: null };
+        return { data: "33333333-3333-4333-8333-333333333333", error: null };
       }
       return { data: null, error: { message: "Unexpected RPC: " + name } };
     });

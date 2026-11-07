@@ -91,7 +91,7 @@ describe("customer order detail retry", () => {
     mocks.orderFailuresRemaining = 1;
     mocks.orderItems = [];
     mocks.rpc.mockReset();
-    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    mocks.rpc.mockResolvedValue({ data: [], error: null });
     mocks.from.mockReset();
     mocks.from.mockImplementation((table: string) => makeQuery(table));
     host = document.createElement("div");

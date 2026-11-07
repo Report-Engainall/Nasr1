@@ -135,9 +135,13 @@ describe('purchase orders page',()=>{
     render(<PurchaseOrdersPage/>);
     expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
-    fireEvent.change(screen.getAllByLabelText('الصنف')[0],{target:{value:'product-1'}});
+    const firstDraftProduct = document.querySelector<HTMLSelectElement>(".po-lines .po-line select");
+    expect(firstDraftProduct).not.toBeNull();
+    fireEvent.change(firstDraftProduct!,{target:{value:'product-1'}});
     fireEvent.click(screen.getAllByRole('button',{name:/إضافة صنف/})[0]);
-    fireEvent.change(screen.getAllByLabelText('الصنف')[1],{target:{value:'product-1'}});
+    const draftProducts = document.querySelectorAll<HTMLSelectElement>(".po-lines .po-line select");
+    expect(draftProducts).toHaveLength(2);
+    fireEvent.change(draftProducts[1],{target:{value:'product-1'}});
     fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
     expect((await screen.findByText(/الصنف مكرر/)).closest('[role="alert"]')?.textContent).toMatch(/الصنف مكرر/);
     expect(mocks.createPurchaseOrder).not.toHaveBeenCalled();

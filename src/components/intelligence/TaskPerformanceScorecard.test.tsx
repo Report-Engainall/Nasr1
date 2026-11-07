@@ -114,7 +114,7 @@ describe("TaskPerformanceScorecard", () => {
     });
     render(<TaskPerformanceScorecard scorecard={scorecard} />);
     expect(screen.getByText("جودة المهام والتوصيات")).toBeInTheDocument();
-    expect(screen.getByText(/(?:٥٠|50)٪/)).toBeInTheDocument();
+    expect(screen.getAllByText(/(?:٥٠|50)٪/)).toHaveLength(2);
     expect(screen.getByText("الإنذارات الكاذبة")).toBeInTheDocument();
   });
 

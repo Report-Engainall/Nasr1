@@ -207,8 +207,9 @@ describe("TaskCenter role-boundary and print integration", () => {
 
     const printRoot = document.querySelector(".operational-task-print");
     expect(printRoot).not.toBeNull();
-    const table = (printRoot as HTMLElement).querySelector("table");
-    expect(table).not.toBeNull();
+    const tables = (printRoot as HTMLElement).querySelectorAll("table");
+    const table = tables[tables.length - 1];
+    expect(table).toBeDefined();
     expect(table).toHaveTextContent("طلب عميل للتجهيز");
     expect(table).not.toHaveTextContent("مراجعة قيد محاسبي خاص");
     expect(table).not.toHaveTextContent("حركة جرد المخزن");
@@ -268,9 +269,9 @@ describe("TaskCenter role-boundary and print integration", () => {
     const summary = printRoot.querySelector(".task-print-summary-cards") as HTMLElement;
     expect(summary.querySelectorAll("div")).toHaveLength(5);
     expect(summary).toHaveTextContent("إجمالي المهام المطبوعة");
-    expect(summary).toHaveTextContent("2");
+    expect(summary).toHaveTextContent((2).toLocaleString("ar-YE"));
     expect(summary).toHaveTextContent("المتأخرة");
-    expect(summary).toHaveTextContent("1");
+    expect(summary).toHaveTextContent((1).toLocaleString("ar-YE"));
     expect(summary).toHaveTextContent("الحرجة");
 
     const roleRows = printRoot.querySelectorAll(".task-print-role-summary tbody tr");
@@ -481,6 +482,8 @@ describe("TaskCenter role-boundary and print integration", () => {
 
     await waitFor(() => expect(mocks.cancelOperationalTask).toHaveBeenCalledWith("sales-order", reason));
     await waitFor(() => expect(mocks.fetchOperationalTasks).toHaveBeenCalledTimes(2));
+    // The task list defaults to open work; switch to all to review the persisted cancellation reason.
+    fireEvent.change(screen.getByLabelText("الحالة"), { target: { value: "all" } });
     expect(await screen.findByText(reason)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "إلغاء المهمة" })).not.toBeInTheDocument();
 

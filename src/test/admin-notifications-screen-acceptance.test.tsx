@@ -100,7 +100,9 @@ describe("admin notifications live screen acceptance", () => {
     render(<Notifications onNotice={onNotice} />);
 
     const unread = screen.getByRole("button", { name: "تعليم التنبيه كمقروء: طلب يحتاج متابعة" });
+    unread.focus();
     fireEvent.keyDown(unread, { key: "Enter" });
+    fireEvent.click(unread);
     await waitFor(() => expect(mocks.markNotificationRead).toHaveBeenCalledWith("notice-001"));
     expect(mocks.refetch).toHaveBeenCalled();
     expect(screen.getByText("تحديث إعدادات")).toBeInTheDocument();

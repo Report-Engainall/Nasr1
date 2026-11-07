@@ -346,8 +346,10 @@ describe("customer quote workspace tenant boundary", () => {
     };
     mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
     await mountQuoteWorkspace("/reorder");
-    expect(host?.textContent).toContain("السعر غير متاح");
+    expect(host?.textContent).not.toContain("سعر الوحدة");
+    expect(host?.textContent).not.toContain("السعر غير متاح");
     expect(host?.textContent).not.toContain("٠٫٠٠");
+    expect(host?.textContent).not.toContain("150");
   });
 
   it("does not render a numeric zero when barcode lookup resolves a hidden price", async () => {

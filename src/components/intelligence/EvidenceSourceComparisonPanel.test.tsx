@@ -51,8 +51,8 @@ describe("EvidenceSourceComparisonPanel", () => {
     render(<EvidenceSourceComparisonPanel comparison={comparison()} />);
     expect(screen.getByText("الفرق المحسوب")).toBeInTheDocument();
     expect(screen.getByText("الفرق المحسوب").parentElement?.textContent).toContain("٤");
-    expect(screen.getByText("operational.orders")).toBeInTheDocument();
-    expect(screen.getByText("analytics.orders")).toBeInTheDocument();
+    expect(screen.getByText(/operational\.orders/)).toBeInTheDocument();
+    expect(screen.getByText(/analytics\.orders/)).toBeInTheDocument();
     expect(screen.getAllByText(/2026-11-06T19:55:00.000Z/)).toHaveLength(2);
     expect(screen.getByText(/لم يتم حساب متوسط بين المصدرين/)).toBeInTheDocument();
   });
