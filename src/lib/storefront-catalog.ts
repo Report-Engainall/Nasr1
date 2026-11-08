@@ -113,7 +113,15 @@ export async function fetchStorefrontCatalogPage(input: {
     p_page_size: pageSize,
     p_available_only: input.availableOnly,
   });
-  if (error) throw new Error('تعذر تحميل صفحة الكتالوج من الخادم.');
+  if (error) {
+    if (
+      error.code === 'P0002' &&
+      error.message.includes('Public storefront tenant is not configured')
+    ) {
+      throw new Error('الكتالوج العام غير منشور بعد؛ سيظهر للزوار بعد اعتماد بيانات المتجر وتفعيل النشر العام.');
+    }
+    throw new Error('تعذر تحميل صفحة الكتالوج من الخادم.');
+  }
   const payload = asRecord(data);
   if (!payload || !Array.isArray(payload.items)) {
     throw new Error('استجابة صفحة الكتالوج غير صالحة؛ لم تُعرض نتائج غير مؤكدة.');
