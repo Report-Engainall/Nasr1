@@ -24,11 +24,6 @@ type TenantScopePayload = {
   can_manage_customers?: unknown;
 };
 
-type PublicStorefrontScopePayload = {
-  organization_id?: unknown;
-  warehouse_id?: unknown;
-};
-
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let tenantScopeCache: { userId: string; pending: Promise<CurrentTenantScope> } | undefined;
 let tenantScopeAuthListenerRegistered = false;
@@ -97,37 +92,21 @@ export async function getCurrentTenantScope(options: { forceRefresh?: boolean } 
 }
 
 /**
- * Public catalog access is bound by the database to the configured storefront tenant.
- * Signed-in users continue to use the organization resolved from their own auth.uid().
+ * Resolves an authenticated tenant for operational data access only.
+ * Anonymous storefront reads must use the allowlisted public-safe RPC contracts;
+ * this helper deliberately refuses to return tenant or warehouse identifiers to guests.
  */
 export async function getStorefrontDataScope(): Promise<StorefrontDataScope> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw new Error('تعذر التحقق من جلسة الحساب.');
-
-  if (sessionData.session?.user.id) {
-    const scope = await getCurrentTenantScope();
-    return {
-      organizationId: scope.organizationId,
-      warehouseId: scope.warehouseId,
-      isStaff: scope.isStaff,
-    };
+  if (!sessionData.session?.user.id) {
+    throw new Error('يجب استخدام واجهات المتجر العامة الآمنة بدل نطاق المؤسسة للزائر.');
   }
 
-  const { data, error } = await supabase.rpc('get_public_storefront_context');
-  if (error) throw new Error('تعذر تحميل إعدادات المتجر العام: ' + error.message);
-
-  const payload = data as PublicStorefrontScopePayload | null;
-  if (
-    !payload ||
-    !isUuid(payload.organization_id) ||
-    (payload.warehouse_id !== null && !isUuid(payload.warehouse_id))
-  ) {
-    throw new Error('لم يُضبط نطاق المتجر العام في قاعدة البيانات؛ تم إيقاف قراءة الكتالوج.');
-  }
-
+  const scope = await getCurrentTenantScope();
   return {
-    organizationId: payload.organization_id,
-    warehouseId: payload.warehouse_id,
-    isStaff: false,
+    organizationId: scope.organizationId,
+    warehouseId: scope.warehouseId,
+    isStaff: scope.isStaff,
   };
 }

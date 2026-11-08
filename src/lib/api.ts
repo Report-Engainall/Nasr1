@@ -1,4 +1,6 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+import { fetchStorefrontCatalogPage } from './storefront-catalog';
+import { parsePublicStorefrontCategories } from './storefront-categories';
 import { saveAdminCatalogProduct } from './admin-catalog-commands';
 import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
 import { parseStoreProductActivityReport, type StoreProductActivityReport } from './product-activity-report';
@@ -82,8 +84,94 @@ export async function fetchResolvedProductPrices(
   return prices;
 }
 
+const PUBLIC_FULL_CATALOG_PAGE_SIZE = 100;
+const PUBLIC_FULL_CATALOG_BATCH_SIZE = 8;
+const MAX_PUBLIC_FULL_CATALOG_ITEMS = 100_000;
+
+/**
+ * Secondary guest views still need a complete product lookup (wishlist/compare and
+ * category counts). They must use the same public-safe paged RPC as the main catalog;
+ * anonymous clients must never query tenant tables or resolve organization IDs.
+ */
+async function fetchAnonymousStorefrontProducts(): Promise<ProductWithInventory[]> {
+  const [firstPage, categories] = await Promise.all([
+    fetchStorefrontCatalogPage({
+      search: '',
+      categoryId: null,
+      page: 1,
+      pageSize: PUBLIC_FULL_CATALOG_PAGE_SIZE,
+      availableOnly: false,
+    }),
+    fetchCategories(),
+  ]);
+
+  if (firstPage.totalCount > MAX_PUBLIC_FULL_CATALOG_ITEMS) {
+    throw new Error('حجم الكتالوج يتجاوز حد العرض الكامل للصفحات الثانوية؛ استخدم صفحات الكتالوج والبحث للوصول إلى الأصناف.');
+  }
+
+  const pages = [firstPage];
+  for (
+    let pageNumber = 2;
+    pageNumber <= firstPage.totalPages;
+    pageNumber += PUBLIC_FULL_CATALOG_BATCH_SIZE
+  ) {
+    const batchSize = Math.min(
+      PUBLIC_FULL_CATALOG_BATCH_SIZE,
+      firstPage.totalPages - pageNumber + 1,
+    );
+    const batch = await Promise.all(
+      Array.from({ length: batchSize }, (_, index) =>
+        fetchStorefrontCatalogPage({
+          search: '',
+          categoryId: null,
+          page: pageNumber + index,
+          pageSize: PUBLIC_FULL_CATALOG_PAGE_SIZE,
+          availableOnly: false,
+        }),
+      ),
+    );
+
+    for (const page of batch) {
+      if (
+        page.totalCount !== firstPage.totalCount ||
+        page.totalPages !== firstPage.totalPages
+      ) {
+        throw new Error('تغيرت بيانات الكتالوج أثناء تحميل الصفحات؛ أُهملت النتائج لمنع عرض قائمة غير مكتملة.');
+      }
+      pages.push(page);
+    }
+  }
+
+  const products = pages.flatMap((page) => page.items);
+  if (products.length !== firstPage.totalCount) {
+    throw new Error('لم تكتمل صفحات الكتالوج العامة؛ أُهملت النتائج حتى إعادة المحاولة.');
+  }
+
+  const seenProductIds = new Set<string>();
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  return products.map((product) => {
+    if (seenProductIds.has(product.id)) {
+      throw new Error('أعاد الخادم صنفًا مكررًا بين صفحات الكتالوج؛ أُهملت النتائج.');
+    }
+    seenProductIds.add(product.id);
+    const category = product.category_id
+      ? categoryById.get(product.category_id)
+      : undefined;
+
+    return {
+      ...product,
+      image_gallery_urls: [],
+      ...(category ? { category } : {}),
+    };
+  });
+}
+
 // ─── Products ───
 export async function fetchProducts(): Promise<ProductWithInventory[]> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error('تعذر التحقق من جلسة الحساب قبل تحميل الكتالوج.');
+  if (!sessionData.session?.user.id) return fetchAnonymousStorefrontProducts();
+
   const scope = await getStorefrontDataScope();
   const { organizationId: orgId, warehouseId, isStaff } = scope;
   const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
@@ -503,6 +591,14 @@ export async function deleteProduct(id: string): Promise<void> {
 
 // ─── Categories ───
 export async function fetchCategories(): Promise<Category[]> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error('تعذر التحقق من جلسة الحساب قبل تحميل التصنيفات.');
+
+  if (!sessionData.session?.user.id) {
+    const publicRows = await retryRead(() => supabase.rpc('get_public_storefront_categories'));
+    return parsePublicStorefrontCategories(publicRows);
+  }
+
   const { organizationId: orgId, isStaff } = await getStorefrontDataScope();
   const data = await retryRead(async () => {
     let query = supabase

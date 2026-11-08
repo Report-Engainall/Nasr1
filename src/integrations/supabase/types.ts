@@ -12167,6 +12167,17 @@ export type Database = {
         Returns: Json
       }
       get_public_storefront_context: { Args: never; Returns: Json }
+      get_public_storefront_categories: {
+        Args: never
+        Returns: {
+          code: string | null
+          id: string
+          is_active: boolean
+          name: string
+          parent_id: string | null
+          sort_order: number
+        }[]
+      }
       get_public_storefront_settings: { Args: never; Returns: Json }
       get_purchase_receipt_print_data: {
         Args: { p_receipt_id: string }
