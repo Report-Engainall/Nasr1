@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const missingConfig = /Missing (?:database|Supabase) environment variable|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY|Bolt Database/i.test(detail);
       setConfigurationError(
         missingConfig
-          ? 'إعداد قاعدة البيانات والمصادقة غير مكتمل. استخدم قاعدة البيانات المدمجة في Bolt، وأكمل متغيرات الاتصال العامة وأسرار الخادم التي يوفرها المشروع.'
+          ? 'إعداد الاتصال بقاعدة Supabase المعتمدة غير مكتمل أو يشير إلى مشروع غير صحيح. تحقق من VITE_SUPABASE_URL وVITE_SUPABASE_PUBLISHABLE_KEY وإعدادات الخادم الخاصة بالمشروع tfdwtuwkdddnzgyhcoyy.'
           : 'تعذر تهيئة جلسة الحساب. أعد المحاولة، وإذا استمر العطل فتحقق من إعدادات اتصال قاعدة البيانات.',
       );
       setUser(null);
