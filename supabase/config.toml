@@ -8,3 +8,7 @@ verify_jwt = false
 
 [functions.ai-gateway]
 verify_jwt = true
+
+[functions.bootstrap-first-admin]
+# This endpoint performs its own one-time secret authentication; no Auth user exists yet.
+verify_jwt = false
