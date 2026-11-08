@@ -1,3 +1,42 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — P1 ADMIN ROUTE SYNCHRONIZATION + DIRECT-ROUTE ACCESS GUARD
+
+> **Precedence:** This checkpoint records only the verified P1 source repair below. It does not close DLV-002, DLV-001, or the application release gate. Continue from live `main`; preserve all existing screens and service contracts.
+
+## Canonical source and exact changes
+
+- Repository / branch: `Report-Engainall/Nasr1` / `main`.
+- Application source commit: `f1211eb1dd3589d327ad5cd7ec609c324161eb2b`.
+- Preceding focused route-sync commit: `ffe567ef6eefa84ef44c1c7933c8228e77ea36e7`.
+- Changed application file: `src/components/AghbariApp.tsx` only.
+- The existing `AdminWorkspaceAccess` now receives `runAdminCommand` instead of local `setView`. Internal workspace actions therefore go through the existing TanStack route transition, keeping URL and visible screen aligned and retaining the current pending-order navigation guard.
+- `runAdminCommand` now checks the shared `rolesCanAccessView` policy before navigating. `AdminWorkspaceAccess` applies the same policy when an admin route is opened directly, and presents an accessible denial message with an allowed fallback destination. The source policy in `src/lib/admin-access-matrix.ts` was reused unchanged; no role definition, RPC, RLS or database authorization was modified.
+- The updated application file was fetched back from GitHub. Verified source blob: `05d315059a7d5cbdf9f17be28639de2bfc91dd47`. Read-back checks confirmed the policy import, direct-route guard, command guard, fallback action and route-synchronized navigation callback.
+
+## Single acceptance matrix updated
+
+- Updated only the existing `DLV-002` row in `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`; no parallel checklist was created.
+- Matrix documentation commit: `65a90f8e0ae4d1a2040837289f640a3aa130eaed`.
+- Re-read and parsed the saved matrix after the update: 251 task rows, exactly 8 fields per row, 251 unique task IDs.
+- `DLV-002` deliberately remains `OPEN`. The 70 generated route imports are a structural route inventory only, not evidence that all screens render, connect, authorize or pass browser acceptance.
+
+## Verification boundary
+
+- Confirmed: the two source commits exist on `main`; changed source was fetched back; the target code constructs passed the explicit source read-back checks; the acceptance matrix passed structural parsing after its update.
+- NOT RUN on the current application SHA: TypeScript, Vite build, lint, Vitest, Playwright, route-wide browser, authenticated browser, Bolt preview and production acceptance.
+- An attempt to clone the repository for local checks was blocked because this execution environment could not resolve `github.com`. This is a tooling/network blocker, not a test failure and not a PASS.
+- No migration was applied or replayed; no database, Auth user, profile, role, warehouse, category, product or other business data was changed; no RLS/grant/policy changed; no Edge Function was deployed; no secret or credential was generated or committed; no Bolt/Vercel deployment or paid resource was intentionally used.
+- Preserve the live state described in the prior checkpoint: canonical Supabase project `aghbari-commerce-nasr1`; catalog publication remains disabled until real approved categories/products and a valid active warehouse exist; first-admin provisioning remains owner-controlled and blocked on approved email/name, Edge secret and verified invitation delivery.
+
+## NEXT ACTION — continue P1 body without rebuilding
+
+1. Sync the existing Bolt workspace from current `main`; do not import a new project or recreate it. Do not change synchronization direction or overwrite newer GitHub work.
+2. On a controlled non-production fixture, verify internal links change the browser URL, back/refresh restore the intended screen, and direct links to admin-only routes are denied for staff roles that lack those capabilities. Verify finance-only and customer-manager-only access boundaries.
+3. Continue DLV-002 route acceptance at 360px and 1280px: direct URL + navigation for each registered customer/admin route, RTL, keyboard/focus, loading/error/empty/unauthorized/retry states, and actual destination/action behavior. Obtain an owner-approved non-production Auth identity before authenticated tenant tests.
+4. Continue only with concrete P1 screen gaps that source inspection confirms. Reuse existing CustomerReturnsPage, order amendment/history workflow, AccountPersonalizationSettings, TaskCenter/TaskQualityReviewCenter, GeneralLedgerWorkspace, ExecutiveLiquidityCommandCenter, replenishment and existing intelligence panels; do not rebuild any of them. P2 database/RPC/migration gates and P3 intelligent engines remain in their assigned ownership.
+5. Keep `DLV-001` and `DLV-002` open until exact-SHA mapping and browser/runtime evidence are actually recorded. Do not declare the application complete based on route count or source presence.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-08 — LIVE SUPABASE / AUTH / DLV-002 EVIDENCE CORRECTION
 
 > **Precedence:** This checkpoint supersedes all earlier NEXT_ACTION text below. The previous implementation remains intact. Continue from the actual current `main` head; do not replay completed source work or migrations.
