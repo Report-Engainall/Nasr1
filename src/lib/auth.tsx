@@ -44,13 +44,64 @@ function translateAuthError(message: string): string {
 }
 
 async function loadProfile(): Promise<AuthUser | null> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const session = sessionData.session;
-  if (!session) return null;
-  const { data, error } = await supabase.rpc('ensure_profile', { _full_name: (session.user.user_metadata?.['full_name'] as string | undefined) ?? '' });
-  if (error || !data) throw new Error('تعذر تحميل ملف المستخدم');
-  const p = data as { profile_id: string; full_name: string; email: string; roles: string[] };
-  return { id: session.user.id, profileId: p.profile_id, email: p.email, name: p.full_name, roles: p.roles, isStaff: p.roles.some((r) => STAFF_ROLES.includes(r)) };
+  // A persisted session is only a local snapshot. Verify it with the active
+  // Supabase Auth project before deriving a profile or tenant identity from it.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw new Error('تعذر قراءة جلسة الحساب الحالية.');
+    const session = sessionData.session;
+    if (!session) return null;
+
+    const { data: verifiedData, error: verifyError } = await supabase.auth.getUser();
+    if (verifyError) {
+      const invalidStoredSession = verifyError.status === 401 ||
+        /invalid jwt|invalid token|refresh token.*(?:not found|expired)|jwt.*expired/i.test(verifyError.message);
+      if (invalidStoredSession) {
+        // This token does not belong to, or is no longer valid for, the active project.
+        // Clear only the local session; never attempt to create or link a different user.
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        return null;
+      }
+      throw new Error('تعذر التحقق من هوية جلسة الحساب لدى مشروع Nasr1.');
+    }
+
+    const verifiedUser = verifiedData.user;
+    if (!verifiedUser) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      return null;
+    }
+
+    // If the browser changed account while getUser was in flight, retry against
+    // the latest session instead of pairing one user's token with another profile.
+    const { data: currentSessionData, error: currentSessionError } = await supabase.auth.getSession();
+    if (currentSessionError) throw new Error('تعذر إعادة التحقق من جلسة الحساب.');
+    if (currentSessionData.session?.user.id !== verifiedUser.id || session.user.id !== verifiedUser.id) {
+      continue;
+    }
+
+    const { data, error } = await supabase.rpc('ensure_profile', {
+      _full_name: (verifiedUser.user_metadata?.['full_name'] as string | undefined) ?? '',
+    });
+    if (error || !data) throw new Error('تعذر تحميل ملف المستخدم من مشروع Nasr1.');
+
+    const { data: confirmedSessionData, error: confirmedSessionError } = await supabase.auth.getSession();
+    if (confirmedSessionError) throw new Error('تعذر تأكيد جلسة الحساب بعد تحميل الملف الشخصي.');
+    if (confirmedSessionData.session?.user.id !== verifiedUser.id) {
+      continue;
+    }
+
+    const p = data as { profile_id: string; full_name: string; email: string; roles: string[] };
+    return {
+      id: verifiedUser.id,
+      profileId: p.profile_id,
+      email: p.email,
+      name: p.full_name,
+      roles: p.roles,
+      isStaff: p.roles.some((r) => STAFF_ROLES.includes(r)),
+    };
+  }
+
+  throw new Error('تغيرت هوية جلسة الحساب أثناء تحميل الملف الشخصي؛ أعد المحاولة.');
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
