@@ -88,6 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Invalidate any in-flight profile read before processing this session boundary.
           refreshGeneration.current += 1;
           setSessionRevision((revision) => revision + 1);
+
+          // Do not let tenant/storefront reads run against the previous profile while
+          // Supabase has already switched sessions. Readiness is restored only when
+          // the matching ensure_profile request completes in refresh().
+          if (event === 'SIGNED_OUT') {
+            setUser(null);
+            setReady(true);
+          } else {
+            setReady(false);
+          }
         }
         if (
           event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED' ||
@@ -96,7 +106,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ) {
           setTimeout(refresh, 0);
         }
-        if (event === 'SIGNED_OUT') setUser(null);
       });
       unsubscribe = () => sub.subscription.unsubscribe();
       setConfigurationError(null);
