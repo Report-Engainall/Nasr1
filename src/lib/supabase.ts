@@ -33,6 +33,19 @@ function isUuid(value: unknown): value is string {
 }
 
 /**
+ * PostgREST can briefly retain an older function cache during a schema deployment.
+ * Retry this read once when it reports PGRST202; never fall back to client-supplied tenant IDs.
+ */
+async function fetchCurrentTenantContext() {
+  let result = await supabase.rpc('get_current_tenant_context');
+  if (result.error?.code === 'PGRST202') {
+    await new Promise<void>((resolve) => setTimeout(resolve, 300));
+    result = await supabase.rpc('get_current_tenant_context');
+  }
+  return result;
+}
+
+/**
  * Resolves identity scope on the server from auth.uid(); client-supplied IDs are not trusted.
  * The result is only a convenience filter. PostgreSQL RLS remains the authorization boundary.
  */
@@ -56,8 +69,11 @@ export async function getCurrentTenantScope(options: { forceRefresh?: boolean } 
   }
 
   const pending = (async (): Promise<CurrentTenantScope> => {
-    const { data, error } = await supabase.rpc('get_current_tenant_context');
+    const { data, error } = await fetchCurrentTenantContext();
     if (error) {
+      if (error.code === 'PGRST202') {
+        throw new Error('تعذر تحميل نطاق المؤسسة بعد إعادة المحاولة؛ تحقق من اتصال المعاينة بمشروع Nasr1 ومن تحديث مخطط Supabase.');
+      }
       throw new Error('تعذر تحميل نطاق المؤسسة من الخادم: ' + error.message);
     }
 
