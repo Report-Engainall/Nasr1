@@ -1,3 +1,51 @@
+# ACTIVE SESSION RESUME — 2026-11-08 — DLV-001 SOURCE RECONCILIATION
+
+> This checkpoint supersedes older NEXT_ACTION text below. Runtime work and live migrations recorded in the preceding active checkpoint are preserved unchanged.
+
+## Canonical SHA and current documents
+
+- Main SHA at the start of this documentation alignment: `6d1c7f4e210dd30a99adb41dc82f647eb498630b`.
+- Previous runtime implementation SHA remains `1bc41a27ee63d94e762c293600d89bae636a9c96`; this alignment changes documentation and matrix only, not application code or database schema.
+- Refreshed in place: `AGENTS.md`, `PROJECT_MEMORY.md`.
+- Added to main: `docs/canonical/AGHBARI-REQUIREMENT-REGISTRY.md`, `docs/bolt-source-reconciliation/API_OPS_CONTRACT_REGISTER_2026-10-24.md`.
+- Updated: this execution pointer and the one official acceptance matrix.
+
+## DLV-001 reconciliation
+
+- Stable requirement identifiers and primary matrix crosswalks have been recovered selectively from the read-only archive. The registry covers DLV-001 through DLV-018, umbrella AGH identifiers, procurement/settlement requirements and REF intelligence requirements. It contains definitions/crosswalks only; current statuses remain exclusively in the matrix.
+- API-OPS register is restored at its canonical path as a refreshed current contract baseline. It records 349 observed PostgREST RPCs, 437 public-schema PostgreSQL routines (different catalogs), 273 live migrations, six Edge Function source entrypoints and zero deployed Edge Functions. Historic inventory numbers from October are not reused.
+- DLV-010 had no aggregate row although DLV-010 child leaves existed; an aggregate roll-up has been appended to the existing matrix.
+- DLV-001 remains OPEN. A bounded CSV inspection found 25 older rows that do not reliably parse as exactly eight columns, plus unquoted/malformed records. Consequently duplicate-ID cardinality, leaf denominator and numeric coverage percentage are not certified. No 100%/zero-unmapped/overall completion claim is made.
+- The next DLV-001 task is a lossless repair and strict validation of the existing CSV, then explicit crosswalk reconciliation of all stable registry IDs to matrix leaves/roll-ups. Do not create a parallel matrix or scorecard.
+
+## Live Supabase state (read-only recheck)
+
+- Approved project `tfdwtuwkdddnzgyhcoyy`: 145 public relations (all RLS enabled), 273 migration records, latest `20261108194404`, four buckets.
+- PostgreSQL catalog: 437 public-schema routines. PostgREST schema-cache log at `2026-11-08T19:44:05.657869Z` reported 349 RPCs.
+- Operational state remains empty: Auth users 0, profiles 0, roles/admins 0; one active organization; branches 0, warehouses 0, categories 0, products 0.
+- Six Edge Function sources on main; zero deployed Edge Functions.
+- No database write/migration was made during this DLV-001 documentation alignment.
+
+## Verification and limits
+
+- Documentation references and current contract baseline are restored on main; no runtime files or database routines changed.
+- No TypeScript build, lint, Vitest, Playwright, Bolt runtime, SMTP/invite, Edge deployment or production release test was run.
+- Previously applied public categories and first-admin migrations remain applied; do not replay.
+- No Auth users/business records were created. No keys/secrets were added to GitHub. No paid AI, Bolt or Vercel work was intentionally initiated.
+
+## NEXT_ACTION — exact continuation order
+
+1. Repair the 25 identified CSV integrity defects in the existing matrix without changing requirement meaning. Strict-parse every record into exactly eight columns; validate unique task IDs, explicit status values and no contradictory duplicates.
+2. Crosswalk every stable registry ID to at least one canonical matrix task/leaf. Add a new leaf only where the master specification/approved addendum has no existing equivalent.
+3. Only after the CSV is structurally valid, compute mapped/total denominator, unmapped count, duplicate count and contradiction count. Keep evidence in DLV-001 row/state; no new coverage file.
+4. Run exact-SHA parser tests, TypeScript and build when a free runner is available. Do not use a Vercel deployment as a build substitute or consume Bolt credits.
+5. Continue DLV-002 nonempty-fixture and responsive/browser acceptance after public categories contract is proven. Verify authenticated same-tenant behavior is unchanged.
+6. Finish first-admin readiness only after owner approval of exact email/name and Auth invitation/SMTP verification. Configure bootstrap secret directly in Supabase Function secrets; deploy/call the one-time Edge endpoint only then.
+7. Continue DLV-015 current-main callable RPC/Edge inventory and semantic authorization mapping. Source inventory counts are not semantic PASS.
+8. Revalidate DLV-003–DLV-018 in the single official matrix and continue from the next true open leaf, preserving completed modules and P3 engines.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-08 — PUBLIC STOREFRONT RPC + FIRST ADMIN BOOTSTRAP
 
 > **Precedence:** This is the newest verified execution checkpoint. It supersedes the stale NEXT_ACTION entries in the earlier checkpoint below. Preserve all historical entries; do not replay their old migrations or repeat already completed code.
