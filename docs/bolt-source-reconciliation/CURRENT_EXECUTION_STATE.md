@@ -1,3 +1,71 @@
+# ACTIVE SESSION RESUME — 2026-11-08 — NASR1 / SUPABASE CONNECTION + FIRST-ADMIN READINESS
+
+> **Precedence:** This checkpoint supersedes every older `NEXT_ACTION` below when resuming. The historical checkpoints remain preserved for audit; do not execute their old actions without revalidating the live source and database.
+
+## Canonical state and SHA chain
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main` only.
+- Session start SHA: `5521914ccb91e45925f7ce8c15ee7b9d8faf5cc9` (the live `main` head exactly matched the user's supplied reference).
+- Latest implementation + matrix SHA before this state-pointer write: `3fb70c4b9103162f2a1cf6a15cbf16317fe2009d`.
+- Compare evidence: `5521914...` → `3fb70c4...` is exactly 6 commits ahead, 0 behind. The changed-path list contains 5 modified files and 1 new file; no existing source file, route, product module, or workflow was deleted.
+- Commit sequence:
+  1. `caf12e7184a03a51d4808a20263a5b69cfb58815` — add canonical Supabase URL guard.
+  2. `596b39d66976a094a27ece65ebfb767635822a6f` — fail closed in browser client for any non-canonical Supabase URL; reject `sb_secret_` in browser.
+  3. `5b5876bc7f6fdd4041b9098cc88aba0fa584793c` — pin privileged server client to the canonical project.
+  4. `fb62bf8420e166e969ea50745fce3568dca9f1e4` — pin authenticated server middleware to the canonical project and remove inaccurate Bolt Database guidance.
+  5. `6195bd5350bcb82684a0b0af5c3652ea69b19e0e` — correct AuthProvider connection guidance.
+  6. `3fb70c4b9103162f2a1cf6a15cbf16317fe2009d` — record two confirmed blockers in the sole acceptance matrix.
+- Changed paths:
+  - Added `src/integrations/supabase/project-config.ts`.
+  - Modified `src/integrations/supabase/client.ts`.
+  - Modified `src/integrations/supabase/client.server.ts`.
+  - Modified `src/integrations/supabase/auth-middleware.ts`.
+  - Modified `src/lib/auth.tsx`.
+  - Modified the existing canonical `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+- The new guard accepts only HTTPS origin `https://tfdwtuwkdddnzgyhcoyy.supabase.co` with no alternate path/port/query/fragment. Browser client rejects modern `sb_secret_` keys. Server-side service-role usage stays confined to the existing `.server.ts` module. The guard prevents accidental calls to the retired project; it does not prove that a runtime's publishable key belongs to the URL until a real authenticated HTTP request is observed.
+
+## Live Supabase facts — revalidated against the only approved project
+
+- Project: `aghbari-commerce-nasr1`; ref `tfdwtuwkdddnzgyhcoyy`; URL `https://tfdwtuwkdddnzgyhcoyy.supabase.co`; status `ACTIVE_HEALTHY`; PostgreSQL 17.11.
+- `supabase/config.toml` and `.env.example` already point to the canonical project. No edit was needed there. The public key catalog includes an enabled publishable key for this project; no key was written into GitHub or printed into the repository.
+- Live inventory: 145 public tables; all 145 have RLS enabled; 271 migration records; four existing storage buckets.
+- Operational data remains intentionally empty: `auth.users=0`, `profiles=0`, `user_roles=0`, admin role rows = 0, active organizations = 1, branches = 0, warehouses = 0, categories = 0, products = 0. No auth.users trigger and no Edge Functions are deployed.
+- No Supabase DDL/DML/migration was executed in this session. No record, organization, user, profile, role, branch, warehouse, category, product, or bucket was created/deleted/changed. No migration was replayed; the 271-row ledger is unchanged by this work.
+
+## Authentication and RPC diagnosis
+
+- `public.get_current_tenant_context()` exists with zero arguments and a `jsonb` return, is `STABLE SECURITY DEFINER` with an empty search path, and is executable by `authenticated` and `service_role` (not `anon`). This matches the browser call `supabase.rpc('get_current_tenant_context')`. The PostgREST log reported a loaded schema containing 145 relations and 347 RPCs. The available log window contained no matching `PGRST202` entry. Do **not** create a duplicate function, change its signature, grant it to `anon`, or weaken RLS/SECURITY DEFINER.
+- The exact Bolt-side cause of the reported `PGRST202` is **not yet proven**: this session did not have the Bolt runtime network request, runtime project URL, Authorization header, or actual publishable key value. At the next Bolt connection, inspect the real request target/ref and key pairing before changing the database. The new URL guard now stops a stale project URL before a request is sent.
+- `public.ensure_profile(_full_name text)` is an existing security-definer path. New self-service users receive the `customer` role; an existing profile with a matching email and null `auth_user_id` can be linked while retaining its pre-provisioned roles. There is no currently linked user. Its email-match behavior must not be used for a first admin until the project's email-confirmation/invitation settings and protection against unverified email claims are verified. Do not make an Auth user or privileged profile without an owner-approved email/name and a trusted operator path.
+- First administrator remains blocked on: (1) owner's exact approved email and display name; (2) confirmed Auth email verification/invitation policy; (3) trusted Supabase Auth Admin / server-only provisioning of the profile and explicit admin role; (4) sign-in proving the correct identity, profile, role and tenant scope. No password/default credential may be invented. No service-role key may enter browser variables.
+- Once an owner-approved administrator is authenticated, create the first branch/warehouse/categories only from actual owner-approved business values. Do not seed demo values.
+
+## Confirmed public storefront authorization gap — NEW matrix leaves
+
+- Applied live migration `20261108000200_rpc_surface_lockdown` deliberately revokes `anon` and `authenticated` execution on `get_public_storefront_context()`, `public_storefront_organization_id()`, and `public_storefront_warehouse_id()`. This is intentional: browser code must not obtain private tenant/warehouse identifiers.
+- The same migration allowlists public-safe RPCs including `get_storefront_catalog_page`, `get_storefront_product_prices`, `get_storefront_announcements`, `get_public_storefront_settings`, and `get_storefront_promotions` for `anon` and `authenticated`.
+- Main source still calls `getStorefrontDataScope()` from `src/lib/api.ts` for `fetchCategories()` and the full `fetchProducts()` path; the anonymous branch of that scope calls the now-revoked `get_public_storefront_context()`. In addition, direct anonymous category/product reads encounter a restrictive RLS policy that calls the revoked `public_storefront_organization_id()`; a live role-probe returned `permission denied for function public_storefront_organization_id`.
+- The paged `fetchStorefrontCatalogPage()` path uses the allowed `get_storefront_catalog_page` RPC and is the intended public product page contract, but categories and anonymous full-catalog/secondary views are not yet reconciled to that allowlist.
+- Do **not** fix this by re-granting the internal context helpers or by allowing anonymous tenant table reads. P2 must add/extend one minimal public-safe categories payload/RPC (only public category fields, no tenant/warehouse IDs), then P1 must adapt category, full-list and secondary storefront views to the approved RPC contract. Test with nonempty fixtures in an isolated PostgreSQL 17 environment before applying a new additive migration to the live project. No production change has been made.
+- Two new leaves were added to the sole acceptance matrix: `DLV-002-PUBLIC-STOREFRONT-RPC-LOCKDOWN-COMPATIBILITY-001` and `DLV-006-FIRST-ADMIN-BOOTSTRAP-001`. Do not create a parallel matrix.
+
+## Verification and non-claims
+
+- GitHub compare verified the six commits and exact modified/added path list above; no source deletions.
+- GitHub Actions query for exact SHA `3fb70c4b9103162f2a1cf6a15cbf16317fe2009d` returned 0 workflow runs. The combined status showed only a Vercel context in `pending`; a cancel request by the deployment identifier returned 404 `not_found`, so cancellation is not confirmed. Do not spend more Vercel usage on this branch until the user expressly schedules deployment testing.
+- No TypeScript build, lint, Vitest, Playwright, browser acceptance, end-to-end test, Bolt runtime connection or live Auth sign-in was executed. Do not claim PASS. The new guard and text edits are source-delivered but await exact-SHA type/build tests.
+- No paid AI call, new Supabase project, Supabase branch, Vercel deployment/release, or Bolt credit was intentionally initiated.
+
+## NEXT_ACTION — exact resumption order
+
+1. Run exact-SHA source type/build and scoped tests through a free GitHub Actions workflow (or a local non-deployment runner); do not treat the Vercel status as CI. If no free runner is available, record the test as not run.
+2. Reconcile the anonymous storefront contract: design the smallest safe category RPC/payload in an isolated PostgreSQL 17 test first; adapt `getStorefrontDataScope`, `fetchCategories`, `fetchProducts`, and `StorefrontCollectionsPage` so anonymous requests use only allowlisted public RPCs, with no public access to tenant helper functions or direct tenant-table reads. Verify authenticated same-tenant behavior remains unchanged. Do not apply live DDL until isolation/security tests pass.
+3. Verify Supabase Auth email confirmation, invitations and SMTP constraints for the active project. Obtain the owner's exact administrator email and display name before provisioning. Add a server-side check against claiming an unverified pre-provisioned profile if current Auth policy does not guarantee this. Then provision once through trusted Auth Admin/server operator, verify `ensure_profile`, role and tenant context, and remove/disable any one-time bootstrap capability.
+4. At the next Bolt session inspect the actual Network request: hostname/project ref, `apikey` key origin, `Authorization: Bearer` user JWT, RPC name/payload and HTTP/PostgREST response. Confirm the project is `tfdwtuwkdddnzgyhcoyy` and key is paired with it before any DB change. The URL guard protects the hostname but cannot observe Bolt's runtime key.
+5. Continue DLV-001 requirement-to-screen/service/RPC/acceptance mapping and DLV-002 route/loading/error/empty-state coverage in the existing acceptance matrix. Then revalidate DLV-003–DLV-017 and continue from the first still-open genuine leaf. Do not repeat the already implemented modules listed in the preservation gate below.
+
+---
+
 # CURRENT BOLT RESUME OVERRIDE — 2026-11-08
 
 ## NON-NEGOTIABLE PRESERVATION GATE — USER DIRECTIVE 2026-11-08
