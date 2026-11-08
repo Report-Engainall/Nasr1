@@ -1,27 +1,41 @@
-# Nasr1 — Bolt import workspace
+# Nasr1 — canonical application branch
 
-This branch is a temporary, reduced import projection derived from canonical `main` at commit b1c433dba9fa8edbb28639976aadc40106d7688b.
-The full product source of truth remains `main`. Do not treat files excluded from this import projection as deleted product work.
+Repository: `Report-Engainall/Nasr1`
+Active branch: `main`
+Product: متجر الأغبري | Aghbari Commerce
 
-## Product and database
-- Product: Aghbari Commerce (متجر الأغبري).
-- Existing Supabase project: `aghbari-commerce-nasr1`.
-- Project ref: `tfdwtuwkdddnzgyhcoyy`.
-- URL: `https://tfdwtuwkdddnzgyhcoyy.supabase.co`.
-- Use the existing Supabase project only. Do not use Bolt Database or Lovable Cloud.
-- Do not reset, recreate, drop, truncate, or seed the database. Do not re-run existing migrations.
-- Frontend environment: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
-- Never put service-role keys or server secrets in client variables or source files.
-- Existing Edge Function sources remain in `supabase/functions`; their presence does not mean they are deployed.
+## Source-control rules
+- `main` is the only active application and Bolt synchronization branch.
+- Preserve the existing application. Make targeted changes; do not rebuild or replace working modules.
+- Do not force-push, reset, clean, or overwrite unpublished work.
+- Confirm the GitHub panel identifies this repository and `main` before assuming Bolt synchronization is active.
+- Keep commits small and verify the exact resulting commit.
+- The full pre-optimization repository snapshot is preserved in branch `nasr1-reference-archive-2026-11-08` at original commit `b1c433dba9fa8edbb28639976aadc40106d7688b`. Archive branch: https://github.com/Report-Engainall/Nasr1/tree/nasr1-reference-archive-2026-11-08
+- The archive branch is for read-only recovery and historical references. Do not merge the archive wholesale into `main`; that would restore the oversized materials.
+- Historical specifications, test suites, CI workflows, local scripts, and the applied migration history are preserved in the archive branch. Their absence from `main` is intentional, not missing runtime functionality.
 
-## Import projection boundaries
-Only non-runtime materials were omitted from this temporary import branch: historical/reference documentation, recovery archives, test-only files and harnesses, CI workflows, database migration source files already applied to the existing Supabase project, and local verification scripts.
-All omitted files remain available unchanged on canonical `main`.
-Do not attempt to regenerate missing tests, docs, migration history, or legacy snapshots inside this branch. For any schema change, stop and compare against the canonical `main` migration history and live Supabase project first.
+## Product invariants
+- B2B commerce with Arabic RTL as the default and English localization.
+- Prices and customer tiers are server-authoritative. Never expose costs, margins, another tier's price, internal identifiers, or protected financial data through APIs, RPCs, DOM, PWA cache, exports, or documents.
+- Enforce tenant isolation and role authorization at the database/RPC boundary; do not rely on UI hiding.
+- Financial, order, and inventory mutations must be server-authoritative and online-only. Offline/PWA caches are read-only.
+- Preserve immutable audit/history for financial and order lifecycle operations.
+- Do not fabricate invoices, payments, balances, or supplier obligations.
+
+## Existing backend protection
+- Existing Supabase project: `aghbari-commerce-nasr1`
+- Project ref: `tfdwtuwkdddnzgyhcoyy`
+- URL: `https://tfdwtuwkdddnzgyhcoyy.supabase.co`
+- Use this existing project only. Do not create Bolt Database, Lovable Cloud, or another Supabase project.
+- Never reset, drop, truncate, seed, or reinitialize the database. Never replay migrations already applied.
+- The complete historical SQL migration chain is preserved in the archive branch under `supabase/migrations/`. Before any schema work, inspect that history and verify the live database migration state. Add only genuinely new migrations.
+- Keep Supabase Edge Function sources and existing runtime configuration intact. Their presence does not prove deployment.
+- Client environment variables: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never expose service-role keys or server secrets to client code.
 
 ## Development
-- Preserve the existing React/Vite/TanStack Start application and its component/service structure.
-- Make targeted repairs in place; do not rebuild the app or replace working screens.
-- Use `bun install --frozen-lockfile`, `bun run dev`, and `bun run build`.
-- This import branch intentionally omits the full test suite, so a successful preview/build is not a full acceptance result.
-- Do not claim database, Edge Function, authentication, or production acceptance without actually testing the corresponding environment.
+- Existing React/Vite/TanStack application; extend it in place.
+- Install using `bun install --frozen-lockfile`.
+- Run with `bun run dev`; build with `bun run build`.
+- The active import branch intentionally excludes test-only files and local test harnesses to stay within Bolt's import limit. Do not claim unit, E2E, or database acceptance passed unless it was actually run against the relevant suite/environment. Retrieve tests from the archive branch when required.
+- Keep paid AI spend at zero. Prefer deterministic/local logic; do not add paid providers or billing dependencies.
+- Do not reintroduce historical archives, duplicate source trees, large reports, or test-only fixtures into `main` unless essential to runtime and the import-size impact has been checked.
