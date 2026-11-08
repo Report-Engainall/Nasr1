@@ -1,3 +1,70 @@
+# ACTIVE SESSION RESUME — 2026-11-08 — LIVE SUPABASE / AUTH / DLV-002 EVIDENCE CORRECTION
+
+> **Precedence:** This checkpoint supersedes all earlier NEXT_ACTION text below. The previous implementation remains intact. Continue from the actual current `main` head; do not replay completed source work or migrations.
+
+## Canonical repository and checkpoint SHAs
+
+- Repository / branch: `Report-Engainall/Nasr1` / `main`; the archive branch remains read-only.
+- Actual `main` SHA at this session's start: `419eec305fc57a355230c7cecfda6402d1b63ebd`.
+- Documentation-only commit after start: `bf60ab21faeb890c48b3ab361f41413ab27ac86b` — documented server-only `SUPABASE_SERVICE_ROLE_KEY` and Edge-only `NASR1_BOOTSTRAP_SECRET` as blank placeholders in `.env.example`; no real credentials were added.
+- Documentation-only commit after that: `5d6cb50157b4b6a5e8ce1b09ce0a199a40db7c24` — corrected the stale DLV-002 Playwright status in the single canonical acceptance matrix.
+- `main` SHA immediately before this cursor update: `5d6cb50157b4b6a5e8ce1b09ce0a199a40db7c24`. This cursor update itself creates the next documentation-only commit; fetch `main` once at the beginning of the next session.
+- Application source baseline remains `76062430159d619851c46a246ce54fefd87d1986`; no application source code was modified in this continuation.
+- No change was made to `Nasr1-Backup` or the archive branch.
+
+## Live Supabase state rechecked in this session
+
+Canonical project: `aghbari-commerce-nasr1`, ref `tfdwtuwkdddnzgyhcoyy`, URL `https://tfdwtuwkdddnzgyhcoyy.supabase.co`.
+
+- Project status: `ACTIVE_HEALTHY`; PostgreSQL `17.11`.
+- Migration ledger: exactly **273** records; latest version `20261108194404`, name `20261108194230_first_admin_bootstrap_rpc`. Do not replay any of them.
+- Current operational counts from a live read-only query: one active organization; Auth users 0; profiles 0; roles 0; active warehouses 0; categories 0; products 0.
+- `storefront_publication_config` is still disabled (`is_enabled=false`, `warehouse_id=NULL`). This is intentional while the real warehouse/catalog is empty. Do not enable it, seed demo rows, or choose an arbitrary warehouse.
+- Live function inventory confirms:
+  - `public.get_current_tenant_context()`: exact zero-argument signature, returns JSONB, SECURITY DEFINER with empty search_path; execute permitted to `authenticated` and `service_role`, denied to `anon`.
+  - `public.get_public_storefront_categories()`: the narrow six-column public category contract; `anon` execute permitted, authenticated direct execute denied by the intended policy.
+  - `public.bootstrap_first_admin_profile(uuid,text,text)`: service-role-only, checks a matching invited/verified Auth identity, exactly one active organization and absence of an existing admin/profile before creating the profile and admin role.
+- PostgREST schema cache reload was confirmed at `2026-11-08T20:31:09.199522Z`: 145 relations, 144 relationships and 349 RPCs. A subsequent recent-log query returned no matching `PGRST202` / `get_current_tenant_context` error entries. This supports the cache-refresh correction but does **not** prove a successful Bolt browser request; no Bolt preview request was captured.
+- Edge Functions deployed in the canonical project: **0**. The source `supabase/functions/bootstrap-first-admin/index.ts` exists and was inspected; it has one-time secret authentication, a 4096-byte bounded body, canonical URL pinning, invitation + guarded RPC provisioning, and compensating cleanup. It is not deployed and cannot run yet.
+- The first admin has **not** been created. Required owner-controlled prerequisites remain: approved owner email and full name; a generated high-entropy `NASR1_BOOTSTRAP_SECRET` (source requires at least 32 characters) stored only in Supabase Edge Function secrets; and configured/verified Auth invitation email delivery. Do not generate a persistent secret in chat, create an Auth identity, or grant roles through SQL.
+- `.env.example` now documents empty placeholders for `SUPABASE_SERVICE_ROLE_KEY` (trusted server only) and `NASR1_BOOTSTRAP_SECRET` (bootstrap Edge Function only). The public `VITE_SUPABASE_URL` remains pinned to the canonical URL. Values are blank by design; the publishable key must be copied from the canonical project's enabled key in the host's environment, never into this file or GitHub. Never prefix the service-role key or bootstrap secret with `VITE_`.
+
+## Auth / storefront diagnosis and current evidence
+
+- The application invokes `supabase.rpc('get_current_tenant_context')` without arguments in `src/lib/supabase.ts`; the database function signature matches exactly. Do not add overloads, dummy arguments, tenant fallbacks, or broader grants.
+- The app code has canonical URL guards in browser/server clients; the browser client rejects an `sb_secret_` key. The client validates the URL but cannot prove that a configured publishable key is paired with that URL until the real Bolt runtime request is inspected.
+- Session loading verifies the stored token with Auth `getUser()` before `ensure_profile`, rechecks the user identity around the profile RPC and invalidates auth-scoped state at session boundaries. Do not weaken this flow to suppress the old identity mismatch message.
+- Guest category reads use the allowlisted public category RPC; guest product pages use the existing paginated catalog RPC. The store remains intentionally unpublished. An empty public category result is expected with zero real categories.
+- No authenticated runtime session exists in the database, so no real authenticated tenant-context or first-admin login test was possible.
+
+## DLV-001 / DLV-002 acceptance record
+
+- The sole canonical matrix remains `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`; no parallel scorecard was created.
+- After the DLV-002 status correction, the matrix was reparsed: **251** task rows; exactly **8** fields per record; **251** unique task IDs. DLV-002 remains `OPEN`.
+- DLV-002 now explicitly records that P2 Playwright run `42183688281` completed **FAILURE** on old SHA `17e49830373aec2b9b8a7c8eb882cd530c00778a` (public browser assertions failed, including price-fixture mount and decision-board checks; authenticated E2E skipped). Run `42185902622` also completed **FAILURE** on `bbcd6d7647abd84a183bb8ebc779ecef88830c94`. Commerce run `42186211708` completed **FAILURE** during unit tests on `9591f074d6266a3f2fca626d419bcf99ca9346b5`, before later build/lint/database/browser steps. P1 typecheck run `42183802484` succeeded only on older SHA `6e9f2aa65455228c8ad3508d8d360d4fbc159d71`.
+- Those historical E2E/workflow files were removed from the current application source tree in later commits. Do not restore the old test harness/workflows wholesale, and do not claim those historical checks passed on current `main`.
+- Static route inventory check: `src/routeTree.gen.ts` contains 70 unique route imports. The current `/help` route is present in the generated route tree, global navigation and storefront footer. These are source-level facts only; no route-wide browser acceptance was run.
+- DLV-001 remains `OPEN` for functional requirement-to-screen/service/RPC/test evidence. Structural matrix integrity and identifier crosswalk do not mean functional acceptance is complete.
+
+## Verification boundaries — do not overclaim
+
+- Confirmed this session: actual `main` head; canonical project identity/status; 273 migration count/latest version; operational record counts; publication-disabled state; exact RPC signatures/grants; zero deployed Edge Functions; latest schema-cache load; no matching recent PGRST202 entries in the queried log window; matrix structural integrity; 70 unique route imports; the actual terminal statuses of the historical CI jobs listed above.
+- NOT RUN on current `main`: TypeScript, Vite build, lint, Vitest, Playwright, authenticated browser, Bolt preview, invite/SMTP flow, Edge deployment, production release tests.
+- No production data, Auth users, profiles, roles, warehouses, categories or products were created or modified. No migration was applied/replayed. No grants/RLS/policies changed. No Edge Function deployed. No publishable/service-role/bootstrap secret values were committed. No Bolt/Vercel paid usage was intentionally triggered.
+- The GitHub commits in this continuation change only `.env.example`, the canonical acceptance CSV, and this execution pointer; no product screen or P3 engine was rebuilt.
+
+## NEXT_ACTION — exact continuation
+
+1. Refresh the existing Bolt workspace connected to `Report-Engainall/Nasr1` from the latest `main`; do not import a new project or rebuild from scratch. Hard-refresh the preview.
+2. In Bolt's environment settings, set `VITE_SUPABASE_URL=https://tfdwtuwkdddnzgyhcoyy.supabase.co` and the enabled publishable key obtained from this same Supabase project. If server-side routes need Supabase, set `SUPABASE_URL` and the public key server-side; set `SUPABASE_SERVICE_ROLE_KEY` only for explicitly trusted server operations. Never put either privileged value in a `VITE_*` variable or GitHub.
+3. Capture one actual Bolt preview request for the tenant-context RPC and inspect request host/project ref, RPC path, `apikey` project pairing, and authenticated token identity. Do not share the key or token. If `PGRST202` recurs, compare that captured request with the live no-argument function and cache state before making any database change.
+4. First-admin provisioning is blocked until the owner supplies the approved email and full name, stores a generated 32+ character bootstrap secret in Supabase Edge Function secrets, and confirms Auth invitation email delivery. Then deploy the existing `bootstrap-first-admin` function through the authorized Supabase environment, invoke once, accept the email invitation, and verify the resulting tenant context. Do not fabricate credentials or create admin records manually.
+5. Keep public storefront publication disabled until real categories/products and an approved active warehouse exist. Only then use the authorized publication workflow and test anonymous catalog fields, pagination and hidden-price behavior.
+6. Continue DLV-002 browser acceptance on the current candidate: direct and navigated route access, loading/error/empty/unauthorized/retry states, Arabic RTL, keyboard focus, mobile 360px and desktop 1280px. Keep DLV-001 OPEN until every required mapping has named exact-SHA evidence.
+7. Do not replay the 273 migrations or restore old test harnesses wholesale. Add or run only a narrow, current-source, non-production test when its fixtures and runner can be executed without connecting to live customer data.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-08 — AUTH / STOREFRONT RECOVERY + DLV-001 MATRIX REPAIR
 
 > **Precedence:** This is the newest execution checkpoint. It supersedes earlier NEXT_ACTION lists below. Continue from this exact main SHA and do not replay completed work, old migrations, or prior investigations.
