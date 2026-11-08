@@ -1,3 +1,109 @@
+# ACTIVE SESSION RESUME — 2026-11-08 — PUBLIC STOREFRONT RPC + FIRST ADMIN BOOTSTRAP
+
+> **Precedence:** This is the newest verified execution checkpoint. It supersedes the stale NEXT_ACTION entries in the earlier checkpoint below. Preserve all historical entries; do not replay their old migrations or repeat already completed code.
+
+## Canonical repository and SHA chain
+
+- Repository/branch: `Report-Engainall/Nasr1` / `main`.
+- Session starting SHA: `c1a4e97d9ab9856253564a75daa36a83ef053a63`.
+- Latest implementation SHA before this documentation-only checkpoint: `1bc41a27ee63d94e762c293600d89bae636a9c96`.
+- This session is exactly four commits ahead of the starting SHA and zero commits behind. No pre-existing route, component, product feature or test was deleted.
+- Commits in order:
+  1. `72ca1978d7d6de1e8e2da002ec9031f5e62062b4` — initial source of the public categories migration (subsequently renamed in the final tree to its applied version).
+  2. `26cd44cbf2419d47bb6892823fd50071d968a0c2` — route anonymous product/category reads through public-safe RPCs; add strict parser and tests; update generated RPC type and guard.
+  3. `3964fad06f977aa70f38135929505a06355c4c2b` — initial source of the first-admin bootstrap RPC migration (subsequently renamed to its applied version).
+  4. `1bc41a27ee63d94e762c293600d89bae636a9c96` — add the trusted first-admin Edge Function source and configuration; align migration filenames to the applied live migration versions.
+- Final changed paths from the exact compare:
+  - Modified `src/lib/api.ts`.
+  - Modified `src/lib/supabase.ts`.
+  - Modified `src/integrations/supabase/types.ts`.
+  - Added `src/lib/storefront-categories.ts`.
+  - Added `src/lib/storefront-categories.test.ts`.
+  - Modified `supabase/config.toml`.
+  - Added `supabase/functions/bootstrap-first-admin/index.ts`.
+  - Added `supabase/migrations/20261108193554_public_storefront_categories_rpc.sql`.
+  - Added `supabase/migrations/20261108194404_first_admin_bootstrap_rpc.sql`.
+- Two initially created migration source filenames were renamed in the final tree to match the exact applied version IDs; these were the two new files from this session, not existing historical migrations.
+- The previous checkpoint's canonical URL guard, browser/client/server pinning, secret-key rejection and AuthProvider configuration-message corrections remain intact.
+
+## Live Supabase facts after this session
+
+- Only approved project: `aghbari-commerce-nasr1`, ref `tfdwtuwkdddnzgyhcoyy`, URL `https://tfdwtuwkdddnzgyhcoyy.supabase.co`, status previously verified ACTIVE_HEALTHY, PostgreSQL 17.11.
+- Live public schema still has 145 relations with RLS enabled; four storage buckets remain unchanged.
+- Live migration ledger is now **273**. Newly applied records:
+  - Version `20261108193554`, ledger name `20261108000300_public_storefront_categories_rpc`.
+  - Version `20261108194404`, ledger name `20261108194230_first_admin_bootstrap_rpc`.
+- The prior live migrations are not replayed. No reset/drop/truncate, no new project/branch, and no bulk seed were used.
+
+## DLV-002 — anonymous storefront compatibility
+
+### P2 database delivery, applied live
+
+- New `public.get_public_storefront_categories()` returns exactly six public fields: `id`, `name`, `code`, `parent_id`, `sort_order`, `is_active`.
+- Function uses `STABLE SECURITY DEFINER SET search_path=''`; tenant resolution occurs inside the definer context using the existing internal helper. The organization and warehouse IDs are not returned.
+- Execute permission is granted to `anon` only. It is revoked from PUBLIC, authenticated and service_role. The internal functions `public_storefront_organization_id()`, `public_storefront_warehouse_id()` and `get_public_storefront_context()` remain inaccessible to anon.
+- A rollback-only SQL probe succeeded under `SET LOCAL ROLE anon`; it returned zero category rows because no real category data exists. The rollback prevented any change from the probe itself.
+- The forward migration was then applied via the Supabase migration operation. Live verification confirms:
+  - `anon` can execute `get_public_storefront_categories()`.
+  - `authenticated` has no direct execute grant on that function.
+  - `anon` cannot execute the organization resolver or internal storefront context functions.
+  - PostgREST reloaded its schema cache and reported 348 RPCs (previously 347).
+
+### P1 client integration, committed on main
+
+- `src/lib/api.ts` now checks the current Auth session before the public product/category paths. Anonymous `fetchCategories()` calls only the new public-safe RPC and passes the response through the strict parser. Authenticated paths retain the existing tenant-scoped category table query.
+- Anonymous `fetchProducts()` now uses the existing `fetchStorefrontCatalogPage()` and the existing `get_storefront_catalog_page` RPC for full catalog lookup. It loads bounded batches of 100-row pages (up to eight pages concurrently), rejects inconsistent page totals, duplicate IDs, incomplete page sets, and catalogs above the explicit 100,000-item cap. It never reads tenant product/category/media/inventory tables directly as anon.
+- `src/lib/supabase.ts` now treats `getStorefrontDataScope()` as an authenticated-only convenience resolver and throws for guests. It no longer calls `get_public_storefront_context()` as anon or returns organization/warehouse IDs to a guest.
+- Added `src/lib/storefront-categories.ts`: strict shape/UUID/active-state validation. Any unexpected field (including `organization_id` or `warehouse_id`) causes failure rather than being silently ignored.
+- Added `src/lib/storefront-categories.test.ts` covering valid projection, empty categories, rejection of tenant/warehouse identifiers, invalid UUIDs and inactive categories.
+- Generated Supabase function types now include the public category RPC return shape.
+- The existing storefront screens and their routes were reused; no screen was rebuilt or deleted.
+
+### Acceptance still pending
+
+- Production category/product data is empty, so a nonempty live read was impossible without creating unapproved data. No fixtures were inserted.
+- The new Vitest test file has been authored but NOT RUN. TypeScript, build, lint, browser, 360px/1280px responsive acceptance, authenticated same-tenant acceptance and public financial-payload inspection have NOT been run.
+- Do not mark DLV-002 accepted until those exact-SHA tests and fixture-backed privacy/tenant tests pass.
+
+## DLV-006 — first administrator bootstrap
+
+### P2 database delivery, applied live
+
+- Added `public.bootstrap_first_admin_profile(p_auth_user_id uuid,p_email text,p_full_name text)`.
+- It is `SECURITY DEFINER` with empty search_path and rejects any call unless `auth.role()='service_role'`.
+- It validates the exact Auth UUID and normalized email; the Auth row must have the matching email plus either `invited_at` or `email_confirmed_at`. It validates the name/email lengths and format.
+- It takes an advisory transaction lock so concurrent first-admin attempts cannot create two first admins. It refuses if any admin role already exists, if the organization count is not exactly one active organization, or if an existing profile already matches the Auth UUID/email.
+- It inserts the profile and explicit `admin` role atomically. It does not accept a role from the caller and does not let a user self-promote.
+- Live audit confirms the function is SECURITY DEFINER with `search_path=''`; EXECUTE is true for service_role and false for anon/authenticated.
+- A rollback-only SQL dry run set the service_role JWT claim and confirmed that a nonexistent Auth UUID is rejected with the exact invited-or-confirmed-email guard. It was rolled back; no Auth user/profile/role was created.
+
+### P1 trusted invitation source, not deployed
+
+- Added `supabase/functions/bootstrap-first-admin/index.ts` and a `[functions.bootstrap-first-admin]` config block with `verify_jwt=false`. JWT verification is intentionally performed by a high-entropy server-only `NASR1_BOOTSTRAP_SECRET` because there is no first Auth user yet; the endpoint checks this secret before any privileged operation.
+- The endpoint pins its URL to the canonical project, reads `SUPABASE_SERVICE_ROLE_KEY` only from Edge Function secrets, accepts only a bounded POST body with `email` and `full_name`, invites through `auth.admin.inviteUserByEmail`, then calls the service-only RPC using the exact returned Auth user UUID.
+- The endpoint does not accept a user UUID, organization ID, role, password or service key from the request. It uses generic error responses and a compensating delete only if profile provisioning failed and no admin profile was actually committed.
+- **Source is on main but the Edge Function is NOT deployed.** Live `list_edge_functions` returned zero deployed functions. `NASR1_BOOTSTRAP_SECRET` is not configured, the Auth invite/SMTP delivery policy has not been verified, and the owner has not supplied the exact administrator email/display name.
+- Live operational state remains `auth.users=0`, `profiles=0`, `user_roles=0`, admin role rows = 0, one active organization, no branches/warehouses/categories/products. No Auth user, profile, role or business data was created.
+
+## Verification — accurate boundaries
+
+- Proven live: both migrations applied; 273 migration records; grants and SECURITY DEFINER/search_path audited; anon category RPC callable without access to internal tenant resolvers; PostgREST schema reload; bootstrap RPC dry-run rejects nonexistent Auth user.
+- Proven in GitHub: exact SHA chain and changed paths. No existing product route/module was deleted.
+- NOT run: TypeScript typecheck, Vite build, ESLint, Vitest, Playwright/browser, Bolt runtime test, live Auth invite/acceptance or actual admin sign-in.
+- No Edge function deployment, no email send, no Vercel production promotion, no Bolt credit, no paid AI provider call and no service secret written into GitHub.
+- Existing Vercel Git integration may automatically build the main branch under its linked `aghbari-commerce` deployment context; this is not proof of Nasr1 acceptance and was not intentionally used as a test gate.
+
+## NEXT_ACTION — exact resumption order
+
+1. Run the exact-SHA checks for the new parser tests, TypeScript and build through an available free/non-deployment runner. Record any unavailable runner as NOT RUN; do not use Vercel as a substitute or burn Bolt credit.
+2. Perform fixture-backed public catalog/privacy and authenticated same-tenant tests in an isolated PostgreSQL 17 environment. Do not insert demo data into the live store. Verify all anonymous secondary views, pagination consistency and strict public payload projections.
+3. Verify current Supabase Auth invite/email confirmation and delivery configuration for this exact project. Obtain explicit owner approval of the exact first administrator email and display name. Configure a strong `NASR1_BOOTSTRAP_SECRET` directly in Supabase Function secrets; do not request or place it in GitHub/chat.
+4. Only after steps 2–3, deploy the prepared `bootstrap-first-admin` Edge Function, invoke it once, accept the invite and verify the resulting Auth UUID/profile/admin role/tenant context. Then disable/remove the bootstrap function and secret.
+5. At Bolt connection, inspect the real network request for the previous `PGRST202`: actual host/project ref, `apikey` project pairing, user Authorization token, RPC name and parameters. The new URL guard blocks stale project URLs but cannot attest which project issued Bolt's runtime key.
+6. Continue DLV-001 requirement/screen/service/RPC/acceptance coverage and DLV-002 route/loading/error/empty-state acceptance in the single official matrix. Then resume the next genuine open DLV-003–DLV-017 body gap. Preserve all already-completed modules.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-08 — NASR1 / SUPABASE CONNECTION + FIRST-ADMIN READINESS
 
 > **Precedence:** This checkpoint supersedes every older `NEXT_ACTION` below when resuming. The historical checkpoints remain preserved for audit; do not execute their old actions without revalidating the live source and database.
