@@ -1,5 +1,20 @@
 # CURRENT BOLT RESUME OVERRIDE — 2026-11-08
 
+## NON-NEGOTIABLE PRESERVATION GATE — USER DIRECTIVE 2026-11-08
+
+1. Preserve all genuine product work already present on canonical `main`. This is continuation/completion work, NOT a rebuild, rewrite, replacement, simplification, or second implementation.
+2. Before editing any existing screen/module, inspect its current implementation and callers. Reuse and extend it. Do not delete, rename, replace, stub, bypass, or regress working screens, workflows, routes, components, services, permissions, data contracts, or business rules.
+3. Do not replace the existing application entry point or router with a reduced/demo app. Do not remove a module merely because it is not currently linked from the visible navigation. First establish the canonical runtime path and reconnect existing modules safely, preserving the current behavior and architecture.
+4. The historical archive is a read-only recovery source, not a source to merge wholesale and not evidence that code should be recreated. The comparison of original archive commit `b1c433dba9fa8edbb28639976aadc40106d7688b` against the optimized `main` showed **zero changed/deleted/added files under `src/`** in that comparison; the reductions were documentation, tests, scripts, CI, and other non-runtime/reference material. Do not misinterpret those non-source removals as deleted product screens.
+5. No duplicate rebuild of work already implemented: first verify and preserve the existing customer order amendment/return/version history and cancellation flows, supplier invoice/due-date evidence, supplier finance and general ledger, liquidity command center, cash/bank reconciliation workspace, replenishment and purchase-order workflow, task center/quality review, import/Onyx, inventory, customer 360/service desk, analytics, printing/export, and role/access controls. Extend only confirmed gaps.
+6. For each proposed change, identify the exact existing file/module and the uncovered behavior. Make the smallest additive change. Preserve backward compatibility and security boundaries. Do not claim a screen is complete merely because a file exists; do not claim it is missing merely because it is not in the current sidebar.
+7. Before finalizing, compare the changed-file list against the parent SHA and explicitly verify that no existing product file, route, or behavior was removed. Any unintended deletion or regression must be corrected before delivery.
+8. If an existing feature is incomplete, finish that feature in place. If a feature is absent, add it without replacing neighboring functionality. Preserve all user work and unsaved Bolt changes; never force-push, reset, clean, or overwrite them.
+
+**Acceptance rule:** Bolt must continue from the currently synchronized `main` tree and deliver only additive completion of verified gaps. “Rebuild from scratch”, “replace with a minimal app”, mass deletion, and repeating already completed screens are rejected.
+
+---
+
 - Canonical repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
 - Verified main source SHA at preparation: `1fe9b96f767746a757afeed085eed9b6cb399fb4`.
 - Bolt reported `Synced to GitHub`. The user interface showed `main` with the `Active` marker; reconfirm the active branch in Bolt before editing.
