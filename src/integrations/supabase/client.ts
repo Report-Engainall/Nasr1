@@ -1,6 +1,7 @@
 // Project-owned database client adapter. Runtime credentials come from the active host.
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { assertCanonicalSupabaseUrl } from './project-config';
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
@@ -26,21 +27,28 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
   return fetchWithSupabaseKey.bind(null, supabaseKey) as typeof fetch;
 }
 
-
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'];
+  const configuredUrl = import.meta.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'];
   const SUPABASE_PUBLISHABLE_KEY = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || import.meta.env['VITE_SUPABASE_ANON_KEY'] || process.env['SUPABASE_PUBLISHABLE_KEY'] || process.env['SUPABASE_ANON_KEY'];
 
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  if (!configuredUrl || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
+      ...(!configuredUrl ? ['VITE_SUPABASE_URL / SUPABASE_URL'] : []),
+      ...(!SUPABASE_PUBLISHABLE_KEY ? ['VITE_SUPABASE_PUBLISHABLE_KEY / VITE_SUPABASE_ANON_KEY'] : []),
     ];
-    const message = `Missing database environment variable(s): ${missing.join(', ')}. Configure the client-safe Supabase environment values.`;
+    const message = `Missing database environment variable(s): ${missing.join(', ')}. Configure the public Supabase URL and publishable/anon key.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
+  }
+
+  // Fail closed before any HTTP request if Bolt or another host still has a stale project URL.
+  const SUPABASE_URL = assertCanonicalSupabaseUrl(configuredUrl);
+
+  // A server/secret API key must never enter a browser build.
+  if (SUPABASE_PUBLISHABLE_KEY.startsWith('sb_secret_')) {
+    throw new Error('VITE_SUPABASE_PUBLISHABLE_KEY must be a public publishable key, never a Supabase secret key.');
   }
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -64,4 +72,3 @@ export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>,
     return Reflect.get(_supabase, prop, receiver);
   },
 });
-
