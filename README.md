@@ -1,47 +1,22 @@
 # متجر الأغبري | Aghbari Commerce
 
-المستودع التنفيذي المعتمد للتطبيق هو **[Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1)**. حافظ على قاعدة البيانات والمهاجرات والشيفرة الحالية، ونفّذ أي تغيير برمجي عبر فرع عمل وطلب دمج؛ لا تنشئ مشروعًا موازيًا ولا تكتب مباشرة إلى `main`.
+This is the **Bolt import workspace** for the existing Nasr1 application. The full repository, historical references, tests, and complete Supabase migration history remain unchanged on the canonical `main` branch.
 
-هذا المستودع يحتوي تطبيق React/Vite/TanStack Start، وخدمات Supabase، ومهاجرات PostgreSQL، واختبارات الوحدة وقبول قاعدة البيانات والمتصفح. لا يُعد وجود رابط تاريخي في الوثائق دليلًا على أن نسخة إنتاج منشورة أو متزامنة حاليًا.
+## Existing backend
+- Supabase project: `aghbari-commerce-nasr1`
+- Project ref: `tfdwtuwkdddnzgyhcoyy`
+- URL: `https://tfdwtuwkdddnzgyhcoyy.supabase.co`
 
-## البدء محليًا
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in the Bolt environment. Use only the existing Supabase project. Do not create a Bolt/Lovable database, reset the database, or replay migrations.
 
-المتطلبات: Node.js 22 وBun، وبيئة Supabase اختبارية أو تطويرية منفصلة عن الإنتاج عند الحاجة لاختبار الخدمات.
-
+## Run
 ```sh
-git clone https://github.com/Report-Engainall/Nasr1.git
-cd Nasr1
 bun install --frozen-lockfile
-cp .env.example .env
-# املأ متغيري Supabase العامين من مشروع تطوير/اختبار مخوّل.
 bun run dev
 ```
 
-لن يكتمل تشغيل التطبيق المتصل بالخدمات قبل إعداد `VITE_SUPABASE_URL` و`VITE_SUPABASE_PUBLISHABLE_KEY`. المفتاح القابل للنشر مصمم للاستخدام في العميل، لكنه لا يمنح أي صلاحية بحد ذاته؛ سياسات RLS وعقود RPC على الخادم هي حدود التفويض. لا تضع مفتاح `service_role` أو أي سر خادمي في متغير يبدأ بـ`VITE_`.
+Build with `bun run build`.
 
-تفاصيل الإعداد، مهاجرات قاعدة البيانات، والاختبارات موجودة في [دليل البيئة والتشغيل](./docs/DEPLOYMENT_AND_ENVIRONMENT.md).
+This branch retains the application source, assets, Supabase client/configuration, and Edge Function source. It omits historical documentation, test-only files, CI/local test scripts, and already-applied migration SQL **only for the initial Bolt import size limit**. Those files have not been deleted from canonical `main`.
 
-## أوامر التحقق
-
-```sh
-bun run test
-bun run lint
-bun run typecheck
-bun run build
-```
-
-قبول PostgreSQL 17 يحتاج قاعدة اختبار محلية ومعزولة فقط:
-
-```sh
-TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/aghbari_test bun run test:db
-```
-
-لا تستخدم عنوان قاعدة إنتاج مع اختبارات الكتابة أو المهاجرات. مجموعة CI تشغّل أيضًا اختبارات قبول مخصصة مستقلة؛ ارجع إلى [سير عمل Core](./.github/workflows/commerce-checks.yml) و[سير عمل P2 Playwright](./.github/workflows/p2-playwright-critical-paths.yml) لحدود كل مجموعة. نتيجة اختبار تخص SHA واحد لا تثبت نتيجة SHA أحدث.
-
-## الاستئناف والتنفيذ
-
-- اقرأ `AGENTS.md` ثم [الحالة التنفيذية المركزية](./docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md) ومصفوفة القبول الحالية.
-- تحقق من رأس `main` ونتائج Actions المطابقة قبل اختيار `NEXT_ACTION`.
-- لا تعِد تنفيذ الأعمال المدمجة إلا عند وجود انحدار موثق؛ لا تصف `SKIPPED` أو `BLOCKED_EXTERNAL` بأنها `PASS`.
-- Onyx Pro وWhatsApp Business API وأي اختبارات حسابات مستضافة تحتاج اعتمادًا مصرحًا واستجابة فعلية من البيئة الهدف. دون ذلك تبقى `BLOCKED_EXTERNAL`; الاختبارات المحلية لا تثبت اتصال الإنتاج.
-- لا تُستخدم بيانات إنتاجية في الاختبارات، ولا تُنشر أسرار أو بيانات عميل في سجلات CI.
+After import, keep `main` as the source of truth. Treat this branch as an import workspace; reconcile code changes back to `main` without deleting its migration history or canonical references.
