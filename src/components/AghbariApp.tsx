@@ -17,7 +17,7 @@ import {
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
-import { ADMIN_NAV_GROUPS } from '@/lib/admin-access-matrix';
+import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix';
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
 import { fetchCustomerDirectoryPage, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -401,6 +401,21 @@ function AdminWorkspaceAccess({
   if (isFinanceOnly && view !== "finance" && view !== "tasks") {
     return <FinanceAccessPanel onOpen={onOpenFinance} />;
   }
+  if (!rolesCanAccessView(user.roles, view)) {
+    const fallbackView = (["dashboard", "customers", "finance", "tasks"] as const)
+      .find((candidate) => rolesCanAccessView(user.roles, candidate));
+    return (
+      <section className="panel" role="alert" aria-labelledby="admin-route-access-title" style={{ padding: 24 }}>
+        <h1 id="admin-route-access-title" style={{ marginTop: 0 }}>الوصول إلى هذه الشاشة غير متاح</h1>
+        <p>المسار المطلوب خارج نطاق الدور الحالي. إخفاء عناصر القائمة ليس بديلًا عن فحص الوصول عند فتح الرابط مباشرة.</p>
+        {fallbackView && (
+          <button type="button" className="btn primary" onClick={() => onNavigate(fallbackView)}>
+            الانتقال إلى القسم المسموح
+          </button>
+        )}
+      </section>
+    );
+  }
   return (
     <AdminWorkspaceContent
       view={view}
@@ -645,6 +660,10 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 
   const runAdminCommand = (id: View) => {
     setCommandOpen(false);
+    if (!rolesCanAccessView(user?.roles ?? [], id)) {
+      showNotice("لا يملك هذا الحساب صلاحية فتح القسم المطلوب.");
+      return;
+    }
     if (isCustomerManagerOnly && id !== 'customers') { showNotice('صلاحية مسؤول العملاء مقتصرة على إدارة العملاء.'); return; }
     if (isFinanceOnly && id !== 'finance' && id !== 'tasks') {
       showNotice('حساب المحاسب مخصص للفواتير والتحصيل فقط.');
