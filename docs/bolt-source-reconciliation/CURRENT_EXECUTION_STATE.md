@@ -1,3 +1,56 @@
+# ACTIVE SESSION RESUME — 2026-11-08 — AUTH / STOREFRONT RECOVERY + DLV-001 MATRIX REPAIR
+
+> **Precedence:** This is the newest execution checkpoint. It supersedes earlier NEXT_ACTION lists below. Continue from this exact main SHA and do not replay completed work, old migrations, or prior investigations.
+
+## Canonical state
+
+- Repository / branch: `Report-Engainall/Nasr1` / `main`.
+- Main application SHA before this checkpoint: `76062430159d619851c46a246ce54fefd87d1986`.
+- Canonical Supabase project: `aghbari-commerce-nasr1`, ref `tfdwtuwkdddnzgyhcoyy`, URL `https://tfdwtuwkdddnzgyhcoyy.supabase.co`.
+- Current live project observed ACTIVE_HEALTHY on PostgreSQL 17.11; migration ledger 273; latest `20261108194404`; public catalog currently contains 0 categories, 0 products and 0 active warehouses; Auth users/profiles/roles remain 0.
+- Keep `main` as the only application and synchronization branch. Keep the archive branch read-only. Do not use the retired Supabase project or create/reset/reseed any database.
+
+## Work completed in this continuation
+
+### Auth/session and tenant scope
+
+- `3a84752aa4718b2dcf9a3b79ada48331731f60d9` — `src/lib/auth.tsx`: session-boundary auth events now set readiness false before profile re-resolution; SIGNED_OUT clears user identity synchronously. This prevents the storefront from reading during the interval between an auth event and refreshed profile context.
+- `5aca66607812361243b09c939e3772e8cde93c25` — `src/lib/auth.tsx`: `loadProfile()` verifies the stored session with Supabase Auth `getUser()` before `ensure_profile`, rechecks identity before/after the RPC, retries a bounded identity switch, and clears only an invalid local session. Network errors do not automatically sign the user out.
+- `603c1298ab4e798cc2bdc58e924899202b840bb1` — `src/lib/supabase.ts`: retry the tenant-context read once after 300 ms only for PostgREST `PGRST202`; no client-supplied tenant fallback is introduced.
+- Live database inspection confirms `public.get_current_tenant_context()` exists with the exact no-argument signature and JSONB return; it is SECURITY DEFINER with empty search_path; EXECUTE is true for authenticated and false for anon. Do not create an overload or replacement and do not broaden grants.
+- Explicitly reloaded the canonical PostgREST schema cache with `NOTIFY pgrst, 'reload schema'`. The live PostgREST log confirms 145 relations, 144 relationships and 349 RPCs loaded at `2026-11-08T20:31:09.199522Z`. This is evidence of a live cache reload, not proof that a Bolt browser request succeeded.
+
+### Public storefront publication state
+
+- `8dcc0065d9b0538031d6d07127ecb348976bc8c9` — `src/lib/storefront-catalog.ts`: the expected `P0002 Public storefront tenant is not configured` response is now presented as an intentional unpublished-store state, not a generic server failure.
+- The live `storefront_publication_config` singleton is disabled (`is_enabled=false`, `warehouse_id=NULL`). Migration `20261108000100_remove_initial_demo_seed` explicitly disabled public publication and says not to publish before real data. There are zero active warehouses, categories and products. This state must not be bypassed: do not enable public publication, manufacture sample records, or select an arbitrary warehouse. Re-enable only after real store data and a valid warehouse are approved and present.
+- A rollback-only live probe as anon confirmed `get_public_storefront_categories()` is callable and safely returns zero rows. The paged public catalog correctly refuses while the publication singleton is disabled. This is expected under the current empty-store state.
+
+### DLV-001 acceptance matrix integrity
+
+- `76062430159d619851c46a246ce54fefd87d1986` — repaired the sole canonical file `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` in place. No parallel matrix was created.
+- The exact saved file was fetched again and strictly parsed: 251 unique task IDs, every row exactly eight columns, zero parser/quote errors, zero duplicate IDs, zero missing owner/status cells.
+- Crosswalk: all 62 stable registry identifiers resolve — 18 DLV roll-ups, 23 REF requirements and 21 AGH umbrella mappings. DLV-010 duplicate roll-ups were consolidated with the earlier snapshot preserved as evidence. Historical continuation notes were retained in the owning task evidence fields. DLV-004, DLV-014, REF-AI-OPS-001 and the identified 7/9/10-column rows were normalized without marking runtime acceptance PASS.
+- DLV-001 remains OPEN for functional traceability/acceptance. The roll-up remains NO-GO. Structural CSV integrity is not application completion.
+
+## Verification boundaries — do not overclaim
+
+- Confirmed: exact live RPC signature and grants; canonical PostgREST schema reload and 349-RPC cache log; public category RPC returns an empty result for anon without exposing internal tenant resolvers; publication-disabled condition is intentional; matrix strict parse and 62/62 registry crosswalk; each source commit and final main SHA.
+- NOT RUN: TypeScript, Vite build, ESLint, Vitest, Playwright, authenticated browser, Bolt preview, SMTP/invite, Edge deployment, production release tests. No Auth users exist for a real authenticated session test.
+- No business data, auth identities, profiles or roles were inserted or changed. No migration was applied/replayed. No RLS/grants were modified. No Edge function deployed. No keys/secrets added to GitHub. No Bolt/Vercel credits intentionally consumed.
+- A previous Vercel status context is not evidence of a Nasr1 build/test pass.
+
+## NEXT_ACTION — exact continuation
+
+1. Sync/reload Bolt's existing `Report-Engainall/Nasr1` workspace from `main` at `76062430159d619851c46a246ce54fefd87d1986`; do not import/rebuild from scratch. Hard-refresh the preview after the source update.
+2. Reproduce the authenticated storefront read once an owner-authorized Auth user exists. Verify the preview URL targets the canonical Supabase ref and its publishable key belongs to the same project; never request or transmit the key itself. Inspect actual request host, RPC path, Authorization token identity and `PGRST202` response if it persists. The source currently calls `get_current_tenant_context()` with no arguments, matching the live database function.
+3. Verify session-switch sequence: old profile becomes unready, `getUser()` validates the token against the canonical Auth project, `ensure_profile` is bound to that user, and tenant-scope cache is invalidated. Do not invent Auth users or credentials for production.
+4. Keep the public catalog unpublished until approved real categories/products and an active warehouse exist. Then enable the existing publication singleton through the authorized admin workflow and verify guest categories/catalog, price hiding, pagination and no tenant/warehouse identifiers in the payload.
+5. Continue the next genuine DLV-002 leaf and DLV-001 functional crosswalk evidence in the existing matrix. Retain already-completed source work; do not rebuild product screens or P3 intelligence engines.
+6. Only execute new migrations after comparing the live ledger and exact migration source, and only when a real remaining schema gap is demonstrated. Never replay the 273 existing migrations.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-08 — DLV-001 SOURCE RECONCILIATION
 
 > This checkpoint supersedes older NEXT_ACTION text below. Runtime work and live migrations recorded in the preceding active checkpoint are preserved unchanged.
