@@ -29,14 +29,13 @@ jobs:
     steps:
       - name: Checkout exact main commit
         uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
-      - name: Install locked dependencies
-        run: npm ci
+          bun-version: 1.3.14
+      - name: Install dependencies with the project build tool
+        run: bun install --frozen-lockfile
       - name: Run Vitest regression suite
-        run: npm test -- --reporter=dot
+        run: bun run test
       - name: Run strict TypeScript check
-        run: npm run typecheck
+        run: bun run typecheck
