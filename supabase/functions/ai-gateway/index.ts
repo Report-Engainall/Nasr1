@@ -1,12 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { readBoundedTextBody } from "../_shared/bounded-body.ts";
 import { buildGeminiRequestConfig, estimateCost, estimateInputTokens, isSafeProviderBaseUrl, parseProviderResponse, runProviderCandidates, sanitizeAiQuestion, summarizeAiProviderAttempts, type AiProvider, type AiProviderCandidate, type AiCostRates } from "./logic.ts";
+import { chooseFreeAiRoute, type FreeProviderQuota, type FreeQuotaEvidence } from "../../../src/lib/intelligence/free-ai-policy.ts";
 type Runtime={env:{get(n:string):string|undefined};serve(h:(r:Request)=>Response|Promise<Response>):void};
 type Settings={status:string;primary_provider:AiProvider;primary_model:string;primary_base_url:string;fallback_enabled:boolean;fallback_provider:AiProvider;fallback_model:string;fallback_base_url:string};
 type Candidate=AiProviderCandidate;
 const d=(globalThis as unknown as {Deno?:Runtime}).Deno;
 if(!d)throw new Error("Supabase Edge Runtime required.");
 const SYSTEM="أجب بالعربية. ليس لديك بيانات مباشرة من قاعدة بيانات متجر الأغبري. لا تخمّن أسعاراً أو طلبات أو أرصدة أو مخزوناً؛ وجّه تلك الأسئلة إلى الشاشات الموثقة. لا تنفذ إجراءات مالية أو تغيّر بيانات. قدّم إرشاداً عاماً وميّز الحقيقة عن الافتراض.";
+// Fail closed until a tenant-derived, server-verified free-quota registry and read RPC exist.
+// Provider settings, secret presence and estimated cost rates are not proof of a free tier.
+const FREE_PROVIDER_QUOTAS: FreeProviderQuota[] = [];
+const FREE_QUOTA_EVIDENCE: FreeQuotaEvidence[] = [];
 const SAFE="لم تتوفر إجابة خارجية موثوقة الآن. أستطيع تقديم إرشاد عام، أما الأسعار والطلبات والفواتير والمخزون الفعلي فتأكد منها من الشاشات الموثقة داخل متجر الأغبري.";
 function reply(payload:Record<string,unknown>,status=200){return new Response(JSON.stringify(payload),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","access-control-allow-origin":"*","access-control-allow-headers":"authorization, apikey, x-client-info, content-type","access-control-allow-methods":"POST, OPTIONS"}});}
 function rates(provider:AiProvider):AiCostRates|null {
@@ -79,12 +84,31 @@ if(d)d.serve(async(request)=>{
  }
  const primary=candidate(config.primary_provider,config.primary_model,config.primary_base_url,false);
  const fallback=config.fallback_enabled?candidate(config.fallback_provider,config.fallback_model,config.fallback_base_url,true):null;
- const attempts=action==="test_connection"?(primary?[primary]:[]):[primary,fallback].filter((x):x is Candidate=>x!==null);
- if(!attempts.length){
+ const configuredCandidates=[primary,fallback].filter((value):value is Candidate=>value!==null);
+ const freeRoute=chooseFreeAiRoute({
+  question:input.question,
+  sanitize:sanitizeAiQuestion,
+  asOf:new Date().toISOString(),
+  providers:FREE_PROVIDER_QUOTAS.filter(quota=>configuredCandidates.some(value=>value.provider===quota.provider&&value.model===quota.model)),
+  quotaEvidence:FREE_QUOTA_EVIDENCE,
+  ruleEngineAvailable:true,
+ });
+ if(freeRoute.mode!=="MODEL"){
   const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"provider_not_configured"});
   if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
-  return action==="test_connection"?reply({error:"primary_provider_secret_or_rates_missing"},424):reply({status:"fallback",reason:"provider_not_configured",answer:SAFE});
+  return action==="test_connection"
+   ?reply({error:"no_verified_free_provider",reason:freeRoute.reason},424)
+   :reply({status:"fallback",mode:freeRoute.mode,reason:freeRoute.reason,answer:SAFE});
  }
+ const selectedCandidate=configuredCandidates.find(value=>value.provider===freeRoute.provider&&value.model===freeRoute.model);
+ if(!selectedCandidate){
+  const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"provider_not_configured"});
+  if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
+  return action==="test_connection"
+   ?reply({error:"verified_provider_configuration_missing"},424)
+   :reply({status:"fallback",mode:"RULE_BASED",reason:"verified_provider_configuration_missing",answer:SAFE});
+ }
+ const attempts=[selectedCandidate];
  const outputEstimate=action==="test_connection"?64:384,inputEstimate=estimateInputTokens(input.question,SYSTEM.length);
  const reservedCostEstimate=attempts.reduce((sum,c)=>sum+estimateCost(inputEstimate,outputEstimate,c.rates),0);
  const {data:reservedRaw,error:reserveError}=await db.rpc("reserve_ai_gateway_usage",{p_user_id:authData.user.id,p_request_id:requestId,p_estimated_input_tokens:inputEstimate*attempts.length,p_estimated_output_tokens:outputEstimate*attempts.length,p_estimated_cost:Number(reservedCostEstimate.toFixed(6))});

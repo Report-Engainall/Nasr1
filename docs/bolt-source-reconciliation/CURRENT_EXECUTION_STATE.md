@@ -1,3 +1,32 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — FREE-AI EDGE GATE / POLICY REGRESSION TESTS
+
+> Base commit: `7a21b59046d4a6aa8916c5fc29f84c741f2062eb`. This source batch adds a fail-closed runtime boundary and policy regression tests; it does not constitute provider deployment or hosted acceptance.
+
+## Implemented in this source batch
+
+- Added `src/lib/intelligence/free-ai-policy.test.ts` for eligible model selection, exact-zero rates, free-tier confirmation, explicit question-only privacy approval, quota state/remainder, verification freshness, evidence completeness/ambiguity, cooldown, sanitizer errors/malformed output, deterministic fallback and bounded telemetry.
+- Wired `chooseFreeAiRoute` into `supabase/functions/ai-gateway/index.ts` before quota reservation or provider execution.
+- No persisted tenant-derived provider quota/verification registry or read RPC exists yet. Therefore the Edge runtime's server-owned provider and evidence collections are deliberately empty. Missing proof is fail-closed: an ask returns `RULE_BASED` with the existing safe response; test_connection returns `no_verified_free_provider`; both record the existing no-provider outcome and return before `reserve_ai_gateway_usage`, `runProviderCandidates` or provider fetch.
+- Provider settings, secret presence and estimated cost rates do not count as free-tier evidence.
+- Updated only the existing canonical acceptance rows `REF-FREE-AI-ROUTER-001` and `REF-AI-FALLBACK-001`.
+
+## Verification boundary
+
+- GitHub source readback is available; the new Vitest file is authored but **NOT_RUN**.
+- No local Node/Deno runtime, typecheck, lint, build, Edge test or no-network runtime assertion was executed here.
+- No Edge Function is deployed to the active Supabase project; source changes are not a deployment.
+- No database migration/RPC/RLS/grant, provider request, secret setting, quota reservation, paid usage or deployment was performed.
+- The source gateway is now fail-closed, but exact runtime proof remains pending after server registry integration and non-production deployment.
+
+## Next
+
+1. Add a tenant-derived, admin/manager-authorized provider/model verification registry and a safe read RPC in a separately reviewed P2/P3 database change.
+2. Wire the read RPC into the Edge gateway; missing, stale, incomplete or ambiguous evidence must remain denied.
+3. Run the new Vitest suite, exact-SHA typecheck/lint/build, Edge tests and a non-production no-network assertion before any deployment.
+4. Add the versioned prompt library and approval audit; do not make the system prompt dynamically editable until that approval contract exists.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — RBAC SPEC ALIGNMENT / AI GOVERNANCE
 
 > Audit baseline: `Report-Engainall/Nasr1` branch `main`, SHA `4d5d3a1dc1c30942ec7fade61c1e0bcd2cca07c6`. This checkpoint records verified source/database facts and remaining implementation boundaries; it does not claim application acceptance.
