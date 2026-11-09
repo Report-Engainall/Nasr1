@@ -1,3 +1,24 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — NOTIFICATION AUTH-READY MOUNT GUARD
+
+> **Precedence:** Follow-up to the customer workspace session-scope repair. Prevents the notification inbox from mounting or issuing a read with the previous user while AuthContext is between identities.
+
+## Exact source repair
+
+- Parent `main` SHA: `4f459f678c958cc48ec231bcb1157b92c89fd829`; parent tree: `6339be2d249c6b4e1fb8abf58a3727ae1e78842c`.
+- Changed file: `src/components/CustomerNotificationCenter.tsx`, previous blob `fcc39e2f4ded87d712abee1ab479d6f51140b811`.
+- The outer page now waits for `AuthContext.ready`, shows the existing Login component for signed-out users, and mounts the keyed notification workspace only after a verified user is available.
+- Workspace key: current user ID + profile ID + sessionRevision. This clears older notification pages, filters, search, read/action state and errors on account transitions.
+- No fetch/mark-read RPC, server permission or tenant policy was changed.
+
+## Acceptance and verification boundary
+
+- Updated only `DLV-015-NOTIFICATION-PROFILE-SCOPE-001` in the canonical matrix.
+- Matrix remains 251 task rows, eight columns each, 251 unique task IDs.
+- Exact source readback will verify the new gate and blob. TypeScript/build/lint/browser/Auth/database tests remain NOT_RUN.
+- Server list/mark-read tenant authorization remains P2 acceptance-pending.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER WORKSPACE SESSION-SCOPE ISOLATION
 
 > **Precedence:** Focused P1 identity-state isolation across existing customer workspaces. Existing routes, service RPCs, pagination, idempotency and authorization contracts are preserved.

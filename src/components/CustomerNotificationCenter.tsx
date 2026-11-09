@@ -4,6 +4,7 @@ import { Bell, Check, ExternalLink, RefreshCw, Search, X } from 'lucide-react';
 import { fetchNotifications, fetchOlderNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
+import { Login } from '@/components/Login';
 import { formatDate } from '@/lib/format';
 import type { Notification } from '@/lib/types';
 
@@ -64,8 +65,10 @@ function NotificationItem({
 }
 
 export function CustomerNotificationCenter() {
-  const { user, sessionRevision } = useAuth();
-  return <CustomerNotificationWorkspace key={(user?.id ?? "anonymous") + ":" + (user?.profileId ?? "none") + ":" + sessionRevision} />;
+  const { user, ready, sessionRevision } = useAuth();
+  if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
+  if (!user) return <Login />;
+  return <CustomerNotificationWorkspace key={user.id + ":" + user.profileId + ":" + sessionRevision} />;
 }
 
 function CustomerNotificationWorkspace() {
