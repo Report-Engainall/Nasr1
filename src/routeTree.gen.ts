@@ -24,6 +24,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MyDevicesRouteImport } from './routes/my-devices'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OffersRouteImport } from './routes/offers'
 import { Route as OfflineRouteImport } from './routes/offline'
@@ -152,6 +153,11 @@ const InvoicesRoute = InvoicesRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyDevicesRoute = MyDevicesRouteImport.update({
+  id: '/my-devices',
+  path: '/my-devices',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -442,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/help': typeof HelpRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/my-devices': typeof MyDevicesRoute
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/offline': typeof OfflineRoute
@@ -513,6 +520,7 @@ export interface FileRoutesByTo {
   '/help': typeof HelpRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/my-devices': typeof MyDevicesRoute
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/offline': typeof OfflineRoute
@@ -584,6 +592,7 @@ export interface FileRoutesById {
   '/help': typeof HelpRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/my-devices': typeof MyDevicesRoute
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/offline': typeof OfflineRoute
@@ -657,6 +666,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/invoices'
     | '/login'
+    | '/my-devices'
     | '/notifications'
     | '/offers'
     | '/offline'
@@ -728,6 +738,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/invoices'
     | '/login'
+    | '/my-devices'
     | '/notifications'
     | '/offers'
     | '/offline'
@@ -798,6 +809,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/invoices'
     | '/login'
+    | '/my-devices'
     | '/notifications'
     | '/offers'
     | '/offline'
@@ -870,6 +882,7 @@ export interface RootRouteChildren {
   HelpRoute: typeof HelpRoute
   InvoicesRoute: typeof InvoicesRoute
   LoginRoute: typeof LoginRoute
+  MyDevicesRoute: typeof MyDevicesRoute
   NotificationsRoute: typeof NotificationsRoute
   OffersRoute: typeof OffersRoute
   OfflineRoute: typeof OfflineRoute
@@ -1463,6 +1476,7 @@ const rootRouteChildren: RootRouteChildren = {
   HelpRoute: HelpRoute,
   InvoicesRoute: InvoicesRoute,
   LoginRoute: LoginRoute,
+  MyDevicesRoute: MyDevicesRoute,
   NotificationsRoute: NotificationsRoute,
   OffersRoute: OffersRoute,
   OfflineRoute: OfflineRoute,

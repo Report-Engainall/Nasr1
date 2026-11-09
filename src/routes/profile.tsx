@@ -259,6 +259,7 @@ function CustomerAccountProfileContent({
       ]
     : [
         { to: "/orders", title: "طلباتي", description: "متابعة الطلبات وحالاتها", icon: Package },
+        ...(user.roles.includes("customer") ? [{ to: "/my-devices", title: "أجهزتي وأصولي", description: "عرض أجهزتك والضمان وسجل الصيانة والملكية", icon: Smartphone }] : []),
         { to: "/returns", title: "مرتجعاتي", description: "متابعة طلبات الإرجاع وقراراتها", icon: RotateCcw },
         { to: "/payments", title: "دفعاتي", description: "عرض حركات السداد المسجلة", icon: Wallet },
         { to: "/statement", title: "كشف الحساب", description: "الأرصدة والفواتير والمدفوعات حسب العملة", icon: FileText },

@@ -1,3 +1,44 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER MY DEVICES / ASSET SELF-SERVICE
+
+> **Precedence:** P1 customer product UI continuation. Existing customer-asset database objects and the administrative asset lifecycle remain the source of truth; this checkpoint adds only the missing customer-facing read path.
+
+## Exact baseline
+
+- Repository: \`Report-Engainall/Nasr1\`, branch \`main\`.
+- Parent \`main\` SHA: \`e08f1d34a09ac21ab7d1b9a8a733c86bf564a91c\`.
+- Existing asset UI: \`src/components/CustomerAssetsPanel.tsx\`.
+- Existing migrations: \`20261109031735_customer_asset_registry_and_lifecycle.sql\` and \`20261109031915_customer_asset_history_tenant_visibility_and_status_guard.sql\`.
+- No additional database migration, RPC, table, policy, or project was created.
+
+## Implemented in this source batch
+
+- Added \`src/components/CustomerMyDevicesPage.tsx\` as a customer-only, read-only page with Auth readiness, Login fallback and workspace key \`user.id + profileId + sessionRevision\`.
+- Added \`src/routes/my-devices.tsx\` for \`/my-devices\` and a customer service link labelled **أجهزتي وأصولي** from \`/profile\`.
+- Reads the RLS-filtered \`customer_assets\` list without sending \`customer_id\` or \`organization_id\`; related product/order/invoice lookups use only source IDs already returned by the RLS-filtered asset list.
+- Reads \`customer_asset_events\` without client tenant/customer filters and relies on the existing event RLS policy, including historical-owner visibility. The UI never renders the other owner's identity.
+- Displays equipment name/manufacturer/model/serial, linked product/order/invoice references when readable, purchase/warranty/coverage dates, status, lifecycle and maintenance events, search, status filtering, loading/empty/error/warning states and refresh.
+- No create/edit/delete, maintenance mutation or ownership-transfer action is available to the customer. Internal asset notes, prices, costs and margins are not selected.
+- Updated the existing \`REF-CUSTOMER-ASSET-001\` row in the canonical acceptance matrix; no parallel task register was created.
+
+## Route generation boundary
+
+TanStack Start's existing Vite file-based router remains authoritative. The route file follows the existing conventions and the tracked \`routeTree.gen.ts\` was synchronized to the generator's current route/type shape so \`/my-devices\` is registered and type-addressable. The actual TanStack generator was **NOT_RUN** in this tool-only session (no online local execution device or repository shell was available); the first local Vite build must confirm the generator reproduces the same output.
+
+## Verification boundary
+
+- Source-anchor checks, route registration checks, forbidden-field/mutation checks and canonical CSV integrity passed during preparation.
+- TypeScript, lint, production build, unit tests, Playwright/browser, real customer Auth, database/RLS negative tests and hosted acceptance: **NOT_RUN** on this SHA.
+- No database operation or external deployment was performed.
+- Acceptance matrix: \`253\` data rows; \`253\` unique task IDs; \`0\` malformed rows.
+
+## NEXT ACTION
+
+1. On the approved local source environment, run \`npm run typecheck\`, \`npm run lint\` and \`npm run build\`; confirm the TanStack generator preserves the new route tree.
+2. Exercise \`/my-devices\` using an approved non-production customer identity: empty list, populated asset with/without source references, status/search/filter/refresh, event history, historical ownership events, and account A → sign-out → B reset.
+3. P2 must independently accept current/historical owner visibility, cross-customer/cross-tenant denial, immutable event writes and grants on the approved Supabase project. DLV-001 and DLV-002 remain OPEN; no browser or server authorization PASS is claimed here.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER / ADMIN ROUTE SCOPE CROSSWALK
 
 > Precedence: Documentation-only consolidation of the current-main source audit. No application code is changed in this commit.
