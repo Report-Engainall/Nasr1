@@ -1,3 +1,29 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — ADMIN ROUTE-TO-VIEW TRACEABILITY
+
+> **Precedence:** Documentation-only source crosswalk. No application or permission policy changes.
+
+## Exact main and source references
+
+- Parent `main` SHA: `4f8c438724784edad41a2b02a077fa04d12edb39`; parent tree: `ef7559a507bf0aa67869215db997fcf1f73a713d`.
+- `AghbariApp.tsx`: blob `890804a6bc1b56ab78b9576feb3c9e1365ebf32a`.
+- `routeTree.gen.ts`: blob `ccb664f8d5af9a38e1c1c51c89a03b82e42c5dce`.
+- `admin-access-matrix.ts`: blob `9ccea0f9f5d03d78bb1b70b714aaa32c00c750f5`.
+
+## Admin source crosswalk result
+
+- 23 `adminPaths` view IDs map to 23 generated AdminApp route registrations with matching path and `initialView` semantics.
+- The generated tree contains 24 admin route imports because `/admin/exports` is a distinct standalone export center, not an AdminApp view. It now links from Data Center and uses the shared `data` page-access policy for UI admission.
+- AdminApp reuses `rolesCanAccessView` for command and direct-route guards; existing shared `ADMIN_NAV_GROUPS` remains the source for menu grouping.
+- Canonical matrix DLV-001 now records this crosswalk and preserves the separate checkout client route→RPC→order-detail chain.
+
+## Verification boundary
+
+- The 23 view/path pairs and 24 generated admin imports are source-level registration evidence only.
+- No route-wide browser, responsive RTL/keyboard, page-action, Auth-role fixture, RPC/Edge grant, tenant-isolation or production acceptance was run.
+- DLV-001 and DLV-002 remain OPEN; structural route presence does not close either gate.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — PASSWORD FORM SECRET-STATE ISOLATION
 
 > **Precedence:** Focused P1 authentication UI repair. Preserves the existing Supabase Auth password mutation boundary.
