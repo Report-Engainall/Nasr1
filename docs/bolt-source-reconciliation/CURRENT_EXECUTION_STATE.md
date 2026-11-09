@@ -1,3 +1,42 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — PROFILE ROLE GATING / EXACT-SHA P1 ACCEPTANCE
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`; exact tested SHA: `566ed628148aafabefefc74b9e5474fef9fbdff5`.
+
+## Implemented
+
+- Added the pure `resolveProfileAccessMode()` contract: staff precedence; explicit `customer` role; otherwise restricted.
+- `/profile` now exposes customer shortcuts and `CustomerAccountProfileEditor` only to an authenticated customer role. Staff retain existing admin links. Other non-staff/non-customer roles receive password-only navigation and an explanatory restricted-access message.
+- Preserved the existing customer editor server-command calls and session-keyed profile subtree. No role assignment, RPC, RLS, migration, database, pricing or finance behavior changed.
+- Added `src/lib/profile-access.test.ts` (3 cases) and included the helper/test in the P1 strict-TypeScript scope and push workflow.
+- The route component is bundled through the configured Vercel build. It is intentionally not added to the narrow P1 TypeScript project because that isolated config omits the generated TanStack route augmentation; adding it produced TS2345 for `createFileRoute("/profile")`. The helper and tests remain in the strict target; do not claim that this narrow TypeScript run directly checked the route component.
+
+## Exact-SHA evidence
+
+- Source commit: `aea6e6c8246cb6977674db5e6ee664764c6cbc00`.
+- Narrow TypeScript scope correction: `566ed628148aafabefefc74b9e5474fef9fbdff5`.
+- GitHub Actions run [42704786942](https://github.com/Report-Engainall/Nasr1/actions/runs/42704786942): **SUCCESS** on exact SHA `566ed628148aafabefefc74b9e5474fef9fbdff5`.
+- Bun frozen install: PASS.
+- Vitest: **5/5 files, 39/39 tests PASS**, including `profile-access.test.ts` 3/3.
+- Scoped P1 strict TypeScript: PASS.
+- Vercel commit status: **SUCCESS** on the same SHA. This was the repository's automatic Git integration; no manual deploy or promotion was issued.
+- Initial run [42704386643](https://github.com/Report-Engainall/Nasr1/actions/runs/42704386643) is preserved as a superseded failure caused by the route file being added to the isolated TypeScript project without generated route augmentation. The follow-up narrowed the typecheck scope and the final exact-SHA run passed.
+
+## Verification limits
+
+- Authenticated /profile browser cases for customer, staff, buyer, finance, viewer and unknown roles: **NOT_RUN**.
+- Account A→sign-out→B, customer↔staff transitions, 360px/1280px, keyboard/RTL and screen-reader acceptance: **NOT_RUN**.
+- Customer profile RPC source migration/grants, owner isolation and stale-`updated_at` server acceptance: **P2_PENDING**.
+- No database migration, customer fixture, Auth mutation, RPC/RLS probe, Bolt operation, manual Vercel deployment or paid provider call was performed.
+- DLV-001 and DLV-002 remain **OPEN**; this is a source + targeted CI result, not end-to-end acceptance.
+
+## Next actions
+
+1. Continue the P1 route/action audit and run authenticated direct-route role transitions in the approved non-production browser after owner sync.
+2. P2 independently verifies the customer-profile RPC migrations/grants, owner scope, stale version rejection and denied-no-side-effect behavior.
+3. Continue the complete DLV-001 requirement → screen → service/RPC/Edge → authorization → named-test crosswalk; do not publish a completion percentage until its full denominator is reconciled.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — ADMIN CONTEXT IDENTITY ISOLATION / TARGETED ACCEPTANCE PASS
 
 > Exact tested code SHA: `759dc605000f7ee6cc33250ba08a436f410e7c0c`. Repository: `Report-Engainall/Nasr1`; branch: `main`.
