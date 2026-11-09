@@ -22,6 +22,9 @@
     "src/components/AghbariApp.tsx",
     "src/components/CustomerAccountPasswordPage.tsx",
     "src/lib/admin-record-context.ts",
-    "src/lib/admin-record-context.test.ts"
+    "src/lib/admin-record-context.test.ts",
+    "src/routes/profile.tsx",
+    "src/lib/profile-access.ts",
+    "src/lib/profile-access.test.ts"
   ]
 }

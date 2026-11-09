@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - "src/components/AghbariApp.tsx"
+      - "src/routes/profile.tsx"
+      - "src/lib/profile-access.ts"
+      - "src/lib/profile-access.test.ts"
       - "src/components/CustomerWorkflows.tsx"
       - "src/components/CustomerAccountPasswordPage.tsx"
       - "src/lib/api.ts"

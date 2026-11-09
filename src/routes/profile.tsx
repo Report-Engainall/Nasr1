@@ -4,6 +4,7 @@ import { ArrowLeft, Bell, Building2, FileText, Headphones, KeyRound, LogOut, Map
 import { Login } from "@/components/Login";
 import { AccountPersonalizationSettings } from "@/components/AccountPersonalizationSettings";
 import { useAuth } from "@/lib/auth";
+import { resolveProfileAccessMode } from "@/lib/profile-access";
 import { fetchMyCustomerAccountProfile, saveMyCustomerAccountProfile, type CustomerAccountProfile, type CustomerAccountProfileInput } from "@/lib/customer-account-profile";
 
 export const Route = createFileRoute("/profile")({
@@ -217,6 +218,7 @@ function CustomerAccountProfileContent({
   signOutOtherSessions,
   signOutEverywhere,
 }: CustomerAccountProfileContentProps) {
+  const profileAccessMode = resolveProfileAccessMode(user);
   const [sessionAction, setSessionAction] = useState<"others" | "global" | null>(null);
   const [sessionError, setSessionError] = useState("");
   const [sessionNotice, setSessionNotice] = useState("");
@@ -251,15 +253,15 @@ function CustomerAccountProfileContent({
     }
   }
 
-  const links = user.isStaff
+  const links = profileAccessMode === "staff"
     ? [
         { to: "/admin", title: "مساحة العمل", description: "العودة إلى لوحة التشغيل والإدارة", icon: Building2 },
         { to: "/account/password", title: "كلمة المرور", description: "تحديث كلمة مرور الحساب الحالي", icon: KeyRound },
         { to: "/admin/notifications", title: "إشعارات العمل", description: "متابعة إشعارات مهام المؤسسة", icon: Bell },
       ]
-    : [
+    : profileAccessMode === "customer" ? [
         { to: "/orders", title: "طلباتي", description: "متابعة الطلبات وحالاتها", icon: Package },
-        ...(user.roles.includes("customer") ? [{ to: "/my-devices", title: "أجهزتي وأصولي", description: "عرض أجهزتك والضمان وسجل الصيانة والملكية", icon: Smartphone }] : []),
+        { to: "/my-devices", title: "أجهزتي وأصولي", description: "عرض أجهزتك والضمان وسجل الصيانة والملكية", icon: Smartphone },
         { to: "/returns", title: "مرتجعاتي", description: "متابعة طلبات الإرجاع وقراراتها", icon: RotateCcw },
         { to: "/payments", title: "دفعاتي", description: "عرض حركات السداد المسجلة", icon: Wallet },
         { to: "/statement", title: "كشف الحساب", description: "الأرصدة والفواتير والمدفوعات حسب العملة", icon: FileText },
@@ -267,6 +269,8 @@ function CustomerAccountProfileContent({
         { to: "/notifications", title: "التنبيهات", description: "تحديثات الطلبات وخدمة العملاء", icon: Bell },
         { to: "/help", title: "مركز المساعدة", description: "إرشادات الحساب والطلبات والتوصيل وخدمة العملاء", icon: Headphones },
         { to: "/company/contacts", title: "جهات اتصال الشركة", description: "إدارة جهات الاتصال التشغيلية", icon: Building2 },
+        { to: "/account/password", title: "كلمة المرور", description: "تحديث كلمة مرور الحساب الحالي", icon: KeyRound },
+      ] : [
         { to: "/account/password", title: "كلمة المرور", description: "تحديث كلمة مرور الحساب الحالي", icon: KeyRound },
       ];
 
@@ -294,7 +298,12 @@ function CustomerAccountProfileContent({
             <strong className="mt-2 block text-base" dir="ltr">{user.email.trim() || "لا يوجد بريد إلكتروني مرتبط بهذا الحساب"}</strong>
           </article>
         </section>
-        {!user.isStaff ? <CustomerAccountProfileEditor /> : null}
+        {profileAccessMode === "customer" ? <CustomerAccountProfileEditor /> : null}
+        {profileAccessMode === "restricted" ? (
+          <p className="mt-4 rounded-xl border p-4 text-sm text-muted-foreground" role="status">
+            هذه الجلسة لا تحمل دور العميل أو دوراً إدارياً معتمداً. تظل إدارة كلمة المرور وتفضيلات الحساب متاحة، ولا تُعرض بيانات الشركة أو خدمات العملاء.
+          </p>
+        ) : null}
 
         <section className="mt-4 rounded-xl border p-4">
           <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={17}/> الصلاحيات المرتبطة بالجلسة</div>
@@ -307,7 +316,7 @@ function CustomerAccountProfileContent({
           </div>
         </section>
         <p className="mt-4 text-xs leading-6 text-muted-foreground">
-          تُعرض معلومات الهوية من جلسة الحساب؛ ويستطيع صاحب حساب العميل تحديث بياناته التجارية من محرر بيانات الحساب أعلاه. أما الصلاحيات والاعتمادات والبيانات المالية فتظل خاضعة لإجراءات الإدارة.
+          تُعرض معلومات الهوية من جلسة الحساب؛ {profileAccessMode === "customer" ? "ويستطيع صاحب حساب العميل تحديث بياناته التجارية من محرر بيانات الحساب أعلاه." : "ولا تُعرض بيانات الشركة أو خدمات حساب العميل لهذه الجلسة."} أما الصلاحيات والاعتمادات والبيانات المالية فتظل خاضعة لإجراءات الإدارة.
         </p>
       </header>
 
