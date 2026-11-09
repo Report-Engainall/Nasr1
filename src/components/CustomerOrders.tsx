@@ -133,6 +133,16 @@ function Gate({ children }: { children: React.ReactNode }) {
   const { user, ready, sessionRevision } = useAuth();
   if (!ready) return <Shell><p role="status">جارٍ التحميل...</p></Shell>;
   if (!user) return <Login />;
+  if (user.isStaff || !user.roles.includes("customer")) {
+    return (
+      <Shell>
+        <div style={card} role="alert">
+          هذه الصفحة مخصصة لحسابات العملاء. استخدم مساحة الإدارة للوصول إلى طلبات المؤسسة.
+          <Link to="/admin/orders" className="sf-link">فتح إدارة الطلبات</Link>
+        </div>
+      </Shell>
+    );
+  }
   return <Fragment key={user.id + ":" + user.profileId + ":" + sessionRevision}>{children}</Fragment>;
 }
 
