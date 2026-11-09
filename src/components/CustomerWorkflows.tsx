@@ -487,7 +487,7 @@ export function CustomerInvoicesPage() {
   return (
     <CustomerAccountGate>
       <Invoices />
-    </Gate>
+    </CustomerAccountGate>
   );
 }
 function Invoices() {
@@ -1007,7 +1007,7 @@ export function CustomerStatementPage() {
   return (
     <CustomerAccountGate>
       <Statement />
-    </Gate>
+    </CustomerAccountGate>
   );
 }
 function formatAccountMoney(value: number | string, currency: string): string {
@@ -1355,7 +1355,7 @@ export function CustomerPaymentsPage() {
   return (
     <CustomerAccountGate>
       <CustomerPayments />
-    </Gate>
+    </CustomerAccountGate>
   );
 }
 
@@ -1544,7 +1544,7 @@ export function QuoteWorkspacePage() {
   return (
     <CustomerAccountGate>
       <Quotes />
-    </Gate>
+    </CustomerAccountGate>
   );
 }
 function Quotes() {

@@ -1,16 +1,16 @@
-import type {AiProvider} from "../../../supabase/functions/ai-gateway/logic";
+export type FreeAiProvider="openai_compatible"|"gemini";
 export type FreeQuotaStatus="AVAILABLE"|"EXHAUSTED"|"NOT_CONFIGURED"|"DISABLED"|"UNKNOWN";
 export type AiExecutionMode="MODEL"|"RULE_BASED"|"MODEL_UNAVAILABLE";
 export interface FreeProviderQuota {
- provider:AiProvider;model:string;quotaStatus:FreeQuotaStatus;quotaRemaining:number|null;freeTierConfirmed:boolean;
+ provider:FreeAiProvider;model:string;quotaStatus:FreeQuotaStatus;quotaRemaining:number|null;freeTierConfirmed:boolean;
  zeroCostConfirmed:boolean;privacyReviewed:boolean;privacyAllowsQuestionOnly:boolean;inputRate:number|null;outputRate:number|null;
  verifiedAt:string;sourceEvidenceId:string;cooldownUntil:string|null;
 }
 export interface SanitizedQuestion {ok:boolean;question?:string}
 export interface FreeQuotaEvidence {id:string;status:"VERIFIED"|"NEEDS_REVIEW"|"UNVERIFIED"|"UNAVAILABLE";asOf:string;completeness:"COMPLETE"|"PARTIAL"|"UNKNOWN";quality:"ACCEPTABLE"|"WARNINGS"|"INVALID"|"UNKNOWN"}
 export interface AiRouteDecision {
- mode:AiExecutionMode;provider:AiProvider|null;model:string|null;reason:"FREE_PROVIDER_AVAILABLE"|"ALL_FREE_QUOTAS_UNAVAILABLE"|"NO_RULE_ENGINE"|"UNSAFE_QUESTION";
- attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>;paidSpendLimit:0;question:string|null;
+ mode:AiExecutionMode;provider:FreeAiProvider|null;model:string|null;reason:"FREE_PROVIDER_AVAILABLE"|"ALL_FREE_QUOTAS_UNAVAILABLE"|"NO_RULE_ENGINE"|"UNSAFE_QUESTION";
+ attemptedProviders:Array<{provider:FreeAiProvider;model:string;reason:string}>;paidSpendLimit:0;question:string|null;
 }
 function freeProviderEligibilityReason(
  provider:FreeProviderQuota,
@@ -58,7 +58,7 @@ export function chooseFreeAiRoute(input:{
  if(!safeQuestion)return {mode:fallback,provider:null,model:null,
   reason:"UNSAFE_QUESTION",attemptedProviders:[],paidSpendLimit:0,question:null};
  const now=Date.parse(input.asOf);if(!Number.isFinite(now))throw new Error("asOf must be valid");
- const attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>=[];
+ const attemptedProviders:Array<{provider:FreeAiProvider;model:string;reason:string}>=[];
  const providerKey=(provider:FreeProviderQuota)=>JSON.stringify([provider.provider,provider.model]);
  const providerCounts=new Map<string,number>();
  for(const provider of input.providers)providerCounts.set(providerKey(provider),(providerCounts.get(providerKey(provider))??0)+1);
@@ -74,12 +74,12 @@ export function chooseFreeAiRoute(input:{
  return {mode:"MODEL",provider:selected.provider,model:selected.model,reason:"FREE_PROVIDER_AVAILABLE",
   attemptedProviders,paidSpendLimit:0,question:safeQuestion};
 }
-export interface AiOpsEvent {id:string;provider:AiProvider|null;mode:AiExecutionMode;status:"SUCCEEDED"|"FAILED"|"FALLBACK";reasonCode:string;occurredAt:string;elapsedMs:number|null}
+export interface AiOpsEvent {id:string;provider:FreeAiProvider|null;mode:AiExecutionMode;status:"SUCCEEDED"|"FAILED"|"FALLBACK";reasonCode:string;occurredAt:string;elapsedMs:number|null}
 export interface AiOpsSummary {
- asOf:string;total:number;successful:number;failed:number;fallbacks:number;byProvider:Array<{provider:AiProvider;count:number}>;
+ asOf:string;total:number;successful:number;failed:number;fallbacks:number;byProvider:Array<{provider:FreeAiProvider;count:number}>;
  lastEventAt:string|null;errorCodes:string[];containsPrompts:false;containsSecrets:false;
 }
-const aiProviderValues = new Set<AiProvider>(["openai_compatible", "gemini"]);
+const aiProviderValues = new Set<FreeAiProvider>(["openai_compatible", "gemini"]);
 const aiModeValues = new Set<AiExecutionMode>(["MODEL", "RULE_BASED", "MODEL_UNAVAILABLE"]);
 const aiStatusValues = new Set<AiOpsEvent["status"]>(["SUCCEEDED", "FAILED", "FALLBACK"]);
 const aiReasonCodePattern = /^[a-z0-9_]{1,80}$/;
@@ -93,14 +93,14 @@ export function summarizeAiOperations(asOf:string,events:AiOpsEvent[]):AiOpsSumm
  if(!Number.isFinite(asOfMs))throw new Error("asOf must be valid");
  if(!Array.isArray(events)||events.length>5000)throw new Error("ai_ops_event_population_invalid");
  const ids=new Set<string>();
- const counts=new Map<AiProvider,number>();
+ const counts=new Map<FreeAiProvider,number>();
  const errorCodes=new Set<string>();
  let successful=0,failed=0,fallbacks=0,lastEventAt:string|null=null,lastEventMs=-1;
  for(const value of events as unknown[]){
   if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("ai_ops_event_invalid");
   const event=value as Record<string,unknown>;
   if(typeof event.id!=="string"||!event.id.trim()||event.id.length>120||ids.has(event.id)||
-     !(event.provider===null||aiProviderValues.has(event.provider as AiProvider))||
+     !(event.provider===null||aiProviderValues.has(event.provider as FreeAiProvider))||
      typeof event.mode!=="string"||!aiModeValues.has(event.mode as AiExecutionMode)||
      typeof event.status!=="string"||!aiStatusValues.has(event.status as AiOpsEvent["status"])||
      typeof event.reasonCode!=="string"||!aiReasonCodePattern.test(event.reasonCode)||
@@ -113,7 +113,7 @@ export function summarizeAiOperations(asOf:string,events:AiOpsEvent[]):AiOpsSumm
   ids.add(event.id);
   const occurredMs=Date.parse(event.occurredAt);
   if(occurredMs>lastEventMs){lastEventMs=occurredMs;lastEventAt=event.occurredAt;}
-  if(event.provider)counts.set(event.provider as AiProvider,(counts.get(event.provider as AiProvider)??0)+1);
+  if(event.provider)counts.set(event.provider as FreeAiProvider,(counts.get(event.provider as FreeAiProvider)??0)+1);
   if(event.status==="SUCCEEDED")successful+=1;
   else if(event.status==="FAILED"){failed+=1;errorCodes.add(event.reasonCode);}
   else fallbacks+=1;

@@ -1,3 +1,34 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — VERCEL JSX BUILD REPAIR / EDGE TYPE ISOLATION
+
+> Base SHA: `654c509765bcbf681d5feac85de0255927f4e0f2`.
+
+## Build failure diagnosis and repair
+
+- Inspected actual Vercel build events for deployment `dpl_CKgcBvj8ZfkPPJTEHboM5E2duBeA`, built from commit `e78cf2d`.
+- Vite reported four JSX parse errors in `src/components/CustomerWorkflows.tsx`: `CustomerAccountGate` opened but closed as `Gate` in the Invoices, Statement, CustomerPayments and Quotes wrappers (former lines 490, 1010, 1358 and 1547).
+- Corrected those four exact closing tags only; other `Gate` wrappers remain unchanged.
+- The logged failure occurred during Vite transform before deployment runtime and was not caused by the AI gateway source.
+
+## Edge module isolation
+
+- `src/lib/intelligence/free-ai-policy.ts` now owns `FreeAiProvider` and no longer imports the Edge `logic.ts` type through an extensionless cross-layer path.
+- The Edge gateway remains fail-closed: provider/evidence collections stay empty until a reviewed tenant-derived verification registry and read RPC exist. Ask returns RULE_BASED; test_connection reports no verified free provider, before quota reservation/provider execution.
+
+## Verification boundary
+
+- CustomerAccountGate opening/closing counts and the four exact wrapper substitutions were checked before writing.
+- Vercel logs are exact evidence for the previous SHA. The repair commit has not yet received a new build result.
+- TypeScript, lint, Vitest, Deno, authenticated browser and hosted Supabase Edge acceptance remain pending.
+- No manual deployment, Supabase migration, provider request, secret change or paid usage was performed.
+
+## Next
+
+1. Read automatic Vercel status/logs for the exact repair SHA.
+2. Run typecheck, lint, build and `npx vitest run src/lib/intelligence/free-ai-policy.test.ts` on the exact tested SHA.
+3. Add the provider verification registry and prompt approval audit only with reviewed P2/P3 contracts; keep provider egress disabled meanwhile.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — CUSTOMER ROLE GATES / ACCEPTANCE MATRIX REPAIR
 
 > **Precedence:** P1 customer/admin product UI audit. Existing server roles, RPC/RLS contracts and P3 AI work are preserved. This checkpoint records source-level role admission and restores the sole acceptance CSV's strict structure; it does not claim browser or backend authorization acceptance.
