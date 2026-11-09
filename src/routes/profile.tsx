@@ -190,12 +190,36 @@ function CustomerAccountProfileEditor() {
 
 
 export function CustomerAccountProfilePage() {
-  const { user, ready, signOutOtherSessions, signOutEverywhere } = useAuth();
+  const { user, ready, sessionRevision, signOutOtherSessions, signOutEverywhere } = useAuth();
+  if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
+  if (!user) return <Login />;
+
+  // Keep profile-local state bound to the verified account and auth session.
+  // A session transition must not carry the prior account's editor draft or feedback.
+  return (
+    <CustomerAccountProfileContent
+      key={user.id + ":" + user.profileId + ":" + sessionRevision}
+      user={user}
+      signOutOtherSessions={signOutOtherSessions}
+      signOutEverywhere={signOutEverywhere}
+    />
+  );
+}
+
+type CustomerAccountProfileContentProps = {
+  user: NonNullable<ReturnType<typeof useAuth>["user"]>;
+  signOutOtherSessions: () => Promise<void>;
+  signOutEverywhere: () => Promise<void>;
+};
+
+function CustomerAccountProfileContent({
+  user,
+  signOutOtherSessions,
+  signOutEverywhere,
+}: CustomerAccountProfileContentProps) {
   const [sessionAction, setSessionAction] = useState<"others" | "global" | null>(null);
   const [sessionError, setSessionError] = useState("");
   const [sessionNotice, setSessionNotice] = useState("");
-  if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
-  if (!user) return <Login />;
 
   async function revokeOtherSessions() {
     if (sessionAction) return;

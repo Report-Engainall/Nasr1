@@ -1,3 +1,38 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — PROFILE SESSION-SCOPE ISOLATION
+
+> **Precedence:** Focused P1 account-state isolation repair. Preserve profile editing through existing narrow RPCs, session revocation and personalization. No database contract change.
+
+## Exact source baseline and repair
+
+- Repository: `Report-Engainall/Nasr1`, branch `main`.
+- Parent SHA: `d6904f37c3dd91e6f2a1475591ad1e45bf1ca2e9`; parent tree: `bebfd64dd513a8172466ef491294b1e01095dec5`.
+- Changed application file: `src/routes/profile.tsx`.
+- Previous source blob: `9fbb5d855c984e5e998659560827a406ffcbdbe4`.
+- Defect: the profile editor/draft and session-action messages were held in the same mounted component across in-place Auth session changes.
+- Repair: after AuthContext becomes ready, render `CustomerAccountProfileContent` beneath a key composed of verified Auth user ID, server profile ID and `sessionRevision`. A session transition returns the route to its readiness state and unmounts the old scope; the next verified user receives a new state subtree.
+- Existing `get_my_customer_account_profile` / `update_my_customer_account_profile` RPC calls and optimistic `updated_at` guard remain unchanged. No direct table writes or role/policy changes were added.
+
+## Acceptance matrix
+
+- Updated only `DLV-006-CUSTOMER-PROFILE-OVERVIEW-001` in the single canonical CSV.
+- Added customer A → sign out → customer B and customer/staff transition acceptance, including no prior draft or feedback leakage.
+- Matrix integrity: 251 task records, 8 fields per record, 251 unique IDs.
+- Profile RPC migration/signature/grant proof remains P2-pending; no server authorization PASS is claimed.
+
+## Verification boundary
+
+- Source transformation anchors and matrix structural checks passed before write; exact blob and matrix read-back will be checked after commit.
+- TypeScript, Vite build, lint, tests, Playwright, browser, Auth provider and database were NOT_RUN.
+- No schema, migration, RPC, RLS, grant, Edge Function, Auth identity, profile, role or business data changed.
+
+## NEXT ACTION
+
+1. On an approved non-production browser, test customer A → sign out → customer B and customer/staff transitions; confirm no state from the prior identity is rendered.
+2. P2 must map and verify the exact source migrations/signatures/grants for the two customer-account-profile RPCs.
+3. Continue DLV-001 functional mapping and DLV-002 route acceptance without rebuilding existing screens.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — DLV-001 CHECKOUT TRACE AND P2 MIGRATION GAP
 
 > **Precedence:** Adds one source-verified checkout trace to the single acceptance matrix. It does not close DLV-001 or DLV-004 and does not change the application source.
