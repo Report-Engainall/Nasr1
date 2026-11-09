@@ -442,6 +442,26 @@ function Gate({ children }: { children: React.ReactNode }) {
   if (!user) return <Login />;
   return <Fragment key={user.id + ":" + user.profileId + ":" + sessionRevision}>{children}</Fragment>;
 }
+
+function CustomerAccountGate({ children }: { children: React.ReactNode }) {
+  const { user, ready, sessionRevision } = useAuth();
+  if (!ready) {
+    return (
+      <WorkspaceShell title="مساحة حساب العميل" subtitle="جارٍ التحقق من الجلسة">
+        <p role="status">جارٍ تحميل حساب العميل...</p>
+      </WorkspaceShell>
+    );
+  }
+  if (!user) return <Login />;
+  if (user.isStaff || !user.roles.includes("customer")) {
+    return (
+      <WorkspaceShell title="مساحة حساب العميل" subtitle="صلاحية الحساب">
+        <ErrorBox message="هذه الصفحة مخصصة للحسابات التي تحمل دور العميل. لا تتوفر لهذه الجلسة صلاحية عرض بيانات حساب العميل." />
+      </WorkspaceShell>
+    );
+  }
+  return <Fragment key={user.id + ":" + user.profileId + ":" + sessionRevision}>{children}</Fragment>;
+}
 function ErrorBox({ message, retry }: { message: string; retry?: () => void }) {
   return (
     <div
@@ -465,7 +485,7 @@ function EmptyBox({ children }: { children: React.ReactNode }) {
 
 export function CustomerInvoicesPage() {
   return (
-    <Gate>
+    <CustomerAccountGate>
       <Invoices />
     </Gate>
   );
@@ -985,7 +1005,7 @@ function Invoices() {
 
 export function CustomerStatementPage() {
   return (
-    <Gate>
+    <CustomerAccountGate>
       <Statement />
     </Gate>
   );
@@ -1333,7 +1353,7 @@ function Statement() {
 
 export function CustomerPaymentsPage() {
   return (
-    <Gate>
+    <CustomerAccountGate>
       <CustomerPayments />
     </Gate>
   );
@@ -1522,7 +1542,7 @@ function CustomerPayments() {
 
 export function QuoteWorkspacePage() {
   return (
-    <Gate>
+    <CustomerAccountGate>
       <Quotes />
     </Gate>
   );
@@ -4218,7 +4238,7 @@ export function CustomerAddressesPage() {
   const { user, ready, sessionRevision } = useAuth();
   if (!ready) return <WorkspaceShell title="عناوين التوصيل" subtitle="جارٍ التحقق من الحساب"><p role="status">جارٍ التحقق من جلسة الحساب...</p></WorkspaceShell>;
   if (!user) return <Login />;
-  if (user.isStaff) return <WorkspaceShell title="عناوين التوصيل" subtitle="مساحة حساب العميل"><ErrorBox message="هذه الشاشة مخصصة لحساب العميل. استخدم ملف العميل في لوحة الإدارة للوصول إلى العناوين وفق صلاحيتك." /></WorkspaceShell>;
+  if (user.isStaff || !user.roles.includes("customer")) return <WorkspaceShell title="عناوين التوصيل" subtitle="مساحة حساب العميل"><ErrorBox message="هذه الشاشة مخصصة لحساب العميل. استخدم ملف العميل في لوحة الإدارة للوصول إلى العناوين وفق صلاحيتك." /></WorkspaceShell>;
   return <CustomerAddresses key={user.id + ":" + user.profileId + ":" + sessionRevision} />;
 }
 
@@ -4341,7 +4361,7 @@ export function CustomerCompanyContactsPage() {
   const { user, ready } = useAuth();
   if (!ready) return <WorkspaceShell title="جهات الاتصال بالشركة" subtitle="جارٍ التحقق من الحساب"><p role="status">جارٍ التحقق من جلسة الحساب...</p></WorkspaceShell>;
   if (!user) return <Login />;
-  if (user.isStaff) return <WorkspaceShell title="جهات الاتصال بالشركة" subtitle="مساحة حساب العميل"><ErrorBox message="هذه الشاشة مخصصة لحساب العميل. استخدم ملف العميل في لوحة الإدارة للوصول إلى البيانات وفق صلاحيتك." /></WorkspaceShell>;
+  if (user.isStaff || !user.roles.includes("customer")) return <WorkspaceShell title="جهات الاتصال بالشركة" subtitle="مساحة حساب العميل"><ErrorBox message="هذه الشاشة مخصصة لحساب العميل. استخدم ملف العميل في لوحة الإدارة للوصول إلى البيانات وفق صلاحيتك." /></WorkspaceShell>;
   return <CustomerCompanyContacts key={user.id + ":" + user.profileId + ":" + sessionRevision} />;
 }
 
