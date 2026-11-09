@@ -1,3 +1,49 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — EXACT-SHA BUILD VERIFIED / DLV-001 COUNT RECONCILED
+
+> **Precedence:** This checkpoint supersedes the pending-build note below. It records the verified Vercel Git build for the repair SHA and the corrected canonical task denominator. It is not browser, Auth-provider or P2 authorization acceptance.
+
+## Exact current-main baseline
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA before this checkpoint: `9cc8299d66cf52c21682073260a0758f0448cce3`.
+- JSX repair and Edge type-isolation source commit: `3e1d6bd3b76ac65c5f7954a86f6ca97f515cd2ca`.
+- DLV-001 denominator correction commit: `9cc8299d66cf52c21682073260a0758f0448cce3`.
+
+## Source build correction and proof
+
+- Vercel's prior automatic production build for SHA `654c509765bcbf681d5feac85de0255927f4e0f2` failed during Vite transform with four exact JSX closing-tag errors: the Invoices, Statement, CustomerPayments and Quotes wrappers opened `CustomerAccountGate` but closed `Gate`.
+- Commit `3e1d6bd3b76ac65c5f7954a86f6ca97f515cd2ca` corrected the four matching closing tags. Current source readback confirms all four wrappers now open and close `CustomerAccountGate`; generic `Gate` wrappers remain unchanged.
+- The same commit decoupled `FreeAiProvider` typing into `src/lib/intelligence/free-ai-policy.ts` and retained the Edge gateway's fail-closed `chooseFreeAiRoute` boundary. The server-owned verified provider/evidence registry remains absent/empty; no provider egress is enabled by this source correction.
+- Automatic Vercel Git deployment for exact repair SHA:
+  - Deployment: `dpl_FKFBSKRYCrAN7GyDSHWt112Wy88Y`
+  - URL: `https://aghbari-commerce-q6pah75u6-injaz2.vercel.app`
+  - Target: `production`; status: **READY**
+  - Build log: client build transformed 2,419 modules and completed; SSR build transformed 251 modules; deployment metadata reports `readyState=READY`.
+  - Vercel emitted a non-fatal chunk-size warning (notably the AghbariApp bundle exceeds 500 kB). This is a performance follow-up, not a failed build.
+- The later documentation-only DLV-001 correction SHA `9cc8299d66cf52c21682073260a0758f0448cce3` also received an automatic Git deployment with status **READY** (deployment `dpl_3NDDafR7ykzNyCrZ7C4RQkvj1vqC`). These deployments were created by the repository's existing Git integration; no manual deploy, retry, promotion or rollback was issued in this session.
+
+## Canonical acceptance matrix correction
+
+- Corrected the stale DLV-001 status text from `251` to `253` unique task IDs.
+- Current matrix blob: `e1982a7e084c4993548a5cc88e28e767e879d0d7`.
+- Strict parser readback: 253 data rows; exactly 8 columns per row; 253 unique task IDs; zero malformed rows. Five latest AI/RBAC governance rows and historical evidence remain preserved.
+- DLV-001 and DLV-002 remain **OPEN**. Their functional requirement coverage and browser/server acceptance are not closed by structural CSV repair or a production build.
+
+## Verification boundary
+
+- Source readback proves the four JSX tags are paired, customer-role gates remain present and the Edge policy helper/type boundary is source-integrated.
+- Exact-SHA Vercel production build is **READY** for repair SHA `3e1d6bd3b76ac65c5f7954a86f6ca97f515cd2ca`; this proves the configured client/SSR build only.
+- TypeScript standalone check, ESLint, Vitest (including `free-ai-policy.test.ts`), Deno tests, TanStack route-generator parity, browser E2E, Auth A→B transitions, P2 RPC/RLS negative tests and live Supabase Edge deployment/acceptance: **NOT_RUN**.
+- No migration, Supabase write, provider request, secret change, paid AI usage, manual Vercel deploy, promotion or rollback was performed.
+
+## NEXT ACTION
+
+1. Continue P1 current-main route/action audit for unmatched destinations, incomplete loading/error/empty states and customer/admin screen admission. Preserve existing completed pages and business flows.
+2. Add missing DLV-001 requirement-to-screen/service/RPC/Edge/owner/acceptance mappings in the same matrix; validate the canonical requirement denominator rather than claiming full coverage from route presence.
+3. Keep DLV-001 and DLV-002 OPEN until exact-SHA browser acceptance. P2 must separately prove server role/tenant/RLS behavior; P3 retains AI routing and intelligent-engine acceptance.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — VERCEL JSX BUILD REPAIR / EDGE TYPE ISOLATION
 
 > Base SHA: `654c509765bcbf681d5feac85de0255927f4e0f2`.
