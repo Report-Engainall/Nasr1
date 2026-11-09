@@ -3,6 +3,6 @@ import { AdminApp } from "@/components/AghbariApp";
 
 import { AdminRouteFallback } from "@/components/AdminRouteFallback";
 export const Route = createFileRoute("/admin_/devices")({
-  head: () => ({ meta: [{ title: "أجهزة العملاء | الأغبري" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "الأجهزة والجلسات | متجر الأغبري" }, { name: "robots", content: "noindex" }] }),
   component: () => <ClientOnly fallback={<AdminRouteFallback />}><AdminApp initialView="devices" /></ClientOnly>,
 });
