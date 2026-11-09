@@ -1,3 +1,40 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — DLV-001 CHECKOUT TRACE AND P2 MIGRATION GAP
+
+> **Precedence:** Adds one source-verified checkout trace to the single acceptance matrix. It does not close DLV-001 or DLV-004 and does not change the application source.
+
+## Exact baseline
+
+- Repository: `Report-Engainall/Nasr1`, branch `main`.
+- Parent `main` SHA: `be325f319a3aad1b165fca4f47c021b3e5a08632`.
+- Source checkout implementation SHA: `be325f319a3aad1b165fca4f47c021b3e5a08632`.
+- Checkout route blob: `298ca2fdefa9a4e8394ae3f3d2fe51203843542f`; order detail route blob: `1188dac61e0caa07a4762287c342c687e2e6878a`.
+- `Storefront.tsx` blob: `f6cd1a174578ff760129493111a35070d2d35441`.
+
+## Functional trace recorded
+
+- `/checkout` → `src/routes/checkout.tsx` → `Storefront(initialView="checkout")` → `Checkout.submit`.
+- Customer cart is saved/read back through `saveCustomerCart` before submission.
+- Mutation client invokes `submit_customer_order` with canonical line payload, customer/contact/payment fields, optional delivery-address ID and a profile-scoped idempotency key.
+- Client accepts only `id` and `order_number`; responses containing `total_amount`, `unit_price` or `line_total` are rejected.
+- Confirmed result navigates to the existing `/orders/$id` route, which renders `OrderInvoice`. No second order mutation is introduced.
+- This proves the current client route/service chain only. It does **not** prove the RPC's server grants, SECURITY DEFINER/search_path, tenant derivation or database behavior.
+
+## Unresolved P2 source-mapping gap
+
+- The current repository tree contains only two SQL migration files; neither defines `submit_customer_order`.
+- The API/RPC contract register does not give this RPC an exact callable signature/grant/migration/test entry.
+- Prior cursor's larger live migration ledger is not a checked-in source migration and cannot replace source provenance.
+- No migration, grant, RLS, RPC or database state was changed. Keep this mapping/authorization/test gap OPEN for P2 reconciliation.
+
+## Acceptance / verification
+
+- Only the existing canonical acceptance matrix was edited; DLV-001 and DLV-004 remain OPEN / ACCEPTANCE_PENDING.
+- Matrix integrity after edit: 251 records, 8 fields each, 251 unique task IDs.
+- Current checkout route/build/runtime tests NOT_RUN; no package `test` script or current checkout component test is present.
+- Do not treat a client RPC invocation as proof of server authorization or database acceptance.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER CHECKOUT SUCCESS ROUTE RECOVERY
 
 > **Precedence:** This checkpoint records a focused P1 source repair plus the corresponding row in the single canonical acceptance matrix. No database or P3 engine changes were made.
