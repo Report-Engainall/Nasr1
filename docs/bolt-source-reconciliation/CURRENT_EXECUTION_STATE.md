@@ -1,3 +1,26 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER ACTIVATION RESULT SESSION ISOLATION
+
+> **Precedence:** Focused P1 invitation result-state repair. Keeps the activation bearer token and existing server activation operation unchanged.
+
+## Exact source baseline and repair
+
+- Parent `main` SHA: `e15136778f214c2f854ebce2cb0a5b4f54651b56`; parent tree: `2afbdd6dd820a0ed18df52a8f1bc795ab8d59649`.
+- Changed file: `src/components/CustomerActivationInvitationPage.tsx`; previous blob `944c349814d97e397ce190bd749fbf5353d5ccbb`.
+- The page validates token format and waits for AuthContext readiness, signed-in user and customer role before mounting `CustomerActivationInvitationSession`.
+- Activation result, busy and error state now belongs to a subtree keyed by user ID/profile ID/sessionRevision. It cannot persist across account or session transitions.
+- The bearer token remains only as the route prop outside that subtree so the sign-in/registration return and same-session retry still work; the visible URL is scrubbed before the network request as before.
+- Existing `acceptCustomerActivationInvitation(token)` client call and server verification are unchanged.
+
+## Matrix and verification
+
+- Updated only `P1-CUSTOMER-MANAGER-INVITATION-001` in the canonical CSV.
+- Matrix remains 251 task records, eight fields each, 251 unique task IDs.
+- Source readback will verify the identity key and retained activation RPC invocation.
+- TypeScript/build/lint/browser/Auth-provider/database/SMTP acceptance NOT_RUN; hosted email delivery remains BLOCKED_EXTERNAL.
+- No secret/token was generated, stored, changed or transmitted during this source edit; no identity or database operation occurred.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER SERVICE AND COMPANY INVITATION SESSION ISOLATION
 
 > **Precedence:** Focused P1 identity-state cleanup. Existing case/invitation service contracts and token handling preserved.

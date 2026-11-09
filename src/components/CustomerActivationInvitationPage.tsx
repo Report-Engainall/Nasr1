@@ -157,19 +157,41 @@ function ActivationConfirmationView({
 }
 
 export function CustomerActivationInvitationPage({ token }: { token: string }) {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
+  const validToken = TOKEN_PATTERN.test(token);
+
+  if (!validToken) return <InvalidInvitationTokenView />;
+  if (!ready) return <SessionLoadingView />;
+  if (!user) return <CustomerRegistrationView />;
+  if (user.isStaff) return <StaffAccountBlockedView />;
+
+  return (
+    <CustomerActivationInvitationSession
+      key={user.id + ":" + user.profileId + ":" + sessionRevision}
+      token={token}
+      email={user.email}
+    />
+  );
+}
+
+function CustomerActivationInvitationSession({
+  token,
+  email,
+}: {
+  token: string;
+  email: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [accepted, setAccepted] = useState<AcceptedInvitation | null>(null);
-  const validToken = TOKEN_PATTERN.test(token);
 
   async function accept() {
-    if (busy || !validToken || !user || user.isStaff) return;
+    if (busy || !TOKEN_PATTERN.test(token)) return;
     setBusy(true);
     setError("");
     try {
       // Remove the bearer token from the visible URL before any network request.
-      // Keep it in component state/props so a transient error can be retried without re-exposing it.
+      // The route param remains in memory for a same-session retry.
       window.history.replaceState(null, "", window.location.origin + "/");
       const result = await acceptCustomerActivationInvitation(token);
       setAccepted({ business_name: result.business_name, email: result.email });
@@ -180,15 +202,11 @@ export function CustomerActivationInvitationPage({ token }: { token: string }) {
     }
   }
 
-  if (!validToken) return <InvalidInvitationTokenView />;
-  if (!ready) return <SessionLoadingView />;
-  if (!user) return <CustomerRegistrationView />;
-  if (user.isStaff) return <StaffAccountBlockedView />;
   if (accepted) return <AcceptedInvitationView accepted={accepted} />;
 
   return (
     <ActivationConfirmationView
-      email={user.email}
+      email={email}
       busy={busy}
       error={error}
       onAccept={() => void accept()}
