@@ -1,3 +1,36 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — ASYNC EXPORT ROUTE ACCESS AND SESSION ISOLATION
+
+> **Precedence:** Focused P1 UI/navigation repair. Reuses the existing export route, service client and shared page-access policy; no database or worker contract changes.
+
+## Exact source baseline
+
+- Repository: `Report-Engainall/Nasr1`, branch `main`.
+- Parent SHA: `dbf3827dcfc2acfb314913dfcd7a310e036e757f`; parent tree: `47162ba56642e5be4bf42d8e4829d03a724165c2`.
+- Changed application files: `src/components/AsyncExportCenter.tsx`, `src/components/AghbariApp.tsx`.
+- Previous blobs: AsyncExportCenter `261ebec7820c3c54ed11e0115ec4ce87590ad928`; AghbariApp `05d315059a7d5cbdf9f17be28639de2bfc91dd47`.
+
+## Confirmed gap and P1 repair
+
+- `/admin/exports` existed as a registered file route mounting `AsyncExportCenter`, but was absent from Data Center UI and did not use the shared admin page-access guard.
+- Data Center now exposes a link to the existing export route only when `rolesCanAccessView(user.roles, "data")` allows the current role.
+- Direct route entry now waits for AuthContext readiness, sends signed-out users to Login and denies roles not allowed for the existing `data` view. This is UI gating only; server RPC/Edge authorization remains authoritative.
+- Export page state (job list, date filters, idempotency key, busy action and notices) now lives in a subtree keyed by Auth user ID, server profile ID and sessionRevision. Account/session changes unmount old export state before rendering the next identity.
+- Existing request/list/cancel RPC and worker/download Edge calls are unchanged. No new export engine or role definition was added.
+
+## Matrix and verification
+
+- Updated only DLV-001 and DLV-002 in the canonical acceptance matrix; 251 records, eight fields, 251 unique IDs.
+- TypeScript/build/lint/tests/browser and live RPC/Edge/tenant authorization were NOT_RUN.
+- No SQL migration, RPC, grant, RLS, Edge Function, Auth identity or business data changed.
+
+## NEXT ACTION
+
+1. Verify Data Center link and direct `/admin/exports` route at mobile/desktop widths with approved non-production roles.
+2. Switch account A → sign out → account B while an export job is visible; verify no prior job, date filter or retry key remains.
+3. P2 proves server ownership, tenant, role, idempotency, worker lease/retry and signed-download boundaries; do not infer these from the UI gate.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — PROFILE SESSION-SCOPE ISOLATION
 
 > **Precedence:** Focused P1 account-state isolation repair. Preserve profile editing through existing narrow RPCs, session revocation and personalization. No database contract change.

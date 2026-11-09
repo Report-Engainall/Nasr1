@@ -23,7 +23,7 @@ import { fetchCustomerDirectoryPage, type CustomerDirectoryRow } from '@/lib/cus
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
 import { DashboardLoadError } from '@/components/DashboardLoadError';
 
@@ -2645,6 +2645,7 @@ function DataCenter({ onNotice, initialImportJobId }: { onNotice: (m: string) =>
       <div className="toolbar-actions">
         {canManageImports && <Button onClick={() => setSection('import')}><FileText size={16} /> فتح محرك الاستيراد الموحد</Button>}
         {user?.isStaff && <Button variant="outline" onClick={() => setSection('onyx')}><PackageCheck size={16} /> تحليلات أونكس ومطابقة المخزون</Button>}
+        {rolesCanAccessView(user?.roles ?? [], "data") && <Link to="/admin/exports" className="btn secondary"><Download size={16} /> تصدير الطلبات</Link>}
         <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث التصنيفات</Button>
       </div>
     </div>

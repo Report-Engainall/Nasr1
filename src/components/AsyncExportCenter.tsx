@@ -5,6 +5,9 @@ import {
   requestAsyncOrdersCsvExport, triggerAsyncExportWorker, type AsyncExportJobState,
 } from "@/lib/async-export-jobs";
 import { exportJobIdempotencyKey } from "@/lib/async-export-csv";
+import { useAuth } from "@/lib/auth";
+import { Login } from "@/components/Login";
+import { rolesCanAccessView } from "@/lib/admin-access-matrix";
 
 const labels: Record<AsyncExportJobState["status"], string> = {
   queued: "في قائمة الانتظار", processing: "جارٍ التجهيز", retry: "إعادة المحاولة",
@@ -108,6 +111,16 @@ function AsyncExportJobRow({ job, busy, onDownload, onRetry, onCancel }: AsyncEx
 }
 
 export function AsyncExportCenter() {
+  const { user, ready, sessionRevision } = useAuth();
+  if (!ready) return <main dir="rtl" role="status" className="mx-auto max-w-7xl p-6">جار التحقق من صلاحية الوصول إلى مركز التصدير…</main>;
+  if (!user) return <Login />;
+  if (!rolesCanAccessView(user.roles, "data")) {
+    return <main dir="rtl" className="mx-auto max-w-7xl p-6"><section role="alert" className="rounded-xl border p-5"><h1 className="font-bold">الوصول إلى مركز التصدير غير متاح</h1><p className="mt-2 text-sm">يتطلب هذا المركز صلاحية الوصول إلى مساحة البيانات. تظل صلاحيات الخادم وواجهات RPC هي المرجع النهائي.</p></section></main>;
+  }
+  return <AsyncExportCenterWorkspace key={user.id + ":" + user.profileId + ":" + sessionRevision} />;
+}
+
+function AsyncExportCenterWorkspace() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [jobs, setJobs] = useState<AsyncExportJobState[]>([]);
