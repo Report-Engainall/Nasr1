@@ -625,7 +625,7 @@ export function CustomerCompanyMembersPage() {
 
   if (!user) return <Login />;
 
-  if (user.isStaff) {
+  if (user.isStaff || !user.roles.includes("customer")) {
     return (
       <main
         dir="rtl"
