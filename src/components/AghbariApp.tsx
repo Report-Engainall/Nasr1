@@ -847,7 +847,15 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 }
 
 export function AdminApp({ initialView = 'dashboard' }: { initialView?: View }) {
-  return <AppContent initialView={initialView} />;
+  const { user, ready, sessionRevision } = useAuth();
+  if (!ready) return <div className="login-screen" dir="rtl"><div style={{ margin: 'auto' }}><Loading /></div></div>;
+  if (!user) return <Login />;
+  return (
+    <AppContent
+      key={user.id + ":" + user.profileId + ":" + sessionRevision}
+      initialView={initialView}
+    />
+  );
 }
 
 export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {

@@ -1,3 +1,29 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — ADMIN APP SESSION-SCOPE RESET
+
+> **Precedence:** Focused P1 admin workspace identity-scope repair. Existing routes, roles, screen components and service contracts are preserved.
+
+## Exact source baseline
+
+- Parent `main` SHA: `d29a08e503b472a14cd5afe844a611a2f265ea39`; parent tree: `d03e99646051605e7f1b00a6f917b00d4ab77116`.
+- Changed file: `src/components/AghbariApp.tsx`; previous blob `890804a6bc1b56ab78b9576feb3c9e1365ebf32a`.
+- `AdminApp` is now the Auth readiness boundary; it shows loading while AuthContext resolves, shows Login when signed out and mounts `AppContent` only for a verified user.
+- Existing `AppContent` subtree is keyed by Auth user ID, profile ID and sessionRevision. This resets admin search results, record context, open order details, pending navigation state, notices, dialogs, drawers and page-local drafts when account/role/tenant scope changes.
+- Existing `rolesCanAccessView`, `AdminWorkspaceAccess`, server RPC and database permission rules are unchanged.
+
+## Acceptance matrix
+
+- Updated DLV-002 next action/evidence with the admin account A → sign-out → B and role transition acceptance.
+- Matrix integrity: 251 task records, eight fields per row, 251 unique task IDs.
+- This is frontend lifecycle isolation, not a server authorization PASS.
+
+## Verification boundary
+
+- Source transformation checks and matrix parsing passed before write; exact source readback will be performed.
+- TypeScript/build/lint/unit/Playwright/browser/Auth/DB tests NOT_RUN.
+- No migration, RPC, RLS, grant, role, Auth identity, profile, or business data changed.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER ACTIVATION RESULT SESSION ISOLATION
 
 > **Precedence:** Focused P1 invitation result-state repair. Keeps the activation bearer token and existing server activation operation unchanged.
