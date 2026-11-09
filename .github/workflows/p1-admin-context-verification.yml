@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "src/components/AghbariApp.tsx"
+      - "src/components/CustomerWorkflows.tsx"
+      - "src/components/CustomerAccountPasswordPage.tsx"
+      - "src/lib/api.ts"
+      - "tsconfig.p1-typecheck.json"
       - "src/lib/admin-record-context.ts"
       - "src/lib/admin-record-context.test.ts"
       - "package.json"
