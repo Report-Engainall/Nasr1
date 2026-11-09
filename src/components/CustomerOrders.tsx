@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -130,10 +130,10 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function Gate({ children }: { children: React.ReactNode }) {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
   if (!ready) return <Shell><p role="status">جارٍ التحميل...</p></Shell>;
   if (!user) return <Login />;
-  return <>{children}</>;
+  return <Fragment key={user.id + ":" + user.profileId + ":" + sessionRevision}>{children}</Fragment>;
 }
 
 export function MyOrders() {

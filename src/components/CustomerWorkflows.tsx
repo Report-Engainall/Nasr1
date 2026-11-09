@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -432,7 +432,7 @@ function WorkspaceShell({
   );
 }
 function Gate({ children }: { children: React.ReactNode }) {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
   if (!ready)
     return (
       <WorkspaceShell title="جارٍ التحقق" subtitle="نجهز حسابك التجاري">
@@ -440,7 +440,7 @@ function Gate({ children }: { children: React.ReactNode }) {
       </WorkspaceShell>
     );
   if (!user) return <Login />;
-  return <>{children}</>;
+  return <Fragment key={user.id + ":" + user.profileId + ":" + sessionRevision}>{children}</Fragment>;
 }
 function ErrorBox({ message, retry }: { message: string; retry?: () => void }) {
   return (

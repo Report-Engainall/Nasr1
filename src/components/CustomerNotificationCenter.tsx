@@ -64,6 +64,11 @@ function NotificationItem({
 }
 
 export function CustomerNotificationCenter() {
+  const { user, sessionRevision } = useAuth();
+  return <CustomerNotificationWorkspace key={(user?.id ?? "anonymous") + ":" + (user?.profileId ?? "none") + ":" + sessionRevision} />;
+}
+
+function CustomerNotificationWorkspace() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data, loading, error, refetch } = useFetch(

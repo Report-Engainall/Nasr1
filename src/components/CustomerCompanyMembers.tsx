@@ -608,7 +608,7 @@ function WorkspaceSecurityDisclosure() {
 }
 
 export function CustomerCompanyMembersPage() {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
 
   if (!ready) {
     return (
@@ -643,7 +643,7 @@ export function CustomerCompanyMembersPage() {
     );
   }
 
-  return <CompanyMembersWorkspace />;
+  return <CompanyMembersWorkspace key={user.id + ":" + user.profileId + ":" + sessionRevision} />;
 }
 
 function CompanyMembersWorkspace() {

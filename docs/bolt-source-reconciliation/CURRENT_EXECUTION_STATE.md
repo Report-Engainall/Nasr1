@@ -1,3 +1,39 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER WORKSPACE SESSION-SCOPE ISOLATION
+
+> **Precedence:** Focused P1 identity-state isolation across existing customer workspaces. Existing routes, service RPCs, pagination, idempotency and authorization contracts are preserved.
+
+## Exact source baseline
+
+- Repository: `Report-Engainall/Nasr1`, branch `main`.
+- Parent SHA: `622bec7eab7d2d3210141538ac19059992b3d60d`; parent tree: `d9b395440373faf5c6ec903c4533e648a3625215`.
+- Changed source:
+  - `src/components/CustomerWorkflows.tsx` — shared invoice/statement/payment/quote/reorder/barcode Gate keys child state by Auth user ID/profile ID/sessionRevision.
+  - `src/components/CustomerOrders.tsx` — shared order list/detail Gate uses the same identity key.
+  - `src/components/CustomerReturnsPage.tsx` — readiness/login/staff gates run before an identity-keyed return workspace; record/filter/cursor/print state is local to that scope.
+  - `src/components/CustomerNotificationCenter.tsx` — list/older-page/filter/read/action state is in a keyed workspace.
+  - `src/components/CustomerCompanyMembers.tsx` — member/invitation workspace is keyed by user/profile/session revision.
+- Service/RPC names, payloads, tenant scope logic, mutation and idempotency contracts are unchanged.
+
+## Acceptance matrix
+
+- Updated existing leaves for order history, customer return history, notification inbox and company workspace where present.
+- Matrix remains 251 records, eight fields each, 251 unique task IDs.
+- Runtime/browser/server-authorization checks remain pending; source isolation is not a tenant-security PASS.
+
+## Verification boundary
+
+- Exact source transformation anchors and matrix structural checks passed before write; fetch-back will validate all changed blobs.
+- TypeScript/build/lint/unit/Playwright/browser/Auth provider/DB tests NOT_RUN.
+- No migration, RPC, RLS, grant, Edge Function, Auth identity, profile, role or business data changed.
+
+## NEXT ACTION
+
+1. Test customer A → sign-out → customer B on /orders, /returns, /notifications, /quotes, /invoices, /statement, /payments and /company/members using approved non-production accounts; confirm no old rows, print content, filters, invite URL, busy state or idempotency data survives.
+2. Verify customer/staff transitions and exact server RPC foreign-profile denial. Keep server acceptance separate from frontend identity-keying.
+3. Continue remaining route/feature crosswalk without rebuilding customer workflows.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — ASYNC EXPORT ROUTE ACCESS AND SESSION ISOLATION
 
 > **Precedence:** Focused P1 UI/navigation repair. Reuses the existing export route, service client and shared page-access policy; no database or worker contract changes.

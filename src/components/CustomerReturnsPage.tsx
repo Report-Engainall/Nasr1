@@ -55,7 +55,24 @@ const reasonLabels: Record<string, string> = {
 };
 
 export function CustomerReturnsPage() {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
+  if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
+  if (!user) return <Login />;
+  if (user.isStaff) return (
+    <main className="mx-auto w-full max-w-4xl px-4 py-10" dir="rtl">
+      <section className="rounded-2xl border bg-card p-6">
+        <h1 className="text-xl font-bold">مرتجعات العملاء</h1>
+        <p className="mt-2 text-sm text-muted-foreground">هذه الصفحة مخصصة لحساب العميل. استخدم طابور مراجعة المرتجعات في مساحة الإدارة.</p>
+        <Link to="/admin/orders" className="mt-4 inline-flex items-center gap-2 text-primary">فتح إدارة المرتجعات <ArrowLeft size={15}/></Link>
+      </section>
+    </main>
+  );
+  return <CustomerReturnsWorkspace key={user.id + ":" + user.profileId + ":" + sessionRevision} user={user} />;
+}
+
+function CustomerReturnsWorkspace({ user }: {
+  user: NonNullable<ReturnType<typeof useAuth>["user"]>;
+}) {
   const [records, setRecords] = useState<CustomerReturnHistoryRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
@@ -146,24 +163,11 @@ export function CustomerReturnsPage() {
   }, [page, appliedQuery, appliedStatus]);
 
   useEffect(() => {
-    if (!ready || !user || user.isStaff) return;
     void load();
     return () => { requestGeneration.current += 1; };
-  }, [ready, user, load]);
+  }, [load]);
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
-  if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
-  if (!user) return <Login />;
-  if (user.isStaff) return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10" dir="rtl">
-      <section className="rounded-2xl border bg-card p-6">
-        <h1 className="text-xl font-bold">مرتجعات العملاء</h1>
-        <p className="mt-2 text-sm text-muted-foreground">هذه الصفحة مخصصة لحساب العميل. استخدم طابور مراجعة المرتجعات في مساحة الإدارة.</p>
-        <Link to="/admin/orders" className="mt-4 inline-flex items-center gap-2 text-primary">فتح إدارة المرتجعات <ArrowLeft size={15}/></Link>
-      </section>
-    </main>
-  );
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8" dir="rtl">
