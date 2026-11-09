@@ -4215,11 +4215,11 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
 
 
 export function CustomerAddressesPage() {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
   if (!ready) return <WorkspaceShell title="عناوين التوصيل" subtitle="جارٍ التحقق من الحساب"><p role="status">جارٍ التحقق من جلسة الحساب...</p></WorkspaceShell>;
   if (!user) return <Login />;
   if (user.isStaff) return <WorkspaceShell title="عناوين التوصيل" subtitle="مساحة حساب العميل"><ErrorBox message="هذه الشاشة مخصصة لحساب العميل. استخدم ملف العميل في لوحة الإدارة للوصول إلى العناوين وفق صلاحيتك." /></WorkspaceShell>;
-  return <CustomerAddresses />;
+  return <CustomerAddresses key={user.id + ":" + user.profileId + ":" + sessionRevision} />;
 }
 
 const EMPTY_ADDRESS: CustomerAddressInput = {
@@ -4342,7 +4342,7 @@ export function CustomerCompanyContactsPage() {
   if (!ready) return <WorkspaceShell title="جهات الاتصال بالشركة" subtitle="جارٍ التحقق من الحساب"><p role="status">جارٍ التحقق من جلسة الحساب...</p></WorkspaceShell>;
   if (!user) return <Login />;
   if (user.isStaff) return <WorkspaceShell title="جهات الاتصال بالشركة" subtitle="مساحة حساب العميل"><ErrorBox message="هذه الشاشة مخصصة لحساب العميل. استخدم ملف العميل في لوحة الإدارة للوصول إلى البيانات وفق صلاحيتك." /></WorkspaceShell>;
-  return <CustomerCompanyContacts />;
+  return <CustomerCompanyContacts key={user.id + ":" + user.profileId + ":" + sessionRevision} />;
 }
 
 const EMPTY_COMPANY_CONTACT: CustomerCompanyContactInput = {
