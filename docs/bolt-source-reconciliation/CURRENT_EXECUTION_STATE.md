@@ -1,3 +1,43 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — ADMIN CONTEXT IDENTITY ISOLATION / TARGETED ACCEPTANCE PASS
+
+> Exact tested code SHA: `759dc605000f7ee6cc33250ba08a436f410e7c0c`. Repository: `Report-Engainall/Nasr1`; branch: `main`.
+
+## Implemented
+
+- The admin record context is now stored under a namespace derived from authenticated Auth user ID + profile ID; same-account navigation retains context, while a different account/profile reads a different entry.
+- The legacy unscoped sessionStorage key is removed. Context validation rejects malformed data, future timestamps, entries older than four hours and retired return destinations.
+- Added five regression cases in `src/lib/admin-record-context.test.ts`.
+- Corrected related P1 source defects found during strict checking:
+  - `CustomerCompanyContactsPage` now reads `sessionRevision` from AuthContext before using it in its identity-bound remount key.
+  - `CustomerAccountPasswordPage` renders the verified `activeUser.email` passed into the workspace, not an out-of-scope `user`.
+  - Public category RPC reads now use an async Promise wrapper accepted by the read-only retry contract.
+  - Record-context validation uses explicit type guards before returning typed values.
+- Added a narrow GitHub Actions workflow using Bun 1.3.14, matching the project's Vercel install tool. The targeted strict-TypeScript config includes all directly changed P1 files.
+
+## Exact-SHA evidence
+
+- GitHub Actions run: [42703296645](https://github.com/Report-Engainall/Nasr1/actions/runs/42703296645) — **SUCCESS** on exact code SHA `759dc605000f7ee6cc33250ba08a436f410e7c0c`.
+- Locked Bun install: **PASS**.
+- Vitest: **4/4 test files, 36/36 tests PASS**.
+- Targeted strict TypeScript: `bunx tsc --noEmit -p tsconfig.p1-typecheck.json` — **PASS**.
+- Vercel exact-SHA deployment: [READY](https://vercel.com/injaz2/aghbari-commerce/BN8pX4EoRRy3JE1XHgMkdsZ6Fsfb).
+- Vitest emitted a non-fatal process-exit warning after all tests passed; the workflow still completed successfully.
+
+## Verification limits
+
+- This is a targeted P1 strict-TypeScript check, not proof that the entire legacy repository passes `bun run typecheck`.
+- Authenticated browser A→sign-out→B, profile-switch, stale-context UI checks, 360px/1280px interaction and hosted customer/RLS acceptance remain **NOT_RUN**.
+- DLV-001 and DLV-002 remain **OPEN**. The new leaf is code-and-targeted-CI accepted, not browser accepted.
+- No database migration, RPC, RLS, Auth user, customer fixture, finance/stock mutation, provider request or paid AI usage was performed.
+
+## Next
+
+1. Run the authenticated browser sequence against the exact deployed candidate: same user across admin routes; user A sign-out then user B; profile switch; expired context; ensure no previous record ID/title/query/order detail is shown to the new identity.
+2. Continue the remaining P1 route/action crosswalk and DLV-001 requirement-to-screen/service/RPC/authorization/test map.
+3. Leave DLV-002 OPEN until exact-SHA browser evidence is attached.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — ADMIN RECORD CONTEXT IDENTITY ISOLATION
 
 > Base SHA: `79f11cf44c930a10afeca0147d8f4c9668dc922a`. Repository: `Report-Engainall/Nasr1`; branch: `main`.
