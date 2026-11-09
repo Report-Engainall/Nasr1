@@ -1,3 +1,46 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — RBAC SPEC ALIGNMENT / AI GOVERNANCE
+
+> Audit baseline: `Report-Engainall/Nasr1` branch `main`, SHA `4d5d3a1dc1c30942ec7fade61c1e0bcd2cca07c6`. This checkpoint records verified source/database facts and remaining implementation boundaries; it does not claim application acceptance.
+
+## Verified current state
+
+- GitHub main head at audit start: `4d5d3a1dc1c30942ec7fade61c1e0bcd2cca07c6`; it advanced three commits beyond `835f29a7d3cc0da3f697f4da14127a702a8a37dd` while this work was being prepared. The intervening changes updated customer address/contact session identity boundaries and the resume checkpoint; these were preserved.
+- Latest customer equipment route `/my-devices` is read-only, is linked from `/profile`, and relies on the existing RLS contract. No duplicate asset table, route family or login-session DeviceManagement was introduced.
+- Active Supabase project: `aghbari-commerce-nasr1` / `tfdwtuwkdddnzgyhcoyy`, status `ACTIVE_HEALTHY`, PostgreSQL 17.11.
+- Asset migrations `20261109031735` and `20261109031915` are present in active project migration history. `customer_assets` and `customer_asset_events` exist with RLS enabled. Current asset read policy requires the active organization and current owner or asset manager; event read additionally allows previous/new owner. Authenticated table grants observed are SELECT only. Event append-only trigger is defined in migration source; runtime trigger behavior remains part of P2 acceptance.
+- Live asset tables returned zero rows in the inspection. No test customer/device data was inserted. Existence and metadata are not populated-flow acceptance.
+
+## P1/P2 — nine-role specification alignment
+
+Canonical source `docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md` §13.3 defines exactly nine roles: `system_admin` (مالك النظام), `admin` (مدير النظام), `manager` (مدير المبيعات), `sales` (موظف المبيعات), `warehouse` (أمين المخزن), `accountant`, `customer_manager`, `developer`, `customer`.
+
+The existing server `AdminRoleId` has six IDs: `admin`, `manager`, `staff`, `accountant`, `customer_manager`, `customer`. They do not produce a clean one-to-one nine-role mapping:
+- `admin`, `accountant`, `customer_manager` and `customer` are represented.
+- `manager` exists, but current access spans organization-wide financial, operational and administrative surfaces; that is broader than the sales-manager scope in the specification and must be narrowed/reviewed under P2.
+- `system_admin`, `sales`, `warehouse` and `developer` are not separate server role IDs.
+- `staff` remains a general operational role; it is not a substitute for `sales` or `warehouse`.
+- The nine-role UI is explanatory only. No role ID, role-assignment RPC, grant, RLS policy or server enforcement was changed.
+
+P2 next action: define `view/create/edit/approve/reject/export/delete/manage` separately by resource, tenant, sensitivity and workflow; review RPC/RLS and separation of duties; prove deny paths before enabling new role IDs. Do not broaden `staff`.
+
+## P3 — AI governance verified boundary
+
+- Existing source has question sanitization and provider-host restrictions in `supabase/functions/ai-gateway/logic.ts`; a pure policy helper in `src/lib/intelligence/free-ai-policy.ts` implements zero-paid-limit eligibility and deterministic decision outputs.
+- Critical integration gap: `supabase/functions/ai-gateway/index.ts` does **not** call `chooseFreeAiRoute`. Therefore the policy helper is not evidence of runtime free-only enforcement.
+- The active Supabase project returned an empty Edge Function list. The repository's AI gateway source is not deployed to this active project. No provider request, secret configuration, paid usage, deployment or database write was performed.
+- Existing `ai_usage_ledger`, `ai_usage_budgets` and `ai_usage_reservations` exist. Gateway source passes bounded `provider_attempts` telemetry to `complete_ai_gateway_usage_v2`; it is inaccurate to say attempt telemetry is wholly absent. However, the current operations panel/aggregate RPC does not expose verified free-tier/zero-rate proof, remaining quota/reset, cooldown, privacy class, last response or per-attempt detail.
+- No dedicated versioned prompt/approval library or provider/model verification registry was found in the current source tree/public schema. The gateway system prompt is static in `index.ts`.
+- No provider may be activated until official free-tier status, exact zero rates, quota/reset and privacy/retention evidence are recorded and current. Unknown, stale or ambiguous evidence must produce deterministic fallback or explicit unavailability. No paid provider/model, Auto-Recharge or spending is permitted.
+
+## Immediate next execution
+
+1. Keep the existing customer asset lifecycle and the new read-only customer device route; complete exact-SHA build and authenticated browser/P2 RLS acceptance later in the approved runtime.
+2. Keep the canonical acceptance matrix as the sole task register; RBAC and AI rows now reflect the observed source/runtime boundaries.
+3. For P3, implement prompt/version/approval and provider-verification records only after defining tenant/security boundaries; wire free-only eligibility into the actual gateway before any deployment.
+4. Keep `DLV-001`, `DLV-002`, RBAC runtime acceptance, AI runtime acceptance and hosted customer acceptance OPEN until evidence is recorded on the exact tested SHA.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER ACCOUNT WORKSPACE IDENTITY RESET
 
 > **Precedence:** P1 source-level customer workspace lifecycle repair. Existing customer services, RPC contracts and server authorization remain authoritative; this checkpoint records only the UI session boundary correction.
