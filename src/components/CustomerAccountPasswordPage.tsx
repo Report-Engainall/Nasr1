@@ -6,7 +6,22 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
 export function CustomerAccountPasswordPage() {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
+  if (!ready) return <main className="storefront" dir="rtl" role="status">جارٍ التحقق من الحساب...</main>;
+  if (!user) return <Login />;
+  return (
+    <CustomerAccountPasswordWorkspace
+      key={user.id + ":" + user.profileId + ":" + sessionRevision}
+      activeUser={user}
+    />
+  );
+}
+
+function CustomerAccountPasswordWorkspace({
+  activeUser,
+}: {
+  activeUser: NonNullable<ReturnType<typeof useAuth>["user"]>;
+}) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [visible, setVisible] = useState(false);
@@ -14,10 +29,6 @@ export function CustomerAccountPasswordPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const inFlight = useRef(false);
-
-  if (!ready) return <main className="storefront" dir="rtl" role="status">جارٍ التحقق من الحساب...</main>;
-  if (!user) return <Login />;
-  const activeUser = user;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

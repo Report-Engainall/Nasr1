@@ -1,3 +1,30 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — PASSWORD FORM SECRET-STATE ISOLATION
+
+> **Precedence:** Focused P1 authentication UI repair. Preserves the existing Supabase Auth password mutation boundary.
+
+## Exact source baseline and repair
+
+- Parent `main` SHA: `e189785d007154d0b73888cab49941238972daf7`; parent tree: `badd016588e22b91e3ca369c56a07e3e0886699f`.
+- Changed file: `src/components/CustomerAccountPasswordPage.tsx`; previous blob `5a8203c67266189fc999019e7257d1f03e154a93`.
+- Defect: password/confirmation values, visibility toggle, busy/in-flight guard and feedback lived in the outer page component before AuthContext readiness was checked.
+- Repair: the outer page now verifies readiness/login first; all secret input and action state lives inside `CustomerAccountPasswordWorkspace`, keyed by verified Auth user ID, server profile ID and sessionRevision. An Auth boundary or account transition unmounts and clears the old password form.
+- Existing `supabase.auth.updateUser({ password })`, 8-character/no-whitespace validation, request single-flight guard and returned-user-ID acknowledgement are unchanged. No app database writes or password fields are introduced.
+
+## Acceptance matrix
+
+- Updated only `DLV-006-ACCOUNT-PASSWORD-CHANGE-001` in the canonical CSV.
+- Added exact requirement to clear both secret fields and feedback on SIGNED_IN/USER_UPDATED/TOKEN_REFRESHED and account A → sign-out → B transitions.
+- Matrix integrity: 251 task records, eight columns per record, 251 unique IDs.
+- Supabase Auth provider and browser acceptance remain pending.
+
+## Verification boundary
+
+- Source-anchor and structural CSV checks passed before write; exact source readback will be performed after commit.
+- TypeScript/build/lint/unit/browser/Auth provider/database NOT_RUN.
+- No Auth identities, passwords, profile records, migrations or database grants were changed.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — NOTIFICATION AUTH-READY MOUNT GUARD
 
 > **Precedence:** Follow-up to the customer workspace session-scope repair. Prevents the notification inbox from mounting or issuing a read with the previous user while AuthContext is between identities.
