@@ -1,3 +1,29 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — CUSTOMER ASSET HISTORY PRIVACY PROJECTION
+
+> Base SHA: `ca8ca256e0e6f1024294795a5dc95eeff1166b26`.
+
+## Implemented
+
+- Customer device history no longer selects event `summary`, `reason`, `details` or `reference` from `customer_asset_events`.
+- The customer page displays only localized event type, timestamp and old/new status; unknown event types use a neutral label.
+- Historical ownership events use a neutral message and never render free-text reason or reference fields. This avoids leaking previous/new owner identities or internal staff notes embedded in free text.
+- Existing staff-side `CustomerAssetsPanel` and full admin event history are unchanged. No table, RLS, RPC or role policy changed.
+- Updated only `REF-CUSTOMER-ASSET-001` in the canonical acceptance matrix with this privacy projection and a negative UI acceptance case.
+
+## Verification boundary
+
+- Source readback confirms customer event data and rendering no longer use free-text event fields.
+- Vercel was READY on base SHA `3e1d6bd3...`; this privacy change has not yet received an exact-SHA build result.
+- Customer Auth/RLS/browser acceptance remains pending. No test customer data was inserted.
+
+## Next
+
+1. Verify automatic build on this exact privacy commit.
+2. Run authenticated browser checks and P2 negative RLS tests.
+3. Preserve full staff-side event detail and append-only history.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — EXACT-SHA BUILD VERIFIED / DLV-001 COUNT RECONCILED
 
 > **Precedence:** This checkpoint supersedes the pending-build note below. It records the verified Vercel Git build for the repair SHA and the corrected canonical task denominator. It is not browser, Auth-provider or P2 authorization acceptance.

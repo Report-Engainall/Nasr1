@@ -51,10 +51,6 @@ type AssetEvent = {
   event_type: string;
   old_status: AssetStatus | null;
   new_status: AssetStatus | null;
-  summary: string;
-  reason: string;
-  reference: string | null;
-  details: string | null;
   event_at: string;
 };
 
@@ -200,7 +196,7 @@ function CustomerMyDevicesWorkspace() {
         // RLS deliberately allows the current and historical owner to read lifecycle events.
         supabase
           .from("customer_asset_events")
-          .select("id,asset_id,event_type,old_status,new_status,summary,reason,reference,details,event_at")
+          .select("id,asset_id,event_type,old_status,new_status,event_at")
           .order("event_at", { ascending: false })
           .limit(1000),
       ]);
@@ -411,12 +407,12 @@ function CustomerMyDevicesWorkspace() {
                   {assetEvents.length ? assetEvents.map((event) => (
                     <div key={event.id} className="rounded-lg border bg-card p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <strong className="text-sm">{EVENT_LABELS[event.event_type] || event.summary}</strong>
+                        <strong className="text-sm">{EVENT_LABELS[event.event_type] || "تحديث مسجل"}</strong>
                         <time className="text-xs text-muted-foreground" dateTime={event.event_at}>{formatDateTime(event.event_at)}</time>
                       </div>
-                      <p className="mt-2 text-sm leading-6">{event.reason}</p>
-                      {event.details ? <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{event.details}</p> : null}
-                      {event.reference ? <p className="mt-1 break-words text-xs text-muted-foreground">المرجع: {event.reference}</p> : null}
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        تُعرض بيانات الحدث المعتمدة فقط. تفاصيل العمل الداخلية والمراجع النصية متاحة لموظفي المؤسسة المخولين وليست جزءًا من سجل العميل.
+                      </p>
                       {event.old_status || event.new_status ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           الحالة: {event.old_status ? STATUS_LABELS[event.old_status] : "—"} ← {event.new_status ? STATUS_LABELS[event.new_status] : "—"}
@@ -444,8 +440,9 @@ function CustomerMyDevicesWorkspace() {
                   <strong className="text-sm">نقل ملكية أصل</strong>
                   <time className="text-xs text-muted-foreground" dateTime={event.event_at}>{formatDateTime(event.event_at)}</time>
                 </div>
-                <p className="mt-2 text-sm">{event.reason}</p>
-                {event.reference ? <p className="mt-1 break-words text-xs text-muted-foreground">المرجع: {event.reference}</p> : null}
+                <p className="mt-2 text-sm leading-6">
+                  تم نقل ملكية أصل كان مرتبطًا بحسابك. لا تعرض هذه الصفحة بيانات الأطراف أو المبررات والمراجع الداخلية لعملية النقل.
+                </p>
               </article>
             ))}
           </div>
