@@ -1,0 +1,42 @@
+name: P1 Admin Context Verification
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/components/AghbariApp.tsx"
+      - "src/lib/admin-record-context.ts"
+      - "src/lib/admin-record-context.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - ".github/workflows/p1-admin-context-verification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-admin-context-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-typecheck:
+    name: Vitest and strict TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact main commit
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run Vitest regression suite
+        run: npm test -- --reporter=dot
+      - name: Run strict TypeScript check
+        run: npm run typecheck
