@@ -1,3 +1,44 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER ACCOUNT WORKSPACE IDENTITY RESET
+
+> **Precedence:** P1 source-level customer workspace lifecycle repair. Existing customer services, RPC contracts and server authorization remain authoritative; this checkpoint records only the UI session boundary correction.
+
+## Exact parent and source baseline
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Parent `main` SHA before this checkpoint: `1ce32239ccd4360ce46c04fabf9c7fc30b89a27d`.
+- P1 source commit: `e3577d2ff4fac22221f108237dae9df27d4fe79b`.
+- Changed source: `src/components/CustomerWorkflows.tsx`; resulting blob: `2024e5ff3ab7c53a2f6c3eed0c49eb577d2a7d93`.
+
+## Implemented on main
+
+- `CustomerAddressesPage` now reads `sessionRevision` from AuthContext and keys `CustomerAddresses` by verified `user.id + user.profileId + sessionRevision`.
+- `CustomerCompanyContactsPage` applies the same verified identity key to `CustomerCompanyContacts`.
+- Address/contact drafts, list state, loading/saving state, errors and notices therefore belong to one authenticated workspace instance and are discarded when the identity/profile/session revision changes.
+- Existing authentication readiness and staff guards remain in place.
+- Existing address/contact fetch and mutation service calls are unchanged. No RPC, RLS, role, table, migration, route or database contract was changed.
+
+## Canonical acceptance matrix
+
+- Updated only the existing `DLV-002` row in `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+- Matrix integrity after update: 253 task records; 8 columns per row; 253 unique task IDs.
+- The acceptance row explicitly keeps browser/Auth and server-authorization validation OPEN and records the exact source commit/blob.
+
+## Verification boundary
+
+- GitHub main commit history confirms the source and matrix commits.
+- Source readback confirms both gates consume `sessionRevision` and both child workspaces use the full identity key.
+- CSV parser check: 253 data rows, eight fields per row, 253 unique IDs.
+- TypeScript, ESLint, unit tests, Vite/TanStack generation, production build, browser/Auth transitions, P2 RLS/tenant-negative tests and hosted acceptance: **NOT_RUN** on this source SHA.
+- No Bolt, Supabase, Vercel, migration, deployment or business-data operation was performed.
+
+## NEXT ACTION
+
+1. Continue the P1 current-main audit of customer/admin route mounts for missing Auth readiness, unkeyed identity-local state, and links/actions that point to absent or mismatched routes. Inspect each caller and shared boundary before changing it; do not rebuild registered pages.
+2. Continue DLV-001 requirement-to-screen/component/service/RPC traceability in the existing matrix, recording genuine unresolved leaves rather than treating route presence as functional completion.
+3. Keep DLV-002 OPEN until the synced current-main candidate passes direct-route/navigation, identity-transition, responsive, RTL, keyboard and action-destination browser acceptance. P2 retains all RPC/RLS/tenant authorization acceptance; P3 retains intelligent engines.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER MY DEVICES / ASSET SELF-SERVICE
 
 > **Precedence:** P1 customer product UI continuation. Existing customer-asset database objects and the administrative asset lifecycle remain the source of truth; this checkpoint adds only the missing customer-facing read path.
