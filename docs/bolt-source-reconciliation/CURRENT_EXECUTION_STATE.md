@@ -1,3 +1,36 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — VERSIONED AI PROMPT GOVERNANCE CORE
+
+> Base SHA: `c2d351f02a9ba3920ef6076d464b37e168748591`. This batch adds a pure, testable prompt lifecycle contract only; no live prompt or provider is activated.
+
+## Implemented
+
+- Added `src/lib/intelligence/ai-prompt-governance.ts` with DRAFT → PENDING_APPROVAL → APPROVED/REJECTED → ACTIVE and RETIRED transitions.
+- Prompt versions include organization scope, prompt key, sequential version, immutable content value, SHA-256 fingerprint, creator, approval/rejection actor/timestamp, decision reason and lifecycle timestamps.
+- Admin-only active-actor checks are enforced by the pure service boundary; approval/rejection requires a different profile from the author; activation requires an operator distinct from both author and approver.
+- Activation returns a version transition that deactivates the prior active version in the same logical operation and emits audit events for both changes. Existing histories with multiple active versions fail closed.
+- Prompt key/content bounds and common embedded-secret patterns are validated before a draft is created.
+- Added `src/lib/intelligence/ai-prompt-governance.test.ts` for the lifecycle, four-eyes, activation separation, single-active, hash, validation and retirement cases.
+- Updated only the existing `REF-AI-OPS-001` row in the canonical acceptance matrix.
+
+## Deliberate boundary
+
+This is a pure TypeScript governance state machine, not persistence or runtime authorization. A reviewed P2 DB/RPC layer is still required to enforce unique organization+prompt_key+version, append-only audit, atomic active-version replacement, tenant scope and server grants. No UI, schema, migration, RPC, RLS or Edge config was added. The static Edge SYSTEM prompt remains unchanged and is not connected to this draft lifecycle.
+
+## Verification
+
+- The source and test files are authored and attached to the exact SHA after commit.
+- Vitest, typecheck, lint, build and DB tests are NOT_RUN in this authoring batch.
+- No prompt content was submitted to an external model, no provider called, and no paid spend occurred.
+
+## Next
+
+1. Run the exact-SHA Vitest/typecheck/lint/build checks.
+2. Design a P2 tenant-scoped persistence contract with DB uniqueness, immutable version/audit triggers, atomic promotion, admin authorization and negative cross-tenant tests.
+3. Implement admin UI and safe reader DTO only after the DB contract is accepted.
+4. Keep provider egress blocked until the free-tier/zero-rate/privacy registry and deployed Edge function are independently accepted.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — CUSTOMER ASSET HISTORY PRIVACY PROJECTION
 
 > Base SHA: `ca8ca256e0e6f1024294795a5dc95eeff1166b26`.
