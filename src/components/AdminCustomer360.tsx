@@ -14,6 +14,7 @@ import type { StaffCustomer360Summary } from '@/lib/customer-360-summary';
 import { fetchCustomerRetentionReport } from '@/lib/customer-retention-client';
 import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retention';
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
+import { CustomerAssetsPanel } from '@/components/CustomerAssetsPanel';
 
 const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
 const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
@@ -886,6 +887,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Pick<Custome
           />
           <Customer360RetentionInsights customerId={summary.customer.id} />
           <CustomerServiceCases customerId={summary.customer.id} />
+          <CustomerAssetsPanel customerId={summary.customer.id} />
           <Customer360Interactions customerId={summary.customer.id} onHistoryState={handleInteractionHistoryState} />
         </>
       ) : null}   </div>

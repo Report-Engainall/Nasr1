@@ -7,6 +7,28 @@ import {
 
 type MatrixMode = "all" | "single";
 
+
+const SPECIFICATION_ROLE_GAPS = [
+ {id:"system_admin",label:"مالك النظام",note:"لا يوجد دور مستقل في عقد الخادم؛ لا يُستنتج من admin."},
+ {id:"sales",label:"موظف المبيعات",note:"غير مدعوم كرمز مستقل؛ staff الحالي ليس بديلًا مكافئًا."},
+ {id:"warehouse",label:"أمين المخزن",note:"غير مدعوم كرمز مستقل؛ staff الحالي لا يُعامل كدور مخزن."},
+ {id:"developer",label:"المطور",note:"لا يوجد دور فني مستقل؛ لا تُمنح صلاحيات بيانات بحكم التطوير."},
+] as const;
+function SpecificationRoleAlignment(){
+ return <section className="rounded-lg border border-amber-200 bg-amber-50/50 p-3" aria-label="مطابقة الأدوار الحالية مع مواصفة المشروع">
+  <h3 className="font-semibold">مطابقة عقد الأدوار مع مواصفة المشروع</h3>
+  <p className="mt-1 text-xs leading-5 text-slate-700">المصفوفة أدناه تعرض الأدوار الستة الموجودة في عقد الخادم فقط. لا تعتبر هذه المطابقة أن manager يساوي تلقائيًا مدير المبيعات أو أن admin يساوي مالك النظام.</p>
+  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+   {SPECIFICATION_ROLE_GAPS.map(role=><article key={role.id} className="rounded-md border border-amber-200 bg-white p-2" data-testid={"unsupported-role-"+role.id}>
+    <div className="flex items-center justify-between gap-2"><strong className="text-sm">{role.label}</strong><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">غير مدعوم</span></div>
+    <p className="mt-1 text-xs leading-5 text-slate-600">{role.note}</p><code className="mt-1 block text-[11px] text-slate-500" dir="ltr">{role.id}</code>
+   </article>)}
+  </div>
+  <p className="mt-2 text-xs font-medium text-slate-700">لا تُسنَد هذه الأدوار من الواجهة ولا تُحوّل إلى staff أو admin. تفعيلها يحتاج عقد P2 موحدًا واختبارات RPC وRLS قبل الإسناد.</p>
+ </section>;
+}
+
+
 const VIEW_LABELS: Record<string, string> = {
   dashboard: "لوحة المعلومات", products: "المنتجات", customers: "العملاء",
   "service-desk": "خدمة العملاء", orders: "الطلبات", pricing: "التسعير والمخزون",
@@ -230,6 +252,8 @@ export function AdminAccessMatrix() {
             onClick={() => setMode("single")}>تفاصيل دور واحد</button>
         </div>
       </header>
+
+      <SpecificationRoleAlignment />
 
       {mode === "single" && (
         <label className="grid max-w-xs gap-1 text-sm font-medium">
