@@ -1,3 +1,39 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER CHECKOUT SUCCESS ROUTE RECOVERY
+
+> **Precedence:** This checkpoint records a focused P1 source repair plus the corresponding row in the single canonical acceptance matrix. No database or P3 engine changes were made.
+
+## Source baseline and exact implementation
+
+- Repository / branch: `Report-Engainall/Nasr1` / `main`.
+- Parent `main` SHA: `5ce98b7c2c1fdb77d92d3c2bf9305ab0b3a80f11`; parent tree: `8df058e49c67656b1c776313284408a1c3df143a`.
+- Changed application file: `src/components/Storefront.tsx`.
+- Previous blob: `15d37d6533c86625f700119b361cdfb3a4e63773`; new blob: `f6cd1a174578ff760129493111a35070d2d35441`.
+- Confirmed defect: successful checkout changed to `view='confirm'` in React-local state, leaving URL `/checkout`; order ID/number lived only in component state, so reload/direct URL could not recover the confirmation state and browser Back could reopen the checkout route.
+- Repair: after the existing server create operation returns the order ID, clear the cart and navigate with `replace: true` to the existing `/orders/$id` route. The existing route loads `OrderInvoice` from the order ID. Removed only the transient confirmation state, its two local state variables and the now-unreachable local-only confirmation component.
+- The create-order API, idempotency key, server-side validation, RPC, migrations, price handling and tenant authorization are unchanged. No second order submission is triggered by this navigation.
+
+## Acceptance matrix
+
+- Updated only the existing `DLV-004` row in `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+- Recorded the exact source change and the specific required browser acceptance: successful order ID route, reload/direct URL recovery, Back behavior and no duplicate create request.
+- Matrix integrity after edit: 251 task records, eight columns per record, 251 unique IDs.
+- `DLV-004` remains `ACCEPTANCE_PENDING` pending runtime proof; no claim of database or browser acceptance.
+
+## Verification boundary
+
+- Confirmed by source transformation checks: all local-only confirmation state references removed; navigation now targets the existing `/orders/$id` route with `replace: true`.
+- Package script check: `package.json` has no `test` script. The current tree contains no checkout component test; no new un-runnable test harness was added.
+- TypeScript, Vite build, lint, Vitest, Playwright, browser, Auth, database and Bolt preview are NOT_RUN on this SHA.
+- No migration/RLS/RPC/policy/Edge/Auth/business data changes. No Bolt, Vercel or Lovable usage.
+
+## NEXT ACTION
+
+1. Run TypeScript/build and a focused checkout → order-detail direct URL/reload/back test on the current SHA in the existing controlled non-production preview.
+2. Keep DLV-004 open until same-order/same-key recovery and no-duplicate-submit behavior are verified at runtime.
+3. Continue DLV-001 functional crosswalk in the existing matrix and DLV-002 route acceptance. Do not rebuild completed return/order/customer/intelligence screens.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — P1 SOURCE-EVIDENCE CORRECTION AND DLV-001 TRACEABILITY
 
 > **Precedence:** This checkpoint records a read-only source audit and documentation corrections. The application source tree was not changed. Continue from the actual live `main` head after this documentation commit; preserve existing screens, P2 contracts and P3 engines.

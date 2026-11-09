@@ -65,7 +65,7 @@ function mergeProductIntoCart(
     ? { ...item, quantity: latestNextQuantity }
     : item);
 }
-type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout' | 'confirm';
+type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
 
 function readSavedProductIds(key: string, maxItems: number): string[] {
@@ -253,8 +253,6 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [cartActionNotice, setCartActionNotice] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
-  const [lastOrderNo, setLastOrderNo] = useState('');
-  const [lastOrderId, setLastOrderId] = useState('');
   // Store only the selected ID. Resolve product details from the current identity-bound
   // catalog so stale tenant objects cannot survive while auth or network requests change.
   const [selectedProductState, setSelectedProductState] = useState<{
@@ -969,8 +967,12 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           <section className="sf-checkout"><div className="sf-empty" role={productsError ? 'alert' : 'status'}><span>{productsLoading ? 'جار استعادة سلة الطلب...' : productsError ? 'تعذر استعادة السلة.' : 'جار استعادة سلة الطلب...'}</span>{productsError && <><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></>}</div></section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
-        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => { setLastOrderNo(order.order_number); setLastOrderId(order.id); setView('confirm'); setCart([]); }} />)}
-        {view === 'confirm' && <OrderConfirm orderNo={lastOrderNo} orderId={lastOrderId} onContinue={() => void navigate({ to: '/' })} />}
+        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
+          // A committed order must become a durable route, not transient checkout component state.
+          // Replace checkout so browser Back cannot reopen a completed submission form.
+          setCart([]);
+          void navigate({ to: '/orders/$id', params: { id: order.id }, replace: true });
+        }} />)}
       </main>
 
       <footer className="sf-footer">
@@ -1837,20 +1839,6 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
           {!cartValidation && !previewLoading && <small style={{ color: '#9b2626', lineHeight: 1.7 }}>لن يُرسل الطلب حتى ينجح التحقق من السلة وسياسة التسعير في الخادم.</small>}
         </aside>
       </div>
-    </section>
-  );
-}
-
-function OrderConfirm({ orderNo, orderId, onContinue }: { orderNo: string; orderId: string; onContinue: () => void }) {
-  return (
-    <section className="sf-confirm">
-      <div className="sf-confirm-icon"><Check size={40} /></div>
-      <h2>تم استلام طلبك بنجاح!</h2>
-      <p>رقم الطلب: <strong>{orderNo}</strong></p>
-      <p>الطلب الآن بانتظار مراجعة الإدارة. لن تظهر الأسعار أو الإجماليات في مستندات الطلب الخاصة بالعميل.</p>
-      <p>بعد اعتماد الإدارة، ستجد حالة الطلب وتعليمات السداد عند الحاجة في صفحة التفاصيل.</p>
-      <p>سنتواصل معك لتأكيد تفاصيل التوصيل. لا يمثل هذا إشعار دفع أو شحن.</p>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}><Link to="/orders/$id" params={{ id: orderId }} className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 14px' }}>تفاصيل الطلب</Link><button className="sf-btn-primary" onClick={onContinue}>متابعة التسوق</button></div>
     </section>
   );
 }
