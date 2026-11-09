@@ -1,3 +1,31 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER SERVICE AND COMPANY INVITATION SESSION ISOLATION
+
+> **Precedence:** Focused P1 identity-state cleanup. Existing case/invitation service contracts and token handling preserved.
+
+## Exact baseline and repairs
+
+- Parent `main` SHA: `f4bdc7caccbb019c5eb95036416f1c1b96c69a12`; parent tree: `334054a1270ec23499e90758e50ccb01d38934ea`.
+- `src/components/CustomerServicePortal.tsx` prior blob: `f76073e90cfdbe2a5a0087a8d678eb3fd0a82805`.
+  - The authenticated customer `Workspace` is now keyed by verified user ID/profile ID/sessionRevision; its case list, selected case, messages, paging and drafts cannot persist into another user scope.
+- `src/components/CustomerCompanyMembers.tsx` prior blob: `70903008b7d7e3bbf078c1e7fe5a14dc4a5f70d3`.
+  - `CompanyInvitationAcceptancePage` keeps only the invitation token outside account-scoped state so the sign-in redirect can continue the same invitation.
+  - `CompanyInvitationAcceptanceSession` is keyed by verified user ID/profile ID/sessionRevision; accepted company/role, loading and error state reset when identity changes.
+- Existing `acceptCompanyInvitation` client call, service case/message RPCs, server roles, tenant policies, token hash and expiry remain unchanged.
+
+## Acceptance matrix
+
+- Updated existing COMPANY-001 and customer-service child leaf (where defined); did not create new task IDs.
+- Matrix remains 251 records, eight fields per record, 251 unique task IDs.
+- Invite acceptance, case/message tenant isolation, cross-company denial and replay remain runtime/server acceptance-pending.
+
+## Verification boundary
+
+- Source structure and matrix preconditions passed before write; exact blob and CSV readback will be checked after commit.
+- TypeScript/build/lint/unit/Playwright/browser/Auth and database NOT_RUN.
+- No migration, RPC, RLS, grant, Edge Function, Auth identity, profile, role or business data changed.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — ADMIN ROUTE-TO-VIEW TRACEABILITY
 
 > **Precedence:** Documentation-only source crosswalk. No application or permission policy changes.

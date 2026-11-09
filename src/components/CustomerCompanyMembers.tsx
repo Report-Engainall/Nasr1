@@ -988,20 +988,48 @@ export function CompanyInvitationAcceptancePage({
 }: {
   initialToken?: string;
 } = {}) {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
+  // Preserve only the invite token across the sign-in redirect. Acceptance
+  // result, errors and in-flight state belong to one verified account scope.
   const [token, setToken] = useState(initialToken ?? "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [accepted, setAccepted] = useState<{
-    company_name: string;
-    member_role: CompanyMemberRole;
-  } | null>(null);
 
   useEffect(() => {
     setToken(
       initialToken ?? new URLSearchParams(window.location.search).get("token") ?? "",
     );
   }, [initialToken]);
+
+  if (!ready) {
+    return (
+      <main
+        className="storefront"
+        dir="rtl"
+        role="status"
+        style={{ padding: 24 }}
+      >
+        جارٍ التحقق من الجلسة...
+      </main>
+    );
+  }
+
+  if (!user) return <SignedOutInvitationView />;
+  if (user.isStaff) return <StaffInvitationBlockedView />;
+
+  return (
+    <CompanyInvitationAcceptanceSession
+      key={user.id + ":" + user.profileId + ":" + sessionRevision}
+      token={token}
+    />
+  );
+}
+
+function CompanyInvitationAcceptanceSession({ token }: { token: string }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [accepted, setAccepted] = useState<{
+    company_name: string;
+    member_role: CompanyMemberRole;
+  } | null>(null);
 
   async function accept() {
     if (!token || loading) return;
@@ -1022,22 +1050,6 @@ export function CompanyInvitationAcceptancePage({
       setLoading(false);
     }
   }
-
-  if (!ready) {
-    return (
-      <main
-        className="storefront"
-        dir="rtl"
-        role="status"
-        style={{ padding: 24 }}
-      >
-        جارٍ التحقق من الجلسة...
-      </main>
-    );
-  }
-
-  if (!user) return <SignedOutInvitationView />;
-  if (user.isStaff) return <StaffInvitationBlockedView />;
 
   return (
     <CompanyInvitationAcceptanceWorkspace

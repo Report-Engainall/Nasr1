@@ -101,9 +101,9 @@ function Workspace(){
 }
 
 export function CustomerServicePortal(){
- const{user,ready}=useAuth();
+ const{user,ready,sessionRevision}=useAuth();
  if(!ready)return <main className="customer-service-portal" dir="rtl"><p role="status">جار التحقق من الحساب...</p></main>;
  if(!user)return <Login/>;
  if(user.isStaff||!user.roles.includes("customer"))return <main className="customer-service-portal" dir="rtl"><section className="customer-service-portal-empty"><AlertCircle size={22}/><h1>بوابة العملاء</h1><p>هذه الصفحة مخصصة لحسابات العملاء. استخدم مساحة الإدارة لمتابعة الحالات والردود.</p><a href="/admin/service-desk" className="btn primary">فتح مكتب خدمة العملاء</a></section></main>;
- return <Workspace/>;
+ return <Workspace key={user.id+":"+user.profileId+":"+sessionRevision}/>;
 }
