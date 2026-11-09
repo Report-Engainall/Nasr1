@@ -18,6 +18,10 @@
     "src/components/CustomerWorkflows.tsx",
     "src/test/customer-quotes-route-acceptance.test.tsx",
     "src/components/AdminCustomer360.tsx",
-    "src/test/admin-customer-360-display.test.tsx"
+    "src/test/admin-customer-360-display.test.tsx",
+    "src/components/AghbariApp.tsx",
+    "src/components/CustomerAccountPasswordPage.tsx",
+    "src/lib/admin-record-context.ts",
+    "src/lib/admin-record-context.test.ts"
   ]
 }

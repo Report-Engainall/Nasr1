@@ -4358,7 +4358,7 @@ function CustomerAddresses() {
 
 
 export function CustomerCompanyContactsPage() {
-  const { user, ready } = useAuth();
+  const { user, ready, sessionRevision } = useAuth();
   if (!ready) return <WorkspaceShell title="جهات الاتصال بالشركة" subtitle="جارٍ التحقق من الحساب"><p role="status">جارٍ التحقق من جلسة الحساب...</p></WorkspaceShell>;
   if (!user) return <Login />;
   if (user.isStaff || !user.roles.includes("customer")) return <WorkspaceShell title="جهات الاتصال بالشركة" subtitle="مساحة حساب العميل"><ErrorBox message="هذه الشاشة مخصصة لحساب العميل. استخدم ملف العميل في لوحة الإدارة للوصول إلى البيانات وفق صلاحيتك." /></WorkspaceShell>;

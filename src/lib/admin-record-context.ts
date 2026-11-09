@@ -62,20 +62,24 @@ export function readAdminRecordContext(
 
   try {
     const value = JSON.parse(raw) as Partial<AdminRecordContextData> | null;
-    const validShape = Boolean(
-      value &&
-      typeof value.kind === "string" &&
-      typeof value.id === "string" &&
-      typeof value.title === "string" &&
-      typeof value.subtitle === "string" &&
-      typeof value.route === "string" &&
-      typeof value.query === "string" &&
-      typeof value.savedAt === "number" &&
-      Number.isFinite(value.savedAt) &&
-      value.savedAt <= now &&
-      now - value.savedAt <= ADMIN_RECORD_CONTEXT_MAX_AGE_MS
-    );
-    if (!validShape || !value) {
+    if (
+      !value ||
+      typeof value.kind !== "string" ||
+      typeof value.id !== "string" ||
+      typeof value.title !== "string" ||
+      typeof value.subtitle !== "string" ||
+      typeof value.route !== "string" ||
+      typeof value.query !== "string"
+    ) {
+      removeSafely(storage, key);
+      return null;
+    }
+    if (
+      typeof value.savedAt !== "number" ||
+      !Number.isFinite(value.savedAt) ||
+      value.savedAt > now ||
+      now - value.savedAt > ADMIN_RECORD_CONTEXT_MAX_AGE_MS
+    ) {
       removeSafely(storage, key);
       return null;
     }

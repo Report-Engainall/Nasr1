@@ -595,7 +595,7 @@ export async function fetchCategories(): Promise<Category[]> {
   if (sessionError) throw new Error('تعذر التحقق من جلسة الحساب قبل تحميل التصنيفات.');
 
   if (!sessionData.session?.user.id) {
-    const publicRows = await retryRead(() => supabase.rpc('get_public_storefront_categories'));
+    const publicRows = await retryRead(async () => await supabase.rpc('get_public_storefront_categories'));
     return parsePublicStorefrontCategories(publicRows);
   }
 
