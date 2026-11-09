@@ -15,6 +15,7 @@
 - The unscoped legacy key is discarded; account/profile changes read only their own namespaced entry.
 - Invalid JSON, malformed fields, future timestamps and contexts older than four hours are discarded. A return destination not in the registered admin view set is nulled.
 - Added `src/lib/admin-record-context.test.ts` with five regression cases covering identity namespace, cross-account isolation, malformed/expired/future context cleanup, retired destinations, and per-identity clearing.
+- Added matrix leaf `DLV-002-ADMIN-RECORD-CONTEXT-IDENTITY-SCOPE-001`. Strict CSV readback now confirms 254 data rows, 254 unique task IDs, exactly eight columns per row, and zero malformed or duplicate records. DLV-001 and DLV-002 remain OPEN.
 - No database, migration, RPC, RLS, role, finance, order, inventory or P3 engine behavior changed.
 
 ## Verification boundary
