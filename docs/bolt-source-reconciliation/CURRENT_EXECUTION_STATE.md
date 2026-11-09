@@ -1,3 +1,37 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — ADMIN RECORD CONTEXT IDENTITY ISOLATION
+
+> Base SHA: `79f11cf44c930a10afeca0147d8f4c9668dc922a`. Repository: `Report-Engainall/Nasr1`; branch: `main`.
+
+## Root cause
+
+- `src/components/AghbariApp.tsx` stored the active admin record context under one tab-global sessionStorage key.
+- The AdminApp workspace remounts across authentication/session revisions, but the record context could be restored from the previous identity because its storage key was not bound to Auth user ID and profile ID.
+- Other admin workspace state was already keyed to the authenticated identity; the record context was an unscoped exception.
+
+## Implemented on main
+
+- Extracted bounded record-context persistence into `src/lib/admin-record-context.ts`.
+- Storage keys are now namespaced by the authenticated Auth user ID and profile ID. The namespace intentionally remains stable across token/session revisions so the same user retains context while navigating admin routes.
+- The unscoped legacy key is discarded; account/profile changes read only their own namespaced entry.
+- Invalid JSON, malformed fields, future timestamps and contexts older than four hours are discarded. A return destination not in the registered admin view set is nulled.
+- Added `src/lib/admin-record-context.test.ts` with five regression cases covering identity namespace, cross-account isolation, malformed/expired/future context cleanup, retired destinations, and per-identity clearing.
+- No database, migration, RPC, RLS, role, finance, order, inventory or P3 engine behavior changed.
+
+## Verification boundary
+
+- Exact code SHA: `79f11cf44c930a10afeca0147d8f4c9668dc922a`.
+- Vercel combined status: SUCCESS for this exact SHA (configured deployment/build only).
+- Five Vitest cases are authored but NOT_RUN in this session. Standalone typecheck, lint, full Vitest, authenticated browser A→sign-out→B and profile-switch acceptance remain OPEN.
+- No hosted database mutation or test customer data was created.
+
+## Next
+
+1. Run `npm test`, `npm run typecheck` and `npm run lint` on the exact code SHA; do not transfer results across later code commits.
+2. In browser, verify same-user record context survives admin route changes while a different Auth user/profile cannot see the previous title, record ID, query or order detail.
+3. Continue P1 route/action audit and DLV-001 crosswalk; keep DLV-002 OPEN until exact-SHA browser acceptance.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — PROMPT GOVERNANCE VALIDATION HARDENING
 
 > Base SHA: `2a847882462735a5aea01904414ecc1302c34e6f`.
