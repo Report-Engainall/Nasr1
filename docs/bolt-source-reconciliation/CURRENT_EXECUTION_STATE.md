@@ -1,3 +1,54 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — CUSTOMER ROLE GATES / ACCEPTANCE MATRIX REPAIR
+
+> **Precedence:** P1 customer/admin product UI audit. Existing server roles, RPC/RLS contracts and P3 AI work are preserved. This checkpoint records source-level role admission and restores the sole acceptance CSV's strict structure; it does not claim browser or backend authorization acceptance.
+
+## Exact current-main baseline
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Main SHA immediately before this checkpoint: `1d6a1930b0ea9e384be34eb434b025fa22cfe7a3`.
+- P1 source commits:
+  - `b9b6fbe1301df97e5c88535e4c6f27535bcdb0e1` — dedicated customer-role gate for invoices, statement, payments and customer quotes; customer role checks for addresses and company contacts.
+  - `a39f743b8cb1dd6933ed0c24aed75a94a2a71048` — customer-role gate for order history and order detail.
+  - `d56c7198a45cd2a2de66a922b929c7412245e83e` — customer-role gate for customer returns.
+  - `7a21b59046d4a6aa8916c5fc29f84c741f2062eb` — customer-role gate for company membership.
+- Source blobs on current main:
+  - `src/components/CustomerWorkflows.tsx`: `122463939fe87b16890658572834a8301ff8a44f`.
+  - `src/components/CustomerOrders.tsx`: `a0b1363eb742adddbd8c2acbb4062f36b630ab2b`.
+  - `src/components/CustomerReturnsPage.tsx`: `beff833fb600e42e299f28d3a04bbd5d91dcd554`.
+  - `src/components/CustomerCompanyMembers.tsx`: `cbfdeebed4c04d8ac41d8a0458edf7308adc9944`.
+
+## P1 changes implemented
+
+- Added `CustomerAccountGate` only to the customer invoice, account statement, payment history and customer quote workspaces. The shared generic authenticated `Gate` remains unchanged for reorder, barcode, assistant and offline workspaces.
+- Customer order list/detail, returns and company membership now require the explicit `customer` role and reject staff or any authenticated profile without that role before mounting customer workspace state.
+- The addresses and company contacts screens retain the prior identity/session keys (`user.id + profileId + sessionRevision`) and now also require the explicit customer role. Session-local drafts, records and feedback remain bounded by the identity key.
+- The invitation acceptance route was intentionally not changed: a legitimate invited identity may need to accept before the customer role is present.
+- No route, RPC, migration, table, database grant, RLS policy, tenant resolver or server role ID was changed. These are UI admission guards only and do not replace P2 authorization.
+
+## Acceptance matrix integrity recovery
+
+- The current CSV had accumulated narrative/evidence text as raw unquoted physical lines, causing malformed rows, duplicate pseudo-task IDs and inconsistent column counts.
+- Recovered the last strictly validated 253-task matrix, applied the five latest row revisions from the role/AI governance change (`REF-FREE-AI-ROUTER-001`, `REF-AI-PRIVACY-001`, `REF-AI-FALLBACK-001`, `REF-AI-OPS-001`, `REF-RBAC-SPEC-ALIGNMENT-001)), and kept historical notes verbatim inside the existing `GATE-001` evidence field.
+- Updated only the existing `DLV-001`, `DLV-002` and `GATE-001` roll-up/evidence cells for this repair. No task ID was added, deleted or duplicated.
+- Matrix blob: `7ad7215f184958b01a0622944315bba59138f7a9`.
+- Strict parser verification: 253 data records; exactly 8 columns on every record; 253 unique task IDs; zero malformed records. `DLV-001` and `DLV-002` remain OPEN.
+
+## Verification boundary
+
+- GitHub current-main readback confirms all four source files and every role/session guard noted above.
+- GitHub current-main readback and strict CSV parsing confirm the matrix structure and preserved governance leaves.
+- TypeScript, ESLint, Vitest, TanStack route generation, production build, authenticated browser flows, Auth transitions, P2 RPC/RLS negative tests and hosted acceptance: **NOT_RUN** on this SHA.
+- No database operation, migration, Edge deployment, provider request, secret change, Bolt action, Vercel deployment or business-data mutation was performed in this P1 batch.
+- Existing P3 free-AI gateway checkpoint and source changes were preserved unchanged; no P3 engine was modified here.
+
+## NEXT ACTION
+
+1. Continue the P1 route audit from current `main`: inspect the remaining customer-facing route entrypoints and admin navigation/actions for mismatched destinations, missing role-aware empty/error states and unkeyed identity-local state. Reuse existing pages and service contracts.
+2. Continue the DLV-001 crosswalk from existing registry/matrix rows; map each mandatory requirement to its actual screen, service/RPC/Edge contract, owner and named exact-SHA acceptance. Do not infer completion from a route or component.
+3. Keep DLV-001 and DLV-002 OPEN until complete mandatory coverage and exact-SHA browser acceptance are evidenced. P2 remains responsible for server role/tenant/RLS proof; P3 remains responsible for intelligent engine proof.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — FREE-AI EDGE GATE / POLICY REGRESSION TESTS
 
 > Base commit: `7a21b59046d4a6aa8916c5fc29f84c741f2062eb`. This source batch adds a fail-closed runtime boundary and policy regression tests; it does not constitute provider deployment or hosted acceptance.
