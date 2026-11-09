@@ -58,7 +58,7 @@ export function CustomerReturnsPage() {
   const { user, ready, sessionRevision } = useAuth();
   if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
   if (!user) return <Login />;
-  if (user.isStaff) return (
+  if (user.isStaff || !user.roles.includes("customer")) return (
     <main className="mx-auto w-full max-w-4xl px-4 py-10" dir="rtl">
       <section className="rounded-2xl border bg-card p-6">
         <h1 className="text-xl font-bold">مرتجعات العملاء</h1>
