@@ -1,3 +1,39 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — P1 SOURCE-EVIDENCE CORRECTION AND DLV-001 TRACEABILITY
+
+> **Precedence:** This checkpoint records a read-only source audit and documentation corrections. The application source tree was not changed. Continue from the actual live `main` head after this documentation commit; preserve existing screens, P2 contracts and P3 engines.
+
+## Exact source baseline and findings
+
+- Repository / branch: `Report-Engainall/Nasr1` / `main`.
+- Verified parent `main` SHA: `88caeb15ba5da7ee8a3a05a17c8239ff567e68d6`; tree SHA before this documentation update: `b29ab8650fd40a8e9db43cbe0edab127bf4ff0d2`.
+- Current P1 route synchronization/access guard remains in `src/components/AghbariApp.tsx`, blob `05d315059a7d5cbdf9f17be28639de2bfc91dd47`; no duplicate implementation was introduced.
+- Mobile drawer focus repair is already present in that same current source file. Its history includes commit `05148d4683878e4b9c9b178a9261c21d88135433`, which avoids waiting on descendant hover animations and adds a focused regression. The matrix's earlier focus-blocked labels were stale as to source implementation; current-head browser reacceptance is still NOT_RUN.
+- `REF-NL-ADMIN-ASSISTANT-057` was stale: the existing `IntelligenceWorkspace.tsx` imports and renders `NaturalLanguageAssistant` with invoice and purchase-order callbacks. The panel has Arabic input and response/error/clarification UI. This confirms P1 mounting only; P3 resolver behavior, RPC authorization/data, database and runtime remain acceptance-pending. No assistant or engine was rebuilt.
+- Route inventory remains structural evidence only. No inference that 70 registered imports equal 70 accepted screens is made.
+
+## Canonical matrix corrections
+
+- Only `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` is used.
+- Corrected the next action of `DLV-001` so it directs functional requirement-to-screen/component/service/RPC/authorization/migration/test/evidence tracing, not DLV-002 route acceptance.
+- Corrected nine stale `P1_MOBILE_FOCUS_BLOCKED` records to reflect the merged source fix while explicitly leaving current browser reacceptance pending.
+- Corrected `REF-NL-ADMIN-ASSISTANT-057` from “panel not mounted” to “P1 panel mounted; runtime/database acceptance pending.”
+- Matrix was strictly re-parsed after edits: 251 task records, eight fields per record, 251 unique task IDs. DLV-001 and DLV-002 remain OPEN.
+
+## Verification boundary
+
+- Confirmed by GitHub source read-back: current route guard/source fix, drawer focus implementation, assistant export/import/render and component UI source.
+- NOT RUN on the current application SHA: TypeScript, Vite build, lint, unit tests, Playwright, route-wide browser, authenticated tenant browser, Bolt preview or production acceptance.
+- No app code, migration, RLS, RPC, policy, Edge Function, secret, Auth identity, business data or deployment changed. No Bolt, Vercel or Lovable session was used.
+- This checkpoint and its matrix changes are documentation-only. The resulting documentation commit SHA is the handoff evidence; fetch `main` again before any subsequent write.
+
+## NEXT ACTION
+
+1. Continue DLV-001 functional edge mapping in the existing matrix, not identifier counting. Keep every unproven edge OPEN.
+2. Continue DLV-002 source inspection route-by-route, then reserve browser/device acceptance for the existing Bolt preview after sync and approved non-production identity are available.
+3. Continue P1 implementation only when a concrete remaining UI defect is shown by source. Do not modify P2 database/authorization or P3 engine logic, and do not rebuild existing workflows.
+
+---
+
 # ACTIVE SESSION RESUME — 2026-11-09 — P1 ADMIN ROUTE SYNCHRONIZATION + DIRECT-ROUTE ACCESS GUARD
 
 > **Precedence:** This checkpoint records only the verified P1 source repair below. It does not close DLV-002, DLV-001, or the application release gate. Continue from live `main`; preserve all existing screens and service contracts.
