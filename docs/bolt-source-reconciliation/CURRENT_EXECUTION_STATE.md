@@ -1,3 +1,44 @@
+# ACTIVE SESSION RESUME — 2026-11-09 — CUSTOMER / ADMIN ROUTE SCOPE CROSSWALK
+
+> Precedence: Documentation-only consolidation of the current-main source audit. No application code is changed in this commit.
+
+## Exact baseline
+
+- Parent main SHA: 1a6130c37732446e5e9d9777a493f3f5b8dccada; parent tree: 9e1afe57f581883563b8bc55d9f9624563ddff1a.
+- Core current-main source blobs:
+  - AghbariApp.tsx: 6d1a21a189e9b5f5abc6397e9e7ab20a34034aab.
+  - CustomerWorkflows.tsx: 699d255a99699c522e625bf8a97eabc395fb15e1.
+  - CustomerOrders.tsx: 957b7a29b4d9282206cf341ad2218b873684eddc.
+  - CustomerReturnsPage.tsx: c433b1e41362c4ae0a600ab2abb168fa5a9b3962.
+  - CustomerNotificationCenter.tsx: ff558b89d684305de925dcef96dfd16dd42836c7.
+  - CustomerServicePortal.tsx: d5c82b7fd57ed148a579ea5655828e134b07b45d.
+  - CustomerCompanyMembers.tsx: 38a4bd7970e78a8d40c8ea7b45887c060d298778.
+  - CustomerActivationInvitationPage.tsx: 917531504a04231f575f373967d31f3772f37749.
+  - CustomerAccountPasswordPage.tsx: f45472a1febaa787cf2c47cc72a2de68ab912509.
+  - profile.tsx: 287ebf367ac95ab6e985c28607aeb0c437991d48.
+  - Storefront.tsx: f6cd1a174578ff760129493111a35070d2d35441.
+  - AsyncExportCenter.tsx: 66dd370a03b363f6c2e4d4ee9f2be1759e8d3d18.
+
+## Crosswalk consolidated into the sole acceptance matrix
+
+- DLV-001 now records customer/storefront, account, order, return, notifications, customer service, company membership/invitations, activation, admin and export route/component/auth-scope relationships.
+- DLV-002 now records which route families have source-level scope reset boundaries and defines remaining exact-SHA browser, page action, responsive, accessibility and server authorization acceptance.
+- The source-level identity key is user.id + profileId + sessionRevision; AuthContext sets ready false during session refresh before it completes the new profile read. Existing server RPC/Edge/RLS contracts were not changed.
+
+## Verification boundary
+
+- Matrix integrity after update: 251 task records, 8 columns per record, 251 unique IDs.
+- Route/component source mapping and source blob SHAs were directly fetched from current main.
+- TypeScript/build/lint/unit/Playwright/browser/Auth-provider/database/SMTP/PWA-cache acceptance NOT_RUN on this SHA.
+- DLV-001 and DLV-002 remain OPEN. This source crosswalk is not proof of screen runtime or server tenant security.
+
+## NEXT ACTION
+
+1. In the existing Bolt workspace, sync only after owner approval to current main; do not import or recreate a project.
+2. On approved non-production identities, perform the matrix browser acceptance for the customer/admin route families and identity transitions.
+3. P2 must reconcile callable RPC/Edge signatures, grants, migrations and negative tenant tests; P3 owns intelligent engine acceptance. Do not change those boundaries from P1.
+
+---
 # ACTIVE SESSION RESUME — 2026-11-09 — ADMIN APP SESSION-SCOPE RESET
 
 > **Precedence:** Focused P1 admin workspace identity-scope repair. Existing routes, roles, screen components and service contracts are preserved.
