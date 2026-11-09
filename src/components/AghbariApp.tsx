@@ -66,7 +66,7 @@ import { ProductActivityPrintSheet } from '@/components/ProductActivityPrintShee
 import { projectProductActivityPrintDocument } from '@/lib/product-activity-print';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
-import { adminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
+import { adminRecordContextStorageKey, previousAdminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
 
 type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
 type IconType = typeof LayoutDashboard;
@@ -431,7 +431,7 @@ function AdminSidebarNavigation({ groups, view, firstMobileNavItemRef, navigatio
 }
 
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
-  const { user, ready, signOut } = useAuth();
+  const { user, ready, sessionRevision, signOut } = useAuth();
   const canOperateAdmin = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
   const canManageFinance = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'accountant'));
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
@@ -463,7 +463,15 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const [workspaceSearchLoading, setWorkspaceSearchLoading] = useState(false);
   const [workspaceSearchError, setWorkspaceSearchError] = useState("");
   const workspaceSearchRequest = useRef(0);
-  const recordContextStorageKey = adminRecordContextStorageKey(user?.id ?? "signed-out", user?.profileId ?? "signed-out");
+  const recordContextStorageKey = adminRecordContextStorageKey(
+    user?.id ?? "signed-out",
+    user?.profileId ?? "signed-out",
+    sessionRevision,
+  );
+  const previousRecordContextStorageKey = previousAdminRecordContextStorageKey(
+    user?.id ?? "signed-out",
+    user?.profileId ?? "signed-out",
+  );
   const recordContextStorage = getAdminRecordContextStorage();
   const [recordContext, setRecordContext] = useState<AdminRecordContext | null>(() =>
     readAdminRecordContext(recordContextStorage, recordContextStorageKey, nav.map((item) => item.id)) as AdminRecordContext | null,
@@ -476,9 +484,10 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   useEffect(() => {
     try {
       recordContextStorage?.removeItem(LEGACY_ADMIN_RECORD_CONTEXT_KEY);
+      recordContextStorage?.removeItem(previousRecordContextStorageKey);
     } catch { /* Legacy unscoped state is discarded when storage is available. */ }
     writeAdminRecordContext(recordContextStorage, recordContextStorageKey, recordContext);
-  }, [recordContext, recordContextStorage, recordContextStorageKey]);
+  }, [recordContext, recordContextStorage, recordContextStorageKey, previousRecordContextStorageKey]);
 
   useEffect(() => {
     const requestId = ++workspaceSearchRequest.current;

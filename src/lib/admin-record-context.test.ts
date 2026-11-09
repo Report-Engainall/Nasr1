@@ -34,30 +34,35 @@ function context(overrides: Partial<AdminRecordContextData> = {}): AdminRecordCo
 
 describe("admin record context identity scope", () => {
   it("creates a stable namespace for the same user/profile and a distinct one for every identity boundary", () => {
-    const first = adminRecordContextStorageKey("user-a", "profile-a");
-    expect(adminRecordContextStorageKey("user-a", "profile-a")).toBe(first);
-    expect(adminRecordContextStorageKey("user-b", "profile-b")).not.toBe(first);
-    expect(adminRecordContextStorageKey("user-a", "profile-b")).not.toBe(first);
-    expect(adminRecordContextStorageKey("user-b", "profile-a")).not.toBe(first);
+    const first = adminRecordContextStorageKey("user-a", "profile-a", 1);
+    expect(adminRecordContextStorageKey("user-a", "profile-a", 1)).toBe(first);
+    expect(adminRecordContextStorageKey("user-a", "profile-a", 2)).not.toBe(first);
+    expect(adminRecordContextStorageKey("user-b", "profile-b", 1)).not.toBe(first);
+    expect(adminRecordContextStorageKey("user-a", "profile-b", 1)).not.toBe(first);
+    expect(adminRecordContextStorageKey("user-b", "profile-a", 1)).not.toBe(first);
+    expect(() => adminRecordContextStorageKey("user-a", "profile-a", -1))
+      .toThrow("admin_record_context_session_revision_invalid");
   });
 
   it("restores a user's own context but never returns it under another user's key", () => {
     const storage = new MemoryStorage();
-    const userAKey = adminRecordContextStorageKey("user-a", "profile-a");
-    const userBKey = adminRecordContextStorageKey("user-b", "profile-b");
+    const userAKey = adminRecordContextStorageKey("user-a", "profile-a", 1);
+    const userARefreshedSessionKey = adminRecordContextStorageKey("user-a", "profile-a", 2);
+    const userBKey = adminRecordContextStorageKey("user-b", "profile-b", 1);
     writeAdminRecordContext(storage, userAKey, context());
 
     expect(readAdminRecordContext(storage, userAKey, ALLOWED_VIEWS, NOW)).toMatchObject({
       id: "order-123",
       returnToView: "customers",
     });
+    expect(readAdminRecordContext(storage, userARefreshedSessionKey, ALLOWED_VIEWS, NOW)).toBeNull();
     expect(readAdminRecordContext(storage, userBKey, ALLOWED_VIEWS, NOW)).toBeNull();
     expect(storage.getItem(userAKey)).not.toBeNull();
   });
 
   it("removes malformed, expired and future-dated context before it can be restored", () => {
     const storage = new MemoryStorage();
-    const key = adminRecordContextStorageKey("user-a", "profile-a");
+    const key = adminRecordContextStorageKey("user-a", "profile-a", 1);
 
     storage.setItem(key, "{broken");
     expect(readAdminRecordContext(storage, key, ALLOWED_VIEWS, NOW)).toBeNull();
@@ -74,7 +79,7 @@ describe("admin record context identity scope", () => {
 
   it("drops a return destination that is no longer a registered admin view", () => {
     const storage = new MemoryStorage();
-    const key = adminRecordContextStorageKey("user-a", "profile-a");
+    const key = adminRecordContextStorageKey("user-a", "profile-a", 1);
     writeAdminRecordContext(storage, key, context({ returnToView: "retired-view" }));
 
     expect(readAdminRecordContext(storage, key, ALLOWED_VIEWS, NOW)).toMatchObject({
@@ -85,8 +90,8 @@ describe("admin record context identity scope", () => {
 
   it("removes only the active identity's entry when its context is cleared", () => {
     const storage = new MemoryStorage();
-    const userAKey = adminRecordContextStorageKey("user-a", "profile-a");
-    const userBKey = adminRecordContextStorageKey("user-b", "profile-b");
+    const userAKey = adminRecordContextStorageKey("user-a", "profile-a", 1);
+    const userBKey = adminRecordContextStorageKey("user-b", "profile-b", 1);
     writeAdminRecordContext(storage, userAKey, context());
     writeAdminRecordContext(storage, userBKey, context({ id: "order-456" }));
 

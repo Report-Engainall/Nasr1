@@ -17,14 +17,26 @@ export interface AdminRecordContextStorage {
 }
 
 export const LEGACY_ADMIN_RECORD_CONTEXT_KEY = "aghbari.admin.record-context.v1";
-const ADMIN_RECORD_CONTEXT_PREFIX = "aghbari.admin.record-context.v2";
+const PREVIOUS_ADMIN_RECORD_CONTEXT_PREFIX = "aghbari.admin.record-context.v2";
+const ADMIN_RECORD_CONTEXT_PREFIX = "aghbari.admin.record-context.v3";
 const ADMIN_RECORD_CONTEXT_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 
-export function adminRecordContextStorageKey(userId: string, profileId: string): string {
+function identityStorageSegments(userId: string, profileId: string): string[] {
+  return [encodeURIComponent(userId.trim()), encodeURIComponent(profileId.trim())];
+}
+
+export function previousAdminRecordContextStorageKey(userId: string, profileId: string): string {
+  return [PREVIOUS_ADMIN_RECORD_CONTEXT_PREFIX, ...identityStorageSegments(userId, profileId)].join(":");
+}
+
+export function adminRecordContextStorageKey(userId: string, profileId: string, sessionRevision: number): string {
+  if (!Number.isSafeInteger(sessionRevision) || sessionRevision < 0) {
+    throw new Error("admin_record_context_session_revision_invalid");
+  }
   return [
     ADMIN_RECORD_CONTEXT_PREFIX,
-    encodeURIComponent(userId.trim()),
-    encodeURIComponent(profileId.trim()),
+    ...identityStorageSegments(userId, profileId),
+    String(sessionRevision),
   ].join(":");
 }
 
