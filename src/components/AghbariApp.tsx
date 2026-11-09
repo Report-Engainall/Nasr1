@@ -66,6 +66,7 @@ import { ProductActivityPrintSheet } from '@/components/ProductActivityPrintShee
 import { projectProductActivityPrintDocument } from '@/lib/product-activity-print';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
+import { adminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
 
 type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
 type IconType = typeof LayoutDashboard;
@@ -109,42 +110,7 @@ const adminPaths: Record<View, string> = {
 
 
 
-type AdminRecordContext = {
-  kind: string;
-  id: string;
-  title: string;
-  subtitle: string;
-  route: string;
-  query: string;
-  savedAt: number;
-  returnToView?: View | null;
-  returnToOrderDetailId?: string | null;
-};
-
-const ADMIN_RECORD_CONTEXT_KEY = "aghbari.admin.record-context.v1";
-function readAdminRecordContext(): AdminRecordContext | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(ADMIN_RECORD_CONTEXT_KEY);
-    if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<AdminRecordContext>;
-    if (typeof value.kind !== "string" || typeof value.id !== "string" ||
-        typeof value.title !== "string" || typeof value.subtitle !== "string" ||
-        typeof value.route !== "string" || typeof value.query !== "string" ||
-        typeof value.savedAt !== "number" || Date.now() - value.savedAt > 4 * 60 * 60 * 1000) {
-      window.sessionStorage.removeItem(ADMIN_RECORD_CONTEXT_KEY);
-      return null;
-    }
-    const returnToView = nav.some((item) => item.id === value.returnToView) ? value.returnToView as View : null;
-    return {
-      ...value,
-      returnToView,
-      returnToOrderDetailId: typeof value.returnToOrderDetailId === "string" ? value.returnToOrderDetailId : null,
-    } as AdminRecordContext;
-  } catch {
-    return null;
-  }
-}
+type AdminRecordContext = Omit<AdminRecordContextData, "returnToView"> & { returnToView: View | null };
 
 type AdminSessionUser = NonNullable<ReturnType<typeof useAuth>["user"]>;
 
@@ -492,22 +458,27 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [commandSearch, setCommandSearch] = useState(() => readAdminRecordContext()?.query ?? "");
+
   const [workspaceSearchResults, setWorkspaceSearchResults] = useState<AdminWorkspaceSearchItem[]>([]);
   const [workspaceSearchLoading, setWorkspaceSearchLoading] = useState(false);
   const [workspaceSearchError, setWorkspaceSearchError] = useState("");
   const workspaceSearchRequest = useRef(0);
-  const [recordContext, setRecordContext] = useState<AdminRecordContext | null>(() => readAdminRecordContext());
+  const recordContextStorageKey = adminRecordContextStorageKey(user?.id ?? "signed-out", user?.profileId ?? "signed-out");
+  const recordContextStorage = getAdminRecordContextStorage();
+  const [recordContext, setRecordContext] = useState<AdminRecordContext | null>(() =>
+    readAdminRecordContext(recordContextStorage, recordContextStorageKey, nav.map((item) => item.id)) as AdminRecordContext | null,
+  );
+  const [commandSearch, setCommandSearch] = useState(() => recordContext?.query ?? "");
   const [notice, setNotice] = useState<string | null>(null);
-  const [orderDetailId, setOrderDetailId] = useState<string | null>(() => { const context = readAdminRecordContext(); return context?.kind === "order" ? context.id : null; });
+  const [orderDetailId, setOrderDetailId] = useState<string | null>(() => recordContext?.kind === "order" ? recordContext.id : null);
   const [navigationBlocked, setNavigationBlocked] = useState(false);
   const showNotice = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(null), 2800); };
   useEffect(() => {
     try {
-      if (recordContext) window.sessionStorage.setItem(ADMIN_RECORD_CONTEXT_KEY, JSON.stringify(recordContext));
-      else window.sessionStorage.removeItem(ADMIN_RECORD_CONTEXT_KEY);
-    } catch { /* Session storage is optional; source screens remain independently authorized. */ }
-  }, [recordContext]);
+      recordContextStorage?.removeItem(LEGACY_ADMIN_RECORD_CONTEXT_KEY);
+    } catch { /* Legacy unscoped state is discarded when storage is available. */ }
+    writeAdminRecordContext(recordContextStorage, recordContextStorageKey, recordContext);
+  }, [recordContext, recordContextStorage, recordContextStorageKey]);
 
   useEffect(() => {
     const requestId = ++workspaceSearchRequest.current;
