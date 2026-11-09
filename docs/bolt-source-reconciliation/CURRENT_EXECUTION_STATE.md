@@ -1,3 +1,39 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — ADMIN RECORD CONTEXT SESSION-REVISION ISOLATION / EXACT-SHA PASS
+
+> Exact tested code SHA: `e20b684b6f9b48e93228d3ce16cb2cc217e1d28e`. Repository: `Report-Engainall/Nasr1`; branch: `main`.
+
+## Root cause and correction
+
+- `AuthProvider` increments `sessionRevision` not only for sign-in/sign-out, but also for `TOKEN_REFRESHED`, `USER_UPDATED`, password recovery and MFA verification because tenant/company/warehouse scope may change while Auth user/profile IDs remain the same.
+- The previous admin record-context key was scoped to Auth user ID + profile ID only. It therefore remained readable after a session-scope boundary.
+- Storage now uses v3 key: Auth user ID + profile ID + `sessionRevision`. Same-user admin route changes in the same revision preserve context; a session boundary selects a fresh empty context.
+- First mount discards the old tab-global v1 key and previous user/profile-only v2 key. Expiry (four hours), malformed JSON, future timestamps and invalid return destinations remain fail-closed.
+- Added a regression assertion proving the same user/profile under a different `sessionRevision` cannot restore the prior record ID/context. No database, role grants, RPC, RLS, migration, finance, inventory or P3 engine changed.
+
+## Exact-SHA verification
+
+- GitHub Actions run [42705898166](https://github.com/Report-Engainall/Nasr1/actions/runs/42705898166) — **SUCCESS** on exact code SHA `e20b684b6f9b48e93228d3ce16cb2cc217e1d28e`.
+- Bun 1.3.14 frozen install: **PASS**.
+- Vitest: **5/5 files; 39/39 tests PASS**.
+- Targeted P1 strict TypeScript: `bunx tsc --noEmit -p tsconfig.p1-typecheck.json` — **PASS**.
+- Vercel exact-SHA deployment: [READY](https://vercel.com/injaz2/aghbari-commerce/Bmmkk3HWZJ5Xn75c6Vjr3zqDN1WM).
+- The P1 typecheck is intentionally scoped; it does not claim the full legacy repository-wide `bun run typecheck` passes. The profile route component is bundled by Vercel but is not part of the narrow P1 TypeScript project because generated TanStack route augmentation is not imported by that isolated config.
+
+## Remaining acceptance
+
+- Authenticated browser validation for same-session navigation, TOKEN_REFRESHED/sessionRevision, A→sign-out→B, profile change, expiry, 360px/1280px and RTL/keyboard: **NOT_RUN**.
+- Customer-profile RPC migration/grants, tenant owner checks and denied-no-side-effect verification remain **P2_PENDING**.
+- DLV-001 and DLV-002 remain **OPEN**. This is source + targeted CI + build evidence, not route-wide/browser/backend acceptance.
+- No Auth user, customer fixture, database migration, RPC/RLS probe, Bolt operation, manual deploy or paid AI request was performed.
+
+## Next
+
+1. Run approved non-production browser sequence: same user across routes; sessionRevision change; A → sign-out → B; customer ↔ staff ↔ restricted profile; verify previous record context and customer shortcuts do not cross identity/session boundaries.
+2. Continue P1 route/action crosswalk and P2 customer profile RPC owner-scope acceptance.
+3. Keep DLV-002 open until exact-SHA authenticated browser evidence is attached.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — PROFILE ROLE GATING / EXACT-SHA P1 ACCEPTANCE
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`; exact tested SHA: `566ed628148aafabefefc74b9e5474fef9fbdff5`.
