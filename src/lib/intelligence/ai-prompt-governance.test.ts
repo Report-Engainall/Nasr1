@@ -82,6 +82,14 @@ describe("AI prompt version governance", () => {
       .toThrow("prompt_four_eyes_required");
   });
 
+  it("denies approval from another organization", async () => {
+    const queued = (await pending()).version;
+    expect(() => approvePromptVersion(
+      queued, actor("external-admin", ["admin"], "org-b"), "e",
+      "2026-11-09T18:10:00.000Z", "اعتماد",
+    )).toThrow("prompt_governance_actor_scope_denied");
+  });
+
   it("records approver, timestamp, reason and audit transition", async () => {
     const result = await approved();
     expect(result.version).toMatchObject({

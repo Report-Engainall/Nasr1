@@ -93,10 +93,10 @@ function validatePromptContent(value: string): string {
     throw new Error("prompt_content_length_invalid");
   }
   const secretPatterns = [
-    /\\bBearer\\s+[A-Za-z0-9._~+/-]{16,}\\b/i,
-    /\\bsk-(?:proj|live|test|svcacct)?-?[A-Za-z0-9_-]{16,}\\b/i,
-    /\\bAIza[0-9A-Za-z_-]{30,}\\b/,
-    /(?:api[_ -]?key|service[_ -]?role|secret|password|access[_ -]?token)\\s*[:=]\\s*["']?[A-Za-z0-9._~+/-]{8,}/i,
+    /\bBearer\s+[A-Za-z0-9._~+/-]{16,}\b/i,
+    /\bsk-(?:proj|live|test|svcacct)?-?[A-Za-z0-9_-]{16,}\b/i,
+    /\bAIza[0-9A-Za-z_-]{30,}\b/,
+    /(?:api[_ -]?key|service[_ -]?role|secret|password|access[_ -]?token)\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{8,}/i,
     /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   ];
   if (secretPatterns.some((pattern) => pattern.test(content))) {

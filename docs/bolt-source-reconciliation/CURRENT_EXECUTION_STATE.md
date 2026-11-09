@@ -1,3 +1,21 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — PROMPT GOVERNANCE VALIDATION HARDENING
+
+> Base SHA: `2a847882462735a5aea01904414ecc1302c34e6f`.
+
+## Source correction
+
+- Corrected the prompt-content secret detector's regex escaping so word boundaries, whitespace and token prefixes are parsed as regular expressions rather than literal backslash sequences.
+- Added a negative test proving an administrator from another organization cannot approve a prompt version outside their tenant.
+- No database, RPC, RLS, prompt activation, Edge deployment or provider configuration changed.
+
+## Verification boundary
+
+- Vercel automatic deployment on base SHA `2a847882...` returned READY.
+- The regex and cross-tenant test changes below this checkpoint are source changes and have not yet received their own build/test result.
+- Vitest and database persistence acceptance remain pending.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-09 — VERSIONED AI PROMPT GOVERNANCE CORE
 
 > Base SHA: `c2d351f02a9ba3920ef6076d464b37e168748591`. This batch adds a pure, testable prompt lifecycle contract only; no live prompt or provider is activated.
