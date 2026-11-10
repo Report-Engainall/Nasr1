@@ -1042,6 +1042,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/my-devices': {
+      id: '/my-devices'
+      path: '/my-devices'
+      fullPath: '/my-devices'
+      preLoaderRoute: typeof MyDevicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notifications': {
       id: '/notifications'
       path: '/notifications'
