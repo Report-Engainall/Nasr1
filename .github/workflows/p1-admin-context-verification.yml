@@ -9,6 +9,8 @@ on:
       - "src/components/BulkProductImageUploader.tsx"
       - "src/lib/product-image-batch-match.ts"
       - "src/lib/product-image-batch-match.test.ts"
+      - "src/lib/unified-import.ts"
+      - "src/lib/unified-import-headers.test.ts"
       - "src/routes/profile.tsx"
       - "src/lib/profile-access.ts"
       - "src/lib/profile-access.test.ts"
