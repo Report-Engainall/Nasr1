@@ -40,6 +40,7 @@ const runtime = (globalThis as unknown as { Deno?: Runtime }).Deno;
 if (!runtime) throw new Error("Supabase Edge Runtime required.");
 
 const CANONICAL_URL = "https://tfdwtuwkdddnzgyhcoyy.supabase.co";
+const CANONICAL_SITE_URL = "https://aghbari-commerce-wine.vercel.app";
 
 runtime.serve(async (request) => {
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405);
@@ -122,6 +123,9 @@ runtime.serve(async (request) => {
   const { data: invitation, error: invitationError } =
     await admin.auth.admin.inviteUserByEmail(email, {
       data: { full_name: fullName },
+      // A first-admin invitation must never inherit Supabase's localhost Site URL.
+      // The production host is also explicitly allow-listed in Supabase Auth settings.
+      redirectTo: `${CANONICAL_SITE_URL}/login`,
     });
 
   const authUserId = invitation?.user?.id;
