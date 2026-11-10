@@ -239,13 +239,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       runningRef.current = false;
       return;
     }
-    if (selectedImportKind === "customers") {
-      const customerProfileId = await ensureCustomerImportProfile();
-      if (selectedProfile && selectedProfile !== customerProfileId) {
-        throw new Error("ملف العملاء التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف العملاء قبل الاستئناف.");
-      }
-      selectedProfile = customerProfileId;
-    }
+    setApplicationKind(selectedImportKind);
     const importJobType = selectedImportKind === "customers" ? "unified_import_customers" : "unified_import_products";
     let job: ImportJob | null = existingJob ?? null;
     let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; external_source_reference: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
@@ -253,6 +247,13 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     let checkpointFingerprintPersisted = false;
 
     try {
+      if (selectedImportKind === "customers") {
+        const customerProfileId = await ensureCustomerImportProfile();
+        if (selectedProfile && selectedProfile !== customerProfileId) {
+          throw new Error("ملف العملاء التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف العملاء قبل الاستئناف.");
+        }
+        selectedProfile = customerProfileId;
+      }
       if (!job) {
         const { data: authSessionData, error: authSessionError } = await supabase.auth.getSession();
         if (authSessionError) throw authSessionError;
