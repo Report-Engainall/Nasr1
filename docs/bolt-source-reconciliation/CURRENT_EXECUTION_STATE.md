@@ -2,6 +2,38 @@
 
 > Repository: `Report-Engainall/Nasr1`; PR [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
 > Exact tested code SHA: `7b5ef7f18f8ac24b1c3b3b19f082b586c9737a15`.
+> GitHub Actions [run 42900969193](https://github.com/Report-Engainall/Nasr1/actions/runs/42900969193): SUCCESS on exact SHA; Vitest 13/13 files and 94/94 tests PASS; P1 strict TypeScript PASS.
+
+## P1 source implementation
+
+- Preserved the existing `src/routes/help.tsx`, FAQ data, category grouping and action links; no replacement page or parallel search engine was created.
+- Extracted the existing search projection into `src/lib/help-center-search.ts`; the route now calls `filterHelpArticles`.
+- Search normalization uses NFKC; removes the extended Arabic combining-mark ranges and tatweel; maps alef variants and alef maqsura; lowercases Latin terms; and collapses repeated whitespace and NBSP.
+- Search continues to include category, question, answer and keywords. Blank queries return a copied full result list; no-result queries return an empty list without mutating source articles.
+- Added five named regression cases in `src/lib/help-center-search.test.ts`: normalization, vocalized Arabic query match, all searchable fields, blank-query behavior and no-results immutability.
+- Added helper/test to the P1 strict TypeScript scope and the existing Actions push/PR path filters. The `/help` route itself is also included in those workflow path filters.
+
+## Exact evidence
+
+- Run 42900969193: SUCCESS on `7b5ef7f18f8ac24b1c3b3b19f082b586c9737a15`.
+- Vitest: 13/13 files; 94/94 tests PASS.
+- `bunx tsc --noEmit -p tsconfig.p1-typecheck.json`: PASS.
+- The run showed the known non-failing Vite shutdown timeout after tests completed; the GitHub job ended SUCCESS.
+
+## Acceptance boundary
+
+- `CODE_IMPLEMENTED`: YES.
+- `ROUTE_INTEGRATED`: YES — existing `/help` uses the extracted helper.
+- `TEST_PROVEN`: YES — exact-SHA Actions above.
+- `BROWSER_PROVEN`: NO — direct route, global/footer navigation, all action destinations, authenticated/anonymous access, 360px/1280px RTL and keyboard focus still require browser acceptance.
+- DLV-002 stays OPEN. No browser/runtime/production acceptance is inferred from the source suite.
+
+---
+
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 HELP CENTER ARABIC SEARCH NORMALIZATION
+
+> Repository: `Report-Engainall/Nasr1`; PR [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
+> Exact tested code SHA: `7b5ef7f18f8ac24b1c3b3b19f082b586c9737a15`.
 > GitHub Actions: [run 42900969193](https://github.com/Report-Engainall/Nasr1/actions/runs/42900969193) — SUCCESS on the exact PR head; Vitest 13/13 files and 94/94 tests PASS; P1 strict TypeScript PASS.
 
 ## Implemented in the existing /help route
