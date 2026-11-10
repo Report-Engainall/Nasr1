@@ -209,15 +209,33 @@ begin
         and coalesce(v_wholesale_text, '') ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$'
         and coalesce(v_retail_text, '') ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$';
 
-      v_base := case when coalesce(v_base_text, '') ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$' then v_base_text::numeric else 0 end;
-      v_vip := case when coalesce(v_vip_text, '') ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$' then v_vip_text::numeric else 0 end;
-      v_wholesale := case when coalesce(v_wholesale_text, '') ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$' then v_wholesale_text::numeric else 0 end;
-      v_retail := case when coalesce(v_retail_text, '') ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$' then v_retail_text::numeric else 0 end;
-      v_prices_complete := v_prices_complete and v_base > 0 and v_vip > 0 and v_wholesale > 0 and v_retail > 0;
+      if v_prices_complete then
+        v_prices_complete := v_base_text::numeric > 0
+          and v_vip_text::numeric > 0
+          and v_wholesale_text::numeric > 0
+          and v_retail_text::numeric > 0;
+      end if;
 
       if not v_prices_complete then
+        -- Keep the source row in the immutable review snapshot. Never invent zero
+        -- values for missing tier prices and never create a product that could leak them.
         v_price_review := v_price_review + 1;
+        v_rejected := v_rejected + 1;
+        if pg_catalog.jsonb_array_length(v_errors) < 50 then
+          v_errors := v_errors || pg_catalog.jsonb_build_array(
+            pg_catalog.jsonb_build_object(
+              'row_number', v_row.row_number,
+              'reason', 'product_price_tiers_missing_or_invalid_review_required'
+            )
+          );
+        end if;
+        continue;
       end if;
+
+      v_base := v_base_text::numeric;
+      v_vip := v_vip_text::numeric;
+      v_wholesale := v_wholesale_text::numeric;
+      v_retail := v_retail_text::numeric;
 
       v_payload := pg_catalog.jsonb_build_object(
         'name', v_name,
