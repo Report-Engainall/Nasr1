@@ -26,6 +26,8 @@
     "src/lib/unified-import-headers.test.ts",
     "src/lib/onyx-snapshot-import-kind.ts",
     "src/lib/onyx-snapshot-import-kind.test.ts",
+    "src/lib/onyx-export.ts",
+    "src/lib/onyx-export.test.ts",
     "src/lib/api.ts",
     "src/components/UnifiedImportEngine.tsx",
     "src/components/CustomerAccountPasswordPage.tsx",
