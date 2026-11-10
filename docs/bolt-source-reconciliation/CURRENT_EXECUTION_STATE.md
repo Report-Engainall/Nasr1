@@ -3,7 +3,7 @@
 > Base main SHA after safe merge: `f8c8e6e2e156d507e877edd7ec53f0c6df3dde75`.
 > Implementation PR: [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
 > Implementation branch exact SHA tested before merge: `bad397863609fe17a264c5cccd5c752c45f7964f`.
-> Exact-head GitHub Actions evidence before merge: [run 42894594109](https://github.com/Report-Engainall/Nasr1/actions/runs/42894594109) — SUCCESS; pull_request event; checkout SHA exactly matched `bad397863609fe17a264c5cccd5c752c45f7964f`; 10 Vitest files / 74 tests passed; P1 strict TypeScript passed. This evidence is scoped to that SHA; the merged PR head must receive its own check.
+> Exact-head GitHub Actions evidence before merge: [run 42894594109](https://github.com/Report-Engainall/Nasr1/actions/runs/42894594109) — SUCCESS; pull_request event; checkout SHA exactly matched `bad397863609fe17a264c5cccd5c752c45f7964f`; 10 Vitest files / 74 tests passed; P1 strict TypeScript passed. Post-merge exact-head verification: [run 42895347224](https://github.com/Report-Engainall/Nasr1/actions/runs/42895347224) — SUCCESS on merged PR SHA `5612c0efae5d3d068f81015f076fbd5ee00c4702`; Vitest 11 files / 78 tests PASS; P1 strict TypeScript PASS. Vitest emitted a non-failing process-close timeout warning after tests closed successfully.
 
 ## P1 code change
 
@@ -26,6 +26,8 @@ Files changed by PR #416:
 `src/lib/onyx-export.test.ts`,
 `src/lib/api.ts`,
 `src/components/UnifiedImportEngine.tsx`,
+`src/lib/unified-import.ts`,
+`src/lib/unified-import-headers.test.ts`,
 `tsconfig.p1-typecheck.json`,
 `.github/workflows/p1-admin-context-verification.yml`.
 
