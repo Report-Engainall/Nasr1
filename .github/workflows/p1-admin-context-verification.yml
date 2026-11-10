@@ -24,6 +24,8 @@ on:
       - "src/components/CustomerWorkflows.tsx"
       - "src/components/CustomerAccountPasswordPage.tsx"
       - "src/lib/api.ts"
+      - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
+      - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
       - "tsconfig.p1-typecheck.json"
       - "src/lib/admin-record-context.ts"
       - "src/lib/admin-record-context.test.ts"
