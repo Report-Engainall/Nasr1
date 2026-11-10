@@ -67,6 +67,14 @@ describe("product image filename matching", () => {
     expect(entries.filter((entry) => entry.status === "gallery_limit")).toHaveLength(1);
   });
 
+  it("does not treat a hyphenated SKU suffix as an alternate-image marker", () => {
+    const entries = matchProductImagesByCode(
+      [product({ item_code: "ABC" })],
+      [file("ABC-2.jpg"), file("ABC_2.jpg")],
+    );
+    expect(entries.map((entry) => entry.status)).toEqual(["unmatched", "unmatched"]);
+  });
+
   it("reports unmatched image codes and unsupported filenames", () => {
     const entries = matchProductImagesByCode([product()], [file("999999.jpeg"), file("photo")]);
     expect(entries.map((entry) => entry.status)).toEqual(["unmatched", "unmatched"]);

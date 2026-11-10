@@ -32,10 +32,12 @@ function matchStatusLabel(entry: ProductImageBatchEntry<File>): string {
 export function BulkProductImageUploader({
   products,
   canManage,
+  catalogReady,
   onUploaded,
 }: {
   products: readonly ProductWithInventory[];
   canManage: boolean;
+  catalogReady: boolean;
   onUploaded: (message: string) => void | Promise<void>;
 }) {
   const [files, setFiles] = useState<File[]>([]);
@@ -54,7 +56,18 @@ export function BulkProductImageUploader({
     () => matchProductImagesByCode(products, validFiles),
     [products, validFiles],
   );
-  const readyEntries = entries.filter((entry) => entry.status === "ready");
+  const readyEntries = useMemo(
+    () => entries
+      .filter((entry) => entry.status === "ready")
+      .sort((left, right) => {
+        const productOrder = (left.product?.id ?? "").localeCompare(right.product?.id ?? "");
+        if (productOrder !== 0) return productOrder;
+        const placementOrder = (left.placement === "primary" ? 0 : 1) - (right.placement === "primary" ? 0 : 1);
+        if (placementOrder !== 0) return placementOrder;
+        return left.file.name.localeCompare(right.file.name, "en", { numeric: true, sensitivity: "base" });
+      }),
+    [entries],
+  );
   const blockedEntries = entries.filter((entry) => entry.status !== "ready");
 
   if (!canManage) return null;
@@ -74,7 +87,7 @@ export function BulkProductImageUploader({
   }
 
   async function uploadMatchedImages() {
-    if (busy || readyEntries.length === 0) return;
+    if (busy || !catalogReady || readyEntries.length === 0) return;
     setBusy(true);
     setProgress(0);
     setResults([]);
@@ -157,9 +170,10 @@ export function BulkProductImageUploader({
             accept="image/jpeg,image/png,image/webp"
             multiple
             onChange={selectFiles}
-            disabled={busy}
+            disabled={busy || !catalogReady}
           />
         </label>
+        {!catalogReady && <div className="privacy-note" role="status">يُتاح اختيار الصور بعد اكتمال تحميل كتالوج الأصناف بنجاح.</div>}
 
         {selectionError && <div className="form-error" role="alert">{selectionError}</div>}
 
@@ -181,7 +195,7 @@ export function BulkProductImageUploader({
                 <thead><tr><th style={{ textAlign: "right", padding: 8 }}>الملف</th><th style={{ textAlign: "right", padding: 8 }}>الصنف</th><th style={{ textAlign: "right", padding: 8 }}>النتيجة</th></tr></thead>
                 <tbody>
                   {entries.map((entry) => (
-                    <tr key={entry.file.name + entry.file.lastModified}>
+                    <tr key={entry.file.name + entry.file.lastModified + "-" + (entry.product?.id ?? "unmatched")}>
                       <td style={{ padding: 8 }}><code>{entry.file.name}</code></td>
                       <td style={{ padding: 8 }}>{entry.product?.name ?? "—"}</td>
                       <td style={{ padding: 8 }}>
@@ -193,7 +207,7 @@ export function BulkProductImageUploader({
               </table>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <button type="button" className="btn primary" onClick={() => void uploadMatchedImages()} disabled={busy || readyEntries.length === 0}>
+              <button type="button" className="btn primary" onClick={() => void uploadMatchedImages()} disabled={busy || !catalogReady || readyEntries.length === 0}>
                 {busy ? "جارٍ رفع الصور " + progress + " / " + readyEntries.length : "رفع الصور المطابقة"}
               </button>
               <button type="button" className="btn outline" onClick={() => { setFiles([]); setResults([]); setProgress(0); }} disabled={busy}>
@@ -212,7 +226,7 @@ export function BulkProductImageUploader({
           <section aria-label="نتائج رفع الصور" className="panel" style={{ padding: 12 }}>
             <strong>نتائج التنفيذ</strong>
             {results.map((result) => (
-              <p key={result.fileName} role={result.ok ? "status" : "alert"} style={{ margin: "8px 0 0", color: result.ok ? "var(--success, #16734b)" : "var(--danger, #b42318)" }}>
+              <p key={result.fileName + "-" + result.productName} role={result.ok ? "status" : "alert"} style={{ margin: "8px 0 0", color: result.ok ? "var(--success, #16734b)" : "var(--danger, #b42318)" }}>
                 {result.fileName} — {result.productName} — {imagePlacementLabel(result.placement)}: {result.message}
               </p>
             ))}

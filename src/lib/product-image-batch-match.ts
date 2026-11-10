@@ -50,7 +50,7 @@ function resolveProductCode(
   const exactMatches = productsByCode.get(exactKey);
   if (exactMatches?.length) return { matches: exactMatches, matchedCode: itemCode };
 
-  const numberedSuffix = itemCode.match(/(?:__|[_-]|\s*\()\s*([2-9]\d*)\)?$/u);
+  const numberedSuffix = itemCode.match(/(?:__|\s*\()\s*([2-9]\d*)\)?$/u);
   if (numberedSuffix?.index !== undefined) {
     const fallbackCode = itemCode.slice(0, numberedSuffix.index).trim();
     const fallbackMatches = productsByCode.get(normalizeProductImageItemCode(fallbackCode));
