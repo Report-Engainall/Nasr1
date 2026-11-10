@@ -2,8 +2,8 @@
 
 > Base main SHA: `a49014306c95c43284381934fbce5ca08b260fcf`.
 > Implementation PR: [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
-> Implementation code SHA tested: `998dcc2e64a451501ea4002027dd139cf7923a45`.
-> Exact-head GitHub Actions evidence: [run 42889528106](https://github.com/Report-Engainall/Nasr1/actions/runs/42889528106) — SUCCESS; pull_request event; 9 Vitest files / 65 tests passed; P1 strict TypeScript passed.
+> Implementation PR head tested: `d978083da69adc0c526f750bd3ef87dcacbb7eb4`.
+> Exact-head GitHub Actions evidence: [run 42890619090](https://github.com/Report-Engainall/Nasr1/actions/runs/42890619090) — SUCCESS; pull_request event; checkout SHA exactly matched the PR head; 10 Vitest files / 68 tests passed; P1 strict TypeScript passed.
 
 ## P1 code change
 
@@ -15,11 +15,14 @@ The P1 correction:
 - Stores the resolved kind on the snapshot DTO. Missing or unknown source jobs resolve to `null`; the UI displays an unconfirmed kind and disables the apply action.
 - Uses the snapshot-bound kind for confirmation, RPC arguments and result presentation. The upload-kind selector no longer decides the kind of an already-created snapshot.
 - Adds `src/lib/onyx-snapshot-import-kind.test.ts` covering product, customer, legacy product and seven fail-closed unknown cases.
+- Corrects `buildOnyxDetailRows` in `src/lib/onyx-export.ts`: the prior row had 28 values for a 27-column workbook. Each row now allocates the canonical 27-cell width and writes the order number to column 23 (index 22, `البيان`); `src/lib/onyx-export.test.ts` asserts the header, width, leading-zero item codes and field positions.
 - Adds the new helper, component, API and test to the P1 strict TypeScript scope, and enables the existing P1 verification workflow on pull requests and acceptance-document changes. The workflow checks out the exact PR head SHA.
 
 Files changed by PR #416:
 `src/lib/onyx-snapshot-import-kind.ts`,
 `src/lib/onyx-snapshot-import-kind.test.ts`,
+`src/lib/onyx-export.ts`,
+`src/lib/onyx-export.test.ts`,
 `src/lib/api.ts`,
 `src/components/UnifiedImportEngine.tsx`,
 `tsconfig.p1-typecheck.json`,
