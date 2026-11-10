@@ -2287,6 +2287,57 @@ export async function fetchOnyxSnapshotRows(snapshotId: string): Promise<OnyxSna
   });
 }
 
+export type AdminImportApplicationResult = {
+  snapshot_id: string;
+  import_kind: "products" | "customers";
+  source_rows: number;
+  created: number;
+  skipped_duplicates: number;
+  rejected: number;
+  products_needing_price_review: number;
+  products_needing_category_review: number;
+  stock_rows_pending_reconciliation: number;
+  row_errors_truncated: boolean;
+  row_errors: Array<{ row_number: number; reason: string }>;
+  status: "applied";
+  idempotent_replay: boolean;
+};
+
+export async function applyAdminImportSnapshot(
+  snapshotId: string,
+  importKind: "products" | "customers",
+): Promise<AdminImportApplicationResult> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+    throw new Error("معرّف لقطة الاستيراد غير صالح.");
+  }
+  if (importKind !== "products" && importKind !== "customers") {
+    throw new Error("نوع الاستيراد غير مسموح.");
+  }
+  const { data, error } = await supabase.rpc("apply_admin_import_snapshot", {
+    p_snapshot_id: snapshotId,
+    p_import_kind: importKind,
+    p_idempotency_key: crypto.randomUUID(),
+  });
+  if (error) throw new Error(error.message || "تعذر اعتماد لقطة الاستيراد.");
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("لم يؤكد الخادم نتيجة اعتماد الاستيراد.");
+  }
+  const row = data as Record<string, unknown>;
+  const numbers = [
+    "source_rows", "created", "skipped_duplicates", "rejected",
+    "products_needing_price_review", "products_needing_category_review",
+    "stock_rows_pending_reconciliation",
+  ] as const;
+  if (row.snapshot_id !== snapshotId || row.import_kind !== importKind || row.status !== "applied" ||
+      numbers.some((field) => typeof row[field] !== "number" || !Number.isInteger(row[field]) || (row[field] as number) < 0) ||
+      typeof row.row_errors_truncated !== "boolean" ||
+      !Array.isArray(row.row_errors) ||
+      typeof row.idempotent_replay !== "boolean") {
+    throw new Error("أعاد الخادم ملخص استيراد غير مكتمل؛ لم يُعرض نجاح غير مؤكد.");
+  }
+  return row as unknown as AdminImportApplicationResult;
+}
+
 export async function runInventoryReconciliation(snapshotId: string) {
   const { data, error } = await supabase.rpc('run_inventory_reconciliation', { p_snapshot_id: snapshotId });
   if (error) throw error;

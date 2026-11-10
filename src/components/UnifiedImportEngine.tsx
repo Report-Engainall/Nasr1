@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
-  cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles, rollbackImportSnapshot,
+  applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms,
+  fetchImportJobs, fetchImportProfiles, fetchOnyxSnapshots, rollbackImportSnapshot,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
-  type ImportRowErrorDetail,
+  type AdminImportApplicationResult, type ImportRowErrorDetail, type OnyxSnapshotSummary,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
@@ -102,6 +103,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
   const { data: jobs, loading, error, refetch } = useFetch(fetchImportJobs, [refreshVersion]);
   const { data: profiles } = useFetch(fetchImportProfiles, [refreshVersion]);
   const { data: storedSynonyms } = useFetch(fetchCentralSynonyms, [refreshVersion]);
+  const { data: readySnapshots, loading: snapshotsLoading, error: snapshotsError, refetch: refetchSnapshots } =
+    useFetch(fetchOnyxSnapshots, [refreshVersion]);
   const [stage, setStage] = useState<Stage | null>(null);
   const [progress, setProgress] = useState(0);
   const [processed, setProcessed] = useState(0);
@@ -113,6 +116,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
   const [sourceSystem, setSourceSystem] = useState("manual");
   const [externalSourceReference, setExternalSourceReference] = useState("");
   const [qualityPreview, setQualityPreview] = useState<QualityResult | null>(null);
+  const [applicationKind, setApplicationKind] = useState<"products" | "customers">("products");
+  const [applicationBusyId, setApplicationBusyId] = useState<string | null>(null);
+  const [applicationNotice, setApplicationNotice] = useState<{ snapshotId: string; result: AdminImportApplicationResult } | null>(null);
   const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
   const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string; offset: number; hasMore: boolean } | null>(null);
   const rowErrorRequestId = useRef(0);
@@ -718,6 +724,40 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     }
   }
 
+  async function applyReadySnapshot(snapshot: OnyxSnapshotSummary) {
+    if (!canRollbackImport || applicationBusyId) return;
+    if (snapshot.data_quality_score < 75) {
+      setErrorMessage("جودة اللقطة أقل من الحد الأدنى للاعتماد؛ أعد معالجة الملف بعد تصحيح الصفوف.");
+      return;
+    }
+    const description = applicationKind === "products"
+      ? "سيُنشئ الأصناف الجديدة بحالة غير منشورة. أي أسعار ناقصة ستبقى صفراً للمراجعة ولن يُنشر الصنف، ولن يُعدّل المخزون."
+      : "سيُنشئ العملاء الجدد بحالة انتظار وبشريحة تجزئة افتراضية. لن تُستورد أرصدة أو حدود ائتمان أو صلاحيات أو شرائح أسعار من ملف المصدر.";
+    if (!window.confirm(
+      "اعتماد لقطة " + (snapshot.source_file_name ?? snapshot.id) + " كـ" +
+      (applicationKind === "products" ? "أصناف" : "عملاء") + "؟\n\n" + description +
+      "\n\nلن تُحدّث السجلات الموجودة. التكرارات ستُتجاوز، ويُحفظ سجل تدقيق. لا يمكن تطبيق اللقطة نفسها مرة ثانية."
+    )) return;
+
+    setApplicationBusyId(snapshot.id);
+    setErrorMessage("");
+    setApplicationNotice(null);
+    try {
+      const result = await applyAdminImportSnapshot(snapshot.id, applicationKind);
+      setApplicationNotice({ snapshotId: snapshot.id, result });
+      const summary = "اكتمل الاعتماد: أُنشئ " + formatNumber(result.created) +
+        "، تكرر وتُجاوز " + formatNumber(result.skipped_duplicates) +
+        "، مرفوض " + formatNumber(result.rejected) + ".";
+      setStatusMessage(summary);
+      onNotice(summary);
+      await Promise.all([refetch(), refetchSnapshots()]);
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : "تعذر اعتماد لقطة الاستيراد.");
+    } finally {
+      setApplicationBusyId(null);
+    }
+  }
+
   async function toggleRowErrors(job: ImportJob) {
     const previous = rowErrorState;
     const requestId = ++rowErrorRequestId.current;
@@ -853,6 +893,56 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
             <div className="progress-track"><i style={{ width: progress + "%" }} /></div>
             <small>{formatNumber(processed)} صف تمت معالجته {qualityPreview ? "• DQS أولي " + qualityPreview.score + "/100 (" + (qualityPreview.score >= 90 ? 'ممتاز' : qualityPreview.score >= 75 ? 'مقبول' : qualityPreview.score >= 50 ? 'تحذير' : 'مرفوض') + ")" : ""}</small>
           </div>}
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <div><h2>اعتماد البيانات إلى الكتالوج والعملاء</h2><p>تطبيق لقطة مراجعة جاهزة دون إعادة تحليل الملف أو تعديل السجلات الموجودة.</p></div>
+            <label className="form-field" style={{ minWidth: 190 }}>
+              <span>نوع البيانات المراد اعتمادها</span>
+              <select value={applicationKind} disabled={!canRollbackImport || Boolean(applicationBusyId)}
+                onChange={(event) => { setApplicationKind(event.target.value as "products" | "customers"); setApplicationNotice(null); }}>
+                <option value="products">أصناف المنتجات</option>
+                <option value="customers">دليل العملاء</option>
+              </select>
+            </label>
+          </div>
+          <div className="privacy-note"><ShieldCheck size={17} /><span>
+            {applicationKind === "products"
+              ? "الأصناف الجديدة تُحفظ غير منشورة. أسعار جملة الجملة والجملة والتجزئة تُقرأ فقط من أعمدتها الصريحة؛ السعر المفرد لا يُعمّم على الفئات. أرصدة المخزون تبقى لقطة بانتظار مطابقة المخزن عبر تسوية أونكس."
+              : "العميل يُنشأ pending وبشريحة retail افتراضية. لا تُقرأ شريحة أونكس أو رصيد العميل أو حد الائتمان كصلاحية معتمدة؛ يحدد المدير الشريحة لاحقاً من سجل العميل."}
+          </span></div>
+          {!canRollbackImport && <ErrorBox message="اعتماد اللقطات متاح للمدير أو المدير العام فقط." />}
+          {snapshotsLoading ? <Loading /> : snapshotsError ? <ErrorBox message={String(snapshotsError)} /> :
+            readySnapshots?.length ? <TableWrap><table>
+              <thead><tr><th>ملف المصدر</th><th>النوع</th><th>الصفوف</th><th>الجودة</th><th>التاريخ</th><th>الإجراء</th></tr></thead>
+              <tbody>{readySnapshots.map((snapshot) => <tr key={snapshot.id}>
+                <td><strong>{snapshot.source_file_name ?? "ملف دون اسم"}</strong><small>{snapshot.source_file_hash.slice(0, 14)}… • v{snapshot.snapshot_version}</small></td>
+                <td>{snapshot.report_type}</td>
+                <td>{formatNumber(snapshot.row_count)}</td>
+                <td>{formatNumber(snapshot.data_quality_score)}/100</td>
+                <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
+                <td><Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75}
+                  onClick={() => void applyReadySnapshot(snapshot)}>
+                  {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : applicationKind === "products" ? "اعتماد الأصناف" : "اعتماد العملاء"}
+                </Button></td>
+              </tr>)}</tbody>
+            </table></TableWrap> : <Empty text="لا توجد لقطات أونكس جاهزة للاعتماد. عالج ملف CSV أو XLSX أولاً بجودة 75/100 على الأقل." />}
+          {applicationNotice && <div className="privacy-note" role="status">
+            <ShieldCheck size={17} /><span>
+              {applicationNotice.result.idempotent_replay ? "هذه اللقطة سبق اعتمادها؛ أعاد الخادم النتيجة المحفوظة دون تكرار." : "نتيجة الاعتماد المحفوظة: "}
+              أُنشئ {formatNumber(applicationNotice.result.created)}، التكرارات {formatNumber(applicationNotice.result.skipped_duplicates)}،
+              المرفوض {formatNumber(applicationNotice.result.rejected)}.
+              {applicationKind === "products" && " أسعار تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_price_review) +
+                "؛ تصنيفات تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_category_review) +
+                "؛ صفوف مخزون تنتظر التسوية: " + formatNumber(applicationNotice.result.stock_rows_pending_reconciliation) + "."}
+            </span>
+          </div>}
+          {applicationNotice?.result.row_errors.length ? <details style={{ marginTop: 10 }}>
+            <summary>تفاصيل الصفوف المرفوضة (حتى 50 صفاً)</summary>
+            <ol>{applicationNotice.result.row_errors.map((item) => <li key={item.row_number}>الصف {formatNumber(item.row_number)}: {item.reason}</li>)}</ol>
+            {applicationNotice.result.row_errors_truncated && <small>عُرض أول 50 سبباً فقط؛ العدد الإجمالي للمرفوضات ظاهر أعلاه.</small>}
+          </details> : null}
         </section>
 
         <section className="panel import-jobs-panel">
