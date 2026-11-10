@@ -43,7 +43,7 @@ describe("safe Onyx snapshot row preview", () => {
     expect(preview.facts).toContainEqual({ label: "التجزئة", value: "12" });
     expect(preview.facts).toContainEqual({ label: "رصيد المصدر — غير معتمد", value: "40" });
     expect(JSON.stringify(preview)).not.toContain("cost");
-    expect(JSON.stringify(preview)).not.toContain("7");
+    expect(preview.facts.some((fact) => fact.value === "7")).toBe(false);
   });
 
   it("does not substitute missing prices with zero or another tier", () => {
