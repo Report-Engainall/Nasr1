@@ -413,6 +413,64 @@ export function normalizeHeader(value: string, synonyms: Record<string, string> 
     .replace(/^_|_$/g, "");
 }
 
+
+
+export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "ambiguous" | "unknown";
+export type ImportDatasetDetection = {
+  kind: ImportDatasetDetectionKind;
+  matchedFields: string[];
+};
+
+/**
+ * Classifies a dataset from its normalized header row before an import job is created.
+ * Mixed identifiers fail closed. A stock-only sheet is inventory, not a product catalog;
+ * a product sheet may still include warehouse and quantity columns.
+ */
+export function detectImportDatasetKind(headers: readonly string[]): ImportDatasetDetection {
+  const fields = [...new Set(headers
+    .filter((header): header is string => typeof header === "string")
+    .map((header) => normalizeHeader(header.replace(/^\uFEFF/, "")))
+    .filter(Boolean))].sort();
+  const set = new Set(fields);
+  const hasItemCode = set.has("item_code");
+  const hasCustomerCode = set.has("customer_code");
+  const hasWarehouse = set.has("warehouse_code") || set.has("warehouse_name");
+  const hasQuantity = set.has("quantity") || set.has("available_quantity");
+  const productDetails = [
+    "product_name", "unit", "category_name", "barcode", "description",
+    "base_price", "price_wholesale_of_wholesale", "price_wholesale", "price_retail",
+  ].filter((field) => set.has(field));
+  const customerDetails = [
+    "business_name", "customer_name", "contact_name", "phone", "email", "address", "tax_number",
+  ].filter((field) => set.has(field));
+  const inventoryDetails = [
+    "warehouse_code", "warehouse_name", "quantity", "available_quantity", "reserved_quantity",
+    "batch_number", "expiry_date",
+  ].filter((field) => set.has(field));
+  const hasInventoryMarkers = hasWarehouse || hasQuantity ||
+    set.has("reserved_quantity") || set.has("batch_number") || set.has("expiry_date");
+
+  if (hasItemCode && hasCustomerCode) {
+    return { kind: "ambiguous", matchedFields: ["item_code", "customer_code"] };
+  }
+  if (hasCustomerCode && hasInventoryMarkers) {
+    return { kind: "ambiguous", matchedFields: ["customer_code", ...inventoryDetails] };
+  }
+  if (hasCustomerCode) {
+    return { kind: "customers", matchedFields: ["customer_code", ...customerDetails] };
+  }
+  if (hasInventoryMarkers && productDetails.length === 0) {
+    return { kind: "inventory", matchedFields: inventoryDetails };
+  }
+  if (hasItemCode && productDetails.length > 0) {
+    return { kind: "products", matchedFields: ["item_code", ...productDetails, ...inventoryDetails] };
+  }
+  if (hasInventoryMarkers) {
+    return { kind: "inventory", matchedFields: inventoryDetails };
+  }
+  return { kind: "unknown", matchedFields: fields };
+}
+
 export type ParsedImportRow = {
   row_number: number;
   data: Record<string, unknown>;

@@ -1,3 +1,41 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 ONYX IMPORT / EXPORT / SNAPSHOT REVIEW PREVIEW
+
+> Repository: `Report-Engainall/Nasr1`; PR [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
+> Current main base before this merge: `4536082a6cb6b183bfb1336094cc11c042dbd9df`.
+> Latest exact tested implementation head before this documentation-preserving merge: `6652278a293e89d12eea22fb0071cc878554795f`.
+> Exact verification: [GitHub Actions run 42899389333](https://github.com/Report-Engainall/Nasr1/actions/runs/42899389333) — SUCCESS on the exact tested SHA; Vitest 12/12 files and 88/88 tests PASS; P1 strict TypeScript PASS.
+
+## P1 implemented on the PR branch
+
+- Snapshot application is bound to the original source `import_jobs.job_type`, not the mutable upload selector. Unknown or absent source kind blocks application in the UI.
+- The Onyx order XLSX detail writer emits exactly 27 values per row, preserves leading-zero item codes as text, and writes the order number to the `البيان` column. The workbook still states that target-version Onyx compatibility is not certified.
+- CSV/XLSX header sniffing classifies products, customers and standalone inventory before an import job is created. Mixed-kind and inventory-only sheets fail closed. Product rows with explicit product descriptors may retain source warehouse/quantity fields as pending data, not posted inventory.
+- The existing `fetchOnyxSnapshotRows` reader is now connected to the approval screen. Reviewers can preview snapshot rows before applying; pagination is bounded to 100 visible rows per request, with one additional look-ahead row to determine whether another page exists.
+- Preview output is a strict projection by dataset: product previews show item identity, unit/category, the three explicit source prices and warehouse/quantity labelled unapproved; customer previews show identity/contact details only. Source customer tier, credit limit, account balance and product cost are not projected.
+- Preview row status and bounded row reasons are visible. Preview does not call the apply RPC, mutate products/customers or post stock.
+- Regression coverage includes Arabic/English dataset detection, mixed/inventory blocking, exact-key preservation, missing-price non-substitution, 27-column export, snapshot source-kind binding, and safe product/customer preview projection.
+
+## Exact test evidence
+
+- Run 42899389333 on `6652278a293e89d12eea22fb0071cc878554795f`: SUCCESS.
+- Vitest: 12/12 files; 88/88 tests.
+- `bunx tsc --noEmit -p tsconfig.p1-typecheck.json`: PASS.
+- Vitest emitted the known non-failing Vite process-close warning after tests had closed successfully; the workflow completed with SUCCESS.
+
+## Remaining boundaries — DLV-009 remains PARTIAL
+
+1. P2 must compare `p_import_kind` to the source job's `job_type` inside `apply_admin_import_snapshot`; UI/API binding is not the server authorization boundary.
+2. Missing product prices must remain absent/null rather than numeric zero. The current source migration still creates inactive review records with zero placeholders; that requires the P2 database correction and privacy verification before publication.
+3. Opening stock remains unposted. The preview labels source quantities unapproved and inventory-only files are blocked from product application. P2 must provide a tenant/warehouse/unit-bound atomic idempotent reconciliation with audit evidence.
+4. The target-version Onyx Pro sandbox round-trip remains NOT_PROVEN; the owner-approved source/template version is still required.
+5. No production database mutation, hosted customer session or authenticated browser UAT was performed in this P1 step.
+
+## Resume rule
+
+Continue P1 presentation and safe wiring only. Preserve the existing importer, image matcher, pricing engine, snapshot/rollback pipeline, and 27-column writer. Do not implement P2 RPC, migration, stock-posting or P3 intelligence-engine work in this branch.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 UNIFIED OPERATIONS EXCEPTION LATEST-STATE PROJECTION
 
 > Tested code SHA: `85389cb413d2d7ff391f129bcc1e63d29601aaf1`; repository: `Report-Engainall/Nasr1`; branch: `main`.

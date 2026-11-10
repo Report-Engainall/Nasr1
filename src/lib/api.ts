@@ -10,6 +10,7 @@ import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type Purc
 import { countLowStockBalances } from './inventory-metrics';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
+import { resolveOnyxSnapshotImportKind, type OnyxSnapshotImportKind } from './onyx-snapshot-import-kind';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { extractOwnedProductImageObjectPath } from './product-image-security';
 import { validateCustomerInput, type NewCustomerInput } from './customer-input';
@@ -2181,6 +2182,8 @@ export type OnyxSnapshotSummary = {
   period_key: string | null;
   source_file_hash: string;
   source_file_name: string | null;
+  source_import_job_id: string | null;
+  import_kind: OnyxSnapshotImportKind | null;
   report_type: string;
   row_count: number;
   data_quality_score: number;
@@ -2204,12 +2207,31 @@ export type OnyxSnapshotRow = {
 export async function fetchOnyxSnapshots(): Promise<OnyxSnapshotSummary[]> {
   const { data, error } = await supabase
     .from('onyx_snapshots')
-    .select('id,snapshot_version,period_key,source_file_hash,source_file_name,report_type,row_count,data_quality_score,quality_breakdown,created_by,created_at')
+    .select('id,snapshot_version,period_key,source_file_hash,source_file_name,source_import_job_id,report_type,row_count,data_quality_score,quality_breakdown,created_by,created_at')
     .eq('status', 'ready')
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+  const sourceImportJobIds = [...new Set(rows
+    .map((row) => row.source_import_job_id)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0))];
+  const sourceImportKindByJobId = new Map<string, OnyxSnapshotImportKind>();
+  if (sourceImportJobIds.length > 0) {
+    // The source import job, not the mutable import-type selector or generic report_type,
+    // determines which server-side apply path is allowed for this snapshot.
+    const { data: sourceJobs, error: sourceJobsError } = await supabase
+      .from('import_jobs')
+      .select('id,job_type')
+      .in('id', sourceImportJobIds);
+    if (sourceJobsError) {
+      throw new Error('تعذر التحقق من نوع دفعة المصدر للقطات أونكس؛ أوقفنا الاعتماد حتى تتضح هوية كل لقطة.');
+    }
+    for (const sourceJob of sourceJobs ?? []) {
+      const kind = resolveOnyxSnapshotImportKind(sourceJob.job_type);
+      if (kind) sourceImportKindByJobId.set(sourceJob.id, kind);
+    }
+  }
   return rows.map((row) => {
     const score = row.data_quality_score;
     const rowCount = row.row_count;
@@ -2230,6 +2252,10 @@ export async function fetchOnyxSnapshots(): Promise<OnyxSnapshotSummary[]> {
       period_key: typeof row.period_key === 'string' ? row.period_key : null,
       source_file_hash: row.source_file_hash,
       source_file_name: typeof row.source_file_name === 'string' ? row.source_file_name : null,
+      source_import_job_id: typeof row.source_import_job_id === 'string' ? row.source_import_job_id : null,
+      import_kind: typeof row.source_import_job_id === 'string'
+        ? sourceImportKindByJobId.get(row.source_import_job_id) ?? null
+        : null,
       report_type: row.report_type,
       row_count: rowCount,
       data_quality_score: score,
@@ -2264,14 +2290,22 @@ export async function fetchOnyxSnapshotAnalytics(snapshotId: string): Promise<On
   return data as OnyxSnapshotAnalytics;
 }
 
-export async function fetchOnyxSnapshotRows(snapshotId: string): Promise<OnyxSnapshotRow[]> {
-  if (!snapshotId.trim()) throw new Error('معرّف لقطة أونكس مطلوب.');
+export async function fetchOnyxSnapshotRows(snapshotId: string, limit = 100, offset = 0): Promise<OnyxSnapshotRow[]> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+    throw new Error('معرّف لقطة أونكس غير صالح.');
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 101) {
+    throw new Error('حجم صفحة معاينة أونكس يجب أن يكون بين 1 و101.');
+  }
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) {
+    throw new Error('موضع صفحة معاينة أونكس غير صالح.');
+  }
   const { data, error } = await supabase
     .from('onyx_snapshot_rows')
     .select('id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors,created_at')
     .eq('snapshot_id', snapshotId)
     .order('row_number')
-    .limit(100);
+    .range(offset, offset + limit - 1);
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
   return rows.map((row) => {
