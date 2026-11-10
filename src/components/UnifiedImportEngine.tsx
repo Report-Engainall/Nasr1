@@ -40,7 +40,7 @@ type DuplicatePrompt = {
 };
 
 async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Promise<string[]> {
-  let headers: string[] | null = null;
+  let headers: string[] = [];
   const headerCaptured = Symbol("first-import-header-row");
   const captureFirstRow = (values: string[]) => {
     if (headers === null) {
@@ -71,7 +71,7 @@ async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Pro
     }
   }
 
-  if (!headers || headers.length === 0 || headers.every((value) => !String(value ?? "").trim())) {
+  if (headers.length === 0 || headers.every((value) => !String(value ?? "").trim())) {
     throw new Error("تعذر قراءة صف العناوين من الملف؛ لم تُنشأ دفعة استيراد.");
   }
   return headers.map((value, index) => index === 0 ? value.replace(/^\uFEFF/, "") : value);
