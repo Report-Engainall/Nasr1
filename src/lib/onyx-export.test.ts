@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildOnyxDetailRows, ONYX_ORDER_COLUMNS, type OnyxOrderWorkbookInput } from "./onyx-export";
+import { buildOnyxDetailRows, buildOnyxOrderWorkbook, ONYX_ORDER_COLUMNS, type OnyxOrderWorkbookInput } from "./onyx-export";
+import { parseXlsxFirstWorksheet } from "./unified-import";
 
 const input: OnyxOrderWorkbookInput = {
   orderId: "order-id",
@@ -53,6 +54,26 @@ describe("Onyx 27-column order detail export", () => {
     expect(ONYX_ORDER_COLUMNS[22]).toBe("البيان");
     expect(first[22]).toBe("SO-0042");
     expect(first.slice(23)).toEqual(["", "", "", ""]);
+  });
+
+  it("round-trips through the existing XLSX import parser with the 27-column contract intact", async () => {
+    const workbookBytes = buildOnyxOrderWorkbook(input);
+    const arrayBuffer = new ArrayBuffer(workbookBytes.byteLength);
+    new Uint8Array(arrayBuffer).set(workbookBytes);
+    const parsedRows: string[][] = [];
+    const result = await parseXlsxFirstWorksheet(new Blob([arrayBuffer]), (values) => {
+      parsedRows.push(values);
+    });
+
+    expect(result.worksheetName).toBe("تفاصيل الأصناف");
+    expect(result.rowCount).toBe(3);
+    expect(parsedRows[0]).toEqual([...ONYX_ORDER_COLUMNS]);
+    expect(parsedRows[0]).toHaveLength(27);
+    expect(parsedRows[1][0]).toBe("000125");
+    expect(parsedRows[1][4]).toBe("5");
+    expect(parsedRows[1][6]).toBe("42.5");
+    expect(parsedRows[1][22]).toBe("SO-0042");
+    expect(parsedRows[2][0]).toBe("000126");
   });
 
   it("keeps every item's field positions stable", () => {
