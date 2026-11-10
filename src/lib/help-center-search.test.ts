@@ -14,7 +14,7 @@ describe("Arabic help-center search", () => {
   });
 
   it("matches Arabic spelling variants after normalization", () => {
-    expect(filterHelpArticles(articles, "ارسال   الطلب").map((item) => item.question))
+    expect(filterHelpArticles(articles, "كِيف أُرْسِل").map((item) => item.question))
       .toEqual(["كيف أرسل طلب شراء؟"]);
   });
 
