@@ -28,6 +28,7 @@
     "src/lib/admin-record-context.ts",
     "src/lib/admin-record-context.test.ts",
     "src/lib/profile-access.ts",
-    "src/lib/profile-access.test.ts"
+    "src/lib/profile-access.test.ts",
+    "src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx"
   ]
 }
