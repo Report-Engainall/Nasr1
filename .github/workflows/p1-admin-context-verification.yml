@@ -10,6 +10,8 @@ on:
       - "src/lib/product-image-batch-match.ts"
       - "src/lib/product-image-batch-match.test.ts"
       - "src/lib/unified-import.ts"
+      - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
+      - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
       - "src/lib/unified-import-headers.test.ts"
       - "src/routes/profile.tsx"
       - "src/lib/profile-access.ts"
