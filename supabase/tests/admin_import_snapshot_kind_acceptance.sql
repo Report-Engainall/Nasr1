@@ -54,13 +54,15 @@ INSERT INTO public.import_jobs VALUES
 ('44444444-4444-4444-8444-444444444444','11111111-1111-4111-8111-111111111111','completed','unified_import_products'),
 ('55555555-5555-4555-8555-555555555555','11111111-1111-4111-8111-111111111111','completed','unified_import_customers');
 INSERT INTO public.onyx_snapshots VALUES
-('66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111','ready',95,'44444444-4444-4444-8444-444444444444',1),
+('66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111','ready',95,'44444444-4444-4444-8444-444444444444',2),
 ('77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111','ready',95,'44444444-4444-4444-8444-444444444444',1),
 ('88888888-8888-4888-8888-888888888888','11111111-1111-4111-8111-111111111111','ready',95,'55555555-5555-4555-8555-555555555555',1);
 INSERT INTO public.onyx_snapshot_rows(id,snapshot_id,organization_id,row_number,canonical_key,row_hash,status,data)
 VALUES
 ('99999999-9999-4999-8999-999999999991','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',1,'000125','hash-complete','valid',
  '{"item_code":"000125","product_name":"أرز بسمتي","unit":"كيس","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20","price_retail":"6.00"}'::jsonb),
+('99999999-9999-4999-8999-999999999994','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',2,'ITEM-UNPRICED-MIXED','hash-unpriced-mixed','valid',
+ '{"item_code":"ITEM-UNPRICED-MIXED","product_name":"صنف ناقص في دفعة مختلطة","unit":"كرتون","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20"}'::jsonb),
 ('99999999-9999-4999-8999-999999999992','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111',1,'ITEM-UNPRICED','hash-unpriced','valid',
  '{"item_code":"ITEM-UNPRICED","product_name":"صنف ناقص التسعير","unit":"كرتون","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20"}'::jsonb),
 ('99999999-9999-4999-8999-999999999993','88888888-8888-4888-8888-888888888888','11111111-1111-4111-8111-111111111111',1,'C-001','hash-customer','valid',
@@ -78,7 +80,7 @@ BEGIN
   END;
 
   v_result:=public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
-  IF v_result->>'created'<>'1' OR v_result->>'rejected'<>'0' OR v_result->>'status'<>'applied' THEN
+  IF v_result->>'created'<>'1' OR v_result->>'rejected'<>'1' OR v_result->>'products_needing_price_review'<>'1' OR v_result->>'status'<>'applied' THEN
     RAISE EXCEPTION 'valid product import failed: %',v_result;
   END IF;
   SELECT count(*) INTO v_products FROM public.products;
