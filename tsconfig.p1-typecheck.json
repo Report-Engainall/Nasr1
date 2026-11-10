@@ -39,6 +39,8 @@
     "src/lib/onyx-export.ts",
     "src/lib/onyx-export.test.ts",
     "src/lib/api.ts",
-    "src/components/UnifiedImportEngine.tsx"
+    "src/components/UnifiedImportEngine.tsx",
+    "src/lib/help-center-search.ts",
+    "src/lib/help-center-search.test.ts"
   ]
 }
