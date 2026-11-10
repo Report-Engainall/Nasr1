@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ONYX_ORDER_COLUMNS } from "@/lib/onyx-export";
-import { normalizeHeader } from "@/lib/unified-import";
+import { normalizeHeader, resolveImportProfileMapping } from "@/lib/unified-import";
 
 describe("default Onyx and bulk business import headers", () => {
   it("maps every one of the 27 official Onyx order-template column labels", () => {
@@ -43,5 +43,15 @@ describe("default Onyx and bulk business import headers", () => {
     expect(normalizeHeader("رقم الصنف")).toBe("item_code");
     expect(normalizeHeader("رمز المنتج")).toBe("item_code");
     expect(normalizeHeader("باركود")).toBe("barcode");
+  });
+
+  it("uses customer_code instead of the product profile key for customer files", () => {
+    expect(resolveImportProfileMapping("customers", ["item_code"], "item_code"))
+      .toEqual({ requiredColumns: ["customer_code"], matchingKey: "customer_code" });
+  });
+
+  it("preserves the active product profile rules for product files", () => {
+    expect(resolveImportProfileMapping("products", ["item_code", "unit"], "item_code"))
+      .toEqual({ requiredColumns: ["item_code", "unit"], matchingKey: "item_code" });
   });
 });
