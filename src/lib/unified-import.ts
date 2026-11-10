@@ -4,6 +4,16 @@
  */
 export type ImportDatasetKind = "products" | "customers";
 
+/**
+ * Resolve the only safe application target for a snapshot from its source job.
+ * Unknown and legacy non-product job types deliberately fail closed.
+ */
+export function resolveSnapshotImportKind(sourceJobType: unknown): ImportDatasetKind | null {
+  if (sourceJobType === "unified_import_customers") return "customers";
+  if (sourceJobType === "unified_import_products" || sourceJobType === "unified_import") return "products";
+  return null;
+}
+
 export type ImportProfileMapping = {
   requiredColumns: string[];
   matchingKey: string;
