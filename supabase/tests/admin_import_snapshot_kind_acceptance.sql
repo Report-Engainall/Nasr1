@@ -78,12 +78,16 @@ CREATE TABLE public.audit_logs (
   entity_id uuid NOT NULL, old_value jsonb NOT NULL, new_value jsonb NOT NULL
 );
 
+CREATE SEQUENCE public.test_product_save_calls;
+
 CREATE OR REPLACE FUNCTION public.save_admin_catalog_product(p_product_id uuid, p_payload jsonb)
 RETURNS jsonb LANGUAGE plpgsql
 AS $function$
 DECLARE
   v_id uuid := coalesce(p_product_id, pg_catalog.gen_random_uuid());
 BEGIN
+  PERFORM pg_catalog.nextval('public.test_product_save_calls');
+  RAISE NOTICE 'P1_TEST_SAVE_ADMIN_PRODUCT item_code=%', p_payload->>'item_code';
   INSERT INTO public.products (
     id, organization_id, item_code, status, base_price,
     price_wholesale_of_wholesale, price_wholesale, price_retail
@@ -112,6 +116,310 @@ INSERT INTO public.import_jobs VALUES
 INSERT INTO public.onyx_snapshots VALUES
   ('66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111','ready',95,'44444444-4444-4444-8444-444444444444',2),
   ('77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111','ready',95,'55555555-5555-4555-8555-555555555555',1);
+DO $save_probe$
+DECLARE
+  v_result jsonb;
+BEGIN
+  IF NOT (
+    '5.00' ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?
+  ('88888888-8888-4888-8888-888888888881','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',1,'000125','hash-valid-product','valid',
+   '{"item_code":"000125","product_name":"أرز بسمتي","unit":"كيس","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20","price_retail":"6.00"}'::jsonb),
+  ('88888888-8888-4888-8888-888888888882','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',2,'ITEM-UNPRICED','hash-missing-tier-price','valid',
+   '{"item_code":"ITEM-UNPRICED","product_name":"صنف ناقص التسعير","unit":"كرتون","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20"}'::jsonb),
+  ('99999999-9999-4999-8999-999999999999','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111',1,'C-001','hash-customer','valid',
+   '{"customer_code":"C-001","business_name":"مؤسسة اختبار","source_customer_tier":"vip","credit_limit":"90000"}'::jsonb);
+
+DO $acceptance$
+DECLARE
+  v_result jsonb; v_replay jsonb; v_message text;
+  v_products integer; v_customers integer;
+BEGIN
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','customers','wrong-kind-product-snapshot-01');
+    RAISE EXCEPTION 'expected product/customer mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected product snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'rejected' <> '1'
+     OR v_result->>'products_needing_price_review' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected product application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.products WHERE item_code='000125' AND base_price=5.00
+      AND price_wholesale_of_wholesale=4.50 AND price_wholesale=4.20 AND price_retail=6.00
+  ) OR EXISTS (SELECT 1 FROM public.products WHERE item_code='ITEM-UNPRICED') THEN
+    RAISE EXCEPTION 'missing tier price was converted to zero or created a product';
+  END IF;
+
+  v_replay := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN
+    RAISE EXCEPTION 'product snapshot replay did not return idempotent result';
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 THEN RAISE EXCEPTION 'product replay created a duplicate'; END IF;
+
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','products','wrong-kind-customer-snapshot-01');
+    RAISE EXCEPTION 'expected customer/product mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected customer snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected customer application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.customers WHERE customer_code='C-001'
+      AND tier='retail' AND status='pending' AND credit_limit=0
+  ) THEN RAISE EXCEPTION 'source tier/credit were imported or pending state was lost'; END IF;
+
+  v_replay := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN RAISE EXCEPTION 'customer replay did not return idempotent result'; END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 THEN RAISE EXCEPTION 'customer replay created a duplicate'; END IF;
+END;
+$acceptance$;
+
+SELECT 'PASS: PostgreSQL 17 snapshot-kind, missing-tier-price, pending-customer and idempotent replay acceptance' AS result;
+
+    AND '4.50' ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?
+  ('88888888-8888-4888-8888-888888888881','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',1,'000125','hash-valid-product','valid',
+   '{"item_code":"000125","product_name":"أرز بسمتي","unit":"كيس","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20","price_retail":"6.00"}'::jsonb),
+  ('88888888-8888-4888-8888-888888888882','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',2,'ITEM-UNPRICED','hash-missing-tier-price','valid',
+   '{"item_code":"ITEM-UNPRICED","product_name":"صنف ناقص التسعير","unit":"كرتون","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20"}'::jsonb),
+  ('99999999-9999-4999-8999-999999999999','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111',1,'C-001','hash-customer','valid',
+   '{"customer_code":"C-001","business_name":"مؤسسة اختبار","source_customer_tier":"vip","credit_limit":"90000"}'::jsonb);
+
+DO $acceptance$
+DECLARE
+  v_result jsonb; v_replay jsonb; v_message text;
+  v_products integer; v_customers integer;
+BEGIN
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','customers','wrong-kind-product-snapshot-01');
+    RAISE EXCEPTION 'expected product/customer mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected product snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'rejected' <> '1'
+     OR v_result->>'products_needing_price_review' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected product application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.products WHERE item_code='000125' AND base_price=5.00
+      AND price_wholesale_of_wholesale=4.50 AND price_wholesale=4.20 AND price_retail=6.00
+  ) OR EXISTS (SELECT 1 FROM public.products WHERE item_code='ITEM-UNPRICED') THEN
+    RAISE EXCEPTION 'missing tier price was converted to zero or created a product';
+  END IF;
+
+  v_replay := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN
+    RAISE EXCEPTION 'product snapshot replay did not return idempotent result';
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 THEN RAISE EXCEPTION 'product replay created a duplicate'; END IF;
+
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','products','wrong-kind-customer-snapshot-01');
+    RAISE EXCEPTION 'expected customer/product mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected customer snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected customer application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.customers WHERE customer_code='C-001'
+      AND tier='retail' AND status='pending' AND credit_limit=0
+  ) THEN RAISE EXCEPTION 'source tier/credit were imported or pending state was lost'; END IF;
+
+  v_replay := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN RAISE EXCEPTION 'customer replay did not return idempotent result'; END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 THEN RAISE EXCEPTION 'customer replay created a duplicate'; END IF;
+END;
+$acceptance$;
+
+SELECT 'PASS: PostgreSQL 17 snapshot-kind, missing-tier-price, pending-customer and idempotent replay acceptance' AS result;
+
+    AND '4.20' ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?
+  ('88888888-8888-4888-8888-888888888881','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',1,'000125','hash-valid-product','valid',
+   '{"item_code":"000125","product_name":"أرز بسمتي","unit":"كيس","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20","price_retail":"6.00"}'::jsonb),
+  ('88888888-8888-4888-8888-888888888882','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',2,'ITEM-UNPRICED','hash-missing-tier-price','valid',
+   '{"item_code":"ITEM-UNPRICED","product_name":"صنف ناقص التسعير","unit":"كرتون","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20"}'::jsonb),
+  ('99999999-9999-4999-8999-999999999999','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111',1,'C-001','hash-customer','valid',
+   '{"customer_code":"C-001","business_name":"مؤسسة اختبار","source_customer_tier":"vip","credit_limit":"90000"}'::jsonb);
+
+DO $acceptance$
+DECLARE
+  v_result jsonb; v_replay jsonb; v_message text;
+  v_products integer; v_customers integer;
+BEGIN
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','customers','wrong-kind-product-snapshot-01');
+    RAISE EXCEPTION 'expected product/customer mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected product snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'rejected' <> '1'
+     OR v_result->>'products_needing_price_review' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected product application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.products WHERE item_code='000125' AND base_price=5.00
+      AND price_wholesale_of_wholesale=4.50 AND price_wholesale=4.20 AND price_retail=6.00
+  ) OR EXISTS (SELECT 1 FROM public.products WHERE item_code='ITEM-UNPRICED') THEN
+    RAISE EXCEPTION 'missing tier price was converted to zero or created a product';
+  END IF;
+
+  v_replay := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN
+    RAISE EXCEPTION 'product snapshot replay did not return idempotent result';
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 THEN RAISE EXCEPTION 'product replay created a duplicate'; END IF;
+
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','products','wrong-kind-customer-snapshot-01');
+    RAISE EXCEPTION 'expected customer/product mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected customer snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected customer application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.customers WHERE customer_code='C-001'
+      AND tier='retail' AND status='pending' AND credit_limit=0
+  ) THEN RAISE EXCEPTION 'source tier/credit were imported or pending state was lost'; END IF;
+
+  v_replay := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN RAISE EXCEPTION 'customer replay did not return idempotent result'; END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 THEN RAISE EXCEPTION 'customer replay created a duplicate'; END IF;
+END;
+$acceptance$;
+
+SELECT 'PASS: PostgreSQL 17 snapshot-kind, missing-tier-price, pending-customer and idempotent replay acceptance' AS result;
+
+    AND '6.00' ~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?
+  ('88888888-8888-4888-8888-888888888881','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',1,'000125','hash-valid-product','valid',
+   '{"item_code":"000125","product_name":"أرز بسمتي","unit":"كيس","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20","price_retail":"6.00"}'::jsonb),
+  ('88888888-8888-4888-8888-888888888882','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',2,'ITEM-UNPRICED','hash-missing-tier-price','valid',
+   '{"item_code":"ITEM-UNPRICED","product_name":"صنف ناقص التسعير","unit":"كرتون","base_price":"5.00","price_wholesale_of_wholesale":"4.50","price_wholesale":"4.20"}'::jsonb),
+  ('99999999-9999-4999-8999-999999999999','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111',1,'C-001','hash-customer','valid',
+   '{"customer_code":"C-001","business_name":"مؤسسة اختبار","source_customer_tier":"vip","credit_limit":"90000"}'::jsonb);
+
+DO $acceptance$
+DECLARE
+  v_result jsonb; v_replay jsonb; v_message text;
+  v_products integer; v_customers integer;
+BEGIN
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','customers','wrong-kind-product-snapshot-01');
+    RAISE EXCEPTION 'expected product/customer mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected product snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'rejected' <> '1'
+     OR v_result->>'products_needing_price_review' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected product application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.products WHERE item_code='000125' AND base_price=5.00
+      AND price_wholesale_of_wholesale=4.50 AND price_wholesale=4.20 AND price_retail=6.00
+  ) OR EXISTS (SELECT 1 FROM public.products WHERE item_code='ITEM-UNPRICED') THEN
+    RAISE EXCEPTION 'missing tier price was converted to zero or created a product';
+  END IF;
+
+  v_replay := public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN
+    RAISE EXCEPTION 'product snapshot replay did not return idempotent result';
+  END IF;
+  SELECT count(*) INTO v_products FROM public.products;
+  IF v_products <> 1 THEN RAISE EXCEPTION 'product replay created a duplicate'; END IF;
+
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','products','wrong-kind-customer-snapshot-01');
+    RAISE EXCEPTION 'expected customer/product mismatch to be rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'unexpected customer snapshot mismatch error: %', v_message;
+    END IF;
+  END;
+
+  v_result := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_result->>'created' <> '1' OR v_result->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'unexpected customer application result: %', v_result;
+  END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.customers WHERE customer_code='C-001'
+      AND tier='retail' AND status='pending' AND credit_limit=0
+  ) THEN RAISE EXCEPTION 'source tier/credit were imported or pending state was lost'; END IF;
+
+  v_replay := public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','customer-snapshot-replay-key-001');
+  IF v_replay->>'idempotent_replay' <> 'true' THEN RAISE EXCEPTION 'customer replay did not return idempotent result'; END IF;
+  SELECT count(*) INTO v_customers FROM public.customers;
+  IF v_customers <> 1 THEN RAISE EXCEPTION 'customer replay created a duplicate'; END IF;
+END;
+$acceptance$;
+
+SELECT 'PASS: PostgreSQL 17 snapshot-kind, missing-tier-price, pending-customer and idempotent replay acceptance' AS result;
+
+  ) THEN RAISE EXCEPTION 'valid sample price strings failed the production SQL pattern'; END IF;
+
+  v_result := public.save_admin_catalog_product(NULL, '{
+    "item_code":"DEBUG-ONLY","status":"inactive","base_price":5.00,
+    "price_wholesale_of_wholesale":4.50,"price_wholesale":4.20,"price_retail":6.00
+  }'::jsonb);
+  IF v_result->>'created' <> 'true' THEN RAISE EXCEPTION 'test save function did not confirm create'; END IF;
+  DELETE FROM public.products WHERE item_code = 'DEBUG-ONLY';
+END;
+$save_probe$;
+
 INSERT INTO public.onyx_snapshot_rows(id,snapshot_id,organization_id,row_number,canonical_key,row_hash,status,data)
 VALUES
   ('88888888-8888-4888-8888-888888888881','66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111',1,'000125','hash-valid-product','valid',
