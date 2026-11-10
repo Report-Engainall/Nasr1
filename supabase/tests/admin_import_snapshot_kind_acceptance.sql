@@ -42,6 +42,7 @@ BEGIN
     RAISE NOTICE 'P1_TEST_SAVE_ADMIN_PRODUCT_FAILURE %',SQLERRM;
     RAISE;
   END;
+  RAISE NOTICE 'P1_TEST_SAVE_ADMIN_PRODUCT_INSERTED item_code=%',p_payload->>'item_code';
   RETURN pg_catalog.jsonb_build_object('id',v_id,'status',p_payload->>'status','created',true);
 END;
 $f$;
