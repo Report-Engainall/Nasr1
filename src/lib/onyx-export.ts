@@ -213,16 +213,15 @@ export function buildOnyxDetailRows(input: OnyxOrderWorkbookInput): CellValue[][
     ...input.items.map((item) => {
       const quantity = positiveQuantity(item.approved_quantity ?? item.quantity);
       const price = finiteNonNegative(item.approved_unit_price ?? item.unit_price_snapshot, 'سعر الوحدة');
-      return [
-        String(item.item_code ?? ''),
-        String(item.product_name_snapshot ?? ''),
-        String(item.unit_snapshot ?? ''),
-        '', quantity, '', price,
-        '', '', '', '', '', '', '', '',
-        '', '', '', '', '', '', '',
-        String(input.orderNumber),
-        '', '', '', '',
-      ];
+      // Build against the canonical template width so a visual blank cannot shift later fields.
+      const row: CellValue[] = Array.from({ length: ONYX_ORDER_COLUMNS.length }, () => '');
+      row[0] = String(item.item_code ?? '');
+      row[1] = String(item.product_name_snapshot ?? '');
+      row[2] = String(item.unit_snapshot ?? '');
+      row[4] = quantity;
+      row[6] = price;
+      row[22] = String(input.orderNumber);
+      return row;
     }),
   ];
 }
