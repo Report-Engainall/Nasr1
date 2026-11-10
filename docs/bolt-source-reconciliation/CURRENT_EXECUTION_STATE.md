@@ -1,3 +1,41 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 UNIFIED OPERATIONS EXCEPTION LATEST-STATE PROJECTION
+
+> Tested code SHA: `85389cb413d2d7ff391f129bcc1e63d29601aaf1`; repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Source logic: `1777733df89df9c576052e76eb1377a628ca9034`; parser correction: `00ce3feb5ee48cf8230b34bfc456c5ecad66bf45`; regression-fixture correction and exact tested SHA: `85389cb413d2d7ff391f129bcc1e63d29601aaf1`.
+> Exact verification: [GitHub Actions run 42899211338](https://github.com/Report-Engainall/Nasr1/actions/runs/42899211338) — SUCCESS on exact SHA `85389cb413d2d7ff391f129bcc1e63d29601aaf1`.
+
+## Implemented on main
+
+- Preserved the existing `OperationsCenter` and `OperationsExceptionCenter` already mounted at `/admin/operations`; no parallel page, task table, event engine or migration was created.
+- Corrected exception projection ordering in `src/lib/operations-exceptions.ts`: resolve the newest record per logical task event, import source/file-hash/period signature, and reconciliation snapshot **before** filtering open/failing states. A newer completed/cancelled task, clean import attempt, or zero-difference reconciliation now supersedes its earlier exception.
+- Missing data remains explicit: missing import failed/rejected counters and missing reconciliation counters create an incomplete-evidence exception; they are not interpreted as zero. A clean reconciliation clears a prior variance only when all three counters are explicitly present and zero.
+- Existing source navigation remains attached to the original task, import job or reconciliation run. Projection is read-only; no operational, inventory, financial or source record is changed.
+- Added five regression cases for task closure, import recovery, reconciliation recovery, missing reconciliation counters and missing import counters.
+
+## Exact verification
+
+- GitHub Actions run 42899211338: SUCCESS on exact code SHA `85389cb413d2d7ff391f129bcc1e63d29601aaf1`.
+- Vitest regression suite: 9/9 files and 64/64 tests PASS.
+- `bunx tsc --noEmit -p tsconfig.p1-typecheck.json`: PASS.
+- Earlier failed runs were traced and corrected: the first exposed a duplicate local declaration; the next exposed contradictory task/reconciliation fixtures. The final run above is the authoritative exact-SHA result.
+
+## Acceptance boundary — do not overstate
+
+- `CODE-IMPLEMENTED`: YES.
+- `INTEGRATED`: YES — existing `/admin/operations` tab and existing source callbacks are reused.
+- `TEST-PROVEN`: YES — exact-SHA workflow above.
+- `DATA-PROVEN`: NO — no live tenant/business data was queried in this delivery.
+- `BROWSER-PROVEN`: NO — no authenticated browser session/device was available.
+- `PRODUCTION-PROVEN`: NO — no production or database operation was performed.
+- The current P1 center consumes operational tasks, import jobs and inventory reconciliation runs. Unmatched invoices/payments, supplier due-date exceptions and backup/coverage health are **not claimed as implemented**: add them only through approved tenant-scoped, role-authorized source DTOs; do not introduce direct financial table reads or infer delivery dates from timestamps without a source due-date contract.
+- No SQL migration, RPC, RLS, role grant, paid AI provider, Vercel CLI, manual deployment or Bolt operation was used.
+
+## Next execution point
+
+Continue with an independent P1 gap. For any finance, supplier-obligation or backup exception, first reuse an existing server-authorized read contract if it returns a complete source identity, status, as-of time and evidence; otherwise record the specific P2 contract dependency and continue elsewhere. Keep DLV-001/DLV-002 and hosted/production acceptance open.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 EVIDENCE SOURCE COMPARISON WORKSPACE MOUNT
 
 > Code implementation commit: `bde7aea453cd35b99d8b66ed5b3d407d1c640db5`; test corrections: `e86401d8730abc72d565d31e0d03ab4e7a7e1f45` and `73ce5049db94c60484c009588f0defe982925a8f`; current code SHA at checkpoint: `73ce5049db94c60484c009588f0defe982925a8f`.
