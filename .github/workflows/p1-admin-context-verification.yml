@@ -39,6 +39,7 @@ on:
       - "src/lib/operations-exceptions.test.ts"
       - "src/lib/help-center-search.test.ts"
       - "src/lib/help-center-search.ts"
+      - "src/routes/help.tsx"
   pull_request:
     branches:
       - main
@@ -77,6 +78,7 @@ on:
       - "src/lib/operations-exceptions.test.ts"
       - "src/lib/help-center-search.ts"
       - "src/lib/help-center-search.test.ts"
+      - "src/routes/help.tsx"
   workflow_dispatch:
 
 permissions:
