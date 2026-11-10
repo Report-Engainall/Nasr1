@@ -54,6 +54,7 @@ import { UnifiedOnyxAnalysisPanel } from '@/components/UnifiedOnyxAnalysisPanel'
 import { ExecutiveStoreAnalytics } from '@/components/ExecutiveStoreAnalytics';
 import { PromotionManager } from '@/components/PromotionManager';
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
+import { BulkProductImageUploader } from '@/components/BulkProductImageUploader';
 import { validateCustomerInput } from '@/lib/customer-input';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
 import { GeneralLedgerWorkspace } from '@/components/GeneralLedgerWorkspace';
@@ -1092,6 +1093,11 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
     <div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
+    <BulkProductImageUploader
+      products={data ?? []}
+      canManage={canManageProductLifecycle}
+      onUploaded={async (message) => { await refetch(); onNotice(message); }}
+    />
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table>
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
