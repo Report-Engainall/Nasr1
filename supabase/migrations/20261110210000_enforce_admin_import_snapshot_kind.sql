@@ -261,6 +261,7 @@ begin
           v_stock_pending := v_stock_pending + 1;
         end if;
       exception when others then
+        RAISE NOTICE 'P1_APPLY_PRODUCT_FAILURE=%', SQLERRM;
         v_rejected := v_rejected + 1;
         if pg_catalog.jsonb_array_length(v_errors) < 50 then
           v_errors := v_errors || pg_catalog.jsonb_build_array(
