@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
-  applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms,
+  applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, ensureCustomerImportProfile, failImportJobSafely, fetchCentralSynonyms,
   fetchImportJobs, fetchImportProfiles, fetchOnyxSnapshots, rollbackImportSnapshot,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
   type AdminImportApplicationResult, type ImportRowErrorDetail, type OnyxSnapshotSummary,
@@ -15,7 +15,7 @@ import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/compon
 import {
   DataQualityAccumulator, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS,
   PROCESSING_CHUNK_ROWS, UPLOAD_CHUNK_BYTES, IncrementalSha256, StreamingCsvParser, hashFileSha256,
-  applyImportProfileRules, normalizeHeader, parseXlsxFirstWorksheet, shouldPersistParsedImportRow, stableJsonStringify, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
+  applyImportProfileRules, normalizeHeader, parseXlsxFirstWorksheet, resolveImportProfileMapping, shouldPersistParsedImportRow, stableJsonStringify, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
   type ParsedImportRow, type QualityResult,
 } from "@/lib/unified-import";
 import type { ImportJob, ImportProfile } from "@/lib/types";
@@ -228,6 +228,25 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     setProgress(10);
     setProcessed(0);
     setQualityPreview(null);
+    const selectedImportKind: "products" | "customers" =
+      existingJob?.job_type === "unified_import_customers"
+        ? "customers"
+        : existingJob?.job_type === "unified_import_products" || existingJob?.job_type === "unified_import"
+          ? "products"
+          : applicationKind;
+    if (selectedImportKind === "customers" && !canRollbackImport) {
+      setErrorMessage("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
+      runningRef.current = false;
+      return;
+    }
+    if (selectedImportKind === "customers") {
+      const customerProfileId = await ensureCustomerImportProfile();
+      if (selectedProfile && selectedProfile !== customerProfileId) {
+        throw new Error("ملف العملاء التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف العملاء قبل الاستئناف.");
+      }
+      selectedProfile = customerProfileId;
+    }
+    const importJobType = selectedImportKind === "customers" ? "unified_import_customers" : "unified_import_products";
     let job: ImportJob | null = existingJob ?? null;
     let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; external_source_reference: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
     let processingConfigFingerprint: string | null = null;
@@ -245,7 +264,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           fileName: file.name,
           fileHash,
           fileSize: file.size,
-          jobType: "unified_import",
+          jobType: importJobType,
           profileId: selectedProfile,
           periodKey: selectedPeriod,
           sourceSystem: selectedSource,
@@ -256,7 +275,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           fileName: file.name,
           fileHash,
           fileSize: file.size,
-          jobType: "unified_import",
+          jobType: importJobType,
           profileId: selectedProfile,
           periodKey: selectedPeriod,
           sourceSystem: selectedSource,
@@ -316,9 +335,15 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         if (source && /^[a-z][a-z0-9_]{0,79}$/.test(target)) profileSynonyms[source] = target;
       }
       const ignoredColumns = new Set((profile?.ignored_columns ?? []).map((field) => normalizeHeader(String(field), profileSynonyms)));
-      const requiredColumns = Array.isArray(profile?.required_columns) ? profile.required_columns.map(String) : ["item_code"];
-      const matchingKey = String(profile?.matching_key ?? "item_code");
+      const importMapping = resolveImportProfileMapping(
+        selectedImportKind,
+        Array.isArray(profile?.required_columns) ? profile.required_columns.map(String) : null,
+        typeof profile?.matching_key === "string" ? profile.matching_key : null,
+      );
+      const requiredColumns = importMapping.requiredColumns;
+      const matchingKey = importMapping.matchingKey;
       const processingConfig = {
+        importKind: selectedImportKind,
         profileId: selectedProfile,
         profileVersion: profile?.version ?? null,
         reportType: profile?.report_type ?? null,
@@ -625,12 +650,18 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setProgress(Math.round((bytes / Math.max(file.size, 1)) * 10));
       });
       setStage("detecting");
-      const duplicate = await findImportDuplicate(fileHash, activeProfileId, periodKey.trim() || null) as DuplicateResult;
+      if (applicationKind === "customers" && !canRollbackImport) {
+        throw new Error("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
+      }
+      const selectedProfileForFile = applicationKind === "customers"
+        ? await ensureCustomerImportProfile()
+        : activeProfileId;
+      const duplicate = await findImportDuplicate(fileHash, selectedProfileForFile, periodKey.trim() || null) as DuplicateResult;
       if (duplicate.duplicate) {
         setDuplicatePrompt({
           file,
           fileHash,
-          profileId: activeProfileId,
+          profileId: selectedProfileForFile,
           periodKey: periodKey.trim() || null,
           sourceSystem,
           externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
@@ -640,7 +671,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
         return;
       }
-      await processFile(file, fileHash, "new_version", undefined, activeProfileId, periodKey.trim() || null, sourceSystem,
+      await processFile(file, fileHash, "new_version", undefined, selectedProfileForFile, periodKey.trim() || null, sourceSystem,
         sourceSystem === "manual" ? null : externalSourceReference.trim() || null);
     } catch (cause) {
       setStage(null);
@@ -817,6 +848,19 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           <h2>رفع ملف للمعالجة</h2>
           <p>يدعم CSV وملفات XLSX الجدولية (الورقة المرئية الأولى). صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي؛ لا تُخترع بيانات غير مستخرجة.</p>
           <div className="form-grid">
+            <label className="form-field"><span>نوع البيانات في الملف</span>
+              <select value={applicationKind} disabled={stage !== null || Boolean(duplicatePrompt)}
+                onChange={(event) => {
+                  setApplicationKind(event.target.value as "products" | "customers");
+                  setApplicationNotice(null);
+                }}>
+                <option value="products">أصناف المنتجات</option>
+                <option value="customers" disabled={!canRollbackImport}>دليل العملاء</option>
+              </select>
+              <small>{applicationKind === "customers"
+                ? "يُستخدم ملف عملاء مستقل ومفتاح رقم العميل؛ تُتجاهل فئة المصدر ويحدد المدير فئة العميل لاحقاً."
+                : "ملف الأصناف يستخدم رقم الصنف ومواصفات وأسعار الفئات الثلاث."}</small>
+            </label>
             <label className="form-field"><span>مصدر البيانات</span>
               <select value={sourceSystem} disabled={stage !== null || Boolean(duplicatePrompt)} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
                 <option value="manual">رفع يدوي</option>
@@ -898,14 +942,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         <section className="panel">
           <div className="panel-head">
             <div><h2>اعتماد البيانات إلى الكتالوج والعملاء</h2><p>تطبيق لقطة مراجعة جاهزة دون إعادة تحليل الملف أو تعديل السجلات الموجودة.</p></div>
-            <label className="form-field" style={{ minWidth: 190 }}>
-              <span>نوع البيانات المراد اعتمادها</span>
-              <select value={applicationKind} disabled={!canRollbackImport || Boolean(applicationBusyId)}
-                onChange={(event) => { setApplicationKind(event.target.value as "products" | "customers"); setApplicationNotice(null); }}>
-                <option value="products">أصناف المنتجات</option>
-                <option value="customers">دليل العملاء</option>
-              </select>
-            </label>
+
           </div>
           <div className="privacy-note"><ShieldCheck size={17} /><span>
             {applicationKind === "products"
