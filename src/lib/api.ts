@@ -1,4 +1,14 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+
+export async function ensureCustomerImportProfile(): Promise<string> {
+  const { data, error } = await supabase.rpc("ensure_customer_import_profile");
+  if (error) throw new Error(error.message || "تعذر تهيئة ملف استيراد العملاء.");
+  if (typeof data !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+    throw new Error("لم يؤكد الخادم ملف استيراد العملاء.");
+  }
+  return data;
+}
 import { fetchStorefrontCatalogPage } from './storefront-catalog';
 import { parsePublicStorefrontCategories } from './storefront-categories';
 import { saveAdminCatalogProduct } from './admin-catalog-commands';
