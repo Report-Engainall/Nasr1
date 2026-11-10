@@ -1,3 +1,44 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 ONYX SNAPSHOT SOURCE-KIND BINDING
+
+> Base main SHA: `a49014306c95c43284381934fbce5ca08b260fcf`.
+> Implementation PR: [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
+> Implementation code SHA tested: `998dcc2e64a451501ea4002027dd139cf7923a45`.
+> Exact-head GitHub Actions evidence: [run 42889528106](https://github.com/Report-Engainall/Nasr1/actions/runs/42889528106) — SUCCESS; pull_request event; 9 Vitest files / 65 tests passed; P1 strict TypeScript passed.
+
+## P1 code change
+
+A reviewed Onyx snapshot was previously applied using the mutable `applicationKind` selector used for the *next file upload*. The visible `report_type` cannot safely distinguish products from customers because both profiles use a tabular report type.
+
+The P1 correction:
+- Reads `source_import_job_id` with each ready snapshot and resolves the source `import_jobs.job_type` through tenant-scoped RLS.
+- Recognizes only `unified_import_products`, `unified_import_customers`, and the legacy `unified_import` product job.
+- Stores the resolved kind on the snapshot DTO. Missing or unknown source jobs resolve to `null`; the UI displays an unconfirmed kind and disables the apply action.
+- Uses the snapshot-bound kind for confirmation, RPC arguments and result presentation. The upload-kind selector no longer decides the kind of an already-created snapshot.
+- Adds `src/lib/onyx-snapshot-import-kind.test.ts` covering product, customer, legacy product and seven fail-closed unknown cases.
+- Adds the new helper, component, API and test to the P1 strict TypeScript scope, and enables the existing P1 verification workflow on pull requests and acceptance-document changes. The workflow checks out the exact PR head SHA.
+
+Files changed by PR #416:
+`src/lib/onyx-snapshot-import-kind.ts`,
+`src/lib/onyx-snapshot-import-kind.test.ts`,
+`src/lib/api.ts`,
+`src/components/UnifiedImportEngine.tsx`,
+`tsconfig.p1-typecheck.json`,
+`.github/workflows/p1-admin-context-verification.yml`.
+
+## Remaining boundary and blockers — NOT CLOSED
+
+1. The change is an admin UI/API binding, not a server authorization boundary. The existing `apply_admin_import_snapshot` RPC still accepts `p_import_kind` and does not independently compare it to the source job's `job_type`. P2 must add a server-side guard and PostgreSQL 17 denial/no-side-effect tests before this rule can be called authoritative.
+2. The existing product apply migration converts missing/invalid price text to numeric zero placeholders, increments the price-review counter, and saves the product inactive. This does not satisfy the requirement to preserve a truly unavailable price as absent/null. P2 must correct the stored representation and prove the price-resolution/API privacy path before publication; do not describe the current placeholder behavior as complete.
+3. Opening inventory is still only counted as pending when a warehouse name and quantity appear. The apply routine does not post a stock adjustment. Keep stock import blocked until a tenant/warehouse/unit-bound idempotent reconciliation transaction and its audit evidence exist.
+4. No live database mutation, hosted customer session, browser interaction, or target-version Onyx round-trip was performed in this P1 change. Do not convert source tests into runtime acceptance.
+5. PR #416 remains unmerged. Merge only after review and green required checks.
+
+## Resume rule
+
+Continue from the current main and PR state, not from a stale import branch. Preserve this scope: P1 binds the user-facing application flow; P2 owns the server-side dataset guard, safe price representation and opening-stock transaction; P3 owns intelligent engines. Do not rewrite the importer, image batch matcher, pricing engine, 27-column workbook contract, or existing evidence workspace.
+ 
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 EVIDENCE SOURCE COMPARISON WORKSPACE MOUNT
 
 > Code implementation commit: `bde7aea453cd35b99d8b66ed5b3d407d1c640db5`; test corrections: `e86401d8730abc72d565d31e0d03ab4e7a7e1f45` and `73ce5049db94c60484c009588f0defe982925a8f`; current code SHA at checkpoint: `73ce5049db94c60484c009588f0defe982925a8f`.
