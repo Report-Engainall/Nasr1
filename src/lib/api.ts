@@ -1,4 +1,5 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+import { resolveSnapshotImportKind } from './unified-import';
 
 import { fetchStorefrontCatalogPage } from './storefront-catalog';
 import { parsePublicStorefrontCategories } from './storefront-categories';
@@ -2177,6 +2178,8 @@ export async function fetchImportProfiles() {
 
 export type OnyxSnapshotSummary = {
   id: string;
+  source_import_job_id: string | null;
+  import_kind: "products" | "customers" | null;
   snapshot_version: number;
   period_key: string | null;
   source_file_hash: string;
@@ -2204,12 +2207,32 @@ export type OnyxSnapshotRow = {
 export async function fetchOnyxSnapshots(): Promise<OnyxSnapshotSummary[]> {
   const { data, error } = await supabase
     .from('onyx_snapshots')
-    .select('id,snapshot_version,period_key,source_file_hash,source_file_name,report_type,row_count,data_quality_score,quality_breakdown,created_by,created_at')
+    .select('id,source_import_job_id,snapshot_version,period_key,source_file_hash,source_file_name,report_type,row_count,data_quality_score,quality_breakdown,created_by,created_at')
     .eq('status', 'ready')
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+
+  // Resolve the application target from the persisted source job, never from a
+  // mutable page-level selector. If RLS or old metadata prevents resolution,
+  // import_kind remains null and the UI disables application.
+  const sourceJobIds = [...new Set(rows
+    .map((row) => row.source_import_job_id)
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0))];
+  const sourceJobTypes = new Map<string, unknown>();
+  if (sourceJobIds.length > 0) {
+    const { data: sourceJobs, error: sourceJobsError } = await supabase
+      .from('import_jobs')
+      .select('id,job_type')
+      .in('id', sourceJobIds);
+    if (sourceJobsError) throw sourceJobsError;
+    for (const job of sourceJobs ?? []) {
+      const row = job as { id?: unknown; job_type?: unknown };
+      if (typeof row.id === 'string') sourceJobTypes.set(row.id, row.job_type);
+    }
+  }
+
   return rows.map((row) => {
     const score = row.data_quality_score;
     const rowCount = row.row_count;
@@ -2223,9 +2246,12 @@ export async function fetchOnyxSnapshots(): Promise<OnyxSnapshotSummary[]> {
     ) {
       throw new Error('أعاد الخادم بيانات لقطة أونكس غير مكتملة؛ لم تُعرض أرقام بديلة.');
     }
+    const sourceImportJobId = typeof row.source_import_job_id === 'string' ? row.source_import_job_id : null;
     const breakdown = row.quality_breakdown;
     return {
       id: row.id,
+      source_import_job_id: sourceImportJobId,
+      import_kind: sourceImportJobId ? resolveSnapshotImportKind(sourceJobTypes.get(sourceImportJobId)) : null,
       snapshot_version: version,
       period_key: typeof row.period_key === 'string' ? row.period_key : null,
       source_file_hash: row.source_file_hash,
