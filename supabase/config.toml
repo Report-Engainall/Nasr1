@@ -12,3 +12,6 @@ verify_jwt = true
 [functions.bootstrap-first-admin]
 # This endpoint performs its own one-time secret authentication; no Auth user exists yet.
 verify_jwt = false
+
+[functions.product-image-upload]
+verify_jwt = true

@@ -5,7 +5,7 @@ import {
   isValidProductImageObjectPath,
   isWebpPayload,
   PRODUCT_IMAGE_MAX_BYTES,
-} from "../../../src/lib/product-image-security.ts";
+} from "./product-image-security.ts";
 
 export const PRODUCT_IMAGE_BUCKET = "product-images";
 
