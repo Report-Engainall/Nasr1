@@ -1,3 +1,35 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 HELP CENTER ARABIC SEARCH NORMALIZATION
+
+> Repository: `Report-Engainall/Nasr1`; PR [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
+> Exact tested code SHA: `7b5ef7f18f8ac24b1c3b3b19f082b586c9737a15`.
+> GitHub Actions: [run 42900969193](https://github.com/Report-Engainall/Nasr1/actions/runs/42900969193) — SUCCESS on the exact PR head; Vitest 13/13 files and 94/94 tests PASS; P1 strict TypeScript PASS.
+
+## Implemented in the existing /help route
+
+- Kept the current `src/routes/help.tsx`, existing FAQ content, category grouping and route actions; no replacement help page or duplicate search system was created.
+- Extracted the existing search projection into `src/lib/help-center-search.ts` and connected the route to `filterHelpArticles`.
+- Search normalization now uses NFKC, removes Arabic combining marks across the extended diacritic ranges and tatweel, maps alef forms to a stable alef, normalizes alef maqsura, lowercases Latin terms, and collapses regular/NBSP whitespace.
+- Search continues to match category, question, answer and keywords; blank queries return the complete article list and no-result searches remain empty without mutating source content.
+- Added `src/lib/help-center-search.test.ts` with five cases: normalization, vocalized Arabic query matching, category/question/answer/keyword search, empty-query copy semantics and no-result behavior.
+- Added the helper/test to the P1 strict TypeScript project and the existing push/PR Actions path filters; the `/help` route itself is included in the workflow path filters.
+
+## Exact verification
+
+- GitHub Actions run 42900969193: SUCCESS on `7b5ef7f18f8ac24b1c3b3b19f082b586c9737a15`.
+- Vitest: 13/13 files; 94/94 tests PASS.
+- `bunx tsc --noEmit -p tsconfig.p1-typecheck.json`: PASS.
+- The workflow emitted the known non-failing Vite process-close warning after tests had closed successfully; the job completed SUCCESS.
+
+## Acceptance boundary
+
+- `CODE_IMPLEMENTED`: YES.
+- `ROUTE_INTEGRATED`: YES — the existing `/help` route uses the new pure search helper.
+- `TEST_PROVEN`: YES — exact-SHA Actions above.
+- `BROWSER_PROVEN`: NO — direct route, main navigation, footer entry, destination links, mobile RTL, keyboard focus and authenticated/anonymous access still require browser acceptance.
+- DLV-002 remains OPEN; no runtime or production acceptance is inferred from source tests.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 ONYX IMPORT / EXPORT / SNAPSHOT REVIEW PREVIEW
 
 > Repository: `Report-Engainall/Nasr1`; PR [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
