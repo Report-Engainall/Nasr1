@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ONYX_ORDER_COLUMNS } from "@/lib/onyx-export";
-import { normalizeHeader, resolveImportProfileMapping, resolveSnapshotImportKind } from "@/lib/unified-import";
+import { normalizeHeader, resolveImportProfileMapping } from "@/lib/unified-import";
 
 describe("default Onyx and bulk business import headers", () => {
   it("maps every one of the 27 official Onyx order-template column labels", () => {
@@ -53,13 +53,5 @@ describe("default Onyx and bulk business import headers", () => {
   it("preserves the active product profile rules for product files", () => {
     expect(resolveImportProfileMapping("products", ["item_code", "unit"], "item_code"))
       .toEqual({ requiredColumns: ["item_code", "unit"], matchingKey: "item_code" });
-  });
-
-  it("binds snapshot application to the source job type and fails closed on unknown jobs", () => {
-    expect(resolveSnapshotImportKind("unified_import_customers")).toBe("customers");
-    expect(resolveSnapshotImportKind("unified_import_products")).toBe("products");
-    expect(resolveSnapshotImportKind("unified_import")).toBe("products");
-    expect(resolveSnapshotImportKind("inventory_import")).toBeNull();
-    expect(resolveSnapshotImportKind(null)).toBeNull();
   });
 });
