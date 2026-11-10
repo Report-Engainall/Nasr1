@@ -33,6 +33,12 @@
     "src/components/OperationsCenter.tsx",
     "src/components/OperationsExceptionCenter.tsx",
     "src/lib/operations-exceptions.ts",
-    "src/lib/operations-exceptions.test.ts"
+    "src/lib/operations-exceptions.test.ts",
+    "src/lib/onyx-snapshot-import-kind.ts",
+    "src/lib/onyx-snapshot-import-kind.test.ts",
+    "src/lib/onyx-export.ts",
+    "src/lib/onyx-export.test.ts",
+    "src/lib/api.ts",
+    "src/components/UnifiedImportEngine.tsx"
   ]
 }

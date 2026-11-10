@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { formatNumber } from "@/lib/format";
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/components/AdminPages";
 import {
-  DataQualityAccumulator, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS,
+  DataQualityAccumulator, detectImportDatasetKind, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS,
   PROCESSING_CHUNK_ROWS, UPLOAD_CHUNK_BYTES, IncrementalSha256, StreamingCsvParser, hashFileSha256,
   applyImportProfileRules, normalizeHeader, parseXlsxFirstWorksheet, resolveImportProfileMapping, shouldPersistParsedImportRow, stableJsonStringify, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
   type ParsedImportRow, type QualityResult,
@@ -36,7 +36,46 @@ type DuplicatePrompt = {
   sourceSystem: string;
   externalSourceReference: string | null;
   duplicate: DuplicateResult;
+  applicationKind: "products" | "customers";
 };
+
+async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Promise<string[]> {
+  let headers: string[] = [];
+  const headerCaptured = Symbol("first-import-header-row");
+  const captureFirstRow = (values: string[]) => {
+    if (headers === null) {
+      headers = values;
+      throw headerCaptured;
+    }
+  };
+
+  if (extension === "csv") {
+    // The import limits are 100 columns x 4,000 chars per cell; 1 MiB bounds header sniffing.
+    const prefix = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
+    const parser = new StreamingCsvParser();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    try {
+      await parser.push(
+        decoder.decode(prefix, { stream: file.size > prefix.byteLength }),
+        captureFirstRow,
+        file.size <= prefix.byteLength,
+      );
+    } catch (cause) {
+      if (cause !== headerCaptured) throw cause;
+    }
+  } else {
+    try {
+      await parseXlsxFirstWorksheet(file, captureFirstRow);
+    } catch (cause) {
+      if (cause !== headerCaptured) throw cause;
+    }
+  }
+
+  if (headers.length === 0 || headers.every((value) => !String(value ?? "").trim())) {
+    throw new Error("تعذر قراءة صف العناوين من الملف؛ لم تُنشأ دفعة استيراد.");
+  }
+  return headers.map((value, index) => index === 0 ? value.replace(/^\uFEFF/, "") : value);
+}
 
 function unsupportedImportFormatDetails(extension: string): {
   errorSummary: { code: string; message: string; manual_mapping_required: true; no_raw_file_retained: true };
@@ -118,7 +157,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
   const [qualityPreview, setQualityPreview] = useState<QualityResult | null>(null);
   const [applicationKind, setApplicationKind] = useState<"products" | "customers">("products");
   const [applicationBusyId, setApplicationBusyId] = useState<string | null>(null);
-  const [applicationNotice, setApplicationNotice] = useState<{ snapshotId: string; result: AdminImportApplicationResult } | null>(null);
+  const [applicationNotice, setApplicationNotice] = useState<{ snapshotId: string; importKind: "products" | "customers"; result: AdminImportApplicationResult } | null>(null);
   const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
   const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string; offset: number; hasMore: boolean } | null>(null);
   const rowErrorRequestId = useRef(0);
@@ -217,6 +256,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     selectedExternalSourceReference: string | null = existingJob
       ? (existingJob.external_source_reference ?? null)
       : selectedSource === "manual" ? null : externalSourceReference.trim() || null,
+    requestedImportKind?: "products" | "customers",
   ) {
     if (runningRef.current) return;
     runningRef.current = true;
@@ -233,7 +273,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         ? "customers"
         : existingJob?.job_type === "unified_import_products" || existingJob?.job_type === "unified_import"
           ? "products"
-          : applicationKind;
+          : requestedImportKind ?? applicationKind;
     if (selectedImportKind === "customers" && !canRollbackImport) {
       setErrorMessage("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       runningRef.current = false;
@@ -651,10 +691,30 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setProgress(Math.round((bytes / Math.max(file.size, 1)) * 10));
       });
       setStage("detecting");
-      if (applicationKind === "customers" && !canRollbackImport) {
+      const extension = file.name.split(".").pop()?.toLocaleLowerCase("en") ?? "";
+      let detectedImportKind: "products" | "customers" = applicationKind;
+      if (extension === "csv" || extension === "xlsx") {
+        const sourceHeaders = await readImportFileHeaders(file, extension);
+        const detection = detectImportDatasetKind(sourceHeaders);
+        if (detection.kind === "inventory") {
+          throw new Error("اكتشف النظام ملف أرصدة مخزون مستقلًا (" + detection.matchedFields.join("، ") +
+            "). لم تُنشأ دفعة أصناف ولم يُعدّل أي رصيد؛ لا يُعتمد المخزون حتى يكتمل مسار المطابقة والتسوية الآمنة.");
+        }
+        if (detection.kind === "ambiguous") {
+          throw new Error("رؤوس الملف تجمع أكثر من نوع بيانات (" + detection.matchedFields.join("، ") +
+            "). افصل الأصناف والعملاء والمخزون في ملفات مستقلة؛ لم تُنشأ دفعة ولم تُحفظ صفوف.");
+        }
+        if (detection.kind === "products" || detection.kind === "customers") {
+          detectedImportKind = detection.kind;
+          setApplicationKind(detectedImportKind);
+        } else {
+          setStatusMessage("لم تكفِ رؤوس الملف لإثبات نوعه؛ سيُستخدم اختيار النوع اليدوي الحالي، وتظل قواعد الأعمدة الإلزامية نافذة.");
+        }
+      }
+      if (detectedImportKind === "customers" && !canRollbackImport) {
         throw new Error("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       }
-      const selectedProfileForFile = applicationKind === "customers"
+      const selectedProfileForFile = detectedImportKind === "customers"
         ? await ensureCustomerImportProfile()
         : activeProfileId;
       const duplicate = await findImportDuplicate(fileHash, selectedProfileForFile, periodKey.trim() || null) as DuplicateResult;
@@ -667,13 +727,14 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           sourceSystem,
           externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
           duplicate,
+          applicationKind: detectedImportKind,
         });
         setStage(null);
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
         return;
       }
       await processFile(file, fileHash, "new_version", undefined, selectedProfileForFile, periodKey.trim() || null, sourceSystem,
-        sourceSystem === "manual" ? null : externalSourceReference.trim() || null);
+        sourceSystem === "manual" ? null : externalSourceReference.trim() || null, detectedImportKind);
     } catch (cause) {
       setStage(null);
       setErrorMessage(cause instanceof Error ? cause.message : "تعذر قراءة بصمة الملف.");
@@ -700,11 +761,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey,
         openJob.source_system ?? pending.sourceSystem,
         openJob.external_source_reference ?? pending.externalSourceReference,
+        pending.applicationKind,
       );
       return;
     }
     await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
-      pending.sourceSystem, pending.externalSourceReference);
+      pending.sourceSystem, pending.externalSourceReference, pending.applicationKind);
   }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
@@ -758,16 +820,21 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
 
   async function applyReadySnapshot(snapshot: OnyxSnapshotSummary) {
     if (!canRollbackImport || applicationBusyId) return;
+    const importKind = snapshot.import_kind;
+    if (!importKind) {
+      setErrorMessage("تعذر إثبات نوع دفعة مصدر هذه اللقطة؛ لم يبدأ الاعتماد. عالج الملف من مسار أصناف أو عملاء جديد.");
+      return;
+    }
     if (snapshot.data_quality_score < 75) {
       setErrorMessage("جودة اللقطة أقل من الحد الأدنى للاعتماد؛ أعد معالجة الملف بعد تصحيح الصفوف.");
       return;
     }
-    const description = applicationKind === "products"
-      ? "سيُنشئ الأصناف الجديدة بحالة غير منشورة. أي أسعار ناقصة ستبقى صفراً للمراجعة ولن يُنشر الصنف، ولن يُعدّل المخزون."
-      : "سيُنشئ العملاء الجدد بحالة انتظار وبشريحة تجزئة افتراضية. لن تُستورد أرصدة أو حدود ائتمان أو صلاحيات أو شرائح أسعار من ملف المصدر.";
+    const description = importKind === "products"
+      ? "ستظل الأصناف الجديدة غير منشورة. أي أسعار أو تصنيفات غير مكتملة تتطلب مراجعة المدير قبل النشر، ولا تُنفذ هذه العملية تسوية للمخزون."
+      : "سيُنشأ العملاء الجدد بحالة انتظار وبشريحة تجزئة افتراضية. لن تُستورد أرصدة أو حدود ائتمان أو صلاحيات أو شرائح أسعار معتمدة من ملف المصدر.";
     if (!window.confirm(
       "اعتماد لقطة " + (snapshot.source_file_name ?? snapshot.id) + " كـ" +
-      (applicationKind === "products" ? "أصناف" : "عملاء") + "؟\n\n" + description +
+      (importKind === "products" ? "أصناف" : "عملاء") + "؟\n\n" + description +
       "\n\nلن تُحدّث السجلات الموجودة. التكرارات ستُتجاوز، ويُحفظ سجل تدقيق. لا يمكن تطبيق اللقطة نفسها مرة ثانية."
     )) return;
 
@@ -775,8 +842,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     setErrorMessage("");
     setApplicationNotice(null);
     try {
-      const result = await applyAdminImportSnapshot(snapshot.id, applicationKind);
-      setApplicationNotice({ snapshotId: snapshot.id, result });
+      const result = await applyAdminImportSnapshot(snapshot.id, importKind);
+      setApplicationNotice({ snapshotId: snapshot.id, importKind, result });
       const summary = "اكتمل الاعتماد: أُنشئ " + formatNumber(result.created) +
         "، تكرر وتُجاوز " + formatNumber(result.skipped_duplicates) +
         "، مرفوض " + formatNumber(result.rejected) + ".";
@@ -858,7 +925,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                 <option value="products">أصناف المنتجات</option>
                 <option value="customers" disabled={!canRollbackImport}>دليل العملاء</option>
               </select>
-              <small>{applicationKind === "customers"
+              <small>اختيار النوع أعلاه يخص ملفات الرفع الجديدة فقط؛ نوع اللقطة يُحدد من دفعة المصدر الأصلية. اللقطات التي لا يمكن إثبات نوعها لن تكون قابلة للاعتماد.</small><small>يُكتشف نوع CSV/XLSX من الرؤوس قبل إنشاء الدفعة؛ ملفات المخزون المستقلة والملفات المختلطة تُرفض دون حفظ صفوف. {applicationKind === "customers"
                 ? "يُستخدم ملف عملاء مستقل ومفتاح رقم العميل؛ تُتجاهل فئة المصدر ويحدد المدير فئة العميل لاحقاً."
                 : "ملف الأصناف يستخدم رقم الصنف ومواصفات وأسعار الفئات الثلاث."}</small>
             </label>
@@ -956,13 +1023,13 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
               <thead><tr><th>ملف المصدر</th><th>النوع</th><th>الصفوف</th><th>الجودة</th><th>التاريخ</th><th>الإجراء</th></tr></thead>
               <tbody>{readySnapshots.map((snapshot) => <tr key={snapshot.id}>
                 <td><strong>{snapshot.source_file_name ?? "ملف دون اسم"}</strong><small>{snapshot.source_file_hash.slice(0, 14)}… • v{snapshot.snapshot_version}</small></td>
-                <td>{snapshot.report_type}</td>
+                <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
                 <td>{formatNumber(snapshot.row_count)}</td>
                 <td>{formatNumber(snapshot.data_quality_score)}/100</td>
                 <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
-                <td><Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75}
+                <td><Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
                   onClick={() => void applyReadySnapshot(snapshot)}>
-                  {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : applicationKind === "products" ? "اعتماد الأصناف" : "اعتماد العملاء"}
+                  {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : "النوع غير مؤكد"}
                 </Button></td>
               </tr>)}</tbody>
             </table></TableWrap> : <Empty text="لا توجد لقطات أونكس جاهزة للاعتماد. عالج ملف CSV أو XLSX أولاً بجودة 75/100 على الأقل." />}
@@ -971,7 +1038,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
               {applicationNotice.result.idempotent_replay ? "هذه اللقطة سبق اعتمادها؛ أعاد الخادم النتيجة المحفوظة دون تكرار." : "نتيجة الاعتماد المحفوظة: "}
               أُنشئ {formatNumber(applicationNotice.result.created)}، التكرارات {formatNumber(applicationNotice.result.skipped_duplicates)}،
               المرفوض {formatNumber(applicationNotice.result.rejected)}.
-              {applicationKind === "products" && " أسعار تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_price_review) +
+              {applicationNotice.importKind === "products" && " أسعار تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_price_review) +
                 "؛ تصنيفات تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_category_review) +
                 "؛ صفوف مخزون تنتظر التسوية: " + formatNumber(applicationNotice.result.stock_rows_pending_reconciliation) + "."}
             </span>

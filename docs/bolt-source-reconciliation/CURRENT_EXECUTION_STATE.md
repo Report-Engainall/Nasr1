@@ -1,3 +1,48 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 ONYX SNAPSHOT SOURCE-KIND BINDING
+
+> Base main SHA after safe merge: `f8c8e6e2e156d507e877edd7ec53f0c6df3dde75`.
+> Implementation PR: [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
+> Implementation branch exact SHA tested before merge: `bad397863609fe17a264c5cccd5c752c45f7964f`.
+> Exact-head GitHub Actions evidence before merge: [run 42894594109](https://github.com/Report-Engainall/Nasr1/actions/runs/42894594109) — SUCCESS; pull_request event; checkout SHA exactly matched `bad397863609fe17a264c5cccd5c752c45f7964f`; 10 Vitest files / 74 tests passed; P1 strict TypeScript passed. This evidence is scoped to that SHA; the merged PR head must receive its own check.
+
+## P1 code change
+
+A reviewed Onyx snapshot was previously applied using the mutable `applicationKind` selector used for the *next file upload*. The visible `report_type` cannot safely distinguish products from customers because both profiles use a tabular report type.
+
+The P1 correction:
+- Reads `source_import_job_id` with each ready snapshot and resolves the source `import_jobs.job_type` through tenant-scoped RLS.
+- Recognizes only `unified_import_products`, `unified_import_customers`, and the legacy `unified_import` product job.
+- Stores the resolved kind on the snapshot DTO. Missing or unknown source jobs resolve to `null`; the UI displays an unconfirmed kind and disables the apply action.
+- Uses the snapshot-bound kind for confirmation, RPC arguments and result presentation. The upload-kind selector no longer decides the kind of an already-created snapshot.
+- Adds `src/lib/onyx-snapshot-import-kind.test.ts` covering product, customer, legacy product and seven fail-closed unknown cases.
+- Corrects `buildOnyxDetailRows` in `src/lib/onyx-export.ts`: the prior row had 28 values for a 27-column workbook. Each row now allocates the canonical 27-cell width and writes the order number to column 23 (index 22, `البيان`); `src/lib/onyx-export.test.ts` asserts the header, width, leading-zero item codes and field positions.
+- Adds the new helper, component, API and test to the P1 strict TypeScript scope, and enables the existing P1 verification workflow on pull requests and acceptance-document changes. The workflow checks out the exact PR head SHA.
+- Before creating an import job, detects products/customers/inventory from the first CSV/XLSX header row using normalized Arabic/English aliases. Standalone inventory and mixed dataset headers fail closed before job creation or row persistence; product files with named product fields may still carry warehouse/quantity columns as source details. This is a staging safety boundary, not an inventory posting implementation. Six regression tests cover Arabic/English product/customer detection, inventory classification, product files with stock columns, mixed kinds and unknown headers.
+
+Files changed by PR #416:
+`src/lib/onyx-snapshot-import-kind.ts`,
+`src/lib/onyx-snapshot-import-kind.test.ts`,
+`src/lib/onyx-export.ts`,
+`src/lib/onyx-export.test.ts`,
+`src/lib/api.ts`,
+`src/components/UnifiedImportEngine.tsx`,
+`tsconfig.p1-typecheck.json`,
+`.github/workflows/p1-admin-context-verification.yml`.
+
+## Remaining boundary and blockers — NOT CLOSED
+
+1. The change is an admin UI/API binding, not a server authorization boundary. The existing `apply_admin_import_snapshot` RPC still accepts `p_import_kind` and does not independently compare it to the source job's `job_type`. P2 must add a server-side guard and PostgreSQL 17 denial/no-side-effect tests before this rule can be called authoritative.
+2. The existing product apply migration converts missing/invalid price text to numeric zero placeholders, increments the price-review counter, and saves the product inactive. This does not satisfy the requirement to preserve a truly unavailable price as absent/null. P2 must correct the stored representation and prove the price-resolution/API privacy path before publication; do not describe the current placeholder behavior as complete.
+3. Opening inventory is still only counted as pending when a warehouse name and quantity appear. The apply routine does not post a stock adjustment. Keep stock import blocked until a tenant/warehouse/unit-bound idempotent reconciliation transaction and its audit evidence exist.
+4. No live database mutation, hosted customer session, browser interaction, or target-version Onyx round-trip was performed in this P1 change. Do not convert source tests into runtime acceptance.
+5. PR #416 remains unmerged. Merge only after review and green required checks.
+
+## Resume rule
+
+Continue from the current main and PR state, not from a stale import branch. Preserve this scope: P1 binds the user-facing application flow; P2 owns the server-side dataset guard, safe price representation and opening-stock transaction; P3 owns intelligent engines. Do not rewrite the importer, image batch matcher, pricing engine, 27-column workbook contract, or existing evidence workspace.
+ 
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 EVIDENCE SOURCE COMPARISON WORKSPACE MOUNT
 
 > Code implementation commit: `bde7aea453cd35b99d8b66ed5b3d407d1c640db5`; test corrections: `e86401d8730abc72d565d31e0d03ab4e7a7e1f45` and `73ce5049db94c60484c009588f0defe982925a8f`; current code SHA at checkpoint: `73ce5049db94c60484c009588f0defe982925a8f`.
