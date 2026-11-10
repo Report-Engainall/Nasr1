@@ -2,6 +2,34 @@
  * Shared deterministic primitives for every import source.
  * Raw files are streamed and never persisted; callers persist metadata and normalized rows only.
  */
+export type ImportDatasetKind = "products" | "customers";
+
+export type ImportProfileMapping = {
+  requiredColumns: string[];
+  matchingKey: string;
+};
+
+/**
+ * The quality scorer reads required columns from the persisted import profile.
+ * Customer imports therefore require a dedicated customer profile, while this
+ * mapping keeps the client validator and checkpoint fingerprint on the same key.
+ */
+export function resolveImportProfileMapping(
+  kind: ImportDatasetKind,
+  configuredRequiredColumns: readonly string[] | null | undefined,
+  configuredMatchingKey: string | null | undefined,
+): ImportProfileMapping {
+  if (kind === "customers") {
+    return { requiredColumns: ["customer_code"], matchingKey: "customer_code" };
+  }
+  return {
+    requiredColumns: configuredRequiredColumns?.length
+      ? [...configuredRequiredColumns]
+      : ["item_code"],
+    matchingKey: configuredMatchingKey?.trim() || "item_code",
+  };
+}
+
 export const MAX_IMPORT_FILE_BYTES = 100 * 1024 * 1024;
 export const MAX_IMPORT_ROWS = 100_000;
 export const MAX_IMPORT_COLUMNS = 100;
