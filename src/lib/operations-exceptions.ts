@@ -168,7 +168,6 @@ export function buildOperationsExceptions(
     const isTerminalFailure = status === "failed" || status === "rejected";
     const fileName = boundedText(job.file_name, 160) ?? "ملف دون اسم";
     const hasRowErrors = (failedRows !== null && failedRows > 0) || (rejectedRows !== null && rejectedRows > 0);
-    const errorCountsComplete = failedRows !== null && rejectedRows !== null;
     const reason = status === "manual_mapping_required"
       ? "تعذر اعتماد تخطيط الأعمدة؛ يلزم ربط الحقول قبل إعادة المعالجة."
       : hasRowErrors
