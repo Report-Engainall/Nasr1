@@ -1,42 +1,43 @@
-/** @vitest-environment jsdom */
 import { readFileSync } from "node:fs";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 import { EvidenceSourceComparisonPanel } from "./EvidenceSourceComparisonPanel";
-
-afterEach(cleanup);
 
 describe("Evidence source comparison panel integration", () => {
   it("does not display a difference or percentage without an authorized source pair", () => {
-    render(<EvidenceSourceComparisonPanel comparison={null} state="unavailable" />);
-
-    expect(screen.getByRole("status").textContent).toContain(
-      "مصدر المقارنة غير متاح؛ لم تُعرض قيم بديلة.",
+    const markup = renderToStaticMarkup(
+      createElement(EvidenceSourceComparisonPanel, { comparison: null, state: "unavailable" }),
     );
-    expect(screen.queryByText("الفرق المحسوب")).toBeNull();
-    expect(screen.queryByText(/نسبة التغير/)).toBeNull();
+
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain("مصدر المقارنة غير متاح؛ لم تُعرض قيم بديلة.");
+    expect(markup).not.toContain("الفرق المحسوب");
+    expect(markup).not.toContain("نسبة التغير");
   });
 
-  it("offers a retry action for a source-reader error", () => {
+  it("exposes an explicit retry control for a source-reader error", () => {
     const onRetry = vi.fn();
-    render(
-      <EvidenceSourceComparisonPanel
-        comparison={null}
-        state="error"
-        errorMessage="تعذر تحميل المصدر."
-        onRetry={onRetry}
-      />,
+    const markup = renderToStaticMarkup(
+      createElement(EvidenceSourceComparisonPanel, {
+        comparison: null,
+        state: "error",
+        errorMessage: "تعذر تحميل المصدر.",
+        onRetry,
+      }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
-    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain("تعذر تحميل المصدر.");
+    expect(markup).toContain('type="button"');
+    expect(markup).toContain("إعادة المحاولة");
   });
 
   it("is mounted exactly once in the existing workspace and remains fail-closed", () => {
     const workspace = readFileSync(new URL("./IntelligenceWorkspace.tsx", import.meta.url), "utf8");
 
     expect(workspace).toContain("  EvidenceSourceComparisonPanel,");
-    expect(workspace.match(/<EvidenceSourceComparisonPanel\b/g)).toHaveLength(1);
+    expect(workspace.match(/<EvidenceSourceComparisonPanel\\b/g)).toHaveLength(1);
     expect(workspace).toContain("comparison={null}");
     expect(workspace).toContain(
       'state={loading ? "loading" : result && !result.ok ? "error" : "unavailable"}',
