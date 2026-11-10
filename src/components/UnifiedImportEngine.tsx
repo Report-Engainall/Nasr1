@@ -36,7 +36,46 @@ type DuplicatePrompt = {
   sourceSystem: string;
   externalSourceReference: string | null;
   duplicate: DuplicateResult;
+  applicationKind: "products" | "customers";
 };
+
+async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Promise<string[]> {
+  let headers: string[] | null = null;
+  const headerCaptured = Symbol("first-import-header-row");
+  const captureFirstRow = (values: string[]) => {
+    if (headers === null) {
+      headers = values;
+      throw headerCaptured;
+    }
+  };
+
+  if (extension === "csv") {
+    // The import limits are 100 columns x 4,000 chars per cell; 1 MiB bounds header sniffing.
+    const prefix = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
+    const parser = new StreamingCsvParser();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    try {
+      await parser.push(
+        decoder.decode(prefix, { stream: file.size > prefix.byteLength }),
+        captureFirstRow,
+        file.size <= prefix.byteLength,
+      );
+    } catch (cause) {
+      if (cause !== headerCaptured) throw cause;
+    }
+  } else {
+    try {
+      await parseXlsxFirstWorksheet(file, captureFirstRow);
+    } catch (cause) {
+      if (cause !== headerCaptured) throw cause;
+    }
+  }
+
+  if (!headers || headers.length === 0 || headers.every((value) => !String(value ?? "").trim())) {
+    throw new Error("تعذر قراءة صف العناوين من الملف؛ لم تُنشأ دفعة استيراد.");
+  }
+  return headers.map((value, index) => index === 0 ? value.replace(/^\uFEFF/, "") : value);
+}
 
 function unsupportedImportFormatDetails(extension: string): {
   errorSummary: { code: string; message: string; manual_mapping_required: true; no_raw_file_retained: true };
@@ -217,6 +256,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     selectedExternalSourceReference: string | null = existingJob
       ? (existingJob.external_source_reference ?? null)
       : selectedSource === "manual" ? null : externalSourceReference.trim() || null,
+    requestedImportKind?: "products" | "customers",
   ) {
     if (runningRef.current) return;
     runningRef.current = true;
@@ -233,7 +273,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         ? "customers"
         : existingJob?.job_type === "unified_import_products" || existingJob?.job_type === "unified_import"
           ? "products"
-          : applicationKind;
+          : requestedImportKind ?? applicationKind;
     if (selectedImportKind === "customers" && !canRollbackImport) {
       setErrorMessage("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       runningRef.current = false;
@@ -651,10 +691,30 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setProgress(Math.round((bytes / Math.max(file.size, 1)) * 10));
       });
       setStage("detecting");
-      if (applicationKind === "customers" && !canRollbackImport) {
+      const extension = file.name.split(".").pop()?.toLocaleLowerCase("en") ?? "";
+      let detectedImportKind: "products" | "customers" = applicationKind;
+      if (extension === "csv" || extension === "xlsx") {
+        const sourceHeaders = await readImportFileHeaders(file, extension);
+        const detection = detectImportDatasetKind(sourceHeaders);
+        if (detection.kind === "inventory") {
+          throw new Error("اكتشف النظام ملف أرصدة مخزون مستقلًا (" + detection.matchedFields.join("، ") +
+            "). لم تُنشأ دفعة أصناف ولم يُعدّل أي رصيد؛ لا يُعتمد المخزون حتى يكتمل مسار المطابقة والتسوية الآمنة.");
+        }
+        if (detection.kind === "ambiguous") {
+          throw new Error("رؤوس الملف تجمع أكثر من نوع بيانات (" + detection.matchedFields.join("، ") +
+            "). افصل الأصناف والعملاء والمخزون في ملفات مستقلة؛ لم تُنشأ دفعة ولم تُحفظ صفوف.");
+        }
+        if (detection.kind === "products" || detection.kind === "customers") {
+          detectedImportKind = detection.kind;
+          setApplicationKind(detectedImportKind);
+        } else {
+          setStatusMessage("لم تكفِ رؤوس الملف لإثبات نوعه؛ سيُستخدم اختيار النوع اليدوي الحالي، وتظل قواعد الأعمدة الإلزامية نافذة.");
+        }
+      }
+      if (detectedImportKind === "customers" && !canRollbackImport) {
         throw new Error("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       }
-      const selectedProfileForFile = applicationKind === "customers"
+      const selectedProfileForFile = detectedImportKind === "customers"
         ? await ensureCustomerImportProfile()
         : activeProfileId;
       const duplicate = await findImportDuplicate(fileHash, selectedProfileForFile, periodKey.trim() || null) as DuplicateResult;
@@ -667,13 +727,14 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           sourceSystem,
           externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
           duplicate,
+          applicationKind: detectedImportKind,
         });
         setStage(null);
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
         return;
       }
       await processFile(file, fileHash, "new_version", undefined, selectedProfileForFile, periodKey.trim() || null, sourceSystem,
-        sourceSystem === "manual" ? null : externalSourceReference.trim() || null);
+        sourceSystem === "manual" ? null : externalSourceReference.trim() || null, detectedImportKind);
     } catch (cause) {
       setStage(null);
       setErrorMessage(cause instanceof Error ? cause.message : "تعذر قراءة بصمة الملف.");
@@ -700,11 +761,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey,
         openJob.source_system ?? pending.sourceSystem,
         openJob.external_source_reference ?? pending.externalSourceReference,
+        pending.applicationKind,
       );
       return;
     }
     await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
-      pending.sourceSystem, pending.externalSourceReference);
+      pending.sourceSystem, pending.externalSourceReference, pending.applicationKind);
   }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
@@ -863,7 +925,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                 <option value="products">أصناف المنتجات</option>
                 <option value="customers" disabled={!canRollbackImport}>دليل العملاء</option>
               </select>
-              <small>اختيار النوع أعلاه يخص ملفات الرفع الجديدة فقط؛ نوع اللقطة يُحدد من دفعة المصدر الأصلية. اللقطات التي لا يمكن إثبات نوعها لن تكون قابلة للاعتماد.</small><small>{applicationKind === "customers"
+              <small>اختيار النوع أعلاه يخص ملفات الرفع الجديدة فقط؛ نوع اللقطة يُحدد من دفعة المصدر الأصلية. اللقطات التي لا يمكن إثبات نوعها لن تكون قابلة للاعتماد.</small><small>يُكتشف نوع CSV/XLSX من الرؤوس قبل إنشاء الدفعة؛ ملفات المخزون المستقلة والملفات المختلطة تُرفض دون حفظ صفوف. {applicationKind === "customers"
                 ? "يُستخدم ملف عملاء مستقل ومفتاح رقم العميل؛ تُتجاهل فئة المصدر ويحدد المدير فئة العميل لاحقاً."
                 : "ملف الأصناف يستخدم رقم الصنف ومواصفات وأسعار الفئات الثلاث."}</small>
             </label>
