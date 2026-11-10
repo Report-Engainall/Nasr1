@@ -47,6 +47,7 @@ import {
   CashflowForecastCard,
   DeadStockCard,
   EvidencePassport,
+  EvidenceSourceComparisonPanel,
   GrowthOpportunityRadar,
   LiquiditySummary,
   ReplenishmentCard,
@@ -1684,6 +1685,20 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 errorMessage={result && !result.ok ? result.message : undefined}
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
+              <div className="space-y-2">
+                <div>
+                  <h3 className="font-semibold">مقارنة الأدلة بين مصدرين</h3>
+                  <p className="text-xs text-muted-foreground">
+                    لا توجد حتى الآن لقطتان مستقلتان من مصدرين مصرح بهما للمؤسسة ومفتاح ربط ثابت موثوق من المصدر؛ لذلك لا تُحسب فروق أو نسب ولا يُستعاض عن السجل المفقود.
+                  </p>
+                </div>
+                <EvidenceSourceComparisonPanel
+                  comparison={null}
+                  state={loading ? "loading" : result && !result.ok ? "error" : "unavailable"}
+                  errorMessage={result && !result.ok ? result.message : undefined}
+                  onRetry={() => setRefreshKey((value) => value + 1)}
+                />
+              </div>
               <LiquiditySummary
                 snapshot={liquiditySnapshot}
                 state={liquiditySnapshot ? "ready" : loading ? "loading" : "unavailable"}
