@@ -1,3 +1,34 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 BULK PRODUCT IMAGE MATCHING / ONYX HEADER NORMALIZATION
+
+> Implementation SHA: `eda73dd550588f5c3aa8809ce8c8657d1dbdf03a`; repository: `Report-Engainall/Nasr1`; branch: `main`. Exact test workflow: [42870003382](https://github.com/Report-Engainall/Nasr1/actions/runs/42870003382).
+
+## Implemented on main
+
+- Added `BulkProductImageUploader` to the existing `Products` admin screen in `AghbariApp.tsx`; no duplicate product screen or upload service was created.
+- Batch selection supports up to 200 JPG/PNG/WebP files. Exact filename stem is matched to the product `item_code` (including leading zeroes); gallery suffix forms `__2` and `(3)` are used only when no exact product code exists.
+- Duplicate product codes, unmatched files, invalid images and gallery overflow are rejected before upload. Existing primary images are preserved; extra images use the existing gallery Edge path. The established WebP conversion/size limits and server-side staff/tenant checks remain authoritative.
+- Extended `DEFAULT_SYNONYMS` to recognize all 27 labels from `ONYX_ORDER_COLUMNS` plus common product, warehouse, quantity and customer master-data headers. Customer tier labels normalize to `source_customer_tier`, never the approved Nasr1 tier field.
+
+## Exact verification on implementation SHA
+
+- GitHub Actions run 42870003382: SUCCESS on exact SHA `eda73dd550588f5c3aa8809ce8c8657d1dbdf03a`.
+- Vitest: 7/7 files and 50/50 tests PASS, including 7 image matching cases and 4 Onyx/customer header mapping cases.
+- `bunx tsc --noEmit -p tsconfig.p1-typecheck.json`: PASS.
+- Vercel commit status for this SHA: SUCCESS (automatic Git integration status; no manual deployment or promotion was requested).
+
+## Acceptance boundary — do not overstate
+
+- The image matching/preview rules and code paths are tested, but authenticated browser UAT and real production Storage upload receipts have NOT been run in this session.
+- Header normalization is implemented and tested. The unified importer still creates import snapshots; it does NOT by itself create product/customer records or post opening stock.
+- Real bulk application of product/customer master data and opening balances requires a tenant-scoped, idempotent server-side batch command and its P2 transaction/RLS acceptance. Do not substitute direct table writes or repeat single-row inserts with ambiguous retry outcomes.
+- Onyx Pro target-version round-trip remains unverified until the owner's actual Onyx version/profile accepts the workbook. No live Onyx sync was performed.
+
+## Next action
+
+Continue P1 work only on missing product/admin UI integration. Keep server-side batch mutation, stock posting, tenant authorization and database migrations with the P2 owner. Preserve this cursor and the single acceptance matrix; DLV-001, DLV-002, DLV-003 and DLV-009 remain open/partial as applicable.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — ADMIN RECORD CONTEXT SESSION-REVISION ISOLATION / EXACT-SHA PASS
 
 > Exact tested code SHA: `e20b684b6f9b48e93228d3ce16cb2cc217e1d28e`. Repository: `Report-Engainall/Nasr1`; branch: `main`.
