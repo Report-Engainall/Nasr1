@@ -84,11 +84,13 @@ export function buildOperationsExceptions(
   reconciliationRuns: readonly unknown[],
   nowMs = Date.now(),
 ): OperationsException[] {
+  // Resolve each logical task event to its newest state before filtering. A newer
+  // completed/cancelled task must clear the older open exception for that event.
   const openTasks = keepNewest(
-    tasks.filter((task) => task.status === "pending" || task.status === "in_progress"),
+    tasks,
     (task) => boundedText(task.source_event_key, 240) ?? task.id,
     (task) => timestamp(task.updated_at) || timestamp(task.created_at),
-  );
+  ).filter((task) => task.status === "pending" || task.status === "in_progress");
 
   const taskExceptions: OperationsException[] = openTasks.map((task) => {
     const dueAt = validDate(task.due_at);
@@ -119,15 +121,10 @@ export function buildOperationsExceptions(
     };
   });
 
-  const relevantJobs = keepNewest(
-    importJobs.filter((job) => {
-      const status = job.status.toLocaleLowerCase("en");
-      const failedRows = safeCount(job.failed_rows);
-      const rejectedRows = safeCount(job.rejected_rows);
-      return ["failed", "rejected", "manual_mapping_required"].includes(status)
-        || (failedRows !== null && failedRows > 0)
-        || (rejectedRows !== null && rejectedRows > 0);
-    }),
+  // Deduplicate the full history first. A newer successful import of the same
+  // source/hash/period must supersede its older failed attempt.
+  const latestImportJobs = keepNewest(
+    importJobs,
     (job) => {
       const fileHash = boundedText(job.file_hash, 128);
       return fileHash
@@ -136,6 +133,16 @@ export function buildOperationsExceptions(
     },
     (job) => timestamp(job.updated_at) || timestamp(job.created_at),
   );
+  const relevantJobs = latestImportJobs.filter((job) => {
+    const status = job.status.toLocaleLowerCase("en");
+    const failedRows = safeCount(job.failed_rows);
+    const rejectedRows = safeCount(job.rejected_rows);
+    return ["failed", "rejected", "manual_mapping_required"].includes(status)
+      || (failedRows !== null && failedRows > 0)
+      || (rejectedRows !== null && rejectedRows > 0)
+      || failedRows === null
+      || rejectedRows === null;
+  });
 
   const importExceptions: OperationsException[] = relevantJobs.map((job) => {
     const status = job.status.toLocaleLowerCase("en");
@@ -144,6 +151,8 @@ export function buildOperationsExceptions(
     const evidenceParts: string[] = ["دفعة الاستيراد: " + job.id];
     if (failedRows !== null) evidenceParts.push("صفوف فاشلة: " + failedRows.toLocaleString("ar-YE"));
     if (rejectedRows !== null) evidenceParts.push("صفوف مرفوضة: " + rejectedRows.toLocaleString("ar-YE"));
+    const errorCountsComplete = failedRows !== null && rejectedRows !== null;
+    if (!errorCountsComplete) evidenceParts.push("عدادات أخطاء الصفوف: غير متاحة بالكامل");
     if (Number.isSafeInteger(job.processed_rows) && job.processed_rows >= 0) {
       evidenceParts.push("صفوف معالجة: " + job.processed_rows.toLocaleString("ar-YE"));
     }
@@ -159,11 +168,14 @@ export function buildOperationsExceptions(
     const isTerminalFailure = status === "failed" || status === "rejected";
     const fileName = boundedText(job.file_name, 160) ?? "ملف دون اسم";
     const hasRowErrors = (failedRows !== null && failedRows > 0) || (rejectedRows !== null && rejectedRows > 0);
+    const errorCountsComplete = failedRows !== null && rejectedRows !== null;
     const reason = status === "manual_mapping_required"
       ? "تعذر اعتماد تخطيط الأعمدة؛ يلزم ربط الحقول قبل إعادة المعالجة."
       : hasRowErrors
         ? "تحتوي الدفعة على صفوف فاشلة أو مرفوضة تحتاج مراجعة أسبابها."
-        : "انتهت الدفعة بحالة " + importStatusLabel(status) + ".";
+        : !errorCountsComplete
+          ? "عدادات أخطاء الصفوف غير مكتملة؛ لا يمكن إثبات خلو الدفعة من الصفوف الفاشلة أو المرفوضة."
+          : "انتهت الدفعة بحالة " + importStatusLabel(status) + ".";
 
     return {
       id: "import:" + job.id,
@@ -178,7 +190,9 @@ export function buildOperationsExceptions(
       ownerLabel: "غير محدد في سجل الدفعة",
       dueAt: null,
       createdAt: validDate(job.created_at),
-      statusLabel: importStatusLabel(status),
+      statusLabel: !errorCountsComplete && !isTerminalFailure && status !== "manual_mapping_required"
+        ? "عدادات الصفوف غير مكتملة"
+        : importStatusLabel(status),
       priority: isTerminalFailure ? "high" : "medium",
       isOverdue: false,
       actionLabel: "فتح دفعة الاستيراد",
@@ -188,22 +202,28 @@ export function buildOperationsExceptions(
   const runs = reconciliationRuns.filter((value): value is ReconciliationRun =>
     Boolean(value) && typeof value === "object" && !Array.isArray(value),
   );
-  const relevantRuns = keepNewest(
-    runs.filter((run) => {
-      const status = typeof run.status === "string" ? run.status.toLocaleLowerCase("en") : "";
-      const changed = safeCount(run.changed_count);
-      const added = safeCount(run.new_count);
-      const invalid = safeCount(run.invalid_count);
-      return ["failed", "error", "rejected"].includes(status)
-        || (changed !== null && changed > 0)
-        || (added !== null && added > 0)
-        || (invalid !== null && invalid > 0);
-    }),
+  // Resolve each snapshot to its latest run before evaluating its outcome.
+  // A later clean run clears the prior variance; missing counters remain visible.
+  const latestRuns = keepNewest(
+    runs,
     (run) => typeof run.snapshot_id === "string" && run.snapshot_id
       ? "snapshot:" + run.snapshot_id
       : "run:" + String(run.id ?? ""),
     (run) => timestamp(run.created_at),
   );
+  const relevantRuns = latestRuns.filter((run) => {
+    const status = typeof run.status === "string" ? run.status.toLocaleLowerCase("en") : "";
+    const changed = safeCount(run.changed_count);
+    const added = safeCount(run.new_count);
+    const invalid = safeCount(run.invalid_count);
+    return ["failed", "error", "rejected"].includes(status)
+      || (changed !== null && changed > 0)
+      || (added !== null && added > 0)
+      || (invalid !== null && invalid > 0)
+      || changed === null
+      || added === null
+      || invalid === null;
+  });
 
   const reconciliationExceptions: OperationsException[] = relevantRuns.flatMap((run) => {
     if (typeof run.id !== "string" || !run.id) return [];
@@ -216,6 +236,8 @@ export function buildOperationsExceptions(
     if (added !== null) evidenceParts.push("جديد: " + added.toLocaleString("ar-YE"));
     if (invalid !== null) evidenceParts.push("غير صالح: " + invalid.toLocaleString("ar-YE"));
     const failed = ["failed", "error", "rejected"].includes(status);
+    const countersComplete = changed !== null && added !== null && invalid !== null;
+    if (!countersComplete) evidenceParts.push("عدادات المطابقة: غير مكتملة");
     const snapshotId = typeof run.snapshot_id === "string" ? run.snapshot_id : null;
     return [{
       id: "reconciliation:" + run.id,
@@ -224,7 +246,9 @@ export function buildOperationsExceptions(
       title: failed ? "فشل تشغيل مطابقة المخزون" : "فروقات في مطابقة المخزون",
       reason: failed
         ? "سُجل تشغيل المطابقة بحالة فشل؛ افتح سجل التشغيل لمعرفة التفاصيل."
-        : "رصدت المطابقة صفوفًا مختلفة أو جديدة أو غير صالحة؛ يلزم فحص المصدر والسجل الحي قبل أي تسوية.",
+        : !countersComplete
+          ? "عدادات نتيجة المطابقة غير مكتملة؛ لا يمكن إثبات خلو التشغيل من الفروقات."
+          : "رصدت المطابقة صفوفًا مختلفة أو جديدة أو غير صالحة؛ يلزم فحص المصدر والسجل الحي قبل أي تسوية.",
       evidence: evidenceParts.join(" • "),
       sourceId: run.id,
       sourceReference: snapshotId ? "onyx_snapshots:" + snapshotId : "inventory_reconciliation_runs:" + run.id,
@@ -232,7 +256,7 @@ export function buildOperationsExceptions(
       ownerLabel: "غير محدد في سجل المطابقة",
       dueAt: null,
       createdAt: validDate(run.created_at),
-      statusLabel: failed ? "فشل التشغيل" : "يحتاج مراجعة",
+      statusLabel: failed ? "فشل التشغيل" : !countersComplete ? "نتيجة غير مكتملة" : "يحتاج مراجعة",
       priority: failed || (invalid !== null && invalid > 0) ? "high" : "medium",
       isOverdue: false,
       actionLabel: "فتح نتيجة المطابقة",

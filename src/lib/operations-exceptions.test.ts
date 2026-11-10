@@ -87,6 +87,62 @@ describe("buildOperationsExceptions", () => {
     expect(items[0].evidence).toContain("صفوف فاشلة: ٥");
   });
 
+
+  it("clears an open task exception when the newest task event is completed", () => {
+    const items = buildOperationsExceptions([
+      task({ id: "old", updated_at: "2026-11-10T08:30:00.000Z", status: "pending" }),
+      task({ id: "new", updated_at: "2026-11-10T09:00:00.000Z", status: "completed" }),
+    ], [], [], Date.parse("2026-11-10T10:00:00.000Z"));
+
+    expect(items).toHaveLength(0);
+  });
+
+  it("clears a failed import exception after a newer clean attempt for the same source file and period", () => {
+    const items = buildOperationsExceptions([], [
+      importJob({ id: "failed", created_at: "2026-11-10T06:00:00.000Z", status: "failed" }),
+      importJob({
+        id: "recovered",
+        created_at: "2026-11-10T07:00:00.000Z",
+        status: "completed",
+        failed_rows: 0,
+        rejected_rows: 0,
+      }),
+    ], []);
+
+    expect(items).toHaveLength(0);
+  });
+
+  it("clears prior reconciliation differences only after the newest run proves zero differences", () => {
+    const items = buildOperationsExceptions([], [], [
+      { id: "old", snapshot_id: "snapshot-1", status: "completed", changed_count: 2, new_count: 1, invalid_count: 0, created_at: "2026-11-10T06:00:00.000Z" },
+      { id: "new", snapshot_id: "snapshot-1", status: "completed", changed_count: 0, new_count: 0, invalid_count: 0, created_at: "2026-11-10T07:00:00.000Z" },
+    ]);
+
+    expect(items).toHaveLength(0);
+  });
+
+  it("keeps a latest reconciliation run with missing counters visible instead of treating unknown as zero", () => {
+    const items = buildOperationsExceptions([], [], [
+      { id: "run-unknown", snapshot_id: "snapshot-unknown", status: "completed", created_at: "2026-11-10T07:00:00.000Z" },
+    ]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].statusLabel).toBe("نتيجة غير مكتملة");
+    expect(items[0].evidence).toContain("عدادات المطابقة: غير مكتملة");
+  });
+
+  it("keeps a completed import with missing error counters visible rather than assuming a clean import", () => {
+    const job = importJob({ id: "unknown", status: "completed" });
+    delete job.failed_rows;
+    delete job.rejected_rows;
+
+    const items = buildOperationsExceptions([], [job], []);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].statusLabel).toBe("عدادات الصفوف غير مكتملة");
+    expect(items[0].evidence).toContain("عدادات أخطاء الصفوف: غير متاحة بالكامل");
+  });
+
   it("surfaces reconciliation differences only when the stored run contains source counters", () => {
     const items = buildOperationsExceptions([], [], [
       { id: "run-1", snapshot_id: "snapshot-1", status: "completed", changed_count: 2, new_count: 1, invalid_count: 0 },
