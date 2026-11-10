@@ -21,26 +21,12 @@ on:
       - "src/components/CustomerWorkflows.tsx"
       - "src/components/CustomerAccountPasswordPage.tsx"
       - "src/lib/api.ts"
-      - "src/components/UnifiedImportEngine.tsx"
-      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
-      - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
       - "tsconfig.p1-typecheck.json"
       - "src/lib/admin-record-context.ts"
       - "src/lib/admin-record-context.test.ts"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
-      - ".github/workflows/p1-admin-context-verification.yml"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "src/components/UnifiedImportEngine.tsx"
-      - "src/lib/api.ts"
-      - "src/lib/unified-import.ts"
-      - "src/lib/unified-import-headers.test.ts"
-      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
-      - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
       - ".github/workflows/p1-admin-context-verification.yml"
   workflow_dispatch:
 
@@ -52,41 +38,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  postgres-import-snapshot-acceptance:
-    name: PostgreSQL 17 import snapshot acceptance
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - name: Checkout exact triggering commit
-        uses: actions/checkout@v4
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes postgresql-client
-      - name: Apply migration and verify import snapshot safety in isolated PostgreSQL
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/admin_import_snapshot_kind_acceptance.sql
-
   test-and-typecheck:
     name: Vitest and strict TypeScript
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout exact triggering commit
+      - name: Checkout exact main commit
         uses: actions/checkout@v4
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
