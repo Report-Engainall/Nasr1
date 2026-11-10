@@ -84,7 +84,7 @@ describe("buildOperationsExceptions", () => {
 
     expect(items).toHaveLength(1);
     expect(items[0].sourceId).toBe("new");
-    expect(items[0].evidence).toContain("صفوف فاشلة: 5");
+    expect(items[0].evidence).toContain("صفوف فاشلة: ٥");
   });
 
   it("surfaces reconciliation differences only when the stored run contains source counters", () => {
@@ -99,7 +99,7 @@ describe("buildOperationsExceptions", () => {
       sourceId: "run-1",
       priority: "medium",
     });
-    expect(items[0].evidence).toContain("مختلف: 2");
-    expect(items[0].evidence).toContain("جديد: 1");
+    expect(items[0].evidence).toContain("مختلف: ٢");
+    expect(items[0].evidence).toContain("جديد: ١");
   });
 });
