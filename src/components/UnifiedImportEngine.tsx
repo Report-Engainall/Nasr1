@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { formatNumber } from "@/lib/format";
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/components/AdminPages";
 import {
-  DataQualityAccumulator, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS,
+  DataQualityAccumulator, detectImportDatasetKind, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS,
   PROCESSING_CHUNK_ROWS, UPLOAD_CHUNK_BYTES, IncrementalSha256, StreamingCsvParser, hashFileSha256,
   applyImportProfileRules, normalizeHeader, parseXlsxFirstWorksheet, resolveImportProfileMapping, shouldPersistParsedImportRow, stableJsonStringify, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
   type ParsedImportRow, type QualityResult,
