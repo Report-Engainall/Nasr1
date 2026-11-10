@@ -2,13 +2,14 @@
 
 > Repository: `Report-Engainall/Nasr1`; PR [#416](https://github.com/Report-Engainall/Nasr1/pull/416).
 > Current main base before this merge: `4536082a6cb6b183bfb1336094cc11c042dbd9df`.
-> Latest exact tested implementation head before this documentation-preserving merge: `6652278a293e89d12eea22fb0071cc878554795f`.
-> Exact verification: [GitHub Actions run 42899389333](https://github.com/Report-Engainall/Nasr1/actions/runs/42899389333) — SUCCESS on the exact tested SHA; Vitest 12/12 files and 88/88 tests PASS; P1 strict TypeScript PASS.
+> Latest exact tested implementation head: `130bad3e077e8bcfdf0c453477dd360aa1c0e35c`.
+> Exact verification: [GitHub Actions run 42900099242](https://github.com/Report-Engainall/Nasr1/actions/runs/42900099242) — SUCCESS on the exact tested SHA; Vitest 12/12 files and 89/89 tests PASS; P1 strict TypeScript PASS.
 
 ## P1 implemented on the PR branch
 
 - Snapshot application is bound to the original source `import_jobs.job_type`, not the mutable upload selector. Unknown or absent source kind blocks application in the UI.
 - The Onyx order XLSX detail writer emits exactly 27 values per row, preserves leading-zero item codes as text, and writes the order number to the `البيان` column. The workbook still states that target-version Onyx compatibility is not certified.
+- A generated order workbook is now parsed back through the existing `parseXlsxFirstWorksheet` implementation in a regression test; it asserts the exact 27 headers, leading-zero item codes, quantity, unit price and order-number column. This is an internal XLSX round-trip, not acceptance by the owner's Onyx Pro version.
 - CSV/XLSX header sniffing classifies products, customers and standalone inventory before an import job is created. Mixed-kind and inventory-only sheets fail closed. Product rows with explicit product descriptors may retain source warehouse/quantity fields as pending data, not posted inventory.
 - The existing `fetchOnyxSnapshotRows` reader is now connected to the approval screen. Reviewers can preview snapshot rows before applying; pagination is bounded to 100 visible rows per request, with one additional look-ahead row to determine whether another page exists.
 - Preview output is a strict projection by dataset: product previews show item identity, unit/category, the three explicit source prices and warehouse/quantity labelled unapproved; customer previews show identity/contact details only. Source customer tier, credit limit, account balance and product cost are not projected.
