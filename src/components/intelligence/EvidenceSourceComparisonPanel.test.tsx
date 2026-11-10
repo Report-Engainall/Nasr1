@@ -37,7 +37,7 @@ describe("Evidence source comparison panel integration", () => {
     const workspace = readFileSync(new URL("./IntelligenceWorkspace.tsx", import.meta.url), "utf8");
 
     expect(workspace).toContain("  EvidenceSourceComparisonPanel,");
-    expect(workspace.match(/<EvidenceSourceComparisonPanel\\b/g)).toHaveLength(1);
+    expect(workspace.split("<EvidenceSourceComparisonPanel")).toHaveLength(2);
     expect(workspace).toContain("comparison={null}");
     expect(workspace).toContain(
       'state={loading ? "loading" : result && !result.ok ? "error" : "unavailable"}',
