@@ -118,7 +118,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
   const [qualityPreview, setQualityPreview] = useState<QualityResult | null>(null);
   const [applicationKind, setApplicationKind] = useState<"products" | "customers">("products");
   const [applicationBusyId, setApplicationBusyId] = useState<string | null>(null);
-  const [applicationNotice, setApplicationNotice] = useState<{ snapshotId: string; importKind: "products" | "customers"; result: AdminImportApplicationResult } | null>(null);
+  const [applicationNotice, setApplicationNotice] = useState<{ snapshotId: string; result: AdminImportApplicationResult } | null>(null);
   const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
   const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string; offset: number; hasMore: boolean } | null>(null);
   const rowErrorRequestId = useRef(0);
@@ -758,21 +758,16 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
 
   async function applyReadySnapshot(snapshot: OnyxSnapshotSummary) {
     if (!canRollbackImport || applicationBusyId) return;
-    const importKind = snapshot.import_kind;
-    if (!importKind) {
-      setErrorMessage("تعذر تحديد نوع لقطة المصدر من دفعتها الأصلية؛ أوقف النظام الاعتماد لمنع خلط العملاء بالأصناف.");
-      return;
-    }
     if (snapshot.data_quality_score < 75) {
       setErrorMessage("جودة اللقطة أقل من الحد الأدنى للاعتماد؛ أعد معالجة الملف بعد تصحيح الصفوف.");
       return;
     }
-    const description = importKind === "products"
-      ? "الصف الذي تنقصه أي فئة سعرية أو تكون قيمته غير صالحة يبقى في لقطة المراجعة ولا يُنشأ بسعر صفري. تُنشأ الأصناف المكتملة فقط بحالة غير منشورة؛ ولا يُعدّل المخزون."
-      : "سيُنشئ العملاء الجدد بحالة انتظار. لا تُستورد فئة سعرية أو أرصدة أو حدود ائتمان أو صلاحيات من ملف المصدر.";
+    const description = applicationKind === "products"
+      ? "سيُنشئ الأصناف الجديدة بحالة غير منشورة. أي أسعار ناقصة ستبقى صفراً للمراجعة ولن يُنشر الصنف، ولن يُعدّل المخزون."
+      : "سيُنشئ العملاء الجدد بحالة انتظار وبشريحة تجزئة افتراضية. لن تُستورد أرصدة أو حدود ائتمان أو صلاحيات أو شرائح أسعار من ملف المصدر.";
     if (!window.confirm(
       "اعتماد لقطة " + (snapshot.source_file_name ?? snapshot.id) + " كـ" +
-      (importKind === "products" ? "أصناف" : "عملاء") + "؟\n\n" + description +
+      (applicationKind === "products" ? "أصناف" : "عملاء") + "؟\n\n" + description +
       "\n\nلن تُحدّث السجلات الموجودة. التكرارات ستُتجاوز، ويُحفظ سجل تدقيق. لا يمكن تطبيق اللقطة نفسها مرة ثانية."
     )) return;
 
@@ -780,8 +775,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     setErrorMessage("");
     setApplicationNotice(null);
     try {
-      const result = await applyAdminImportSnapshot(snapshot.id, importKind);
-      setApplicationNotice({ snapshotId: snapshot.id, importKind, result });
+      const result = await applyAdminImportSnapshot(snapshot.id, applicationKind);
+      setApplicationNotice({ snapshotId: snapshot.id, result });
       const summary = "اكتمل الاعتماد: أُنشئ " + formatNumber(result.created) +
         "، تكرر وتُجاوز " + formatNumber(result.skipped_duplicates) +
         "، مرفوض " + formatNumber(result.rejected) + ".";
@@ -951,7 +946,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
 
           </div>
           <div className="privacy-note"><ShieldCheck size={17} /><span>
-            يُحدد نوع كل لقطة من نوع دفعة الاستيراد الأصلية المحفوظة في الخادم، وليس من اختيار عام قابل للتغيير. الأصناف غير المكتملة تبقى غير منشورة للمراجعة، والعملاء المستوردون بحالة انتظار اعتماد؛ ولا تتحول أرصدة أونكس إلى مخزون تشغيلي قبل التسوية المحكومة.
+            {applicationKind === "products"
+              ? "الأصناف الجديدة تُحفظ غير منشورة. أسعار جملة الجملة والجملة والتجزئة تُقرأ فقط من أعمدتها الصريحة؛ السعر المفرد لا يُعمّم على الفئات. أرصدة المخزون تبقى لقطة بانتظار مطابقة المخزن عبر تسوية أونكس."
+              : "العميل يُنشأ pending وبشريحة retail افتراضية. لا تُقرأ شريحة أونكس أو رصيد العميل أو حد الائتمان كصلاحية معتمدة؛ يحدد المدير الشريحة لاحقاً من سجل العميل."}
           </span></div>
           {!canRollbackImport && <ErrorBox message="اعتماد اللقطات متاح للمدير أو المدير العام فقط." />}
           {snapshotsLoading ? <Loading /> : snapshotsError ? <ErrorBox message={String(snapshotsError)} /> :
@@ -963,15 +960,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                 <td>{formatNumber(snapshot.row_count)}</td>
                 <td>{formatNumber(snapshot.data_quality_score)}/100</td>
                 <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
-                <td><Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
+                <td><Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75}
                   onClick={() => void applyReadySnapshot(snapshot)}>
-                  {applicationBusyId === snapshot.id
-                    ? "جارٍ الاعتماد…"
-                    : snapshot.import_kind === "products"
-                      ? "اعتماد الأصناف"
-                      : snapshot.import_kind === "customers"
-                        ? "اعتماد العملاء"
-                        : "نوع المصدر غير معروف"}
+                  {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : applicationKind === "products" ? "اعتماد الأصناف" : "اعتماد العملاء"}
                 </Button></td>
               </tr>)}</tbody>
             </table></TableWrap> : <Empty text="لا توجد لقطات أونكس جاهزة للاعتماد. عالج ملف CSV أو XLSX أولاً بجودة 75/100 على الأقل." />}
@@ -980,7 +971,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
               {applicationNotice.result.idempotent_replay ? "هذه اللقطة سبق اعتمادها؛ أعاد الخادم النتيجة المحفوظة دون تكرار." : "نتيجة الاعتماد المحفوظة: "}
               أُنشئ {formatNumber(applicationNotice.result.created)}، التكرارات {formatNumber(applicationNotice.result.skipped_duplicates)}،
               المرفوض {formatNumber(applicationNotice.result.rejected)}.
-              {applicationNotice.importKind === "products" && " أسعار تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_price_review) +
+              {applicationKind === "products" && " أسعار تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_price_review) +
                 "؛ تصنيفات تحتاج مراجعة: " + formatNumber(applicationNotice.result.products_needing_category_review) +
                 "؛ صفوف مخزون تنتظر التسوية: " + formatNumber(applicationNotice.result.stock_rows_pending_reconciliation) + "."}
             </span>
