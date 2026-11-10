@@ -1,3 +1,40 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 EVIDENCE SOURCE COMPARISON WORKSPACE MOUNT
+
+> Code implementation commit: `bde7aea453cd35b99d8b66ed5b3d407d1c640db5`; test corrections: `e86401d8730abc72d565d31e0d03ab4e7a7e1f45` and `73ce5049db94c60484c009588f0defe982925a8f`; current code SHA at checkpoint: `73ce5049db94c60484c009588f0defe982925a8f`.
+> Exact verification: [GitHub Actions run 42885587057](https://github.com/Report-Engainall/Nasr1/actions/runs/42885587057) — SUCCESS on exact SHA `73ce5049db94c60484c009588f0defe982925a8f`.
+
+## Implemented on main
+
+- Reused the existing `EvidenceSourceComparisonPanel` and existing P3 comparison engine; no parallel panel or comparison engine was created.
+- Mounted the panel exactly once beside the existing `EvidencePassport` in `src/components/intelligence/IntelligenceWorkspace.tsx`.
+- Kept the view fail-closed: the caller passes `comparison={null}`; the panel shows loading while the existing cashflow reader loads, an error and retry control when that read fails, and unavailable after a successful read because a second independently authorized same-tenant snapshot and server/source-resolved stable join key are not currently available.
+- Added explicit Arabic explanatory copy. No synthetic source pair, client-side join key, substitute value, calculated difference, percentage or owner-disposition write is produced.
+- Added three focused regression cases in `src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx`; added this test to the existing P1 Actions path filter and strict TypeScript include list.
+
+## Exact verification
+
+- GitHub Actions run 42885587057: SUCCESS on exact SHA `73ce5049db94c60484c009588f0defe982925a8f`.
+- Vitest: 8/8 files and 55/55 tests PASS.
+- `bunx tsc --noEmit -p tsconfig.p1-typecheck.json`: PASS.
+- The focused regression proves: unavailable comparison does not render a difference/percentage; error state presents a retry control; the existing workspace mounts the panel exactly once and passes null comparison until the required source pair exists.
+- An earlier attempt exposed an undeclared `@testing-library/dom` peer dependency; it was removed rather than adding a new dependency. The initial static mount assertion was also corrected to count the exact JSX marker directly. The passing run above is the current authoritative evidence.
+
+## Acceptance boundary — do not overstate
+
+- `CODE_IMPLEMENTED`: YES.
+- `INTEGRATED`: YES — mounted in the existing intelligence workspace.
+- `TEST_PROVEN`: YES — exact-SHA CI above.
+- `DATA_PROVEN`: NO — no authorized second snapshot or stable server/source-resolved comparison key is currently available.
+- `BROWSER_PROVEN`: NO — no authenticated browser session was run.
+- `PRODUCTION_PROVEN`: NO — no production or database operation was performed.
+- P3 comparison engine remains unchanged. No migration was added or applied. This P1 delivery does not complete the full evidence-comparison feature.
+
+## Next execution point
+
+P2 must provide the approved tenant-scoped retrieval contract for two independently authorized same-tenant snapshots and the server/source-resolved stable join key. Once it exists, P1 can connect those DTOs to the existing component and prove MATCHED, VARIANCE, NOT_COMPARABLE and WITHHELD alongside all required states and mismatch cases. Keep persisted owner disposition separate as an audited P2 workflow. Until this dependency arrives, preserve the unavailable state and continue with another independent P1 body gap; do not invent profitability values or claim the economic profitability engine exists.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 BULK PRODUCT IMAGE MATCHING / ONYX HEADER NORMALIZATION
 
 > Implementation SHA: `eda73dd550588f5c3aa8809ce8c8657d1dbdf03a`; repository: `Report-Engainall/Nasr1`; branch: `main`. Exact test workflow: [42870003382](https://github.com/Report-Engainall/Nasr1/actions/runs/42870003382).
