@@ -50,8 +50,8 @@ describe("buildOperationsExceptions", () => {
   it("projects only open task records and preserves their source owner and due-date boundary", () => {
     const items = buildOperationsExceptions([
       task(),
-      task({ id: "done", status: "completed" }),
-      task({ id: "cancelled", status: "cancelled" }),
+      task({ id: "done", status: "completed", source_event_key: "order-delivery:order-done" }),
+      task({ id: "cancelled", status: "cancelled", source_event_key: "order-delivery:order-cancelled" }),
     ], [], [], Date.parse("2026-11-10T10:00:00.000Z"));
 
     expect(items).toHaveLength(1);
@@ -146,7 +146,7 @@ describe("buildOperationsExceptions", () => {
   it("surfaces reconciliation differences only when the stored run contains source counters", () => {
     const items = buildOperationsExceptions([], [], [
       { id: "run-1", snapshot_id: "snapshot-1", status: "completed", changed_count: 2, new_count: 1, invalid_count: 0 },
-      { id: "run-2", snapshot_id: "snapshot-2", status: "completed" },
+      { id: "run-2", snapshot_id: "snapshot-2", status: "completed", changed_count: 0, new_count: 0, invalid_count: 0 },
     ]);
 
     expect(items).toHaveLength(1);
