@@ -6,17 +6,18 @@ on:
       - main
     paths:
       - "src/components/AghbariApp.tsx"
-      - "src/components/OperationsCenter.tsx"
-      - "src/components/OperationsExceptionCenter.tsx"
-      - "src/lib/operations-exceptions.ts"
-      - "src/lib/operations-exceptions.test.ts"
       - "src/components/BulkProductImageUploader.tsx"
+      - "src/components/UnifiedImportEngine.tsx"
       - "src/lib/product-image-batch-match.ts"
       - "src/lib/product-image-batch-match.test.ts"
       - "src/lib/unified-import.ts"
       - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
       - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
       - "src/lib/unified-import-headers.test.ts"
+      - "src/lib/onyx-snapshot-import-kind.ts"
+      - "src/lib/onyx-snapshot-import-kind.test.ts"
+      - "src/lib/onyx-export.ts"
+      - "src/lib/onyx-export.test.ts"
       - "src/routes/profile.tsx"
       - "src/lib/profile-access.ts"
       - "src/lib/profile-access.test.ts"
@@ -32,6 +33,50 @@ on:
       - "package-lock.json"
       - "tsconfig.json"
       - ".github/workflows/p1-admin-context-verification.yml"
+      - "src/components/OperationsCenter.tsx"
+      - "src/components/OperationsExceptionCenter.tsx"
+      - "src/lib/operations-exceptions.ts"
+      - "src/lib/operations-exceptions.test.ts"
+      - "src/lib/onyx-snapshot-preview.ts"
+      - "src/lib/onyx-snapshot-preview.test.ts"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/components/UnifiedImportEngine.tsx"
+      - "src/lib/onyx-snapshot-import-kind.ts"
+      - "src/lib/onyx-snapshot-import-kind.test.ts"
+      - "src/lib/onyx-export.ts"
+      - "src/lib/onyx-export.test.ts"
+      - "src/lib/api.ts"
+      - "tsconfig.p1-typecheck.json"
+      - ".github/workflows/p1-admin-context-verification.yml"
+      - "src/components/AghbariApp.tsx"
+      - "src/components/BulkProductImageUploader.tsx"
+      - "src/lib/product-image-batch-match.ts"
+      - "src/lib/product-image-batch-match.test.ts"
+      - "src/lib/unified-import.ts"
+      - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
+      - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
+      - "src/lib/unified-import-headers.test.ts"
+      - "src/routes/profile.tsx"
+      - "src/lib/profile-access.ts"
+      - "src/lib/profile-access.test.ts"
+      - "src/components/intelligence/IntelligenceWorkspace.tsx"
+      - "src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx"
+      - "src/components/CustomerWorkflows.tsx"
+      - "src/components/CustomerAccountPasswordPage.tsx"
+      - "src/lib/admin-record-context.ts"
+      - "src/lib/admin-record-context.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "src/components/OperationsCenter.tsx"
+      - "src/components/OperationsExceptionCenter.tsx"
+      - "src/lib/operations-exceptions.ts"
+      - "src/lib/operations-exceptions.test.ts"
+      - "src/lib/onyx-snapshot-preview.ts"
+      - "src/lib/onyx-snapshot-preview.test.ts"
   workflow_dispatch:
 
 permissions:
@@ -47,8 +92,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout exact main commit
+      - name: Checkout exact commit under test
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
