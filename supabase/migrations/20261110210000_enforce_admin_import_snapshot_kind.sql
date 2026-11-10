@@ -253,15 +253,12 @@ begin
 
       begin
         v_product_result := public.save_admin_catalog_product(null, v_payload);
-        RAISE NOTICE 'P1_APPLY_PRODUCT_SAVE_RETURN=%', coalesce(v_product_result::text, 'NULL');
         v_created := v_created + 1;
-        RAISE NOTICE 'P1_APPLY_PRODUCT_CREATED_COUNT=%', v_created;
         if coalesce(v_row.data->>'warehouse_name', '') <> ''
            and coalesce(v_row.data->>'quantity', '') <> '' then
           v_stock_pending := v_stock_pending + 1;
         end if;
       exception when others then
-        RAISE NOTICE 'P1_APPLY_PRODUCT_FAILURE=%', SQLERRM;
         v_rejected := v_rejected + 1;
         if pg_catalog.jsonb_array_length(v_errors) < 50 then
           v_errors := v_errors || pg_catalog.jsonb_build_array(
