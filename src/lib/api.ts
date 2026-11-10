@@ -2290,14 +2290,22 @@ export async function fetchOnyxSnapshotAnalytics(snapshotId: string): Promise<On
   return data as OnyxSnapshotAnalytics;
 }
 
-export async function fetchOnyxSnapshotRows(snapshotId: string): Promise<OnyxSnapshotRow[]> {
-  if (!snapshotId.trim()) throw new Error('معرّف لقطة أونكس مطلوب.');
+export async function fetchOnyxSnapshotRows(snapshotId: string, limit = 100, offset = 0): Promise<OnyxSnapshotRow[]> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+    throw new Error('معرّف لقطة أونكس غير صالح.');
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 101) {
+    throw new Error('حجم صفحة معاينة أونكس يجب أن يكون بين 1 و101.');
+  }
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) {
+    throw new Error('موضع صفحة معاينة أونكس غير صالح.');
+  }
   const { data, error } = await supabase
     .from('onyx_snapshot_rows')
     .select('id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors,created_at')
     .eq('snapshot_id', snapshotId)
     .order('row_number')
-    .limit(100);
+    .range(offset, offset + limit - 1);
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
   return rows.map((row) => {

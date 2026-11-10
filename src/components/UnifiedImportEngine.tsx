@@ -2,11 +2,12 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
   applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, ensureCustomerImportProfile, failImportJobSafely, fetchCentralSynonyms,
-  fetchImportJobs, fetchImportProfiles, fetchOnyxSnapshots, rollbackImportSnapshot,
+  fetchImportJobs, fetchImportProfiles, fetchOnyxSnapshots, fetchOnyxSnapshotRows, rollbackImportSnapshot,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
-  type AdminImportApplicationResult, type ImportRowErrorDetail, type OnyxSnapshotSummary,
+  type AdminImportApplicationResult, type ImportRowErrorDetail, type OnyxSnapshotSummary, type OnyxSnapshotRow,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { projectOnyxSnapshotPreviewRow } from "@/lib/onyx-snapshot-preview";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
 import { useAuth } from "@/lib/auth";
@@ -22,6 +23,16 @@ import type { ImportJob, ImportProfile } from "@/lib/types";
 
 type Stage = "reading" | "detecting" | "mapping" | "validating" | "normalizing" | "deduplicating" | "merging" | "analytics" | "complete";
 type DuplicateAction = "ignore" | "replace" | "merge" | "new_version" | "resume";
+type SnapshotPreviewState = {
+  snapshotId: string;
+  importKind: "products" | "customers";
+  rows: OnyxSnapshotRow[];
+  loading: boolean;
+  error: string;
+  offset: number;
+  hasMore: boolean;
+};
+const SNAPSHOT_PREVIEW_PAGE_SIZE = 100;
 type DuplicateResult = {
   duplicate: boolean;
   profile_id: string | null;
@@ -158,6 +169,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
   const [applicationKind, setApplicationKind] = useState<"products" | "customers">("products");
   const [applicationBusyId, setApplicationBusyId] = useState<string | null>(null);
   const [applicationNotice, setApplicationNotice] = useState<{ snapshotId: string; importKind: "products" | "customers"; result: AdminImportApplicationResult } | null>(null);
+  const [snapshotPreview, setSnapshotPreview] = useState<SnapshotPreviewState | null>(null);
+  const snapshotPreviewRequestId = useRef(0);
   const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
   const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string; offset: number; hasMore: boolean } | null>(null);
   const rowErrorRequestId = useRef(0);
@@ -818,6 +831,82 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     }
   }
 
+  async function toggleSnapshotPreview(snapshot: OnyxSnapshotSummary) {
+    if (!canRollbackImport || !snapshot.import_kind) return;
+    if (snapshotPreview?.snapshotId === snapshot.id) {
+      snapshotPreviewRequestId.current += 1;
+      setSnapshotPreview(null);
+      return;
+    }
+
+    const requestId = ++snapshotPreviewRequestId.current;
+    setSnapshotPreview({
+      snapshotId: snapshot.id,
+      importKind: snapshot.import_kind,
+      rows: [],
+      loading: true,
+      error: "",
+      offset: 0,
+      hasMore: false,
+    });
+    try {
+      const fetched = await fetchOnyxSnapshotRows(snapshot.id, SNAPSHOT_PREVIEW_PAGE_SIZE + 1, 0);
+      if (requestId !== snapshotPreviewRequestId.current) return;
+      const rows = fetched.slice(0, SNAPSHOT_PREVIEW_PAGE_SIZE);
+      setSnapshotPreview({
+        snapshotId: snapshot.id,
+        importKind: snapshot.import_kind,
+        rows,
+        loading: false,
+        error: "",
+        offset: rows.length,
+        hasMore: fetched.length > SNAPSHOT_PREVIEW_PAGE_SIZE,
+      });
+    } catch (cause) {
+      if (requestId !== snapshotPreviewRequestId.current) return;
+      setSnapshotPreview({
+        snapshotId: snapshot.id,
+        importKind: snapshot.import_kind,
+        rows: [],
+        loading: false,
+        error: cause instanceof Error ? cause.message : "تعذر تحميل معاينة صفوف اللقطة.",
+        offset: 0,
+        hasMore: false,
+      });
+    }
+  }
+
+  async function loadMoreSnapshotPreview() {
+    const previous = snapshotPreview;
+    if (!previous || previous.loading || !previous.hasMore) return;
+    const requestId = ++snapshotPreviewRequestId.current;
+    setSnapshotPreview({ ...previous, loading: true, error: "" });
+    try {
+      const fetched = await fetchOnyxSnapshotRows(
+        previous.snapshotId,
+        SNAPSHOT_PREVIEW_PAGE_SIZE + 1,
+        previous.offset,
+      );
+      if (requestId !== snapshotPreviewRequestId.current) return;
+      const nextRows = fetched.slice(0, SNAPSHOT_PREVIEW_PAGE_SIZE);
+      setSnapshotPreview({
+        ...previous,
+        rows: [...previous.rows, ...nextRows],
+        loading: false,
+        error: "",
+        offset: previous.offset + nextRows.length,
+        hasMore: fetched.length > SNAPSHOT_PREVIEW_PAGE_SIZE,
+      });
+    } catch (cause) {
+      if (requestId !== snapshotPreviewRequestId.current) return;
+      setSnapshotPreview({
+        ...previous,
+        loading: false,
+        error: cause instanceof Error ? cause.message : "تعذر تحميل صفحة المعاينة التالية.",
+      });
+    }
+  }
+
   async function applyReadySnapshot(snapshot: OnyxSnapshotSummary) {
     if (!canRollbackImport || applicationBusyId) return;
     const importKind = snapshot.import_kind;
@@ -1021,17 +1110,61 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           {snapshotsLoading ? <Loading /> : snapshotsError ? <ErrorBox message={String(snapshotsError)} /> :
             readySnapshots?.length ? <TableWrap><table>
               <thead><tr><th>ملف المصدر</th><th>النوع</th><th>الصفوف</th><th>الجودة</th><th>التاريخ</th><th>الإجراء</th></tr></thead>
-              <tbody>{readySnapshots.map((snapshot) => <tr key={snapshot.id}>
-                <td><strong>{snapshot.source_file_name ?? "ملف دون اسم"}</strong><small>{snapshot.source_file_hash.slice(0, 14)}… • v{snapshot.snapshot_version}</small></td>
-                <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
-                <td>{formatNumber(snapshot.row_count)}</td>
-                <td>{formatNumber(snapshot.data_quality_score)}/100</td>
-                <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
-                <td><Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
-                  onClick={() => void applyReadySnapshot(snapshot)}>
-                  {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : "النوع غير مؤكد"}
-                </Button></td>
-              </tr>)}</tbody>
+              <tbody>{readySnapshots.map((snapshot) => <Fragment key={snapshot.id}>
+                <tr>
+                  <td><strong>{snapshot.source_file_name ?? "ملف دون اسم"}</strong><small>{snapshot.source_file_hash.slice(0, 14)}… • v{snapshot.snapshot_version}</small></td>
+                  <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
+                  <td>{formatNumber(snapshot.row_count)}</td>
+                  <td>{formatNumber(snapshot.data_quality_score)}/100</td>
+                  <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
+                  <td><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    <Button variant="outline" disabled={!canRollbackImport || !snapshot.import_kind || Boolean(applicationBusyId)}
+                      onClick={() => void toggleSnapshotPreview(snapshot)}>
+                      {snapshotPreview?.snapshotId === snapshot.id ? "إغلاق المعاينة" : "معاينة الصفوف"}
+                    </Button>
+                    <Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
+                      onClick={() => void applyReadySnapshot(snapshot)}>
+                      {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : "النوع غير مؤكد"}
+                    </Button>
+                  </div></td>
+                </tr>
+                {snapshotPreview?.snapshotId === snapshot.id && <tr>
+                  <td colSpan={6} style={{ whiteSpace: "normal", minWidth: 320 }}>
+                    <div className="privacy-note" style={{ marginBottom: 8 }}>
+                      معاينة محدودة لصفوف المصدر قبل الاعتماد ({formatNumber(snapshotPreview.rows.length)} من {formatNumber(snapshot.row_count)}).
+                      {snapshotPreview.importKind === "products"
+                        ? " الأسعار المعروضة قيم مصدر منفصلة وليست اعتماداً أو نشراً؛ رصيد المصدر غير معتمد حتى تتم التسوية."
+                        : " فئة العميل وحد الائتمان ورصيد الحساب من المصدر لا تظهر ولا تتحول إلى صلاحية تجارية معتمدة."}
+                    </div>
+                    {snapshotPreview.error && <ErrorBox message={snapshotPreview.error} />}
+                    {snapshotPreview.loading && snapshotPreview.rows.length === 0 ? <Loading /> :
+                      snapshotPreview.rows.length === 0 && !snapshotPreview.error
+                        ? <Empty text="لا تحتوي اللقطة على صفوف قابلة للمعاينة." />
+                        : <TableWrap><table>
+                          <thead><tr><th>الصف</th><th>مفتاح المطابقة</th><th>السجل</th><th>البيانات المسموح عرضها</th><th>الحالة</th><th>أسباب المراجعة</th></tr></thead>
+                          <tbody>{snapshotPreview.rows.map((row) => {
+                            const preview = projectOnyxSnapshotPreviewRow(row, snapshotPreview.importKind);
+                            const statusLabel = preview.status === "valid" ? "صالح" : preview.status === "warning" ? "تحذير" : preview.status === "rejected" ? "مرفوض" : "غير مؤكد";
+                            const statusClass = preview.status === "valid" ? "success" : preview.status === "rejected" ? "danger" : "warning";
+                            return <tr key={row.id}>
+                              <td>{formatNumber(preview.rowNumber)}</td>
+                              <td><code>{preview.matchingCode}</code></td>
+                              <td><strong>{preview.title}</strong>{preview.subtitle && <small>{preview.subtitle}</small>}</td>
+                              <td>{preview.facts.length
+                                ? preview.facts.map((fact) => <small key={fact.label} style={{ display: "block" }}>{fact.label}: {fact.value}</small>)
+                                : "—"}</td>
+                              <td><span className={"badge " + statusClass}>{statusLabel}</span></td>
+                              <td>{preview.errors.length ? preview.errors.map((reason, index) => <small key={index} style={{ display: "block" }}>{reason}</small>) : "—"}</td>
+                            </tr>;
+                          })}</tbody>
+                        </table></TableWrap>}
+                    {snapshotPreview.hasMore && <Button variant="outline" disabled={snapshotPreview.loading} onClick={() => void loadMoreSnapshotPreview()}>
+                      {snapshotPreview.loading ? "جارٍ التحميل…" : "تحميل 100 صف إضافي"}
+                    </Button>}
+                    {snapshotPreview.loading && snapshotPreview.rows.length > 0 && <Loading />}
+                  </td>
+                </tr>}
+              </Fragment>)}</tbody>
             </table></TableWrap> : <Empty text="لا توجد لقطات أونكس جاهزة للاعتماد. عالج ملف CSV أو XLSX أولاً بجودة 75/100 على الأقل." />}
           {applicationNotice && <div className="privacy-note" role="status">
             <ShieldCheck size={17} /><span>
