@@ -29,6 +29,10 @@
     "src/lib/admin-record-context.test.ts",
     "src/lib/profile-access.ts",
     "src/lib/profile-access.test.ts",
-    "src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx"
+    "src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx",
+    "src/components/OperationsCenter.tsx",
+    "src/components/OperationsExceptionCenter.tsx",
+    "src/lib/operations-exceptions.ts",
+    "src/lib/operations-exceptions.test.ts"
   ]
 }

@@ -281,7 +281,7 @@ function AdminWorkspaceContent({
     case "data":
       return <DataCenter onNotice={onNotice} initialImportJobId={recordContext?.kind === "import" ? recordContext.id : undefined} />;
     case "operations":
-      return <OperationsCenter onNotice={onNotice} />;
+      return <OperationsCenter onNotice={onNotice} onOpenTask={(taskId) => { setNotificationTaskId(taskId); onNavigate("tasks"); }} />;
     case "settings":
       return (
         <>

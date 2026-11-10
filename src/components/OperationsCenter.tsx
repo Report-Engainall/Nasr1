@@ -14,8 +14,9 @@ import { formatNumber } from '@/lib/format';
 import { DEFAULT_SYNONYMS, normalizeHeader as normalizeImportHeader } from '@/lib/unified-import';
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from '@/components/AdminPages';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
+import { OperationsExceptionCenter } from '@/components/OperationsExceptionCenter';
 
-type OperationTab = 'imports' | 'onyx' | 'reconcile' | 'dictionary';
+type OperationTab = 'exceptions' | 'imports' | 'onyx' | 'reconcile' | 'dictionary';
 
 const synonymMap: Record<string, string> = { ...DEFAULT_SYNONYMS };
 
@@ -35,6 +36,7 @@ function qualityLabel(score: number): string {
 type OperationTabDefinition = { id: OperationTab; label: string; icon: typeof Upload };
 
 const OPERATION_TABS: OperationTabDefinition[] = [
+  { id: 'exceptions', label: 'الاستثناءات الموحدة', icon: AlertTriangle },
   { id: 'imports', label: 'محرك الاستيراد الذكي', icon: Upload },
   { id: 'onyx', label: 'مزامنة أونكس برو', icon: Activity },
   { id: 'reconcile', label: 'مطابقة المخزون', icon: Gauge },
@@ -53,28 +55,45 @@ function OperationsTabNavigation({ selected, onSelect }: { selected: OperationTa
   );
 }
 
-function OperationsTabContent({ tab, onNotice, refreshVersion }: {
+function OperationsTabContent({ tab, onNotice, refreshVersion, onOpenTask, onOpenImportJob, onOpenReconciliationRun, initialImportJobId, initialReconciliationRunId }: {
   tab: OperationTab; onNotice: (message: string) => void; refreshVersion: number;
+  onOpenTask: (taskId: string) => void;
+  onOpenImportJob: (jobId: string) => void;
+  onOpenReconciliationRun: (runId: string) => void;
+  initialImportJobId: string | null;
+  initialReconciliationRunId: string | null;
 }) {
   switch (tab) {
-    case 'imports': return <ImportEngine onNotice={onNotice} refreshVersion={refreshVersion} />;
+    case 'exceptions': return <OperationsExceptionCenter refreshVersion={refreshVersion} onOpenTask={onOpenTask} onOpenImportJob={onOpenImportJob} onOpenReconciliationRun={onOpenReconciliationRun} />;
+    case 'imports': return <ImportEngine onNotice={onNotice} refreshVersion={refreshVersion} initialJobId={initialImportJobId ?? undefined} />;
     case 'onyx': return <OnyxDashboard onNotice={onNotice} refreshVersion={refreshVersion} />;
-    case 'reconcile': return <InventoryReconciliation onNotice={onNotice} refreshVersion={refreshVersion} />;
+    case 'reconcile': return <InventoryReconciliation onNotice={onNotice} refreshVersion={refreshVersion} initialRunId={initialReconciliationRunId ?? undefined} />;
     case 'dictionary': return <SynonymDictionary refreshVersion={refreshVersion} />;
   }
 }
 
-export function OperationsCenter({ onNotice }: { onNotice: (message: string) => void }) {
-  const [tab, setTab] = useState<OperationTab>('imports');
+export function OperationsCenter({ onNotice, onOpenTask }: { onNotice: (message: string) => void; onOpenTask: (taskId: string) => void }) {
+  const [tab, setTab] = useState<OperationTab>('exceptions');
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [selectedImportJobId, setSelectedImportJobId] = useState<string | null>(null);
+  const [selectedReconciliationRunId, setSelectedReconciliationRunId] = useState<string | null>(null);
   return <AdminPage eyebrow="البيانات والذكاء" title="مركز العمليات الذكي" description="استيراد ومزامنة ومطابقة موحدة مع حفظ مصدر البيانات وأثر التغييرات" icon={Zap} note="تظهر بيانات المتجر وأونكس ضمن سياق واحد، مع حفظ المصدر ومنع التعديل دون اعتماد" toolbar={<Button variant="secondary" onClick={() => setRefreshVersion((version) => version + 1)}><RefreshCw size={16} /> تحديث البيانات</Button>}>
     <OperationsTabNavigation selected={tab} onSelect={setTab} />
-    <OperationsTabContent tab={tab} onNotice={onNotice} refreshVersion={refreshVersion} />
+    <OperationsTabContent
+      tab={tab}
+      onNotice={onNotice}
+      refreshVersion={refreshVersion}
+      onOpenTask={onOpenTask}
+      onOpenImportJob={(jobId) => { setSelectedImportJobId(jobId); setTab('imports'); }}
+      onOpenReconciliationRun={(runId) => { setSelectedReconciliationRunId(runId); setTab('reconcile'); }}
+      initialImportJobId={selectedImportJobId}
+      initialReconciliationRunId={selectedReconciliationRunId}
+    />
   </AdminPage>;
 }
 
-function ImportEngine({ onNotice, refreshVersion }: { onNotice: (message: string) => void; refreshVersion: number }) {
-  return <UnifiedImportEngine onNotice={onNotice} refreshVersion={refreshVersion} />;
+function ImportEngine({ onNotice, refreshVersion, initialJobId }: { onNotice: (message: string) => void; refreshVersion: number; initialJobId?: string }) {
+  return <UnifiedImportEngine onNotice={onNotice} refreshVersion={refreshVersion} initialJobId={initialJobId} />;
 }
 
 function OnyxDashboard({ onNotice, refreshVersion }: { onNotice: (message: string) => void; refreshVersion: number }) {
@@ -140,11 +159,11 @@ function OnyxDashboard({ onNotice, refreshVersion }: { onNotice: (message: strin
   </div>;
 }
 
-function InventoryReconciliation({ onNotice, refreshVersion }: { onNotice: (message: string) => void; refreshVersion: number }) {
+function InventoryReconciliation({ onNotice, refreshVersion, initialRunId }: { onNotice: (message: string) => void; refreshVersion: number; initialRunId?: string }) {
   const { data: snapshots, loading: snapshotsLoading } = useFetch(fetchOnyxSnapshots, [refreshVersion]);
   const { data: runs, loading: runsLoading, error: runsError, refetch: refetchRuns } = useFetch(fetchInventoryReconciliationRuns, [refreshVersion]);
   const [snapshotId, setSnapshotId] = useState('');
-  const [runId, setRunId] = useState('');
+  const [runId, setRunId] = useState(initialRunId ?? '');
   const [running, setRunning] = useState(false);
   const selectedSnapshot = snapshots?.find((snapshot) => snapshot.id === (snapshotId || snapshots?.[0]?.id));
   const selectedRunId = runId || runs?.[0]?.id || '';
