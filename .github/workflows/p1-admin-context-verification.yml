@@ -21,12 +21,24 @@ on:
       - "src/components/CustomerWorkflows.tsx"
       - "src/components/CustomerAccountPasswordPage.tsx"
       - "src/lib/api.ts"
+      - "src/components/UnifiedImportEngine.tsx"
+      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
       - "tsconfig.p1-typecheck.json"
       - "src/lib/admin-record-context.ts"
       - "src/lib/admin-record-context.test.ts"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
+      - ".github/workflows/p1-admin-context-verification.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/components/UnifiedImportEngine.tsx"
+      - "src/lib/api.ts"
+      - "src/lib/unified-import.ts"
+      - "src/lib/unified-import-headers.test.ts"
+      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
       - ".github/workflows/p1-admin-context-verification.yml"
   workflow_dispatch:
 
@@ -43,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout exact main commit
+      - name: Checkout exact triggering commit
         uses: actions/checkout@v4
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
