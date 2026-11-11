@@ -11,7 +11,7 @@ import {
   X, ExternalLink, Save, Download, Printer,
 } from 'lucide-react';
 import {
-  fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchOrders, fetchOrderItems,
+  fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchOrders, fetchAdminOrderById, fetchOrderItems,
   fetchOnyxSnapshots, type OnyxSnapshotSummary,
   fetchSettings, fetchSuppliers, fetchAdminStorefrontAnnouncements, saveStorefrontAnnouncement,
   markAllNotificationsRead, markNotificationRead, resolveAiAlert, toggleAiTaskStatus,
@@ -410,9 +410,11 @@ type CustomerOrderCancellationSummary = { reason: string; created_at: string };
 
 export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { orderId: string; onBack: () => void; onNotice: (m: string) => void; onBlockedChange: (blocked: boolean) => void }) {
   const { user } = useAuth();
-  const { data: orders, loading: ordersLoading, error: ordersError, refetch: refetchOrders } = useFetch(fetchOrders);
+  const { data: order, loading: orderLoading, error: orderError, refetch: refetchOrder } = useFetch(
+    () => fetchAdminOrderById(orderId),
+    [orderId],
+  );
   const { data: items, loading, error, refetch } = useFetch(() => fetchOrderItems(orderId), [orderId]);
-  const order = orders?.find((o) => o.id === orderId);
   const printDocument = useMemo(
     () => projectAdminSalesOrderPrintDocument(order, items ?? [], Boolean(user?.isStaff)),
     [order, items, user?.isStaff],
@@ -571,7 +573,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     setBusy(true);
     try {
       await updateOrderStatus(orderId, status);
-      await Promise.all([refetch(), refetchOrders()]);
+      await Promise.all([refetch(), refetchOrder()]);
       onNotice('تم تحديث حالة الطلب إلى: ' + status);
     } catch (cause) {
       onNotice(cause instanceof Error ? cause.message : 'تعذر تحديث حالة الطلب');
@@ -606,7 +608,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         : 'أُعيد الطلب وحُفظ السبب في سجل الحالة، لكن لم يوجد ملف عميل مرتبط لإرسال إشعار داخل التطبيق. لم تنشئ عملية الإعادة حجزًا مخزنيًا أو فاتورة أو قيدًا ماليًا.';
       setReturnReason('');
       setReturnFeedback({ kind: 'success', message: successMessage });
-      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
+      await Promise.all([refetch(), refetchOrder(), loadCustomerAmendment()]);
       onBlockedChange(false);
       onNotice(successMessage);
     } catch (cause) {
@@ -654,7 +656,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     setReviewMessage('');
     try {
       const result = await reviewOrderLines(orderId, lines, 'stage', customerNote);
-      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
+      await Promise.all([refetch(), refetchOrder(), loadCustomerAmendment()]);
       setDirty(false);
       onBlockedChange(Boolean(result.quantity_review_required));
       setReviewMessage(result.quantity_review_required
@@ -690,7 +692,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       // the server stages this exact grid and approves it inside the same transaction; on any stock,
       // credit or invoice failure, the complete approval is rolled back.
       const result = await reviewOrderLines(orderId, lines, 'approve', customerNote);
-      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
+      await Promise.all([refetch(), refetchOrder(), loadCustomerAmendment()]);
       setDirty(false);
       onBlockedChange(false);
       setReviewMessage(result.adjusted
@@ -698,7 +700,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         : 'اعتمدت الكميات وأُكد الطلب. أُنشئت الفاتورة وطلب السداد من الخادم.');
       onNotice('تم اعتماد الطلب ذريًا. حالة طلب السداد: ' + (result.payment_request_status ?? 'requested'));
     } catch (cause) {
-      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
+      await Promise.all([refetch(), refetchOrder(), loadCustomerAmendment()]);
       setReviewMessage(cause instanceof Error ? cause.message : 'تعذر اعتماد الطلب؛ بقي الطلب دون تأكيد إذا رفض الخادم العملية.');
     } finally {
       setBusy(false);
@@ -720,7 +722,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         setDrafts(next);
       }
       setDirty(false);
-      await Promise.all([refetch(), refetchOrders(), loadCustomerAmendment()]);
+      await Promise.all([refetch(), refetchOrder(), loadCustomerAmendment()]);
       onBlockedChange(false);
       setReviewMessage(isCustomerAmendmentReview
         ? 'رُفض تعديل العميل وسُجلت ملاحظة المراجعة. بقي الطلب في حالة الإرجاع، دون تغيير المخزون أو إصدار فاتورة.'
@@ -891,8 +893,8 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         : <p className="print-total">إجمالي الطلب المحفوظ: {formatCurrency(printDocument.totalAmount)}</p>}
       <small>هذا المستند يعكس بيانات الخادم المحفوظة، ولا يتضمن تعديلات شاشة المراجعة غير المعتمدة.</small>
     </section>}
-    {ordersLoading && !orders ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : !orders ? <Empty text="تعذر التحقق من بيانات الطلب؛ أعد المحاولة." /> : !order ? <Empty text="لم يتم العثور على الطلب المطلوب ضمن المؤسسة الحالية." /> : null}
-    {(ordersError || (!ordersLoading && !orders)) && <Button variant="secondary" onClick={() => { void refetchOrders(); }}>إعادة تحميل الطلب</Button>}
+    {orderLoading ? <Loading /> : orderError ? <ErrorBox message={orderError} /> : !order ? <Empty text="لم يتم العثور على الطلب المطلوب ضمن المؤسسة الحالية." /> : null}
+    {orderError && <Button variant="secondary" onClick={() => { void refetchOrder(); }}>إعادة تحميل الطلب</Button>}
     {order && <section className="panel" style={{ marginTop: 12, padding: 14 }}>
       <label htmlFor="onyx-export-source-snapshot" style={{ display: 'block', fontWeight: 800, marginBottom: 6 }}>لقطة المخزون المصدرية لربط تصدير الطلب</label>
       <select id="onyx-export-source-snapshot" aria-label="لقطة مصدر أونكس للتصدير" value={selectedExportSnapshotId}
