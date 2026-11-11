@@ -36,6 +36,9 @@
     "src/lib/operations-exceptions.test.ts",
     "src/lib/supplier-invoice-messages.ts",
     "src/lib/supplier-invoice-messages.test.ts",
-    "src/test/admin-import-snapshot-replay-safety-migration.test.ts"
+    "src/test/admin-import-snapshot-replay-safety-migration.test.ts",
+    "src/lib/bound-idempotency-key.ts",
+    "src/lib/bound-idempotency-key.test.ts",
+    "src/components/CustomerOrders.tsx"
   ]
 }
