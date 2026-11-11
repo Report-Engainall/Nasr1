@@ -17,7 +17,7 @@ describe("buildProductAdminSearchFilter", () => {
     const filter = buildProductAdminSearchFilter('x),organization_id.eq.anything,*%_"');
     const clauses = filter?.split(",") ?? [];
     expect(clauses).toHaveLength(4);
-    expect(clauses.every((clause) => clause.endsWith("ilike.*x organization_id.eq.anything \\_*"))).toBe(true);
+    expect(clauses.every((clause) => clause.endsWith("ilike.*x organization\\_id.eq.anything \\_*"))).toBe(true);
     expect(filter).not.toContain("(");
     expect(filter).not.toContain(")");
     expect(filter).not.toContain("%");
