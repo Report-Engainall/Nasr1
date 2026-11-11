@@ -114,6 +114,10 @@ async function loadProfile(): Promise<AuthUser | null> {
       }
     }
 
+    const { data: finalSessionData, error: finalSessionError } = await supabase.auth.getSession();
+    if (finalSessionError) throw new Error('تعذر تأكيد جلسة الحساب بعد إنشاء ملف العميل.');
+    if (finalSessionData.session?.user.id !== verifiedUser.id) continue;
+
     return {
       id: verifiedUser.id,
       profileId: p.profile_id,
