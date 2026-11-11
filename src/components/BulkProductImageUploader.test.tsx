@@ -38,10 +38,10 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
     const details = container.querySelector("details");
     expect(details).not.toBeNull();
     details!.open = true;
-    fireEvent(details!, new Event("toggle"));
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
 
     await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
-    expect(screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)")).not.toBeDisabled();
+    expect((screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)") as HTMLInputElement).disabled).toBe(false);
   });
 
   it("refreshes its matching catalog when the parent catalog revision changes while expanded", async () => {
@@ -51,7 +51,7 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
     const details = container.querySelector("details");
     expect(details).not.toBeNull();
     details!.open = true;
-    fireEvent(details!, new Event("toggle"));
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
     await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
 
     rerender(
@@ -73,9 +73,9 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
     const details = container.querySelector("details");
     expect(details).not.toBeNull();
     details!.open = true;
-    fireEvent(details!, new Event("toggle"));
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
 
-    await screen.findByText("catalog unavailable");
-    expect(screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)")).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("catalog unavailable"));
+    expect((screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)") as HTMLInputElement).disabled).toBe(true);
   });
 });
