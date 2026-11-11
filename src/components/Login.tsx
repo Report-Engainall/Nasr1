@@ -265,7 +265,14 @@ export function Login({
       }
 
       if (mode === 'register') {
-        const { needsConfirmation, confirmationType } = await signUp(email, password, name, phoneLogin ? 'phone' : 'email');
+        const { needsConfirmation, confirmationType, existingAccount } = await signUp(email, password, name, phoneLogin ? 'phone' : 'email');
+        if (existingAccount) {
+          setMode('login');
+          setPhoneLogin(false);
+          setPassword('');
+          setInfo('لم يكتمل إنشاء الحساب بهذه المحاولة. انتقل إلى تسجيل الدخول، وإذا لم تتذكر كلمة المرور فاستخدم «نسيت كلمة المرور؟». إذا كنت تسجّل لأول مرة واستمرت المشكلة، تواصل مع الإدارة.');
+          return;
+        }
         if (needsConfirmation && confirmationType === 'phone') {
           setPendingPhone(normalizeAuthPhoneIdentifier(email) ?? email.trim());
           setPhoneSignupPending(true);
