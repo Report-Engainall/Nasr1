@@ -5,14 +5,14 @@ on:
     branches:
       - main
     paths:
-      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
+      - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"
       - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
       - ".github/workflows/onyx-import-postgres-acceptance.yml"
   push:
     branches:
       - main
     paths:
-      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
+      - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"
       - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
       - ".github/workflows/onyx-import-postgres-acceptance.yml"
   workflow_dispatch:
