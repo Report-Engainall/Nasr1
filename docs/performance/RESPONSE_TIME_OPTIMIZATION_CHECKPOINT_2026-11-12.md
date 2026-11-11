@@ -134,3 +134,36 @@ No database indexes/migrations, live Supabase state, production config, deployme
   - **DATABASE EXPLAIN ANALYZE — NOT RUN.** The current dashboard still reads all selected-warehouse balance rows to preserve the exact total low-stock count; a server-side aggregate and a measured warehouse-leading index decision remain separate follow-up work.
   - The commit status surface returned a Vercel build-rate-limit failure; no Vercel build/deployment was requested or run. This is not GitHub Actions test evidence.
 - Next execution: obtain exact-SHA GitHub Actions results for `d920f5f`; then measure the selected-warehouse inventory query plan in a controlled non-production database. Only after measuring the real plan and proving RLS/tenant/warehouse parity should a migration-backed server aggregate or index be proposed. Keep the live database unchanged.
+
+
+## P3 continuation — dashboard alert shortlist and live query-plan evidence — 2026-11-12
+
+- Latest code SHA on `main`: `49903a4891e3418a5d33c0667cd33ee5c75e0be2`.
+- Latest source blobs:
+  - `src/lib/api.ts`: `3a8401961ed77729f4a9a57202884f5a1d020e1e`.
+  - `src/components/AghbariApp.tsx`: `81a023a65c4629f857f4678ce2e9cf5903144160`.
+  - Low-stock helper/test remain `57e3d2a4c436400863560837c38ef741164d6dff` / `260b3714a0d2625baa40b2a6ab21c5310f2df736`.
+- Additional dashboard optimization:
+  - Added `fetchDashboardAiAlerts()`: selects only `id,title,body,severity`, applies `organization_id` and `is_resolved=false` on the server, orders by `created_at DESC, id ASC`, and returns at most four rows.
+  - `Dashboard` uses this narrow reader. The general `fetchAiAlerts()` function and the full AI-alert workflow were preserved unchanged.
+  - The dashboard no longer receives twenty full alert rows merely to filter and render four unresolved entries.
+- Read-only live database evidence from canonical active project `tfdwtuwkdddnzgyhcoyy`:
+  - Counts: organizations=1, profiles=2, active profiles with organization=2, warehouses=0, active warehouses=0, orders=0, products=0, inventory balances=0, AI alerts=0.
+  - The project therefore currently has no warehouse/catalogue/inventory/order/alert dataset on which to measure a populated dashboard. No demo rows or warehouse were inserted.
+  - The planner's `reltuples` estimates for some empty tables were stale (including `inventory_balances=-1`); actual read-only COUNT results above are the relevant current row counts.
+- Read-only `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)` observations:
+  - Inventory query: actual 0 rows, 2.069 ms execution, 0 shared reads / 7 shared hits. The plan selected a bitmap index scan using `inventory_balances_product_id_warehouse_id_key`, but the active-warehouse subquery returned no row; this is not a populated-warehouse performance measurement.
+  - Order query: actual 0 rows, 0.772 ms execution, 0 shared reads / 7 shared hits. The outer plan used a sequential scan because the orders table is empty; the profile init-plan was not needed. This is not a populated-orders measurement.
+  - AI alerts table: 0 rows; only its primary-key index appeared in the inspected index list. No additional index is justified by an empty table.
+  - These `EXPLAIN ANALYZE` statements executed SELECTs only. No data, schema, index, migration, function, policy, or configuration was changed.
+- Preservation check from code diff:
+  - The general product catalogue function and its non-dashboard callers remain.
+  - The general AI alert reader remains.
+  - Existing order and inventory business semantics remain; only dashboard projections and preview reads were narrowed.
+  - The earlier lazy-loading and catalogue concurrency improvements remain untouched.
+- Evidence boundary:
+  - **IMPLEMENTED IN SOURCE — YES** at `49903a4`.
+  - **TESTED_EXACT_SHA — NOT VERIFIED.** Four low-stock helper regression tests were added, but were not executed in this session. No Vitest, strict TypeScript or production build PASS is claimed.
+  - The connected GitHub status surface exposed only a Vercel build-rate-limit failure. Its workflow-run wrapper filters to pull-request-triggered runs and returned no push-run records; therefore exact-SHA GitHub Actions status remains **NOT VERIFIED**, not PASS. No Vercel build/deployment was used.
+  - **BROWSER P50/P75/P95 — NOT MEASURED.** A populated warehouse and representative catalogue/orders are required for valid timings.
+- Next safe step: use the repository's GitHub Actions workflow to run Vitest, strict TypeScript and the production bundle against the exact source SHA `49903a4891e3418a5d33c0667cd33ee5c75e0be2`. After it passes, benchmark a controlled non-production tenant containing real-shape catalogue, alerts and warehouse data; only then consider new aggregate RPCs/indexes.
