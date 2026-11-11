@@ -1072,6 +1072,107 @@ export async function fetchOrders(): Promise<OrderWithCustomer[]> {
   }));
 }
 
+export type AdminOrderListRow = {
+  id: string;
+  order_number: string;
+  customer_id: string;
+  created_at: string;
+  total_items: number;
+  total_amount: number;
+  status: string;
+  customer?: Pick<Customer, 'id' | 'business_name'>;
+};
+
+export type AdminOrderPage = {
+  items: AdminOrderListRow[];
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;
+};
+
+const ADMIN_ORDER_PAGE_SIZE = 40;
+const ADMIN_ORDER_MAX_PAGE = 2500;
+
+/** Bounded staff order list. The unpaged fetchOrders() remains for analytics and detail workflows. */
+export async function fetchAdminOrdersPage(input: { page: number }): Promise<AdminOrderPage> {
+  const page = input.page;
+  const pageSize = ADMIN_ORDER_PAGE_SIZE;
+  if (!Number.isSafeInteger(page) || page < 1 || page > ADMIN_ORDER_MAX_PAGE) {
+    throw new Error('رقم صفحة الطلبات غير صالح.');
+  }
+
+  const { organizationId, isStaff } = await getCurrentTenantScope();
+  if (!isStaff) throw new Error('صلاحية الموظف مطلوبة لعرض قائمة الطلبات.');
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize;
+  const rawOrders = await readWithRetry(() => supabase
+    .rpc('fetch_staff_orders')
+    .select('id,order_number,customer_id,created_at,total_items,total_amount,status')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to));
+
+  if (!Array.isArray(rawOrders) || rawOrders.length > pageSize + 1) {
+    throw new Error('أعاد الخادم صفحة طلبات غير صالحة؛ لم تُعرض بيانات جزئية.');
+  }
+
+  const hasNextPage = rawOrders.length > pageSize;
+  const pageRows = rawOrders.slice(0, pageSize) as Array<Record<string, unknown>>;
+  const customerIds = new Set<string>();
+  for (const row of pageRows) {
+    if (
+      typeof row.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id) ||
+      typeof row.customer_id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.customer_id) ||
+      typeof row.order_number !== 'string' ||
+      typeof row.created_at !== 'string' ||
+      typeof row.status !== 'string'
+    ) {
+      throw new Error('تحتوي صفحة الطلبات على مرجع أو حقل أساسي غير صالح؛ أُوقف العرض.');
+    }
+    customerIds.add(row.customer_id);
+  }
+
+  const customers = customerIds.size
+    ? await readWithRetry(() => supabase
+      .from('customers')
+      .select('id,business_name')
+      .eq('organization_id', organizationId)
+      .in('id', [...customerIds]))
+    : [];
+
+  if (!Array.isArray(customers)) {
+    throw new Error('تعذر تأكيد أسماء عملاء الطلبات المعروضة.');
+  }
+
+  const customerById = new Map<string, Pick<Customer, 'id' | 'business_name'>>();
+  for (const value of customers as Array<Record<string, unknown>>) {
+    if (
+      typeof value.id !== 'string' ||
+      !customerIds.has(value.id) ||
+      typeof value.business_name !== 'string'
+    ) {
+      throw new Error('أعاد الخادم اسم عميل خارج نطاق صفحة الطلبات أو ببيانات ناقصة.');
+    }
+    customerById.set(value.id, { id: value.id, business_name: value.business_name });
+  }
+
+  const items = pageRows.map((row): AdminOrderListRow => ({
+    id: row.id as string,
+    order_number: row.order_number as string,
+    customer_id: row.customer_id as string,
+    created_at: row.created_at as string,
+    total_items: row.total_items as number,
+    total_amount: row.total_amount as number,
+    status: row.status as string,
+    customer: customerById.get(row.customer_id as string),
+  }));
+
+  return { items, page, pageSize, hasNextPage };
+}
+
 export async function fetchOrderItems(orderId: string): Promise<OrderItem[]> {
   // Financial item columns are intentionally not selectable by authenticated users.
   // The RPC checks staff status, active profile and tenant ownership before returning the full row.
