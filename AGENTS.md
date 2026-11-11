@@ -47,10 +47,19 @@ Only acceptance matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPT
 - P3: intelligent/rule engines, formulas, evidence-backed decisions and intelligence contracts.
 - Coordinate shared contracts; do not duplicate P3 engines. The user's latest explicit session instructions override stale historical ownership notes.
 
+## Tooling and quota-protection policy — mandatory for every programmer/agent
+
+- **GitHub is the default and required engineering workspace** for this project: inspect and edit source, commit changes, review diffs, track issues, and use GitHub Actions for source-level CI where appropriate.
+- **Do not use Vercel as a coding, editing, build, test, review, or agent-execution workspace.** Do not invoke Vercel CLI, Vercel build/deploy/preview operations, remote sandboxes, or deployment agents for routine implementation or verification.
+- **Do not spend Vercel build/deployment quota or credits** for source checks, linting, tests, typechecking, builds, or code review. Prefer GitHub repository operations and the repository's GitHub Actions workflows; use local/free checks when available.
+- Vercel remains a hosting target only. Deploy, promote, roll back, or change Vercel project settings **only when the owner explicitly authorizes that specific hosting operation**. A GitHub commit or successful CI run is not deployment approval.
+- Accessing an already-published URL for read-only diagnosis does not authorize a Vercel deployment or project mutation.
+- This rule applies to ChatGPT, other AI coding agents, human programmers, and future sessions. Do not ask the owner to repeat it. If a requested operation genuinely requires Vercel resources, stop before consuming quota and obtain explicit owner approval.
+- GitHub Actions usage must still respect the available GitHub quota. Do not trigger redundant or broad workflows; choose the smallest relevant workflow and report what actually ran.
+
 ## Cost, testing and reporting
 
 - Keep paid AI spend at zero. Use deterministic/local processing or authorized free quotas only; never add paid fallback or auto-recharge.
-- Do not consume Bolt or Vercel resources for routine investigation/build checks when a free local/CI path is available. Deployment/promotion is not implied by a source change.
 - A test passes only when the exact relevant suite was actually executed on the exact SHA. Distinguish authored tests, source review, isolated PostgreSQL acceptance, live production checks, browser E2E and hosted integration evidence.
 - Before completion, verify final SHA, changed files, database effects and which tests actually ran. Record unapplied migrations and external prerequisites.
 - Do not declare release readiness from source presence, schema-cache load, generic Vercel status or historical CI. Full release requires the canonical release gate and owner sign-off.
