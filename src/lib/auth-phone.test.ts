@@ -55,11 +55,20 @@ describe("phone authentication contract", () => {
   });
 
   it("creates an Auth phone account with SMS and full-name metadata", async () => {
-    await requestPhoneSignup(auth, "0712345678", TEST_SECRET, " تاجر الأغبري ");
+    await requestPhoneSignup(auth, "0712345678", TEST_SECRET, " تاجر الأغبري ", "");
     expect(auth.signUp).toHaveBeenCalledWith({
       phone: "+967712345678",
       password: TEST_SECRET,
-      options: { data: { full_name: "تاجر الأغبري" }, channel: "sms" },
+      options: { data: { full_name: "تاجر الأغبري", business_name: "تاجر الأغبري" }, channel: "sms" },
+    });
+  });
+
+  it("uses the optional business name in Auth metadata without trusting it as an account permission", async () => {
+    await requestPhoneSignup(auth, "0712345678", TEST_SECRET, "نصر", "متجر الأغبري");
+    expect(auth.signUp).toHaveBeenCalledWith({
+      phone: "+967712345678",
+      password: TEST_SECRET,
+      options: { data: { full_name: "نصر", business_name: "متجر الأغبري" }, channel: "sms" },
     });
   });
 
