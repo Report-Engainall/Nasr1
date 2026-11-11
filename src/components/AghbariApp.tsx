@@ -36,6 +36,7 @@ import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/busine
 import { dashboardAverageOrderDisplay, dashboardSalesDisplay } from '@/lib/dashboard-metrics';
 import { getInventoryAvailabilityStatus } from '@/lib/inventory-metrics';
 const PricingGrid = lazy(async () => ({ default: (await import('@/components/PricingGrid')).PricingGrid }));
+const AdminOrderCreationDialog = lazy(async () => ({ default: (await import('@/components/AdminOrderCreationDialog')).AdminOrderCreationDialog }));
 const ProductUnitConversionsEditor = lazy(async () => ({ default: (await import('@/components/ProductUnitConversionsEditor')).ProductUnitConversionsEditor }));
 const AdminAuditLog = lazy(async () => ({ default: (await import('@/components/AdminAuditLog')).AdminAuditLog }));
 const AdminCustomer360 = lazy(async () => ({ default: (await import('@/components/AdminCustomer360')).AdminCustomer360 }));
@@ -188,7 +189,7 @@ function AdminWorkspaceContent({
         onNavigate('tasks');
       }} />;
     case "orders":
-      if (!orderDetailId) return <Orders onViewDetail={onOrderDetailChange} />;
+      if (!orderDetailId) return <Orders onViewDetail={onOrderDetailChange} onNotice={onNotice} />;
       return (
         <OrderDetail
           orderId={orderDetailId}
@@ -1974,8 +1975,9 @@ export function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSav
   </Modal>;
 }
 
-function Orders({ onViewDetail }: { onViewDetail: (id: string) => void }) {
+function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void; onNotice: (message: string) => void }) {
   const [page, setPage] = useState(1);
+  const [showCreate, setShowCreate] = useState(false);
   const { data, loading, error, refetch } = useFetch(
     () => fetchAdminOrdersPage({ page }),
     [page],
@@ -1987,6 +1989,7 @@ function Orders({ onViewDetail }: { onViewDetail: (id: string) => void }) {
     <div className="toolbar">
       <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
       <div className="toolbar-actions">
+        <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
         <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
       </div>
     </div>
@@ -2014,6 +2017,7 @@ function Orders({ onViewDetail }: { onViewDetail: (id: string) => void }) {
         </div>
       </div>
     </section>
+    {showCreate && <AdminOrderCreationDialog onClose={() => setShowCreate(false)} onNotice={onNotice} onCreated={async () => { await refetch(); }} />}
   </>;
 }
 function orderLabel(status: string) { return ORDER_STATUS_LABELS[status] ?? status; }
@@ -2043,7 +2047,7 @@ function pricingMethodLabel(rule: PricingRule): string {
 }
 
 function pricingTargetLabel(rule: PricingRule): string {
-  return ({ both: 'الجملة والتجزئة', wholesale: 'الجملة فقط', retail: 'التجزئة فقط' } as Record<string, string>)[rule.target_tier ?? 'both'] ?? 'شريحة غير معروفة';
+  return ({ vip: 'جملة الجملة فقط', both: 'الجملة والتجزئة', wholesale: 'الجملة فقط', retail: 'التجزئة فقط' } as Record<string, string>)[rule.target_tier ?? 'both'] ?? 'شريحة غير معروفة';
 }
 
 function Pricing({ onNotice }: { onNotice: (m: string) => void }) {
@@ -2229,7 +2233,7 @@ function PricingPreviewPanel() {
     </form>
     {error && <div className="form-error" role="alert" style={{ marginTop: 12 }}>{error}</div>}
     {preview && <div className="report-grid" style={{ marginTop: 14 }}>
-      <article className="report-metric"><Users size={20} /><span>العميل / الشريحة الفعلية</span><strong>{preview.customer_name}</strong><small>{preview.tier === 'wholesale' ? 'الجملة' : 'التجزئة'}</small></article>
+      <article className="report-metric"><Users size={20} /><span>العميل / الشريحة الفعلية</span><strong>{preview.customer_name}</strong><small>{preview.tier === 'vip' ? 'جملة الجملة' : preview.tier === 'wholesale' ? 'الجملة' : preview.tier === 'retail' ? 'التجزئة' : 'شريحة غير معروفة'}</small></article>
       <article className="report-metric"><Box size={20} /><span>سعر الوحدة</span><strong>{formatCurrency(Number(preview.unit_price))}</strong><small>{preview.item_code}</small></article>
       <article className="report-metric"><ShoppingCart size={20} /><span>إجمالي الكمية</span><strong>{formatCurrency(Number(preview.line_total))}</strong><small>{formatNumber(Number(preview.quantity))} {preview.currency}</small></article>
     </div>}
