@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchOrders, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -2521,27 +2521,17 @@ function Reports() {
     }
   }
   const { data: stats, loading, error } = useFetch(fetchDashboardStats);
-  const { data: products, loading: productsLoading, error: productsError } = useFetch(fetchProducts);
-  const { data: orders, loading: ordersLoading, error: ordersError } = useFetch(fetchOrders);
+  const { data: inventoryValueAmount, loading: inventoryValueLoading, error: inventoryValueError } = useFetch(fetchBusinessInventoryValue);
+  const { data: orders, loading: ordersLoading, error: ordersError } = useFetch(fetchBusinessAnalyticsOrders);
   const signals = useMemo(() => buildBusinessSignals(orders ?? []), [orders]);
   const statusBreakdown = useMemo(() => buildBusinessStatusBreakdown(orders ?? []), [orders]);
-  const inventoryValue = useMemo(() => {
-    if (productsLoading) return 'جارٍ تحميل بيانات المخزون…';
-    if (productsError) return 'غير متاح — تعذر تحميل بيانات المخزون';
-    if (!products) return 'غير متاح — لم يتم تأكيد البيانات';
-    let total = 0;
-    for (const product of products) {
-      const price = product.base_price;
-      const quantity = product.inventory?.quantity_available;
-      if (
-        typeof price !== 'number' || !Number.isFinite(price) ||
-        typeof quantity !== 'number' || !Number.isFinite(quantity)
-      ) return 'غير متاح';
-      total += price * quantity;
-      if (!Number.isFinite(total) || Math.abs(total) > Number.MAX_SAFE_INTEGER) return 'غير متاح — تعذر جمع القيمة بأمان';
-    }
-    return formatCurrency(total);
-  }, [products, productsLoading, productsError]);
+  const inventoryValue = inventoryValueLoading
+    ? 'جارٍ تحميل بيانات المخزون…'
+    : inventoryValueError
+      ? 'غير متاح — تعذر تحميل بيانات المخزون'
+      : inventoryValueAmount === null
+        ? 'غير متاح — لم يتم تأكيد بيانات المخزون كاملة'
+        : formatCurrency(inventoryValueAmount);
   return <>
     <Heading eyebrow="التحليل التنفيذي" title="التقارير الذكية" description="مؤشرات قابلة للتنفيذ مبنية على البيانات التشغيلية الحالية" icon={BarChart3} />
     <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
