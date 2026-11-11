@@ -220,6 +220,28 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
 
 export type CustomerPricingOption = Pick<CustomerDirectoryRow, 'id' | 'business_name' | 'customer_code'>;
 
+/** Safe customer search grammar shared by the pricing-option reader and its regression tests. */
+export function buildCustomerPricingSearchFilter(value: string): string | null {
+  if (typeof value !== 'string') throw new Error('عبارة البحث عن العميل غير صالحة.');
+  const rawSearch = value;
+  const emailLikeSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
+  const isEmailLikeSearch = emailLikeSearch.length <= 254 &&
+    !/\\s/.test(emailLikeSearch) &&
+    /[@._]/.test(emailLikeSearch) &&
+    /^[a-z0-9._+@-]+$/i.test(emailLikeSearch);
+  const search = isEmailLikeSearch ? emailLikeSearch : normalizeCustomerDirectorySearch(rawSearch);
+  if (!search) return null;
+  const escaped = search.replace(/[\\%_]/g, (character) => '\\\\' + character);
+  const pattern = '%' + escaped + '%';
+  return [
+    'business_name.ilike.' + pattern,
+    'contact_name.ilike.' + pattern,
+    'phone.ilike.' + pattern,
+    'email.ilike.' + pattern,
+    'customer_code.ilike.' + pattern,
+  ].join(',');
+}
+
 export type CustomerPricingOptionsResult = {
   rows: CustomerPricingOption[];
   totalCount: number;
@@ -238,13 +260,7 @@ export async function fetchPricingCustomerOptions(input: {
     throw new Error('عبارة البحث عن العميل غير صالحة.');
   }
 
-  const rawSearch = input.search ?? '';
-  const emailLikeSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
-  const isEmailLikeSearch = emailLikeSearch.length <= 254 &&
-    !/\\s/.test(emailLikeSearch) &&
-    /[@._]/.test(emailLikeSearch) &&
-    /^[a-z0-9._+@-]+$/i.test(emailLikeSearch);
-  const search = isEmailLikeSearch ? emailLikeSearch : normalizeCustomerDirectorySearch(rawSearch);
+  const searchFilter = buildCustomerPricingSearchFilter(input.search ?? '');
 
   const scope = await getCurrentTenantScope();
   if (!scope.isStaff || !scope.organizationId) {
@@ -258,17 +274,7 @@ export async function fetchPricingCustomerOptions(input: {
     .order('business_name', { ascending: true })
     .order('id', { ascending: true });
 
-  if (search) {
-    const escaped = search.replace(/[\\%_]/g, (character) => '\\\\' + character);
-    const pattern = '%' + escaped + '%';
-    request = request.or([
-      'business_name.ilike.' + pattern,
-      'contact_name.ilike.' + pattern,
-      'phone.ilike.' + pattern,
-      'email.ilike.' + pattern,
-      'customer_code.ilike.' + pattern,
-    ].join(','));
-  }
+  if (searchFilter) request = request.or(searchFilter);
 
   const { data, error, count } = await request.range(0, pageSize - 1);
   if (error) throw new Error('تعذر تحميل عملاء معاينة التسعير: ' + error.message);
