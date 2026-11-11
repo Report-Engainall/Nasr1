@@ -7,6 +7,7 @@ import {
   verifyPhoneSignupCode,
   type PhoneAuthApi,
 } from "./auth-phone";
+import { isObfuscatedEmailSignupResult } from "./auth";
 
 const TEST_SECRET = "x".repeat(16);
 function createAuthApi() {
@@ -89,5 +90,26 @@ describe("phone authentication contract", () => {
   it("rejects resend for an invalid phone", async () => {
     await expect(resendPhoneSignupCode(auth, "not-a-phone")).rejects.toThrow("رقم الهاتف غير صالح");
     expect(auth.resend).not.toHaveBeenCalled();
+  });
+});
+
+describe("email signup response classification", () => {
+  it("recognizes GoTrue's obfuscated repeated-email response", () => {
+    expect(isObfuscatedEmailSignupResult({ identities: [] }, false)).toBe(true);
+  });
+
+  it("does not classify a new email identity as an existing account", () => {
+    expect(isObfuscatedEmailSignupResult({ identities: [{ provider: "email" }] }, false)).toBe(false);
+  });
+
+  it("does not classify a response that has a session", () => {
+    expect(isObfuscatedEmailSignupResult({ identities: [] }, true)).toBe(false);
+  });
+
+  it("fails closed when the identity list is absent or null", () => {
+    expect(isObfuscatedEmailSignupResult({}, false)).toBe(false);
+    expect(isObfuscatedEmailSignupResult({ identities: null }, false)).toBe(false);
+    expect(isObfuscatedEmailSignupResult(null, false)).toBe(false);
+    expect(isObfuscatedEmailSignupResult(undefined, false)).toBe(false);
   });
 });
