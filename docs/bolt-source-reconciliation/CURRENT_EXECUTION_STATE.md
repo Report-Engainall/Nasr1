@@ -1,8 +1,8 @@
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — EMAIL SIGNUP DUPLICATE-RESPONSE GUARD
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
-> Exact source code SHA: `1731a44bae264cdd83a4aa7d362b4fe13bca86ac`.
-> P1 workflow: [GitHub Actions run 43098511728](https://github.com/Report-Engainall/Nasr1/actions/runs/43098511728) — **QUEUED / NOT TESTED** at checkpoint time.
+> Exact source code SHA: `5f08f42b4a537a014b877688428c87ddd711f0ba`.
+> P1 workflow: [GitHub Actions run 43098775687](https://github.com/Report-Engainall/Nasr1/actions/runs/43098775687) — **QUEUED / NOT TESTED** at checkpoint time.
 
 ## Implemented on main
 
@@ -11,6 +11,7 @@
 - `src/components/Login.tsx` returns the customer to the login mode, retains the email, clears the attempted password from UI state, and gives neutral guidance to log in or use the existing password-recovery flow. Copy does not reveal whether the email is registered.
 - Phone signup and phone/password login code paths are unchanged.
 - Added response-classification regression cases in `src/lib/auth-phone.test.ts` and a Login UI integration case in `src/components/Login.phone-signup.test.tsx`.
+- The Login UI integration test uses the file-scoped `jsdom` Vitest environment; the repository's regular Vitest default is Node, so the test exercises a real DOM instead of failing on an absent document.
 - No Auth provider settings, database objects, user records, passwords, email templates, mail delivery, production deployments or external services were changed.
 
 ## Root cause addressed
@@ -19,8 +20,8 @@ When email confirmation is enabled, Supabase may intentionally return an obfusca
 
 ## Exact-SHA verification
 
-- Source code commit: `1731a44bae264cdd83a4aa7d362b4fe13bca86ac`.
-- P1 workflow run `43098511728`: **QUEUED / NOT TESTED** when recorded. Do not claim Vitest, strict TypeScript or build PASS until the run is terminal SUCCESS on the exact SHA.
+- Source code commit: `5f08f42b4a537a014b877688428c87ddd711f0ba`.
+- P1 workflow run `43098775687`: **QUEUED / NOT TESTED** when recorded. Do not claim Vitest, strict TypeScript or build PASS until the run is terminal SUCCESS on the exact SHA.
 - Hosted Auth/email delivery, real customer login, password-reset completion, Auth identity rows and production behavior: **NOT PROVEN**.
 - DLV-006 remains PARTIAL. This narrow UI/auth-response correction does not close registration, role/tenant, invitation, session, or hosted acceptance.
 
