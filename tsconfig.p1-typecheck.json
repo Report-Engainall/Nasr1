@@ -33,6 +33,8 @@
     "src/components/OperationsCenter.tsx",
     "src/components/OperationsExceptionCenter.tsx",
     "src/lib/operations-exceptions.ts",
-    "src/lib/operations-exceptions.test.ts"
+    "src/lib/operations-exceptions.test.ts",
+    "src/lib/supplier-invoice-messages.ts",
+    "src/lib/supplier-invoice-messages.test.ts"
   ]
 }
