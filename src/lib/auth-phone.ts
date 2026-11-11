@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type PhoneAuthApi = Pick<SupabaseClient["auth"], "signUp" | "verifyOtp" | "resend">;
+export type PhoneAuthApi = Pick<SupabaseClient["auth"], "signInWithPassword" | "signUp" | "verifyOtp" | "resend">;
 
 /**
  * Accepts Yemeni mobile numbers in local, 967, 00967 or E.164 form.
@@ -19,6 +19,19 @@ export function normalizeAuthPhoneIdentifier(value: string): string | null {
 
   const local = compact.startsWith("0") ? compact.slice(1) : compact;
   return /^7\d{8}$/.test(local) ? `+967${local}` : null;
+}
+
+export async function signInWithPhonePassword(
+  auth: PhoneAuthApi,
+  identifier: string,
+  password: string,
+) {
+  const phone = normalizeAuthPhoneIdentifier(identifier);
+  if (!phone) {
+    throw new Error("أدخل رقماً يمنياً صحيحاً يبدأ بـ7 أو رقماً دولياً بصيغة +رمز الدولة.");
+  }
+
+  return auth.signInWithPassword({ phone, password });
 }
 
 export async function requestPhoneSignup(
