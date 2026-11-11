@@ -182,3 +182,61 @@ No database indexes/migrations, live Supabase state, production config, deployme
 - Explicitly added `src/lib/dashboard-low-stock.ts` and `src/lib/dashboard-low-stock.test.ts` to the P1 GitHub Actions push-path filter. This ensures a future helper/test-only edit also invokes the full test/typecheck/build workflow.
 - The general product catalogue reader, full AI alert reader, all other alert/product screens and routes remain in place.
 - Verification status is unchanged: five focused tests authored but NOT RUN; exact-SHA GitHub Actions status NOT VERIFIED; no exact-SHA PASS is claimed. The connected status tool only surfaced the Vercel build-rate-limit status, and its workflow-run wrapper cannot surface push-triggered runs. Vercel was not run by this task.
+
+
+## P3 continuation — narrow paged workspace reads — 2026-11-12
+
+- **Current code SHA on main:** `4336007ac619b7a67a65cbf96f954f430718bfab`.
+- **Exact source blobs at this SHA:**
+  - `src/lib/api.ts`: `326372d8ebc1397454bc357a1735ef685b1bc283`.
+  - `src/components/AghbariApp.tsx`: `e9b0a890ef0598a3486ed45b6392c8e331b7a50b`.
+  - `src/components/AdminPages.tsx`: `abee3000429bc9815b0a826fe3c9e3c2786cab21`.
+  - `src/lib/customer-directory.ts`: `f62e3f784e02bdd97c8e6fbf1a61b8fb308e9e3e`.
+  - `src/lib/customer-directory.test.ts`: `835a4d712b556a55bd85cfc69e1e10c8663dc55c`.
+  - `src/lib/product-admin-pagination.ts`: `b07c2599b257d089925298dccbbf466d785f1670`.
+  - `src/lib/product-admin-pagination.test.ts`: `ad4f104b9a94acc1cbd8602aa1c2045c67933409`.
+  - `src/lib/business-inventory-valuation.ts`: `ac5ecc1a18e83e486ad24c963ea9dc3395844140`.
+  - `src/lib/business-inventory-valuation.test.ts`: `950e8a2c4ae8ce00ca6f31289fe9f64cab12c58c`.
+  - `src/components/BulkProductImageUploader.tsx`: `1a4c0e0c71ecde3067eecbc48aee95d9851dfc5d`.
+  - `src/components/BulkProductImageUploader.test.tsx`: `c874b93814f08b42f6a7df651cf73ec0bb7e85d0`.
+  - Low-stock helper/test remain `57e3d2a4c436400863560837c38ef741164d6dff` / `cf3db0f436694783680a19916a891ac0649bf9e6`.
+  - `.github/workflows/p1-admin-context-verification.yml`: `b1a76f6d9315d2b7474d8ce5ea773523a99cad16`.
+
+### Additional body changes — no prior feature removed
+
+1. **Product administration**
+   - Replaced the product table's full-catalogue read with a tenant/staff RPC-backed page of 40 rows plus one look-ahead row, server-side search across name/item code/SKU/barcode, deterministic ordering, and page-scoped media/category/current-warehouse inventory reads.
+   - The original `fetchProducts()` catalogue reader remains intact. It is now loaded by `BulkProductImageUploader` only when that full-match tool is expanded; complete catalogue matching is still required to prevent ambiguous image-to-product assignments.
+   - Uploader loading, retry, fail-closed selection, refresh synchronization, and batch results are preserved.
+
+2. **Order list and detail**
+   - The staff order list now reads a maximum of 40 rows plus one look-ahead row; it fetches only the displayed order fields and names of customers referenced by that page.
+   - The order detail workspace now loads the selected order by ID and only the matching customer's code/name; it no longer downloads the entire order/customer directory to locate one order.
+   - Existing full `fetchOrders()` remains available for other screens and workflows. No order status, amounts, approval, review, print, export, or mutation behavior was intentionally changed.
+
+3. **Pricing selectors**
+   - Customer pricing preview uses a separate 25-row, minimal customer identity projection (id/name/code), server-side search, and one-row look-ahead. It does not read customer balances or credit limits and does not execute an exact count on each query.
+   - Product pricing preview and pricing-rule editing use minimal product option projections (id/name/code), server-side search and bounded page reads; neither loads images, inventory balances, categories, or price fields for the dropdown.
+   - A targeted product-by-ID lookup keeps an existing product-scoped pricing rule selectable even when it is outside the first page. Pricing remains server-authoritative through the existing preview/price engine; no browser-side price formula was introduced.
+
+4. **Business analytics**
+   - Business signal and status breakdown calculations now receive only `id,customer_id,status,total_amount` for each existing order, rather than full order/customer records.
+   - Inventory valuation uses only product id/base price and the selected warehouse's product id/available quantity. The previous formula (base price × selected-warehouse available quantity) remains unchanged. Missing/NULL/duplicate/malformed stock evidence fails closed as unavailable; it is never treated as zero. The pure valuation helper has six regression cases.
+
+5. **Regression and workflow wiring**
+   - Focused tests authored: 5 customer search cases, 5 product search cases, 6 inventory valuation cases, 3 uploader lazy-load cases, and 5 low-stock ranking cases (**24 test cases authored**).
+   - The GitHub Actions push path includes the new helpers/components and their regression files. The existing workflow still runs `bun install --frozen-lockfile`, Vitest, strict P1 TypeScript, and build on a matching push.
+
+### Important performance/security boundary
+
+- The code above narrows **HTTP payloads and browser-side processing**, and the customer table query uses PostgREST filters/range. However, the existing `fetch_staff_products(uuid)` and `fetch_staff_orders()` are `SETOF` RPCs. PostgREST applies outer projections/range to the RPC result; a `LIMIT` on the client request is not proof that the PL/pgSQL function itself avoids materializing the tenant's full set.
+- True database-side keyset pagination, filtering, and aggregate-only inventory/order metrics require new purpose-built SQL RPC contracts and migrations, plus RLS/tenant/warehouse parity tests and exact-SHA CI. No migration was generated or deployed in this round because the migration CLI workflow was not available here, and the live database is not authorized for DDL.
+- The live project is still empty of warehouses/products/inventory/orders/alerts. Browser P50/P75/P95 and populated-data performance therefore remain unmeasured. Empty-table EXPLAIN timings are not representative.
+
+### Verification status for SHA `4336007`
+
+- **SOURCE IMPLEMENTED — YES.**
+- **TESTS AUTHORED — 24 focused cases; NOT RUN in this session.**
+- **EXACT-SHA GitHub Actions Vitest / strict TypeScript / build — NOT VERIFIED.** The available GitHub workflow-run wrapper only returns PR-triggered runs and returned no push-run record. The combined commit status surface only returned a Vercel build-rate-limit failure. No Vercel build/deployment was launched or used.
+- **BROWSER P50/P75/P95 — NOT MEASURED.**
+- Do not transfer the earlier `9193f88` PASS to this SHA.
