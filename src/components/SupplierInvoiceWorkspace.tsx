@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FileSpreadsheet, FileText, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supplierInvoiceUnavailableMessage } from "@/lib/supplier-invoice-messages";
 import {
   fetchSupplierInvoiceWorkspace,
   recordSupplierInvoice,
@@ -84,14 +85,7 @@ function eventLabel(action: string): string {
   if (action === "due_date_recorded") return "تسجيل تاريخ استحقاق موثق";
   return action;
 }
-function unavailableMessage(cause: unknown): string {
-  const failure = cause as { code?: string; message?: string };
-  if (failure?.code === "PGRST202" || failure?.code === "42883" ||
-      /could not find the function|function .* does not exist/i.test(failure?.message ?? "")) {
-    return "خدمة فواتير الموردين غير متاحة في قاعدة البيانات الحالية. لم تُعرض بيانات بديلة؛ يرجى التواصل مع مسؤول النظام للتحقق من تفعيل وظائف قاعدة البيانات وصلاحياتها.";
-  }
-  return cause instanceof Error ? cause.message : "تعذر تحميل مساحة فواتير الموردين.";
-}
+
 
 export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
   mode: WorkspaceMode;
@@ -330,7 +324,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
       );
       return result;
     } catch (cause) {
-      setError(unavailableMessage(cause));
+      setError(supplierInvoiceUnavailableMessage(cause));
       return null;
     } finally {
       setLoading(false);
@@ -361,7 +355,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         if (result.accountingStatus === "journal_void") accountingKey.current = null;
       })
       .catch((cause) => {
-        if (active) setAccountingError(unavailableMessage(cause));
+        if (active) setAccountingError(supplierInvoiceUnavailableMessage(cause));
       })
       .finally(() => {
         if (active) setAccountingLoading(false);
