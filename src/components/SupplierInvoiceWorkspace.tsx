@@ -88,7 +88,7 @@ function unavailableMessage(cause: unknown): string {
   const failure = cause as { code?: string; message?: string };
   if (failure?.code === "PGRST202" || failure?.code === "42883" ||
       /could not find the function|function .* does not exist/i.test(failure?.message ?? "")) {
-    return "عقد فواتير الموردين غير متاح في قاعدة البيانات المتصلة بعد. المهاجرة موجودة في main؛ يلزم مزامنتها داخل Bolt New قبل تشغيل هذا المسار.";
+    return "خدمة فواتير الموردين غير متاحة في قاعدة البيانات الحالية. لم تُعرض بيانات بديلة؛ يرجى التواصل مع مسؤول النظام للتحقق من تفعيل وظائف قاعدة البيانات وصلاحياتها.";
   }
   return cause instanceof Error ? cause.message : "تعذر تحميل مساحة فواتير الموردين.";
 }
