@@ -307,3 +307,78 @@ export async function fetchPricingCustomerOptions(input: {
   return { rows, hasNextPage };
 }
 
+export type StaffOrderCustomerOption = {
+  id: string;
+  business_name: string;
+  customer_code: string | null;
+  tier: 'vip' | 'wholesale' | 'retail';
+};
+
+export type StaffOrderCustomerOptionsResult = {
+  rows: StaffOrderCustomerOption[];
+  hasNextPage: boolean;
+};
+
+/**
+ * Minimal selector for staff-created orders.
+ * It exposes only approved customers and their server-persisted tier; financial
+ * balances, credit limits and customer-editable tier values are never returned.
+ */
+export async function fetchStaffOrderCustomerOptions(input: {
+  search?: string;
+  pageSize?: number;
+} = {}): Promise<StaffOrderCustomerOptionsResult> {
+  const pageSize = input.pageSize ?? 25;
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+    throw new Error('حجم قائمة عملاء الطلبات خارج النطاق المسموح.');
+  }
+  if (input.search !== undefined && typeof input.search !== 'string') {
+    throw new Error('عبارة البحث عن عميل الطلب غير صالحة.');
+  }
+
+  const rawSearch = (input.search ?? '').normalize('NFKC').trim();
+  const searchFilter = buildCustomerPricingSearchFilter(rawSearch);
+  if (rawSearch && !searchFilter) return { rows: [], hasNextPage: false };
+
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff || !scope.organizationId) {
+    throw new Error('إنشاء الطلبات اليدوية يتطلب جلسة موظف داخل المؤسسة.');
+  }
+
+  let request = supabase
+    .from('customers')
+    .select('id,business_name,customer_code,tier')
+    .eq('organization_id', scope.organizationId)
+    .eq('status', 'approved')
+    .in('tier', ['vip', 'wholesale', 'retail'])
+    .order('business_name', { ascending: true })
+    .order('id', { ascending: true });
+  if (searchFilter) request = request.or(searchFilter);
+
+  const { data, error } = await request.range(0, pageSize);
+  if (error) throw new Error('تعذر تحميل العملاء المعتمدين لإنشاء الطلب: ' + error.message);
+  if (!Array.isArray(data) || data.length > pageSize + 1) {
+    throw new Error('لم يؤكد الخادم قائمة العملاء المعتمدين لإنشاء الطلب.');
+  }
+
+  const hasNextPage = data.length > pageSize;
+  const rows: StaffOrderCustomerOption[] = [];
+  for (const value of data.slice(0, pageSize) as Array<Record<string, unknown>>) {
+    if (
+      typeof value.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) ||
+      typeof value.business_name !== 'string' ||
+      (value.customer_code !== null && typeof value.customer_code !== 'string') ||
+      (value.tier !== 'vip' && value.tier !== 'wholesale' && value.tier !== 'retail')
+    ) {
+      throw new Error('أعاد الخادم خيار عميل غير مكتمل أو بشريحة غير معتمدة؛ لم يتم عرضه.');
+    }
+    rows.push({
+      id: value.id,
+      business_name: value.business_name,
+      customer_code: typeof value.customer_code === 'string' ? value.customer_code : null,
+      tier: value.tier,
+    });
+  }
+  return { rows, hasNextPage };
+}
