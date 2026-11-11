@@ -1173,6 +1173,73 @@ export async function fetchAdminOrdersPage(input: { page: number }): Promise<Adm
   return { items, page, pageSize, hasNextPage };
 }
 
+export type AdminOrderDetail = Order & {
+  order_number: string;
+  quantity_review_required: boolean;
+  customer_adjustment_note: string | null;
+  payment_request_status: string;
+  delivery_address_snapshot: Order['delivery_address_snapshot'];
+  customer?: Pick<Customer, 'customer_code' | 'business_name'>;
+};
+
+/** Single-order staff detail read; never downloads the full order/customer directories. */
+export async function fetchAdminOrderById(orderId: string): Promise<AdminOrderDetail | null> {
+  const normalizedId = typeof orderId === 'string' ? orderId.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalizedId)) {
+    throw new Error('معرّف الطلب غير صالح.');
+  }
+
+  const { organizationId, isStaff } = await getCurrentTenantScope();
+  if (!isStaff) throw new Error('صلاحية الموظف مطلوبة لعرض تفاصيل الطلب.');
+
+  const rawOrder = await readWithRetry(() => supabase
+    .rpc('fetch_staff_orders')
+    .select('*')
+    .eq('id', normalizedId)
+    .limit(1)
+    .maybeSingle());
+
+  if (rawOrder === null) return null;
+  if (typeof rawOrder !== 'object' || Array.isArray(rawOrder)) {
+    throw new Error('أعاد الخادم تفاصيل طلب غير صالحة.');
+  }
+
+  const row = rawOrder as Record<string, unknown>;
+  if (
+    row.id !== normalizedId ||
+    typeof row.customer_id !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.customer_id)
+  ) {
+    throw new Error('لم تتطابق هوية الطلب أو العميل مع سجل الخادم؛ أُوقف العرض.');
+  }
+
+  const customerValue = await readWithRetry(() => supabase
+    .from('customers')
+    .select('customer_code,business_name')
+    .eq('organization_id', organizationId)
+    .eq('id', row.customer_id as string)
+    .maybeSingle());
+
+  let customer: Pick<Customer, 'customer_code' | 'business_name'> | undefined;
+  if (customerValue !== null) {
+    if (
+      typeof customerValue !== 'object' ||
+      Array.isArray(customerValue) ||
+      typeof (customerValue as Record<string, unknown>).business_name !== 'string' ||
+      typeof (customerValue as Record<string, unknown>).customer_code !== 'string'
+    ) {
+      throw new Error('أعاد الخادم بيانات عميل غير مكتملة للطلب المحدد.');
+    }
+    const customerRow = customerValue as Record<string, unknown>;
+    customer = {
+      customer_code: customerRow.customer_code as string,
+      business_name: customerRow.business_name as string,
+    };
+  }
+
+  return { ...(row as unknown as Order), customer } as AdminOrderDetail;
+}
+
 export async function fetchOrderItems(orderId: string): Promise<OrderItem[]> {
   // Financial item columns are intentionally not selectable by authenticated users.
   // The RPC checks staff status, active profile and tenant ownership before returning the full row.
