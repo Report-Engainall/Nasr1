@@ -49,6 +49,16 @@ describe('rankDashboardLowStockCandidates', () => {
     ])).toEqual([{ productId: ids[0], quantityAvailable: 0 }]);
   });
 
+  it('prioritizes negative available stock before non-negative low-stock rows', () => {
+    expect(rankDashboardLowStockCandidates([
+      { product_id: ids[0], quantity_available: 2, reorder_point: 10 },
+      { product_id: ids[1], quantity_available: -1, reorder_point: 10 },
+    ])).toEqual([
+      { productId: ids[1], quantityAvailable: -1 },
+      { productId: ids[0], quantityAvailable: 2 },
+    ]);
+  });
+
   it('fails closed for malformed, unknown, or duplicate balance rows', () => {
     expect(rankDashboardLowStockCandidates(null)).toBeNull();
     expect(rankDashboardLowStockCandidates([{ product_id: ids[0], quantity_available: null, reorder_point: 1 }])).toBeNull();
