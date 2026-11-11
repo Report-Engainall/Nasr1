@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
