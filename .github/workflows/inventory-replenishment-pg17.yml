@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "supabase/migrations/20261112000200_inventory_replenishment_shipment_sales_reconciliation.sql"
+      - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
       - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
       - ".github/workflows/inventory-replenishment-pg17.yml"
   pull_request:
     branches: [main]
     paths:
-      - "supabase/migrations/20261112000200_inventory_replenishment_shipment_sales_reconciliation.sql"
+      - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
       - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
       - ".github/workflows/inventory-replenishment-pg17.yml"
   workflow_dispatch:
