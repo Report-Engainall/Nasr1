@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
 import { getAuthEmailRedirectUrl } from './auth-redirect';
+import {
+  normalizeAuthPhoneIdentifier,
+  requestPhoneSignup,
+  resendPhoneSignupCode as resendPhoneSignupCodeRequest,
+  verifyPhoneSignupCode,
+} from './auth-phone';
+export { normalizeAuthPhoneIdentifier } from './auth-phone';
 
 export type AuthUser = { id: string; profileId: string; email: string; name: string; roles: string[]; isStaff: boolean };
 
@@ -22,16 +29,6 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 const STAFF_ROLES = ['admin', 'manager', 'staff', 'accountant', 'customer_manager'];
-
-export function normalizeAuthPhoneIdentifier(value: string): string | null {
-  const compact = value.trim().replace(/[()\s-]/g, "");
-  if (/^\+[1-9]\d{7,14}$/.test(compact)) return compact;
-  const digits = compact.replace(/\D/g, "");
-  if (/^00967\d{9}$/.test(digits)) return "+" + digits.slice(2);
-  if (/^967\d{9}$/.test(digits)) return "+" + digits;
-  const local = digits.startsWith("0") ? digits.slice(1) : digits;
-  return /^7\d{8}$/.test(local) ? "+967" + local : null;
-}
 
 function translateAuthError(message: string): string {
   const m = message.toLowerCase();
@@ -207,11 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userMetadata = { data: { full_name: fullName.trim() } };
       const result = method === 'phone'
-        ? await (async () => {
-            const phone = normalizeAuthPhoneIdentifier(identifier);
-            if (!phone) throw new Error('أدخل رقماً يمنياً صحيحاً يبدأ بـ7 أو رقماً دولياً بصيغة +رمز الدولة.');
-            return supabase.auth.signUp({ phone, password, options: userMetadata });
-          })()
+        ? await requestPhoneSignup(supabase.auth, identifier, password, fullName)
         : await supabase.auth.signUp({
             email: identifier.trim(),
             password,
@@ -234,11 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyPhoneSignup = useCallback(async (phoneInput: string, token: string) => {
     setLoading(true);
     try {
-      const phone = normalizeAuthPhoneIdentifier(phoneInput);
-      const code = token.replace(/\D/g, '');
-      if (!phone) throw new Error('رقم الهاتف غير صالح. أعد إدخال رقمك.');
-      if (!/^\d{4,8}$/.test(code)) throw new Error('أدخل رمز التحقق المكوّن من 4 إلى 8 أرقام.');
-      const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' });
+      const { error } = await verifyPhoneSignupCode(supabase.auth, phoneInput, token);
       if (error) throw new Error(translateAuthError(error.message));
       await refresh();
     } finally { setLoading(false); }
@@ -247,9 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resendPhoneSignupCode = useCallback(async (phoneInput: string) => {
     setLoading(true);
     try {
-      const phone = normalizeAuthPhoneIdentifier(phoneInput);
-      if (!phone) throw new Error('رقم الهاتف غير صالح. أعد إدخال رقمك.');
-      const { error } = await supabase.auth.resend({ type: 'sms', phone });
+      const { error } = await resendPhoneSignupCodeRequest(supabase.auth, phoneInput);
       if (error) throw new Error(translateAuthError(error.message));
     } finally { setLoading(false); }
   }, []);
