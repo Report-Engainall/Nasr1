@@ -1,5 +1,5 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
-import { AdminApp } from "@/components/AghbariApp";
+import { LazyAdminApp as AdminApp } from "@/components/LazyAdminApp";
 
 import { AdminRouteFallback } from "@/components/AdminRouteFallback";
 export const Route = createFileRoute("/admin_/purchase-orders")({
