@@ -32,7 +32,7 @@ type AuthContextType = {
   ready: boolean;
   configurationError: string | null;
   signIn: (identifier: string, password: string) => Promise<void>;
-  signUp: (identifier: string, password: string, fullName: string, method?: 'email' | 'phone') => Promise<{ needsConfirmation: boolean; confirmationType: 'email' | 'phone'; existingAccount: boolean }>;
+  signUp: (identifier: string, password: string, fullName: string, method?: 'email' | 'phone', businessName?: string) => Promise<{ needsConfirmation: boolean; confirmationType: 'email' | 'phone'; existingAccount: boolean }>;
   verifyPhoneSignup: (phone: string, token: string) => Promise<void>;
   resendPhoneSignupCode: (phone: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -104,6 +104,16 @@ async function loadProfile(): Promise<AuthUser | null> {
     }
 
     const p = data as { profile_id: string; full_name: string; email: string | null; roles: string[] };
+
+    // Public self-service signup is completed only after Auth has verified the
+    // phone or email. The RPC is idempotent and never assigns staff privileges.
+    if (p.roles.includes('customer') && !p.roles.some((role) => STAFF_ROLES.includes(role))) {
+      const { error: customerAccountError, data: customerAccount } = await supabase.rpc('ensure_my_customer_account');
+      if (customerAccountError || !customerAccount) {
+        throw new Error('تعذر إنشاء ملف العميل التجاري بعد التحقق من الحساب. تواصل مع الإدارة.');
+      }
+    }
+
     return {
       id: verifiedUser.id,
       profileId: p.profile_id,
@@ -210,12 +220,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     fullName: string,
     method: 'email' | 'phone' = 'email',
+    businessName = '',
   ) => {
     setLoading(true);
     try {
-      const userMetadata = { data: { full_name: fullName.trim() } };
+      const userMetadata = { data: {
+        full_name: fullName.trim(),
+        business_name: businessName.trim() || fullName.trim(),
+      } };
       const result = method === 'phone'
-        ? await requestPhoneSignup(supabase.auth, identifier, password, fullName)
+        ? await requestPhoneSignup(supabase.auth, identifier, password, fullName, businessName)
         : await supabase.auth.signUp({
             email: identifier.trim(),
             password,
