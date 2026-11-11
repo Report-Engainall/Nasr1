@@ -1250,6 +1250,106 @@ export async function fetchAdminOrderById(orderId: string): Promise<AdminOrderDe
   return { ...(row as unknown as Order), customer } as AdminOrderDetail;
 }
 
+/** Narrow source projection for the business-signal model; preserves all order rows and amounts. */
+export async function fetchBusinessAnalyticsOrders(): Promise<Array<Pick<Order, 'id' | 'customer_id' | 'status' | 'total_amount'>>> {
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة مؤشرات الأعمال.');
+
+  const data = await readWithRetry(() => supabase
+    .rpc('fetch_staff_orders')
+    .select('id,customer_id,status,total_amount'));
+
+  if (!Array.isArray(data)) throw new Error('لم يؤكد الخادم بيانات الطلبات اللازمة للتحليل.');
+  const result: Array<Pick<Order, 'id' | 'customer_id' | 'status' | 'total_amount'>> = [];
+  const seen = new Set<string>();
+  for (const value of data as Array<Record<string, unknown>>) {
+    if (
+      typeof value.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) ||
+      seen.has(value.id) ||
+      typeof value.customer_id !== 'string' ||
+      typeof value.status !== 'string'
+    ) {
+      throw new Error('أعاد الخادم سجلاً غير صالح لتحليل الطلبات؛ أُوقف احتساب المؤشرات.');
+    }
+    seen.add(value.id);
+    result.push({
+      id: value.id,
+      customer_id: value.customer_id,
+      status: value.status,
+      total_amount: value.total_amount as number,
+    });
+  }
+  return result;
+}
+
+/**
+ * Minimal source data for the existing inventory valuation formula.
+ * Unknown active warehouse, missing balances, malformed values or duplicate positions
+ * are returned as null, never converted into a zero-value inventory.
+ */
+export async function fetchBusinessInventoryValue(): Promise<number | null> {
+  const scope = await getStorefrontDataScope();
+  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة قيمة المخزون.');
+
+  const products = await readWithRetry(() => supabase
+    .rpc('fetch_staff_products', { p_product_id: null })
+    .select('id,base_price')
+    .order('id', { ascending: true }));
+
+  if (!Array.isArray(products)) throw new Error('لم يؤكد الخادم قائمة أصناف تقييم المخزون.');
+  if (products.length === 0) return 0;
+  if (!scope.warehouseId) return null;
+
+  const productIds = new Set<string>();
+  const priceByProduct = new Map<string, number>();
+  for (const value of products as Array<Record<string, unknown>>) {
+    if (
+      typeof value.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) ||
+      productIds.has(value.id) ||
+      value.base_price === null ||
+      value.base_price === undefined
+    ) {
+      return null;
+    }
+    const price = Number(value.base_price);
+    if (!Number.isFinite(price) || price < 0) return null;
+    productIds.add(value.id);
+    priceByProduct.set(value.id, price);
+  }
+
+  const balances = await readWithRetry(() => supabase
+    .from('inventory_balances')
+    .select('product_id,quantity_available')
+    .eq('warehouse_id', scope.warehouseId!));
+
+  if (!Array.isArray(balances)) throw new Error('لم يؤكد الخادم أرصدة المستودع لتقييم المخزون.');
+  const quantityByProduct = new Map<string, number>();
+  for (const value of balances as Array<Record<string, unknown>>) {
+    if (
+      typeof value.product_id !== 'string' ||
+      !productIds.has(value.product_id) ||
+      quantityByProduct.has(value.product_id) ||
+      typeof value.quantity_available !== 'number' ||
+      !Number.isFinite(value.quantity_available)
+    ) {
+      return null;
+    }
+    quantityByProduct.set(value.product_id, value.quantity_available);
+  }
+
+  let total = 0;
+  for (const productId of productIds) {
+    const price = priceByProduct.get(productId);
+    const quantity = quantityByProduct.get(productId);
+    if (price === undefined || quantity === undefined) return null;
+    total += price * quantity;
+    if (!Number.isFinite(total) || Math.abs(total) > Number.MAX_SAFE_INTEGER) return null;
+  }
+  return total;
+}
+
 export async function fetchOrderItems(orderId: string): Promise<OrderItem[]> {
   // Financial item columns are intentionally not selectable by authenticated users.
   // The RPC checks staff status, active profile and tenant ownership before returning the full row.
