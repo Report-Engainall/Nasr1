@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - "src/components/AghbariApp.tsx"
+      - "src/lib/types.ts"
+      - "src/lib/pricing-rule-tiers.ts"
+      - "src/lib/pricing-rule-tiers.test.ts"
+      - "supabase/migrations/20261112010000_allow_vip_pricing_rule_target.sql"
+      - "src/test/pricing-rule-vip-tier-migration.test.ts"
       - "src/lib/auth.tsx"
       - "src/lib/auth-phone.ts"
       - "src/lib/auth-phone.test.ts"
@@ -86,6 +91,11 @@ on:
       - main
     paths:
       - "src/components/AghbariApp.tsx"
+      - "src/lib/types.ts"
+      - "src/lib/pricing-rule-tiers.ts"
+      - "src/lib/pricing-rule-tiers.test.ts"
+      - "supabase/migrations/20261112010000_allow_vip_pricing_rule_target.sql"
+      - "src/test/pricing-rule-vip-tier-migration.test.ts"
       - "src/lib/auth.tsx"
       - "src/lib/auth-phone.ts"
       - "src/lib/auth-phone.test.ts"
