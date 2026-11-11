@@ -223,8 +223,9 @@ export type CustomerPricingOption = Pick<CustomerDirectoryRow, 'id' | 'business_
 /** Safe customer search grammar shared by the pricing-option reader and its regression tests. */
 export function buildCustomerPricingSearchFilter(value: string): string | null {
   if (typeof value !== 'string') throw new Error('عبارة البحث عن العميل غير صالحة.');
-  const rawSearch = value;
-  const emailLikeSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
+  const rawSearch = value.normalize('NFKC').trim();
+  if (rawSearch.length > 254) throw new Error('عبارة البحث عن العميل تتجاوز 254 حرفًا.');
+  const emailLikeSearch = rawSearch.toLowerCase();
   const isEmailLikeSearch = emailLikeSearch.length <= 254 &&
     !/\\s/.test(emailLikeSearch) &&
     /[@._]/.test(emailLikeSearch) &&
@@ -260,7 +261,11 @@ export async function fetchPricingCustomerOptions(input: {
     throw new Error('عبارة البحث عن العميل غير صالحة.');
   }
 
-  const searchFilter = buildCustomerPricingSearchFilter(input.search ?? '');
+  const rawSearch = (input.search ?? '').normalize('NFKC').trim();
+  const searchFilter = buildCustomerPricingSearchFilter(rawSearch);
+  if (rawSearch && !searchFilter) {
+    return { rows: [], hasNextPage: false };
+  }
 
   const scope = await getCurrentTenantScope();
   if (!scope.isStaff || !scope.organizationId) {
