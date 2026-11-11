@@ -11,7 +11,7 @@ import {
   X, ExternalLink, Save, Download, Printer,
 } from 'lucide-react';
 import {
-  fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchOrders, fetchAdminOrderById, fetchOrderItems,
+  fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchAdminOrderById, fetchOrderItems,
   fetchOnyxSnapshots, type OnyxSnapshotSummary,
   fetchSettings, fetchSuppliers, fetchAdminStorefrontAnnouncements, saveStorefrontAnnouncement,
   markAllNotificationsRead, markNotificationRead, resolveAiAlert, toggleAiTaskStatus,
