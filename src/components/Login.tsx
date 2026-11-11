@@ -55,7 +55,7 @@ function LoginEmailField({
   phoneLogin: boolean;
   onPhoneLoginChange: (value: boolean) => void;
 }) {
-  const isPhone = mode === "login" && phoneLogin;
+  const isPhone = (mode === "login" || mode === "register") && phoneLogin;
   return (
     <label className="login-field">
       <span>{isPhone ? "رقم الهاتف" : "البريد الإلكتروني"}</span>
@@ -71,18 +71,42 @@ function LoginEmailField({
           required
         />
       </div>
-      {mode === "login" ? (
+      {mode === "login" || mode === "register" ? (
         <button
           type="button"
           className="sf-link"
           onClick={() => onPhoneLoginChange(!phoneLogin)}
         >
-          {phoneLogin ? "تسجيل الدخول بالبريد الإلكتروني" : "تسجيل الدخول برقم الهاتف"}
+          {mode === "register"
+            ? phoneLogin ? "التسجيل بالبريد الإلكتروني" : "التسجيل برقم الهاتف"
+            : phoneLogin ? "تسجيل الدخول بالبريد الإلكتروني" : "تسجيل الدخول برقم الهاتف"}
         </button>
       ) : null}
     </label>
   );
 }
+function LoginPhoneVerificationField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="login-field">
+      <span>رمز التحقق المرسل إلى الهاتف</span>
+      <div className="login-input-wrap">
+        <ShieldCheck size={18} />
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, 8))}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="000000"
+          dir="ltr"
+          maxLength={8}
+          required
+        />
+      </div>
+    </label>
+  );
+}
+
 function LoginPasswordField({
   value,
   visible,
@@ -120,12 +144,14 @@ function LoginPasswordField({
   );
 }
 
-function LoginFormIntro({ mode, title }: { mode: Mode; title: string }) {
-  const description = mode === 'register'
-    ? 'أنشئ حسابك للطلب من متجر الأغبري'
-    : mode === 'forgot'
-      ? 'سنرسل لك رابطاً لتعيين كلمة مرور جديدة'
-      : 'أدخل بياناتك للمتابعة';
+function LoginFormIntro({ mode, title, phoneConfirmationPending }: { mode: Mode; title: string; phoneConfirmationPending: boolean }) {
+  const description = phoneConfirmationPending
+    ? 'أدخل رمز التحقق الذي أرسلناه إلى رقم هاتفك لإكمال إنشاء الحساب.'
+    : mode === 'register'
+      ? 'أنشئ حسابك للطلب من متجر الأغبري'
+      : mode === 'forgot'
+        ? 'سنرسل لك رابطاً لتعيين كلمة مرور جديدة'
+        : 'أدخل بياناتك للمتابعة';
 
   return (
     <>
@@ -173,7 +199,7 @@ function loginTitle(mode: Mode): string {
 }
 
 function validateLoginInput(mode: Mode, name: string, email: string, password: string, phoneLogin: boolean): string {
-  if (mode === "login" && phoneLogin) {
+  if ((mode === "login" || mode === "register") && phoneLogin) {
     if (!normalizeAuthPhoneIdentifier(email)) return "أدخل رقماً يمنياً يبدأ بـ7 أو رقماً دولياً بصيغة +رمز الدولة.";
   } else if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
     return "أدخل بريداً إلكترونياً صحيحاً";
@@ -191,11 +217,14 @@ export function Login({
   onDone?: () => void;
   initialMode?: Mode;
 }) {
-  const { signIn, signUp, resetPassword, loading } = useAuth();
+  const { signIn, signUp, verifyPhoneSignup, resendPhoneSignupCode, resetPassword, loading } = useAuth();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneLogin, setPhoneLogin] = useState(false);
+  const [phoneSignupPending, setPhoneSignupPending] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [error, setError] = useState('');
@@ -205,6 +234,22 @@ export function Login({
     event.preventDefault();
     setError('');
     setInfo('');
+
+    if (mode === 'register' && phoneSignupPending) {
+      if (!/^\d{4,8}$/.test(verificationCode.trim())) {
+        setError('أدخل رمز التحقق المكوّن من 4 إلى 8 أرقام.');
+        return;
+      }
+      try {
+        await verifyPhoneSignup(pendingPhone, verificationCode);
+        setPhoneSignupPending(false);
+        setVerificationCode('');
+        onDone?.();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'تعذر تأكيد رقم الهاتف.');
+      }
+      return;
+    }
 
     const validationError = validateLoginInput(mode, name, email, password, phoneLogin);
     if (validationError) {
@@ -220,10 +265,18 @@ export function Login({
       }
 
       if (mode === 'register') {
-        const { needsConfirmation } = await signUp(email, password, name);
+        const { needsConfirmation, confirmationType } = await signUp(email, password, name, phoneLogin ? 'phone' : 'email');
+        if (needsConfirmation && confirmationType === 'phone') {
+          setPendingPhone(normalizeAuthPhoneIdentifier(email) ?? email.trim());
+          setPhoneSignupPending(true);
+          setVerificationCode('');
+          setInfo('أرسلنا رمز تحقق إلى هاتفك. أدخل الرمز لإكمال التسجيل وتفعيل الحساب.');
+          return;
+        }
         if (needsConfirmation) {
           setInfo('تم إنشاء الحساب. افتح بريدك واضغط رابط التفعيل ثم سجّل الدخول.');
           setMode('login');
+          setPhoneLogin(false);
           return;
         }
       } else {
@@ -236,15 +289,28 @@ export function Login({
     }
   }
 
+  async function handleResendPhoneCode() {
+    setError('');
+    setInfo('');
+    try {
+      await resendPhoneSignupCode(pendingPhone);
+      setInfo('أعدنا إرسال رمز التحقق إلى هاتفك.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر إعادة إرسال رمز التحقق.');
+    }
+  }
+
   return (
     <div className="login-screen" dir="rtl">
       <LoginMarketingPanel />
       <div className="login-right">
         <form className="login-form" onSubmit={handleSubmit} noValidate>
-          <LoginFormIntro mode={mode} title={loginTitle(mode)} />
-          {mode === 'register' ? <LoginNameField value={name} onChange={setName} /> : null}
-          <LoginEmailField value={email} onChange={setEmail} mode={mode} phoneLogin={phoneLogin} onPhoneLoginChange={(next) => { setPhoneLogin(next); setEmail(""); setError(""); setInfo(""); }} />
-          {mode !== 'forgot' ? (
+          <LoginFormIntro mode={mode} title={loginTitle(mode)} phoneConfirmationPending={phoneSignupPending} />
+          {mode === 'register' && !phoneSignupPending ? <LoginNameField value={name} onChange={setName} /> : null}
+          {!phoneSignupPending ? <LoginEmailField value={email} onChange={setEmail} mode={mode} phoneLogin={phoneLogin} onPhoneLoginChange={(next) => { setPhoneLogin(next); setEmail(""); setError(""); setInfo(""); }} /> : null}
+          {phoneSignupPending ? <LoginPhoneVerificationField value={verificationCode} onChange={setVerificationCode} /> : null}
+          {phoneSignupPending ? <button type="button" className="sf-link" onClick={handleResendPhoneCode} disabled={loading}>إعادة إرسال رمز التحقق</button> : null}
+          {mode !== 'forgot' && !phoneSignupPending ? (
             <LoginPasswordField
               value={password}
               visible={show}
@@ -255,9 +321,9 @@ export function Login({
           ) : null}
           <LoginFeedback error={error} info={info} />
           <button className="login-submit" type="submit" disabled={loading}>
-            {loading ? 'جارٍ المعالجة...' : mode === 'login' ? 'دخول' : mode === 'register' ? 'إنشاء الحساب' : 'إرسال الرابط'}
+            {loading ? 'جارٍ المعالجة...' : phoneSignupPending ? 'تأكيد رقم الهاتف' : mode === 'login' ? 'دخول' : mode === 'register' ? 'إنشاء الحساب' : 'إرسال الرابط'}
           </button>
-          <LoginModeActions mode={mode} onModeChange={(next) => { setMode(next); setPhoneLogin(false); setEmail(""); setError(""); setInfo(""); }} />
+          <LoginModeActions mode={mode} onModeChange={(next) => { setMode(next); setPhoneLogin(false); setPhoneSignupPending(false); setPendingPhone(''); setVerificationCode(''); setEmail(""); setPassword(''); setError(""); setInfo(""); }} />
         </form>
       </div>
     </div>
