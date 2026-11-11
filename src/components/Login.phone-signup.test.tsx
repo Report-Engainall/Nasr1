@@ -18,13 +18,14 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 });
 
 describe("customer phone registration UI integration", () => {
-  it("renders the commercial signup form with a phone-registration choice", () => {
+  it("renders public self-service registration with phone as the default and optional business name", () => {
     const markup = renderToStaticMarkup(createElement(Login, { initialMode: "register" }));
 
     expect(markup).toContain("إنشاء حساب تجاري");
     expect(markup).toContain("الاسم الكامل");
-    expect(markup).toContain("البريد الإلكتروني");
-    expect(markup).toContain("التسجيل برقم الهاتف");
+    expect(markup).toContain("رقم الهاتف");
+    expect(markup).toContain("التسجيل بالبريد الإلكتروني");
+    expect(markup).toContain("اسم المحل / الشركة (اختياري)");
     expect(markup).toContain("إنشاء الحساب");
   });
 
@@ -35,6 +36,9 @@ describe("customer phone registration UI integration", () => {
     expect(source).toContain('type={isPhone ? "tel" : "email"}');
     expect(source).toContain('placeholder={isPhone ? "+967 7xxxxxxxx أو 7xxxxxxxx" : "name@example.com"}');
     expect(source).toContain("phoneLogin ? 'phone' : 'email'");
+    expect(source).toContain("useState(initialMode === 'register')");
+    expect(source).toContain("businessName");
+    expect(source).toContain("await signUp(email, password, name, phoneLogin ? 'phone' : 'email', businessName)");
     expect(source).toContain("verifyPhoneSignup(pendingPhone, verificationCode)");
     expect(source).toContain("resendPhoneSignupCode(pendingPhone)");
     expect(source).toContain("رمز التحقق المرسل إلى الهاتف");
