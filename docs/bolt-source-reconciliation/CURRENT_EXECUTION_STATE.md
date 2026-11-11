@@ -1,7 +1,8 @@
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — DASHBOARD PERFORMANCE FOLLOW-UP (SOURCE IMPLEMENTED; EXACT-SHA VERIFICATION PENDING)
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
-> Performance code SHA: `49903a4891e3418a5d33c0667cd33ee5c75e0be2`; current documentation-only descendant before this state update: `c71f1b3a0cf606ca44d6691d06f707419fa37038`.
+> Exact GitHub Actions test-target SHA on main: `39b73d8eb8fb0a603b5c061859d2a7755d7e2332`.
+> Source blobs: `src/lib/api.ts` `3a8401961ed77729f4a9a57202884f5a1d020e1e`; Dashboard `src/components/AghbariApp.tsx` `fc4318f7fe744fbaec65164b5b7218c4e871d41a`; low-stock helper/test `57e3d2a4c436400863560837c38ef741164d6dff` / `cf3db0f436694783680a19916a891ac0649bf9e6`; Actions workflow `899fad1fc5f04c7c4123f1a0b46a08bb4ed0ce9c`.
 > Latest previously tested code remains `9193f88b04b0681c539db735d649e4103949277b`; do not transfer its PASS to the new dashboard code.
 
 ## Implemented without deleting existing work
