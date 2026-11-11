@@ -48,6 +48,8 @@ on:
       - "src/lib/product-admin-pagination.test.ts"
       - "src/lib/customer-directory.ts"
       - "src/lib/customer-directory.test.ts"
+      - "src/lib/business-inventory-valuation.ts"
+      - "src/lib/business-inventory-valuation.test.ts"
       - "src/lib/useFetch.ts"
       - "src/lib/useFetch.test.tsx"
       - "tsconfig.p1-typecheck.json"
