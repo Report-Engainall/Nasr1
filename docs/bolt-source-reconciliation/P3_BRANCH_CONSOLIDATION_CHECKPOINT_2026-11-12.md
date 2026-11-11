@@ -2,7 +2,8 @@
 
 Repository: `Report-Engainall/Nasr1`
 Canonical branch: `main`
-Main SHA at this update: `2e536ba728376ace15450ecaaa9d7a92770ec275`
+Main code-verification SHA: `89bd6d5285db7c20f9e43a835d7f3d4abd865f97`
+Documentation commits after this code SHA do not change application source.
 Exact code-verification SHA: `89bd6d5285db7c20f9e43a835d7f3d4abd865f97`
 
 ## Completed on main
