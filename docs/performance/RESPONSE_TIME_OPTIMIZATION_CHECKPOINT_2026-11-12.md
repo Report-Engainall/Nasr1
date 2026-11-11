@@ -80,3 +80,25 @@ Status is **PARTIAL IMPLEMENTATION — NOT A PERFORMANCE ACCEPTANCE PASS**.
 5. Verify that account/session changes cannot reuse another user's cache, and verify refresh failure, retry, offline, logout and session expiry behavior in a real browser.
 
 No database indexes/migrations, live Supabase state, production config, deployment, or user financial/stock data were changed in this workstream. Do not mark P75/P95, browser, database or production acceptance complete until corresponding exact-SHA evidence exists.
+
+## P3 continuation — dashboard data-volume investigation — 2026-11-12
+
+- Inspection base: current `main` HEAD `b413fdab30b319bed556f00fdf0bda26b1539070`; the performance code-bearing SHA remains `9193f88b04b0681c539db735d649e4103949277b`.
+- Current source blobs inspected:
+  - `src/lib/api.ts`: `b95f8571b8264bbdcf3e9de5bae9fb1c2c6f95c1`.
+  - `src/components/AghbariApp.tsx`: `087c07244f9c27f2b313106ebf9944a556f7a4b2`.
+  - `src/lib/executive-analytics.ts`: `0959644475b8ddf33977880c83e283f750da34a4`.
+  - `src/lib/dashboard-metrics.ts`: `b0ddc92d1a6bc77cc02307be62f4ccd74b41ecdb`.
+- Confirmed dashboard hot path:
+  1. `fetchDashboardStats()` calls tenant scope resolution, then concurrently reads exact product/customer/alert counts, the complete result of `fetch_staff_orders`, and every inventory balance row for the active warehouse.
+  2. `Dashboard` separately calls the full `fetchProducts()` catalogue read solely to filter and display at most four low-stock products.
+  3. The dashboard refresh button repeats the full catalogue read. This is avoidable data transfer and client-side filtering on a high-frequency landing route.
+- Important contract finding: existing `get_store_executive_analytics` is not a drop-in replacement for `fetch_staff_orders`. Its validated DTO exposes `total_orders`, `eligible_sales`, `pending_orders`, and 30-day metrics; the dashboard currently sums the `total_amount` of the full returned order population and counts both `processing` and `pending`. Replacing it without proving status and monetary parity could silently change financial dashboard semantics.
+- No source mutation was made in this investigation. A guessed RPC name, unverified join, browser-side limit, or reuse of the executive analytics totals would be unsafe. The current inventory read also cannot be safely limited to four rows before applying the low-stock predicate: doing so could omit qualifying products or mis-rank the examples.
+- Required implementation shape for the next code-bearing P3 change:
+  - Add a narrowly scoped, server-side dashboard read contract that derives the authenticated user's organization and active warehouse from the trusted session/profile; accepts no caller-supplied tenant or warehouse identifier.
+  - Return exact dashboard aggregates plus only the top four verified low-stock product projections, ordered deterministically by availability/reorder pressure and stable product ID. Filter on the authoritative sellable `quantity_available <= reorder_point` predicate before applying LIMIT.
+  - Preserve existing role checks, RLS/tenant isolation, currency semantics, order status semantics, incomplete/invalid amount handling, and explicit unknown state when no warehouse exists.
+  - Avoid returning full order rows, full inventory balances, prices, customer balances, or unrelated product columns to the dashboard.
+  - Add migration-level contract tests and pure parser tests for unauthorized calls, tenant isolation, warehouse switching, empty/unknown warehouse, malformed rows, duplicate products, deterministic top-four ordering, and financial aggregate parity against `summarizeDashboardOrders`. Run the exact-SHA GitHub Actions suite before recording acceptance.
+- Acceptance status for this continuation: **INVESTIGATED — IMPLEMENTATION NOT YET MADE; NO TEST OR PERFORMANCE PASS CLAIMED**. Browser P50/P75/P95, payload bytes, DB query plans, and first-content/data-ready timings remain unmeasured.
