@@ -3,6 +3,7 @@ import {
   normalizeAuthPhoneIdentifier,
   requestPhoneSignup,
   resendPhoneSignupCode,
+  signInWithPhonePassword,
   verifyPhoneSignupCode,
   type PhoneAuthApi,
 } from "./auth-phone";
@@ -10,6 +11,7 @@ import {
 const TEST_SECRET = "x".repeat(16);
 function createAuthApi() {
   return {
+    signInWithPassword: vi.fn().mockResolvedValue({ data: { user: { id: "user" }, session: {} }, error: null }),
     signUp: vi.fn().mockResolvedValue({ data: { user: { id: "user" }, session: null }, error: null }),
     verifyOtp: vi.fn().mockResolvedValue({ data: { user: { id: "user" }, session: {} }, error: null }),
     resend: vi.fn().mockResolvedValue({ data: { messageId: "message" }, error: null }),
@@ -35,6 +37,21 @@ describe("phone authentication contract", () => {
 
   let auth: PhoneAuthApi;
   beforeEach(() => { auth = createAuthApi(); });
+
+  it("uses the phone credential property for password sign-in", async () => {
+    await signInWithPhonePassword(auth, "0712345678", TEST_SECRET);
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({
+      phone: "+967712345678",
+      password: TEST_SECRET,
+    });
+  });
+
+  it("rejects an invalid phone before password sign-in", async () => {
+    await expect(signInWithPhonePassword(auth, "bad-phone", TEST_SECRET)).rejects.toThrow(
+      "أدخل رقماً يمنياً صحيحاً",
+    );
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+  });
 
   it("creates an Auth phone account with SMS and full-name metadata", async () => {
     await requestPhoneSignup(auth, "0712345678", TEST_SECRET, " تاجر الأغبري ");
