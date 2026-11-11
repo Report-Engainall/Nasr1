@@ -59,9 +59,9 @@ export async function fetchResolvedProductPrices(
   if (uniqueIds.some((id) => typeof id !== "string" || !id.length)) {
     throw new Error("تعذر التحقق من هوية أحد الأصناف.");
   }
+
   const prices = new Map<string, number | null>();
-  for (let offset = 0; offset < uniqueIds.length; offset += 500) {
-    const chunk = uniqueIds.slice(offset, offset + 500);
+  const fetchPriceChunk = async (chunk: string[]): Promise<Map<string, number | null>> => {
     let data: unknown;
     try {
       data = await readWithRetry(() => supabase.rpc("get_storefront_product_prices", {
@@ -74,27 +74,55 @@ export async function fetchResolvedProductPrices(
     if (!Array.isArray(data)) {
       throw new Error("تعذر تحميل أسعار فئة حسابك من الخادم؛ أُخفيت الأسعار حتى اكتمال التحقق.");
     }
+
+    const chunkPrices = new Map<string, number | null>();
     for (const row of data as Array<{ product_id?: unknown; unit_price?: unknown }>) {
-      if (typeof row.product_id !== "string" || !chunk.includes(row.product_id) || prices.has(row.product_id)) {
+      if (
+        typeof row.product_id !== "string" ||
+        !chunk.includes(row.product_id) ||
+        chunkPrices.has(row.product_id)
+      ) {
         throw new Error("أعاد الخادم نتيجة أسعار غير متطابقة؛ أُخفيت الأسعار لحماية الحساب.");
       }
       if (row.unit_price === null) {
-        prices.set(row.product_id, null);
+        chunkPrices.set(row.product_id, null);
         continue;
       }
       const price = Number(row.unit_price);
       if (!Number.isFinite(price) || price < 0) {
         throw new Error("أعاد الخادم سعرًا غير صالح؛ أُخفيت الأسعار لحماية الحساب.");
       }
-      prices.set(row.product_id, price);
+      chunkPrices.set(row.product_id, price);
     }
-    if (chunk.some((id) => !prices.has(id))) {
+
+    if (chunk.some((id) => !chunkPrices.has(id))) {
       throw new Error("لم يرجع الخادم سعرًا موثقًا لكل صنف متاح؛ أُخفيت الأسعار لحماية الحساب.");
     }
+    return chunkPrices;
+  };
+
+  // Bounded concurrency avoids serial round trips without creating an unbounded
+  // burst against PostgREST for large catalogues.
+  const chunks = Array.from(
+    { length: Math.ceil(uniqueIds.length / 500) },
+    (_, index) => uniqueIds.slice(index * 500, (index + 1) * 500),
+  );
+  for (let offset = 0; offset < chunks.length; offset += 4) {
+    const validatedBatch = await Promise.all(
+      chunks.slice(offset, offset + 4).map(fetchPriceChunk),
+    );
+    for (const chunkPrices of validatedBatch) {
+      for (const [productId, price] of chunkPrices) {
+        if (prices.has(productId)) {
+          throw new Error("أعاد الخادم صنفًا مكررًا في نتائج الأسعار؛ أُخفيت الأسعار لحماية الحساب.");
+        }
+        prices.set(productId, price);
+      }
+    }
   }
+
   return prices;
 }
-
 const PUBLIC_FULL_CATALOG_PAGE_SIZE = 100;
 const PUBLIC_FULL_CATALOG_BATCH_SIZE = 8;
 const MAX_PUBLIC_FULL_CATALOG_ITEMS = 100_000;
@@ -203,22 +231,60 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   }
 
   const productIds = products.map((product) => product.id);
-  const galleryByProduct = new Map<string, string[]>();
+  const productMediaBatches: string[][] = [];
   for (let offset = 0; offset < productIds.length; offset += 200) {
-    const productIdBatch = productIds.slice(offset, offset + 200);
-    const mediaRows = await readWithRetry<Array<{ product_id: string; url: string; sort_order: number; created_at: string }>>(async () => {
-      const { data, error } = await supabase
-        .from('product_media')
-        .select('product_id,url,sort_order,created_at')
-        .in('product_id', productIdBatch)
-        .eq('is_primary', false)
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: true });
-      return {
-        data: (data ?? []) as Array<{ product_id: string; url: string; sort_order: number; created_at: string }>,
-        error,
-      };
-    });
+    productMediaBatches.push(productIds.slice(offset, offset + 200));
+  }
+
+  const [mediaResults, customerPriceMap, inventory, categories] = await Promise.all([
+    (async () => {
+      const results: Array<Array<{ product_id: string; url: string; sort_order: number; created_at: string }> | null> = [];
+      // Four concurrent media reads keep latency bounded without overwhelming PostgREST.
+      for (let offset = 0; offset < productMediaBatches.length; offset += 4) {
+        const batch = await Promise.all(
+          productMediaBatches.slice(offset, offset + 4).map((productIdBatch) =>
+            readWithRetry<Array<{ product_id: string; url: string; sort_order: number; created_at: string }>>(async () => {
+              const { data, error } = await supabase
+                .from('product_media')
+                .select('product_id,url,sort_order,created_at')
+                .in('product_id', productIdBatch)
+                .eq('is_primary', false)
+                .order('sort_order', { ascending: true })
+                .order('created_at', { ascending: true });
+              return {
+                data: (data ?? []) as Array<{ product_id: string; url: string; sort_order: number; created_at: string }>,
+                error,
+              };
+            }),
+          ),
+        );
+        results.push(...batch);
+      }
+      return results;
+    })(),
+    isStaff ? Promise.resolve(null) : fetchResolvedProductPrices(productIds),
+    warehouseId
+      ? readWithRetry(() => supabase
+          .from('inventory_balances')
+          .select(isStaff ? '*' : 'product_id,quantity_available')
+          .eq('warehouse_id', warehouseId))
+      : Promise.resolve([]),
+    retryRead(async () => {
+      let query = supabase
+        .from('categories')
+        .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
+        .eq('organization_id', orgId);
+      // Categories can contain internal descriptions; expose only storefront fields and active
+      // categories to non-staff clients. Keep the full scoped projection for staff maintenance.
+      if (!isStaff) query = query.eq('is_active', true);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data ?? [];
+    }),
+  ]);
+
+  const galleryByProduct = new Map<string, string[]>();
+  for (const mediaRows of mediaResults) {
     for (const media of mediaRows ?? []) {
       if (typeof media.product_id !== 'string' || typeof media.url !== 'string' || !/^https:\/\//i.test(media.url)) continue;
       const urls = galleryByProduct.get(media.product_id) ?? [];
@@ -226,17 +292,6 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
       galleryByProduct.set(media.product_id, urls);
     }
   }
-
-  const customerPriceMap = isStaff
-    ? null
-    : await fetchResolvedProductPrices(productIds);
-
-  const inventory = warehouseId
-    ? await readWithRetry(() => supabase
-        .from('inventory_balances')
-        .select(isStaff ? '*' : 'product_id,quantity_available')
-        .eq('warehouse_id', warehouseId))
-    : [];
 
   const invMap = new Map<string, InventoryBalance>();
   (inventory as unknown as Array<Record<string, unknown>> | null)?.forEach((row) => {
@@ -256,18 +311,6 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     });
   });
 
-  const categories = await retryRead(async () => {
-    let query = supabase
-      .from('categories')
-      .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
-      .eq('organization_id', orgId);
-    // Categories can contain internal descriptions; expose only storefront fields and active
-    // categories to non-staff clients. Keep the full scoped projection for staff maintenance.
-    if (!isStaff) query = query.eq('is_active', true);
-    const { data, error } = await query;
-    if (error) throw error;
-    return data ?? [];
-  });
   const catMap = new Map<string, Category>();
   (categories as unknown as Category[] | null)?.forEach((cat) => catMap.set(cat.id, cat));
 
