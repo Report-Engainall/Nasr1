@@ -42,6 +42,25 @@ function LoginNameField({ value, onChange }: { value: string; onChange: (value: 
   );
 }
 
+function LoginBusinessField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="login-field">
+      <span>اسم المحل / الشركة (اختياري)</span>
+      <div className="login-input-wrap">
+        <User size={18} />
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete="organization"
+          placeholder="اسم النشاط التجاري"
+          maxLength={200}
+        />
+      </div>
+    </label>
+  );
+}
+
 function LoginEmailField({
   value,
   onChange,
@@ -220,8 +239,9 @@ export function Login({
   const { signIn, signUp, verifyPhoneSignup, resendPhoneSignupCode, resetPassword, loading } = useAuth();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState('');
+  const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
-  const [phoneLogin, setPhoneLogin] = useState(false);
+  const [phoneLogin, setPhoneLogin] = useState(initialMode === 'register');
   const [phoneSignupPending, setPhoneSignupPending] = useState(false);
   const [pendingPhone, setPendingPhone] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -265,7 +285,7 @@ export function Login({
       }
 
       if (mode === 'register') {
-        const { needsConfirmation, confirmationType, existingAccount } = await signUp(email, password, name, phoneLogin ? 'phone' : 'email');
+        const { needsConfirmation, confirmationType, existingAccount } = await signUp(email, password, name, phoneLogin ? 'phone' : 'email', businessName);
         if (existingAccount) {
           setMode('login');
           setPhoneLogin(false);
@@ -314,6 +334,7 @@ export function Login({
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <LoginFormIntro mode={mode} title={loginTitle(mode)} phoneConfirmationPending={phoneSignupPending} />
           {mode === 'register' && !phoneSignupPending ? <LoginNameField value={name} onChange={setName} /> : null}
+          {mode === 'register' && !phoneSignupPending ? <LoginBusinessField value={businessName} onChange={setBusinessName} /> : null}
           {!phoneSignupPending ? <LoginEmailField value={email} onChange={setEmail} mode={mode} phoneLogin={phoneLogin} onPhoneLoginChange={(next) => { setPhoneLogin(next); setEmail(""); setError(""); setInfo(""); }} /> : null}
           {phoneSignupPending ? <LoginPhoneVerificationField value={verificationCode} onChange={setVerificationCode} /> : null}
           {phoneSignupPending ? <button type="button" className="sf-link" onClick={handleResendPhoneCode} disabled={loading}>إعادة إرسال رمز التحقق</button> : null}
@@ -330,7 +351,7 @@ export function Login({
           <button className="login-submit" type="submit" disabled={loading}>
             {loading ? 'جارٍ المعالجة...' : phoneSignupPending ? 'تأكيد رقم الهاتف' : mode === 'login' ? 'دخول' : mode === 'register' ? 'إنشاء الحساب' : 'إرسال الرابط'}
           </button>
-          <LoginModeActions mode={mode} onModeChange={(next) => { setMode(next); setPhoneLogin(false); setPhoneSignupPending(false); setPendingPhone(''); setVerificationCode(''); setEmail(""); setPassword(''); setError(""); setInfo(""); }} />
+          <LoginModeActions mode={mode} onModeChange={(next) => { setMode(next); setPhoneLogin(next === 'register'); setPhoneSignupPending(false); setPendingPhone(''); setVerificationCode(''); setEmail(""); setBusinessName(''); setPassword(''); setError(""); setInfo(""); }} />
         </form>
       </div>
     </div>
