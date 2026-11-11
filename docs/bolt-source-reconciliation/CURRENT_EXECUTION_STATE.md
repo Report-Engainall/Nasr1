@@ -4763,3 +4763,14 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Matrix leaf: `DLV-002-ADMIN-ROLE-ACCESS-COMPARISON-001` — `IMPLEMENTED_ON_MAIN / P1_TARGETED_CI_PASS / P2_BROWSER_ACCEPTANCE_PENDING`.
 - NEXT P1 ACTION: `DLV-002-ADMIN-ROLE-MATRIX-BROWSER-ACCEPTANCE-001` — obtain the authorized non-production admin browser fixture; verify the settings surface at 360px and 1280px, horizontal table access, keyboard navigation, accessible names and role/operation reasons. Keep this UI leaf separate from server-side authorization acceptance.
 - Project-level open gates remain unchanged: DLV-001 coverage mapping is OPEN; finance receivable-ageing, supplier/cash opening and statement migrations remain database-acceptance pending; overall release remains NO-GO.
+
+## P3 PERFORMANCE CHECKPOINT — 2026-11-12
+
+- Dedicated checkpoint: `docs/performance/RESPONSE_TIME_OPTIMIZATION_CHECKPOINT_2026-11-12.md`.
+- Exact code-bearing SHA: `9193f88b04b0681c539db735d649e4103949277b`.
+- GitHub Actions run [43109175708](https://github.com/Report-Engainall/Nasr1/actions/runs/43109175708): **SUCCESS** on that exact SHA (16/16 Vitest files, the two new scoped-cache regressions, P1 strict TypeScript, client/SSR/Nitro build).
+- Implemented route-level lazy admin workspace loading, 22 view-level lazy imports inside the existing role-checked boundary, bounded-parallel catalogue reads and explicit session-scoped in-memory stale-while-revalidate caching for low-risk category references only.
+- Build evidence: `AghbariApp` client chunk moved from 1,891.64 KB / 459.49 KB gzip on baseline SHA `92940d4ba71aabfb7e71293e2208f92d088d6459` to 225.74 KB / 64.24 KB gzip on `9193f88`. Specialist code is now separate chunks.
+- Acceptance remains **PARTIAL / OPEN**. No real-browser cold/warm route timings, P75/P95, query-plan evidence or database index acceptance has been collected. The first storefront `index` chunk remains 385.32 KB / 120.10 KB gzip in the latest build. Do not interpret the admin chunk reduction as a storefront-wide speedup.
+- No Supabase migrations, indexes, live database state, production configuration or deployment were changed.
+- Next: collect per-route browser waterfalls and P75/P95; profile the dashboard `fetch_staff_orders` and full `fetchProducts` reads; only then make plan-backed, tenant-safe SQL/RPC/index changes. See the dedicated checkpoint for exact files, sizes and acceptance boundaries.
