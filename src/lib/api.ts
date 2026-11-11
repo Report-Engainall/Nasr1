@@ -10,6 +10,7 @@ import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type Purc
 import { countLowStockBalances } from './inventory-metrics';
 import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
 import { buildProductAdminSearchFilter } from './product-admin-pagination';
+import { calculateBusinessInventoryValue } from './business-inventory-valuation';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
@@ -1301,55 +1302,14 @@ export async function fetchBusinessInventoryValue(): Promise<number | null> {
   if (products.length === 0) return 0;
   if (!scope.warehouseId) return null;
 
-  const productIds = new Set<string>();
-  const priceByProduct = new Map<string, number>();
-  for (const value of products as Array<Record<string, unknown>>) {
-    if (
-      typeof value.id !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) ||
-      productIds.has(value.id) ||
-      value.base_price === null ||
-      value.base_price === undefined
-    ) {
-      return null;
-    }
-    const price = Number(value.base_price);
-    if (!Number.isFinite(price) || price < 0) return null;
-    productIds.add(value.id);
-    priceByProduct.set(value.id, price);
-  }
-
   const balances = await readWithRetry(() => supabase
     .from('inventory_balances')
     .select('product_id,quantity_available')
     .eq('warehouse_id', scope.warehouseId!));
 
   if (!Array.isArray(balances)) throw new Error('لم يؤكد الخادم أرصدة المستودع لتقييم المخزون.');
-  const quantityByProduct = new Map<string, number>();
-  for (const value of balances as Array<Record<string, unknown>>) {
-    if (
-      typeof value.product_id !== 'string' ||
-      !productIds.has(value.product_id) ||
-      quantityByProduct.has(value.product_id) ||
-      typeof value.quantity_available !== 'number' ||
-      !Number.isFinite(value.quantity_available)
-    ) {
-      return null;
-    }
-    quantityByProduct.set(value.product_id, value.quantity_available);
-  }
-
-  let total = 0;
-  for (const productId of productIds) {
-    const price = priceByProduct.get(productId);
-    const quantity = quantityByProduct.get(productId);
-    if (price === undefined || quantity === undefined) return null;
-    total += price * quantity;
-    if (!Number.isFinite(total) || Math.abs(total) > Number.MAX_SAFE_INTEGER) return null;
-  }
-  return total;
+  return calculateBusinessInventoryValue(products, balances, true);
 }
-
 export async function fetchOrderItems(orderId: string): Promise<OrderItem[]> {
   // Financial item columns are intentionally not selectable by authenticated users.
   // The RPC checks staff status, active profile and tenant ownership before returning the full row.
