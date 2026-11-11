@@ -104,7 +104,7 @@ begin
      and s.status = 'ready'
    for share;
 
-  if not found or v_snapshot.data_quality_score < 75 then
+  if not found or coalesce(v_snapshot.data_quality_score, 0) < 75 then
     raise exception using errcode = '22023', message = 'only a ready Onyx snapshot with quality score 75 or higher can be applied';
   end if;
 
@@ -113,7 +113,7 @@ begin
    where j.id = v_snapshot.source_import_job_id
      and j.organization_id = v_org;
 
-  if v_job_status not in ('completed', 'completed_with_warnings') then
+  if v_job_status is null or v_job_status not in ('completed', 'completed_with_warnings') then
     raise exception using errcode = '22023', message = 'source import job is not in an accepted terminal state';
   end if;
 
@@ -132,7 +132,7 @@ begin
        and r.organization_id = v_org
      order by r.row_number, r.id
   loop
-    if v_row.status not in ('valid', 'warning') then
+    if v_row.status is null or v_row.status not in ('valid', 'warning') then
       v_rejected := v_rejected + 1;
       if pg_catalog.jsonb_array_length(v_errors) < 50 then
         v_errors := v_errors || pg_catalog.jsonb_build_array(
