@@ -39,6 +39,7 @@ export async function requestPhoneSignup(
   identifier: string,
   password: string,
   fullName: string,
+  businessName = "",
 ) {
   const phone = normalizeAuthPhoneIdentifier(identifier);
   if (!phone) {
@@ -49,7 +50,10 @@ export async function requestPhoneSignup(
     phone,
     password,
     options: {
-      data: { full_name: fullName.trim() },
+      data: {
+        full_name: fullName.trim(),
+        business_name: businessName.trim() || fullName.trim(),
+      },
       channel: "sms",
     },
   });
