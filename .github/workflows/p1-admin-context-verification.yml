@@ -63,3 +63,6 @@ jobs:
         run: bun run test
       - name: Run P1 strict TypeScript check
         run: bunx tsc --noEmit -p tsconfig.p1-typecheck.json
+
+      - name: Build production application bundle
+        run: bun run build
