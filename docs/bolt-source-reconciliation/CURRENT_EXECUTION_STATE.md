@@ -1,3 +1,43 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — CUSTOMER PHONE REGISTRATION / OTP CONTRACT
+
+> Repository: `Report-Engainall/Nasr1`; working branch: `p1/phone-signup-acceptance-2026-11-11`; base main SHA: `0348efcdc9b3e303df5ebee027fe03f44781824e`.
+> Exact-main CI is pending until this branch is fast-forwarded to main. Do not treat this branch checkpoint as a main or runtime PASS.
+
+## Scope and implementation
+
+- Continued the existing phone-registration change already present in main (UI commit `a338ef81dea2e177f58f24a3d361517a85bf94f4`; Auth commit `536aaf3d4aa4447bf41f71399c7e1f523b835a7f`). No duplicate registration screen or alternative identity mechanism was added.
+- Extracted the existing Yemen/E.164 phone normalizer and phone signup, SMS OTP verification and resend requests into `src/lib/auth-phone.ts` so the production Auth path and regression tests use the same implementation.
+- Tightened normalization to reject alphabetic/misplaced-plus input instead of silently stripping arbitrary characters into a valid-looking phone number.
+- Phone registration explicitly selects the SMS channel, keeps the full name in Auth user metadata, and never invents an email address.
+- Added focused tests for local Yemeni numbers with/without trunk zero, `+967`, `00967`, another E.164 number, malformed inputs, phone-only signup payload, SMS OTP verify, resend, invalid phone/token no-request behavior, customer UI flow and email-signup regression.
+- Added the auth source and tests to the P1 strict TypeScript scope and the P1 workflow path filter. Previous workflow successes did not include `src/lib/auth.tsx` or `src/components/Login.tsx` in their path filter and therefore did not prove this feature.
+
+## Exact code on working branch
+
+- Existing phone-signup base: `a338ef81dea2e177f58f24a3d361517a85bf94f4` (parent `536aaf3d4aa4447bf41f71399c7e1f523b835a7f`).
+- Auth isolation: `57a092a3a75d01eb45039515cd844d687fcd0262`.
+- Shared phone/Auth contract: `36d9fb4d3310ba8bc5f2a02d1a1cded9d9dbd74c`.
+- Auth contract regression tests: `638093b43f239bd7aa2dbb53a9acfd17ec6967da`.
+- Login component flow tests: `2ad6958a0e041aef1930ca37cad019ff3fe43574`.
+- P1 strict TypeScript include: `a8598f75c158144edf42f45ca46ba7d1c4507579`.
+- P1 workflow path coverage: `3dcb0ae307f12d93a6b258f19005018f4681063e`.
+
+## Acceptance boundary
+
+- CODE-IMPLEMENTED: branch source only; awaiting exact-main run.
+- TEST-PROVEN: pending GitHub Actions on the final main SHA.
+- DATA-PROVEN / AUTH-PROVIDER-PROVEN: not proven in a connected non-production Auth project.
+- BROWSER-PROVEN: not run.
+- PRODUCTION-PROVEN: not run.
+- Supabase Phone Auth and an authorized SMS provider must be configured by the project owner before real SMS delivery can be accepted. No provider, paid SMS credential, Auth user, DB row, migration or production setting was changed.
+- Phone-only profile hydration continues through existing `ensure_profile`; do not create placeholder emails. Verify live NULL-email/customer-role behavior only in an authorized non-production environment.
+
+## Next execution
+
+Fast-forward the tested branch safely only if main remains at the expected base SHA. Run P1 Actions on the resulting exact main SHA, fix every failure, then update this checkpoint and the central acceptance row with that exact evidence. Keep DLV-006 open until the Auth provider/SMS and phone-only profile runtime acceptance are proven.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — SUPPLIER INVOICE SERVICE ERROR UX / EXACT-MAIN BUILD VERIFIED
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
