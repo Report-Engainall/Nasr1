@@ -2921,7 +2921,8 @@ export async function fetchOnyxSnapshotRows(snapshotId: string, limit = 100, off
     .from('onyx_snapshot_rows')
     .select('id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors,created_at')
     .eq('snapshot_id', snapshotId)
-    .order('row_number')
+    .order('row_number', { ascending: true })
+    .order('id', { ascending: true })
     .range(offset, offset + limit - 1);
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
