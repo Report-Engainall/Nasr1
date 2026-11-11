@@ -19,7 +19,7 @@ import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCat
 import { useFetch } from '@/lib/useFetch';
 import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix';
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
-import { fetchCustomerDirectoryPage, type CustomerDirectoryRow } from '@/lib/customer-directory';
+import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
@@ -2148,7 +2148,7 @@ function PricingPreviewPanel() {
   const [productSearch, setProductSearch] = useState('');
   const [appliedProductSearch, setAppliedProductSearch] = useState('');
   const { data: customers, loading: customersLoading, error: customersError } = useFetch(
-    () => fetchCustomerDirectoryPage({ search: appliedCustomerSearch, page: 1, pageSize: 25 }),
+    () => fetchPricingCustomerOptions({ search: appliedCustomerSearch, pageSize: 25 }),
     [appliedCustomerSearch],
   );
   const { data: products, loading: productsLoading, error: productsError } = useFetch(
