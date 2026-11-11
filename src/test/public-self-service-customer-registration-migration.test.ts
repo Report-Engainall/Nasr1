@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  new URL("../../supabase/migrations/20261112000000_public_self_service_customer_registration.sql", import.meta.url),
+  new URL("../../supabase/migrations/20261111213752_public_self_service_customer_registration.sql", import.meta.url),
   "utf8",
 );
 const pendingOrderGate = readFileSync(
-  new URL("../../supabase/migrations/20261112001000_pending_customer_order_creation_gate.sql", import.meta.url),
+  new URL("../../supabase/migrations/20261111214542_pending_customer_order_creation_gate.sql", import.meta.url),
   "utf8",
 );
 
