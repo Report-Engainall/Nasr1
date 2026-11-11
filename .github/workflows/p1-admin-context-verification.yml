@@ -11,6 +11,7 @@ on:
       - "src/lib/auth-phone.test.ts"
       - "src/components/Login.tsx"
       - "src/components/Login.phone-signup.test.tsx"
+      - "src/routes/register.tsx"
       - "supabase/migrations/20261112000000_public_self_service_customer_registration.sql"
       - "src/test/public-self-service-customer-registration-migration.test.ts"
       - "supabase/migrations/20261112001000_pending_customer_order_creation_gate.sql"
