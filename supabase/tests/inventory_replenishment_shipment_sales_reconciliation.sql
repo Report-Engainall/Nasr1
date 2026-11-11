@@ -47,7 +47,7 @@ INSERT INTO public.profiles VALUES
  ('22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111',true);
 INSERT INTO public.user_roles VALUES('22222222-2222-4222-8222-222222222222','admin');
 
-\ir ../migrations/20261112000200_inventory_replenishment_shipment_sales_reconciliation.sql
+\ir ../migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql
 
 INSERT INTO public.warehouses(id,organization_id,is_active) VALUES
  ('44444444-4444-4444-8444-444444444444','11111111-1111-4111-8111-111111111111',true),
