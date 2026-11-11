@@ -2204,7 +2204,7 @@ function PricingPreviewPanel() {
           <option value="">{customersLoading ? 'جار البحث عن العملاء…' : 'اختر العميل من النتائج'}</option>
           {customerRows.map(customer => <option key={customer.id} value={customer.id}>{customer.business_name} · {customer.customer_code ?? 'بلا رمز'}</option>)}
         </select>
-        {customers?.totalCount && customers.totalCount > customerRows.length
+        {customers?.hasNextPage
           ? <small className="text-muted">توجد نتائج أكثر؛ اكتب جزءاً أدق من الاسم أو الرمز لتضييق البحث.</small>
           : null}
       </Field>
