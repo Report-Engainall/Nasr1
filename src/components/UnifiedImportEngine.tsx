@@ -51,11 +51,11 @@ type DuplicatePrompt = {
 };
 
 async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Promise<string[]> {
-  let headers: string[] | null = null;
+  const capturedHeaderRows: string[][] = [];
   const headerCaptured = Symbol("first-import-header-row");
   const captureFirstRow = (values: string[]) => {
-    if (headers === null) {
-      headers = values;
+    if (capturedHeaderRows.length === 0) {
+      capturedHeaderRows.push(values);
       throw headerCaptured;
     }
   };
@@ -82,6 +82,7 @@ async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Pro
     }
   }
 
+  const headers = capturedHeaderRows[0];
   if (!headers || headers.length === 0 || headers.every((value) => !String(value ?? "").trim())) {
     throw new Error("تعذر قراءة صف العناوين من الملف؛ لم تُنشأ دفعة استيراد.");
   }
