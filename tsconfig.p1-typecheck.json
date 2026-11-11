@@ -56,6 +56,7 @@
     "src/lib/help-center-search.test.ts",
     "src/lib/api.ts",
     "src/components/UnifiedImportEngine.tsx",
-    "src/lib/unified-import.ts"
+    "src/lib/unified-import.ts",
+    "src/lib/unified-import-quality.test.ts"
   ]
 }
