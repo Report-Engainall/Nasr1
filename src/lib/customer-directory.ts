@@ -217,3 +217,81 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
 
   throw new Error('تغيّر عدد العملاء أثناء التصفح. اضغط تحديث لإعادة المحاولة.');
 }
+
+export type CustomerPricingOption = Pick<CustomerDirectoryRow, 'id' | 'business_name' | 'customer_code'>;
+
+export type CustomerPricingOptionsResult = {
+  rows: CustomerPricingOption[];
+  totalCount: number;
+};
+
+/** Minimal staff-only customer selector projection; never fetches balances or credit limits. */
+export async function fetchPricingCustomerOptions(input: {
+  search?: string;
+  pageSize?: number;
+} = {}): Promise<CustomerPricingOptionsResult> {
+  const pageSize = input.pageSize ?? 25;
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+    throw new Error('حجم قائمة عملاء التسعير خارج النطاق المسموح.');
+  }
+  if (input.search !== undefined && typeof input.search !== 'string') {
+    throw new Error('عبارة البحث عن العميل غير صالحة.');
+  }
+
+  const rawSearch = input.search ?? '';
+  const emailLikeSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
+  const isEmailLikeSearch = emailLikeSearch.length <= 254 &&
+    !/\\s/.test(emailLikeSearch) &&
+    /[@._]/.test(emailLikeSearch) &&
+    /^[a-z0-9._+@-]+$/i.test(emailLikeSearch);
+  const search = isEmailLikeSearch ? emailLikeSearch : normalizeCustomerDirectorySearch(rawSearch);
+
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff || !scope.organizationId) {
+    throw new Error('صلاحية موظف المؤسسة مطلوبة لمعاينة أسعار العملاء.');
+  }
+
+  let request = supabase
+    .from('customers')
+    .select('id,business_name,customer_code', { count: 'exact' })
+    .eq('organization_id', scope.organizationId)
+    .order('business_name', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (search) {
+    const escaped = search.replace(/[\\%_]/g, (character) => '\\\\' + character);
+    const pattern = '%' + escaped + '%';
+    request = request.or([
+      'business_name.ilike.' + pattern,
+      'contact_name.ilike.' + pattern,
+      'phone.ilike.' + pattern,
+      'email.ilike.' + pattern,
+      'customer_code.ilike.' + pattern,
+    ].join(','));
+  }
+
+  const { data, error, count } = await request.range(0, pageSize - 1);
+  if (error) throw new Error('تعذر تحميل عملاء معاينة التسعير: ' + error.message);
+  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || !Array.isArray(data)) {
+    throw new Error('لم يؤكد الخادم قائمة عملاء معاينة التسعير.');
+  }
+
+  const rows: CustomerPricingOption[] = [];
+  for (const value of data as Array<Record<string, unknown>>) {
+    if (
+      typeof value.id !== 'string' ||
+      typeof value.business_name !== 'string' ||
+      (value.customer_code !== null && typeof value.customer_code !== 'string')
+    ) {
+      throw new Error('أعاد الخادم خيار عميل غير مكتمل؛ لم يتم عرضه.');
+    }
+    rows.push({
+      id: value.id,
+      business_name: value.business_name,
+      customer_code: typeof value.customer_code === 'string' ? value.customer_code : null,
+    });
+  }
+
+  return { rows, totalCount: count };
+}
+
