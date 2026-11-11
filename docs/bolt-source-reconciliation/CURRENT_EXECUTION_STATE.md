@@ -1,9 +1,20 @@
-# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — DASHBOARD PERFORMANCE FOLLOW-UP (SOURCE IMPLEMENTED; EXACT-SHA VERIFICATION PENDING)
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PERFORMANCE CONTINUATION (WORKSPACE PROJECTIONS IMPLEMENTED; EXACT-SHA VERIFICATION PENDING)
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
-> Exact GitHub Actions test-target SHA on main: `39b73d8eb8fb0a603b5c061859d2a7755d7e2332`.
-> Source blobs: `src/lib/api.ts` `3a8401961ed77729f4a9a57202884f5a1d020e1e`; Dashboard `src/components/AghbariApp.tsx` `fc4318f7fe744fbaec65164b5b7218c4e871d41a`; low-stock helper/test `57e3d2a4c436400863560837c38ef741164d6dff` / `cf3db0f436694783680a19916a891ac0649bf9e6`; Actions workflow `899fad1fc5f04c7c4123f1a0b46a08bb4ed0ce9c`.
+> Current code-bearing SHA on main: `4336007ac619b7a67a65cbf96f954f430718bfab`. The latest source implementation is not yet verified by an exact-SHA Actions run.
+> Source blobs: `src/lib/api.ts` `326372d8ebc1397454bc357a1735ef685b1bc283`; `src/components/AghbariApp.tsx` `e9b0a890ef0598a3486ed45b6392c8e331b7a50b`; `src/components/AdminPages.tsx` `abee3000429bc9815b0a826fe3c9e3c2786cab21`; customer directory/test `f62e3f784e02bdd97c8e6fbf1a61b8fb308e9e3e` / `835a4d712b556a55bd85cfc69e1e10c8663dc55c`; product selector/test `b07c2599b257d089925298dccbbf466d785f1670` / `ad4f104b9a94acc1cbd8602aa1c2045c67933409`; inventory valuation/test `ac5ecc1a18e83e486ad24c963ea9dc3395844140` / `950e8a2c4ae8ce00ca6f31289fe9f64cab12c58c`; uploader/test `1a4c0e0c71ecde3067eecbc48aee95d9851dfc5d` / `c874b93814f08b42f6a7df651cf73ec0bb7e85d0`; low-stock helper/test `57e3d2a4c436400863560837c38ef741164d6dff` / `cf3db0f436694783680a19916a891ac0649bf9e6`; workflow `b1a76f6d9315d2b7474d8ce5ea773523a99cad16`.
 > Latest previously tested code remains `9193f88b04b0681c539db735d649e4103949277b`; do not transfer its PASS to the new dashboard code.
+
+## Latest continuation summary — 2026-11-12
+
+- Product administration now loads 40 products per page with server-side search and page-specific media/category/warehouse projections. The original full catalog reader is retained and is only requested when the bulk image-matching tool is expanded.
+- Orders list is paged (40 + look-ahead); order detail uses a selected-order lookup and only its customer identity. Full `fetchOrders()` remains intact for unrelated workflows.
+- Pricing customer/product selectors now use narrow, searchable, bounded identity projections; an existing product-scoped pricing rule is preserved by a targeted lookup.
+- Business analytics receives only the four order fields used by its existing deterministic model. Inventory valuation retains the old base-price × selected-warehouse-available-quantity formula and returns unavailable on incomplete evidence.
+- Regression cases authored: 24 across customer search (5), product search (5), inventory valuation (6), uploader lazy loading (3), and low-stock ranking (5). They are included in GitHub Actions path filters but have not been executed at this SHA.
+- Critical limitation: the staff products/orders RPCs are existing `SETOF` functions; outer PostgREST projections and ranges reduce response size but do not prove database-side pagination/materialization reduction. True SQL keyset pagination/aggregates need new migrations and RLS parity evidence. No migration or production DB mutation was made.
+- Empty current DB remains: no warehouse/product/inventory/order/AI-alert rows. No populated-data browser timings or valid P75/P95 measurement yet.
+- Exact-SHA CI, strict TypeScript, build, and browser timings remain NOT VERIFIED for `4336007`; do not inherit the older `9193f88` PASS.
 
 ## Implemented without deleting existing work
 
