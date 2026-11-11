@@ -1,3 +1,43 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — SUPPLIER INVOICE SERVICE ERROR UX / EXACT-MAIN BUILD VERIFIED
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Exact code + CI commit: `88ca08534386d2abf768487eb506cf5d147fe54d`.
+> Verification: [GitHub Actions run 43040367097](https://github.com/Report-Engainall/Nasr1/actions/runs/43040367097) — SUCCESS on exact SHA `88ca08534386d2abf768487eb506cf5d147fe54d`.
+
+## Implemented on main
+
+- Removed the stale development-platform setup instruction from the supplier invoice workspace missing-RPC error. The user-facing state now accurately says the supplier invoice service is unavailable in the connected database, confirms that no substitute data was displayed, and directs the user to the system administrator.
+- Extracted `supplierInvoiceUnavailableMessage` into `src/lib/supplier-invoice-messages.ts` so service errors can be tested without loading the finance workspace.
+- Added `src/lib/supplier-invoice-messages.test.ts` covering PostgREST missing-function, PostgreSQL missing-function, generic Error, and unknown error shapes. The fixed unavailable-service copy is asserted not to mention Bolt or Vercel.
+- Added the helper and regression test to `tsconfig.p1-typecheck.json` and the P1 GitHub Actions path filter.
+- Extended `.github/workflows/p1-admin-context-verification.yml` with a production bundle step: `bun run build`. This verifies the client, SSR and Nitro outputs from GitHub Actions, without using a hosting deployment.
+
+## Exact verification
+
+- Workflow run `43040367097`: SUCCESS on exact commit `88ca08534386d2abf768487eb506cf5d147fe54d`.
+- Vitest: 10/10 files and 68/68 tests PASS.
+- P1 strict TypeScript: PASS.
+- Production build: client PASS, SSR PASS, Nitro PASS.
+- Main code changes in this unit: `6197e3fb1f99efb8170feef341a5118ee4a11d3b`, `671f81aeac7cb3d0f1bb73b0655690bd037b525d`, `08fb53c04c1d7923cdaeac752551232aefb99740`, `6fa20facf9d97f321f7feff297dcda69405817d4`, `a7ca0162735895d0d862cc7c18d56931e6737ec1`, `c68a875e99e90a1d2b58cdef5e17cbe368108897`, and `88ca08534386d2abf768487eb506cf5d147fe54d`.
+
+## Acceptance boundary — do not overstate
+
+- CODE-IMPLEMENTED: YES.
+- EXACT-MAIN-VITEST: YES.
+- P1-TYPECHECK: YES.
+- PRODUCTION-BUNDLE: YES.
+- AUTHENTICATED-BROWSER: NOT RUN.
+- LIVE-DATABASE / RPC / RLS: NOT RUN.
+- HOSTED-PRODUCTION DEPLOYMENT: NOT RUN.
+- This checkpoint proves only the supplier-invoice unavailable-service UX and the GitHub CI/build path. It does not mean the complete commerce product is production-accepted.
+- Keep first-owner bootstrap, initial admin sign-in, non-empty product/category data, outstanding database migrations, authenticated customer/admin browser acceptance, DLV-001 and DLV-002 open until their own evidence exists. Do not provision an administrator, fabricate product data, apply finance migrations, or claim live readiness without the required authorization and environment evidence.
+
+## Next execution point
+
+Continue from the current `main` head. Prioritize independent P1 product-body gaps that can be implemented and verified from repository source. For runtime/database leaves, preserve the existing strict RPC/RLS contracts; do not substitute a UI-only claim for unavailable tenant/browser/database evidence. Avoid rebuilding completed surfaces and do not invoke hosting deployments for source validation.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-10 — P1 UNIFIED OPERATIONS EXCEPTION LATEST-STATE PROJECTION
 
 > Tested code SHA: `85389cb413d2d7ff391f129bcc1e63d29601aaf1`; repository: `Report-Engainall/Nasr1`; branch: `main`.
