@@ -74,6 +74,26 @@ export type AdminView = 'dashboard' | 'products' | 'customers' | 'orders' | 'pri
 export type AdminAppProps = { initialView?: AdminView };
 type View = AdminView;
 
+/**
+ * Cache only low-risk administrative reference reads. Identity, profile, effective
+ * roles and session revision are part of the key so another account/session can
+ * never reuse this in-memory tenant data.
+ */
+function useAdminScopedReadCacheKey(resource: string): string | undefined {
+  const { user, sessionRevision } = useAuth();
+  if (!user) return undefined;
+  const roles = [...user.roles].sort().join(",");
+  return [
+    "aghbari-admin-read-v1",
+    resource,
+    user.id,
+    user.profileId,
+    user.isStaff ? "staff" : "customer",
+    roles,
+    sessionRevision,
+  ].join(":");
+}
+
 // Route-only administration workspaces are split into independent chunks so the
 // dashboard does not download finance, intelligence, import and inventory tools.
 type IconType = typeof LayoutDashboard;
@@ -1145,12 +1165,18 @@ export function ProductModal({
   onSaved: (message?: string) => void;
   canManageLifecycle?: boolean;
 }) {
+  const categoriesCacheKey = useAdminScopedReadCacheKey("catalog-categories");
   const {
     data: categories,
     loading: categoriesLoading,
     error: categoriesError,
+    refreshError: categoriesRefreshError,
     refetch: refetchCategories,
-  } = useFetch(fetchCategories);
+  } = useFetch(fetchCategories, [], {
+    cacheKey: categoriesCacheKey,
+    staleTimeMs: 15_000,
+    maxAgeMs: 120_000,
+  });
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
   const [productStatus, setProductStatus] = useState<'active' | 'inactive'>(product?.status === 'inactive' ? 'inactive' : 'active');
@@ -2150,7 +2176,18 @@ function localDateTimeValue(value?: string | null): string {
 
 export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
-  const { data: categories, loading: categoriesLoading, error: categoriesError, refetch: refetchCategories } = useFetch(fetchCategories);
+  const categoriesCacheKey = useAdminScopedReadCacheKey("catalog-categories");
+  const {
+    data: categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refreshError: categoriesRefreshError,
+    refetch: refetchCategories,
+  } = useFetch(fetchCategories, [], {
+    cacheKey: categoriesCacheKey,
+    staleTimeMs: 15_000,
+    maxAgeMs: 120_000,
+  });
   const [name, setName] = useState(rule?.name ?? '');
   const [scopeType, setScopeType] = useState<CreatePricingRuleInput['scope_type']>(pricingRuleScopeForForm(rule));
   const [scopeValue, setScopeValue] = useState(rule?.scope_value ?? '');
@@ -2522,11 +2559,22 @@ function ReportMetric({ label, value, icon: Icon }: { label: string; value: stri
 function DataCenter({ onNotice, initialImportJobId }: { onNotice: (m: string) => void; initialImportJobId?: string }) {
   const { user } = useAuth();
   const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const categoriesCacheKey = useAdminScopedReadCacheKey("catalog-categories");
   const [section, setSection] = useState<'categories' | 'import' | 'onyx'>('categories');
   useEffect(() => {
     if (initialImportJobId && canManageImports) setSection('import');
   }, [initialImportJobId, canManageImports]);
-  const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
+  const {
+    data: categories,
+    loading,
+    error,
+    refreshError,
+    refetch,
+  } = useFetch(fetchCategories, [], {
+    cacheKey: categoriesCacheKey,
+    staleTimeMs: 15_000,
+    maxAgeMs: 120_000,
+  });
   const [name, setName] = useState('');
   const [categoryCode, setCategoryCode] = useState('');
   const [parentCategoryId, setParentCategoryId] = useState('');
