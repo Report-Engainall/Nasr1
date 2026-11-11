@@ -1278,6 +1278,22 @@ export async function fetchAiAlerts(): Promise<AiAlert[]> {
   return (data ?? []) as AiAlert[];
 }
 
+/** Minimal, newest-first unresolved alert projection used only by the dashboard. */
+export type DashboardAiAlert = Pick<AiAlert, 'id' | 'title' | 'body' | 'severity'>;
+
+export async function fetchDashboardAiAlerts(): Promise<DashboardAiAlert[]> {
+  const { organizationId: orgId } = await getCurrentTenantScope();
+  const data = await readWithRetry(() => supabase
+    .from('ai_alerts')
+    .select('id,title,body,severity')
+    .eq('organization_id', orgId)
+    .eq('is_resolved', false)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .limit(4));
+  return (data ?? []) as DashboardAiAlert[];
+}
+
 export async function resolveAiAlert(id: string): Promise<void> {
   const { error } = await supabase.from('ai_alerts').update({ is_resolved: true }).eq('id', id);
   if (error) throw error;
