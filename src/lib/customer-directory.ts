@@ -244,7 +244,7 @@ export function buildCustomerPricingSearchFilter(value: string): string | null {
 
 export type CustomerPricingOptionsResult = {
   rows: CustomerPricingOption[];
-  totalCount: number;
+  hasNextPage: boolean;
 };
 
 /** Minimal staff-only customer selector projection; never fetches balances or credit limits. */
@@ -269,21 +269,22 @@ export async function fetchPricingCustomerOptions(input: {
 
   let request = supabase
     .from('customers')
-    .select('id,business_name,customer_code', { count: 'exact' })
+    .select('id,business_name,customer_code')
     .eq('organization_id', scope.organizationId)
     .order('business_name', { ascending: true })
     .order('id', { ascending: true });
 
   if (searchFilter) request = request.or(searchFilter);
 
-  const { data, error, count } = await request.range(0, pageSize - 1);
+  const { data, error } = await request.range(0, pageSize);
   if (error) throw new Error('تعذر تحميل عملاء معاينة التسعير: ' + error.message);
-  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || !Array.isArray(data)) {
+  if (!Array.isArray(data) || data.length > pageSize + 1) {
     throw new Error('لم يؤكد الخادم قائمة عملاء معاينة التسعير.');
   }
 
+  const hasNextPage = data.length > pageSize;
   const rows: CustomerPricingOption[] = [];
-  for (const value of data as Array<Record<string, unknown>>) {
+  for (const value of data.slice(0, pageSize) as Array<Record<string, unknown>>) {
     if (
       typeof value.id !== 'string' ||
       typeof value.business_name !== 'string' ||
@@ -298,6 +299,6 @@ export async function fetchPricingCustomerOptions(input: {
     });
   }
 
-  return { rows, totalCount: count };
+  return { rows, hasNextPage };
 }
 
