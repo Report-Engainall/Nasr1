@@ -941,7 +941,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     return () => window.clearTimeout(timer);
   }, [query]);
   async function refreshProducts() {
-    await refreshProducts();
+    await refetch();
     setCatalogRevision((revision) => revision + 1);
   }
   const [modal, setModal] = useState(false);
