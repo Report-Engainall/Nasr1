@@ -44,6 +44,7 @@ export function BulkProductImageUploader({
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
   const catalogRequestInFlight = useRef(false);
+  const reloadAfterCurrentRequest = useRef(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [selectionError, setSelectionError] = useState("");
@@ -78,7 +79,10 @@ export function BulkProductImageUploader({
 
   async function ensureCatalog(force = false): Promise<void> {
     if (!force && products !== null) return;
-    if (catalogRequestInFlight.current) return;
+    if (catalogRequestInFlight.current) {
+      if (force) reloadAfterCurrentRequest.current = true;
+      return;
+    }
 
     catalogRequestInFlight.current = true;
     setCatalogLoading(true);
@@ -92,15 +96,17 @@ export function BulkProductImageUploader({
     } finally {
       catalogRequestInFlight.current = false;
       setCatalogLoading(false);
+      if (reloadAfterCurrentRequest.current) {
+        reloadAfterCurrentRequest.current = false;
+        void ensureCatalog(true);
+      }
     }
   }
 
   useEffect(() => {
     if (catalogRevision <= 0) return;
     setProducts(null);
-    setFiles([]);
-    setResults([]);
-    setProgress(0);
+    setCatalogError("");
     if (detailsRef.current?.open) void ensureCatalog(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogRevision]);
