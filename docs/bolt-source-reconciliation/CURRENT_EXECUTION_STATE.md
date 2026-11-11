@@ -1,3 +1,35 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — EMAIL SIGNUP DUPLICATE-RESPONSE GUARD
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Exact source code SHA: `1731a44bae264cdd83a4aa7d362b4fe13bca86ac`.
+> P1 workflow: [GitHub Actions run 43098511728](https://github.com/Report-Engainall/Nasr1/actions/runs/43098511728) — **QUEUED / NOT TESTED** at checkpoint time.
+
+## Implemented on main
+
+- `src/lib/auth.tsx` now recognizes the Supabase GoTrue anti-enumeration response for email signup only: no session plus a present, empty `user.identities` array.
+- The response is not treated as a newly created account and does not produce the false “account created / check your email” confirmation state.
+- `src/components/Login.tsx` returns the customer to the login mode, retains the email, clears the attempted password from UI state, and gives neutral guidance to log in or use the existing password-recovery flow. Copy does not reveal whether the email is registered.
+- Phone signup and phone/password login code paths are unchanged.
+- Added response-classification regression cases in `src/lib/auth-phone.test.ts` and a Login UI integration case in `src/components/Login.phone-signup.test.tsx`.
+- No Auth provider settings, database objects, user records, passwords, email templates, mail delivery, production deployments or external services were changed.
+
+## Root cause addressed
+
+When email confirmation is enabled, Supabase may intentionally return an obfuscated user for a repeated signup of an already-confirmed email. The response can have an empty identities array and no session; no new account is created and the password submitted in that repeat signup is not applied. Treating every no-session response as a pending new signup falsely tells the user to activate an email. The UI now distinguishes this documented response without exposing account existence.
+
+## Exact-SHA verification
+
+- Source code commit: `1731a44bae264cdd83a4aa7d362b4fe13bca86ac`.
+- P1 workflow run `43098511728`: **QUEUED / NOT TESTED** when recorded. Do not claim Vitest, strict TypeScript or build PASS until the run is terminal SUCCESS on the exact SHA.
+- Hosted Auth/email delivery, real customer login, password-reset completion, Auth identity rows and production behavior: **NOT PROVEN**.
+- DLV-006 remains PARTIAL. This narrow UI/auth-response correction does not close registration, role/tenant, invitation, session, or hosted acceptance.
+
+## Next action
+
+Read the exact-SHA workflow result. On failure, fix the failing assertion/type/build issue and rerun against the resulting SHA. Once CI succeeds, validate first-time email signup and repeated-confirmed-email handling in a non-production Auth environment with controlled test accounts; keep hosted/production acceptance explicitly separate.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — PHONE-ONLY BUSINESS SIGNUP + LOGIN / EXACT-MAIN P1 CI PASS
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
