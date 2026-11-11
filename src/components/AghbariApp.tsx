@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchDashboardLowStockProducts, fetchOrders, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchOrders, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -923,10 +923,27 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const canUploadProductImages = Boolean(user?.roles.some((role) => ['admin', 'manager', 'staff'].includes(role)));
   const canManageReorderPoint = canManageProductLifecycle;
   const [lifecycleBusyId, setLifecycleBusyId] = useState<string | null>(null);
-  const { data, loading, error, refetch } = useFetch(fetchProducts);
-  const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
+  const [page, setPage] = useState(1);
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [query, setQuery] = useState(initialSearch ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearch?.trim() ?? '');
+  const { data, loading, error, refetch } = useFetch(
+    () => fetchAdminProductsPage({ page, search: debouncedQuery }),
+    [page, debouncedQuery],
+  );
+  const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
   useEffect(() => { if (initialSearch?.trim()) setQuery(initialSearch); }, [initialSearch]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedQuery(query.trim());
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+  async function refreshProducts() {
+    await refreshProducts();
+    setCatalogRevision((revision) => revision + 1);
+  }
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<ProductWithInventory | null>(null);
   const [transferProduct, setTransferProduct] = useState<ProductWithInventory | null>(null);
@@ -946,9 +963,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const [thresholdSaving, setThresholdSaving] = useState(false);
   const [thresholdError, setThresholdError] = useState('');
   const thresholdRequestSequence = useRef(0);
-  const rows = (data ?? []).filter((p) =>
-    [p.name, p.item_code, p.sku ?? '', p.barcode ?? ''].join(' ').toLocaleLowerCase('ar').includes(query.trim().toLocaleLowerCase('ar')),
-  );
+  const rows = data?.items ?? [];
   async function archive(product: ProductWithInventory) {
     if (!canManageProductLifecycle || lifecycleBusyId) return;
     if (!window.confirm('أرشفة ' + product.name + '؟ لن يظهر المنتج في المتجر، ويمكن إعادة تفعيله لاحقًا.')) return;
@@ -958,7 +973,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       if (result.id !== product.id || result.status !== 'inactive' || result.archived !== true) {
         throw new Error('لم يؤكد الخادم أرشفة المنتج؛ لم يتم إعلان النجاح.');
       }
-      await refetch();
+      await refreshProducts();
       onNotice('تمت أرشفة المنتج وإخفاؤه من المتجر.');
     } catch (cause) {
       onNotice(cause instanceof Error ? cause.message : 'تعذر أرشفة المنتج.');
@@ -975,7 +990,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       if (saved.id !== product.id) {
         throw new Error('لم يؤكد الخادم إعادة تفعيل المنتج؛ حدّث القائمة قبل إعادة المحاولة.');
       }
-      await refetch();
+      await refreshProducts();
       onNotice('تمت إعادة تفعيل المنتج.');
     } catch (cause) {
       onNotice(cause instanceof Error ? cause.message : 'تعذر إعادة تفعيل المنتج.');
@@ -1000,7 +1015,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       const result = await transferInventory({ productId: transferProduct.id, sourceWarehouseId: transferSource, destinationWarehouseId: transferDestination, quantity: Number(transferQuantity), reason: transferReason, idempotencyKey: transferKey });
       setTransferProduct(null);
       setTransferKey('');
-      refetch();
+      void refreshProducts();
       onNotice(result.idempotent_replay ? 'النقل السابق مؤكد؛ لم تُكرر الحركة.' : 'تم نقل المخزون وحفظ حركتي المستودعين.');
     } catch (e) { setTransferError(e instanceof Error ? e.message : 'تعذر نقل المخزون.'); }
     finally { setTransferSaving(false); }
@@ -1050,7 +1065,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     try {
       const result = await setInventoryReorderPoint({ productId: thresholdProduct.id, warehouseId: thresholdWarehouse, reorderPoint: threshold, reason: thresholdReason });
       setThresholdProduct(null);
-      await refetch();
+      await refreshProducts();
       onNotice(result.unchanged ? 'حد إعادة الطلب مضبوط بالفعل على القيمة نفسها.' : 'تم تحديث حد إعادة الطلب وسجل التعديل؛ أعيد تقييم مهمة الشراء تلقائيًا.');
     } catch (e) { setThresholdError(e instanceof Error ? e.message : 'تعذر حفظ حد إعادة الطلب.'); }
     finally { setThresholdSaving(false); }
@@ -1130,15 +1145,15 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
+    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions"><Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
     <BulkProductImageUploader
-      products={data ?? []}
+      loadProducts={fetchProducts}
+      catalogRevision={catalogRevision}
       canManage={canUploadProductImages}
-      catalogReady={!loading && !error}
-      onUploaded={async (message) => { await refetch(); onNotice(message); }}
+      onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
     />
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
-      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table>
+      {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
           const qty = p.inventory?.quantity_available;
@@ -1157,8 +1172,15 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
           </tr>;
         })}</tbody>
       </table>{!rows.length && <Empty text="لا توجد منتجات مطابقة" />}</TableWrap>}
+      <div className="toolbar" style={{ marginTop: 12 }}>
+        <span className="toolbar-note">صفحة {page} — {rows.length} صنف معروض</span>
+        <div className="toolbar-actions">
+          <Button variant="outline" disabled={loading || page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>السابق</Button>
+          <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
+        </div>
+      </div>
     </section>
-    {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); refetch(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
+    {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); void refreshProducts(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
   </>;
