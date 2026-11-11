@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadProductGalleryImage, uploadProductImage } from "@/lib/api";
 import { toWebp, validateProductImageFile } from "@/lib/product-image";
 import { matchProductImagesByCode, type ProductImageBatchEntry } from "@/lib/product-image-batch-match";
@@ -30,16 +30,21 @@ function matchStatusLabel(entry: ProductImageBatchEntry<File>): string {
 }
 
 export function BulkProductImageUploader({
-  products,
+  loadProducts,
+  catalogRevision,
   canManage,
-  catalogReady,
   onUploaded,
 }: {
-  products: readonly ProductWithInventory[];
+  loadProducts: () => Promise<ProductWithInventory[]>;
+  catalogRevision: number;
   canManage: boolean;
-  catalogReady: boolean;
   onUploaded: (message: string) => void | Promise<void>;
 }) {
+  const [products, setProducts] = useState<readonly ProductWithInventory[] | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
+  const catalogRequestInFlight = useRef(false);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [selectionError, setSelectionError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,8 +57,9 @@ export function BulkProductImageUploader({
   );
   const invalidFiles = fileChecks.filter((item) => item.issue);
   const validFiles = fileChecks.filter((item) => !item.issue).map((item) => item.file);
+  const catalogReady = products !== null;
   const entries = useMemo(
-    () => matchProductImagesByCode(products, validFiles),
+    () => matchProductImagesByCode(products ?? [], validFiles),
     [products, validFiles],
   );
   const readyEntries = useMemo(
@@ -69,6 +75,35 @@ export function BulkProductImageUploader({
     [entries],
   );
   const blockedEntries = entries.filter((entry) => entry.status !== "ready");
+
+  async function ensureCatalog(force = false): Promise<void> {
+    if (!force && products !== null) return;
+    if (catalogRequestInFlight.current) return;
+
+    catalogRequestInFlight.current = true;
+    setCatalogLoading(true);
+    setCatalogError("");
+    try {
+      const loaded = await loadProducts();
+      if (!Array.isArray(loaded)) throw new Error("لم يؤكد الخادم اكتمال كتالوج مطابقة الصور.");
+      setProducts(loaded);
+    } catch (cause) {
+      setCatalogError(errorMessage(cause));
+    } finally {
+      catalogRequestInFlight.current = false;
+      setCatalogLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (catalogRevision <= 0) return;
+    setProducts(null);
+    setFiles([]);
+    setResults([]);
+    setProgress(0);
+    if (detailsRef.current?.open) void ensureCatalog(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogRevision]);
 
   if (!canManage) return null;
 
@@ -152,7 +187,9 @@ export function BulkProductImageUploader({
   }
 
   return (
-    <details className="panel" style={{ marginBottom: 16 }}>
+    <details ref={detailsRef} onToggle={(event) => {
+      if (event.currentTarget.open) void ensureCatalog();
+    }} className="panel" style={{ marginBottom: 16 }}>
       <summary style={{ cursor: "pointer", fontWeight: 800, padding: "2px 0" }}>
         محرك الصور — مطابقة ورفع صور الأصناف دفعة واحدة
       </summary>
@@ -170,10 +207,12 @@ export function BulkProductImageUploader({
             accept="image/jpeg,image/png,image/webp"
             multiple
             onChange={selectFiles}
-            disabled={busy || !catalogReady}
+            disabled={busy || !catalogReady || catalogLoading || Boolean(catalogError)}
           />
         </label>
-        {!catalogReady && <div className="privacy-note" role="status">يُتاح اختيار الصور بعد اكتمال تحميل كتالوج الأصناف بنجاح.</div>}
+        {catalogLoading && <div className="privacy-note" role="status">جارٍ تحميل قائمة الأصناف للمطابقة الدقيقة...</div>}
+        {catalogError && <div className="form-error" role="alert">{catalogError} <button type="button" className="btn outline" onClick={() => void ensureCatalog(true)}>إعادة المحاولة</button></div>}
+        {!catalogReady && !catalogLoading && !catalogError && <div className="privacy-note" role="status">يُحمّل الكتالوج الكامل عند فتح هذه الأداة فقط؛ لن تُختار الصور قبل اكتمال المطابقة.</div>}
 
         {selectionError && <div className="form-error" role="alert">{selectionError}</div>}
 
@@ -207,7 +246,7 @@ export function BulkProductImageUploader({
               </table>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <button type="button" className="btn primary" onClick={() => void uploadMatchedImages()} disabled={busy || !catalogReady || readyEntries.length === 0}>
+              <button type="button" className="btn primary" onClick={() => void uploadMatchedImages()} disabled={busy || !catalogReady || catalogLoading || Boolean(catalogError) || readyEntries.length === 0}>
                 {busy ? "جارٍ رفع الصور " + progress + " / " + readyEntries.length : "رفع الصور المطابقة"}
               </button>
               <button type="button" className="btn outline" onClick={() => { setFiles([]); setResults([]); setProgress(0); }} disabled={busy}>
