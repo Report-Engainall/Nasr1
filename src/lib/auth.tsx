@@ -12,6 +12,19 @@ export { normalizeAuthPhoneIdentifier } from './auth-phone';
 
 export type AuthUser = { id: string; profileId: string; email: string; name: string; roles: string[]; isStaff: boolean };
 
+/**
+ * GoTrue can return an obfuscated user for a repeated, already-confirmed email
+ * signup. An empty identities array without a session means no new account was
+ * created and the submitted password was not applied.
+ */
+export function isObfuscatedEmailSignupResult(
+  user: { identities?: readonly unknown[] | null } | null | undefined,
+  hasSession: boolean,
+): boolean {
+  return !hasSession && user != null &&
+    Array.isArray(user.identities) && user.identities.length === 0;
+}
+
 type AuthContextType = {
   user: AuthUser | null;
   sessionRevision: number;
@@ -19,7 +32,7 @@ type AuthContextType = {
   ready: boolean;
   configurationError: string | null;
   signIn: (identifier: string, password: string) => Promise<void>;
-  signUp: (identifier: string, password: string, fullName: string, method?: 'email' | 'phone') => Promise<{ needsConfirmation: boolean; confirmationType: 'email' | 'phone' }>;
+  signUp: (identifier: string, password: string, fullName: string, method?: 'email' | 'phone') => Promise<{ needsConfirmation: boolean; confirmationType: 'email' | 'phone'; existingAccount: boolean }>;
   verifyPhoneSignup: (phone: string, token: string) => Promise<void>;
   resendPhoneSignupCode: (phone: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -217,8 +230,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             },
           });
       if (result.error) throw new Error(translateAuthError(result.error.message));
+
+      // Detect GoTrue's anti-enumeration response without exposing account existence.
+      const existingEmailAccount = method === 'email' &&
+        isObfuscatedEmailSignupResult(result.data.user, Boolean(result.data.session));
+      if (existingEmailAccount) {
+        return { needsConfirmation: false, confirmationType: method, existingAccount: true };
+      }
+
       if (result.data.session) await refresh();
-      return { needsConfirmation: !result.data.session, confirmationType: method };
+      return { needsConfirmation: !result.data.session, confirmationType: method, existingAccount: false };
     } finally { setLoading(false); }
   }, [refresh]);
 
