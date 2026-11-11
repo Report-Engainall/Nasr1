@@ -54,7 +54,7 @@ function PurchaseOrderDraftLineRow({ line, index, products, busy, onProductChang
   return (
     <div className="po-line">
       <label className="po-field wide">الصنف
-        <select value={line.productId} onChange={(event) => onProductChange(event.target.value)} disabled={busy}>
+        <select aria-label="الصنف" value={line.productId} onChange={(event) => onProductChange(event.target.value)} disabled={busy}>
           <option value="">اختر صنفًا</option>
           {purchaseOrderProductOptions(products)}
         </select>
