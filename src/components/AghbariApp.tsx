@@ -69,7 +69,9 @@ import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
 import { adminRecordContextStorageKey, previousAdminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
+export type AdminView = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
+export type AdminAppProps = { initialView?: AdminView };
+type View = AdminView;
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -827,7 +829,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   );
 }
 
-export function AdminApp({ initialView = 'dashboard' }: { initialView?: View }) {
+export function AdminApp({ initialView = 'dashboard' }: AdminAppProps) {
   const { user, ready, sessionRevision } = useAuth();
   if (!ready) return <div className="login-screen" dir="rtl"><div style={{ margin: 'auto' }}><Loading /></div></div>;
   if (!user) return <Login />;
