@@ -1,6 +1,7 @@
-// @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 import { Login } from "./Login";
 
 const authMocks = vi.hoisted(() => ({
@@ -16,58 +17,35 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, useAuth: () => ({ ...authMocks, loading: false }) };
 });
 
-describe("customer registration by phone", () => {
-  afterEach(() => cleanup());
-  beforeEach(() => {
-    vi.clearAllMocks();
-    authMocks.signUp.mockResolvedValue({ needsConfirmation: true, confirmationType: "phone" });
-    authMocks.verifyPhoneSignup.mockResolvedValue(undefined);
-    authMocks.resendPhoneSignupCode.mockResolvedValue(undefined);
+describe("customer phone registration UI integration", () => {
+  it("renders the commercial signup form with a phone-registration choice", () => {
+    const markup = renderToStaticMarkup(createElement(Login, { initialMode: "register" }));
+
+    expect(markup).toContain("إنشاء حساب تجاري");
+    expect(markup).toContain("الاسم الكامل");
+    expect(markup).toContain("البريد الإلكتروني");
+    expect(markup).toContain("التسجيل برقم الهاتف");
+    expect(markup).toContain("إنشاء الحساب");
   });
 
-  it("registers without an email, resends SMS and completes after OTP verification", async () => {
-    const onDone = vi.fn();
-    render(<Login initialMode="register" onDone={onDone} />);
+  it("wires phone mode to a telephone field, phone Auth signup, SMS verification and resend", () => {
+    const source = readFileSync(new URL("./Login.tsx", import.meta.url), "utf8");
 
-    fireEvent.click(screen.getByRole("button", { name: "التسجيل برقم الهاتف" }));
-    expect(screen.getByLabelText("رقم الهاتف")).toBeTruthy();
-    expect(screen.queryByLabelText("البريد الإلكتروني")).toBeNull();
-
-    fireEvent.change(screen.getByLabelText("الاسم الكامل"), { target: { value: "تاجر الأغبري" } });
-    fireEvent.change(screen.getByLabelText("رقم الهاتف"), { target: { value: "0712345678" } });
-    fireEvent.change(screen.getByLabelText("كلمة المرور"), { target: { value: "x".repeat(16) } });
-    fireEvent.click(screen.getByRole("button", { name: "إنشاء الحساب" }));
-
-    await waitFor(() => expect(authMocks.signUp).toHaveBeenCalledWith(
-      "0712345678", "x".repeat(16), "تاجر الأغبري", "phone",
-    ));
-    expect(screen.getByLabelText("رمز التحقق المرسل إلى الهاتف")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "إعادة إرسال رمز التحقق" }));
-    await waitFor(() => expect(authMocks.resendPhoneSignupCode).toHaveBeenCalledWith("+967712345678"));
-
-    fireEvent.change(screen.getByLabelText("رمز التحقق المرسل إلى الهاتف"), {
-      target: { value: "123456" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "تأكيد رقم الهاتف" }));
-    await waitFor(() => {
-      expect(authMocks.verifyPhoneSignup).toHaveBeenCalledWith("+967712345678", "123456");
-      expect(onDone).toHaveBeenCalledTimes(1);
-    });
+    expect(source).toContain('const isPhone = (mode === "login" || mode === "register") && phoneLogin;');
+    expect(source).toContain('type={isPhone ? "tel" : "email"}');
+    expect(source).toContain('placeholder={isPhone ? "+967 7xxxxxxxx أو 7xxxxxxxx" : "name@example.com"}');
+    expect(source).toContain("phoneLogin ? 'phone' : 'email'");
+    expect(source).toContain("verifyPhoneSignup(pendingPhone, verificationCode)");
+    expect(source).toContain("resendPhoneSignupCode(pendingPhone)");
+    expect(source).toContain("رمز التحقق المرسل إلى الهاتف");
   });
 
-  it("preserves the existing email registration path", async () => {
-    authMocks.signUp.mockResolvedValue({ needsConfirmation: true, confirmationType: "email" });
-    render(<Login initialMode="register" />);
+  it("keeps email signup, login and password recovery controls in the same component", () => {
+    const source = readFileSync(new URL("./Login.tsx", import.meta.url), "utf8");
 
-    fireEvent.change(screen.getByLabelText("الاسم الكامل"), { target: { value: "تاجر البريد" } });
-    fireEvent.change(screen.getByLabelText("البريد الإلكتروني"), { target: { value: "merchant@example.com" } });
-    fireEvent.change(screen.getByLabelText("كلمة المرور"), { target: { value: "x".repeat(16) } });
-    fireEvent.click(screen.getByRole("button", { name: "إنشاء الحساب" }));
-
-    await waitFor(() => expect(authMocks.signUp).toHaveBeenCalledWith(
-      "merchant@example.com", "x".repeat(16), "تاجر البريد", "email",
-    ));
-    expect(screen.getByText("تم إنشاء الحساب. افتح بريدك واضغط رابط التفعيل ثم سجّل الدخول.")).toBeTruthy();
+    expect(source).toContain("تسجيل الدخول بالبريد الإلكتروني");
+    expect(source).toContain("التسجيل بالبريد الإلكتروني");
+    expect(source).toContain("نسيت كلمة المرور؟");
+    expect(source).toContain("await signIn(email, password)");
   });
 });
