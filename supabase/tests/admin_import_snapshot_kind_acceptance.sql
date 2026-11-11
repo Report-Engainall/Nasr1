@@ -44,7 +44,7 @@ BEGIN
 END;
 $f$;
 
-\ir ../migrations/20261110210000_enforce_admin_import_snapshot_kind.sql
+\ir ../migrations/20261111230620_enforce_admin_import_snapshot_kind.sql
 
 INSERT INTO public.organizations VALUES('11111111-1111-4111-8111-111111111111',true);
 INSERT INTO public.profiles VALUES('22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111',true);
