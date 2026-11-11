@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, Headphones, PackageCheck,
   CircleDollarSign, Database, Download, FileSpreadsheet, FileText, LayoutDashboard, LogOut, Menu, Package, Printer,
@@ -31,38 +31,39 @@ import {
   AiCenter, Field, Loading, ErrorBox, Empty, Button,
   TableWrap, Modal, Notifications, OrderDetail, SettingsPage, Suppliers,
 } from '@/components/AdminPages';
-import { OperationsCenter } from '@/components/OperationsCenter';
+const OperationsCenter = lazy(async () => ({ default: (await import('@/components/OperationsCenter')).OperationsCenter }));
 import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/business-intelligence';
 import { dashboardAverageOrderDisplay, dashboardSalesDisplay } from '@/lib/dashboard-metrics';
 import { getInventoryAvailabilityStatus } from '@/lib/inventory-metrics';
-import { PricingGrid } from '@/components/PricingGrid';
-import { ProductUnitConversionsEditor } from '@/components/ProductUnitConversionsEditor';
-import { AdminAuditLog } from '@/components/AdminAuditLog';
-import { AdminCustomer360 } from '@/components/AdminCustomer360';
-import { CustomerServiceDesk } from '@/components/CustomerServiceDesk';
-import { CustomerActivationInvitationDialog } from '@/components/CustomerActivationInvitationDialog';
+const PricingGrid = lazy(async () => ({ default: (await import('@/components/PricingGrid')).PricingGrid }));
+const ProductUnitConversionsEditor = lazy(async () => ({ default: (await import('@/components/ProductUnitConversionsEditor')).ProductUnitConversionsEditor }));
+const AdminAuditLog = lazy(async () => ({ default: (await import('@/components/AdminAuditLog')).AdminAuditLog }));
+const AdminCustomer360 = lazy(async () => ({ default: (await import('@/components/AdminCustomer360')).AdminCustomer360 }));
+const CustomerServiceDesk = lazy(async () => ({ default: (await import('@/components/CustomerServiceDesk')).CustomerServiceDesk }));
+const CustomerActivationInvitationDialog = lazy(async () => ({ default: (await import('@/components/CustomerActivationInvitationDialog')).CustomerActivationInvitationDialog }));
 import type { CustomerActivationCandidate } from '@/components/CustomerActivationInvitationDialog';
-import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
-import { DeviceManagement } from '@/components/DeviceManagement';
-import { TaskCenter } from '@/components/TaskCenter';
-import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
-import { InventoryTransferHistoryPage } from '@/components/InventoryTransferHistoryPage';
-import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
-import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
-import { OnyxSnapshotCenter } from '@/components/OnyxSnapshotCenter';
-import { UnifiedOnyxAnalysisPanel } from '@/components/UnifiedOnyxAnalysisPanel';
-import { ExecutiveStoreAnalytics } from '@/components/ExecutiveStoreAnalytics';
-import { PromotionManager } from '@/components/PromotionManager';
+const CustomerManagerRoleAssignment = lazy(async () => ({ default: (await import('@/components/CustomerManagerRoleAssignment')).CustomerManagerRoleAssignment }));
+const DeviceManagement = lazy(async () => ({ default: (await import('@/components/DeviceManagement')).DeviceManagement }));
+const TaskCenter = lazy(async () => ({ default: (await import('@/components/TaskCenter')).TaskCenter }));
+const InventoryStockCountPage = lazy(async () => ({ default: (await import('@/components/InventoryStockCountPage')).InventoryStockCountPage }));
+const InventoryTransferHistoryPage = lazy(async () => ({ default: (await import('@/components/InventoryTransferHistoryPage')).InventoryTransferHistoryPage }));
+const PurchaseOrdersPage = lazy(async () => ({ default: (await import('@/components/PurchaseOrdersPage')).PurchaseOrdersPage }));
+const UnifiedImportEngine = lazy(async () => ({ default: (await import('@/components/UnifiedImportEngine')).UnifiedImportEngine }));
+const OnyxSnapshotCenter = lazy(async () => ({ default: (await import('@/components/OnyxSnapshotCenter')).OnyxSnapshotCenter }));
+const UnifiedOnyxAnalysisPanel = lazy(async () => ({ default: (await import('@/components/UnifiedOnyxAnalysisPanel')).UnifiedOnyxAnalysisPanel }));
+const ExecutiveStoreAnalytics = lazy(async () => ({ default: (await import('@/components/ExecutiveStoreAnalytics')).ExecutiveStoreAnalytics }));
+const PromotionManager = lazy(async () => ({ default: (await import('@/components/PromotionManager')).PromotionManager }));
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
-import { BulkProductImageUploader } from '@/components/BulkProductImageUploader';
+const BulkProductImageUploader = lazy(async () => ({ default: (await import('@/components/BulkProductImageUploader')).BulkProductImageUploader }));
 import { validateCustomerInput } from '@/lib/customer-input';
-import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
-import { GeneralLedgerWorkspace } from '@/components/GeneralLedgerWorkspace';
+const StaffQuotesPage = lazy(async () => ({ default: (await import('@/components/CustomerWorkflows')).StaffQuotesPage }));
+const StaffFinancePage = lazy(async () => ({ default: (await import('@/components/CustomerWorkflows')).StaffFinancePage }));
+const GeneralLedgerWorkspace = lazy(async () => ({ default: (await import('@/components/GeneralLedgerWorkspace')).GeneralLedgerWorkspace }));
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { IntelligenceWorkspace } from '@/components/intelligence/IntelligenceWorkspace';
+const IntelligenceWorkspace = lazy(async () => ({ default: (await import('@/components/intelligence/IntelligenceWorkspace')).IntelligenceWorkspace }));
 import { ProductActivityPrintSheet } from '@/components/ProductActivityPrintSheet';
 import { projectProductActivityPrintDocument } from '@/lib/product-activity-print';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
@@ -72,6 +73,9 @@ import { adminRecordContextStorageKey, previousAdminRecordContextStorageKey, get
 export type AdminView = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
 export type AdminAppProps = { initialView?: AdminView };
 type View = AdminView;
+
+// Route-only administration workspaces are split into independent chunks so the
+// dashboard does not download finance, intelligence, import and inventory tools.
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -386,6 +390,7 @@ function AdminWorkspaceAccess({
     );
   }
   return (
+    <Suspense fallback={<Loading />}>
     <AdminWorkspaceContent
       view={view}
       user={user}
@@ -398,6 +403,7 @@ function AdminWorkspaceAccess({
       recordContext={recordContext}
       onRecordContextChange={onRecordContextChange}
     />
+    </Suspense>
   );
 }
 
