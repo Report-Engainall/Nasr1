@@ -29,4 +29,8 @@ describe("buildCustomerPricingSearchFilter", () => {
     expect(buildCustomerPricingSearchFilter("(),%*")).toBeNull();
     expect(buildCustomerPricingSearchFilter("   ")).toBeNull();
   });
+
+  it("rejects searches beyond the customer selector input bound", () => {
+    expect(() => buildCustomerPricingSearchFilter("x".repeat(255))).toThrow("254 حرفًا");
+  });
 });
