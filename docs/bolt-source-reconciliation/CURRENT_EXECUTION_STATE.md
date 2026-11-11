@@ -1,8 +1,8 @@
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PUBLIC PHONE-FIRST SELF-SERVICE CUSTOMER REGISTRATION / DATABASE ACCEPTANCE / EXACT-SHA P1 PASS
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
-> Exact code-bearing source SHA: `92940d4ba71aabfb7e71293e2208f92d088d6459`.
-> P1 workflow [43106904241](https://github.com/Report-Engainall/Nasr1/actions/runs/43106904241): **SUCCESS** on that exact SHA.
+> Exact latest code-bearing source SHA: `67204d05def5f20d52784fb7f2950f49602c708a`. The current main head `5b994968f2116a1378777a5dfaaca068efff8eb8` adds documentation-only acceptance updates after this tested source SHA; the phone signup/Auth/migration blobs were re-fetched on current main and remain unchanged.
+> P1 workflow [43108078884](https://github.com/Report-Engainall/Nasr1/actions/runs/43108078884): **SUCCESS** on exact code SHA `67204d05def5f20d52784fb7f2950f49602c708a` (15/15 Vitest files, 109/109 tests, strict TypeScript, Client+SSR+Nitro build). Earlier focused run [43106904241](https://github.com/Report-Engainall/Nasr1/actions/runs/43106904241) also succeeded on `92940d4`. 
 > CI configuration-only follow-up commit: `e3fdb6ad0827a738891440a6f9de8e5142f8be15` (removes docs-only paths from the P1 test trigger; docs edits no longer rebuild the application).
 
 ## Owner requirement
@@ -39,10 +39,10 @@
 
 ## Exact-SHA verification
 
-- GitHub Actions run [43106904241](https://github.com/Report-Engainall/Nasr1/actions/runs/43106904241): **SUCCESS** on exact code SHA `92940d4ba71aabfb7e71293e2208f92d088d6459`.
-- Vitest: **15/15 files and 109/109 tests PASS**. Includes 26 phone/Auth contract tests, 4 Login UI integration/source tests and 5 self-service registration/approval migration contract tests.
-- P1 strict TypeScript: **PASS** (`bunx tsc --noEmit -p tsconfig.p1-typecheck.json`).
-- Production application build: **PASS** for client, SSR and Nitro outputs (`bun run build`).
+- Latest GitHub Actions run [43108078884](https://github.com/Report-Engainall/Nasr1/actions/runs/43108078884): **SUCCESS** on exact code SHA `67204d05def5f20d52784fb7f2950f49602c708a`. The 28 commits after `92940d4` included unrelated admin lazy-loading/performance work; the registration/Auth/route/migration file blobs were re-fetched on current main and match this feature's tested content.
+- Vitest on run `43108078884`: **15/15 files and 109/109 tests PASS**. Includes 26 phone/Auth contract tests, 4 Login UI integration/source tests and 5 self-service registration/approval migration contract tests.
+- P1 strict TypeScript: **PASS** (`bunx tsc --noEmit -p tsconfig.p1-typecheck.json`) on `67204d0`.
+- Production application build: **PASS** for client, SSR and Nitro outputs (`bun run build`) on `67204d0`.
 - Live Supabase migration ledger contains both applied versions above.
 - Auth function ACL and fixed search_path were checked after applying the migrations.
 - Security advisor reports the existing project-wide warning that SECURITY DEFINER functions callable by authenticated may need intentionality review; the two new function ACLs were individually verified to deny anon and allow authenticated. A separate existing warning reports Supabase leaked-password protection disabled; this was not changed in this delivery.
