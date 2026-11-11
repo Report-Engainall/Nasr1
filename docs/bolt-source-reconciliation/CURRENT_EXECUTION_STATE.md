@@ -1,3 +1,15 @@
+# ACTIVE CHECKPOINT — 2026-11-12 — P3 BRANCH CONSOLIDATION
+
+> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+> P3 branch consolidation evidence: [P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md](./P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md).
+> Checkpoint document commit: `990aed2d4630edee45465e27e974fb80936ba9ec`.
+> Application-code merge completed: PR #415, squash commit `a98b3cb5a72edb0dcc141983909bf7f67a679287`; PostgreSQL 17 acceptance succeeded on exact PR head `6831414cde6610ef8e79a4a9635fc32fd380517e`.
+> Remaining branch work is not complete: PR #412 is blocked by a failed P2 Playwright product-selector assertion; PR #413 is draft and stale against main; PR #416 has exact-head P1 success but stale/non-mergeable base; the customer-import follow-up branch retains an `api.ts` blob difference requiring review.
+> Ten branch refs are identified as deletion candidates only after immediate recheck; no branch has been deleted because the connected GitHub action set has no DELETE-ref operation. See the linked P3 checkpoint for branch-by-branch evidence and next steps.
+> No production migration, deployment, Vercel action, or live integration change was performed.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PERFORMANCE CONTINUATION (WORKSPACE PROJECTIONS IMPLEMENTED; EXACT-SHA VERIFICATION PENDING)
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
