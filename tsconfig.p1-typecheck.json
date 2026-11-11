@@ -44,6 +44,7 @@
     "src/lib/auth-phone.ts",
     "src/lib/auth-phone.test.ts",
     "src/components/Login.tsx",
-    "src/components/Login.phone-signup.test.tsx"
+    "src/components/Login.phone-signup.test.tsx",
+    "src/test/public-self-service-customer-registration-migration.test.ts"
   ]
 }
