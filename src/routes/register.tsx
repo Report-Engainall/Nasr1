@@ -16,7 +16,7 @@ function RegisterPage() {
   const navigate = useNavigate();
   return (
     <ClientOnly fallback={<main className="storefront" dir="rtl" role="status">جار تحميل إنشاء الحساب...</main>}>
-      <Login initialMode="register" onDone={() => void navigate({ to: "/" })} />
+      <Login initialMode="register" onDone={() => void navigate({ to: "/profile" })} />
     </ClientOnly>
   );
 }
