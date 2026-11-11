@@ -1,3 +1,49 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — PUBLIC SELF-SERVICE SIGNUP / PASSWORD LOGIN
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Exact source SHA: `6b5c3577d0d49f6c69d9aa68046631153cac7a3a`.
+> P1 workflow [43101086969](https://github.com/Report-Engainall/Nasr1/actions/runs/43101086969): **SUCCESS** on the exact source SHA.
+
+## Clarified intended account model
+
+- The owner confirmed that this is the public self-service registration path for any ordinary customer, not an account that must be created through an administrative invitation.
+- The existing `public.ensure_profile(_full_name)` function is the automatic recognition/provisioning boundary after Supabase authentication succeeds. Read-only inspection of its live definition confirms that it derives the user from `auth.uid()`; for a new, unprovisioned account it creates a profile under the active organization and inserts the `customer` role. A matching pre-provisioned profile is linked by its verified email and retains its existing server-assigned roles.
+- The login failure occurs before `ensure_profile` is reached: `signInWithPassword` is rejected by Supabase Auth before the app can hydrate the profile or resolve its customer role. Do not "fix" this by granting roles, changing the profile RPC, weakening RLS, or creating a default/admin account.
+
+## Implemented source correction
+
+- `src/lib/auth.tsx` detects the documented GoTrue anti-enumeration response for a repeated, already-confirmed email signup (no session and a present empty `user.identities` array). It identifies this as not-a-new-account.
+- `src/components/Login.tsx` routes that response to login/recovery with neutral copy, instead of falsely saying a new account was created and an activation email was sent.
+- Phone signup/login behavior is unchanged.
+- This is a repeated-email guard. It is not, by itself, proof that a genuinely new email signup/password journey is fixed.
+- The auth regression helper and UI source-contract coverage are in `src/lib/auth-phone.test.ts` and `src/components/Login.phone-signup.test.tsx`.
+
+## Evidence and investigation
+
+- Exact-SHA P1 CI run `43101086969`: **SUCCESS** on `6b5c3577d0d49f6c69d9aa68046631153cac7a3a`.
+- Vitest: **14/14 files; 103/103 tests PASS**.
+- P1 strict TypeScript: **PASS**.
+- Production build: **PASS** for client, SSR and Nitro outputs.
+- Earlier run `43098775687` failed because the new UI test imported `@testing-library/react` without declaring its peer dependency `@testing-library/dom`. The first retry exposed an overbroad assertion that incorrectly rejected the valid new-signup confirmation message anywhere in the component source. Both test-harness defects were corrected without adding a dependency; the final exact-SHA run above passed.
+- Read-only Auth database aggregation for the last 30 days returned two non-anonymous Auth users; both were email-confirmed, had a nonempty password hash and a recorded sign-in. This demonstrates that password hashes exist, but cannot reveal or compare the original plaintext password.
+- Recent aggregated Auth logs include `email_not_confirmed` and `invalid_credentials` password-grant responses. The log view does not safely correlate those rows to a particular account, so they are not proof that the same user made each attempt.
+- No user email, plaintext password, password hash, or identity identifier was read into this report. No Auth setting, user row, password, email template, migration, RLS policy, production deployment or live integration was changed.
+
+## Acceptance boundary / remaining action
+
+- CODE-IMPLEMENTED: YES.
+- EXACT-SHA VITEST / TYPECHECK / BUILD: PASS on `6b5c3577d0d49f6c69d9aa68046631153cac7a3a`.
+- AUTO-PROFILE / CUSTOMER ROLE CONTRACT: VERIFIED BY READ-ONLY FUNCTION DEFINITION; not a password-login test.
+- FRESH SELF-SERVICE SIGNUP → EMAIL CONFIRMATION → LOGIN WITH THE SAME PASSWORD: **NOT PROVEN IN A CONTROLLED NON-PRODUCTION AUTH ENVIRONMENT**.
+- HOSTED / BROWSER / PRODUCTION AUTH ACCEPTANCE: NOT RUN.
+- Keep DLV-006 PARTIAL. Do not claim that the original fresh-account password symptom is fully resolved yet.
+
+## Next action
+
+Run a controlled non-production journey with a never-before-used email: signup with a known test password, confirm the email through the actual delivered link, then call the public login flow using that exact password. Record only the Auth outcome/status and exact code SHA; do not persist or print the password. Separately retest a repeated confirmed email to verify the anti-enumeration guard. If a genuinely new account still returns `invalid_credentials`, inspect the actual signup/confirmation HTTP path and active project/redirect/template configuration before changing password or profile logic.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — EMAIL SIGNUP DUPLICATE-RESPONSE GUARD
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
