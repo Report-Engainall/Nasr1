@@ -59,6 +59,85 @@ on:
       - "package-lock.json"
       - "tsconfig.json"
       - ".github/workflows/p1-admin-context-verification.yml"
+      - "src/components/UnifiedImportEngine.tsx"
+      - "src/lib/onyx-snapshot-import-kind.ts"
+      - "src/lib/onyx-snapshot-import-kind.test.ts"
+      - "src/lib/onyx-export.ts"
+      - "src/lib/onyx-export.test.ts"
+      - "src/lib/onyx-snapshot-preview.ts"
+      - "src/lib/onyx-snapshot-preview.test.ts"
+      - "src/lib/help-center-search.ts"
+      - "src/lib/help-center-search.test.ts"
+      - "src/routes/help.tsx"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/components/AghbariApp.tsx"
+      - "src/lib/auth.tsx"
+      - "src/lib/auth-phone.ts"
+      - "src/lib/auth-phone.test.ts"
+      - "src/components/Login.tsx"
+      - "src/components/Login.phone-signup.test.tsx"
+      - "src/routes/register.tsx"
+      - "supabase/migrations/20261111213752_public_self_service_customer_registration.sql"
+      - "src/test/public-self-service-customer-registration-migration.test.ts"
+      - "supabase/migrations/20261111214542_pending_customer_order_creation_gate.sql"
+      - "src/components/OperationsCenter.tsx"
+      - "src/components/OperationsExceptionCenter.tsx"
+      - "src/lib/operations-exceptions.ts"
+      - "src/lib/operations-exceptions.test.ts"
+      - "src/components/SupplierInvoiceWorkspace.tsx"
+      - "src/lib/supplier-invoice-messages.ts"
+      - "src/lib/supplier-invoice-messages.test.ts"
+      - "supabase/migrations/20261110103000_admin_import_snapshot_replay_safety.sql"
+      - "src/test/admin-import-snapshot-replay-safety-migration.test.ts"
+      - "src/lib/bound-idempotency-key.ts"
+      - "src/lib/bound-idempotency-key.test.ts"
+      - "src/components/CustomerOrders.tsx"
+      - "tsconfig.p1-typecheck.json"
+      - "src/components/BulkProductImageUploader.tsx"
+      - "src/components/BulkProductImageUploader.test.tsx"
+      - "src/lib/product-image-batch-match.ts"
+      - "src/lib/product-image-batch-match.test.ts"
+      - "src/lib/unified-import.ts"
+      - "src/lib/unified-import-headers.test.ts"
+      - "src/routes/profile.tsx"
+      - "src/lib/profile-access.ts"
+      - "src/lib/profile-access.test.ts"
+      - "src/components/intelligence/IntelligenceWorkspace.tsx"
+      - "src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx"
+      - "src/components/CustomerWorkflows.tsx"
+      - "src/components/CustomerAccountPasswordPage.tsx"
+      - "src/lib/api.ts"
+      - "src/lib/dashboard-low-stock.ts"
+      - "src/lib/dashboard-low-stock.test.ts"
+      - "src/lib/product-admin-pagination.ts"
+      - "src/lib/product-admin-pagination.test.ts"
+      - "src/lib/customer-directory.ts"
+      - "src/lib/customer-directory.test.ts"
+      - "src/lib/business-inventory-valuation.ts"
+      - "src/lib/business-inventory-valuation.test.ts"
+      - "src/lib/useFetch.ts"
+      - "src/lib/useFetch.test.tsx"
+      - "tsconfig.p1-typecheck.json"
+      - "src/lib/admin-record-context.ts"
+      - "src/lib/admin-record-context.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - ".github/workflows/p1-admin-context-verification.yml"
+      - "src/components/UnifiedImportEngine.tsx"
+      - "src/lib/onyx-snapshot-import-kind.ts"
+      - "src/lib/onyx-snapshot-import-kind.test.ts"
+      - "src/lib/onyx-export.ts"
+      - "src/lib/onyx-export.test.ts"
+      - "src/lib/onyx-snapshot-preview.ts"
+      - "src/lib/onyx-snapshot-preview.test.ts"
+      - "src/lib/help-center-search.ts"
+      - "src/lib/help-center-search.test.ts"
+      - "src/routes/help.tsx"
+
   workflow_dispatch:
 
 permissions:
@@ -74,7 +153,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout exact main commit
+      - name: Checkout exact commit under test
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
         uses: actions/checkout@v4
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
