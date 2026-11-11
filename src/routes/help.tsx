@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { filterHelpArticles } from "@/lib/help-center-search";
 import {
   ArrowLeft, BookOpen, ClipboardList, FileText, Headphones, Lock, RotateCcw,
   MapPin, MessageCircle, Package, Search, ShoppingBag, UserRound, Users,
@@ -158,23 +159,11 @@ const actions = [
   { to: "/company/members", label: "أعضاء الشركة", detail: "إدارة الأعضاء وفق صلاحيتك", icon: Users },
 ] as const;
 
-function normalizeSearch(value: string): string {
-  return value
-    .normalize("NFKC")
-    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
-    .replace(/[أإآ]/g, "ا")
-    .toLocaleLowerCase("ar");
-}
+
 
 function HelpCenterPage() {
   const [query, setQuery] = useState("");
-  const filteredArticles = useMemo(() => {
-    const normalized = normalizeSearch(query.trim());
-    if (!normalized) return articles;
-    return articles.filter((article) =>
-      normalizeSearch([article.category, article.question, article.answer, article.keywords].join(" ")).includes(normalized),
-    );
-  }, [query]);
+  const filteredArticles = useMemo(() => filterHelpArticles(articles, query), [query]);
 
   const categories = useMemo(
     () => [...new Set(filteredArticles.map((article) => article.category))],
