@@ -81,9 +81,6 @@ on:
       - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
       - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
       - ".github/workflows/inventory-replenishment-pg17.yml"
-      - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
-      - "docs/bolt-source-reconciliation/P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md"
-      - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
   pull_request:
     branches:
       - main
@@ -165,9 +162,6 @@ on:
       - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
       - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
       - ".github/workflows/inventory-replenishment-pg17.yml"
-      - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
-      - "docs/bolt-source-reconciliation/P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md"
-      - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
   workflow_dispatch:
 
 permissions:
