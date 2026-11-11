@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useFetch, type ScopedReadCacheOptions } from "./useFetch";
 
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 const mountedRoots: Root[] = [];
 
 afterEach(() => {
