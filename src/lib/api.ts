@@ -1366,7 +1366,7 @@ export async function fetchBusinessAnalyticsOrders(): Promise<Array<Pick<Order, 
   if (!Array.isArray(data)) throw new Error('لم يؤكد الخادم بيانات الطلبات اللازمة للتحليل.');
   const result: Array<Pick<Order, 'id' | 'customer_id' | 'status' | 'total_amount'>> = [];
   const seen = new Set<string>();
-  for (const value of data as Array<Record<string, unknown>>) {
+  for (const value of data as unknown as Array<Record<string, unknown>>) {
     if (
       typeof value.id !== 'string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) ||
