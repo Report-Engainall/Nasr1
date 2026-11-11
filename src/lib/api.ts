@@ -398,7 +398,11 @@ export async function fetchAdminProductsPage(input: {
     throw new Error('لا تملك صلاحية قراءة كتالوج الإدارة.');
   }
 
-  const searchFilter = buildProductAdminSearchFilter(input.search ?? '');
+  const rawSearch = (input.search ?? '').trim();
+  const searchFilter = buildProductAdminSearchFilter(rawSearch);
+  if (rawSearch && !searchFilter) {
+    return { items: [], page, pageSize, hasNextPage: false };
+  }
   const from = (page - 1) * pageSize;
   const to = from + pageSize; // inclusive: one extra row proves whether another page exists.
 
@@ -450,6 +454,7 @@ export async function fetchAdminProductsPage(input: {
       ),
   )];
 
+  const activeWarehouseId = scope.warehouseId;
   const [mediaRows, inventoryRows, categoryRows] = await Promise.all([
     readWithRetry(() => supabase
       .from('product_media')
@@ -458,11 +463,11 @@ export async function fetchAdminProductsPage(input: {
       .eq('is_primary', false)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })),
-    scope.warehouseId
+    activeWarehouseId
       ? readWithRetry(() => supabase
         .from('inventory_balances')
         .select('id,product_id,warehouse_id,quantity_on_hand,quantity_reserved,quantity_available,reorder_point,last_movement_at,updated_at')
-        .eq('warehouse_id', scope.warehouseId!)
+        .eq('warehouse_id', activeWarehouseId)
         .in('product_id', productIds))
       : Promise.resolve([]),
     categoryIds.length
@@ -536,11 +541,12 @@ export async function fetchAdminProductsPage(input: {
     });
   }
 
-  const categoriesById = new Map(
-    (categoryRows as Array<Record<string, unknown>>)
-      .filter((row) => typeof row.id === 'string' && typeof row.name === 'string')
-      .map((row) => [row.id as string, { ...row, icon: null } as unknown as Category]),
-  );
+  const categoriesById = new Map<string, Category>();
+  for (const row of categoryRows as Array<Record<string, unknown>>) {
+    if (typeof row.id === 'string' && typeof row.name === 'string') {
+      categoriesById.set(row.id, { ...row, icon: null } as unknown as Category);
+    }
+  }
 
   const items = pageRows.map((row): ProductWithInventory => {
     const productId = row.id as string;
