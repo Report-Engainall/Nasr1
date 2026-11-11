@@ -1,40 +1,42 @@
-# ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — CUSTOMER PHONE REGISTRATION / OTP CONTRACT
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — PHONE-ONLY BUSINESS SIGNUP + LOGIN / EXACT-MAIN P1 CI PASS
 
-> Repository: `Report-Engainall/Nasr1`; working branch: `p1/phone-signup-acceptance-2026-11-11`; base main SHA: `0348efcdc9b3e303df5ebee027fe03f44781824e`.
-> Exact-main CI is pending until this branch is fast-forwarded to main. Do not treat this branch checkpoint as a main or runtime PASS.
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Exact code SHA: `4a159a00fc3215f5fd9e3d1db291cfafb10727b0`.
+> Verification: [GitHub Actions run 43059169148](https://github.com/Report-Engainall/Nasr1/actions/runs/43059169148) — **SUCCESS** on that exact SHA.
 
-## Scope and implementation
+## Implemented on main
 
-- Continued the existing phone-registration change already present in main (UI commit `a338ef81dea2e177f58f24a3d361517a85bf94f4`; Auth commit `536aaf3d4aa4447bf41f71399c7e1f523b835a7f`). No duplicate registration screen or alternative identity mechanism was added.
-- Extracted the existing Yemen/E.164 phone normalizer and phone signup, SMS OTP verification and resend requests into `src/lib/auth-phone.ts` so the production Auth path and regression tests use the same implementation.
-- Tightened normalization to reject alphabetic/misplaced-plus input instead of silently stripping arbitrary characters into a valid-looking phone number.
-- Phone registration explicitly selects the SMS channel, keeps the full name in Auth user metadata, and never invents an email address.
-- Added focused tests for local Yemeni numbers with/without trunk zero, `+967`, `00967`, another E.164 number, malformed inputs, phone-only signup payload, SMS OTP verify, resend, invalid phone/token no-request behavior, customer UI flow and email-signup regression.
-- Added the auth source and tests to the P1 strict TypeScript scope and the P1 workflow path filter. Previous workflow successes did not include `src/lib/auth.tsx` or `src/components/Login.tsx` in their path filter and therefore did not prove this feature.
+- Preserved the existing customer registration screen and the previously merged phone-signup work (`536aaf3d4aa4447bf41f71399c7e1f523b835a7f`, `a338ef81dea2e177f58f24a3d361517a85bf94f4)); no duplicate page or account system was introduced.
+- Extracted the phone normalizer and Auth operations into `src/lib/auth-phone.ts`, then routed the existing Auth context through those shared functions.
+- Phone registration accepts local Yemeni mobile numbers, leading-zero local form, `+967`, `00967`, and valid E.164 formats. Invalid mixed text or misplaced-plus inputs are rejected before calling Auth.
+- Registration calls Supabase Auth `signUp({ phone, password, options: { data: { full_name }, channel: "sms" } })`; the flow never requires or fabricates an email address.
+- When phone confirmation is enabled, the existing registration UI asks for the SMS OTP, verifies it with `verifyOtp(type: "sms")`, and exposes resend through `resend(type: "sms")`. Auth errors remain non-success states.
+- Existing phone/password login now calls `signInWithPassword({ phone, password })` through the same normalizer. Email signup, email login and email password recovery paths remain intact.
+- Phone-only Auth profile hydration retains the existing `ensure_profile` flow and maps a missing email to an empty display value; no placeholder email is created.
+- Added `src/lib/auth-phone.test.ts` and `src/components/Login.phone-signup.test.tsx`, and added the Auth source/tests to the P1 strict TypeScript scope and workflow path filter. The previous P1 workflow omitted the Auth/Login source paths, so earlier CI runs were not counted as phone-feature proof.
 
-## Exact code on working branch
+## Exact-SHA verification
 
-- Existing phone-signup base: `a338ef81dea2e177f58f24a3d361517a85bf94f4` (parent `536aaf3d4aa4447bf41f71399c7e1f523b835a7f`).
-- Auth isolation: `57a092a3a75d01eb45039515cd844d687fcd0262`.
-- Shared phone/Auth contract: `36d9fb4d3310ba8bc5f2a02d1a1cded9d9dbd74c`.
-- Auth contract regression tests: `638093b43f239bd7aa2dbb53a9acfd17ec6967da`.
-- Login component flow tests: `2ad6958a0e041aef1930ca37cad019ff3fe43574`.
-- P1 strict TypeScript include: `a8598f75c158144edf42f45ca46ba7d1c4507579`.
-- P1 workflow path coverage: `3dcb0ae307f12d93a6b258f19005018f4681063e`.
+- GitHub Actions run [43059169148](https://github.com/Report-Engainall/Nasr1/actions/runs/43059169148): **SUCCESS** on exact code SHA `4a159a00fc3215f5fd9e3d1db291cfafb10727b0`.
+- Vitest: **14/14 files; 98/98 tests PASS** (21 phone/Auth contract cases plus 3 Login integration/source cases).
+- P1 strict TypeScript: **PASS** via `bunx tsc --noEmit -p tsconfig.p1-typecheck.json`.
+- Production application build: **PASS** via `bun run build` (client, SSR and Nitro output).
+- The test suite proves client request shaping, normalization, invalid input rejection, SMS verify/resend calls, phone/password login field selection, registration UI choice, and email regression. It does not send a real SMS or create a real Auth account.
 
-## Acceptance boundary
+## Acceptance boundary — do not overstate
 
-- CODE-IMPLEMENTED: branch source only; awaiting exact-main run.
-- TEST-PROVEN: pending GitHub Actions on the final main SHA.
-- DATA-PROVEN / AUTH-PROVIDER-PROVEN: not proven in a connected non-production Auth project.
-- BROWSER-PROVEN: not run.
-- PRODUCTION-PROVEN: not run.
-- Supabase Phone Auth and an authorized SMS provider must be configured by the project owner before real SMS delivery can be accepted. No provider, paid SMS credential, Auth user, DB row, migration or production setting was changed.
-- Phone-only profile hydration continues through existing `ensure_profile`; do not create placeholder emails. Verify live NULL-email/customer-role behavior only in an authorized non-production environment.
+- CODE-IMPLEMENTED: YES.
+- INTEGRATED: YES — existing `Login` and `AuthProvider` use the shared phone Auth contract.
+- TEST-PROVEN: YES — exact-SHA GitHub Actions run above.
+- DATA-PROVEN / AUTH-PROVIDER-PROVEN: NO — no connected non-production Auth account was created or queried in this delivery.
+- BROWSER-PROVEN: NO — no authenticated browser session or real handset was available.
+- PRODUCTION-PROVEN: NO — no production Auth setting, SMS provider, DB row, migration, role, grant or RLS policy was changed.
+- Actual OTP delivery requires Phone Auth and an authorized SMS provider configured in the Supabase project. Keep the feature's provider-disabled and delivery-error states explicit until the owner authorizes/configures that service.
+- Keep DLV-006 open until a non-production phone signup/login journey proves SMS delivery, OTP expiry/invalid code/resend behavior, phone-only profile creation with customer role, session hydration, duplicate-number handling and the unchanged email path.
 
 ## Next execution
 
-Fast-forward the tested branch safely only if main remains at the expected base SHA. Run P1 Actions on the resulting exact main SHA, fix every failure, then update this checkpoint and the central acceptance row with that exact evidence. Keep DLV-006 open until the Auth provider/SMS and phone-only profile runtime acceptance are proven.
+Continue the overall P1 body-completion cursor after recording the remaining dependency for live SMS/Auth acceptance. Do not treat source CI as proof of provider configuration, real SMS delivery, database profile creation, browser behavior or production readiness.
 
 ---
 
