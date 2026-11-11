@@ -1,3 +1,75 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PUBLIC PHONE-FIRST SELF-SERVICE CUSTOMER REGISTRATION / DATABASE ACCEPTANCE / EXACT-SHA P1 PASS
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Exact code-bearing source SHA: `92940d4ba71aabfb7e71293e2208f92d088d6459`.
+> P1 workflow [43106904241](https://github.com/Report-Engainall/Nasr1/actions/runs/43106904241): **SUCCESS** on that exact SHA.
+> CI configuration-only follow-up commit: `e3fdb6ad0827a738891440a6f9de8e5142f8be15` (removes docs-only paths from the P1 test trigger; docs edits no longer rebuild the application).
+
+## Owner requirement
+
+- Public self-service signup for any ordinary customer. Phone is the first/default registration identifier; email remains an optional alternative.
+- No invitation or administrator-created account is required for an ordinary new customer.
+- The new user supplies full name, phone, password and optionally a business/shop name. Yemeni phone forms normalize to E.164 `+967...`.
+- Phone signup sends SMS OTP; successful OTP verification establishes the Auth session. The user is then taken to `/profile`, where the existing customer account page displays the pending approval state.
+- The public signup path never accepts a client-supplied role, tenant, customer tier, approval status, credit limit or balance. New accounts receive only the existing server-assigned `customer` role and a pending retail customer record. Staff roles are not self-assignable.
+- Email signup remains available through the explicit email switch. Email confirmation/login and password recovery are preserved.
+
+## Implemented on main
+
+- `src/components/Login.tsx`: registering now opens in phone mode; email is an explicit alternative. Added optional business/shop name, retained full name/password validation, OTP verification and resend. The introductory copy explains phone verification and management approval.
+- `src/lib/auth-phone.ts`: phone signup sends `phone`, password, `full_name` and `business_name` metadata with SMS channel; existing Yemeni/E.164 normalization, phone/password sign-in, verify and resend paths remain.
+- `src/lib/auth.tsx`: after `ensure_profile`, verified customer-only sessions call the new idempotent `ensure_my_customer_account()` RPC. It checks the current Auth session again after provisioning. Staff identities are excluded.
+- `src/routes/register.tsx`: successful phone verification takes the user to `/profile`, where the existing customer editor displays the server-owned pending-approval state.
+- Legacy, unused React Router registration implementation was not made the active route; the TanStack `/register` route remains the actual route entry point.
+- Regression coverage: `src/lib/auth-phone.test.ts`, `src/components/Login.phone-signup.test.tsx`, and `src/test/public-self-service-customer-registration-migration.test.ts`. The latter protects migration security, verification gates, role boundaries, idempotency, audit creation and approval-before-order behavior.
+
+## Supabase database work — applied to the canonical ACTIVE project
+
+- Project: `aghbari-commerce-nasr1`; ref `tfdwtuwkdddnzgyhcoyy`; status observed `ACTIVE_HEALTHY`.
+- Never use retired project `mrcyqezbhpncuvaehwgf` (`aghbari-commerce`, INACTIVE).
+- Applied migration version `20261111213752`, name `public_self_service_customer_registration`. Canonical source file is `supabase/migrations/20261111213752_public_self_service_customer_registration.sql`.
+- Applied migration version `20261111214542`, name `pending_customer_order_creation_gate`. Canonical source file is `supabase/migrations/20261111214542_pending_customer_order_creation_gate.sql`.
+- The source filenames were aligned to the actual live Supabase migration-ledger versions. Do not re-apply these migrations.
+- `public.ensure_my_customer_account()` runs as SECURITY DEFINER with empty search_path, requires `auth.uid()`, checks the active tenant/profile and server-assigned customer role, rejects staff roles, requires confirmed phone or confirmed email before inserting a new customer row, preserves an existing direct customer or active company membership, serializes per-profile provisioning and writes `customer.self_service_registered` to `audit_logs`.
+- It creates a `CUST-XXXXXXXX` customer with `tier='retail'`, `status='pending'`, `credit_limit=0`, `current_balance=0`. Contact identity comes from Auth-confirmed phone/email and the profile's full name; optional business name is display metadata only, never authorization.
+- ACL verification: `anon_execute=false`; `authenticated_execute=true`. Both new functions have SECURITY DEFINER and empty search_path.
+- `public.current_customer_can('orders.create')` now returns false unless the resolved customer row is `status='approved'`. The check runs before direct-owner or company-buyer capability allowances. Existing catalog/read and other membership-role capabilities remain unchanged.
+- Verified live function definition after both migrations: order-creation gate exists, requires approved status, precedes owner bypass, and preserves existing customer-company membership capability logic.
+- No Auth user was fabricated, no customer was seeded, and no test OTP or customer credential was created.
+
+## Exact-SHA verification
+
+- GitHub Actions run [43106904241](https://github.com/Report-Engainall/Nasr1/actions/runs/43106904241): **SUCCESS** on exact code SHA `92940d4ba71aabfb7e71293e2208f92d088d6459`.
+- Vitest: **15/15 files and 109/109 tests PASS**. Includes 26 phone/Auth contract tests, 4 Login UI integration/source tests and 5 self-service registration/approval migration contract tests.
+- P1 strict TypeScript: **PASS** (`bunx tsc --noEmit -p tsconfig.p1-typecheck.json`).
+- Production application build: **PASS** for client, SSR and Nitro outputs (`bun run build`).
+- Live Supabase migration ledger contains both applied versions above.
+- Auth function ACL and fixed search_path were checked after applying the migrations.
+- Security advisor reports the existing project-wide warning that SECURITY DEFINER functions callable by authenticated may need intentionality review; the two new function ACLs were individually verified to deny anon and allow authenticated. A separate existing warning reports Supabase leaked-password protection disabled; this was not changed in this delivery.
+
+## Acceptance boundary — keep truthful
+
+- CODE-IMPLEMENTED: YES.
+- DATABASE-MIGRATIONS-APPLIED: YES — both canonical project migrations verified in the live ledger.
+- DATABASE-FUNCTION-ACL / TENANT / ROLE / APPROVAL-GATE SOURCE CHECK: YES.
+- EXACT-SHA VITEST / STRICT TYPECHECK / CLIENT+SSR+NITRO BUILD: PASS.
+- AUTH PHONE PROVIDER: **NOT ENABLED YET**. The prior live Auth log recorded `phone_provider_disabled` (HTTP 422) for `POST /token`.
+- SMS PROVIDER / CREDENTIALS: **NOT CONFIGURED**.
+- REAL OTP DELIVERY TO A YEMENI HANDSET: **NOT TESTED / NOT PROVEN**.
+- REAL PHONE SIGNUP → CUSTOMER ROW → PROFILE PENDING → ADMIN APPROVAL → ORDER PERMITTED: **NOT RUN**.
+- AUTHENTICATED BROWSER / LIVE PRODUCTION SIGNUP ACCEPTANCE: **NOT RUN**.
+- No Vercel deployment, preview, build, CLI, quota or hosting mutation was used. The code and migrations are in GitHub/Supabase, not proof that the currently published hosting URL has been redeployed with this source.
+
+## SMS provider decision and next action
+
+- Supabase's native phone provider choices include Vonage. Vonage's Yemen guidance supports alphanumeric sender IDs; numeric sender IDs are not supported unless using its two-way service, and P2P traffic is prohibited. This is a plausible native first candidate for one-way OTP, not proof of delivery. Reference: https://api.support.vonage.com/hc/en-us/articles/204017343-Yemen-SMS-Features-and-Restrictions
+- Twilio's Yemen guidance says local/international long codes and short codes are not supported; dynamic alphanumeric sender IDs are only partially supported and may be rewritten by networks. Reference: https://www.twilio.com/en-us/guidelines/ye/sms
+- Do not claim a provider works until one real OTP is delivered to a controlled Yemeni handset. Use the owner's Vonage account credentials in Supabase Dashboard only; never request secrets in chat or commit provider secrets.
+- Owner must finish the secure Supabase Dashboard browser-profile sign-in, then configure Authentication → Sign In / Providers → Phone and the SMS provider credentials. After that, run the controlled real-handset journey: first-time signup, SMS OTP, resend/invalid OTP/rate-limit behavior, pending customer profile, proof order creation is denied while pending, management approval, order creation allowed after approval, and email fallback regression.
+- Keep DLV-006 PARTIAL until the real SMS/browser acceptance evidence exists. No release-ready or production-accepted claim.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-11 — PUBLIC SELF-SERVICE SIGNUP / PASSWORD LOGIN
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
