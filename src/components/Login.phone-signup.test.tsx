@@ -55,7 +55,10 @@ describe("customer phone registration UI integration", () => {
     expect(source).toContain("setMode('login')");
     expect(source).toContain("انتقل إلى تسجيل الدخول");
     expect(source).toContain("نسيت كلمة المرور؟");
-    expect(source).not.toContain("تم إنشاء الحساب. افتح بريدك واضغط رابط التفعيل ثم سجّل الدخول.");
+    const existingAccountBranch = source.indexOf("if (existingAccount)");
+    const newSignupConfirmation = source.indexOf("setInfo('تم إنشاء الحساب. افتح بريدك واضغط رابط التفعيل ثم سجّل الدخول.')");
+    expect(existingAccountBranch).toBeGreaterThanOrEqual(0);
+    expect(newSignupConfirmation).toBeGreaterThan(existingAccountBranch);
   });
 
 });
