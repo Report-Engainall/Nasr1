@@ -1478,6 +1478,9 @@ export function ProductModal({
           </select>
         </Field>
       )}
+      {categoriesRefreshError && (
+        <p className="form-note" role="status">تعذر تحديث قائمة التصنيفات؛ تُعرض آخر قائمة محفوظة ضمن الحساب الحالي. {categoriesRefreshError}</p>
+      )}
       {categoriesError && (
         <div className="form-error" role="alert">
           <span>تعذر تحميل التصنيفات: {categoriesError}</span>
@@ -2277,6 +2280,7 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
       </div>
       {(scopeType === 'product' || scopeType === 'category') && <>
         {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><button type="button" className="btn secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</button></>}
+        {scopeType === 'category' && categoriesRefreshError && <p className="report-note" role="status">تعذر تحديث التصنيفات؛ تُعرض آخر قراءة محفوظة لهذا الحساب. {categoriesRefreshError}</p>}
         {scopeType === 'category' && categoriesError && <><ErrorBox message={categoriesError} /><button type="button" className="btn secondary" onClick={() => { void refetchCategories(); }}>إعادة تحميل التصنيفات</button></>}
         {scopeType === 'product' && !productsLoading && !productsError && products?.length === 0 && <Empty text="لا توجد منتجات متاحة لاستخدامها في قاعدة تسعير." />}
         {scopeType === 'category' && !categoriesLoading && !categoriesError && categories?.length === 0 && <Empty text="لا توجد تصنيفات متاحة لاستخدامها في قاعدة تسعير." />}
@@ -2763,6 +2767,7 @@ function DataCenter({ onNotice, initialImportJobId }: { onNotice: (m: string) =>
         <Database size={28} />
         <h2>استيراد مضبوط وقابل للاستئناف</h2>
         <p>محرك الاستيراد يعمل على الملفات الفعلية بحدود معلنة، وبصمة SHA-256، وملفات تعريف وقواعد تحقق، ويوقف التعارض الذي يحتاج قرارًا بشريًا. لا يخزن الملف الخام ولا يمحو سجلات لم تظهر في المصدر.</p>
+        {refreshError && <p className="report-note" role="status">تعذر تحديث التصنيفات؛ تُعرض آخر قراءة محفوظة ضمن جلسة الحساب الحالية. {refreshError}</p>}
         <div className={'data-status ' + (loading ? 'pending' : error ? 'error' : 'success')}>
           {loading ? <RefreshCw size={16} className="spin" /> : error ? <AlertTriangle size={16} /> : <Check size={16} />}
           {loading ? 'جار التحقق من بيانات التصنيفات…' : error ? 'تعذر تحميل التصنيفات: ' + error : 'اتصال التصنيفات ناجح'}
