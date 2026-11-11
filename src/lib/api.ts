@@ -9,6 +9,7 @@ import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './cu
 import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
 import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
+import { buildProductAdminSearchFilter } from './product-admin-pagination';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
@@ -363,6 +364,216 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
       category: catMap.get(p.category_id || ''),
     } as unknown as ProductWithInventory;
   });
+}
+
+export type AdminProductPage = {
+  items: ProductWithInventory[];
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;
+};
+
+const ADMIN_PRODUCT_PAGE_SIZE = 40;
+const ADMIN_PRODUCT_MAX_PAGE = 2500;
+const PRODUCT_ADMIN_PAGE_COLUMNS =
+  'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,base_price,min_stock,created_at,min_order_quantity,order_quantity_multiple,is_featured,sort_order';
+
+/**
+ * Bounded, tenant-scoped staff catalog read for the product-management table.
+ * The full fetchProducts() reader remains available to storefront and bulk-image
+ * matching; this method is intentionally limited to one deterministic page.
+ */
+export async function fetchAdminProductsPage(input: {
+  page: number;
+  search?: string;
+}): Promise<AdminProductPage> {
+  const page = input.page;
+  const pageSize = ADMIN_PRODUCT_PAGE_SIZE;
+  if (!Number.isSafeInteger(page) || page < 1 || page > ADMIN_PRODUCT_MAX_PAGE) {
+    throw new Error('رقم صفحة المنتجات غير صالح.');
+  }
+
+  const scope = await getStorefrontDataScope();
+  if (!scope.isStaff) {
+    throw new Error('لا تملك صلاحية قراءة كتالوج الإدارة.');
+  }
+
+  const searchFilter = buildProductAdminSearchFilter(input.search ?? '');
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize; // inclusive: one extra row proves whether another page exists.
+
+  const productQuery = supabase
+    .rpc('fetch_staff_products', { p_product_id: null })
+    .select(PRODUCT_ADMIN_PAGE_COLUMNS)
+    .order('name', { ascending: true })
+    .order('id', { ascending: true });
+
+  const filteredProductQuery = searchFilter
+    ? productQuery.or(searchFilter)
+    : productQuery;
+
+  const rawProducts = await readWithRetry(() => filteredProductQuery.range(from, to));
+  if (!Array.isArray(rawProducts) || rawProducts.length > pageSize + 1) {
+    throw new Error('أعاد الخادم صفحة منتجات غير صالحة؛ لم يتم عرض بيانات جزئية.');
+  }
+
+  const hasNextPage = rawProducts.length > pageSize;
+  const pageRows = rawProducts.slice(0, pageSize) as Array<Record<string, unknown>>;
+  const productIds = pageRows.map((row) => {
+    if (
+      typeof row.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id) ||
+      typeof row.name !== 'string' ||
+      typeof row.item_code !== 'string' ||
+      typeof row.unit !== 'string' ||
+      typeof row.status !== 'string'
+    ) {
+      throw new Error('تحتوي صفحة المنتجات على سجل غير مكتمل؛ أُوقف العرض لمنع ربط بيانات غير موثوقة.');
+    }
+    return row.id;
+  });
+
+  if (new Set(productIds).size !== productIds.length) {
+    throw new Error('أعاد الخادم صنفًا مكررًا داخل صفحة الكتالوج؛ أُوقف العرض.');
+  }
+
+  if (productIds.length === 0) {
+    return { items: [], page, pageSize, hasNextPage: false };
+  }
+
+  const categoryIds = [...new Set(
+    pageRows
+      .map((row) => row.category_id)
+      .filter((value): value is string =>
+        typeof value === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value),
+      ),
+  )];
+
+  const [mediaRows, inventoryRows, categoryRows] = await Promise.all([
+    readWithRetry(() => supabase
+      .from('product_media')
+      .select('product_id,url,sort_order,created_at')
+      .in('product_id', productIds)
+      .eq('is_primary', false)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })),
+    scope.warehouseId
+      ? readWithRetry(() => supabase
+        .from('inventory_balances')
+        .select('id,product_id,warehouse_id,quantity_on_hand,quantity_reserved,quantity_available,reorder_point,last_movement_at,updated_at')
+        .eq('warehouse_id', scope.warehouseId!)
+        .in('product_id', productIds))
+      : Promise.resolve([]),
+    categoryIds.length
+      ? readWithRetry(() => supabase
+        .from('categories')
+        .select('id,name,name_en,code,description,parent_id,sort_order,is_active,created_at')
+        .eq('organization_id', scope.organizationId)
+        .in('id', categoryIds))
+      : Promise.resolve([]),
+  ]);
+
+  if (!Array.isArray(mediaRows) || !Array.isArray(inventoryRows) || !Array.isArray(categoryRows)) {
+    throw new Error('تعذر تأكيد بيانات الصور أو المخزون أو التصنيفات لأصناف الصفحة.');
+  }
+
+  const galleryByProduct = new Map<string, string[]>();
+  for (const media of mediaRows as Array<Record<string, unknown>>) {
+    if (
+      typeof media.product_id !== 'string' ||
+      !productIds.includes(media.product_id) ||
+      typeof media.url !== 'string' ||
+      !/^https:\/\//i.test(media.url)
+    ) continue;
+    const gallery = galleryByProduct.get(media.product_id) ?? [];
+    if (gallery.length < 8) gallery.push(media.url);
+    galleryByProduct.set(media.product_id, gallery);
+  }
+
+  const inventoryByProduct = new Map<string, InventoryBalance>();
+  for (const value of inventoryRows as Array<Record<string, unknown>>) {
+    if (
+      typeof value.product_id !== 'string' ||
+      !productIds.includes(value.product_id) ||
+      typeof value.id !== 'string' ||
+      typeof value.warehouse_id !== 'string'
+    ) {
+      throw new Error('أعاد الخادم رصيد مخزون خارج نطاق صفحة المنتجات.');
+    }
+    const numeric = (candidate: unknown): number | null => {
+      if (typeof candidate !== 'number' && typeof candidate !== 'string') return null;
+      if (typeof candidate === 'string' && candidate.trim() === '') return null;
+      const parsed = typeof candidate === 'number' ? candidate : Number(candidate);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const quantityOnHand = numeric(value.quantity_on_hand);
+    const quantityReserved = numeric(value.quantity_reserved);
+    const quantityAvailable = numeric(value.quantity_available);
+    const reorderPoint = value.reorder_point === null ? null : numeric(value.reorder_point);
+    if (
+      quantityOnHand === null ||
+      quantityReserved === null ||
+      quantityAvailable === null ||
+      (value.reorder_point !== null && reorderPoint === null)
+    ) {
+      // Missing/malformed stock evidence remains unavailable; it is never coerced to zero.
+      continue;
+    }
+    if (inventoryByProduct.has(value.product_id)) {
+      throw new Error('أعاد الخادم أكثر من رصيد للصنف والمستودع نفسه؛ أُوقف العرض.');
+    }
+    inventoryByProduct.set(value.product_id, {
+      id: value.id,
+      product_id: value.product_id,
+      warehouse_id: value.warehouse_id,
+      quantity_on_hand: quantityOnHand,
+      quantity_reserved: quantityReserved,
+      quantity_available: quantityAvailable,
+      reorder_point: reorderPoint,
+      last_movement_at: typeof value.last_movement_at === 'string' ? value.last_movement_at : null,
+      updated_at: typeof value.updated_at === 'string' ? value.updated_at : undefined,
+    });
+  }
+
+  const categoriesById = new Map(
+    (categoryRows as Array<Record<string, unknown>>)
+      .filter((row) => typeof row.id === 'string' && typeof row.name === 'string')
+      .map((row) => [row.id as string, { ...row, icon: null } as unknown as Category]),
+  );
+
+  const items = pageRows.map((row): ProductWithInventory => {
+    const productId = row.id as string;
+    const rawPrice = row.base_price;
+    const parsedPrice =
+      typeof rawPrice === 'number' ? rawPrice :
+      typeof rawPrice === 'string' && rawPrice.trim() !== '' ? Number(rawPrice) : null;
+    const basePrice = parsedPrice !== null && Number.isFinite(parsedPrice) && parsedPrice >= 0
+      ? parsedPrice
+      : undefined;
+    const rawMinStock = row.min_stock;
+    const parsedMinStock =
+      typeof rawMinStock === 'number' ? rawMinStock :
+      typeof rawMinStock === 'string' && rawMinStock.trim() !== '' ? Number(rawMinStock) : null;
+    const minStockLevel = parsedMinStock !== null && Number.isFinite(parsedMinStock)
+      ? parsedMinStock
+      : undefined;
+
+    return {
+      ...row,
+      id: productId,
+      is_active: row.status === 'active',
+      ...(basePrice === undefined ? {} : { base_price: basePrice }),
+      ...(minStockLevel === undefined ? {} : { min_stock_level: minStockLevel }),
+      image_gallery_urls: galleryByProduct.get(productId) ?? [],
+      inventory: inventoryByProduct.get(productId),
+      category: typeof row.category_id === 'string'
+        ? categoriesById.get(row.category_id)
+        : undefined,
+    } as unknown as ProductWithInventory;
+  });
+
+  return { items, page, pageSize, hasNextPage };
 }
 
 async function fetchStaffProductById(id: string): Promise<Product> {
