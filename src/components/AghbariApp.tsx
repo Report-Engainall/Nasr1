@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchAdminProductOptions, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchAdminProductOptions, fetchAdminProductOptionById, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -2305,6 +2305,18 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
     const timer = window.setTimeout(() => setAppliedProductSearch(productSearch.trim()), 180);
     return () => window.clearTimeout(timer);
   }, [productSearch]);
+  const hasExistingProductScope = rule?.scope_type === 'product' && Boolean(rule.scope_value);
+  const {
+    data: existingProductOption,
+    loading: existingProductLoading,
+    error: existingProductError,
+    refetch: refetchExistingProduct,
+  } = useFetch(
+    () => hasExistingProductScope
+      ? fetchAdminProductOptionById(rule!.scope_value!)
+      : Promise.resolve(null),
+    [rule?.scope_type, rule?.scope_value],
+  );
   const categoriesCacheKey = useAdminScopedReadCacheKey("catalog-categories");
   const {
     data: categories,
@@ -2333,8 +2345,13 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const pageProductOptions = products?.rows ?? [];
+  const productOptions = existingProductOption && !pageProductOptions.some((product) => product.id === existingProductOption.id)
+    ? [existingProductOption, ...pageProductOptions]
+    : pageProductOptions;
   const scopeOptionsUnavailable = scopeType === 'product'
-    ? productsLoading || Boolean(productsError) || !products?.rows.length
+    ? productsLoading || Boolean(productsError) || !productOptions.length ||
+      (hasExistingProductScope && (existingProductLoading || Boolean(existingProductError) || !existingProductOption))
     : scopeType === 'category'
       ? categoriesLoading || Boolean(categoriesError) || !categories?.length
       : false;
@@ -2406,15 +2423,16 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
       </div>
       {(scopeType === 'product' || scopeType === 'category') && <>
         {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><button type="button" className="btn secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</button></>}
+        {scopeType === 'product' && hasExistingProductScope && existingProductError && <><ErrorBox message="تعذر التحقق من المنتج المحدد مسبقًا في القاعدة." /><button type="button" className="btn secondary" onClick={() => { void refetchExistingProduct(); }}>إعادة التحقق من المنتج الحالي</button></>}
         {scopeType === 'category' && categoriesRefreshError && <p className="report-note" role="status">تعذر تحديث التصنيفات؛ تُعرض آخر قراءة محفوظة لهذا الحساب. {categoriesRefreshError}</p>}
         {scopeType === 'category' && categoriesError && <><ErrorBox message={categoriesError} /><button type="button" className="btn secondary" onClick={() => { void refetchCategories(); }}>إعادة تحميل التصنيفات</button></>}
-        {scopeType === 'product' && !productsLoading && !productsError && products?.rows.length === 0 && <Empty text="لا توجد منتجات مطابقة؛ ابحث باسم المنتج أو رمزه." />}
+        {scopeType === 'product' && !productsLoading && !productsError && !productOptions.length && <Empty text="لا توجد منتجات مطابقة؛ ابحث باسم المنتج أو رمزه." />}
         {scopeType === 'category' && !categoriesLoading && !categoriesError && categories?.length === 0 && <Empty text="لا توجد تصنيفات متاحة لاستخدامها في قاعدة تسعير." />}
         {scopeType === 'product' && <Field label="ابحث عن المنتج"><input value={productSearch} onChange={(event) => { setProductSearch(event.target.value); setScopeValue(''); }} maxLength={100} placeholder="اكتب الاسم أو الرمز أو SKU أو الباركود..." /></Field>}
         <Field label={scopeType === 'product' ? 'المنتج' : 'التصنيف'}>
           <select value={scopeValue} onChange={(event) => setScopeValue(event.target.value)} required disabled={scopeOptionsUnavailable}>
             <option value="">{scopeType === 'product' ? (productsLoading ? 'جار تحميل المنتجات…' : productsError ? 'تعذر تحميل المنتجات' : 'اختر المنتج') : (categoriesLoading ? 'جار تحميل التصنيفات…' : categoriesError ? 'تعذر تحميل التصنيفات' : 'اختر التصنيف')}</option>
-            {scopeType === 'product' ? (products?.rows ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            {scopeType === 'product' ? productOptions.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
           {scopeType === 'product' && products?.hasNextPage && <small className="text-muted">توجد نتائج أخرى؛ أضف جزءاً أدق من الاسم أو الرمز.</small>}
         </Field>
