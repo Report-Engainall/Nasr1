@@ -1,0 +1,55 @@
+name: Onyx PostgreSQL 17 Import Acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
+      - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
+      - ".github/workflows/onyx-import-postgres-acceptance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/20261110210000_enforce_admin_import_snapshot_kind.sql"
+      - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
+      - ".github/workflows/onyx-import-postgres-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onyx-postgres-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-import-snapshot-acceptance:
+    name: PostgreSQL 17 import snapshot acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Apply migration and verify import snapshot safety
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/admin_import_snapshot_kind_acceptance.sql
