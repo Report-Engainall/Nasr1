@@ -367,6 +367,83 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   });
 }
 
+export type AdminProductOption = {
+  id: string;
+  name: string;
+  item_code: string;
+};
+
+export type AdminProductOptionsPage = {
+  rows: AdminProductOption[];
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;
+};
+
+/** Minimal product selector read: no images, inventory balances, categories or prices. */
+export async function fetchAdminProductOptions(input: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  activeOnly?: boolean;
+} = {}): Promise<AdminProductOptionsPage> {
+  const page = input.page ?? 1;
+  const pageSize = input.pageSize ?? 25;
+  if (!Number.isSafeInteger(page) || page < 1 || page > 2500) {
+    throw new Error('رقم صفحة خيارات المنتجات غير صالح.');
+  }
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+    throw new Error('حجم صفحة خيارات المنتجات خارج النطاق المسموح.');
+  }
+  if (input.search !== undefined && typeof input.search !== 'string') {
+    throw new Error('عبارة البحث عن المنتج غير صالحة.');
+  }
+
+  const scope = await getStorefrontDataScope();
+  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة خيارات المنتجات.');
+
+  const rawSearch = (input.search ?? '').trim();
+  const searchFilter = buildProductAdminSearchFilter(rawSearch);
+  if (rawSearch && !searchFilter) {
+    return { rows: [], page, pageSize, hasNextPage: false };
+  }
+
+  let query = supabase
+    .rpc('fetch_staff_products', { p_product_id: null })
+    .select('id,name,item_code,status')
+    .order('name', { ascending: true })
+    .order('id', { ascending: true });
+  if (input.activeOnly) query = query.eq('status', 'active');
+  if (searchFilter) query = query.or(searchFilter);
+
+  const from = (page - 1) * pageSize;
+  const data = await readWithRetry(() => query.range(from, from + pageSize));
+  if (!Array.isArray(data) || data.length > pageSize + 1) {
+    throw new Error('لم يؤكد الخادم صفحة خيارات المنتجات.');
+  }
+
+  const hasNextPage = data.length > pageSize;
+  const rows: AdminProductOption[] = [];
+  const ids = new Set<string>();
+  for (const value of data.slice(0, pageSize) as Array<Record<string, unknown>>) {
+    if (
+      typeof value.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) ||
+      ids.has(value.id) ||
+      typeof value.name !== 'string' ||
+      typeof value.item_code !== 'string' ||
+      typeof value.status !== 'string' ||
+      (input.activeOnly && value.status !== 'active')
+    ) {
+      throw new Error('أعاد الخادم خيار منتج غير مكتمل أو مكرر؛ لم يتم عرضه.');
+    }
+    ids.add(value.id);
+    rows.push({ id: value.id, name: value.name, item_code: value.item_code });
+  }
+
+  return { rows, page, pageSize, hasNextPage };
+}
+
 export type AdminProductPage = {
   items: ProductWithInventory[];
   page: number;
