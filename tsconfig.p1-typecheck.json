@@ -57,6 +57,10 @@
     "src/lib/api.ts",
     "src/components/UnifiedImportEngine.tsx",
     "src/lib/unified-import.ts",
-    "src/lib/unified-import-quality.test.ts"
+    "src/lib/unified-import-quality.test.ts",
+    "src/components/AdminOrderCreationDialog.tsx",
+    "src/components/AdminOrderCreationDialog.test.tsx",
+    "src/lib/customer-directory.ts",
+    "src/lib/customer-directory.test.ts"
   ]
 }
