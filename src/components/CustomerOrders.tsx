@@ -9,6 +9,7 @@ import { ORDER_STATUS_LABELS, type Order, type OrderItem } from '@/lib/types';
 import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
 import { downloadCustomerOrderWorkbookXlsx } from '@/lib/customer-order-xlsx';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
+import { getOrCreateBoundIdempotencyKey, type BoundIdempotencyKey } from '@/lib/bound-idempotency-key';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
 
@@ -496,7 +497,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationBusy, setCancellationBusy] = useState(false);
   const [cancellationFeedback, setCancellationFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
-  const cancellationRequestKey = useRef<string | null>(null);
+  const cancellationRequestKey = useRef<BoundIdempotencyKey | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const templateSaveInFlightRef = useRef(false);
@@ -657,12 +658,17 @@ function OrderInvoiceInner({ id }: { id: string }) {
     setCancellationBusy(true);
     setCancellationFeedback(null);
     try {
-      const requestKey = cancellationRequestKey.current ?? crypto.randomUUID().replace(/-/g,'');
-      cancellationRequestKey.current = requestKey;
+      const requestFingerprint = JSON.stringify({ orderId: order.id, reason });
+      const request = getOrCreateBoundIdempotencyKey(
+        cancellationRequestKey.current,
+        requestFingerprint,
+        () => crypto.randomUUID().replace(/-/g,''),
+      );
+      cancellationRequestKey.current = request;
       const { data: result, error: rpcError } = await supabase.rpc('cancel_customer_order', {
         p_order_id: order.id,
         p_reason: reason,
-        p_idempotency_key: requestKey,
+        p_idempotency_key: request.key,
       });
       if (rpcError) throw rpcError;
       if (!result || typeof result!=='object' || Array.isArray(result)
