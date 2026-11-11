@@ -862,8 +862,11 @@ export class StreamingCsvParser {
  * must be real calendar dates in one of the server-supported formats.
  */
 function isValidImportQualityDate(raw: unknown): boolean {
-  const value = raw === null || raw === undefined ? "" : String(raw).trim();
-  if (!value) return true;
+  // Only NULL and an actual empty cell are missing; whitespace-only text is malformed input.
+  if (raw === null || raw === undefined || raw === "") return true;
+  const rawValue = String(raw);
+  if (!rawValue.trim()) return false;
+  const value = rawValue.trim();
 
   let year: number;
   let month: number;
