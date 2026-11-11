@@ -15,12 +15,13 @@ describe("buildProductAdminSearchFilter", () => {
 
   it("removes PostgREST syntax delimiters and user wildcards before composing the OR filter", () => {
     const filter = buildProductAdminSearchFilter('x),organization_id.eq.anything,*%_"');
-    expect(filter).not.toContain(",");
+    const clauses = filter?.split(",") ?? [];
+    expect(clauses).toHaveLength(4);
+    expect(clauses.every((clause) => clause.endsWith("ilike.*x organization_id.eq.anything \\_*"))).toBe(true);
     expect(filter).not.toContain("(");
     expect(filter).not.toContain(")");
     expect(filter).not.toContain("%");
     expect(filter).not.toContain('"');
-    expect(filter).toContain("name.ilike.*x organization_id.eq.anything*");
   });
 
   it("returns null for an empty or entirely unsupported term", () => {
