@@ -8,6 +8,7 @@ import { parseStoreProductActivityReport, type StoreProductActivityReport } from
 import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './customer-360-summary';
 import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
+import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
@@ -2568,7 +2569,8 @@ export async function fetchDashboardStats() {
   const [products, customers, orders, alerts, lowStock] = await Promise.all([
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'active'),
     supabase.from('customers').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
-    supabase.rpc('fetch_staff_orders'),
+    // Keep the exact full order population/status/amount aggregation, but do not transfer unrelated order columns.
+    supabase.rpc('fetch_staff_orders').select('status,total_amount'),
     supabase.from('ai_alerts').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('is_resolved', false),
     warehouseId
       ? supabase.from('inventory_balances').select('quantity_available, reorder_point, product_id').eq('warehouse_id', warehouseId)
@@ -2599,6 +2601,9 @@ export async function fetchDashboardStats() {
       lowStock.data as Array<{ quantity_available: unknown; reorder_point: unknown }>
     )
     : null;
+  const lowStockPreviewCandidates = warehouseId && lowStockCount !== null
+    ? rankDashboardLowStockCandidates(lowStock.data)
+    : null;
 
   return {
     productCount: exactCount(products.count, 'المنتجات النشطة'),
@@ -2610,7 +2615,72 @@ export async function fetchDashboardStats() {
     processingCount: orderMetrics.processingCount,
     alertCount: exactCount(alerts.count, 'التنبيهات المفتوحة'),
     lowStockCount,
+    hasActiveWarehouse: warehouseId !== null,
+    lowStockPreviewCandidates,
   };
+}
+
+/** Read only the four server-authorized product projections needed by the dashboard. */
+export type DashboardLowStockProduct = {
+  id: string;
+  name: string;
+  item_code: string;
+  unit: string;
+  quantity_available: number;
+};
+
+export async function fetchDashboardLowStockProducts(
+  candidates: readonly DashboardLowStockCandidate[] | null,
+): Promise<DashboardLowStockProduct[] | null> {
+  if (candidates === null) return null;
+  if (!Array.isArray(candidates) || candidates.length > 4) {
+    throw new Error('قائمة الأصناف منخفضة المخزون غير صالحة للوحة المعلومات.');
+  }
+
+  const seenProductIds = new Set<string>();
+  for (const candidate of candidates) {
+    if (
+      !candidate ||
+      typeof candidate.productId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidate.productId) ||
+      typeof candidate.quantityAvailable !== 'number' ||
+      !Number.isFinite(candidate.quantityAvailable) ||
+      seenProductIds.has(candidate.productId)
+    ) {
+      throw new Error('تحتوي قائمة الأصناف منخفضة المخزون على معرّف أو كمية غير صالحة.');
+    }
+    seenProductIds.add(candidate.productId);
+  }
+
+  // At most four authenticated, tenant-checked point reads. No catalogue, pricing,
+  // media, category or customer financial payload is loaded for the dashboard preview.
+  return Promise.all(candidates.map(async (candidate): Promise<DashboardLowStockProduct> => {
+    const data = await readWithRetry<unknown>(() => supabase
+      .rpc('fetch_staff_products', { p_product_id: candidate.productId })
+      .select('id,name,item_code,unit'));
+
+    if (!Array.isArray(data) || data.length !== 1) {
+      throw new Error('لم يؤكد الخادم بيانات أحد أصناف المخزون المنخفض ضمن المؤسسة الحالية.');
+    }
+
+    const row = data[0] as Record<string, unknown>;
+    if (
+      row.id !== candidate.productId ||
+      typeof row.name !== 'string' ||
+      typeof row.item_code !== 'string' ||
+      typeof row.unit !== 'string'
+    ) {
+      throw new Error('أعاد الخادم إسقاطًا غير مكتمل لأحد أصناف المخزون المنخفض.');
+    }
+
+    return {
+      id: candidate.productId,
+      name: row.name,
+      item_code: row.item_code,
+      unit: row.unit,
+      quantity_available: candidate.quantityAvailable,
+    };
+  }));
 }
 
 // ─── Tenant-scoped store executive analytics ───
