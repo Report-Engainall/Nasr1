@@ -232,7 +232,7 @@ export function buildCustomerPricingSearchFilter(value: string): string | null {
     /^[a-z0-9._+@-]+$/i.test(emailLikeSearch);
   const search = isEmailLikeSearch ? emailLikeSearch : normalizeCustomerDirectorySearch(rawSearch);
   if (!search) return null;
-  const escaped = search.replace(/[\\%_]/g, (character) => '\\\\' + character);
+  const escaped = search.replace(/[\\%_]/g, (character) => '\\' + character);
   const pattern = '%' + escaped + '%';
   return [
     'business_name.ilike.' + pattern,
