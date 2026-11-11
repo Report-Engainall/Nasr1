@@ -90,6 +90,17 @@ BEGIN
   v_replay:=public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','products','product-snapshot-replay-key-001');
   IF v_replay->>'idempotent_replay'<>'true' THEN RAISE EXCEPTION 'product replay not idempotent'; END IF;
 
+  -- A previously applied product snapshot must still reject a customer apply attempt.
+  BEGIN
+    PERFORM public.apply_admin_import_snapshot('66666666-6666-4666-8666-666666666666','customers','wrong-kind-after-product-apply-01');
+    RAISE EXCEPTION 'expected previously applied product snapshot to reject customer apply';
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_message=MESSAGE_TEXT, v_state=RETURNED_SQLSTATE;
+    IF v_state<>'22023' OR v_message NOT LIKE '%does not match the snapshot source job type%' THEN
+      RAISE EXCEPTION 'source kind guard did not run before any alternate apply path (%): %',v_state,v_message;
+    END IF;
+  END;
+
   BEGIN
     PERFORM public.apply_admin_import_snapshot('77777777-7777-4777-8777-777777777777','customers','wrong-kind-unpriced-product-01');
     RAISE EXCEPTION 'expected product/customer mismatch to be rejected';
@@ -133,5 +144,17 @@ BEGIN
   IF v_customers<>1 THEN RAISE EXCEPTION 'customer replay created duplicate'; END IF;
 END;
 $acceptance$;
+
+
+DO $acl$
+BEGIN
+  IF pg_catalog.has_function_privilege('anon','public.apply_admin_import_snapshot(uuid,text,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'anon must not execute the admin snapshot apply function';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege('authenticated','public.apply_admin_import_snapshot(uuid,text,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated must retain access to the guarded snapshot apply RPC';
+  END IF;
+END;
+$acl$;
 
 SELECT 'PASS: PostgreSQL 17 snapshot kind, price fail-closed, customer pending state and idempotent replay' AS result;
