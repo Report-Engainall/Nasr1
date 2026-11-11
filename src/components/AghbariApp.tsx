@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchDashboardLowStockProducts, fetchOrders, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -870,20 +870,29 @@ export function AdminApp({ initialView = 'dashboard' }: AdminAppProps) {
 export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { data: stats, loading, error, refetch } = useFetch(fetchDashboardStats);
   const { data: alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useFetch(fetchAiAlerts);
-  const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
+  const lowStockCandidates = stats?.lowStockPreviewCandidates ?? null;
+  const lowStockCandidatesKey = !stats
+    ? 'pending'
+    : lowStockCandidates === null
+      ? 'unavailable'
+      : lowStockCandidates.map(({ productId, quantityAvailable }) => `${productId}:${quantityAvailable}`).join('|');
+  const {
+    data: lowStockProducts,
+    loading: lowStockProductsLoading,
+    error: lowStockProductsError,
+    refetch: refetchLowStockProducts,
+  } = useFetch(
+    () => fetchDashboardLowStockProducts(lowStockCandidates),
+    [lowStockCandidatesKey],
+  );
   if (loading) return <><Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} /><Loading /></>;
   if (error) return <>
     <Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} />
     <DashboardLoadError
       message={error}
-      onRetry={() => { void refetch(); void refetchAlerts(); void refetchProducts(); }}
+      onRetry={() => { void refetch(); void refetchAlerts(); void refetchLowStockProducts(); }}
     />
   </>;
-  const lowStock = products?.filter((product) => {
-    const quantity = product.inventory?.quantity_available;
-    const reorderPoint = product.inventory?.reorder_point ?? product.min_stock_level;
-    return getInventoryAvailabilityStatus(quantity, reorderPoint) === 'low';
-  }).slice(0, 4) ?? [];
   const salesValue = stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح';
   const processingValue = stats ? formatNumber(stats.processingCount) : 'غير متاح';
   const lowStockValue = !stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount);
@@ -896,9 +905,9 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     ['مخزون منخفض', lowStockValue, 'يحتاج إعادة طلب', AlertTriangle, 'red'],
   ] as const;
   return <>
-    <div className="hero"><div><span className="hero-kicker">نظرة تنفيذية مباشرة</span><h1>قرارات أفضل، بتشغيل أذكى</h1><p>تتابع الأغبري الطلبات والمخزون والعملاء في مكان واحد، مع مؤشرات واضحة تساعدك على التحرك بسرعة.</p></div><Button onClick={() => { void refetch(); void refetchAlerts(); void refetchProducts(); }} variant="secondary"><RefreshCw size={16} /> تحديث البيانات</Button></div>
+    <div className="hero"><div><span className="hero-kicker">نظرة تنفيذية مباشرة</span><h1>قرارات أفضل، بتشغيل أذكى</h1><p>تتابع الأغبري الطلبات والمخزون والعملاء في مكان واحد، مع مؤشرات واضحة تساعدك على التحرك بسرعة.</p></div><Button onClick={() => { void refetch(); void refetchAlerts(); void refetchLowStockProducts(); }} variant="secondary"><RefreshCw size={16} /> تحديث البيانات</Button></div>
     <div className="stats-grid">{cards.map(([label, value, note, Icon, color]) => <article className={`stat-card ${color}`} key={label}><div className="stat-top"><Icon size={22} /><span>{note}</span></div><small>{label}</small><strong>{value}</strong></article>)}</div>
-    <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.filter((a) => !a.is_resolved).length ? alerts?.filter((a) => !a.is_resolved).slice(0, 4).map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{productsLoading ? <Loading /> : productsError ? <ErrorBox message={productsError} /> : !products ? <Empty text="بيانات المخزون غير متاحة؛ لم يتم اعتبارها صفرًا." /> : lowStock.length ? lowStock.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.inventory?.quantity_available === 0 ? 'critical' : ''}>{formatNumber(product.inventory?.quantity_available as number)} {product.unit}</b></div>) : stats?.lowStockCount === null ? <Empty text="لم يتم تحديد مستودع؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
+    <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.filter((a) => !a.is_resolved).length ? alerts?.filter((a) => !a.is_resolved).slice(0, 4).map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{lowStockProductsLoading ? <Loading /> : lowStockProductsError ? <ErrorBox message={lowStockProductsError} /> : !stats?.hasActiveWarehouse ? <Empty text="لم يتم تحديد مستودع نشط؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : stats.lowStockCount === null || lowStockProducts === null ? <Empty text="بيانات المخزون غير مكتملة؛ تعذر تأكيد قائمة الأصناف منخفضة المخزون." /> : lowStockProducts.length ? lowStockProducts.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.quantity_available === 0 ? 'critical' : ''}>{formatNumber(product.quantity_available)} {product.unit}</b></div>) : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
     <section className="quick-panel"><div><Sparkline /><strong>تشغيل مترابط من لوحة واحدة</strong><p>افتح أي وحدة لإدارة التفاصيل وتحديث البيانات مباشرة.</p></div><div className="quick-links">{nav.slice(1, 7).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => onNavigate(id)}><Icon size={17} />{label}</button>)}</div></section>
   </>;
 }
