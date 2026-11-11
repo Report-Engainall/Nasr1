@@ -386,6 +386,7 @@ const PRODUCT_ADMIN_PAGE_COLUMNS =
 export async function fetchAdminProductsPage(input: {
   page: number;
   search?: string;
+  activeOnly?: boolean;
 }): Promise<AdminProductPage> {
   const page = input.page;
   const pageSize = ADMIN_PRODUCT_PAGE_SIZE;
@@ -406,12 +407,13 @@ export async function fetchAdminProductsPage(input: {
   const from = (page - 1) * pageSize;
   const to = from + pageSize; // inclusive: one extra row proves whether another page exists.
 
-  const productQuery = supabase
+  let productQuery = supabase
     .rpc('fetch_staff_products', { p_product_id: null })
     .select(PRODUCT_ADMIN_PAGE_COLUMNS)
     .order('name', { ascending: true })
     .order('id', { ascending: true });
 
+  if (input.activeOnly) productQuery = productQuery.eq('status', 'active');
   const filteredProductQuery = searchFilter
     ? productQuery.or(searchFilter)
     : productQuery;
