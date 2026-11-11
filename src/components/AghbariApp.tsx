@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchOrders, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchAdminOrderById, fetchOrders, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -2143,14 +2143,35 @@ function Pricing({ onNotice }: { onNotice: (m: string) => void }) {
 
 
 function PricingPreviewPanel() {
-  const { data: customers, loading: customersLoading, error: customersError } = useFetch(fetchCustomers);
-  const { data: products, loading: productsLoading, error: productsError } = useFetch(fetchProducts);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [appliedCustomerSearch, setAppliedCustomerSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [appliedProductSearch, setAppliedProductSearch] = useState('');
+  const { data: customers, loading: customersLoading, error: customersError } = useFetch(
+    () => fetchCustomerDirectoryPage({ search: appliedCustomerSearch, page: 1, pageSize: 25 }),
+    [appliedCustomerSearch],
+  );
+  const { data: products, loading: productsLoading, error: productsError } = useFetch(
+    () => fetchAdminProductsPage({ page: 1, search: appliedProductSearch, activeOnly: true }),
+    [appliedProductSearch],
+  );
   const [customerId, setCustomerId] = useState('');
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [preview, setPreview] = useState<CustomerTierPricePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAppliedCustomerSearch(customerSearch.trim()), 180);
+    return () => window.clearTimeout(timer);
+  }, [customerSearch]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAppliedProductSearch(productSearch.trim()), 180);
+    return () => window.clearTimeout(timer);
+  }, [productSearch]);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const qty = Number(quantity);
@@ -2162,21 +2183,49 @@ function PricingPreviewPanel() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'تعذر حساب سعر العميل.'); }
     finally { setBusy(false); }
   }
+
+  const customerRows = customers?.rows ?? [];
+  const productRows = products?.items ?? [];
+
   return <section className="panel" style={{ marginBottom: 16 }}>
     <div className="panel-head"><div><h2>معاينة سعر العميل</h2><p>تستخدم المعاينة محرك التسعير الخادمي نفسه المستخدم عند الطلب؛ القواعد غير المعتمدة لا تدخل في الحساب.</p></div></div>
     {customersError && <ErrorBox message={customersError} />}
     {productsError && <ErrorBox message={productsError} />}
     <form onSubmit={submit} className="form-grid" style={{ alignItems: 'end' }}>
-      <Field label="العميل"><select value={customerId} onChange={e => { setCustomerId(e.target.value); setPreview(null); }} required disabled={customersLoading}>
-        <option value="">{customersLoading ? 'جار تحميل العملاء…' : 'اختر العميل'}</option>
-        {(customers ?? []).map(c => <option key={c.id} value={c.id}>{c.business_name} · {c.customer_code}</option>)}
-      </select></Field>
-      <Field label="المنتج"><select value={productId} onChange={e => { setProductId(e.target.value); setPreview(null); }} required disabled={productsLoading}>
-        <option value="">{productsLoading ? 'جار تحميل المنتجات…' : 'اختر المنتج'}</option>
-        {(products ?? []).filter(p => p.status === 'active').map(p => <option key={p.id} value={p.id}>{p.name} · {p.item_code}</option>)}
-      </select></Field>
+      <Field label="ابحث عن العميل">
+        <input value={customerSearch} onChange={event => {
+          setCustomerSearch(event.target.value);
+          setCustomerId('');
+          setPreview(null);
+        }} placeholder="اسم المنشأة أو الهاتف أو رمز العميل..." maxLength={254} />
+      </Field>
+      <Field label="العميل">
+        <select value={customerId} onChange={e => { setCustomerId(e.target.value); setPreview(null); }} required disabled={customersLoading || Boolean(customersError)}>
+          <option value="">{customersLoading ? 'جار البحث عن العملاء…' : 'اختر العميل من النتائج'}</option>
+          {customerRows.map(customer => <option key={customer.id} value={customer.id}>{customer.business_name} · {customer.customer_code ?? 'بلا رمز'}</option>)}
+        </select>
+        {customers?.totalCount && customers.totalCount > customerRows.length
+          ? <small className="text-muted">توجد نتائج أكثر؛ اكتب جزءاً أدق من الاسم أو الرمز لتضييق البحث.</small>
+          : null}
+      </Field>
+      <Field label="ابحث عن المنتج">
+        <input value={productSearch} onChange={event => {
+          setProductSearch(event.target.value);
+          setProductId('');
+          setPreview(null);
+        }} placeholder="اسم المنتج أو الرمز أو SKU أو الباركود..." maxLength={100} />
+      </Field>
+      <Field label="المنتج النشط">
+        <select value={productId} onChange={e => { setProductId(e.target.value); setPreview(null); }} required disabled={productsLoading || Boolean(productsError)}>
+          <option value="">{productsLoading ? 'جار البحث عن المنتجات…' : 'اختر المنتج من النتائج'}</option>
+          {productRows.map(product => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>)}
+        </select>
+        {products?.hasNextPage
+          ? <small className="text-muted">توجد نتائج أكثر؛ اكتب رمزاً أو اسماً أدق لتحديد المنتج المطلوب.</small>
+          : null}
+      </Field>
       <Field label="الكمية المطلوبة"><input type="number" min="1" max="10000" step="1" value={quantity} onChange={e => { setQuantity(e.target.value); setPreview(null); }} required /></Field>
-      <div><Button disabled={busy || customersLoading || productsLoading || !customerId || !productId}><Calculator size={16} />{busy ? 'جارٍ حساب السعر…' : 'معاينة السعر المعتمد'}</Button></div>
+      <div><Button disabled={busy || customersLoading || productsLoading || Boolean(customersError) || Boolean(productsError) || !customerId || !productId}><Calculator size={16} />{busy ? 'جارٍ حساب السعر…' : 'معاينة السعر المعتمد'}</Button></div>
     </form>
     {error && <div className="form-error" role="alert" style={{ marginTop: 12 }}>{error}</div>}
     {preview && <div className="report-grid" style={{ marginTop: 14 }}>
@@ -2187,7 +2236,6 @@ function PricingPreviewPanel() {
     {preview && <p style={{ marginTop: 10, color: '#71868a', fontSize: 12 }}>المنتج: {preview.product_name} · السعر محسوب من قاعدة البيانات وفق الشريحة والكمية وحالة اعتماد العميل.</p>}
   </section>;
 }
-
 function PricingApprovalModal({ rule, onClose, onSaved }: { rule: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
