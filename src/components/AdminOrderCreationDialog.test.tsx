@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+// @vitest-environment jsdom
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createOrder, fetchAdminProductOptions } from "@/lib/api";
 import { fetchStaffOrderCustomerOptions } from "@/lib/customer-directory";
 import { AdminOrderCreationDialog } from "./AdminOrderCreationDialog";
@@ -12,6 +14,8 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/customer-directory", () => ({
   fetchStaffOrderCustomerOptions: vi.fn(),
 }));
+
+afterEach(() => cleanup());
 
 const CUSTOMER_ID = "11111111-1111-4111-8111-111111111111";
 const PRODUCT_ID = "22222222-2222-4222-8222-222222222222";
