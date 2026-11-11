@@ -11,7 +11,9 @@ type AuthContextType = {
   ready: boolean;
   configurationError: string | null;
   signIn: (identifier: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ needsConfirmation: boolean }>;
+  signUp: (identifier: string, password: string, fullName: string, method?: 'email' | 'phone') => Promise<{ needsConfirmation: boolean; confirmationType: 'email' | 'phone' }>;
+  verifyPhoneSignup: (phone: string, token: string) => Promise<void>;
+  resendPhoneSignupCode: (phone: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   signOutOtherSessions: () => Promise<void>;
@@ -37,7 +39,7 @@ function translateAuthError(message: string): string {
   if (m.includes('unsupported phone provider') || (m.includes('phone') && (m.includes('not enabled') || m.includes('disabled')))) return 'تسجيل الدخول برقم الهاتف غير مفعّل في إعدادات موفر المصادقة لهذا المشروع.';
   if (m.includes('phone not confirmed') || m.includes('phone is not confirmed')) return 'رقم الهاتف غير مؤكد لدى موفر المصادقة. أكمل التحقق أولاً.';
   if (m.includes('email not confirmed')) return 'يرجى تأكيد بريدك الإلكتروني أولاً من الرابط المرسل إليك';
-  if (m.includes('already registered')) return 'هذا البريد مسجل مسبقاً، سجّل الدخول بدلاً من ذلك';
+  if (m.includes('already registered') || m.includes('already been registered')) return 'هذا البريد أو رقم الهاتف مسجل مسبقاً؛ سجّل الدخول بدلاً من إنشاء حساب جديد.';
   if (m.includes('password')) return 'كلمة المرور ضعيفة: استخدم 8 أحرف على الأقل';
   if (m.includes('rate limit')) return 'محاولات كثيرة، انتظر قليلاً ثم أعد المحاولة';
   return 'تعذر إكمال العملية، حاول مرة أخرى';
@@ -90,11 +92,12 @@ async function loadProfile(): Promise<AuthUser | null> {
       continue;
     }
 
-    const p = data as { profile_id: string; full_name: string; email: string; roles: string[] };
+    const p = data as { profile_id: string; full_name: string; email: string | null; roles: string[] };
     return {
       id: verifiedUser.id,
       profileId: p.profile_id,
-      email: p.email,
+      // Phone-authenticated users legitimately have no email address.
+      email: p.email ?? verifiedUser.email ?? '',
       name: p.full_name,
       roles: p.roles,
       isStaff: p.roles.some((r) => STAFF_ROLES.includes(r)),
@@ -194,26 +197,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally { setLoading(false); }
   }, [refresh]);
 
-  const signUp = useCallback(async (email: string, password: string, fullName: string) => {
+  const signUp = useCallback(async (
+    identifier: string,
+    password: string,
+    fullName: string,
+    method: 'email' | 'phone' = 'email',
+  ) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(), password,
-        options: {
-          // Keep the verified invitation token through email confirmation; redirects are limited to this fixed in-app path.
-          emailRedirectTo: getAuthEmailRedirectUrl(
-            window.location.origin,
-            window.location.pathname,
-            window.location.search,
-          ),
-          data: { full_name: fullName.trim() },
-        },
-      });
-      if (error) throw new Error(translateAuthError(error.message));
-      if (data.session) await refresh();
-      return { needsConfirmation: !data.session };
+      const userMetadata = { data: { full_name: fullName.trim() } };
+      const result = method === 'phone'
+        ? await (async () => {
+            const phone = normalizeAuthPhoneIdentifier(identifier);
+            if (!phone) throw new Error('أدخل رقماً يمنياً صحيحاً يبدأ بـ7 أو رقماً دولياً بصيغة +رمز الدولة.');
+            return supabase.auth.signUp({ phone, password, options: userMetadata });
+          })()
+        : await supabase.auth.signUp({
+            email: identifier.trim(),
+            password,
+            options: {
+              ...userMetadata,
+              // Keep the verified invitation token through email confirmation; redirects are limited to this fixed in-app path.
+              emailRedirectTo: getAuthEmailRedirectUrl(
+                window.location.origin,
+                window.location.pathname,
+                window.location.search,
+              ),
+            },
+          });
+      if (result.error) throw new Error(translateAuthError(result.error.message));
+      if (result.data.session) await refresh();
+      return { needsConfirmation: !result.data.session, confirmationType: method };
     } finally { setLoading(false); }
   }, [refresh]);
+
+  const verifyPhoneSignup = useCallback(async (phoneInput: string, token: string) => {
+    setLoading(true);
+    try {
+      const phone = normalizeAuthPhoneIdentifier(phoneInput);
+      const code = token.replace(/\D/g, '');
+      if (!phone) throw new Error('رقم الهاتف غير صالح. أعد إدخال رقمك.');
+      if (!/^\d{4,8}$/.test(code)) throw new Error('أدخل رمز التحقق المكوّن من 4 إلى 8 أرقام.');
+      const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' });
+      if (error) throw new Error(translateAuthError(error.message));
+      await refresh();
+    } finally { setLoading(false); }
+  }, [refresh]);
+
+  const resendPhoneSignupCode = useCallback(async (phoneInput: string) => {
+    setLoading(true);
+    try {
+      const phone = normalizeAuthPhoneIdentifier(phoneInput);
+      if (!phone) throw new Error('رقم الهاتف غير صالح. أعد إدخال رقمك.');
+      const { error } = await supabase.auth.resend({ type: 'sms', phone });
+      if (error) throw new Error(translateAuthError(error.message));
+    } finally { setLoading(false); }
+  }, []);
 
   const resetPassword = useCallback(async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
@@ -237,7 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, sessionRevision, loading, ready, configurationError, signIn, signUp, resetPassword, signOut, signOutOtherSessions, signOutEverywhere }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, sessionRevision, loading, ready, configurationError, signIn, signUp, verifyPhoneSignup, resendPhoneSignupCode, resetPassword, signOut, signOutOtherSessions, signOutEverywhere }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
