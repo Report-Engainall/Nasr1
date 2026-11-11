@@ -1,3 +1,41 @@
+# P3 Execution Checkpoint — Superseding Update — 2026-11-12
+
+Repository: `Report-Engainall/Nasr1`
+Canonical branch: `main`
+Main SHA at this update: `2e536ba728376ace15450ecaaa9d7a92770ec275`
+Exact code-verification SHA: `89bd6d5285db7c20f9e43a835d7f3d4abd865f97`
+
+## Completed on main
+
+- Exact P1 Actions run [#43122676877](https://github.com/Report-Engainall/Nasr1/actions/runs/43122676877) succeeded on the exact code SHA: 27/27 Vitest files, 169/169 tests, strict TypeScript, and production bundle build.
+- PR #416 was closed without merging after its unique Onyx source-kind guard UI, bounded source preview, 27-column export correction, import dataset classification, and Arabic help-search changes were reconciled into main. The branch remains as a reference; it was not deleted.
+- PR #417 was closed without merging after its manual-order UI and approved-customer selector were reconciled into main. The UI now enforces integer quantities and a 100-line ceiling matching the server RPC; the client sends IDs, quantities, terms, notes and an idempotency key only.
+- PostgreSQL 17 acceptance succeeded:
+  - [Onyx source-kind and idempotency #43118122150](https://github.com/Report-Engainall/Nasr1/actions/runs/43118122150).
+  - [DQS whitespace/date rejection #43121339520](https://github.com/Report-Engainall/Nasr1/actions/runs/43121339520).
+  - [Shipment-time inventory and open-PO reconciliation #43121422281](https://github.com/Report-Engainall/Nasr1/actions/runs/43121422281).
+- The connected Supabase project has these recorded migrations:
+  - `20261111230620_enforce_admin_import_snapshot_kind`
+  - `20261111233753_import_quality_whitespace_date_rejection`
+  - `20261111233835_inventory_replenishment_shipment_sales_reconciliation`
+- Live database post-change counts: organization=1, profiles=2, customers=0, products=0, balances=0, inventory movements=0, orders=0, import jobs=0, audit logs=26. No sample/seed/business rows were inserted; no inventory, invoice, payment or ledger transaction was run.
+- Function ACL checks: `anon` is denied EXECUTE on all three new/updated RPCs; `authenticated` retains EXECUTE and each RPC enforces its own profile/tenant/role checks.
+
+## Work intentionally not certified
+
+- Onyx external target-version round-trip and production/customer/product bulk import remain NOT_PROVEN; no real snapshot was applied.
+- Manual order UI tests prove validation, payload minimization and idempotent retry behavior with mocked API calls. Live populated-data order creation/replay/credit outcomes remain PENDING because the connected DB currently has no approved customers or products. The live `create_staff_order` RPC contract was inspected, not invoked with fake records.
+- /help browser navigation, responsive RTL and keyboard acceptance remain BROWSER_PENDING despite source tests and exact P1 CI success.
+- Inventory intelligence returns UNAVAILABLE when there is no active product population; no fake stock or order rows were added to produce results.
+- P2 PR #412 remains OPEN/BLOCKED by a Playwright finance/purchase-order print selector failure. PR #413 remains DRAFT/stale and has no exact-head acceptance.
+- PR #416 and #417 are closed without merge; no branch deletion was attempted. The connected GitHub identity reports `admin=false`; the available GitHub actions do not expose a delete-ref operation. The newer `feat/admin-order-entry-main-sync-2026-11-12` branch is behind main and has an older, weaker quantity/line limit, so it remains unmerged.
+- Supabase advisors still report the findings itemized in CURRENT_EXECUTION_STATE. Health lints are empty; security/performance warnings are not all resolved. Leaked-password protection is still WARN and no project Auth setting was changed.
+
+## Release decision
+
+**NO-GO for production readiness.** Source/P1/PG17 evidence above is real and SHA-bound, but populated commercial-data acceptance, browser acceptance, Onyx target-version round-trip, PR #412 P2 repair, PR #413 disposition, and the remaining advisor remediation are still outstanding.
+
+---
 # P3 Branch Consolidation Checkpoint — 2026-11-12
 
 Repository: `Report-Engainall/Nasr1`
