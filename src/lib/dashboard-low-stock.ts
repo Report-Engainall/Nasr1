@@ -33,9 +33,13 @@ export function rankDashboardLowStockCandidates(input: unknown): DashboardLowSto
 
     if (quantityAvailable > reorderPoint) continue;
 
+    // A zero threshold with zero stock sits exactly at its threshold (pressure 1);
+    // negative available stock is ranked ahead of every non-negative position.
     const rawPressure = reorderPoint > 0
       ? quantityAvailable / reorderPoint
-      : quantityAvailable;
+      : quantityAvailable < 0
+        ? -1
+        : 1;
     const pressure = Number.isFinite(rawPressure) ? rawPressure : -1_000_000;
 
     candidates.push({ productId, quantityAvailable, pressure });
