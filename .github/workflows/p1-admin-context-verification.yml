@@ -29,6 +29,7 @@ on:
       - "src/components/CustomerOrders.tsx"
       - "tsconfig.p1-typecheck.json"
       - "src/components/BulkProductImageUploader.tsx"
+      - "src/components/BulkProductImageUploader.test.tsx"
       - "src/lib/product-image-batch-match.ts"
       - "src/lib/product-image-batch-match.test.ts"
       - "src/lib/unified-import.ts"
