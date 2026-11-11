@@ -1,12 +1,19 @@
-# ACTIVE CHECKPOINT — 2026-11-12 — P3 BRANCH CONSOLIDATION
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — MAIN CODE + LIVE SUPABASE RECONCILIATION
 
 > Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
-> P3 branch consolidation evidence: [P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md](./P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md).
-> Checkpoint document commit: `990aed2d4630edee45465e27e974fb80936ba9ec`.
-> Application-code merge completed: PR #415, squash commit `a98b3cb5a72edb0dcc141983909bf7f67a679287`; PostgreSQL 17 acceptance succeeded on exact PR head `6831414cde6610ef8e79a4a9635fc32fd380517e`.
-> Remaining branch work is not complete: PR #412 is blocked by a failed P2 Playwright product-selector assertion; PR #413 is draft and stale against main; PR #416 has exact-head P1 success but stale/non-mergeable base; the customer-import follow-up branch retains an `api.ts` blob difference requiring review.
-> Ten branch refs are identified as deletion candidates only after immediate recheck; no branch has been deleted because the connected GitHub action set has no DELETE-ref operation. See the linked P3 checkpoint for branch-by-branch evidence and next steps.
-> No production migration, deployment, Vercel action, or live integration change was performed.
+> Main SHA at this checkpoint: `2e536ba728376ace15450ecaaa9d7a92770ec275`.
+> Exact code-verification SHA: `89bd6d5285db7c20f9e43a835d7f3d4abd865f97`.
+> P1 GitHub Actions run [#43122676877](https://github.com/Report-Engainall/Nasr1/actions/runs/43122676877): SUCCESS on that exact code SHA — 27/27 test files, 169/169 tests, P1 strict TypeScript PASS, production bundle build PASS. Documentation-only follow-up commits after this tested code SHA do not change the tested application source.
+> PostgreSQL 17 acceptance:
+> - Onyx source-kind/idempotency acceptance [#43118122150](https://github.com/Report-Engainall/Nasr1/actions/runs/43118122150): SUCCESS.
+> - Import-quality whitespace/date acceptance [#43121339520](https://github.com/Report-Engainall/Nasr1/actions/runs/43121339520): SUCCESS.
+> - Inventory shipment/replenishment reconciliation acceptance [#43121422281](https://github.com/Report-Engainall/Nasr1/actions/runs/43121422281): SUCCESS.
+> The three function-only migrations were applied to the connected Supabase project and recorded as `20261111230620`, `20261111233753`, and `20261111233835`. This is a live schema/RPC change, not a business-data import.
+> Live database evidence after the migrations: 1 organization, 2 profiles, 0 customers, 0 products, 0 inventory balances, 0 inventory movements, 0 sales orders, 0 import jobs, and 26 audit rows. No demo rows or test transactions were inserted. RPC execution is denied to `anon` and allowed to `authenticated` for the guarded Onyx apply, DQS, and inventory-intelligence functions; role and tenant validation remain inside the functions.
+> Application work now represented on main: Onyx source-kind-bound apply and bounded preview; Arabic help search; 27-column Onyx export alignment; file-kind detection before staging; whitespace-only date rejection in the client and server DQS; shipment-time sales movement reconciliation and PO UOM withholding; staff manual-order dialog using the existing server-priced, credit-guarded, audited, idempotent RPC. Manual-order acceptance is UI-tested with mocked RPC and the live RPC contract was inspected; populated-data transaction acceptance remains pending because no approved customers/products currently exist.
+> PR #416 (Onyx/help) and PR #417 (manual order) are CLOSED without merging; their selected changes are on main. Their branch refs were not deleted. PR #412 remains OPEN and blocked by its P2 finance/purchase-order print selector failure. PR #413 remains DRAFT and stale. The newer `feat/admin-order-entry-main-sync-2026-11-12` branch is behind main and carries an older manual-order dialog (fractional quantities and a 200-item limit); it was not merged because main now enforces the database contract (integer quantities, maximum 100 lines).
+> Supabase advisor findings still require governance work: 56 RLS-enabled/no-policy INFO notices, 7 anon SECURITY DEFINER warnings (including intended public storefront RPCs plus `get_product_unit_conversions` for review), 299 authenticated SECURITY DEFINER notices, one leaked-password protection WARN, and performance findings (361 unindexed foreign keys, 43 RLS initplan WARN, 27 multiple permissive policy WARN, 3 duplicate indexes, 90 unused indexes, 1 missing primary key). Health advisor returned no lints. These are not certified as resolved by the three migrations.
+> Release remains NO-GO: no populated commercial dataset, browser/tenant acceptance with real customer/product rows, target-version Onyx Pro round-trip, P2 PR #412 correction, PR #413 reconciliation, and security/performance advisor remediation have not all been completed. No application deployment, Vercel operation, auth project-setting change, or external live integration was performed. The previous historical checkpoint sections below are retained as history and are superseded by this top section.
 
 ---
 
