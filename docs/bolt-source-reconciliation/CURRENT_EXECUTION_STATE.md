@@ -1,7 +1,7 @@
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PUBLIC PHONE-FIRST SELF-SERVICE CUSTOMER REGISTRATION / DATABASE ACCEPTANCE / EXACT-SHA P1 PASS
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
-> Exact latest tested code SHA: `9193f88b04b0681c539db735d649e4103949277b`. Current main head `b413fdab30b319bed556f00fdf0bda26b1539070` has documentation/performance checkpoint updates after this tested SHA; registration/Auth/route/migration blobs were re-fetched on current main and remain unchanged.
+> Exact latest tested code SHA: `9193f88b04b0681c539db735d649e4103949277b`. Subsequent main commits after this tested SHA are documentation/performance checkpoints; registration/Auth/route/migration blobs were re-fetched on current main and remain unchanged.
 > P1 workflow [43109175708](https://github.com/Report-Engainall/Nasr1/actions/runs/43109175708): **SUCCESS** on exact tested SHA `9193f88b04b0681c539db735d649e4103949277b` (16/16 Vitest files, 111/111 tests, strict TypeScript, Client+SSR+Nitro build). Earlier exact-SHA runs [43108982824](https://github.com/Report-Engainall/Nasr1/actions/runs/43108982824), [43108078884](https://github.com/Report-Engainall/Nasr1/actions/runs/43108078884) and [43106904241](https://github.com/Report-Engainall/Nasr1/actions/runs/43106904241) also succeeded.
 > CI configuration-only follow-up commit: `e3fdb6ad0827a738891440a6f9de8e5142f8be15` (removes docs-only paths from the P1 test trigger; docs edits no longer rebuild the application).
 
