@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchOrders, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchOrders, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -1975,8 +1975,46 @@ export function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSav
 }
 
 function Orders({ onViewDetail }: { onViewDetail: (id: string) => void }) {
-  const { data, loading, error, refetch } = useFetch(fetchOrders);
-  return <><Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام حتى التسليم" icon={ShoppingCart} /><div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} طلب في النظام</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button></div></div><section className="panel table-panel">{loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>رقم الطلب</th><th>العميل</th><th>التاريخ</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th><th /></tr></thead><tbody>{data?.map((o) => <tr key={o.id}><td><strong>#{o.order_number}</strong></td><td>{o.customer?.business_name ?? '—'}</td><td>{formatDateShort(o.created_at)}</td><td>{formatNumber(o.total_items)}</td><td>{formatCurrency(o.total_amount)}</td><td><span className={`badge ${o.status === 'delivered' ? 'success' : o.status === 'processing' ? 'info' : 'warning'}`}>{orderLabel(o.status)}</span></td><td><Button variant="outline" onClick={() => onViewDetail(o.id)}>تفاصيل</Button></td></tr>)}</tbody></table>{!data?.length && <Empty text="لا توجد طلبات" />}</TableWrap>}</section></>;
+  const [page, setPage] = useState(1);
+  const { data, loading, error, refetch } = useFetch(
+    () => fetchAdminOrdersPage({ page }),
+    [page],
+  );
+  const rows = data?.items ?? [];
+
+  return <>
+    <Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام حتى التسليم" icon={ShoppingCart} />
+    <div className="toolbar">
+      <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
+      <div className="toolbar-actions">
+        <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+      </div>
+    </div>
+    <section className="panel table-panel">
+      {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refetch()}>إعادة تحميل الصفحة</Button></> : <TableWrap>
+        <table>
+          <thead><tr><th>رقم الطلب</th><th>العميل</th><th>التاريخ</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th><th /></tr></thead>
+          <tbody>{rows.map((o) => <tr key={o.id}>
+            <td><strong>#{o.order_number}</strong></td>
+            <td>{o.customer?.business_name ?? '—'}</td>
+            <td>{formatDateShort(o.created_at)}</td>
+            <td>{formatNumber(o.total_items)}</td>
+            <td>{formatCurrency(o.total_amount)}</td>
+            <td><span className={`badge ${o.status === 'delivered' ? 'success' : o.status === 'processing' ? 'info' : 'warning'}`}>{orderLabel(o.status)}</span></td>
+            <td><Button variant="outline" onClick={() => onViewDetail(o.id)}>تفاصيل</Button></td>
+          </tr>)}</tbody>
+        </table>
+        {!rows.length && <Empty text="لا توجد طلبات" />}
+      </TableWrap>}
+      <div className="toolbar" style={{ marginTop: 12 }}>
+        <span className="toolbar-note">صفحة {page} — {rows.length} طلب معروض</span>
+        <div className="toolbar-actions">
+          <Button variant="outline" disabled={loading || page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>السابق</Button>
+          <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
+        </div>
+      </div>
+    </section>
+  </>;
 }
 function orderLabel(status: string) { return ORDER_STATUS_LABELS[status] ?? status; }
 
