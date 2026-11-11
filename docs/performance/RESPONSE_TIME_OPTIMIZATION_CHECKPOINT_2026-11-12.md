@@ -102,3 +102,35 @@ No database indexes/migrations, live Supabase state, production config, deployme
   - Avoid returning full order rows, full inventory balances, prices, customer balances, or unrelated product columns to the dashboard.
   - Add migration-level contract tests and pure parser tests for unauthorized calls, tenant isolation, warehouse switching, empty/unknown warehouse, malformed rows, duplicate products, deterministic top-four ordering, and financial aggregate parity against `summarizeDashboardOrders`. Run the exact-SHA GitHub Actions suite before recording acceptance.
 - Acceptance status for this continuation: **INVESTIGATED — IMPLEMENTATION NOT YET MADE; NO TEST OR PERFORMANCE PASS CLAIMED**. Browser P50/P75/P95, payload bytes, DB query plans, and first-content/data-ready timings remain unmeasured.
+
+
+## P3 continuation — dashboard payload and low-stock preview reduction — 2026-11-12
+
+- Code-bearing SHA: `d920f5fa344d231352b4ad4f81c3adcbb026f7c4`.
+- Source blobs at that SHA:
+  - `src/lib/api.ts`: `dfa2646f60d7d6bdcaf5e1b2ac581dc1becb597b`.
+  - `src/components/AghbariApp.tsx`: `7d779c5b2c515b6511d0dfe5b7f8c1beaf5bb031`.
+  - `src/lib/dashboard-low-stock.ts`: `57e3d2a4c436400863560837c38ef741164d6dff`.
+  - `src/lib/dashboard-low-stock.test.ts`: `260b3714a0d2625baa40b2a6ab21c5310f2df736`.
+- Preserved existing code and behavior:
+  - No existing screens, APIs, catalogue functions, routes, database objects, or prior performance improvements were deleted.
+  - The existing staff-only `fetch_staff_orders()` authorization, tenant derivation, full result population, order count, status classification (`processing` and `pending`), and `summarizeDashboardOrders` financial validation remain in use. The dashboard now requests only `status,total_amount` from its table-returning RPC, rather than transporting unrelated order columns.
+  - The exact low-stock KPI continues to count the complete selected-warehouse balance set through the existing `quantity_available <= reorder_point` helper. No early LIMIT was introduced before the predicate.
+- New low-stock preview path:
+  - Added a pure deterministic shortlist builder. It validates every selected-warehouse balance row and rejects malformed or duplicate product identities; it applies the existing sellable-stock predicate, ranks by stock pressure with stable product-ID tie-breaking, then caps the display shortlist at four.
+  - The dashboard no longer calls the full `fetchProducts()` catalogue path just to render four low-stock examples. It calls the existing role-checked `fetch_staff_products(p_product_id)` contract for no more than four selected IDs and asks PostgREST for only `id,name,item_code,unit`.
+  - The existing general catalogue reader and all its other callers remain intact. No prices, product media, category data, customer balances, or full product records are loaded for the dashboard preview.
+  - The UI differentiates no active warehouse from incomplete/unavailable stock evidence instead of displaying a false zero.
+- Database and security inspection:
+  - Confirmed the canonical project `tfdwtuwkdddnzgyhcoyy` is ACTIVE_HEALTHY; the retired `mrcyqezbhpncuvaehwgf` project is INACTIVE.
+  - Read-only inspection confirmed `fetch_staff_products(uuid)` derives the active organization from the authenticated profile, checks the staff role, and scopes the requested product to that organization. `get_current_tenant_context()` derives the active warehouse from the signed-in profile. `fetch_staff_orders()` remains staff-only and organization-scoped.
+  - Read-only schema/index inspection found the existing unique `(product_id,warehouse_id)` index and `idx_inventory_product(product_id)`; no warehouse-leading inventory index was found in the inspected index list.
+  - No migration, index, function, ACL, RLS policy, production row, or Supabase setting was modified. No SQL write/DDL was run.
+- Regression coverage added (not yet executed in this delivery): four tests cover predicate-before-cap ranking, deterministic tie-breaking, zero reorder-point behavior, and malformed/duplicate fail-closed handling.
+- Evidence boundary:
+  - **IMPLEMENTED IN SOURCE — YES.**
+  - **TESTED_EXACT_SHA — NOT YET VERIFIED.** No Vitest, TypeScript, production build, browser waterfall, or route timing PASS is claimed for `d920f5f`.
+  - **BROWSER_P50/P75/P95 — NOT MEASURED.**
+  - **DATABASE EXPLAIN ANALYZE — NOT RUN.** The current dashboard still reads all selected-warehouse balance rows to preserve the exact total low-stock count; a server-side aggregate and a measured warehouse-leading index decision remain separate follow-up work.
+  - The commit status surface returned a Vercel build-rate-limit failure; no Vercel build/deployment was requested or run. This is not GitHub Actions test evidence.
+- Next execution: obtain exact-SHA GitHub Actions results for `d920f5f`; then measure the selected-warehouse inventory query plan in a controlled non-production database. Only after measuring the real plan and proving RLS/tenant/warehouse parity should a migration-backed server aggregate or index be proposed. Keep the live database unchanged.
