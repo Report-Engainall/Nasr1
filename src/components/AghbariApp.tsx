@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchAdminProductOptions, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -2152,7 +2152,7 @@ function PricingPreviewPanel() {
     [appliedCustomerSearch],
   );
   const { data: products, loading: productsLoading, error: productsError } = useFetch(
-    () => fetchAdminProductsPage({ page: 1, search: appliedProductSearch, activeOnly: true }),
+    () => fetchAdminProductOptions({ page: 1, pageSize: 25, search: appliedProductSearch, activeOnly: true }),
     [appliedProductSearch],
   );
   const [customerId, setCustomerId] = useState('');
@@ -2185,7 +2185,7 @@ function PricingPreviewPanel() {
   }
 
   const customerRows = customers?.rows ?? [];
-  const productRows = products?.items ?? [];
+  const productRows = products?.rows ?? [];
 
   return <section className="panel" style={{ marginBottom: 16 }}>
     <div className="panel-head"><div><h2>معاينة سعر العميل</h2><p>تستخدم المعاينة محرك التسعير الخادمي نفسه المستخدم عند الطلب؛ القواعد غير المعتمدة لا تدخل في الحساب.</p></div></div>
@@ -2295,7 +2295,16 @@ function localDateTimeValue(value?: string | null): string {
 }
 
 export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
-  const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
+  const [productSearch, setProductSearch] = useState('');
+  const [appliedProductSearch, setAppliedProductSearch] = useState('');
+  const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(
+    () => fetchAdminProductOptions({ page: 1, pageSize: 40, search: appliedProductSearch }),
+    [appliedProductSearch],
+  );
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAppliedProductSearch(productSearch.trim()), 180);
+    return () => window.clearTimeout(timer);
+  }, [productSearch]);
   const categoriesCacheKey = useAdminScopedReadCacheKey("catalog-categories");
   const {
     data: categories,
@@ -2325,7 +2334,7 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
   const [error, setError] = useState('');
 
   const scopeOptionsUnavailable = scopeType === 'product'
-    ? productsLoading || Boolean(productsError) || !products?.length
+    ? productsLoading || Boolean(productsError) || !products?.rows.length
     : scopeType === 'category'
       ? categoriesLoading || Boolean(categoriesError) || !categories?.length
       : false;
@@ -2399,13 +2408,15 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
         {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><button type="button" className="btn secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</button></>}
         {scopeType === 'category' && categoriesRefreshError && <p className="report-note" role="status">تعذر تحديث التصنيفات؛ تُعرض آخر قراءة محفوظة لهذا الحساب. {categoriesRefreshError}</p>}
         {scopeType === 'category' && categoriesError && <><ErrorBox message={categoriesError} /><button type="button" className="btn secondary" onClick={() => { void refetchCategories(); }}>إعادة تحميل التصنيفات</button></>}
-        {scopeType === 'product' && !productsLoading && !productsError && products?.length === 0 && <Empty text="لا توجد منتجات متاحة لاستخدامها في قاعدة تسعير." />}
+        {scopeType === 'product' && !productsLoading && !productsError && products?.rows.length === 0 && <Empty text="لا توجد منتجات مطابقة؛ ابحث باسم المنتج أو رمزه." />}
         {scopeType === 'category' && !categoriesLoading && !categoriesError && categories?.length === 0 && <Empty text="لا توجد تصنيفات متاحة لاستخدامها في قاعدة تسعير." />}
+        {scopeType === 'product' && <Field label="ابحث عن المنتج"><input value={productSearch} onChange={(event) => { setProductSearch(event.target.value); setScopeValue(''); }} maxLength={100} placeholder="اكتب الاسم أو الرمز أو SKU أو الباركود..." /></Field>}
         <Field label={scopeType === 'product' ? 'المنتج' : 'التصنيف'}>
           <select value={scopeValue} onChange={(event) => setScopeValue(event.target.value)} required disabled={scopeOptionsUnavailable}>
             <option value="">{scopeType === 'product' ? (productsLoading ? 'جار تحميل المنتجات…' : productsError ? 'تعذر تحميل المنتجات' : 'اختر المنتج') : (categoriesLoading ? 'جار تحميل التصنيفات…' : categoriesError ? 'تعذر تحميل التصنيفات' : 'اختر التصنيف')}</option>
-            {scopeType === 'product' ? (products ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            {scopeType === 'product' ? (products?.rows ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
+          {scopeType === 'product' && products?.hasNextPage && <small className="text-muted">توجد نتائج أخرى؛ أضف جزءاً أدق من الاسم أو الرمز.</small>}
         </Field>
       </>}
       <div className="form-grid">
