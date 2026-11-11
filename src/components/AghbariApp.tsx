@@ -937,7 +937,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     const timer = window.setTimeout(() => {
       setPage(1);
       setDebouncedQuery(query.trim());
-    }, 280);
+    }, 180);
     return () => window.clearTimeout(timer);
   }, [query]);
   async function refreshProducts() {
