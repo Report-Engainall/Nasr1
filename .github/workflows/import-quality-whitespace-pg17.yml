@@ -1,0 +1,53 @@
+name: Import Quality Whitespace Date PostgreSQL 17 Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261112000100_import_quality_whitespace_date_rejection.sql"
+      - "supabase/tests/import_quality_whitespace_date_acceptance.sql"
+      - ".github/workflows/import-quality-whitespace-pg17.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261112000100_import_quality_whitespace_date_rejection.sql"
+      - "supabase/tests/import_quality_whitespace_date_acceptance.sql"
+      - ".github/workflows/import-quality-whitespace-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-quality-whitespace-pg17-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  import-quality-whitespace:
+    name: PostgreSQL 17 import quality whitespace/date acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Apply migration and verify exact DQS semantics
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/import_quality_whitespace_date_acceptance.sql
