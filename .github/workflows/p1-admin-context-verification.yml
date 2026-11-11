@@ -70,6 +70,20 @@ on:
       - "src/lib/help-center-search.test.ts"
       - "src/routes/help.tsx"
       - "src/lib/unified-import-quality.test.ts"
+      - "src/components/AdminOrderCreationDialog.tsx"
+      - "src/components/AdminOrderCreationDialog.test.tsx"
+      - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"
+      - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
+      - ".github/workflows/onyx-import-postgres-acceptance.yml"
+      - "supabase/migrations/20261111233753_import_quality_whitespace_date_rejection.sql"
+      - "supabase/tests/import_quality_whitespace_date_acceptance.sql"
+      - ".github/workflows/import-quality-whitespace-pg17.yml"
+      - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
+      - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
+      - ".github/workflows/inventory-replenishment-pg17.yml"
+      - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
+      - "docs/bolt-source-reconciliation/P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md"
+      - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
   pull_request:
     branches:
       - main
@@ -140,6 +154,20 @@ on:
       - "src/routes/help.tsx"
 
       - "src/lib/unified-import-quality.test.ts"
+      - "src/components/AdminOrderCreationDialog.tsx"
+      - "src/components/AdminOrderCreationDialog.test.tsx"
+      - "supabase/migrations/20261111230620_enforce_admin_import_snapshot_kind.sql"
+      - "supabase/tests/admin_import_snapshot_kind_acceptance.sql"
+      - ".github/workflows/onyx-import-postgres-acceptance.yml"
+      - "supabase/migrations/20261111233753_import_quality_whitespace_date_rejection.sql"
+      - "supabase/tests/import_quality_whitespace_date_acceptance.sql"
+      - ".github/workflows/import-quality-whitespace-pg17.yml"
+      - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
+      - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
+      - ".github/workflows/inventory-replenishment-pg17.yml"
+      - "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
+      - "docs/bolt-source-reconciliation/P3_BRANCH_CONSOLIDATION_CHECKPOINT_2026-11-12.md"
+      - "docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv"
   workflow_dispatch:
 
 permissions:
