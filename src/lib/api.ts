@@ -444,6 +444,36 @@ export async function fetchAdminProductOptions(input: {
   return { rows, page, pageSize, hasNextPage };
 }
 
+/** Targeted lookup that preserves an existing product-scoped pricing rule outside page one. */
+export async function fetchAdminProductOptionById(productId: string): Promise<AdminProductOption | null> {
+  const normalizedId = typeof productId === 'string' ? productId.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalizedId)) {
+    throw new Error('معرّف المنتج المرتبط بقاعدة التسعير غير صالح.');
+  }
+  const scope = await getStorefrontDataScope();
+  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة المنتج المرتبط بقاعدة التسعير.');
+
+  const row = await readWithRetry(() => supabase
+    .rpc('fetch_staff_products', { p_product_id: normalizedId })
+    .select('id,name,item_code,status')
+    .limit(1)
+    .maybeSingle());
+
+  if (row === null) return null;
+  if (
+    typeof row !== 'object' ||
+    Array.isArray(row) ||
+    (row as Record<string, unknown>).id !== normalizedId ||
+    typeof (row as Record<string, unknown>).name !== 'string' ||
+    typeof (row as Record<string, unknown>).item_code !== 'string' ||
+    typeof (row as Record<string, unknown>).status !== 'string'
+  ) {
+    throw new Error('لم يؤكد الخادم المنتج المرتبط بقاعدة التسعير الحالية.');
+  }
+  const value = row as Record<string, unknown>;
+  return { id: normalizedId, name: value.name as string, item_code: value.item_code as string };
+}
+
 export type AdminProductPage = {
   items: ProductWithInventory[];
   page: number;
