@@ -13,6 +13,7 @@ on:
       - "src/components/Login.phone-signup.test.tsx"
       - "supabase/migrations/20261112000000_public_self_service_customer_registration.sql"
       - "src/test/public-self-service-customer-registration-migration.test.ts"
+      - "supabase/migrations/20261112001000_pending_customer_order_creation_gate.sql"
       - "src/components/OperationsCenter.tsx"
       - "src/components/OperationsExceptionCenter.tsx"
       - "src/lib/operations-exceptions.ts"
