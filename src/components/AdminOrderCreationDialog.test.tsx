@@ -73,8 +73,8 @@ describe("AdminOrderCreationDialog", () => {
 
     fireEvent.change(screen.getByLabelText("الكمية"), { target: { value: "1.5" } });
     fireEvent.click(screen.getByRole("button", { name: /إضافة الصنف/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("عدداً صحيحاً");
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect((await screen.findByRole("alert")).textContent ?? "").toContain("عدداً صحيحاً");
+    expect(screen.queryByRole("table")).toBeNull();
 
     fireEvent.change(screen.getByLabelText("الكمية"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: /إضافة الصنف/ }));
