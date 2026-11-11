@@ -1292,11 +1292,6 @@ export async function fetchAdminOrdersPage(input: { page: number }): Promise<Adm
 }
 
 export type AdminOrderDetail = Order & {
-  order_number: string;
-  quantity_review_required: boolean;
-  customer_adjustment_note: string | null;
-  payment_request_status: string;
-  delivery_address_snapshot: Order['delivery_address_snapshot'];
   customer?: Pick<Customer, 'customer_code' | 'business_name'>;
 };
 
