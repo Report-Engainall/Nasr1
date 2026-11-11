@@ -167,3 +167,18 @@ No database indexes/migrations, live Supabase state, production config, deployme
   - The connected GitHub status surface exposed only a Vercel build-rate-limit failure. Its workflow-run wrapper filters to pull-request-triggered runs and returned no push-run records; therefore exact-SHA GitHub Actions status remains **NOT VERIFIED**, not PASS. No Vercel build/deployment was used.
   - **BROWSER P50/P75/P95 — NOT MEASURED.** A populated warehouse and representative catalogue/orders are required for valid timings.
 - Next safe step: use the repository's GitHub Actions workflow to run Vitest, strict TypeScript and the production bundle against the exact source SHA `49903a4891e3418a5d33c0667cd33ee5c75e0be2`. After it passes, benchmark a controlled non-production tenant containing real-shape catalogue, alerts and warehouse data; only then consider new aggregate RPCs/indexes.
+
+
+## P3 continuation — critical stock state and explicit GitHub Actions path — 2026-11-12
+
+- Exact test-target SHA on `main`: `39b73d8eb8fb0a603b5c061859d2a7755d7e2332`.
+- Source blobs at the test target:
+  - `src/lib/api.ts`: `3a8401961ed77729f4a9a57202884f5a1d020e1e`.
+  - `src/components/AghbariApp.tsx`: `fc4318f7fe744fbaec65164b5b7218c4e871d41a`.
+  - `src/lib/dashboard-low-stock.ts`: `57e3d2a4c436400863560837c38ef741164d6dff`.
+  - `src/lib/dashboard-low-stock.test.ts`: `cf3db0f436694783680a19916a891ac0649bf9e6`.
+  - `.github/workflows/p1-admin-context-verification.yml`: `899fad1fc5f04c7c4123f1a0b46a08bb4ed0ce9c`.
+- Added a fifth regression case: negative available stock must be prioritized before non-negative low-stock candidates. The dashboard marks both zero and negative available quantities as `critical`; no inventory value is changed.
+- Explicitly added `src/lib/dashboard-low-stock.ts` and `src/lib/dashboard-low-stock.test.ts` to the P1 GitHub Actions push-path filter. This ensures a future helper/test-only edit also invokes the full test/typecheck/build workflow.
+- The general product catalogue reader, full AI alert reader, all other alert/product screens and routes remain in place.
+- Verification status is unchanged: five focused tests authored but NOT RUN; exact-SHA GitHub Actions status NOT VERIFIED; no exact-SHA PASS is claimed. The connected status tool only surfaced the Vercel build-rate-limit status, and its workflow-run wrapper cannot surface push-triggered runs. Vercel was not run by this task.
