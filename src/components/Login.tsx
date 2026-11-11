@@ -167,7 +167,7 @@ function LoginFormIntro({ mode, title, phoneConfirmationPending }: { mode: Mode;
   const description = phoneConfirmationPending
     ? 'أدخل رمز التحقق الذي أرسلناه إلى رقم هاتفك لإكمال إنشاء الحساب.'
     : mode === 'register'
-      ? 'أنشئ حسابك للطلب من متجر الأغبري'
+      ? 'ابدأ برقم هاتفك؛ سنرسل رمز تحقق، ثم يُرسل حسابك إلى الإدارة للاعتماد'
       : mode === 'forgot'
         ? 'سنرسل لك رابطاً لتعيين كلمة مرور جديدة'
         : 'أدخل بياناتك للمتابعة';
