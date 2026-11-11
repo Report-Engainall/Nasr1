@@ -9,7 +9,8 @@
 - `src/lib/api.ts` and `src/components/AghbariApp.tsx`: the Dashboard no longer loads the complete product catalogue just to show four low-stock items. It derives a validated deterministic top-four shortlist from the existing selected-warehouse balance rows, then uses the pre-existing authenticated staff product RPC for at most four minimal product projections.
 - Dashboard order RPC response requests only `status,total_amount`; all order rows, existing staff/tenant authorization, count and `summarizeDashboardOrders` amount/status semantics remain.
 - Dashboard AI alert reader now filters unresolved alerts server-side, selects only `id,title,body,severity`, and returns at most four. The general `fetchAiAlerts()` API remains unchanged for the full AI workspace.
-- Added `src/lib/dashboard-low-stock.ts` and four focused regression cases in `src/lib/dashboard-low-stock.test.ts`.
+- Added `src/lib/dashboard-low-stock.ts` and five focused regression cases in `src/lib/dashboard-low-stock.test.ts`; negative available stock is prioritized and rendered critical.
+- Explicitly included the helper and its test in `.github/workflows/p1-admin-context-verification.yml` push paths so test-only changes trigger CI.
 - No catalogue function, existing alert API, screen, route, prior lazy-loading, pricing, inventory, financial or authentication implementation was removed. No database write/DDL/migration/index/ACL/RLS modification was made.
 
 ## Canonical active database — read-only observation
@@ -22,7 +23,7 @@
 ## Verification boundary and resume
 
 - Source implementation: YES on `49903a4`.
-- Four low-stock tests authored; they were NOT RUN in this session.
+- Five low-stock tests authored; they were NOT RUN in this session.
 - Exact-SHA GitHub Actions Vitest/typecheck/build evidence: NOT VERIFIED. The connected status surface exposed only a Vercel build-rate-limit failure; the available workflow-run wrapper filters PR-triggered runs and did not expose push-run evidence. No Vercel build/deployment was run.
 - Browser P50/P75/P95 and populated-data waterfall: NOT MEASURED.
 - Performance detail and read-only plan evidence: [`docs/performance/RESPONSE_TIME_OPTIMIZATION_CHECKPOINT_2026-11-12.md`](../performance/RESPONSE_TIME_OPTIMIZATION_CHECKPOINT_2026-11-12.md).
