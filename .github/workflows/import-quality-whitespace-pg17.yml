@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "supabase/migrations/20261112000100_import_quality_whitespace_date_rejection.sql"
+      - "supabase/migrations/20261111233753_import_quality_whitespace_date_rejection.sql"
       - "supabase/tests/import_quality_whitespace_date_acceptance.sql"
       - ".github/workflows/import-quality-whitespace-pg17.yml"
   pull_request:
     branches: [main]
     paths:
-      - "supabase/migrations/20261112000100_import_quality_whitespace_date_rejection.sql"
+      - "supabase/migrations/20261111233753_import_quality_whitespace_date_rejection.sql"
       - "supabase/tests/import_quality_whitespace_date_acceptance.sql"
       - ".github/workflows/import-quality-whitespace-pg17.yml"
   workflow_dispatch:
