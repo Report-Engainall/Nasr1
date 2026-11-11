@@ -13,6 +13,8 @@ on:
       - "src/components/SupplierInvoiceWorkspace.tsx"
       - "src/lib/supplier-invoice-messages.ts"
       - "src/lib/supplier-invoice-messages.test.ts"
+      - "supabase/migrations/20261110103000_admin_import_snapshot_replay_safety.sql"
+      - "src/test/admin-import-snapshot-replay-safety-migration.test.ts"
       - "tsconfig.p1-typecheck.json"
       - "src/components/BulkProductImageUploader.tsx"
       - "src/lib/product-image-batch-match.ts"
