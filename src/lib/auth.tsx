@@ -4,6 +4,7 @@ import { getAuthEmailRedirectUrl } from './auth-redirect';
 import {
   normalizeAuthPhoneIdentifier,
   requestPhoneSignup,
+  signInWithPhonePassword,
   resendPhoneSignupCode as resendPhoneSignupCodeRequest,
   verifyPhoneSignupCode,
 } from './auth-phone';
@@ -182,13 +183,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const normalized = identifier.trim();
-      const credentials = normalized.includes("@")
-        ? { email: normalized, password }
-        : { phone: normalizeAuthPhoneIdentifier(normalized) ?? "", password };
-      if ("phone" in credentials && !credentials.phone) {
-        throw new Error("أدخل رقماً يمنياً صحيحاً يبدأ بـ7 أو رقماً دولياً بصيغة +رمز الدولة.");
-      }
-      const { error } = await supabase.auth.signInWithPassword(credentials);
+      const result = normalized.includes("@")
+        ? await supabase.auth.signInWithPassword({ email: normalized, password })
+        : await signInWithPhonePassword(supabase.auth, normalized, password);
+      const { error } = result;
       if (error) throw new Error(translateAuthError(error.message));
       await refresh();
     } finally { setLoading(false); }
