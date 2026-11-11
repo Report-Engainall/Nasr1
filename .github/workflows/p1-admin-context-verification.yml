@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - "src/components/AghbariApp.tsx"
+      - "src/lib/auth.tsx"
+      - "src/lib/auth-phone.ts"
+      - "src/lib/auth-phone.test.ts"
+      - "src/components/Login.tsx"
+      - "src/components/Login.phone-signup.test.tsx"
       - "src/components/OperationsCenter.tsx"
       - "src/components/OperationsExceptionCenter.tsx"
       - "src/lib/operations-exceptions.ts"
