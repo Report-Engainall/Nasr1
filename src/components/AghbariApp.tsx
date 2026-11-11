@@ -21,6 +21,7 @@ import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix'
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
 import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
+import { normalizePricingRuleTargetTier, PRICING_RULE_TARGET_OPTIONS } from '@/lib/pricing-rule-tiers';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -2285,10 +2286,7 @@ function pricingRuleScopeForForm(rule?: PricingRule): CreatePricingRuleInput['sc
 }
 
 function pricingRuleTierForForm(rule?: PricingRule): CreatePricingRuleInput['target_tier'] {
-  const supported = new Set<string>(['both', 'wholesale', 'retail']);
-  return rule?.target_tier && supported.has(rule.target_tier)
-    ? rule.target_tier as CreatePricingRuleInput['target_tier']
-    : 'both';
+  return normalizePricingRuleTargetTier(rule?.target_tier);
 }
 
 function localDateTimeValue(value?: string | null): string {
@@ -2423,7 +2421,7 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
       <Field label="اسم القاعدة"><input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required placeholder="مثال: جملة بكمية كبيرة" /></Field>
       <div className="form-grid">
         <Field label="نطاق التطبيق"><select value={scopeType} onChange={(event) => { setScopeType(event.target.value as typeof scopeType); setScopeValue(''); }}><option value="default">كل الأصناف (افتراضي)</option><option value="all">كل الأصناف (عام)</option><option value="product">منتج محدد</option><option value="category">تصنيف محدد</option></select></Field>
-        <Field label="الشريحة المستهدفة"><select value={targetTier} onChange={(event) => setTargetTier(event.target.value as typeof targetTier)}><option value="both">الجملة والتجزئة</option><option value="wholesale">الجملة</option><option value="retail">التجزئة</option></select></Field>
+        <Field label="الشريحة المستهدفة"><select value={targetTier} onChange={(event) => setTargetTier(event.target.value as typeof targetTier)}>{PRICING_RULE_TARGET_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
       </div>
       {(scopeType === 'product' || scopeType === 'category') && <>
         {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><button type="button" className="btn secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</button></>}
