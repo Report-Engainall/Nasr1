@@ -1,3 +1,35 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — DASHBOARD PERFORMANCE FOLLOW-UP (SOURCE IMPLEMENTED; EXACT-SHA VERIFICATION PENDING)
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Performance code SHA: `49903a4891e3418a5d33c0667cd33ee5c75e0be2`; current documentation-only descendant before this state update: `c71f1b3a0cf606ca44d6691d06f707419fa37038`.
+> Latest previously tested code remains `9193f88b04b0681c539db735d649e4103949277b`; do not transfer its PASS to the new dashboard code.
+
+## Implemented without deleting existing work
+
+- `src/lib/api.ts` and `src/components/AghbariApp.tsx`: the Dashboard no longer loads the complete product catalogue just to show four low-stock items. It derives a validated deterministic top-four shortlist from the existing selected-warehouse balance rows, then uses the pre-existing authenticated staff product RPC for at most four minimal product projections.
+- Dashboard order RPC response requests only `status,total_amount`; all order rows, existing staff/tenant authorization, count and `summarizeDashboardOrders` amount/status semantics remain.
+- Dashboard AI alert reader now filters unresolved alerts server-side, selects only `id,title,body,severity`, and returns at most four. The general `fetchAiAlerts()` API remains unchanged for the full AI workspace.
+- Added `src/lib/dashboard-low-stock.ts` and four focused regression cases in `src/lib/dashboard-low-stock.test.ts`.
+- No catalogue function, existing alert API, screen, route, prior lazy-loading, pricing, inventory, financial or authentication implementation was removed. No database write/DDL/migration/index/ACL/RLS modification was made.
+
+## Canonical active database — read-only observation
+
+- Project ref: `tfdwtuwkdddnzgyhcoyy`; organizations=1; profiles=2; active profiles with organization=2.
+- warehouses=0, products=0, inventory_balances=0, orders=0, ai_alerts=0. No demo records were seeded.
+- Read-only EXPLAIN ANALYZE returned zero rows because the relevant tables currently have no warehouse/inventory/order rows. Inventory query execution was 2.069 ms and order query 0.772 ms under this empty data state; these times are not representative populated-tenant performance measurements and must not be used as browser or production latency claims.
+- No index is justified from an empty inventory/orders/alerts dataset. No active warehouse exists in the current canonical project, so the dashboard correctly withholds low-stock status instead of displaying a false zero.
+
+## Verification boundary and resume
+
+- Source implementation: YES on `49903a4`.
+- Four low-stock tests authored; they were NOT RUN in this session.
+- Exact-SHA GitHub Actions Vitest/typecheck/build evidence: NOT VERIFIED. The connected status surface exposed only a Vercel build-rate-limit failure; the available workflow-run wrapper filters PR-triggered runs and did not expose push-run evidence. No Vercel build/deployment was run.
+- Browser P50/P75/P95 and populated-data waterfall: NOT MEASURED.
+- Performance detail and read-only plan evidence: [`docs/performance/RESPONSE_TIME_OPTIMIZATION_CHECKPOINT_2026-11-12.md`](../performance/RESPONSE_TIME_OPTIMIZATION_CHECKPOINT_2026-11-12.md).
+- Next: retrieve/run GitHub Actions against exact source SHA `49903a4`; then benchmark a non-production tenant with populated warehouse/catalogue/alerts. Only after measured query plans and authorization parity should server aggregates or indexes be added. Keep live DB unchanged.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PUBLIC PHONE-FIRST SELF-SERVICE CUSTOMER REGISTRATION / DATABASE ACCEPTANCE / EXACT-SHA P1 PASS
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
