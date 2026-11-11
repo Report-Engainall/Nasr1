@@ -29,6 +29,7 @@ Exact code-verification SHA: `89bd6d5285db7c20f9e43a835d7f3d4abd865f97`
 - /help browser navigation, responsive RTL and keyboard acceptance remain BROWSER_PENDING despite source tests and exact P1 CI success.
 - Inventory intelligence returns UNAVAILABLE when there is no active product population; no fake stock or order rows were added to produce results.
 - P2 PR #412 remains OPEN/BLOCKED by a Playwright finance/purchase-order print selector failure. PR #413 remains DRAFT/stale and has no exact-head acceptance.
+- `fix/import-kind-idempotency-20261110` was reviewed (7 commits ahead/256 behind by history); its customer-import profile migration blob is identical to the blob already on main, and the helper/mapping behavior is present in the newer main API/import pipeline. Do not merge this older branch; keep the ref pending available branch-delete capability.
 - PR #416 and #417 are closed without merge; no branch deletion was attempted. The connected GitHub identity reports `admin=false`; the available GitHub actions do not expose a delete-ref operation. The newer `feat/admin-order-entry-main-sync-2026-11-12` branch is behind main and has an older, weaker quantity/line limit, so it remains unmerged.
 - Supabase advisors still report the findings itemized in CURRENT_EXECUTION_STATE. Health lints are empty; security/performance warnings are not all resolved. Leaked-password protection is still WARN and no project Auth setting was changed.
 
