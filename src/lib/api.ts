@@ -1122,18 +1122,26 @@ export async function fetchAdminOrdersPage(input: { page: number }): Promise<Adm
   const hasNextPage = rawOrders.length > pageSize;
   const pageRows = rawOrders.slice(0, pageSize) as Array<Record<string, unknown>>;
   const customerIds = new Set<string>();
+  const orderIds = new Set<string>();
   for (const row of pageRows) {
     if (
       typeof row.id !== 'string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id) ||
+      orderIds.has(row.id) ||
       typeof row.customer_id !== 'string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.customer_id) ||
       typeof row.order_number !== 'string' ||
       typeof row.created_at !== 'string' ||
-      typeof row.status !== 'string'
+      !Number.isFinite(Date.parse(row.created_at)) ||
+      typeof row.status !== 'string' ||
+      typeof row.total_items !== 'number' ||
+      !Number.isSafeInteger(row.total_items) ||
+      typeof row.total_amount !== 'number' ||
+      !Number.isFinite(row.total_amount)
     ) {
-      throw new Error('تحتوي صفحة الطلبات على مرجع أو حقل أساسي غير صالح؛ أُوقف العرض.');
+      throw new Error('تحتوي صفحة الطلبات على مرجع أو قيمة مالية أو كمية غير صالحة؛ أُوقف العرض.');
     }
+    orderIds.add(row.id);
     customerIds.add(row.customer_id);
   }
 
