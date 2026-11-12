@@ -54,7 +54,10 @@ function CategoryBranch({ nodes, expanded, selectedId, depth, onToggle, onSelect
   </ul>;
 }
 
-export function AdminCategoryTree({ onNotice }: { onNotice: (message: string) => void }) {
+export function AdminCategoryTree({ onNotice, onOpenProduct }: {
+  onNotice: (message: string) => void;
+  onOpenProduct: (product: AdminCategoryProductRow) => void;
+}) {
   const { user } = useAuth();
   const canOpen = Boolean(user?.roles.some((role) => ['admin', 'manager', 'staff'].includes(role)));
   const canManage = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
@@ -301,7 +304,7 @@ export function AdminCategoryTree({ onNotice }: { onNotice: (message: string) =>
           {tab === 'products' && <div className="admin-category-products">
             {productsLoading ? <div className="admin-category-state"><LoaderCircle size={17} className="spin"/> جارٍ تحميل المنتجات</div>
               : productsError ? <div className="admin-category-error" role="alert"><AlertTriangle size={16}/>{productsError}</div>
-                : products.length ? <>{products.map((product) => <div key={product.id} className="admin-category-product-row"><div><strong>{product.name}</strong><span>{product.item_code} · {product.unit}</span></div><span>{product.status ?? 'الحالة غير محددة'}</span></div>)}{products.length === 100 && <p className="admin-category-legend">يعرض المصدر أول 100 منتج فقط، دون ادعاء عدد إجمالي.</p>}</>
+                : products.length ? <>{products.map((product) => <button type="button" key={product.id} className="admin-category-product-row" aria-label={`فتح المنتج ${product.name}`} onClick={() => onOpenProduct(product)}><div><strong>{product.name}</strong><span>{product.item_code} · {product.unit}</span></div><span>{product.status ?? 'الحالة غير محددة'}</span><ChevronLeft size={15} /></button>)}{products.length === 100 && <p className="admin-category-legend">يعرض المصدر أول 100 منتج فقط، دون ادعاء عدد إجمالي.</p>}</>
                   : <div className="admin-category-empty"><strong>لا توجد منتجات مرتبطة</strong><span>هذه نتيجة المصدر الفعلي للتصنيف المختار.</span></div>}
           </div>}
         </>}
