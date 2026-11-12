@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(
-  new URL('../../supabase/migrations/20261112010000_allow_vip_pricing_rule_target.sql', import.meta.url),
+  new URL('../../supabase/migrations/20261112000527_allow_vip_pricing_rule_target.sql', import.meta.url),
+  'utf8',
+);
+const labelMigration = readFileSync(
+  new URL('../../supabase/migrations/20261112010100_vip_customer_tier_preview_label.sql', import.meta.url),
   'utf8',
 );
 
@@ -23,4 +27,12 @@ describe('VIP pricing rule target migration', () => {
   it('adds vip while preserving the combined, wholesale and retail targets', () => {
     expect(migration).toMatch(/add\s+constraint\s+pricing_rules_target_tier_check\s+check\s*\(\s*target_tier\s+in\s*\(\s*'both'\s*,\s*'vip'\s*,\s*'wholesale'\s*,\s*'retail'\s*\)\s*\)/i);
   });
+  it('aligns the server preview label with VIP and preserves the legacy tier alias', () => {
+    expect(labelMigration).toMatch(/preview_customer_order_pricing\\(jsonb,text\\)/i);
+    expect(labelMigration).toMatch(/pg_get_functiondef/i);
+    expect(labelMigration).toMatch(/WHEN ''vip'' THEN ''جملة الجملة''/);
+    expect(labelMigration).toMatch(/WHEN ''super_wholesale'' THEN ''جملة الجملة''/);
+    expect(labelMigration).toMatch(/refusing to replace an unexpected RPC body/i);
+  });
+
 });
