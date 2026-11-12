@@ -467,6 +467,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const supplierSelect = purchaseOrderDraft.getByLabel("المورد", { exact: true });
     const warehouseSelect = purchaseOrderDraft.getByLabel("المخزن المستلم", { exact: true });
     const productSelect = purchaseOrderDraft.getByLabel("الصنف", { exact: true });
+    await expect(productSelect).toBeVisible({ timeout: 20_000 });
     await expect(supplierSelect).toBeEnabled({ timeout: 20_000 });
     await expect(warehouseSelect).toBeEnabled({ timeout: 20_000 });
     await expect(productSelect).toBeEnabled({ timeout: 20_000 });
