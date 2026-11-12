@@ -59,3 +59,16 @@ export function parsePublicStorefrontCategories(value: unknown): Category[] {
     };
   });
 }
+
+
+/**
+ * Unwraps the PostgREST RPC envelope before parsing its public projection.
+ * Keep this boundary injectable so the response contract is unit-tested without a live database.
+ */
+export async function readPublicStorefrontCategories(
+  callRpc: () => Promise<{ data: unknown; error: unknown | null }>,
+): Promise<Category[]> {
+  const result = await callRpc();
+  if (result.error) throw result.error;
+  return parsePublicStorefrontCategories(result.data);
+}
