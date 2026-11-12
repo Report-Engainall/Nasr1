@@ -42,7 +42,10 @@ const CUSTOMER_MANAGER_DIRECTORY_FIELDS = [
   'contact_name', 'phone', 'email', 'customer_code', 'tier', 'status', 'created_at',
 ] as const;
 
-function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryRow | null {
+function sanitizeCustomerManagerDirectoryRow(
+  value: unknown,
+  includeFinancialFields = false,
+): CustomerDirectoryRow | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   if (typeof row.id !== 'string' || typeof row.business_name !== 'string' ||
@@ -55,11 +58,12 @@ function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryR
   if (row.tier !== null && typeof row.tier !== "string") return null;
   const createdAt = row.created_at;
   if (typeof createdAt !== "string" || !Number.isFinite(Date.parse(createdAt))) return null;
-  if (row.current_balance !== undefined && row.current_balance !== null &&
+  if (includeFinancialFields && row.current_balance !== undefined && row.current_balance !== null &&
       (typeof row.current_balance !== "number" || !Number.isFinite(row.current_balance))) return null;
-  if (row.credit_limit !== undefined && row.credit_limit !== null &&
+  if (includeFinancialFields && row.credit_limit !== undefined && row.credit_limit !== null &&
       (typeof row.credit_limit !== "number" || !Number.isFinite(row.credit_limit))) return null;
-  if (row.profile_id !== undefined && row.profile_id !== null && typeof row.profile_id !== "string") return null;
+  if (includeFinancialFields && row.profile_id !== undefined && row.profile_id !== null &&
+      typeof row.profile_id !== "string") return null;
 
   const safe: CustomerDirectoryRow = {
     id: row.id,
@@ -71,9 +75,15 @@ function sanitizeCustomerManagerDirectoryRow(value: unknown): CustomerDirectoryR
     tier: typeof row.tier === "string" ? row.tier : null,
     status: row.status,
     created_at: createdAt,
-    ...(typeof row.current_balance === "number" || row.current_balance === null ? { current_balance: row.current_balance } : {}),
-    ...(typeof row.credit_limit === "number" || row.credit_limit === null ? { credit_limit: row.credit_limit } : {}),
-    ...(typeof row.profile_id === "string" || row.profile_id === null ? { profile_id: row.profile_id } : {}),
+    ...(includeFinancialFields && (typeof row.current_balance === "number" || row.current_balance === null)
+      ? { current_balance: row.current_balance as number | null }
+      : {}),
+    ...(includeFinancialFields && (typeof row.credit_limit === "number" || row.credit_limit === null)
+      ? { credit_limit: row.credit_limit as number | null }
+      : {}),
+    ...(includeFinancialFields && (typeof row.profile_id === "string" || row.profile_id === null)
+      ? { profile_id: row.profile_id as string | null }
+      : {}),
   };
   // The manager projection intentionally omits finance-only fields.
   return safe;
@@ -195,7 +205,7 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
 
     const rows: CustomerDirectoryRow[] = [];
     for (const [index, value] of (data ?? []).entries()) {
-      const row = sanitizeCustomerManagerDirectoryRow(value);
+      const row = sanitizeCustomerManagerDirectoryRow(value, true);
       if (!row) throw new Error('أعاد دليل العملاء سجلاً لا يطابق عقد العرض المصرح به (' + (index + 1) + ').');
       rows.push(row);
     }

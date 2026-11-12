@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
+  rpc: vi.fn(),
   getScope: vi.fn(),
   selects: [] as Array<{ columns: string; options: unknown }>,
   equals: [] as Array<[string, unknown]>,
@@ -13,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/supabase', () => ({
-  supabase: { from: mocks.from },
+  supabase: { from: mocks.from, rpc: mocks.rpc },
   getCurrentTenantScope: mocks.getScope,
 }));
 
@@ -56,6 +57,11 @@ describe('customer directory query contract', () => {
     mocks.ranges.splice(0);
     mocks.responses.splice(0);
     mocks.defaultResponse = { data: [], error: null, count: 0 };
+    mocks.rpc.mockReset();
+    mocks.rpc.mockImplementation(() => Promise.resolve({
+      data: { rows: [], total_count: 0, page: 1, page_size: 25 },
+      error: null,
+    }));
     mocks.from.mockImplementation((table: string) => {
       expect(table).toBe('customers');
       return query();
@@ -87,6 +93,52 @@ describe('customer directory query contract', () => {
       'business_name.ilike.%متجر النور%,contact_name.ilike.%متجر النور%,phone.ilike.%متجر النور%,email.ilike.%متجر النور%,customer_code.ilike.%متجر النور%',
     ]);
     expect(mocks.ranges).toEqual([[25, 49]]);
+  });
+
+  it('drops financial and profile fields unexpectedly returned by the customer-manager RPC', async () => {
+    mocks.getScope.mockResolvedValueOnce({
+      profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      warehouseId: null,
+      isStaff: false,
+      canManageCustomers: true,
+    });
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        rows: [customerRow({
+          current_balance: 987654.32,
+          credit_limit: "UNEXPECTED_FINANCE_FIELD",
+          profile_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        })],
+        total_count: 1,
+        page: 1,
+        page_size: 25,
+      },
+      error: null,
+    });
+
+    const result = await fetchCustomerDirectoryPage({ page: 1, pageSize: 25 });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('fetch_customer_manager_directory', {
+      p_search: '',
+      p_page: 1,
+      p_page_size: 25,
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(result.rows).toEqual([{
+      id: 'customer-26',
+      business_name: 'شركة اختبار',
+      contact_name: null,
+      phone: null,
+      email: null,
+      customer_code: null,
+      tier: null,
+      status: 'active',
+      created_at: '2026-11-01T00:00:00.000Z',
+    }]);
+    expect(result.rows[0]).not.toHaveProperty('current_balance');
+    expect(result.rows[0]).not.toHaveProperty('credit_limit');
+    expect(result.rows[0]).not.toHaveProperty('profile_id');
   });
 
   it('strips PostgREST separators and wildcard syntax from untrusted search text', async () => {
