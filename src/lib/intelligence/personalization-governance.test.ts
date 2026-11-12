@@ -383,7 +383,7 @@ describe("privacy data request governance", () => {
       .toMatchObject({ status: "ELIGIBLE_FOR_ACCESS_WORKFLOW", performsMutation: false, requiresHumanApproval: true });
     expect(resolvePrivacyDataRequest(privacyRequest({
       action: "ACCESS", actorProfileId: "profile-b", subjectOwnershipVerified: false,
-    }))).toMatchObject({ status: "DENIED", reason: "REQUESTER_NOT_AUTHORIZED" });
+    }))).toMatchObject({ status: "DENIED", reason: "SUBJECT_OWNERSHIP_NOT_VERIFIED" });
     expect(resolvePrivacyDataRequest(privacyRequest({ recordOrganizationId: "org-b" })))
       .toMatchObject({ status: "DENIED", reason: "RECORD_SCOPE_MISMATCH" });
   });
@@ -483,7 +483,7 @@ describe("privacy usage audit and subject ownership", () => {
           asOf: "2026-11-06T19:00:00.000Z",
         },
       },
-    })).toMatchObject({ status: "DENIED", reason: "REQUESTER_NOT_AUTHORIZED" });
+    })).toMatchObject({ status: "DENIED", reason: "SUBJECT_OWNERSHIP_NOT_VERIFIED" });
   });
 
   it("creates a payload-free audit record only for the recomputed personalization decision", async () => {
