@@ -5,14 +5,14 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/20261112000527_allow_vip_pricing_rule_target.sql"
-      - "supabase/migrations/20261112010100_vip_customer_tier_preview_label.sql"
+      - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "supabase/tests/vip_pricing_acceptance.sql"
       - ".github/workflows/vip-pricing-pg17.yml"
   pull_request:
     branches: [main]
     paths:
       - "supabase/migrations/20261112000527_allow_vip_pricing_rule_target.sql"
-      - "supabase/migrations/20261112010100_vip_customer_tier_preview_label.sql"
+      - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "supabase/tests/vip_pricing_acceptance.sql"
       - ".github/workflows/vip-pricing-pg17.yml"
   workflow_dispatch:
