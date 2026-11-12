@@ -38,6 +38,7 @@ vi.mock("@/lib/auth", () => ({
     user: mocks.user,
     ready: true,
     loading: false,
+    sessionRevision: 0,
     configurationError: null,
     signOut: mocks.signOut,
   }),
