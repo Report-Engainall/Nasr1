@@ -158,7 +158,8 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
     ) {
       throw new Error('لم يؤكد الخادم بيانات صفحات دليل العملاء.');
     }
-    const sanitizedRows = payload.rows.map(sanitizeCustomerManagerDirectoryRow);
+    // Array.map passes (value, index); wrap the sanitizer so its boolean flag can never receive the row index.
+    const sanitizedRows = payload.rows.map((value) => sanitizeCustomerManagerDirectoryRow(value));
     const rows = sanitizedRows.filter((row): row is CustomerDirectoryRow => row !== null);
     if (rows.length !== payload.rows.length || rows.length > pageSize) {
       throw new Error('أعاد الخادم سجلات غير صالحة لدليل العملاء.');

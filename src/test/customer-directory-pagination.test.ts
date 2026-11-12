@@ -95,7 +95,7 @@ describe('customer directory query contract', () => {
     expect(mocks.ranges).toEqual([[25, 49]]);
   });
 
-  it('drops financial and profile fields unexpectedly returned by the customer-manager RPC', async () => {
+  it('drops financial and profile fields from every customer-manager RPC row, not just the first', async () => {
     mocks.getScope.mockResolvedValueOnce({
       profileId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -105,12 +105,21 @@ describe('customer directory query contract', () => {
     });
     mocks.rpc.mockResolvedValueOnce({
       data: {
-        rows: [customerRow({
-          current_balance: 987654.32,
-          credit_limit: "UNEXPECTED_FINANCE_FIELD",
-          profile_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-        })],
-        total_count: 1,
+        rows: [
+          customerRow({
+            current_balance: 987654.32,
+            credit_limit: 250000,
+            profile_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          }),
+          customerRow({
+            id: 'customer-27',
+            business_name: 'شركة ثانية',
+            current_balance: 123456.78,
+            credit_limit: 900000,
+            profile_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          }),
+        ],
+        total_count: 2,
         page: 1,
         page_size: 25,
       },
@@ -125,20 +134,35 @@ describe('customer directory query contract', () => {
       p_page_size: 25,
     });
     expect(mocks.from).not.toHaveBeenCalled();
-    expect(result.rows).toEqual([{
-      id: 'customer-26',
-      business_name: 'شركة اختبار',
-      contact_name: null,
-      phone: null,
-      email: null,
-      customer_code: null,
-      tier: null,
-      status: 'active',
-      created_at: '2026-11-01T00:00:00.000Z',
-    }]);
-    expect(result.rows[0]).not.toHaveProperty('current_balance');
-    expect(result.rows[0]).not.toHaveProperty('credit_limit');
-    expect(result.rows[0]).not.toHaveProperty('profile_id');
+    expect(result.rows).toEqual([
+      {
+        id: 'customer-26',
+        business_name: 'شركة اختبار',
+        contact_name: null,
+        phone: null,
+        email: null,
+        customer_code: null,
+        tier: null,
+        status: 'active',
+        created_at: '2026-11-01T00:00:00.000Z',
+      },
+      {
+        id: 'customer-27',
+        business_name: 'شركة ثانية',
+        contact_name: null,
+        phone: null,
+        email: null,
+        customer_code: null,
+        tier: null,
+        status: 'active',
+        created_at: '2026-11-01T00:00:00.000Z',
+      },
+    ]);
+    for (const row of result.rows) {
+      expect(row).not.toHaveProperty('current_balance');
+      expect(row).not.toHaveProperty('credit_limit');
+      expect(row).not.toHaveProperty('profile_id');
+    }
   });
 
   it('strips PostgREST separators and wildcard syntax from untrusted search text', async () => {
