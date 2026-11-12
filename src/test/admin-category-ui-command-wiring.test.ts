@@ -8,6 +8,10 @@ const categoryReader = readFileSync(join(process.cwd(), "src/lib/admin-category-
 const categoryCommands = readFileSync(join(process.cwd(), "src/lib/admin-catalog-commands.ts"), "utf8");
 const accessMatrix = readFileSync(join(process.cwd(), "src/lib/admin-access-matrix.ts"), "utf8");
 const routeTree = readFileSync(join(process.cwd(), "src/routeTree.gen.ts"), "utf8");
+const dataRoute = readFileSync(join(process.cwd(), "src/routes/admin_.data.tsx"), "utf8");
+const dataCenterStart = adminApp.indexOf("function DataCenter(");
+const dataCenterEnd = adminApp.indexOf("function ReportMetric(", dataCenterStart);
+const dataCenter = adminApp.slice(dataCenterStart, dataCenterEnd);
 
 describe("admin category workspace wiring", () => {
   it("exposes one catalog category editor and keeps Data Center as a navigation entry", () => {
@@ -63,5 +67,14 @@ describe("admin category workspace wiring", () => {
     expect(accessMatrix).toContain('views: ["products", "categories", "pricing", "offers"]');
     expect(routeTree).toContain("path: '/admin/categories'");
     expect(routeTree).toContain("AdminCategoriesRouteImport");
+  });
+
+  it("keeps Onyx snapshot and inventory-reconciliation entry points inside Data Center", () => {
+    expect(adminApp).toContain("const OnyxInventoryReconciliationWorkspace = lazy(");
+    expect(dataCenter).toContain("إدارة لقطات Onyx وتحليلها");
+    expect(dataCenter).toContain("<OnyxInventoryReconciliationWorkspace />");
+    expect(dataCenter).toContain("{canManageImports && <OnyxInventoryReconciliationWorkspace />}");
+    expect(dataRoute).not.toContain("OnyxInventoryReconciliationWorkspace");
+    expect(dataRoute).toContain('<AdminApp initialView="data" />');
   });
 });

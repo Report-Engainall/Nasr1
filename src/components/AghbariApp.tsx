@@ -54,6 +54,7 @@ const InventoryTransferHistoryPage = lazy(async () => ({ default: (await import(
 const PurchaseOrdersPage = lazy(async () => ({ default: (await import('@/components/PurchaseOrdersPage')).PurchaseOrdersPage }));
 const UnifiedImportEngine = lazy(async () => ({ default: (await import('@/components/UnifiedImportEngine')).UnifiedImportEngine }));
 const OnyxSnapshotCenter = lazy(async () => ({ default: (await import('@/components/OnyxSnapshotCenter')).OnyxSnapshotCenter }));
+const OnyxInventoryReconciliationWorkspace = lazy(async () => ({ default: (await import('@/components/OnyxInventoryReconciliationWorkspace')).OnyxInventoryReconciliationWorkspace }));
 const UnifiedOnyxAnalysisPanel = lazy(async () => ({ default: (await import('@/components/UnifiedOnyxAnalysisPanel')).UnifiedOnyxAnalysisPanel }));
 const ExecutiveStoreAnalytics = lazy(async () => ({ default: (await import('@/components/ExecutiveStoreAnalytics')).ExecutiveStoreAnalytics }));
 const PromotionManager = lazy(async () => ({ default: (await import('@/components/PromotionManager')).PromotionManager }));
@@ -2828,11 +2829,6 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
             <FileText size={16} /> فتح محرك الاستيراد الموحد
           </Button>
         )}
-        {user?.isStaff && (
-          <Button variant="outline" onClick={() => setSection('onyx')}>
-            <PackageCheck size={16} /> تحليلات أونكس ومطابقة المخزون
-          </Button>
-        )}
         {rolesCanAccessView(user?.roles ?? [], "data") && (
           <Link to="/admin/exports" className="btn secondary">
             <Download size={16} /> تصدير الطلبات
@@ -2846,5 +2842,27 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
       <p>تدار التصنيفات من شاشة واحدة ضمن الكتالوج والتسعير فوق علاقة parent_id الحالية. يبقى مركز البيانات مسؤولاً عن الاستيراد والتصدير وعمليات Onyx، ولا يحتفظ بمحرر تصنيفات موازٍ.</p>
       <div className="data-status">مصادر البيانات الحالية — دون بيانات تجريبية</div>
     </section>
+    {(user?.isStaff || canManageImports) && (
+      <section className="panel" style={{ marginTop: 16 }} aria-label="مساحات Onyx">
+        <div className="panel-head">
+          <div>
+            <h2>مساحات Onyx</h2>
+            <p>نقطة دخول واحدة لإدارة اللقطات والتحليل ومصالحة أرصدة المخزون.</p>
+          </div>
+          <PackageCheck size={22} />
+        </div>
+        <div className="toolbar-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          {user?.isStaff && (
+            <Button variant="outline" onClick={() => setSection('onyx')}>
+              <PackageCheck size={16} /> إدارة لقطات Onyx وتحليلها
+            </Button>
+          )}
+          {canManageImports && <OnyxInventoryReconciliationWorkspace />}
+        </div>
+        <p className="report-note" style={{ marginTop: 10 }}>
+          قراءة اللقطات والتحليل منفصلان عن المصالحة؛ المعاينة لا تعدّل الرصيد، وأي تطبيق أو تراجع يخضعان لضوابط الخادم وسجل التدقيق.
+        </p>
+      </section>
+    )}
   </>;
 }
