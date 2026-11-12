@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.p1-typecheck.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true
+  },
+  "include": [
+    "e2e/helpers/customer-orders-keyboard-test.ts",
+    "e2e/storefront-price-visibility.spec.ts",
+    "e2e/critical-path.spec.ts"
+  ]
+}
