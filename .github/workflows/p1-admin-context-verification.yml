@@ -8,6 +8,7 @@ on:
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
       - "src/components/AdminCategoryTree.tsx"
+      - "src/test/admin-category-ui-command-wiring.test.ts"
       - "src/lib/admin-access-matrix.ts"
       - "src/lib/admin-category-tree.ts"
       - "src/lib/admin-category-tree.test.ts"
@@ -112,6 +113,7 @@ on:
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
       - "src/components/AdminCategoryTree.tsx"
+      - "src/test/admin-category-ui-command-wiring.test.ts"
       - "src/lib/admin-access-matrix.ts"
       - "src/lib/admin-category-tree.ts"
       - "src/lib/admin-category-tree.test.ts"
@@ -234,11 +236,14 @@ jobs:
         with:
           bun-version: 1.3.14
       - name: Install dependencies with the project build tool
+        id: install
         run: bun install --frozen-lockfile
       - name: Run Vitest regression suite
         run: bun run test
-      - name: Run P1 strict TypeScript check
+      - name: Run P1 strict TypeScript check (even if Vitest fails)
+        if: always() && steps.install.outcome == 'success'
         run: bunx tsc --noEmit -p tsconfig.p1-typecheck.json
 
-      - name: Build production application bundle
+      - name: Build production application bundle (even if an acceptance test fails)
+        if: always() && steps.install.outcome == 'success'
         run: bun run build
