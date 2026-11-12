@@ -611,3 +611,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     break-inside: avoid;
   }
 }
+
+
+/* Reference-model dashboard group cards; group identity comes from ADMIN_NAV_GROUPS. */
+.admin-group-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0 0 18px; }
+.admin-group-card { --admin-group-accent: #0e8fa3; min-width: 0; overflow: hidden; border: 1px solid var(--aghbari-border); border-radius: 17px; background: var(--aghbari-surface); }
+.admin-group-card--sales { --admin-group-accent: #087fb7; }
+.admin-group-card--catalog { --admin-group-accent: #17856b; }
+.admin-group-card--supply { --admin-group-accent: #a06c18; }
+.admin-group-card--operations { --admin-group-accent: #6551a3; }
+.admin-group-card--administration { --admin-group-accent: #344768; }
+.admin-group-card__heading { min-height: 76px; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--aghbari-border); background: #f1fafb; }
+.admin-group-card__icon { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; border-radius: 12px; color: var(--admin-group-accent); background: #fff; border: 1px solid color-mix(in srgb, var(--admin-group-accent) 20%, white); }
+.admin-group-card__heading h2 { margin: 0; color: var(--admin-group-accent); font-size: 13px; font-weight: 800; }
+.admin-group-card__heading p { margin: 4px 0 0; color: var(--aghbari-text-muted); font-size: 9px; }
+.admin-group-card__links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding: 12px; }
+.admin-group-card__links button { min-width: 0; min-height: 41px; display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid #e2eff1; border-radius: 10px; background: #eff9fb; color: var(--aghbari-text); text-align: right; font-size: 10px; font-weight: 700; }
+.admin-group-card__links button > svg:first-child { flex: 0 0 auto; color: var(--admin-group-accent); }
+.admin-group-card__links button > span { flex: 1; min-width: 0; }
+.admin-group-card__links button > svg:last-child { flex: 0 0 auto; color: #8caab0; }
+.admin-group-card__links button:hover { border-color: var(--admin-group-accent); color: var(--admin-group-accent); background: #fff; }
+.admin-group-card__links button:focus-visible { outline: 3px solid color-mix(in srgb, var(--admin-group-accent) 25%, white); outline-offset: 2px; }
+@media (max-width: 1200px) { .admin-group-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .admin-group-cards { grid-template-columns: 1fr; gap: 10px; }.admin-group-card__links { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; } }
+@media (max-width: 380px) { .admin-group-card__links { grid-template-columns: 1fr; } }
