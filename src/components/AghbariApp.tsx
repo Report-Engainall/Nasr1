@@ -18,6 +18,7 @@ import type { CustomerTierPricePreview } from '@/lib/api';
 import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix';
+import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
 import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -870,6 +871,7 @@ export function AdminApp({ initialView = 'dashboard' }: AdminAppProps) {
 }
 
 export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
+  const { user } = useAuth();
   const { data: stats, loading, error, refetch } = useFetch(fetchDashboardStats);
   const { data: alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useFetch(fetchDashboardAiAlerts);
   const lowStockCandidates = stats?.lowStockPreviewCandidates ?? null;
@@ -906,9 +908,30 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     ['قيد المعالجة', processingValue, 'تحتاج متابعة', Activity, 'orange'],
     ['مخزون منخفض', lowStockValue, 'يحتاج إعادة طلب', AlertTriangle, 'red'],
   ] as const;
+  const navigationGroups = getVisibleAdminNavigationGroups(user?.roles ?? []);
   return <>
     <div className="hero"><div><span className="hero-kicker">نظرة تنفيذية مباشرة</span><h1>قرارات أفضل، بتشغيل أذكى</h1><p>تتابع الأغبري الطلبات والمخزون والعملاء في مكان واحد، مع مؤشرات واضحة تساعدك على التحرك بسرعة.</p></div><Button onClick={() => { void refetch(); void refetchAlerts(); void refetchLowStockProducts(); }} variant="secondary"><RefreshCw size={16} /> تحديث البيانات</Button></div>
     <div className="stats-grid">{cards.map(([label, value, note, Icon, color]) => <article className={`stat-card ${color}`} key={label}><div className="stat-top"><Icon size={22} /><span>{note}</span></div><small>{label}</small><strong>{value}</strong></article>)}</div>
+    <section className="admin-group-cards" aria-label="مجموعات الإدارة">
+      {navigationGroups.map((group) => {
+        const entries = group.views.flatMap((view) => {
+          const item = nav.find((candidate) => candidate.id === view);
+          return item ? [item] : [];
+        });
+        const GroupIcon = entries[0]?.icon ?? LayoutDashboard;
+        return <article className={`admin-group-card admin-group-card--${group.id}`} key={group.id}>
+          <div className="admin-group-card__heading">
+            <span className="admin-group-card__icon"><GroupIcon size={20} /></span>
+            <div><h2>{group.label}</h2><p>{entries.length} وجهات متاحة وفق صلاحية الحساب</p></div>
+          </div>
+          <div className="admin-group-card__links">
+            {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
+              <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
+            </button>)}
+          </div>
+        </article>;
+      })}
+    </section>
     <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.length ? alerts.map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{lowStockProductsLoading ? <Loading /> : lowStockProductsError ? <ErrorBox message={lowStockProductsError} /> : !stats?.hasActiveWarehouse ? <Empty text="لم يتم تحديد مستودع نشط؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : stats.lowStockCount === null || lowStockProducts === null ? <Empty text="بيانات المخزون غير مكتملة؛ تعذر تأكيد قائمة الأصناف منخفضة المخزون." /> : lowStockProducts.length ? lowStockProducts.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.quantity_available <= 0 ? 'critical' : ''}>{formatNumber(product.quantity_available)} {product.unit}</b></div>) : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
     <section className="quick-panel"><div><Sparkline /><strong>تشغيل مترابط من لوحة واحدة</strong><p>افتح أي وحدة لإدارة التفاصيل وتحديث البيانات مباشرة.</p></div><div className="quick-links">{nav.slice(1, 7).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => onNavigate(id)}><Icon size={17} />{label}</button>)}</div></section>
   </>;
