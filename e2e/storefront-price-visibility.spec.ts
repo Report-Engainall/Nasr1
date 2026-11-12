@@ -15,7 +15,7 @@ test("Chromium verifies fail-closed product card and detail price visibility", a
 
   // This local-only fixture imports the real exported ProductGrid/ProductDetail components.
   // It deliberately never mounts Storefront's auth/cart lifecycle or writes to a backend.
-  await page.route("https://ci-placeholder.supabase.co/**", (route) => route.abort("blockedbyclient"));
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) => route.abort("blockedbyclient"));
   const response = await page.goto(priceVisibilityFixtureUrl());
   await page.waitForTimeout(1500);
   const readyCount = await page.getByTestId("fixture-ready").count();
@@ -239,6 +239,11 @@ async function fulfillFixtureJson(route: Route, status: number, payload: unknown
   await route.fulfill({
     status,
     contentType: "application/json",
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+      "access-control-allow-methods": "GET,POST,OPTIONS",
+    },
     body: JSON.stringify(payload),
   });
 }
@@ -272,16 +277,40 @@ async function handlePricingPreviewRpc(
 async function handlePricingPreviewFixtureRequest(
   route: Route,
   getMode: () => PricingPreviewMode,
+  authenticatedUser: ReturnType<typeof previewSession>["user"],
   recordRequest?: (payload: unknown) => void,
 ): Promise<void> {
-  const pathname = new URL(route.request().url()).pathname;
+  const request = route.request();
+  const pathname = new URL(request.url()).pathname;
 
-  if (pathname === "/rest/v1/rpc/ensure_profile") {
+  if (request.method() === "OPTIONS") {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-headers": "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+        "access-control-allow-methods": "GET,POST,OPTIONS",
+      },
+    });
+    return;
+  }
+
+  if (pathname === "/auth/v1/user" && request.method() === "GET") {
+    await fulfillFixtureJson(route, 200, authenticatedUser);
+    return;
+  }
+
+  if (pathname === "/rest/v1/rpc/ensure_profile" && request.method() === "POST") {
     await fulfillFixtureJson(route, 200, pricePreviewProfileFixture);
     return;
   }
 
-  if (pathname === "/rest/v1/rpc/preview_customer_order_pricing") {
+  if (pathname === "/rest/v1/rpc/ensure_my_customer_account" && request.method() === "POST") {
+    await fulfillFixtureJson(route, 200, true);
+    return;
+  }
+
+  if (pathname === "/rest/v1/rpc/preview_customer_order_pricing" && request.method() === "POST") {
     await handlePricingPreviewRpc(route, getMode, recordRequest);
     return;
   }
@@ -295,18 +324,18 @@ async function installPricingPreviewRoutes(
   getMode: () => PricingPreviewMode,
   recordRequest?: (payload: unknown) => void,
 ) {
+  const session = previewSession();
   await page.addInitScript(({ storageKey, session }) => {
     window.localStorage.setItem(storageKey, JSON.stringify(session));
   }, {
-    storageKey: "sb-ci-placeholder-auth-token",
-    session: previewSession(),
+    storageKey: "sb-tfdwtuwkdddnzgyhcoyy-auth-token",
+    session,
   });
 
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
-    handlePricingPreviewFixtureRequest(route, getMode, recordRequest),
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
+    handlePricingPreviewFixtureRequest(route, getMode, session.user, recordRequest),
   );
 }
-
 
 async function expectNoHiddenPriceLeak(page: Page) {
   const body = page.locator("body");
