@@ -12,7 +12,8 @@ const routeTree = readFileSync(join(process.cwd(), "src/routeTree.gen.ts"), "utf
 describe("admin category workspace wiring", () => {
   it("exposes one catalog category editor and keeps Data Center as a navigation entry", () => {
     expect(adminApp).toContain("onNavigate('categories')");
-    expect(adminApp).toContain("AdminCategoryTree onNotice={onNotice}");
+    expect(adminApp).toContain("const AdminCategoryTree = lazy");
+    expect(adminApp).toContain("return <AdminCategoryTree");
     expect(adminApp).not.toContain("createAdminCatalogCategory(");
     expect(adminApp).not.toContain("archiveAdminCatalogCategory(");
     expect(adminApp).not.toContain("renameAdminCatalogCategory(");
