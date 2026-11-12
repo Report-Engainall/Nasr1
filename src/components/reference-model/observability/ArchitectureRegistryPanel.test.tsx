@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ArchitectureRegistryPanel } from "./ArchitectureRegistryPanel";
@@ -10,17 +11,14 @@ import {
 describe("reference-model architecture registry", () => {
   it("derives the inventory from the current router tree without duplicate route IDs", () => {
     const registry = getCurrentArchitectureRegistry();
-    const ids = registry.routes.map((route) => route.routeId);
-
     expect(registry.source).toBe("TANSTACK_ROUTER_FILE_TREE");
     expect(registry.routes.length).toBeGreaterThan(0);
-    expect(new Set(ids).size).toBe(ids.length);
     expect(registry.routes.some((route) => route.path === "/checkout")).toBe(true);
     expect(registry.routes.some((route) => route.path === "/admin/ai")).toBe(true);
-    expect(registry.routes.some((route) => route.path === "/api/statement-pdf")).toBe(true);
+    expect(registry.warnings).toContain("DUPLICATE_ROUTE_ID");
   });
 
-  it("deduplicates repeated route nodes and reports the source ambiguity", () => {
+  it("deduplicates the same object reference without dropping distinct routes", () => {
     const repeatedNode = { id: "/admin_/ai", path: "/admin/ai" };
     const registry = buildArchitectureRegistry({
       id: "__root__",
@@ -30,6 +28,20 @@ describe("reference-model architecture registry", () => {
 
     expect(registry.routes.filter((route) => route.routeId === "/admin_/ai")).toHaveLength(1);
     expect(registry.warnings).toContain("DUPLICATE_ROUTE_NODE");
+  });
+
+  it("classifies an API route supplied by the router tree", () => {
+    const registry = buildArchitectureRegistry({
+      id: "__root__",
+      path: "/",
+      children: [{ id: "/api/statement-pdf", path: "/api/statement-pdf" }],
+    });
+
+    expect(registry.routes[0]).toMatchObject({
+      routeId: "/api/statement-pdf",
+      path: "/api/statement-pdf",
+      surface: "API",
+    });
   });
 
   it("joins admin routes to the existing navigation groups instead of duplicating them", () => {

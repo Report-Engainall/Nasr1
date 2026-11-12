@@ -74,8 +74,8 @@ export function ArchitectureRegistryPanel() {
               </tr>
             </thead>
             <tbody>
-              {registry.routes.map((route) => (
-                <tr key={route.routeId} className="border-t">
+              {registry.routes.map((route, index) => (
+                <tr key={`${route.routeId}:${route.path}:${index}`} className="border-t">
                   <td className="px-3 py-2"><code dir="ltr">{route.routeId}</code></td>
                   <td className="px-3 py-2"><code dir="ltr">{route.path}</code></td>
                   <td className="px-3 py-2">{surfaceLabels[route.surface]}</td>

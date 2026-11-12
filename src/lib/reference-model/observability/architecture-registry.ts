@@ -133,24 +133,24 @@ export function buildArchitectureRegistry(
 
     const viewId = adminViewId(routeId, navigationGroups);
     const group = viewId
-      ? navigationGroups.find((candidate) => candidate.views.includes(viewId as never))
+      ? navigationGroups.find((candidate) => candidate.views.some((view) => view === viewId))
       : undefined;
 
-    if (routeIds.has(routeId)) {
-      warnings.push("DUPLICATE_ROUTE_ID");
-    } else {
-      routeIds.add(routeId);
-      routes.push({
-        routeId,
-        path,
-        parentRouteId,
-        surface: routeSurface(routeId, path),
-        viewId,
-        navigationGroup: group ? { id: group.id, label: group.label } : null,
-        dynamicSegmentCount: path.split("/").filter((segment) => segment.startsWith("$")).length,
-        hasChildren: children.length > 0,
-      });
-    }
+    if (routeIds.has(routeId)) warnings.push("DUPLICATE_ROUTE_ID");
+    else routeIds.add(routeId);
+
+    // Keep distinct route nodes even if TanStack assigns them the same id
+    // (for example, an index route can share "/" while having a different fullPath).
+    routes.push({
+      routeId,
+      path,
+      parentRouteId,
+      surface: routeSurface(routeId, path),
+      viewId,
+      navigationGroup: group ? { id: group.id, label: group.label } : null,
+      dynamicSegmentCount: path.split("/").filter((segment) => segment.startsWith("$")).length,
+      hasChildren: children.length > 0,
+    });
 
     children.forEach((child) => visit(child, routeId, path));
   };
