@@ -642,3 +642,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .admin-breadcrumb button:hover { text-decoration: underline; }
 .admin-breadcrumb strong { color: var(--aghbari-text); font-weight: 800; }
 .admin-breadcrumb [aria-hidden="true"] { color: #a4b9bd; }
+
+/* Group card headings open a true group landing view; destination chips remain direct links. */
+.admin-group-card__heading { width: 100%; border: 0; text-align: right; cursor: pointer; }
+.admin-group-card__heading > span:last-child { display: block; min-width: 0; }
+.admin-group-card__heading strong { display: block; color: var(--admin-group-accent); font-size: 13px; font-weight: 800; }
+.admin-group-card__heading small { display: block; margin-top: 4px; color: var(--aghbari-text-muted); font-size: 9px; font-weight: 500; }
+.admin-group-card__heading:hover { background: #e7f5f7; }
+.admin-group-card__heading:focus-visible { outline: 3px solid color-mix(in srgb, var(--admin-group-accent) 25%, white); outline-offset: -3px; }
+.admin-group-landing { display: grid; gap: 16px; }
+.admin-group-landing__breadcrumb { display: flex; align-items: center; gap: 9px; color: var(--aghbari-text-muted); font-size: 10px; }
+.admin-group-landing__breadcrumb button { border: 0; padding: 0; background: transparent; color: var(--aghbari-brand); font: inherit; font-weight: 800; }
+.admin-group-landing__breadcrumb strong { color: var(--aghbari-text); }
+.admin-group-landing__hero { display: flex; align-items: center; gap: 15px; padding: 22px; border: 1px solid var(--aghbari-border); border-radius: 18px; background: #f1fafb; }
+.admin-group-landing__icon { width: 52px; height: 52px; flex: 0 0 52px; display: grid; place-items: center; border-radius: 15px; color: var(--aghbari-brand); background: #fff; }
+.admin-group-landing__hero > div > span { color: var(--aghbari-brand); font-size: 10px; font-weight: 800; }
+.admin-group-landing__hero h1 { margin: 2px 0 4px; color: var(--aghbari-text); font-size: 21px; }
+.admin-group-landing__hero p { margin: 0; color: var(--aghbari-text-muted); font-size: 11px; }
+.admin-group-landing__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.admin-group-landing__item { min-width: 0; min-height: 76px; display: grid; grid-template-columns: 24px minmax(0,1fr) 18px; grid-template-rows: auto auto; align-content: center; align-items: center; column-gap: 10px; padding: 14px; border: 1px solid var(--aghbari-border); border-radius: 14px; background: var(--aghbari-surface); color: var(--aghbari-text); text-align: right; }
+.admin-group-landing__item > svg:first-child { grid-row: 1 / span 2; color: var(--aghbari-brand); }
+.admin-group-landing__item > span { min-width: 0; font-size: 12px; font-weight: 800; }
+.admin-group-landing__item > small { color: var(--aghbari-text-muted); font-size: 9px; }
+.admin-group-landing__item > svg:last-child { grid-column: 3; grid-row: 1 / span 2; color: #8caab0; }
+.admin-group-landing__item:hover { border-color: var(--aghbari-brand); background: #eff9fb; }
+.admin-group-landing__item:focus-visible { outline: 3px solid rgba(8,145,158,.25); outline-offset: 2px; }
+@media (max-width: 1000px) { .admin-group-landing__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .admin-group-landing__grid { grid-template-columns: 1fr; }.admin-group-landing__hero { align-items: flex-start; padding: 16px; }.admin-group-landing__hero h1 { font-size: 18px; } }
