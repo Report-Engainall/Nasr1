@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { nitro } from "nitro/vite";
 import react from "@vitejs/plugin-react";
@@ -19,4 +19,8 @@ export default defineConfig({
   ],
   server: { host: "0.0.0.0" },
   preview: { host: "0.0.0.0" },
+  test: {
+    // Keep Vitest scoped to app/unit tests; Playwright E2E specs are run by P2 only.
+    include: ["src/**/*.{test,spec}.?(c|m)[jt]s?(x)"],
+  },
 });
