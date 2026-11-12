@@ -207,8 +207,15 @@ describe("customer quote workspace tenant boundary", () => {
       context: { queryClient: new QueryClient() },
     });
     await router.load();
+    // The admin route lazy-loads its complete workspace. Resolve that module
+    // before asserting role-gated content so the test does not inspect only
+    // the synchronous storefront navigation shell.
+    if (path === "/admin/quotes") {
+      await import("@/components/AghbariApp");
+    }
     await act(async () => {
       root?.render(<RouterProvider router={router} />);
+      await Promise.resolve();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
   }

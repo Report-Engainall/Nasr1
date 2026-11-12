@@ -116,6 +116,6 @@ describe("EvidencePassport", () => {
     const withoutRecords: PassportData = { ...passport, evidenceRecords: [] };
     render(<EvidencePassport passport={withoutRecords} />);
     expect(screen.queryByText(/وقت المصدر:/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("evidence-metric-card")).toBeInTheDocument();
+    expect(screen.getAllByTestId("evidence-metric-card")).toHaveLength(passport.metrics.length);
   });
 });
