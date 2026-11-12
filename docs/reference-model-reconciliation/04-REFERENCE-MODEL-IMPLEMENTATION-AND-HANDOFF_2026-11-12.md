@@ -302,3 +302,13 @@ P2 run #43137987489 على SHA التطبيق نفسه كان IN_PROGRESS عند
 **حالة التحقق عند تحديث هذا القسم:** تشغيل P2 #43141469421 على SHA `fc7963994c08f4d2dde4eadfdb7bd07a502fe823` بدأ. بوابة البنية التحتية SUCCESS؛ وظيفة public read-only Playwright #130929215175 كانت `IN_PROGRESS`؛ وظيفة local PostgreSQL / authenticated browser acceptance لم تبدأ بعد وكانت مشروطة بنجاح smoke. لا يُسجل قبول للطلبات أو العزل أو الماليات قبل اكتمال الوظائف التابعة.
 
 **الأدلة السابقة لا تنتقل:** P1 #43139543761 على التطبيق SHA `d6f9421...` ناجح (68/68 ملفاً، 524/524 اختباراً، strict TS وبناء الإنتاج). هذا لا يغطي P2 fixture الجديد ولا اختبارات الطلبات والعزل المحلية.
+
+## 6.13 — تحقق fixture المتجر ورفض هوية مدير الأسعار — 12 نوفمبر 2026
+
+تشغيل P2 #43141469421 على `fc796399...` أكّد نجاح infrastructure gate، Public UI smoke، تشغيل Supabase المحلي، تطبيق كل migrations على PostgreSQL 17، إنشاء المستخدمين والـtenant/warehouse/product/supplier/publication fixtures، واختبارات local endpoint guard. ثم فشل أول اختبار أعمال فعلي `scripts/test-price-grid-atomicity.mjs` عند استدعاء `public.get_admin_product_price_grid()` برسالة `Price grid reads require an active admin or manager in this organization`. لا يثبت هذا تسريباً أو خللاً في RPC؛ بل يعني أن سياق جلسة الاختبار لا يفي بشرط الهوية والدور أو المؤسسة.
+
+لم يُخفف شرط الصلاحية ولم تتغير دوال/RPC التسعير. commit `cb2c77a55f3ec21e72b205edb1577702d535d725` يضيف تشخيصاً بعد إعداد جلسة المدير مباشرة: `auth.uid()`, `current_profile_id()`, `current_organization_id()`, `current_user`, `request.jwt.claim.sub`، ووجود دور admin/manager النشط في نفس المؤسسة. يخرج التشخيص فقط معرّفات ونتائج منطقية، ولا يخرج secrets أو بيانات أسعار.
+
+تشغيل P2 التالي `#43142261299` على SHA `cb2c77a...` بدأ؛ infra gate SUCCESS، Public UI smoke قيد التنفيذ. اختبار PostgreSQL المحلي الذي سيشغّل تشخيص المدير ينتظر نجاح public smoke. لم يُثبت بعد نجاح price grid أو المحاسبة أو الطلبات أو العزل؛ لا تحتسب خطوات SKIPPED على أنها PASS.
+
+P1 code proof remains `d6f9421...` (#43139543761): 68/68 files, 524/524 tests, strict TypeScript PASS, production build PASS. No app code changed after that SHA in this test-harness sequence.
