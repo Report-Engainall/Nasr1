@@ -49,6 +49,7 @@ export function BulkProductImageUploader({
   const [files, setFiles] = useState<File[]>([]);
   const [selectionError, setSelectionError] = useState("");
   const [busy, setBusy] = useState(false);
+  const uploadInFlight = useRef(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<UploadResult[]>([]);
 
@@ -128,7 +129,11 @@ export function BulkProductImageUploader({
   }
 
   async function uploadMatchedImages() {
-    if (busy || !catalogReady || readyEntries.length === 0) return;
+    // A React state update is not synchronous between two click events. Keep a
+    // ref lock as the authoritative guard so one selected batch can never start
+    // two concurrent storage uploads before the next render commits.
+    if (uploadInFlight.current || busy || !catalogReady || readyEntries.length === 0) return;
+    uploadInFlight.current = true;
     setBusy(true);
     setProgress(0);
     setResults([]);
@@ -137,58 +142,62 @@ export function BulkProductImageUploader({
     const primaryLinked = new Map<string, boolean>();
     let uploadedCount = 0;
 
-    for (let index = 0; index < readyEntries.length; index += 1) {
-      const entry = readyEntries[index];
-      const product = entry.product;
-      if (!product) continue;
+    try {
+      for (let index = 0; index < readyEntries.length; index += 1) {
+        const entry = readyEntries[index];
+        const product = entry.product;
+        if (!product) continue;
 
-      const hasPrimary = primaryLinked.has(product.id)
-        ? primaryLinked.get(product.id) === true
-        : Boolean(product.image_url?.trim());
-      const placement: "primary" | "gallery" = hasPrimary ? "gallery" : "primary";
+        const hasPrimary = primaryLinked.has(product.id)
+          ? primaryLinked.get(product.id) === true
+          : Boolean(product.image_url?.trim());
+        const placement: "primary" | "gallery" = hasPrimary ? "gallery" : "primary";
 
-      try {
-        const webp = await toWebp(entry.file);
-        if (placement === "primary") {
-          await uploadProductImage(product.id, webp, product.image_url ?? null);
-        } else {
-          await uploadProductGalleryImage(product.id, webp);
+        try {
+          const webp = await toWebp(entry.file);
+          if (placement === "primary") {
+            await uploadProductImage(product.id, webp, product.image_url ?? null);
+          } else {
+            await uploadProductGalleryImage(product.id, webp);
+          }
+          primaryLinked.set(product.id, true);
+          uploadedCount += 1;
+          nextResults.push({
+            fileName: entry.file.name,
+            productName: product.name,
+            placement,
+            ok: true,
+            message: "تم تحويل الصورة وربطها بالصنف.",
+          });
+        } catch (cause) {
+          // A failed first image does not prevent the next image for this product
+          // from becoming its primary image. Existing primaries are never replaced.
+          if (hasPrimary) primaryLinked.set(product.id, true);
+          nextResults.push({
+            fileName: entry.file.name,
+            productName: product.name,
+            placement,
+            ok: false,
+            message: errorMessage(cause),
+          });
         }
-        primaryLinked.set(product.id, true);
-        uploadedCount += 1;
-        nextResults.push({
-          fileName: entry.file.name,
-          productName: product.name,
-          placement,
-          ok: true,
-          message: "تم تحويل الصورة وربطها بالصنف.",
-        });
-      } catch (cause) {
-        // A failed first image does not prevent the next image for this product
-        // from becoming its primary image. Existing primaries are never replaced.
-        if (hasPrimary) primaryLinked.set(product.id, true);
-        nextResults.push({
-          fileName: entry.file.name,
-          productName: product.name,
-          placement,
-          ok: false,
-          message: errorMessage(cause),
-        });
+
+        setProgress(index + 1);
+        setResults([...nextResults]);
       }
 
-      setProgress(index + 1);
-      setResults([...nextResults]);
-    }
+      setResults(nextResults);
 
-    setBusy(false);
-    setResults(nextResults);
-
-    if (uploadedCount > 0) {
-      const failedCount = nextResults.length - uploadedCount;
-      await onUploaded(
-        "تم ربط " + uploadedCount + " صورة بنجاح." +
-        (failedCount ? " تعذّر ربط " + failedCount + " صورة؛ راجع تفاصيل الدفعة." : ""),
-      );
+      if (uploadedCount > 0) {
+        const failedCount = nextResults.length - uploadedCount;
+        await onUploaded(
+          "تم ربط " + uploadedCount + " صورة بنجاح." +
+          (failedCount ? " تعذّر ربط " + failedCount + " صورة؛ راجع تفاصيل الدفعة." : ""),
+        );
+      }
+    } finally {
+      uploadInFlight.current = false;
+      setBusy(false);
     }
   }
 
