@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePublicStorefrontCategories } from './storefront-categories';
+import { parsePublicStorefrontCategories, readPublicStorefrontCategories } from './storefront-categories';
 
 const validCategory = {
   id: 'ca000000-0000-4000-8000-000000000001',
@@ -43,4 +43,20 @@ describe('parsePublicStorefrontCategories', () => {
     expect(() => parsePublicStorefrontCategories([{ ...validCategory, id: 'bad-id' }])).toThrow();
     expect(() => parsePublicStorefrontCategories([{ ...validCategory, is_active: false }])).toThrow();
   });
+  it('unwraps the Supabase RPC data before parsing the allowlisted category projection', async () => {
+    const categories = await readPublicStorefrontCategories(async () => ({
+      data: [validCategory],
+      error: null,
+    }));
+    expect(categories).toEqual(parsePublicStorefrontCategories([validCategory]));
+  });
+
+  it('propagates an RPC error instead of parsing the response envelope', async () => {
+    const rpcError = Object.assign(new Error('category RPC unavailable'), { code: 'PGRST000' });
+    await expect(readPublicStorefrontCategories(async () => ({
+      data: null,
+      error: rpcError,
+    }))).rejects.toBe(rpcError);
+  });
+
 });
