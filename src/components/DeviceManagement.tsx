@@ -677,7 +677,17 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
       onNotice('أكد الخادم إبطال الجلسة المحددة لمستخدم المؤسسة، وسُجل الإجراء في سجل التدقيق.');
       await loadOrganizationSessions();
     } catch {
-      setSessionsError('تعذر تأكيد إبطال الجلسة المحددة. لم تُعرض رسالة نجاح؛ أعد تحميل السجل وتحقق من الحالة قبل المحاولة مجددًا.');
+      // The server may have committed the revocation but failed to return a valid
+      // acknowledgement. Invalidate every in-flight page and hide stale session
+      // identities until a fresh server read confirms their state.
+      organizationSessionsRequestId.current += 1;
+      organizationSessionsLoadMoreInFlight.current = false;
+      setOrganizationSessions([]);
+      setOrganizationSessionsCursor(null);
+      setOrganizationSessionsHasMore(false);
+      setOrganizationSessionsLoadingMore(false);
+      setSessionsLoading(false);
+      setSessionsError('تعذر تأكيد إبطال الجلسة المحددة. لم تُعرض رسالة نجاح، وأُخفيت قائمة الجلسات القديمة حتى إعادة تحميلها من الخادم. تحقق من الحالة قبل المحاولة مجددًا.');
     } finally {
       revocationInFlight.current = false;
       setAction(null);
