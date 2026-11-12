@@ -486,6 +486,8 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   })).filter((group) => group.items.length > 0);
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
+  const activeNavigationItem = nav.find((item) => item.id === view);
+  const activeNavigationGroup = ADMIN_NAV_GROUPS.find((group) => group.views.includes(view));
   const [mobileNav, setMobileNav] = useState(false);
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -757,11 +759,17 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
               navigationBlocked={navigationBlocked}
               onNavigate={runAdminCommand}
             />
-        <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure"><span /> النظام متصل وآمن</div></div>
+        <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure">تنقل مخصص لحسابك</div></div>
       </aside>
       <main className="main">
         <header className="topbar"><button type="button" ref={mobileMenuButtonRef} className="mobile-menu" aria-label={mobileNav ? "إغلاق القائمة الإدارية" : "فتح القائمة الإدارية"} aria-expanded={mobileNav} aria-controls="admin-sidebar" onClick={() => { if (mobileNav) closeMobileNav(); else setMobileNav(true); }}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
         <div className="page-wrap">
+          <nav className="admin-breadcrumb" aria-label="مسار التنقل">
+            <button type="button" onClick={() => runAdminCommand("dashboard")}>لوحة الإدارة</button>
+            <span aria-hidden="true">/</span>
+            {activeNavigationGroup && <><span>{activeNavigationGroup.label}</span><span aria-hidden="true">/</span></>}
+            <strong aria-current="page">{activeNavigationItem?.label ?? "مساحة الإدارة"}</strong>
+          </nav>
           {recordContext && (
             <section dir="rtl" aria-label="سياق السجل المفتوح" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-slate-800">
               <div className="min-w-0">
