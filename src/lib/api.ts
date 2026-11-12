@@ -1,7 +1,7 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
 
 import { fetchStorefrontCatalogPage } from './storefront-catalog';
-import { parsePublicStorefrontCategories } from './storefront-categories';
+import { readPublicStorefrontCategories } from './storefront-categories';
 import { saveAdminCatalogProduct } from './admin-catalog-commands';
 import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
 import { parseStoreProductActivityReport, type StoreProductActivityReport } from './product-activity-report';
@@ -978,8 +978,9 @@ export async function fetchCategories(): Promise<Category[]> {
   if (sessionError) throw new Error('تعذر التحقق من جلسة الحساب قبل تحميل التصنيفات.');
 
   if (!sessionData.session?.user.id) {
-    const publicRows = await retryRead(async () => await supabase.rpc('get_public_storefront_categories'));
-    return parsePublicStorefrontCategories(publicRows);
+    return await retryRead(async () => readPublicStorefrontCategories(
+      () => supabase.rpc('get_public_storefront_categories'),
+    ));
   }
 
   const { organizationId: orgId, isStaff } = await getStorefrontDataScope();
