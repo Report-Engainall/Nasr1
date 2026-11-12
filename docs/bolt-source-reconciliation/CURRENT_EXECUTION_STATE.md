@@ -1,16 +1,17 @@
-# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — FINANCIAL PRIVACY FIX & CURRENT TEST STATUS
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PRICE FIXTURE ALIGNMENT & P2 REVALIDATION
 
 > Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
-> Current source-code SHA: `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`.
-> Exact P1 proof for this SHA: run [#43139543761](https://github.com/Report-Engainall/Nasr1/actions/runs/43139543761) SUCCESS — 68/68 test files, 524/524 tests, strict TypeScript PASS, production build PASS.
-> This SHA includes the earlier direct import-history entry point (`21284b94...`), local-only P2 fixture repair (`2e5c7e10...`), organization theme palette bridge (`ad044cf...`), and a security fix to customer-manager row sanitization (`d6f9421...`).
-> P1 failure on `ad044cf...` was TypeScript TS2345: `payload.rows.map(sanitizeCustomerManagerDirectoryRow)` passed the row index into the optional `includeFinancialFields` boolean. For any row index >0 this could include financial/profile fields in manager projection. Fixed with an explicit unary callback and a two-row regression assertion; no permission or financial projection was broadened.
-> Current P2 run [#43139543875](https://github.com/Report-Engainall/Nasr1/actions/runs/43139543875) tests source SHA `d6f9421...`; at checkpoint, public read-only Playwright assertions were IN_PROGRESS after exact-source build and local app launch. Infrastructure gate completed successfully but dedicated external E2E credential gate did not authorize remote writes; authenticated external path is SKIPPED. Local-only Supabase/PostgreSQL order/tenant test is dependent on the public UI smoke and has not yet started.
-> P2 fixture repair is restricted to the disposable loopback test stack: `P2-LOCAL-E2E-001` product + tier prices, `P2-LOCAL-E2E` warehouse, and `P2-LOCAL-RECEIPT` supplier. No hosted Supabase project, production credentials, migrations, or records were changed by the fixture script.
-> Theme palette commit `ad044cf...` applies tenant-scoped stored HEX palette values to validated design tokens and limits edits to managers/admins. A review note remains: the root bridge reads the full admin-settings projection rather than only the appearance keys; optimize later without duplicating the feature.
-> Path B is coordinated through [Issue #422](https://github.com/Report-Engainall/Nasr1/issues/422). The old `feat/reference-model-worker2-category-tree-2026-11-12` branch has 0 unique commits and is 66 commits behind; do not merge or repeat the old category-tree work. No new isolated Path B commit has been verified.
-> No Vercel build/deploy/preview, paid services, hosted database mutation, or production migration execution.
-> Release remains NO-GO until P2 local order/tenant/finance acceptance, remaining authorization evidence, and the hosted database migration/bootstrap design are resolved.
+> Current `main` HEAD: `d90f4a343d312d56ca10c895cca7740caf22e036`.
+> Verified application code SHA remains `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`; P1 run #43139543761 SUCCESS on that exact source: 68/68 files, 524/524 tests, strict TypeScript PASS, production build PASS.
+> Local P2 fixture root cause is fully identified: migration `20261009060000_quantity_break_pricing.sql` replaces UNIQUE `(product_id,tier)` with UNIQUE `(product_id,tier,min_quantity)` to support quantity breaks. The fixture conflict target was corrected in commit `bf7f01f887bedd5358b2c32de5c0fd2fbad95f7a`; no schema or migration was modified.
+> Commit `d90f4a343d312d56ca10c895cca7740caf22e036` adds safe diagnostic context to the local fixture script only; if a SQL statement fails it reports the statement text without parameter values. It also includes the quantity-key repair through its parent. Current P2 run #43140634250 is IN_PROGRESS on this exact SHA; public UI smoke job #130926597475 is running, and local PostgreSQL acceptance job is dependent on that smoke and has not yet appeared.
+> Older run #43140489508 on `bf7f01f...` was cancelled by the newer P2 run under workflow concurrency; it is not acceptance evidence.
+> External authenticated E2E write path remains SKIPPED because dedicated non-production external credentials/authorization are unavailable. Local loopback P2 acceptance is separate and remains the intended proof for order/tenant tests.
+> P1 security fix on `d6f9421...` prevents `Array.map` index from being passed as the customer-manager financial-field permission; multi-row test proves balance, credit-limit and profile-id fields are removed from every row.
+> Organization appearance palette was implemented in `ad044cf...`; validate only if further integration gaps appear; do not rebuild.
+> Path B remains coordinated through Issue #422 and owns only observability, prompt-persistence, AI governance and developer-tools isolated paths. Old category-tree branch has no unique commits and is 66 commits behind; do not merge or redo categories.
+> No Vercel build/deploy/preview, paid service, hosted Supabase mutation, or production migration was performed.
+> Release remains NO-GO until P2 local order/tenant/finance tests, remaining permission/browser proofs, and production DB bootstrap/migration redesign are accepted.
 
 ---
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 FIXTURE RECONCILIATION
