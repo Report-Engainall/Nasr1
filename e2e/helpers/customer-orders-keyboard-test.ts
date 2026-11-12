@@ -118,7 +118,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
       session: signedInCustomerFixtureSession(),
     });
 
-    await page.route("https://ci-placeholder.supabase.co/**", handleCustomerOrdersFixtureRequest);
+    await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", handleCustomerOrdersFixtureRequest);
 
     const response = await page.goto("/orders");
     expect(response?.status(), "Direct navigation to the real customer order route must resolve.").toBe(200);
