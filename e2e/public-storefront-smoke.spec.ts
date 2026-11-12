@@ -248,7 +248,7 @@ test("reset-password rejects an invalid password without reporting success", asy
   await page.getByLabel("كلمة المرور الجديدة").fill("short");
   await page.getByRole("button", { name: "حفظ" }).click();
 
-  await expect(page.getByRole("alert")).toContainText(
+  await expect(page.locator(".login-error")).toContainText(
     "كلمة المرور يجب أن تكون 8 أحرف على الأقل",
   );
   await expect(page).toHaveURL(/\/reset-password$/);
