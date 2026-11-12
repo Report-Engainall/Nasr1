@@ -284,15 +284,15 @@ jobs:
           fi
       - name: Build exact source with isolated non-routable placeholder configuration
         env:
-          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_URL: https://tfdwtuwkdddnzgyhcoyy.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
-          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_URL: https://tfdwtuwkdddnzgyhcoyy.supabase.co
           SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
         run: npm run build
       - name: Launch local build for no-write browser smoke
         shell: bash
         env:
-          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_URL: https://tfdwtuwkdddnzgyhcoyy.supabase.co
           SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
           PORT: "4173"
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -313,7 +313,7 @@ jobs:
       - name: Launch Vite source server for component-only price visibility harness
         shell: bash
         env:
-          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_URL: https://tfdwtuwkdddnzgyhcoyy.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
         run: |
           set -euo pipefail
