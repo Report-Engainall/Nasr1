@@ -2137,15 +2137,12 @@ function Pricing({
         <article className="report-metric"><AlertTriangle size={22} /><span>موقوفة أو بانتظار المراجعة</span><strong>{formatNumber(data?.filter((rule) => !rule.is_active || (rule.requires_approval && !rule.approved_at) || !PRICING_SCOPES.has(rule.scope_type)).length ?? 0)}</strong></article>
       </div>
 
-      <div className="toolbar-actions" role="tablist" aria-label="مساحات التسعير والعروض" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div className="toolbar-actions" role="group" aria-label="مساحات التسعير والعروض" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
         {PRICING_WORKSPACE_TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
-            role="tab"
-            id={'pricing-tab-' + tab.id}
-            aria-selected={activeTab === tab.id}
-            aria-controls="pricing-workspace-panel"
+            aria-pressed={activeTab === tab.id}
             className={activeTab === tab.id ? 'btn primary' : 'btn outline'}
             onClick={() => setActiveTab(tab.id)}
           >
@@ -2154,7 +2151,7 @@ function Pricing({
         ))}
       </div>
 
-      <div id="pricing-workspace-panel" role="tabpanel" aria-labelledby={'pricing-tab-' + activeTab}>
+      <div id="pricing-workspace-panel">
         {activeTab === 'grid' && (
           canApprovePricing
             ? <PricingGrid onNotice={onNotice} />
