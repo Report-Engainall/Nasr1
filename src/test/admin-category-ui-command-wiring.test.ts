@@ -51,6 +51,13 @@ describe("admin category workspace wiring", () => {
     expect(categoryReader).not.toMatch(/base_price|price_wholesale|balance|inventory_balances/);
   });
 
+  it("opens a related product in the existing product workspace without duplicating product editing", () => {
+    expect(categoryScreen).toContain("onOpenProduct(product)");
+    expect(categoryScreen).toContain("aria-label={`فتح المنتج ${product.name}`}");
+    expect(adminApp).toContain('keepSourceContext(\n            "product"');
+    expect(adminApp).toContain('"فتح المنتج من شجرة التصنيفات"');
+  });
+
   it("places categories in the existing catalog group and registers the dedicated route", () => {
     expect(accessMatrix).toContain('views: ["products", "categories", "pricing", "offers"]');
     expect(routeTree).toContain("path: '/admin/categories'");
