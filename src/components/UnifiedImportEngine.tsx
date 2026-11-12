@@ -148,7 +148,7 @@ function describeRetryableImportStatus(
     ". استخدم الملف الأصلي نفسه للاستئناف.";
 }
 
-export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId }: { onNotice: (message: string) => void; refreshVersion?: number; initialJobId?: string }) {
+export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId, initialSection }: { onNotice: (message: string) => void; refreshVersion?: number; initialJobId?: string; initialSection?: "upload" | "history" }) {
   const { user } = useAuth();
   const canRollbackImport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const [jobs, setJobs] = useState<ImportJob[]>([]);
@@ -217,6 +217,16 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     }, 0);
     return () => window.clearTimeout(timer);
   }, [initialJobId, loading, jobs]);
+
+  useEffect(() => {
+    if (initialSection !== "history" || loading) return;
+    const timer = window.setTimeout(() => {
+      const history = document.getElementById("admin-import-jobs");
+      history?.scrollIntoView({ behavior: "smooth", block: "start" });
+      history?.focus({ preventScroll: true });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialSection, loading]);
   const cancelRef = useRef(false);
   const runningRef = useRef(false);
 
@@ -1218,8 +1228,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           </details> : null}
         </section>
 
-        <section className="panel import-jobs-panel">
-          <div className="panel-head"><div><h2>سجل الدفعات</h2><p>البصمة والميتا والنتائج دون حفظ الملفات الخام</p></div><Button variant="outline" onClick={refetch}><RefreshCw size={15} /> تحديث</Button></div>
+        <section id="admin-import-jobs" tabIndex={-1} aria-labelledby="admin-import-jobs-title" className="panel import-jobs-panel">
+          <div className="panel-head"><div><h2 id="admin-import-jobs-title">سجل الدفعات</h2><p>البصمة والميتا والنتائج دون حفظ الملفات الخام</p></div><Button variant="outline" onClick={refetch}><RefreshCw size={15} /> تحديث</Button></div>
           {loading ? <Loading /> : error ? <ErrorBox message={error} /> : jobs.length ? <TableWrap><table>
             <thead><tr><th>الملف</th><th>المصدر</th><th>الحالة</th><th>DQS</th><th>الصفوف</th><th>التاريخ</th><th>الاستئناف</th><th>أخطاء الصفوف</th>{canRollbackImport && <th>التراجع</th>}</tr></thead>
             <tbody>{jobs.map((job) => <Fragment key={job.id}>

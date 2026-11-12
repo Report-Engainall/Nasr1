@@ -2789,23 +2789,23 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
 }) {
   const { user } = useAuth();
   const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const [section, setSection] = useState<'home' | 'import' | 'onyx'>('home');
+  const [section, setSection] = useState<'home' | 'import' | 'import-history' | 'onyx'>('home');
 
   useEffect(() => {
     if (initialImportJobId && canManageImports) setSection('import');
   }, [initialImportJobId, canManageImports]);
 
-  if (section === 'import' && canManageImports) {
+  if ((section === 'import' || section === 'import-history') && canManageImports) {
     return <>
       <div className="toolbar">
-        <span className="toolbar-note">الاستيراد الموحد — صلاحية المدير أو مدير النظام</span>
+        <span className="toolbar-note">الاستيراد الموحد — صلاحية المدير أو مدير النظام{section === 'import-history' ? ' — سجل الدفعات' : ''}</span>
         <div className="toolbar-actions">
           <Button variant="outline" onClick={() => setSection('home')}>
             <Database size={16} /> العودة إلى مركز البيانات
           </Button>
         </div>
       </div>
-      <UnifiedImportEngine onNotice={onNotice} initialJobId={initialImportJobId} />
+      <UnifiedImportEngine onNotice={onNotice} initialJobId={initialImportJobId} initialSection={section === 'import-history' ? 'history' : 'upload'} />
     </>;
   }
 
@@ -2827,6 +2827,11 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
         {canManageImports && (
           <Button variant="outline" onClick={() => setSection('import')}>
             <FileText size={16} /> فتح محرك الاستيراد الموحد
+          </Button>
+        )}
+        {canManageImports && (
+          <Button variant="outline" onClick={() => setSection('import-history')}>
+            <ClipboardList size={16} /> سجل دفعات الاستيراد
           </Button>
         )}
         {rolesCanAccessView(user?.roles ?? [], "data") && (
