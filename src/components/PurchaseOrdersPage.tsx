@@ -87,13 +87,13 @@ function PurchaseOrderCreatePanel({ activeSuppliers, warehouses, products, busy,
       {!hasReferences && <p className="po-muted">يلزم توفر مورد نشط وصنف نشط ومخزن نشط قبل إنشاء أمر الشراء. لا تُنشأ سجلات بديلة تلقائيًا.</p>}
       <div className="po-create-grid">
         <label className="po-field">المورد
-          <select value={supplierId} onChange={(event) => onSupplierChange(event.target.value)} disabled={busy || !activeSuppliers.length}>
+          <select aria-label="المورد" value={supplierId} onChange={(event) => onSupplierChange(event.target.value)} disabled={busy || !activeSuppliers.length}>
             <option value="">اختر موردًا نشطًا</option>
             {activeSuppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}{supplier.supplier_code ? " · " + supplier.supplier_code : ""}</option>)}
           </select>
         </label>
         <label className="po-field">المخزن المستلم
-          <select value={warehouseId} onChange={(event) => onWarehouseChange(event.target.value)} disabled={busy || !warehouses.length}>
+          <select aria-label="المخزن المستلم" value={warehouseId} onChange={(event) => onWarehouseChange(event.target.value)} disabled={busy || !warehouses.length}>
             <option value="">اختر مخزنًا نشطًا</option>
             {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}{warehouse.code ? " · " + warehouse.code : ""}</option>)}
           </select>
