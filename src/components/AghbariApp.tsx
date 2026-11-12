@@ -122,6 +122,26 @@ const adminPaths: Record<View, string> = {
 
 
 
+/**
+ * Scope low-risk cached admin references to the authenticated identity and session.
+ * Keeps category selectors in existing screens isolated across account/session changes.
+ */
+function useAdminScopedReadCacheKey(resource: string): string | undefined {
+  const { user, sessionRevision } = useAuth();
+  if (!user) return undefined;
+  const roles = [...user.roles].sort().join(",");
+  return [
+    "aghbari-admin-read-v1",
+    resource,
+    user.id,
+    user.profileId,
+    user.isStaff ? "staff" : "customer",
+    roles,
+    sessionRevision,
+  ].join(":");
+}
+
+
 type AdminRecordContext = Omit<AdminRecordContextData, "returnToView"> & { returnToView: View | null };
 
 type AdminSessionUser = NonNullable<ReturnType<typeof useAuth>["user"]>;
