@@ -210,6 +210,27 @@ async function main() {
     }
     purchaseWarehouse = warehouses[0];
 
+    // The seed-removal migration deliberately disables public publication and clears
+    // its warehouse. Re-enable it only in this disposable local P2 database, and only
+    // against the canonical organization + verified fixture warehouse created above.
+    const publication = await tx.unsafe(
+      "update public.storefront_publication_config as config " +
+      "set warehouse_id=$2::uuid,is_enabled=true,updated_at=pg_catalog.clock_timestamp() " +
+      "where config.singleton=true and config.organization_id=$1::uuid " +
+      "and exists (select 1 from public.warehouses w where w.id=$2::uuid " +
+      "and w.organization_id=$1::uuid and w.is_active=true and w.code='P2-LOCAL-E2E') " +
+      "returning config.organization_id,config.warehouse_id,config.is_enabled",
+      [organizationId, preferredWarehouseId],
+    );
+    if (
+      publication.length !== 1 ||
+      publication[0].organization_id !== organizationId ||
+      publication[0].warehouse_id !== preferredWarehouseId ||
+      publication[0].is_enabled !== true
+    ) {
+      throw new Error("The local P2 publication singleton did not bind to the verified tenant warehouse; refusing storefront setup.");
+    }
+
     await tx.unsafe(
       "insert into public.products(" +
       "id,organization_id,category_id,name,item_code,barcode,description,unit,base_price,cost_price,min_stock,status" +
@@ -365,9 +386,15 @@ async function main() {
     returnRevenueAccountId = revenueRows[0].id;
   });
 
-  const configuredTenant = await db.unsafe("select public.public_storefront_organization_id() as id");
-  if (configuredTenant[0]?.id !== organizationId) {
-    throw new Error("Local Storefront tenant does not resolve to the canonical test organization; refusing cross-tenant test setup.");
+  const configuredTenant = await db.unsafe(
+    "select public.public_storefront_organization_id() as organization_id, " +
+    "public.public_storefront_warehouse_id() as warehouse_id",
+  );
+  if (
+    configuredTenant[0]?.organization_id !== organizationId ||
+    configuredTenant[0]?.warehouse_id !== preferredWarehouseId
+  ) {
+    throw new Error("Local Storefront tenant/warehouse resolver does not match the canonical isolated P2 fixtures; refusing cross-tenant test setup.");
   }
 
   await appendFile(githubEnv, [
