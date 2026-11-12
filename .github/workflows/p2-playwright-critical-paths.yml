@@ -9,6 +9,8 @@ on:
       - "public/**"
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
+      - "scripts/test-local-endpoint-guard.mjs"
+      - "scripts/lib/local-endpoint-guard.mjs"
       - "e2e/**"
       - "playwright.config.ts"
       - "tsconfig.p2-e2e-typecheck.json"
