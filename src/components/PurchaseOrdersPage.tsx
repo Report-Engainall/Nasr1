@@ -54,7 +54,7 @@ function PurchaseOrderDraftLineRow({ line, index, products, busy, onProductChang
   return (
     <div className="po-line">
       <label className="po-field wide">الصنف
-        <select value={line.productId} onChange={(event) => onProductChange(event.target.value)} disabled={busy}>
+        <select aria-label="الصنف" value={line.productId} onChange={(event) => onProductChange(event.target.value)} disabled={busy}>
           <option value="">اختر صنفًا</option>
           {purchaseOrderProductOptions(products)}
         </select>
@@ -82,8 +82,8 @@ function PurchaseOrderCreatePanel({ activeSuppliers, warehouses, products, busy,
 }) {
   const hasReferences = activeSuppliers.length > 0 && warehouses.length > 0 && products.length > 0;
   return (
-    <section className="panel no-print">
-      <div className="panel-head"><div><h2>مسودة أمر شراء جديدة</h2><p>يمكن ترك تكلفة الوحدة فارغة إلى أن يؤكدها المورد؛ سيبقى الإجمالي غير مسجل.</p></div></div>
+    <section className="panel no-print" aria-labelledby="purchase-order-create-title">
+      <div className="panel-head"><div><h2 id="purchase-order-create-title">مسودة أمر شراء جديدة</h2><p>يمكن ترك تكلفة الوحدة فارغة إلى أن يؤكدها المورد؛ سيبقى الإجمالي غير مسجل.</p></div></div>
       {!hasReferences && <p className="po-muted">يلزم توفر مورد نشط وصنف نشط ومخزن نشط قبل إنشاء أمر الشراء. لا تُنشأ سجلات بديلة تلقائيًا.</p>}
       <div className="po-create-grid">
         <label className="po-field">المورد
