@@ -107,7 +107,16 @@ async function main() {
   let returnRevenueAccountId;
   const suffix = runKey.replaceAll("-", "").slice(-12);
 
-  await db.begin(async (tx) => {
+  await db.begin(async (rawTransaction) => {
+    // Preserve the original SQL failure while identifying the exact fixture statement.
+    // Parameter values are intentionally never logged.
+    const tx = {
+      unsafe: (query, parameters = []) => rawTransaction.unsafe(query, parameters).catch((cause) => {
+        const statement = String(query).replace(/\\s+/g, " ").slice(0, 240);
+        const message = String(cause?.message ?? cause);
+        throw new Error("P2_LOCAL_E2E_SQL_FAILED [" + statement + "]: " + message);
+      }),
+    };
     const tenant = await tx.unsafe(
       "select id from public.organizations where id=$1::uuid and is_active=true",
       [organizationId],
