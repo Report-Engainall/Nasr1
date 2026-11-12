@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchAdminProductOptions, fetchAdminProductOptionById, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchAdminProductOptions, fetchAdminProductOptionById, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
