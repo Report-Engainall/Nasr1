@@ -6,7 +6,7 @@ const migration = readFileSync(
   'utf8',
 );
 const labelMigration = readFileSync(
-  new URL('../../supabase/migrations/20261112010100_vip_customer_tier_preview_label.sql', import.meta.url),
+  new URL('../../supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql', import.meta.url),
   'utf8',
 );
 
