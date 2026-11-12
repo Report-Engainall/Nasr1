@@ -1,3 +1,18 @@
+# CURRENT EXECUTION CHECKPOINT — 2026-11-12 — CANONICAL MIGRATION SOURCE RECONCILED
+
+> Repository: `Report-Engainall/Nasr1`; source of truth: `main`.
+> Latest implementation commit with exact P1 pass: `7325ad53e39dbe9d8487db662101db07ad753e27` (the next commit updates this pointer and document only).
+> Active Supabase project: `aghbari-commerce-nasr1` (`tfdwtuwkdddnzgyhcoyy`), PostgreSQL 17.11, ACTIVE_HEALTHY.
+> Live ledger and `main` migration paths now match: 285 applied versions / 285 SQL files, 0 missing version IDs. 89 restored original archive blobs are byte-identical by Git SHA; three previously mis-timestamped Onyx import file paths have been corrected with SQL bytes unchanged. No SQL migration was re-applied and no production DDL or data was changed.
+> P1 Actions #43137529581 on exact implementation SHA `7325ad53...`: SUCCESS — Vitest 67/67 files and 515/515 tests; executive-liquidity migration contract 6/6; import history pagination 7/7; strict TypeScript PASS; production build PASS.
+> P2 Actions #43137529638 on the same SHA: was IN_PROGRESS at checkpoint. Authenticated E2E gate passed setup only; public UI smoke had not completed and tenant/order persistence run was skipped at the last check. Await actual P2 job conclusions before claiming browser acceptance.
+> Import history pagination is in `src/lib/api.ts` + `src/components/UnifiedImportEngine.tsx` with helper/tests in `src/lib/import-job-pagination.ts`; commit `22a6816f8497b7621450f819b78721c821a6949b`.
+> Worker #2: Issue #422 remains the coordination owner for reference-model observability / prompt persistence / AI governance / developer-tools Path B only. Category tree and Onyx entry points already on `main`; no duplicate rebuild.
+> No Vercel usage. No reference image was reopened. No production migration execution.
+> This is a source + P1 code verification checkpoint, not final GO. Remaining proof: finish P2 public browser smoke and tenant/order persistence, then validate actual operational data paths with non-empty controlled business data.
+
+---
+
 # CURRENT EXECUTION CHECKPOINT — 2026-11-12 — REFERENCE MODEL IMPLEMENTATION FOLLOW-UP
 
 > Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
