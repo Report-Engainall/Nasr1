@@ -185,7 +185,7 @@ export interface Supplier {
 export type PricingScope = 'default' | 'all' | 'product' | 'category';
 export type PricingCalculationMethod = 'add_percentage' | 'margin_percentage' | 'fixed_price' | 'add_subtract_amount';
 export type PricingBaseSource = 'base_price' | 'cost_price';
-export type PricingTargetTier = 'both' | 'wholesale' | 'retail';
+export type PricingTargetTier = 'both' | 'vip' | 'wholesale' | 'retail';
 
 export interface PricingRule {
   id: string;
