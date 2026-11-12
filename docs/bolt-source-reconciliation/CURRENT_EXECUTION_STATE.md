@@ -1,3 +1,18 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — FINANCIAL PRIVACY FIX & CURRENT TEST STATUS
+
+> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+> Current source-code SHA: `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`.
+> Exact P1 proof for this SHA: run [#43139543761](https://github.com/Report-Engainall/Nasr1/actions/runs/43139543761) SUCCESS — 68/68 test files, 524/524 tests, strict TypeScript PASS, production build PASS.
+> This SHA includes the earlier direct import-history entry point (`21284b94...`), local-only P2 fixture repair (`2e5c7e10...`), organization theme palette bridge (`ad044cf...`), and a security fix to customer-manager row sanitization (`d6f9421...`).
+> P1 failure on `ad044cf...` was TypeScript TS2345: `payload.rows.map(sanitizeCustomerManagerDirectoryRow)` passed the row index into the optional `includeFinancialFields` boolean. For any row index >0 this could include financial/profile fields in manager projection. Fixed with an explicit unary callback and a two-row regression assertion; no permission or financial projection was broadened.
+> Current P2 run [#43139543875](https://github.com/Report-Engainall/Nasr1/actions/runs/43139543875) tests source SHA `d6f9421...`; at checkpoint, public read-only Playwright assertions were IN_PROGRESS after exact-source build and local app launch. Infrastructure gate completed successfully but dedicated external E2E credential gate did not authorize remote writes; authenticated external path is SKIPPED. Local-only Supabase/PostgreSQL order/tenant test is dependent on the public UI smoke and has not yet started.
+> P2 fixture repair is restricted to the disposable loopback test stack: `P2-LOCAL-E2E-001` product + tier prices, `P2-LOCAL-E2E` warehouse, and `P2-LOCAL-RECEIPT` supplier. No hosted Supabase project, production credentials, migrations, or records were changed by the fixture script.
+> Theme palette commit `ad044cf...` applies tenant-scoped stored HEX palette values to validated design tokens and limits edits to managers/admins. A review note remains: the root bridge reads the full admin-settings projection rather than only the appearance keys; optimize later without duplicating the feature.
+> Path B is coordinated through [Issue #422](https://github.com/Report-Engainall/Nasr1/issues/422). The old `feat/reference-model-worker2-category-tree-2026-11-12` branch has 0 unique commits and is 66 commits behind; do not merge or repeat the old category-tree work. No new isolated Path B commit has been verified.
+> No Vercel build/deploy/preview, paid services, hosted database mutation, or production migration execution.
+> Release remains NO-GO until P2 local order/tenant/finance acceptance, remaining authorization evidence, and the hosted database migration/bootstrap design are resolved.
+
+---
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 FIXTURE RECONCILIATION
 
 > Repository: Report-Engainall/Nasr1; canonical branch: main.
