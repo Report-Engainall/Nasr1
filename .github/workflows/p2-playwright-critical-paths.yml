@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "src/**"
+      - "public/**"
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
       - "e2e/**"
