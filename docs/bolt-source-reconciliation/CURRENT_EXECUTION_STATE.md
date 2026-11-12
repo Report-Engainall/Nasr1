@@ -1,3 +1,15 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 FIXTURE RECONCILIATION
+
+> Repository: Report-Engainall/Nasr1; canonical branch: main.
+> Application UI commit: 21284b94fbc36001588a323f63a87feb97a93832. P1 run #43137987360 SUCCESS: 67/67 files, 516/516 tests, strict TypeScript PASS, production build PASS.
+> P2 run #43137987489 FAILED only at local fixture provisioning: after migrations successfully sanitized the demo seed, scripts/seed-p2-local-playwright.mjs still expected the deleted canonical product. The product was absent because migration 20261108000100_remove_initial_demo_seed.sql correctly removes synthetic demo catalogue/warehouse/supplier rows. The fixture step refused to fabricate data; all dependent authenticated, finance, stock and order tests were SKIPPED. No hosted database was contacted.
+> Test-harness fix commit: 2e5c7e10d8c3011cb664c1bd60ee9164093daa63. It changes only scripts/seed-p2-local-playwright.mjs, creating explicit deterministic P2-LOCAL-E2E product + tier prices + warehouse + receipt supplier only after loopback URL/port validation. It does not change migrations, application catalogue data, hosted Supabase, or production.
+> New exact-head P2 run #43138894163 is IN_PROGRESS (conclusion none); public UI smoke job 130920787657 was in progress at checkpoint. Authenticated local fixture/order test completion has not yet been proved.
+> Path B remains owned by programmer #2 via Issue #422 and the isolated folders in the fourth handoff; old worker branch has 0 unique commits and is 66 commits behind main. No stale branch merge.
+> No Vercel build/deploy/preview, paid service, production database change, or migration execution was performed.
+> Release remains NO-GO pending exact-SHA P2/tenant/finance proofs and remaining product gaps.
+
+---
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PATH A IMPORT HISTORY ENTRY POINT
 
 > Repository: Report-Engainall/Nasr1; canonical branch: main.
