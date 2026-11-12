@@ -51,6 +51,21 @@ describe('parsePublicStorefrontCategories', () => {
     expect(categories).toEqual(parsePublicStorefrontCategories([validCategory]));
   });
 
+  it('retries transient HTTP 503 category RPC responses using the response status', async () => {
+    let attempts = 0;
+    const { retryRead } = await import('./retry');
+    const categories = await retryRead(() => readPublicStorefrontCategories(async () => {
+      attempts += 1;
+      if (attempts < 3) {
+        return { data: null, error: new Error('temporary category outage'), status: 503 };
+      }
+      return { data: [validCategory], error: null, status: 200 };
+    }), { sleep: async () => undefined });
+
+    expect(attempts).toBe(3);
+    expect(categories).toEqual(parsePublicStorefrontCategories([validCategory]));
+  });
+
   it('propagates an RPC error instead of parsing the response envelope', async () => {
     const rpcError = Object.assign(new Error('category RPC unavailable'), { code: 'PGRST000' });
     await expect(readPublicStorefrontCategories(async () => ({
