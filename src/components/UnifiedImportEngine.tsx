@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
   applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, ensureCustomerImportProfile, failImportJobSafely, fetchCentralSynonyms,
-  fetchImportJobs, fetchImportProfiles, fetchOnyxSnapshots, fetchOnyxSnapshotRows, rollbackImportSnapshot,
+  fetchImportJobsPage, fetchImportProfiles, fetchOnyxSnapshots, fetchOnyxSnapshotRows, rollbackImportSnapshot,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
   type AdminImportApplicationResult, type ImportRowErrorDetail, type OnyxSnapshotSummary, type OnyxSnapshotRow,
 } from "@/lib/api";
@@ -151,7 +151,41 @@ function describeRetryableImportStatus(
 export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId }: { onNotice: (message: string) => void; refreshVersion?: number; initialJobId?: string }) {
   const { user } = useAuth();
   const canRollbackImport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
-  const { data: jobs, loading, error, refetch } = useFetch(fetchImportJobs, [refreshVersion]);
+  const [jobs, setJobs] = useState<ImportJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [jobsPage, setJobsPage] = useState(1);
+  const [jobsTotalCount, setJobsTotalCount] = useState(0);
+  const [jobsTotalPages, setJobsTotalPages] = useState(1);
+  const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
+  const jobsRequestId = useRef(0);
+  const refetch = () => {
+    setJobsPage(1);
+    setJobsRefreshKey((current) => current + 1);
+  };
+
+  useEffect(() => {
+    let active = true;
+    const requestId = ++jobsRequestId.current;
+    setLoading(true);
+    setError("");
+    void fetchImportJobsPage(jobsPage).then((result) => {
+      if (!active || requestId !== jobsRequestId.current) return;
+      setJobs(result.rows);
+      setJobsTotalCount(result.totalCount);
+      setJobsTotalPages(result.totalPages);
+      if (result.page !== jobsPage) setJobsPage(result.page);
+    }).catch((cause) => {
+      if (!active || requestId !== jobsRequestId.current) return;
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل دفعات الاستيراد.");
+      setJobs([]);
+      setJobsTotalCount(0);
+      setJobsTotalPages(1);
+    }).finally(() => {
+      if (active && requestId === jobsRequestId.current) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [refreshVersion, jobsPage, jobsRefreshKey]);
   const { data: profiles } = useFetch(fetchImportProfiles, [refreshVersion]);
   const { data: storedSynonyms } = useFetch(fetchCentralSynonyms, [refreshVersion]);
   const { data: readySnapshots, loading: snapshotsLoading, error: snapshotsError, refetch: refetchSnapshots } =
@@ -1186,7 +1220,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
 
         <section className="panel import-jobs-panel">
           <div className="panel-head"><div><h2>سجل الدفعات</h2><p>البصمة والميتا والنتائج دون حفظ الملفات الخام</p></div><Button variant="outline" onClick={refetch}><RefreshCw size={15} /> تحديث</Button></div>
-          {loading ? <Loading /> : error ? <ErrorBox message={error} /> : jobs?.length ? <TableWrap><table>
+          {loading ? <Loading /> : error ? <ErrorBox message={error} /> : jobs.length ? <TableWrap><table>
             <thead><tr><th>الملف</th><th>المصدر</th><th>الحالة</th><th>DQS</th><th>الصفوف</th><th>التاريخ</th><th>الاستئناف</th><th>أخطاء الصفوف</th>{canRollbackImport && <th>التراجع</th>}</tr></thead>
             <tbody>{jobs.map((job) => <Fragment key={job.id}>
               <tr
@@ -1228,7 +1262,18 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                   </div>}
               </td></tr>}
             </Fragment>)}</tbody>
-          </table></TableWrap> : <Empty text="لا توجد دفعات مستوردة بعد" />}
+          </table></TableWrap> : <Empty text={jobsTotalCount > 0 ? "لا توجد دفعات في هذه الصفحة؛ حدّث السجل أو ارجع للصفحة السابقة." : "لا توجد دفعات مستوردة بعد"} />}
+          {!loading && !error && <div className="toolbar" aria-label="التنقل في سجل دفعات الاستيراد">
+            <span className="toolbar-note" aria-live="polite">
+              {formatNumber(jobsTotalCount)} دفعة • الصفحة {formatNumber(jobsPage)} من {formatNumber(jobsTotalPages)} • عرض {formatNumber(jobs.length)} سجلًا
+            </span>
+            <div className="toolbar-actions">
+              <Button variant="outline" disabled={loading || jobsPage <= 1}
+                onClick={() => setJobsPage((current) => Math.max(1, current - 1))}>السابق</Button>
+              <Button variant="outline" disabled={loading || jobsPage >= jobsTotalPages}
+                onClick={() => setJobsPage((current) => Math.min(jobsTotalPages, current + 1))}>التالي</Button>
+            </div>
+          </div>}
         </section>
       </div>
     </AdminPage>

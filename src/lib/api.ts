@@ -10,6 +10,7 @@ import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type Purc
 import { countLowStockBalances } from './inventory-metrics';
 import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
 import { buildProductAdminSearchFilter } from './product-admin-pagination';
+import { getImportJobsPageBounds } from './import-job-pagination';
 import { calculateBusinessInventoryValue } from './business-inventory-valuation';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
@@ -3093,6 +3094,55 @@ export async function fetchImportJobs(): Promise<ImportJob[]> {
   const { data, error } = await supabase.from('import_jobs').select('*').order('created_at', { ascending: false }).limit(30);
   if (error) throw error;
   return data as ImportJob[];
+}
+
+export type ImportJobsPage = {
+  rows: ImportJob[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+/**
+ * Loads one exact-count page of tenant-scoped import history.
+ * RLS remains authoritative; created_at + id ordering makes page boundaries stable.
+ */
+export async function fetchImportJobsPage(page = 1, pageSize = 30): Promise<ImportJobsPage> {
+  const requestedBounds = getImportJobsPageBounds(page, pageSize);
+  const loadPage = async (bounds: typeof requestedBounds) => supabase
+    .from('import_jobs')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(bounds.from, bounds.to);
+
+  let response = await loadPage(requestedBounds);
+  if (response.error) throw response.error;
+  let totalCount = response.count;
+  if (typeof totalCount !== 'number' || !Number.isSafeInteger(totalCount) || totalCount < 0) {
+    throw new Error('تعذر تأكيد إجمالي دفعات الاستيراد؛ لم يتم عرض عدد تقريبي.');
+  }
+
+  let bounds = getImportJobsPageBounds(page, pageSize, totalCount);
+  if (bounds.page !== page) {
+    // Rows may be removed while the operator is on a later page.
+    response = await loadPage(bounds);
+    if (response.error) throw response.error;
+    totalCount = response.count;
+    if (typeof totalCount !== 'number' || !Number.isSafeInteger(totalCount) || totalCount < 0) {
+      throw new Error('تعذر تأكيد إجمالي دفعات الاستيراد بعد تحديث الصفحة.');
+    }
+    bounds = getImportJobsPageBounds(bounds.page, pageSize, totalCount);
+  }
+
+  return {
+    rows: (response.data ?? []) as ImportJob[],
+    page: bounds.page,
+    pageSize: bounds.pageSize,
+    totalCount,
+    totalPages: bounds.totalPages!,
+  };
 }
 
 export async function fetchImportRows(jobId: string): Promise<ImportJobRow[]> {
