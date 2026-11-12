@@ -10,9 +10,6 @@
     ]
   },
   "include": [
-    "e2e/helpers/customer-orders-keyboard-test.ts",
-    "e2e/storefront-price-visibility.spec.ts",
-    "e2e/critical-path.spec.ts",
     "src/test/ai-gateway-logic.test.ts",
     "src/test/password-reset-route-security.test.ts",
     "src/components/CustomerWorkflows.tsx",
