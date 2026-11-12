@@ -58,6 +58,13 @@
     "src/components/AdminOrderCreationDialog.tsx",
     "src/components/AdminOrderCreationDialog.test.tsx",
     "src/lib/customer-directory.ts",
-    "src/lib/customer-directory.test.ts"
+    "src/lib/customer-directory.test.ts",
+    "src/components/AdminCategoryTree.tsx",
+    "src/lib/admin-access-matrix.ts",
+    "src/lib/admin-category-tree.ts",
+    "src/lib/admin-category-tree.test.ts",
+    "src/lib/admin-category-products.ts",
+    "src/routes/admin_.categories.tsx",
+    "src/test/admin-category-ui-command-wiring.test.ts"
   ]
 }
