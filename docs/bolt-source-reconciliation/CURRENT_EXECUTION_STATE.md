@@ -1,7 +1,7 @@
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PRICE FIXTURE ALIGNMENT & P2 REVALIDATION
 
 > Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
-> Current `main` HEAD: `d90f4a343d312d56ca10c895cca7740caf22e036`.
+> Latest exact source/test-harness SHA under P2: `d90f4a343d312d56ca10c895cca7740caf22e036` (the subsequent commits are documentation-only and do not alter this tested source).
 > Verified application code SHA remains `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`; P1 run #43139543761 SUCCESS on that exact source: 68/68 files, 524/524 tests, strict TypeScript PASS, production build PASS.
 > Local P2 fixture root cause is fully identified: migration `20261009060000_quantity_break_pricing.sql` replaces UNIQUE `(product_id,tier)` with UNIQUE `(product_id,tier,min_quantity)` to support quantity breaks. The fixture conflict target was corrected in commit `bf7f01f887bedd5358b2c32de5c0fd2fbad95f7a`; no schema or migration was modified.
 > Commit `d90f4a343d312d56ca10c895cca7740caf22e036` adds safe diagnostic context to the local fixture script only; if a SQL statement fails it reports the statement text without parameter values. It also includes the quantity-key repair through its parent. Current P2 run #43140634250 is IN_PROGRESS on this exact SHA; public UI smoke job #130926597475 is running, and local PostgreSQL acceptance job is dependent on that smoke and has not yet appeared.
