@@ -1,15 +1,16 @@
-# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 MANAGER CONTEXT DIAGNOSTICS
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 PROFILE VISIBILITY DIAGNOSTIC V2
 
-> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
-> Latest P2 source/test-harness SHA: `cb2c77a55f3ec21e72b205edb1577702d535d725`.
-> Application source P1 evidence remains on exact application SHA `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`: run #43139543761 SUCCESS, 68/68 files, 524/524 tests, strict TypeScript and production build PASS.
-> P2 run [#43142261299](https://github.com/Report-Engainall/Nasr1/actions/runs/43142261299) is IN_PROGRESS on `cb2c77a...`. Infra gate SUCCESS; public read-only Playwright job IN_PROGRESS. Local PostgreSQL acceptance is conditional and has not started while public smoke is running.
-> The previous P2 run #43141469421 on `fc796399...` proved: local services start; all repository migrations apply to PostgreSQL 17; fixture creation passes; endpoint guard tests pass. The first price-grid test then failed because `get_admin_product_price_grid()` rejected the test manager as lacking an active admin/manager context. Do not weaken the RPC authorization predicate.
-> New diagnostic commit `cb2c77a...` modifies only `scripts/test-price-grid-atomicity.mjs`; immediately after assuming the manager JWT, it asserts and prints (only on failure) `auth.uid`, `current_profile_id`, `current_organization_id`, database role, JWT subject, and same-tenant manager-role existence. It does not log email/password/service keys or price values.
-> Fixture scope is the disposable local loopback DB: canonical org `a000...0001`, local warehouse/product/prices/supplier `P2-LOCAL-*`, and singleton publication config rebound only to the verified local warehouse. No hosted database or migration was changed.
-> No Vercel, paid services, hosted Supabase mutation, production migration execution, or committed secrets.
-> Path B is still coordinated through Issue #422. The old category-tree branch has no unique commits and is 66 commits behind; no current Path B delivery is verified.
-> Release remains NO-GO until price-grid atomicity/audit/rollback/concurrency, cash journal, receipt accounting, stock and order paths, tenant isolation, and all skipped checks pass on the exact same tested source SHA.
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Last tested source/test-harness SHA: `db9c4ab60540ba5552d4e634ef831880a2fc3438`.
+> Application P1 proof remains on exact application SHA `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`: run #43139543761 SUCCESS — 68/68 test files, 524/524 tests, strict TypeScript PASS and production build PASS.
+> Latest P2 run [#43143290616](https://github.com/Report-Engainall/Nasr1/actions/runs/43143290616) tests source SHA `db9c4ab...`: infrastructure gate SUCCESS; public read-only UI smoke SUCCESS; local PostgreSQL/Supabase order+tenant job #130936170210 is now IN_PROGRESS at `Start isolated local Supabase services`. External authenticated E2E write path is SKIPPED (no authorized remote non-production credentials); do not treat SKIPPED as PASS.
+> Previous local run established that local migrations, canonical tenant/store resolver, user setup, and P2 fixtures can pass, but first real price-grid call was rejected because authenticated manager context resolved no profile/org. JWT subject and `auth.uid()` were correct; `current_profile_id()` and `current_organization_id()` were NULL. Do not weaken the price RPC's admin/manager guard.
+> New diagnostic added in `scripts/test-price-grid-atomicity.mjs` by `db9c4ab...` now captures visible profile ID/count/org, function owner and SECURITY DEFINER property, profiles table owner and FORCE RLS flag, and current profile policies, in addition to auth uid, profile/org helper output, database role, JWT subject and same-tenant role existence. No passwords, keys, emails or financial values are logged.
+> Current fixture/test stack remains disposable loopback Supabase/PostgreSQL only: canonical org, `P2-LOCAL-E2E` warehouse/product/prices/supplier, and existing storefront publication singleton rebound locally. No hosted Supabase, migrations in production, or production records changed.
+> Prior source fixes remain: import-history shortcut `21284b94...`; palette bridge `ad044cf...`; customer-directory financial-field map fix `d6f9421...`; local test fixture alignment `2e5c7e10...`, quantity-tier unique key `bf7f01f...`, diagnostics `d90f4a3...`, storefront publication local bind `fc796399...`, manager identity diagnostic `cb2c77a...`.
+> Path B remains coordinated through Issue #422, limited to observability, prompt persistence, AI governance and developer tools. Old category-tree branch is stale and has no unique commits; no new B delivery is verified.
+> No Vercel build/deploy/preview, paid services, hosted database mutation, or production migration execution.
+> Release remains NO-GO until price-grid transaction/audit/rollback/concurrency, cash/receipt accounting, order persistence, tenant isolation and all remaining permission/browser evidence pass on exact source SHAs.
 
 ---
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 FIXTURE RECONCILIATION

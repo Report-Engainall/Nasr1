@@ -312,3 +312,15 @@ P2 run #43137987489 على SHA التطبيق نفسه كان IN_PROGRESS عند
 تشغيل P2 التالي `#43142261299` على SHA `cb2c77a...` بدأ؛ infra gate SUCCESS، Public UI smoke قيد التنفيذ. اختبار PostgreSQL المحلي الذي سيشغّل تشخيص المدير ينتظر نجاح public smoke. لم يُثبت بعد نجاح price grid أو المحاسبة أو الطلبات أو العزل؛ لا تحتسب خطوات SKIPPED على أنها PASS.
 
 P1 code proof remains `d6f9421...` (#43139543761): 68/68 files, 524/524 tests, strict TypeScript PASS, production build PASS. No app code changed after that SHA in this test-harness sequence.
+
+## 6.14 — تشخيص ظهور الملف الشخصي تحت authenticated — 12 نوفمبر 2026
+
+في تشغيل P2 `#43142261299` ظهر أن JWT subject و`auth.uid()` صحيحان ودور قاعدة البيانات `authenticated`، لكن `public.current_profile_id()` و`public.current_organization_id()` يرجعان NULL، مع رفض شبكة الأسعار بسبب غياب admin/manager context. هذا لا يبرر تعديل RPC أو تخفيف شرط الصلاحية.
+
+تم توسيع التشخيص في commit `db9c4ab60540ba5552d4e634ef831880a2fc3438` داخل `scripts/test-price-grid-atomicity.mjs` فقط. بالإضافة إلى هوية JWT، يطبع التشخيص عند الإخفاق: profile ID/count/org المرئي مباشرة داخل جلسة authenticated، owner لدالة `current_profile_id()` وهل هي SECURITY DEFINER، owner لجدول profiles وهل FORCE ROW LEVEL SECURITY مفعّل، وأسماء سياسات profiles الحالية. لا يخرج أسراراً أو بيانات مالية.
+
+التشغيل الجديد [#43143290616](https://github.com/Report-Engainall/Nasr1/actions/runs/43143290616) على SHA `db9c4ab...`: infrastructure gate SUCCESS؛ public read-only Playwright UI smoke SUCCESS؛ local Supabase/PostgreSQL acceptance job `130936170210` بدأ عند خطوة تشغيل الخدمات المحلية. اختبار الطلبات والعزل لم يكتمل بعد؛ والاختبار الخارجي المصادق SKIPPED لغياب تفويض وبيانات كتابة غير إنتاجية على Supabase مستضافة.
+
+P1 remains PASS on application SHA `d6f9421...`: 68/68 test files, 524/524 tests, strict TypeScript and production build. This does not prove the P2 transaction and tenant paths.
+
+الخطوة التالية: انتظر fixture ثم اقرأ تشخيص profiles. إن أثبت أن وظيفة تحديد السياق لا تستطيع قراءة الملف الشخصي بسبب RLS أو ملكية الوظيفة، أصلح عقد RLS/المساعدة بأقل migration آمن وأضف اختبارين: own profile readable + cross-tenant profile unreadable. لا تُضعف عزل المؤسسة ولا bypass من جهة العميل.
