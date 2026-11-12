@@ -4838,3 +4838,18 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Acceptance remains **PARTIAL / OPEN**. No real-browser cold/warm route timings, P75/P95, query-plan evidence or database index acceptance has been collected. The first storefront `index` chunk remains 385.32 KB / 120.10 KB gzip in the latest build. Do not interpret the admin chunk reduction as a storefront-wide speedup.
 - No Supabase migrations, indexes, live database state, production configuration or deployment were changed.
 - Next: collect per-route browser waterfalls and P75/P95; profile the dashboard `fetch_staff_orders` and full `fetchProducts` reads; only then make plan-backed, tenant-safe SQL/RPC/index changes. See the dedicated checkpoint for exact files, sizes and acceptance boundaries.
+
+
+---
+
+# ACTIVE REFERENCE-MODEL RECONCILIATION CHECKPOINT — 2026-11-12
+
+> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+> Reference/source review was performed against application-code HEAD `8aa5aefb25f3430092fa0b3d6e3426c1446b8af2`.
+> Full programmer brief: [`docs/reference-model-reconciliation/REFERENCE_MODEL_GAP_CLOSURE_REPORT_2026-11-12.md`](../reference-model-reconciliation/REFERENCE_MODEL_GAP_CLOSURE_REPORT_2026-11-12.md).
+> Report commit: `c148b23c0adfd531349072729698a8032727e32f` (documentation only).
+> Original reference archive is durably retained in the ChatGPT Library at `/Nasr1-Reference-Model-2026-11-12/all.rar`; the report copy is stored beside it.
+> Archive inventory: 84 PNG screenshots + architecture Markdown + architecture JSON + reference-links TXT; archive SHA-256 `76636460bd369a14ab821c3aa5f676b67b02fe29d0780c61e088d5f3ef8d464a`.
+> Required implementation policy: preserve every current Nasr1 feature, reuse existing engines, and add only missing reference screens/capabilities. Main admin groups remain the existing six `ADMIN_NAV_GROUPS`; add the separate restricted Developer Tools group only for the four new developer pages. Build group cards from the same navigation registry. Complete the category hierarchy above existing `parent_id`; do not create a second category engine.
+> Review boundary: source mapping only; no application code, Supabase schema/data/RLS, production deployment, or Vercel action was changed by this report task. The Vercel browser view was not accepted as runtime proof. Follow the evidence requirements in the linked report and do not transfer PASS across SHAs.
+> Resume instruction: read the linked report and retrieve the archived `all.rar` from the Library path above, then fetch the current `main` HEAD before implementing. Do not repeat the archive inventory or source review unless a new code SHA materially changes the route/component map.
