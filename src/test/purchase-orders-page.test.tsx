@@ -119,6 +119,16 @@ describe('purchase orders page',()=>{
     expect(mocks.fetchPurchaseOrders).not.toHaveBeenCalled();
   });
 
+  it('exposes the purchase draft as a named region and labels all reference selectors',async()=>{
+    render(<PurchaseOrdersPage/>);
+    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
+    const draft = within(screen.getByRole('region',{name:'مسودة أمر شراء جديدة'}));
+    expect(draft.getByLabelText('المورد')).toBeInTheDocument();
+    expect(draft.getByLabelText('المخزن المستلم')).toBeInTheDocument();
+    expect(draft.getByLabelText('الصنف')).toBeInTheDocument();
+  });
+
   it('creates a target-native draft while preserving an unknown unit cost as null',async()=>{
     vi.stubGlobal('crypto',{randomUUID:()=> '22222222-2222-4222-8222-222222222222'});
     render(<PurchaseOrdersPage/>);
