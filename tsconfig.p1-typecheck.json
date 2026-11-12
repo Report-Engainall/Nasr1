@@ -65,6 +65,7 @@
     "src/lib/admin-category-tree.test.ts",
     "src/lib/admin-category-products.ts",
     "src/routes/admin_.categories.tsx",
-    "src/test/admin-category-ui-command-wiring.test.ts"
+    "src/test/admin-category-ui-command-wiring.test.ts",
+    "src/routeTree.gen.ts"
   ]
 }
