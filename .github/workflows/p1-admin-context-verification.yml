@@ -7,6 +7,7 @@ on:
     paths:
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
+      - "src/components/reference-model/**"
       - "src/lib/admin-dashboard-groups.ts"
       - "src/lib/admin-dashboard-groups.test.ts"
       - "src/lib/types.ts"
@@ -101,6 +102,7 @@ on:
     paths:
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
+      - "src/components/reference-model/**"
       - "src/lib/admin-dashboard-groups.ts"
       - "src/lib/admin-dashboard-groups.test.ts"
       - "src/lib/types.ts"
