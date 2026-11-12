@@ -1,3 +1,19 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — P3 PATH B ROUTER ARCHITECTURE REGISTRY
+
+> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+> Exact application-code SHA: `b96a9507eea778b58b3f00ea842a88b7bef0aebd`.
+> P1 exact-SHA verification [#43333088811](https://github.com/Report-Engainall/Nasr1/actions/runs/43333088811): **SUCCESS** — 69/69 Vitest files, 530/530 tests, strict TypeScript PASS, production application build PASS. This evidence applies only to the exact SHA above.
+> P2 [#43333088841](https://github.com/Report-Engainall/Nasr1/actions/runs/43333088841) was IN_PROGRESS at checkpoint: authenticated infrastructure gate SUCCESS (setup only); public storefront read-only Playwright smoke running; authenticated order/tenant-isolation job SKIPPED. Do not treat SKIPPED or an in-progress browser job as PASS.
+> P3 Path B implementation adds a read-only route architecture registry from the actual TanStack Router file tree and existing `ADMIN_NAV_GROUPS`, plus an RTL panel and regression tests. Files: `src/lib/reference-model/observability/architecture-registry.ts`, `src/components/reference-model/observability/ArchitectureRegistryPanel.tsx`, and `src/components/reference-model/observability/ArchitectureRegistryPanel.test.tsx`.
+> Code sequence: source base `72e1589e143277d8df7184a1dc205fc067700732`; initial implementation `6ab6dbef6c0cf1aa8402308bc9ba4e4bb10f64ad`; regression fixes `750da72799643acb161c883b2163f157027fe05a`, `ac798a775ed43f026d59c09a2202d91a7a0152de`, and final tested code `b96a9507eea778b58b3f00ea842a88b7bef0aebd`.
+> The registry preserves distinct route nodes even when generated route IDs repeat; duplicate object references are skipped and ambiguous IDs produce warnings. It uses the existing admin-navigation group source rather than a second hand-built map. The panel is read-only and explicitly disclaims inference of deployment, authorization, server health or RLS state.
+> Integration boundary: the panel is **not yet mounted** in the live admin workspace. P1 owns mounting it inside an existing manager/admin-only view, with no duplicate route/navigation entry, plus responsive/keyboard/browser acceptance. Do not expose internal admin route metadata to customer users.
+> No migrations, SQL, RPCs, RLS, authentication, financial, inventory or production data were changed. No Vercel build/deploy or paid service was used. No reference-project code was copied in this batch; no third-party license obligations were introduced.
+> Persistent error-log storage and verified system-health probes remain unavailable in the inspected source boundary; no fake errors, health probes or HEALTHY status were created. Prompt persistence remains blocked on an authorized persistence contract.
+> Global release remains **NO-GO**; the P2 price-grid/profile visibility, finance/order/tenant authorization and other exact-SHA acceptance blockers below remain open.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 PROFILE VISIBILITY DIAGNOSTIC V2
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.

@@ -1,10 +1,21 @@
-# P3 Execution Checkpoint — Superseding Update — 2026-11-12
+# P3 Execution Checkpoint — Superseding Update — 2026-11-13
 
 Repository: `Report-Engainall/Nasr1`
 Canonical branch: `main`
-Main code-verification SHA: `89bd6d5285db7c20f9e43a835d7f3d4abd865f97`
-Documentation commits after this code SHA do not change application source.
-Exact code-verification SHA: `89bd6d5285db7c20f9e43a835d7f3d4abd865f97`
+Main code-verification SHA: `b96a9507eea778b58b3f00ea842a88b7bef0aebd`
+Exact code-verification SHA: `b96a9507eea778b58b3f00ea842a88b7bef0aebd`
+Exact P1 Actions run [#43333088811](https://github.com/Report-Engainall/Nasr1/actions/runs/43333088811) SUCCESS: 69/69 Vitest files, 530/530 tests, strict TypeScript PASS, production build PASS. No result is transferred to another code SHA.
+P2 Actions [#43333088841](https://github.com/Report-Engainall/Nasr1/actions/runs/43333088841) was still IN_PROGRESS at checkpoint: public read-only storefront smoke active; infrastructure setup gate SUCCESS; customer/order/tenant isolation SKIPPED.
+
+## Path B — delivered code and limits
+
+- Added `src/lib/reference-model/observability/architecture-registry.ts`: derives a read-only inventory from the actual TanStack route tree and existing `ADMIN_NAV_GROUPS`; records route ID, path, parent, surface, existing admin group, dynamic segment count and child presence.
+- Added `src/components/reference-model/observability/ArchitectureRegistryPanel.tsx`: Arabic RTL read-only summary and route table, with explicit evidence boundary. It does not assert that a route is deployed, authorized, healthy or RLS-accessible.
+- Added `src/components/reference-model/observability/ArchitectureRegistryPanel.test.tsx`: verifies actual route coverage, repeated generated IDs without dropping distinct route nodes, duplicate object-reference handling, synthetic API classification, admin-group mapping, dynamic paths and RTL panel boundary.
+- Implementation commit chain: `6ab6dbef6c0cf1aa8402308bc9ba4e4bb10f64ad` → `750da72799643acb161c883b2163f157027fe05a` → `ac798a775ed43f026d59c09a2202d91a7a0152de` → `b96a9507eea778b58b3f00ea842a88b7bef0aebd`.
+- P1 integration remains pending: mount in an existing manager/admin-only view; keep access control in the existing protected route; do not add a duplicate route or menu item. Browser/mobile/keyboard acceptance of the panel remains NOT RUN.
+- No durable runtime-error storage source was found; keep `BLOCKED_NO_PERSISTENT_SOURCE` and do not fabricate error rows. Existing system-health aggregation is not itself a health probe; no fake healthy checks were added. Prompt-library persistence remains blocked pending a real authorized storage/API contract.
+- No database, RPC, RLS, authentication, finance, inventory or production mutation. No Vercel or paid service use. No reference source code was transplanted in this batch; third-party license status remains unchanged.
 
 ## Completed on main
 
