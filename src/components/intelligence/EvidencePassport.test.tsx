@@ -114,6 +114,7 @@ describe("EvidencePassport", () => {
   it("does not render a fabricated source list when the passport has no evidence records", () => {
     const withoutRecords: PassportData = { ...passport, evidenceRecords: [] };
     render(<EvidencePassport passport={withoutRecords} />);
-    expect(screen.queryByRole("heading", { name: "المصادر" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/وقت المصدر:/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("evidence-metric-card")).toBeInTheDocument();
   });
 });
