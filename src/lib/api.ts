@@ -979,7 +979,7 @@ export async function fetchCategories(): Promise<Category[]> {
 
   if (!sessionData.session?.user.id) {
     return await retryRead(async () => readPublicStorefrontCategories(
-      () => supabase.rpc('get_public_storefront_categories'),
+      async () => await supabase.rpc('get_public_storefront_categories'),
     ));
   }
 
