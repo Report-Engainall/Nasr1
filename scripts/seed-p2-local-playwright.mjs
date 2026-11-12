@@ -182,24 +182,66 @@ async function main() {
       throw new Error("The isolated company expiry browser test requires one customer-owned expired invitation.");
     }
 
+    // Demo-seed sanitation intentionally removes demo catalogue rows. Recreate only
+    // deterministic P2 test fixtures in this local-only database. Loopback endpoint
+    // validation above rejects hosted Supabase and non-local PostgreSQL before this point.
+    await tx.unsafe(
+      "insert into public.warehouses(id,organization_id,branch_id,name,code,is_active) " +
+      "values($1::uuid,$2::uuid,NULL,'P2 Local E2E Warehouse','P2-LOCAL-E2E',true) " +
+      "on conflict(id) do nothing",
+      [preferredWarehouseId, organizationId],
+    );
+    const warehouses = await tx.unsafe(
+      "select id,organization_id,name,code from public.warehouses " +
+      "where id=$1::uuid and organization_id=$2::uuid and is_active=true and code='P2-LOCAL-E2E'",
+      [preferredWarehouseId, organizationId],
+    );
+    if (warehouses.length !== 1) {
+      throw new Error("The isolated P2 warehouse fixture is missing, inactive, or owned by another tenant.");
+    }
+    purchaseWarehouse = warehouses[0];
+
+    await tx.unsafe(
+      "insert into public.products(" +
+      "id,organization_id,category_id,name,item_code,barcode,description,unit,base_price,cost_price,min_stock,status" +
+      ") values($1::uuid,$2::uuid,NULL,'P2 Local E2E Product','P2-LOCAL-E2E-001',NULL," +
+      "'Non-production fixture for isolated GitHub Actions acceptance','carton',38500,0,0,'active') " +
+      "on conflict(id) do nothing",
+      [productId, organizationId],
+    );
     const product = await tx.unsafe(
-      "select id,item_code,name,unit from public.products where id=$1::uuid and organization_id=$2::uuid and status='active'",
+      "select id,organization_id,item_code,name,unit,status from public.products " +
+      "where id=$1::uuid and organization_id=$2::uuid and item_code='P2-LOCAL-E2E-001' and status='active'",
       [productId, organizationId],
     );
     if (product.length !== 1) {
-      throw new Error("The canonical local test product is missing or inactive; refusing to fabricate catalog/pricing records.");
+      throw new Error("The isolated P2 product fixture is missing, inactive, or owned by another tenant.");
     }
     purchaseProduct = product[0];
-
-    const warehouses = await tx.unsafe(
-      "select id,name,code from public.warehouses where organization_id=$1::uuid and is_active=true " +
-      "order by (id=$2::uuid) desc,id limit 1",
-      [organizationId, preferredWarehouseId],
+    await tx.unsafe(
+      "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values " +
+      "($1::uuid,'retail',38500,1,true),($1::uuid,'wholesale',37000,10,true),($1::uuid,'vip',35500,20,true) " +
+      "on conflict(product_id,tier) do update set price=excluded.price,min_quantity=excluded.min_quantity,is_active=true",
+      [productId],
     );
-    if (warehouses.length !== 1) {
-      throw new Error("The canonical storefront organization needs an active warehouse for the local E2E test.");
+
+    // Source-linked SQL receipt acceptance uses this fixed supplier; the browser
+    // purchase-order flow gets its own per-run supplier below.
+    const receiptSupplierId = "a2000000-0000-0000-0000-000000000001";
+    await tx.unsafe(
+      "insert into public.suppliers(id,organization_id,supplier_code,name,status) " +
+      "values($1::uuid,$2::uuid,'P2-LOCAL-RECEIPT','P2 Local E2E Receipt Supplier','active') " +
+      "on conflict(id) do nothing",
+      [receiptSupplierId, organizationId],
+    );
+    const receiptSuppliers = await tx.unsafe(
+      "select id from public.suppliers where id=$1::uuid and organization_id=$2::uuid " +
+      "and supplier_code='P2-LOCAL-RECEIPT' and status='active'",
+      [receiptSupplierId, organizationId],
+    );
+    if (receiptSuppliers.length !== 1) {
+      throw new Error("The isolated P2 receipt supplier fixture is missing, inactive, or owned by another tenant.");
     }
-    purchaseWarehouse = warehouses[0];
     await tx.unsafe(
       "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
       "values($1::uuid,$2::uuid,100,0,0) " +
