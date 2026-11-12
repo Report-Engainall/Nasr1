@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  new URL("../../supabase/migrations/20261110103000_admin_import_snapshot_replay_safety.sql", import.meta.url),
+  new URL("../../supabase/migrations/20261110183523_admin_import_snapshot_replay_safety.sql", import.meta.url),
   "utf8",
 );
 

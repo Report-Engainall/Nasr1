@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - "supabase/migrations/**"
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
       - "src/components/AdminCategoryTree.tsx"
@@ -128,6 +129,7 @@ on:
     branches:
       - main
     paths:
+      - "supabase/migrations/**"
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
       - "src/components/AdminCategoryTree.tsx"
