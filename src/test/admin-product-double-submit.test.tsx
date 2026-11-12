@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   uploadProductImage: vi.fn(),
 }));
 
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: null, sessionRevision: 0 }),
+}));
+
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return {

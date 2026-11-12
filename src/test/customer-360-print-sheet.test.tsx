@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { Customer360PrintSheet } from "@/components/Customer360PrintSheet";
 import type { Customer360PrintDocument } from "@/lib/customer-360-print";
 
@@ -42,6 +42,7 @@ function makeDocument(
 }
 
 describe("Customer360PrintSheet recent order rows", () => {
+  afterEach(() => cleanup());
   it("renders every supplied recent order row", () => {
     render(
       <Customer360PrintSheet

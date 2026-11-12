@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EvidencePassport as PassportData } from "@/lib/intelligence/types";
 import { EvidencePassport } from "./EvidencePassport";
 
@@ -70,6 +70,7 @@ const passport: PassportData = {
 };
 
 describe("EvidencePassport", () => {
+  afterEach(() => cleanup());
   it.each([
     ["loading", "جارٍ تحميل سجل الأدلة…"],
     ["empty", "لا توجد مؤشرات أو أدلة للفترة المحددة."],

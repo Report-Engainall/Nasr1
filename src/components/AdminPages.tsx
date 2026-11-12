@@ -72,7 +72,7 @@ function NotificationRow({
         {!notification.is_read && (
           <Button
             variant="ghost"
-            aria-label={`تعليم التنبيه كمقروء: ${notification.title}`}
+            ariaLabel={`تعليم التنبيه كمقروء: ${notification.title}`}
             onClick={() => onRead(notification.id)}
           >
             تعليم كمقروء
@@ -1521,14 +1521,16 @@ export function Button({
   onClick,
   disabled,
   type = 'button',
+  ariaLabel,
 }: {
   children: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
   onClick?: () => void;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
+  ariaLabel?: string;
 }) {
-  return <button type={type} className={`btn ${variant}`} onClick={onClick} disabled={disabled}>{children}</button>;
+  return <button type={type} aria-label={ariaLabel} className={`btn ${variant}`} onClick={onClick} disabled={disabled}>{children}</button>;
 }
 export function TableWrap({ children }: { children: React.ReactNode }) { return <div className="table-wrap">{children}</div>; }
 export function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
