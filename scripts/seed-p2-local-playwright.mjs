@@ -221,7 +221,7 @@ async function main() {
     await tx.unsafe(
       "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values " +
       "($1::uuid,'retail',38500,1,true),($1::uuid,'wholesale',37000,10,true),($1::uuid,'vip',35500,20,true) " +
-      "on conflict(product_id,tier) do update set price=excluded.price,min_quantity=excluded.min_quantity,is_active=true",
+      "on conflict(product_id,tier,min_quantity) do update set price=excluded.price,is_active=true",
       [productId],
     );
 
