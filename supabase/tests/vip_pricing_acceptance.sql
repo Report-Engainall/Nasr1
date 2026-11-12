@@ -127,7 +127,7 @@ VALUES
  ('11111111-1111-4111-8111-111111111112','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','legacy wholesale','wholesale',false),
  ('11111111-1111-4111-8111-111111111113','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','legacy retail','retail',false);
 
-\ir ../migrations/20261112010000_allow_vip_pricing_rule_target.sql
+\ir ../migrations/20261112000527_allow_vip_pricing_rule_target.sql
 \ir ../migrations/20261112010100_vip_customer_tier_preview_label.sql
 
 INSERT INTO public.products(id,organization_id,category_id,base_price,cost_price)
