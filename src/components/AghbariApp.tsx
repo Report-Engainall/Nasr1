@@ -186,7 +186,19 @@ function AdminWorkspaceContent({
     case "products":
       return <Products onNotice={onNotice} initialSearch={recordContext?.kind === "product" ? recordContext.query : undefined} />;
     case "categories":
-      return <AdminCategoryTree onNotice={onNotice} />;
+      return <AdminCategoryTree
+        onNotice={onNotice}
+        onOpenProduct={(product) => {
+          keepSourceContext(
+            "product",
+            product.item_code,
+            product.name,
+            "فتح المنتج من شجرة التصنيفات",
+            "products",
+          );
+          onNotice("تم فتح قائمة المنتجات مع البحث برمز المنتج المرتبط بالتصنيف.");
+        }}
+      />;
     case "customers":
       return <Customers onNotice={onNotice} initialSearch={recordContext?.kind === "customer" ? recordContext.query : undefined} />;
     case "service-desk":
