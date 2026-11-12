@@ -77,18 +77,56 @@ const customerOrdersFixtureHeaders = {
   "access-control-expose-headers": "content-range, range",
 };
 
-async function handleCustomerOrdersFixtureRequest(route: Route): Promise<void> {
-  const pathname = new URL(route.request().url()).pathname;
-  if (pathname === "/rest/v1/rpc/ensure_profile") {
+async function handleCustomerOrdersFixtureRequest(
+  route: Route,
+  authenticatedUser: ReturnType<typeof signedInCustomerFixtureSession>["user"],
+): Promise<void> {
+  const request = route.request();
+  const pathname = new URL(request.url()).pathname;
+
+  if (request.method() === "OPTIONS") {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-headers": "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+        "access-control-allow-methods": "GET,POST,OPTIONS",
+      },
+    });
+    return;
+  }
+
+  if (pathname === "/auth/v1/user" && request.method() === "GET") {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify(authenticatedUser),
+    });
+    return;
+  }
+
+  if (pathname === "/rest/v1/rpc/ensure_profile" && request.method() === "POST") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
       body: JSON.stringify(customerProfileFixture),
     });
     return;
   }
 
-  if (pathname === "/rest/v1/orders") {
+  if (pathname === "/rest/v1/rpc/ensure_my_customer_account" && request.method() === "POST") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: "true",
+    });
+    return;
+  }
+
+  if (pathname === "/rest/v1/orders" && request.method() === "GET") {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -111,14 +149,17 @@ export function registerCustomerOrdersKeyboardAcceptance() {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
+    const session = signedInCustomerFixtureSession();
     await page.addInitScript(({ storageKey, session }) => {
       window.localStorage.setItem(storageKey, JSON.stringify(session));
     }, {
-      storageKey: "sb-ci-placeholder-auth-token",
-      session: signedInCustomerFixtureSession(),
+      storageKey: "sb-tfdwtuwkdddnzgyhcoyy-auth-token",
+      session,
     });
 
-    await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", handleCustomerOrdersFixtureRequest);
+    await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
+      handleCustomerOrdersFixtureRequest(route, session.user),
+    );
 
     const response = await page.goto("/orders");
     expect(response?.status(), "Direct navigation to the real customer order route must resolve.").toBe(200);
