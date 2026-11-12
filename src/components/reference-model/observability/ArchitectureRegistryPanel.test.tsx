@@ -9,13 +9,14 @@ import {
 } from "@/lib/reference-model/observability/architecture-registry";
 
 describe("reference-model architecture registry", () => {
-  it("derives the inventory from the current router tree without duplicate route IDs", () => {
+  it("preserves route nodes when generated route IDs repeat across route scopes", () => {
     const registry = getCurrentArchitectureRegistry();
     expect(registry.source).toBe("TANSTACK_ROUTER_FILE_TREE");
     expect(registry.routes.length).toBeGreaterThan(0);
     expect(registry.routes.some((route) => route.path === "/checkout")).toBe(true);
     expect(registry.routes.some((route) => route.path === "/admin/ai")).toBe(true);
     expect(registry.warnings).toContain("DUPLICATE_ROUTE_ID");
+    expect(registry.routes.filter((route) => route.routeId === "/").length).toBeGreaterThan(1);
   });
 
   it("deduplicates the same object reference without dropping distinct routes", () => {
@@ -37,7 +38,8 @@ describe("reference-model architecture registry", () => {
       children: [{ id: "/api/statement-pdf", path: "/api/statement-pdf" }],
     });
 
-    expect(registry.routes[0]).toMatchObject({
+    const apiRoute = registry.routes.find((route) => route.routeId === "/api/statement-pdf");
+    expect(apiRoute).toMatchObject({
       routeId: "/api/statement-pdf",
       path: "/api/statement-pdf",
       surface: "API",
@@ -74,8 +76,11 @@ describe("reference-model architecture registry", () => {
 
     expect(screen.getByRole("region", { name: "سجل معمارية التطبيق" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "المسارات المسجلة في TanStack Router" })).toBeInTheDocument();
-    expect(screen.getByText("/admin/ai")).toBeInTheDocument();
-    expect(screen.getByText("البيانات والتشغيل")).toBeInTheDocument();
+    const aiRouteCell = screen.getByText("/admin/ai");
+    const aiRouteRow = aiRouteCell.closest("tr");
+    expect(aiRouteRow).not.toBeNull();
+    if (!aiRouteRow) throw new Error("admin_ai_route_row_missing");
+    expect(aiRouteRow).toHaveTextContent("البيانات والتشغيل");
     expect(screen.getByText(/لا يثبت نشرها أو إتاحتها للمستخدم/)).toBeInTheDocument();
   });
 });
