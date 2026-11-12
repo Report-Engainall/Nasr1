@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "supabase/migrations/20261112010100_vip_customer_tier_preview_label.sql"
+      - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
       - "src/lib/types.ts"
       - "src/lib/pricing-rule-tiers.ts"
@@ -95,7 +95,7 @@ on:
     branches:
       - main
     paths:
-      - "supabase/migrations/20261112010100_vip_customer_tier_preview_label.sql"
+      - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
       - "src/lib/types.ts"
       - "src/lib/pricing-rule-tiers.ts"
