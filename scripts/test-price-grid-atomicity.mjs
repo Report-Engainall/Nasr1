@@ -127,6 +127,28 @@ async function main() {
       assume(clientB,mgr.auth_user_id,mgr.email),
       assume(customer,cust.auth_user_id,cust.email),
     ]);
+    const managerContextRows = await manager.unsafe(
+      "select auth.uid()::text as auth_user_id, " +
+      "public.current_profile_id()::text as profile_id, " +
+      "public.current_organization_id()::text as organization_id, " +
+      "current_user as database_role, " +
+      "current_setting('request.jwt.claim.sub',true) as jwt_subject, " +
+      "exists (select 1 from public.profiles p join public.user_roles r on r.profile_id=p.id " +
+      "where p.auth_user_id=auth.uid() and p.is_active=true and p.organization_id=$1::uuid " +
+      "and r.role in ('admin','manager')) as has_admin_manager_role",
+      [orgId],
+    );
+    const managerContext = managerContextRows[0];
+    if (
+      managerContext?.auth_user_id !== mgr.auth_user_id ||
+      managerContext?.profile_id !== mgr.id ||
+      managerContext?.organization_id !== orgId ||
+      managerContext?.database_role !== "authenticated" ||
+      managerContext?.jwt_subject !== mgr.auth_user_id ||
+      managerContext?.has_admin_manager_role !== true
+    ) {
+      throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify(managerContext));
+    }
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
