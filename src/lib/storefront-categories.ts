@@ -66,9 +66,26 @@ export function parsePublicStorefrontCategories(value: unknown): Category[] {
  * Keep this boundary injectable so the response contract is unit-tested without a live database.
  */
 export async function readPublicStorefrontCategories(
-  callRpc: () => Promise<{ data: unknown; error: unknown | null }>,
+  callRpc: () => Promise<{ data: unknown; error: unknown | null; status?: number }>,
 ): Promise<Category[]> {
   const result = await callRpc();
-  if (result.error) throw result.error;
+  if (result.error) {
+    // PostgREST keeps the HTTP status on the response envelope, not always on its error object.
+    // Preserve the status when rethrowing so retryRead can retry only transient 5xx responses.
+    if (typeof result.status === 'number' && result.error && typeof result.error === 'object') {
+      const rpcError = result.error as Error & { status?: number };
+      try {
+        Object.defineProperty(rpcError, 'status', {
+          configurable: true,
+          value: result.status,
+        });
+      } catch {
+        const wrapped = new Error(rpcError.message || 'Public category RPC failed');
+        Object.assign(wrapped, { cause: result.error, status: result.status });
+        throw wrapped;
+      }
+    }
+    throw result.error;
+  }
   return parsePublicStorefrontCategories(result.data);
 }
