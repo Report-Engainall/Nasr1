@@ -1,3 +1,18 @@
+# CURRENT EXECUTION CHECKPOINT — 2026-11-12 — REFERENCE MODEL IMPLEMENTATION FOLLOW-UP
+
+> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+> Current application-code SHA under exact-head verification: `02733c0f6f7ee45ef225cd61213bfe0eab564efd`.
+> P1 GitHub Actions #43135765810 on that exact SHA: FAILURE due one missing finance-migration contract file in `src/test/executive-liquidity-command-center-migration.test.ts`; 66/67 test files passed; P1 strict TypeScript PASS; production build PASS.
+> P2 GitHub Actions #43135765863 on that exact SHA: read-only public Storefront Playwright smoke PASS; Authenticated E2E infrastructure gate PASS (setup only); legacy customer-order/tenant-isolation job SKIPPED; new isolated local Supabase/PostgreSQL 17 acceptance job #130911451248 IN_PROGRESS after local services started. Do not treat the run as complete.
+> Reference-model changes on main: Onyx snapshot/reconciliation entry points unified in Data Center; device-session revocation ambiguity now clears stale session rows and in-flight paging; notification action has a native accessible name; admin route test fixtures reflect lazy workspace and session revision; bulk product image uploader uses a synchronous ref lock with a double-click regression test.
+> Vercel automatic Git deployments disabled via `vercel.json` at commit `a1c5b4bc72880e813aaacd7df28c74f8d3967e18`. No Vercel deployment or credit use, no live Supabase schema/data changes, no production action in this continuation.
+> Finance blocker: current main lacks `20261106233100_executive_liquidity_command_center.sql`, `20261106310000_supplier_invoice_due_date_cashflow_outflows.sql`, `20261106320000_finance_cash_opening_and_bank_reconciliation.sql`, and `20261107000100_executive_liquidity_customer_aging_decision_snapshots.sql`. PR #411 is closed and `merged=false`; do not restore its SQL without validating all prerequisite tables, RLS, RPCs, ledger sources and idempotency against current main. The app must continue to show UNAVAILABLE rather than inferred cash, supplier due dates or balances.
+> Archive conflict: earlier text in this state file says the Library contains `/Nasr1-Reference-Model-2026-11-12/all.rar`, but current Files listing/search cannot resolve the folder and found no matching archive in 228 listed items. Treat retrieval as UNVERIFIED/BLOCKED until the exact Library object is accessible. Reported archive SHA-256 remains `76636460bd369a14ab821c3aa5f676b67b02fe29d0780c61e088d5f3ef8d464a`; do not re-audit the 84 screenshots.
+> Coordination: Path A implementation/checkpoint is in `docs/reference-model-reconciliation/04-REFERENCE-MODEL-IMPLEMENTATION-AND-HANDOFF_2026-11-12.md`. Path B remains restricted to the isolated AI governance/observability scope recorded there; no new Path B commit was found on this HEAD. No direct Chrome-session operation is claimed.
+> Release remains NO-GO. The exact-SHA evidence and blockers are recorded in the fourth handoff and the existing acceptance matrix. The historical checkpoints below are retained without rewriting their old SHAs or results.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — MAIN CODE + LIVE SUPABASE RECONCILIATION
 
 > Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
