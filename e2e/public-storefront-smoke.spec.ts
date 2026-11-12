@@ -47,13 +47,13 @@ async function routeAdvancedSearchFixture(
     });
     return;
   }
-  if (pathname === "/rest/v1/categories") {
+  if (pathname === "/rest/v1/rpc/get_public_storefront_categories" && request.method() === "POST") {
     state.categoryReads += 1;
     const success = state.allowCategorySuccess;
     await route.fulfill({
       status: success ? 200 : 503,
       contentType: "application/json",
-      headers: success ? { ...headers, "content-range": "0-0/*" } : headers,
+      headers,
       body: success ? "[]" : JSON.stringify({ message: "synthetic category outage" }),
     });
     return;
@@ -68,7 +68,7 @@ test("public storefront and login routes render without external backend writes"
 
   // The build uses a non-routable placeholder project. Intercept every request to it:
   // this browser smoke is intentionally read-only and must never depend on external credentials.
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -111,7 +111,7 @@ test("subcategory deep link renders the child category screen", async ({ page })
   };
 
   // All backend requests are deterministic local fixtures. Writes are blocked.
-  await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
 
@@ -133,34 +133,41 @@ test("subcategory deep link renders the child category screen", async ({ page })
       return;
     }
 
-    if (url.pathname === "/rest/v1/categories" && request.method() === "GET") {
+    if (url.pathname === "/rest/v1/rpc/get_public_storefront_categories" && request.method() === "POST") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        headers: { ...headers, "content-range": "0-1/2" },
+        headers,
         body: JSON.stringify([
-          {
-            id: parentId,
-            name: "Beverages",
-            name_en: "Beverages",
-            code: "BEV",
-            parent_id: null,
-            sort_order: 1,
-            is_active: true,
-            organization_id: organizationId,
-          },
-          {
-            id: childId,
-            name: "Juices",
-            name_en: "Juices",
-            code: "JUICE",
-            parent_id: parentId,
-            sort_order: 2,
-            is_active: true,
-            organization_id: organizationId,
-          },
+          { id: parentId, name: "Beverages", code: "BEV", parent_id: null, sort_order: 1, is_active: true },
+          { id: childId, name: "Juices", code: "JUICE", parent_id: parentId, sort_order: 2, is_active: true },
         ]),
       });
+      return;
+    }
+
+    if (url.pathname === "/rest/v1/rpc/get_storefront_catalog_page" && request.method() === "POST") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({ page: 1, page_size: 24, total_count: 0, total_pages: 0, items: [] }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/rest/v1/rpc/get_public_storefront_settings" && request.method() === "POST") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({ show_price_on_cards: false, show_price_in_cart: false, show_price_in_orders: false }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/rest/v1/rpc/get_storefront_announcements" && request.method() === "POST") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers, body: "[]" });
       return;
     }
 
@@ -169,7 +176,7 @@ test("subcategory deep link renders the child category screen", async ({ page })
       return;
     }
 
-    // Keep product, promotion, and other public reads inside this no-write fixture.
+    // Read-only fixture: any remaining PostgREST GET is empty and no mutation reaches the network.
     if (url.pathname.startsWith("/rest/v1/")) {
       await route.fulfill({
         status: 200,
@@ -204,7 +211,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
   };
 
   // A named dispatcher keeps route conditions shallow and preserves a no-write fixture.
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     routeAdvancedSearchFixture(route, headers, fixtureState),
   );
 
@@ -231,7 +238,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
 });
 
 test("reset-password rejects an invalid password without reporting success", async ({ page }) => {
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -281,7 +288,7 @@ test("cart and checkout ignore browser-stored money without an authorized server
   );
 
   // Deterministic, read-only API fixtures. No external database writes or credentials are used.
-  await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
@@ -358,34 +365,47 @@ test("cart and checkout ignore browser-stored money without an authorized server
       return;
     }
 
-    if (path === "/rest/v1/products" && request.method() === "GET") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers: { ...headers, "content-range": "0-0/1" },
-        body: JSON.stringify([{
-          id: productId,
-          organization_id: organizationId,
-          category_id: null,
-          name: "أرز اختبار",
-          item_code: "SKU-001",
-          barcode: null,
-          description: "اختبار إخفاء مبالغ التخزين المحلي",
-          unit: "كرتون",
-          status: "active",
-          image_url: null,
-          created_at: "2026-01-01T00:00:00Z",
-        }]),
-      });
+    if (path === "/rest/v1/rpc/get_public_storefront_categories" && request.method() === "POST") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers, body: "[]" });
       return;
     }
 
-    if (path === "/rest/v1/categories" && request.method() === "GET") {
+    if (path === "/rest/v1/rpc/get_storefront_catalog_page" && request.method() === "POST") {
+      const body = request.postDataJSON() as { p_page?: unknown; p_page_size?: unknown };
+      const page = typeof body.p_page === "number" ? body.p_page : 1;
+      const pageSize = typeof body.p_page_size === "number" ? body.p_page_size : 24;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        headers: { ...headers, "content-range": "0-0/0" },
-        body: "[]",
+        headers,
+        body: JSON.stringify({
+          page,
+          page_size: pageSize,
+          total_count: 1,
+          total_pages: 1,
+          items: [{
+            id: productId,
+            name: "أرز اختبار",
+            name_en: null,
+            item_code: "SKU-001",
+            sku: null,
+            barcode: null,
+            category_id: null,
+            brand_id: null,
+            unit: "كرتون",
+            description: "اختبار إخفاء مبالغ التخزين المحلي",
+            image_url: null,
+            is_active: true,
+            is_featured: false,
+            sort_order: 1,
+            status: "active",
+            created_at: "2026-01-01T00:00:00Z",
+            display_price: null,
+            min_order_quantity: 1,
+            order_quantity_multiple: 1,
+            inventory: { product_id: productId, quantity_available: 3 },
+          }],
+        }),
       });
       return;
     }
@@ -452,7 +472,7 @@ test("admin export URL reaches the hydrated export center in Chromium without ba
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   // Keep this proof read-only: all Supabase traffic is blocked at the non-routable CI placeholder.
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -477,7 +497,7 @@ test("admin export URL reaches the hydrated export center in Chromium without ba
 test("public customer routes preserve RTL and fit mobile and desktop viewports", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -522,7 +542,7 @@ test("public customer routes preserve RTL and fit mobile and desktop viewports",
 test("login supports keyboard-only focus and password-visibility control", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -578,7 +598,7 @@ test("customer navigation routes preserve metadata, RTL, and viewport fit", asyn
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   // This is a read-only browser acceptance: no production credentials and no backend writes.
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -635,7 +655,7 @@ test("customer navigation routes preserve metadata, RTL, and viewport fit", asyn
 test("customer account and offline routes preserve direct navigation, RTL, and viewport fit", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -671,7 +691,7 @@ test("customer account and offline routes preserve direct navigation, RTL, and v
 test("critical admin routes preserve direct navigation, RTL, and mobile viewport fit", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
 
@@ -691,7 +711,7 @@ test("critical admin routes preserve direct navigation, RTL, and mobile viewport
     { path: "/admin/settings", title: "الإعدادات | الأغبري" },
     { path: "/admin/quotes", title: "عروض الأسعار | لوحة الإدارة" },
     { path: "/admin/ai", title: "مركز الذكاء | الأغبري" },
-    { path: "/admin/devices", title: "أجهزة العملاء | الأغبري" },
+    { path: "/admin/devices", title: "الأجهزة والجلسات | متجر الأغبري" },
     { path: "/admin/inventory-transfers", title: "سجل تحويلات المخزون | متجر الأغبري" },
     { path: "/admin/purchase-orders", title: "أوامر الشراء | متجر الأغبري" },
   ];
