@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getSession: vi.fn(),
   getStorefrontDataScope: vi.fn(),
   getCurrentTenantScope: vi.fn(),
   from: vi.fn(),
@@ -15,7 +16,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase", () => ({
-  supabase: { from: mocks.from, rpc: mocks.rpc },
+  supabase: {
+    auth: { getSession: mocks.getSession },
+    from: mocks.from,
+    rpc: mocks.rpc,
+  },
   getStorefrontDataScope: mocks.getStorefrontDataScope,
   getCurrentTenantScope: mocks.getCurrentTenantScope,
 }));
@@ -78,6 +83,10 @@ function queryFor(table: string) {
 describe("public catalog privacy and tenant query contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: "catalog-test-authenticated-user" } } },
+      error: null,
+    });
     mocks.queries.splice(0);
     mocks.responses = {
       products: { data: [], error: null },
