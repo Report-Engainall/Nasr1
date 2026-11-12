@@ -467,11 +467,11 @@ test("cart and checkout ignore browser-stored money without an authorized server
 });
 
 
-test("admin export URL reaches the hydrated export center in Chromium without backend access", async ({ page }) => {
+test("admin export URL denies the protected export workspace to an unauthenticated visitor", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  // Keep this proof read-only: all Supabase traffic is blocked at the non-routable CI placeholder.
+  // An unauthenticated smoke visitor must not be given a fabricated admin session.
   await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
     route.abort("blockedbyclient"),
   );
@@ -479,14 +479,9 @@ test("admin export URL reaches the hydrated export center in Chromium without ba
   const response = await page.goto("/admin/exports");
   expect(response?.status(), "The direct export URL must resolve to an application response.").toBe(200);
   await expect(page).toHaveURL(/\/admin\/exports\/?$/);
-
-  // The first heading exists in the ClientOnly fallback; these additional controls prove hydration.
-  await expect(
-    page.getByRole("heading", { name: "تصدير الطلبات غير المتزامن", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "سجل طلباتي", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "تحديث السجل", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "إنشاء ملف CSV", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "تصدير الطلبات غير المتزامن", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "إنشاء ملف CSV", exact: true })).toHaveCount(0);
 
   expect(
     pageErrors,
