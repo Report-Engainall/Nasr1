@@ -2,7 +2,7 @@ export type AdminViewId =
   | "dashboard" | "products" | "customers" | "orders" | "pricing" | "offers" | "reports" | "data"
   | "operations" | "notifications" | "ai" | "suppliers" | "devices" | "settings" | "quotes"
   | "finance" | "tasks" | "audit" | "stock-count" | "inventory-transfers" | "purchase-orders"
-  | "intelligence" | "service-desk";
+  | "intelligence" | "service-desk" | "categories";
 
 export type AdminRoleId = "admin" | "manager" | "staff" | "accountant" | "customer_manager" | "customer";
 
@@ -13,7 +13,7 @@ export const ADMIN_NAV_GROUPS: ReadonlyArray<{
 }> = [
   { id: "executive", label: "القيادة والمتابعة", views: ["dashboard", "intelligence", "reports"] },
   { id: "sales", label: "المبيعات والعملاء", views: ["customers", "service-desk", "orders", "quotes"] },
-  { id: "catalog", label: "الكتالوج والتسعير", views: ["products", "pricing", "offers"] },
+  { id: "catalog", label: "الكتالوج والتسعير", views: ["products", "categories", "pricing", "offers"] },
   { id: "supply", label: "المخزون والمشتريات", views: ["stock-count", "inventory-transfers", "suppliers", "purchase-orders"] },
   { id: "operations", label: "البيانات والتشغيل", views: ["data", "operations", "tasks", "ai", "notifications"] },
   { id: "administration", label: "الإدارة والنظام", views: ["finance", "devices", "audit", "settings"] },
@@ -34,7 +34,7 @@ export const ADMIN_ACCESS_ROLES: ReadonlyArray<{
 ];
 
 const GENERAL_OPERATIONS: readonly AdminViewId[] = [
-  "dashboard", "products", "customers", "service-desk", "orders", "pricing", "offers", "reports",
+  "dashboard", "products", "categories", "customers", "service-desk", "orders", "pricing", "offers", "reports",
   "data", "operations", "notifications", "ai", "suppliers", "devices", "settings", "quotes",
   "tasks", "stock-count", "inventory-transfers",
 ];

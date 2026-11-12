@@ -1,13 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, Headphones, PackageCheck,
+  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, Headphones, PackageCheck, Tags,
   CircleDollarSign, Database, Download, FileSpreadsheet, FileText, LayoutDashboard, LogOut, Menu, Package, Printer,
   Pencil, Plus, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
-  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchAdminProductOptions, fetchAdminProductOptionById, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchAdminProductOptions, fetchAdminProductOptionById, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
   fetchStoreProductActivityReport,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
@@ -15,7 +15,7 @@ import {
   uploadProductGalleryImage, removeProductGalleryImage,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
-import { archiveAdminCatalogCategory, archiveAdminCatalogProduct, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
+import { archiveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix';
 import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
@@ -28,6 +28,7 @@ import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
 import { DashboardLoadError } from '@/components/DashboardLoadError';
+const AdminCategoryTree = lazy(async () => ({ default: (await import('@/components/AdminCategoryTree')).AdminCategoryTree }));
 
 import {
   AiCenter, Field, Loading, ErrorBox, Empty, Button,
@@ -73,29 +74,9 @@ import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
 import { adminRecordContextStorageKey, previousAdminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
 
-export type AdminView = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
+export type AdminView = 'dashboard' | 'products' | 'categories' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
 export type AdminAppProps = { initialView?: AdminView };
 type View = AdminView;
-
-/**
- * Cache only low-risk administrative reference reads. Identity, profile, effective
- * roles and session revision are part of the key so another account/session can
- * never reuse this in-memory tenant data.
- */
-function useAdminScopedReadCacheKey(resource: string): string | undefined {
-  const { user, sessionRevision } = useAuth();
-  if (!user) return undefined;
-  const roles = [...user.roles].sort().join(",");
-  return [
-    "aghbari-admin-read-v1",
-    resource,
-    user.id,
-    user.profileId,
-    user.isStaff ? "staff" : "customer",
-    roles,
-    sessionRevision,
-  ].join(":");
-}
 
 // Route-only administration workspaces are split into independent chunks so the
 // dashboard does not download finance, intelligence, import and inventory tools.
@@ -104,6 +85,7 @@ type IconType = typeof LayoutDashboard;
 const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'dashboard', label: 'لوحة المعلومات', icon: LayoutDashboard },
   { id: 'products', label: 'إدارة المنتجات', icon: Box },
+  { id: 'categories', label: 'التصنيفات الرئيسية والفرعية', icon: Tags },
   { id: 'customers', label: 'العملاء', icon: Users },
   { id: 'service-desk', label: 'خدمة العملاء', icon: Headphones },
   { id: 'orders', label: 'الطلبات', icon: ShoppingCart },
@@ -128,7 +110,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
 ];
 
 const adminPaths: Record<View, string> = {
-  dashboard: '/admin', products: '/admin/products', customers: '/admin/customers', orders: '/admin/orders',
+  dashboard: '/admin', products: '/admin/products', categories: '/admin/categories', customers: '/admin/customers', orders: '/admin/orders',
   pricing: '/admin/pricing', offers: '/admin/offers', reports: '/admin/reports', data: '/admin/data',
   operations: '/admin/operations', notifications: '/admin/notifications', ai: '/admin/ai',
   suppliers: '/admin/suppliers', devices: '/admin/devices', settings: '/admin/settings',
@@ -183,6 +165,8 @@ function AdminWorkspaceContent({
       return <Dashboard onNavigate={onNavigate} />;
     case "products":
       return <Products onNotice={onNotice} initialSearch={recordContext?.kind === "product" ? recordContext.query : undefined} />;
+    case "categories":
+      return <AdminCategoryTree onNotice={onNotice} />;
     case "customers":
       return <Customers onNotice={onNotice} initialSearch={recordContext?.kind === "customer" ? recordContext.query : undefined} />;
     case "service-desk":
@@ -308,7 +292,7 @@ function AdminWorkspaceContent({
         }}
       />;
     case "data":
-      return <DataCenter onNotice={onNotice} initialImportJobId={recordContext?.kind === "import" ? recordContext.id : undefined} />;
+      return <DataCenter onNotice={onNotice} onNavigate={onNavigate} initialImportJobId={recordContext?.kind === "import" ? recordContext.id : undefined} />;
     case "operations":
       return <OperationsCenter onNotice={onNotice} onOpenTask={(taskId) => { setNotificationTaskId(taskId); onNavigate("tasks"); }} />;
     case "settings":
@@ -2765,129 +2749,26 @@ function Reports() {
 }
 function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon: IconType }) { return <article className="report-metric"><Icon size={23} /><span>{label}</span><strong>{value}</strong></article>; }
 
-function DataCenter({ onNotice, initialImportJobId }: { onNotice: (m: string) => void; initialImportJobId?: string }) {
+function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
+  onNotice: (message: string) => void;
+  onNavigate: (view: View) => void;
+  initialImportJobId?: string;
+}) {
   const { user } = useAuth();
   const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const categoriesCacheKey = useAdminScopedReadCacheKey("catalog-categories");
-  const [section, setSection] = useState<'categories' | 'import' | 'onyx'>('categories');
+  const [section, setSection] = useState<'home' | 'import' | 'onyx'>('home');
+
   useEffect(() => {
     if (initialImportJobId && canManageImports) setSection('import');
   }, [initialImportJobId, canManageImports]);
-  const {
-    data: categories,
-    loading,
-    error,
-    refreshError,
-    refetch,
-  } = useFetch(fetchCategories, [], {
-    cacheKey: categoriesCacheKey,
-    staleTimeMs: 15_000,
-    maxAgeMs: 120_000,
-  });
-  const [name, setName] = useState('');
-  const [categoryCode, setCategoryCode] = useState('');
-  const [parentCategoryId, setParentCategoryId] = useState('');
-  const [archivingId, setArchivingId] = useState<string | null>(null);
-  const [restoringId, setRestoringId] = useState<string | null>(null);
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-  const [renameDraft, setRenameDraft] = useState('');
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-
-  async function add() {
-    const categoryName = name.trim();
-    const code = categoryCode.trim();
-    if (!canManageImports || !categoryName || code.length > 64) return;
-    try {
-      const result = await createAdminCatalogCategory(categoryName, parentCategoryId || null, code || null);
-      if (!result || typeof result.id !== 'string' || result.name !== categoryName || typeof result.created !== 'boolean') {
-        throw new Error('لم يؤكد الخادم حفظ التصنيف.');
-      }
-      setName('');
-      setCategoryCode('');
-      setParentCategoryId('');
-      await refetch();
-      onNotice(result.created ? 'تمت إضافة التصنيف' : 'التصنيف موجود بالفعل ضمن الأب المحدد');
-    } catch (cause) {
-      onNotice(cause instanceof Error ? cause.message : 'تعذر إضافة التصنيف');
-    }
-  }
-
-  async function archive(category: Category) {
-    if (!canManageImports || category.is_active === false || restoringId !== null) return;
-    if (!window.confirm(`هل تريد أرشفة التصنيف «${category.name}»؟ سيبقى السجل محفوظًا، ولن يُحذف.`)) return;
-    setArchivingId(category.id);
-    try {
-      const result = await archiveAdminCatalogCategory(category.id);
-      if (result.id !== category.id || result.is_active !== false || result.archived !== true) {
-        throw new Error('لم يؤكد الخادم أرشفة التصنيف.');
-      }
-      await refetch();
-      onNotice('تمت أرشفة التصنيف');
-    } catch (cause) {
-      onNotice(cause instanceof Error ? cause.message : 'تعذر أرشفة التصنيف');
-    } finally {
-      setArchivingId(null);
-    }
-  }
-
-  async function restore(category: Category) {
-    if (!canManageImports || category.is_active !== false || restoringId !== null || archivingId !== null || renamingId !== null) return;
-    if (!window.confirm(`هل تريد استعادة التصنيف «${category.name}» وإعادته إلى الاختيارات النشطة؟`)) return;
-    setRestoringId(category.id);
-    try {
-      const result = await restoreAdminCatalogCategory(category.id);
-      if (result.id !== category.id || result.is_active !== true || typeof result.restored !== 'boolean') {
-        throw new Error('لم يؤكد الخادم استعادة التصنيف.');
-      }
-      await refetch();
-      onNotice(result.restored ? 'تمت استعادة التصنيف' : 'التصنيف نشط بالفعل');
-    } catch (cause) {
-      onNotice(cause instanceof Error ? cause.message : 'تعذرت استعادة التصنيف');
-    } finally {
-      setRestoringId(null);
-    }
-  }
-
-  function beginRename(category: Category) {
-    if (!canManageImports || category.is_active === false || renamingId !== null || archivingId !== null || restoringId !== null) return;
-    setEditingCategoryId(category.id);
-    setRenameDraft(category.name);
-  }
-
-  function cancelRename() {
-    if (renamingId !== null) return;
-    setEditingCategoryId(null);
-    setRenameDraft('');
-  }
-
-  async function renameCategory(category: Category) {
-    const nextName = renameDraft.trim();
-    if (!canManageImports || category.is_active === false || editingCategoryId !== category.id
-      || !nextName || renamingId !== null || archivingId !== null || restoringId !== null) return;
-    setRenamingId(category.id);
-    try {
-      const result = await renameAdminCatalogCategory(category.id, nextName);
-      if (result.id !== category.id || result.name !== nextName || typeof result.renamed !== 'boolean') {
-        throw new Error('لم يؤكد الخادم إعادة تسمية التصنيف.');
-      }
-      setEditingCategoryId(null);
-      setRenameDraft('');
-      await refetch();
-      onNotice(result.renamed ? 'تم تحديث اسم التصنيف' : 'لم يتغير اسم التصنيف');
-    } catch (cause) {
-      onNotice(cause instanceof Error ? cause.message : 'تعذر تحديث اسم التصنيف');
-    } finally {
-      setRenamingId(null);
-    }
-  }
 
   if (section === 'import' && canManageImports) {
     return <>
       <div className="toolbar">
         <span className="toolbar-note">الاستيراد الموحد — صلاحية المدير أو مدير النظام</span>
         <div className="toolbar-actions">
-          <Button variant="outline" onClick={() => setSection('categories')}>
-            <Database size={16} /> العودة إلى التصنيفات
+          <Button variant="outline" onClick={() => setSection('home')}>
+            <Database size={16} /> العودة إلى مركز البيانات
           </Button>
         </div>
       </div>
@@ -2896,90 +2777,42 @@ function DataCenter({ onNotice, initialImportJobId }: { onNotice: (m: string) =>
   }
 
   if (section === 'onyx' && user?.isStaff) {
-    return <OnyxSnapshotCenter onBack={() => setSection('categories')} />;
+    return <OnyxSnapshotCenter onBack={() => setSection('home')} />;
   }
 
   return <>
-    <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد" description="تنظيم التصنيفات واستيراد البيانات مع التحقق من الجودة والبصمة ومنع التكرار" icon={Database} />
+    <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد"
+      description="الاستيراد والتصدير ومصادر البيانات التشغيلية في مساحة واحدة" icon={Database} />
     <div className="toolbar">
       <span className="toolbar-note">المصدر المعتمد هو قاعدة بيانات المؤسسة الحالية؛ لا تُنشأ بيانات تجريبية.</span>
       <div className="toolbar-actions">
-        {canManageImports && <Button onClick={() => setSection('import')}><FileText size={16} /> فتح محرك الاستيراد الموحد</Button>}
-        {user?.isStaff && <Button variant="outline" onClick={() => setSection('onyx')}><PackageCheck size={16} /> تحليلات أونكس ومطابقة المخزون</Button>}
-        {rolesCanAccessView(user?.roles ?? [], "data") && <Link to="/admin/exports" className="btn secondary"><Download size={16} /> تصدير الطلبات</Link>}
-        <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث التصنيفات</Button>
+        {rolesCanAccessView(user?.roles ?? [], "categories") && (
+          <Button onClick={() => onNavigate('categories')}>
+            <Tags size={16} /> إدارة التصنيفات الهرمية
+          </Button>
+        )}
+        {canManageImports && (
+          <Button variant="outline" onClick={() => setSection('import')}>
+            <FileText size={16} /> فتح محرك الاستيراد الموحد
+          </Button>
+        )}
+        {user?.isStaff && (
+          <Button variant="outline" onClick={() => setSection('onyx')}>
+            <PackageCheck size={16} /> تحليلات أونكس ومطابقة المخزون
+          </Button>
+        )}
+        {rolesCanAccessView(user?.roles ?? [], "data") && (
+          <Link to="/admin/exports" className="btn secondary">
+            <Download size={16} /> تصدير الطلبات
+          </Link>
+        )}
       </div>
     </div>
-    <div className="data-layout">
-      <section className="panel">
-        <div className="panel-head"><div><h2>التصنيفات</h2><p>تستخدم لتنظيم المنتجات والتقارير</p></div></div>
-        {canManageImports && <div className="form-grid">
-          <Field label="اسم التصنيف">
-            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} placeholder="اسم التصنيف الجديد" />
-          </Field>
-          <Field label="رمز التصنيف (اختياري)">
-            <input value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} maxLength={64} placeholder="رمز داخلي للتصنيف" dir="auto" />
-          </Field>
-          <Field label="التصنيف الأب (اختياري)">
-            <select aria-label="التصنيف الأب" value={parentCategoryId} onChange={(event) => setParentCategoryId(event.target.value)}>
-              <option value="">تصنيف رئيسي</option>
-              {(categories ?? []).filter((candidate) => candidate.is_active !== false).map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
-              ))}
-            </select>
-          </Field>
-          <div style={{ display: 'flex', alignItems: 'end' }}>
-            <Button onClick={() => void add()} disabled={!name.trim() || categoryCode.trim().length > 64}>
-              <Plus size={16} /> إضافة التصنيف
-            </Button>
-          </div>
-        </div>}
-        {loading ? <Loading /> : error ? <ErrorBox message={error} /> : categories?.length
-          ? <div className="category-list">{categories.map((category: Category) =>
-              <div key={category.id}>
-                {editingCategoryId === category.id && category.is_active !== false ? <>
-                  <input
-                    aria-label={`اسم التصنيف الجديد: ${category.name}`}
-                    value={renameDraft}
-                    onChange={(event) => setRenameDraft(event.target.value)}
-                    maxLength={100}
-                    disabled={renamingId === category.id}
-                  />
-                  <Button onClick={() => void renameCategory(category)} disabled={!renameDraft.trim() || renamingId !== null || archivingId !== null || restoringId !== null}>
-                    <Check size={16} /> {renamingId === category.id ? 'جار حفظ الاسم…' : 'حفظ الاسم'}
-                  </Button>
-                  <Button variant="outline" disabled={renamingId !== null} onClick={cancelRename}>إلغاء</Button>
-                </> : <>
-                  <span>{category.name}</span>
-                  {category.parent_id && <small className="text-muted">التصنيف الأب: {(categories ?? []).find((parent) => parent.id === category.parent_id)?.name ?? 'غير متاح'}</small>}
-                  {canManageImports && category.is_active !== false && <Button variant="outline" disabled={renamingId !== null || archivingId !== null || restoringId !== null} onClick={() => beginRename(category)}>
-                    <Pencil size={16} /> تعديل الاسم
-                  </Button>}
-                </>}
-                <small>{category.code ?? 'بدون رمز'}</small>
-                {category.is_active === false && <small className="text-muted">مؤرشف</small>}
-                {canManageImports && category.is_active === false && <Button variant="outline" disabled={restoringId !== null || archivingId !== null || renamingId !== null || editingCategoryId !== null} onClick={() => void restore(category)}>
-                  <RefreshCw size={16} /> {restoringId === category.id ? "جار الاستعادة…" : "استعادة"}
-                </Button>}
-                {canManageImports && category.is_active !== false && <Button variant="outline" disabled={archivingId === category.id || renamingId !== null || editingCategoryId !== null || restoringId !== null} onClick={() => void archive(category)}>
-                  <Trash2 size={16} /> {archivingId === category.id ? 'جار الأرشفة…' : 'أرشفة'}
-                </Button>}
-              </div>
-            )}</div>
-          : <Empty text="لا توجد تصنيفات محفوظة لهذه المؤسسة بعد." />}
-      </section>
-      <section className="panel data-info">
-        <Database size={28} />
-        <h2>استيراد مضبوط وقابل للاستئناف</h2>
-        <p>محرك الاستيراد يعمل على الملفات الفعلية بحدود معلنة، وبصمة SHA-256، وملفات تعريف وقواعد تحقق، ويوقف التعارض الذي يحتاج قرارًا بشريًا. لا يخزن الملف الخام ولا يمحو سجلات لم تظهر في المصدر.</p>
-        {refreshError && <p className="report-note" role="status">تعذر تحديث التصنيفات؛ تُعرض آخر قراءة محفوظة ضمن جلسة الحساب الحالية. {refreshError}</p>}
-        <div className={'data-status ' + (loading ? 'pending' : error ? 'error' : 'success')}>
-          {loading ? <RefreshCw size={16} className="spin" /> : error ? <AlertTriangle size={16} /> : <Check size={16} />}
-          {loading ? 'جار التحقق من بيانات التصنيفات…' : error ? 'تعذر تحميل التصنيفات: ' + error : 'اتصال التصنيفات ناجح'}
-        </div>
-        {!canManageImports && <p className="text-muted">استيراد البيانات متاح لمدير النظام أو المدير فقط. تظل صلاحيات الخادم وسياسات قاعدة البيانات هي المرجع الحاكم.</p>}
-      </section>
-    </div>
+    <section className="panel data-info">
+      <Database size={28} />
+      <h2>دورة البيانات دون محررات مكررة</h2>
+      <p>تدار التصنيفات من شاشة واحدة ضمن الكتالوج والتسعير فوق علاقة parent_id الحالية. يبقى مركز البيانات مسؤولاً عن الاستيراد والتصدير وعمليات Onyx، ولا يحتفظ بمحرر تصنيفات موازٍ.</p>
+      <div className="data-status">مصادر البيانات الحالية — دون بيانات تجريبية</div>
+    </section>
   </>;
 }
-

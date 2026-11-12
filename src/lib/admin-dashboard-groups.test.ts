@@ -7,7 +7,7 @@ describe('getVisibleAdminNavigationGroups', () => {
     expect(groups.map(({ id }) => id)).toEqual([
       'executive', 'sales', 'catalog', 'supply', 'operations', 'administration',
     ]);
-    expect(groups.find(({ id }) => id === 'catalog')?.views).toEqual(['products', 'pricing', 'offers']);
+    expect(groups.find(({ id }) => id === 'catalog')?.views).toEqual(['products', 'categories', 'pricing', 'offers']);
   });
 
   it('limits an accountant to finance and tasks inside their owning groups', () => {

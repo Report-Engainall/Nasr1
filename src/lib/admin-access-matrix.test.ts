@@ -8,7 +8,8 @@ describe("admin access presentation contract", () => {
   it("assigns every admin page to exactly one navigation group", () => {
     const ids = ADMIN_NAV_GROUPS.flatMap((group) => [...group.views]);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toHaveLength(23);
+    expect(ids).toHaveLength(24);
+    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.views).toContain('categories');
   });
 
   it("keeps accountant and customer manager scopes separate", () => {

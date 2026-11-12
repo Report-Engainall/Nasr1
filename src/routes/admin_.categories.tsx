@@ -1,0 +1,8 @@
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
+import { LazyAdminApp as AdminApp } from "@/components/LazyAdminApp";
+import { AdminRouteFallback } from "@/components/AdminRouteFallback";
+
+export const Route = createFileRoute("/admin_/categories")({
+  head: () => ({ meta: [{ title: "التصنيفات الرئيسية والفرعية | الأغبري" }, { name: "robots", content: "noindex" }] }),
+  component: () => <ClientOnly fallback={<AdminRouteFallback />}><AdminApp initialView="categories" /></ClientOnly>,
+});
