@@ -133,6 +133,15 @@ async function main() {
       "public.current_organization_id()::text as organization_id, " +
       "current_user as database_role, " +
       "current_setting('request.jwt.claim.sub',true) as jwt_subject, " +
+      "(select p.id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_id, " +
+      "(select count(*)::integer from public.profiles p where p.auth_user_id=auth.uid()) as visible_profile_count, " +
+      "(select p.organization_id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_organization_id, " +
+      "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_owner, " +
+      "(select pr.prosecdef from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_security_definer, " +
+      "(select pg_catalog.pg_get_userbyid(c.relowner) from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_table_owner, " +
+      "(select c.relforcerowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_force_rls, " +
+      "(select string_agg(p.policyname || ':' || p.permissive || ':' || p.cmd, ';' order by p.policyname) " +
+      "from pg_catalog.pg_policies p where p.schemaname='public' and p.tablename='profiles') as profiles_policies, " +
       "exists (select 1 from public.profiles p join public.user_roles r on r.profile_id=p.id " +
       "where p.auth_user_id=auth.uid() and p.is_active=true and p.organization_id=$1::uuid " +
       "and r.role in ('admin','manager')) as has_admin_manager_role",
