@@ -463,6 +463,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
     const purchaseOrderDraft = manager.getByRole("region", { name: "مسودة أمر شراء جديدة", exact: true });
     await expect(purchaseOrderDraft).toBeVisible();
+    await expect(purchaseOrderDraft.locator(".po-line")).toHaveCount(1, { timeout: 20_000 });
     const supplierSelect = purchaseOrderDraft.getByLabel("المورد", { exact: true });
     const warehouseSelect = purchaseOrderDraft.getByLabel("المخزن المستلم", { exact: true });
     const productSelect = purchaseOrderDraft.getByLabel("الصنف", { exact: true });
