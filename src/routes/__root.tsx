@@ -16,6 +16,7 @@ import { reportRuntimeError } from "../lib/runtime-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { BUSINESS_BRAND_NAME, BUSINESS_META_DESCRIPTION, BUSINESS_PWA_THEME_COLOR } from "@/lib/brand";
 import { clearLegacyOfflineCatalogCache, clearOfflineCatalogCache } from "@/lib/offline-catalog-cache";
+import { useAdminOrganizationTheme } from "@/lib/useAdminOrganizationTheme";
 
 function NotFoundComponent() {
   return (
@@ -143,6 +144,18 @@ function AuthHealthNotice() {
 // Use layout effects in the browser so cached private data is removed before the next identity can paint;
  // fall back to a passive effect during SSR.
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function OrganizationThemeBridge() {
+  const { user, sessionRevision = 0 } = useAuth();
+  const canReadOrganizationAppearance = Boolean(
+    user?.roles.some((role) => role === "admin" || role === "manager"),
+  );
+  useAdminOrganizationTheme(
+    canReadOrganizationAppearance,
+    `${user?.profileId ?? "anonymous"}:${sessionRevision}`,
+  );
+  return null;
+}
 
 export function AuthScopedOutlet() {
   const { user, sessionRevision = 0 } = useAuth();
@@ -419,6 +432,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <AuthProvider>
+        <OrganizationThemeBridge />
         <PwaUpdatePrompt />
         <AuthHealthNotice />
         <RootNavigation />

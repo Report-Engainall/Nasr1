@@ -34,6 +34,14 @@ import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleA
 import { AdminAccessMatrix } from '@/components/AdminAccessMatrix';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 import { AiGatewayOperationsPanel } from '@/components/intelligence';
+import {
+  ADMIN_THEME_PRESETS,
+  ADMIN_THEME_UPDATE_EVENT,
+  DEFAULT_ADMIN_THEME_PALETTE,
+  getAdminThemeTextColor,
+  resolveAdminThemePalette,
+  type AdminThemePalette,
+} from '@/lib/admin-theme';
 type IconType = LucideIcon;
 
 function NotificationRow({
@@ -1202,8 +1210,30 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
   const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access' | 'announcements'>('general');
   const [saving, setSaving] = useState(false);
   const map = useMemo(() => { const m: Record<string, unknown> = {}; settings?.forEach((s: AdminSetting) => m[s.key] = s.value); return m; }, [settings]);
+  const savedTheme = useMemo(
+    () => resolveAdminThemePalette(map.theme_palette, map.theme_primary, map.theme_accent),
+    [map.theme_palette, map.theme_primary, map.theme_accent],
+  );
+  const [themeDraft, setThemeDraft] = useState<AdminThemePalette>(savedTheme);
+  useEffect(() => setThemeDraft(savedTheme), [savedTheme]);
 
   async function save(key: string, value: unknown, category: string) { setSaving(true); try { await updateSetting(key, value, category); refetch(); onNotice('تم حفظ الإعداد'); } catch (e) { onNotice(e instanceof Error ? e.message : 'خطأ'); } finally { setSaving(false); } }
+
+  async function saveThemePalette(next: AdminThemePalette) {
+    if (!canManageStorefrontContent) return;
+    setSaving(true);
+    try {
+      const palette = resolveAdminThemePalette(next);
+      await updateSetting('theme_palette', palette, 'appearance');
+      await refetch();
+      window.dispatchEvent(new Event(ADMIN_THEME_UPDATE_EVENT));
+      onNotice('تم حفظ لوحة المظهر وتطبيقها على صفحات المؤسسة.');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر حفظ لوحة المظهر.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return <AdminPage eyebrow="النظام" title="الإعدادات العامة" description="تحكم كامل في إعدادات المتجر والمظهر" icon={Settings} note="" toolbar={<Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>}>
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !settings ? <Empty text="تعذر التحقق من الإعدادات؛ حدّث البيانات." /> : <>
@@ -1225,7 +1255,59 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
           <SettingToggle label="إظهار فئة السعر في واجهات العميل" value={(map.show_customer_tier_in_customer_views as boolean) ?? false} onSave={(v) => save('show_customer_tier_in_customer_views', v, 'storefront')} saving={saving} />
         </SettingsPanel>}
       </>}
-      {tab === 'appearance' && <SettingsPanel title="ألوان النظام"><SettingColor label="اللون الأساسي" value={(map.theme_primary as string) ?? '#087f8d'} onSave={(v) => save('theme_primary', v, 'appearance')} saving={saving} /><SettingColor label="لون التمييز" value={(map.theme_accent as string) ?? '#0eaa97'} onSave={(v) => save('theme_accent', v, 'appearance')} saving={saving} /></SettingsPanel>}
+      {tab === 'appearance' && <SettingsPanel title="ألوان النظام">
+        <section aria-label="إعداد مظهر المؤسسة" style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <h3 style={{ margin: '0 0 5px', fontSize: 14, fontWeight: 800 }}>قوالب الهوية البصرية</h3>
+            <p style={{ ...quiet, lineHeight: 1.8 }}>اختر قالباً جاهزاً أو عدّل اللونين يدويًا. تُحفظ اللوحة مع المؤسسة وتُطبّق على متغيرات التصميم المشتركة.</p>
+          </div>
+          {!canManageStorefrontContent && <p role="status" style={{ ...quiet, padding: 10, border: '1px solid var(--border)', borderRadius: 8 }}>المظهر للقراءة فقط لهذا الدور؛ اطلب من مدير المؤسسة حفظ التغييرات.</p>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+            {ADMIN_THEME_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                aria-pressed={themeDraft.id === preset.id && themeDraft.primary.toLowerCase() === preset.primary.toLowerCase() && themeDraft.accent.toLowerCase() === preset.accent.toLowerCase()}
+                disabled={!canManageStorefrontContent || saving}
+                onClick={() => setThemeDraft({ id: preset.id, primary: preset.primary, accent: preset.accent })}
+                style={{ display: 'grid', gap: 8, textAlign: 'right', border: themeDraft.id === preset.id ? '2px solid var(--primary)' : '1px solid var(--border)', borderRadius: 11, padding: 12, background: 'var(--card)', color: 'var(--foreground)', opacity: !canManageStorefrontContent ? 0.75 : 1 }}
+              >
+                <strong style={{ fontSize: 13 }}>{preset.label}</strong>
+                <span style={{ ...quiet, fontSize: 11 }}>{preset.description}</span>
+                <span style={{ display: 'flex', gap: 6 }}>
+                  <span aria-label={`اللون الأساسي ${preset.primary}`} style={{ width: 26, height: 26, borderRadius: 7, background: preset.primary, border: '1px solid var(--border)' }} />
+                  <span aria-label={`لون التمييز ${preset.accent}`} style={{ width: 26, height: 26, borderRadius: 7, background: preset.accent, border: '1px solid var(--border)' }} />
+                </span>
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            <label style={{ display: 'grid', gap: 7, fontSize: 12, fontWeight: 750 }}>
+              اللون الأساسي
+              <input type="color" value={themeDraft.primary} disabled={!canManageStorefrontContent || saving} onChange={(event) => setThemeDraft((current) => ({ ...current, id: 'custom', primary: event.target.value }))} style={{ width: '100%', height: 42, border: '1px solid var(--border)', borderRadius: 8, padding: 4, background: 'var(--card)' }} />
+            </label>
+            <label style={{ display: 'grid', gap: 7, fontSize: 12, fontWeight: 750 }}>
+              لون التمييز
+              <input type="color" value={themeDraft.accent} disabled={!canManageStorefrontContent || saving} onChange={(event) => setThemeDraft((current) => ({ ...current, id: 'custom', accent: event.target.value }))} style={{ width: '100%', height: 42, border: '1px solid var(--border)', borderRadius: 8, padding: 4, background: 'var(--card)' }} />
+            </label>
+          </div>
+          <div aria-label="معاينة المظهر قبل الحفظ" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: 16, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--background)' }}>
+            <div style={{ display: 'grid', gap: 5 }}>
+              <strong style={{ fontSize: 14 }}>معاينة هوية المؤسسة</strong>
+              <span style={{ ...quiet, fontSize: 11 }}>تظهر التغييرات بعد الحفظ على الشاشات المرتبطة بنفس المؤسسة.</span>
+              <span style={{ display: 'inline-flex', width: 'fit-content', gap: 6, alignItems: 'center', padding: '5px 9px', borderRadius: 999, background: themeDraft.accent, color: getAdminThemeTextColor(themeDraft.accent), fontSize: 11, fontWeight: 800 }}>عنصر مميز</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, background: themeDraft.primary, color: getAdminThemeTextColor(themeDraft.primary) }}>
+              <strong style={{ fontSize: 12 }}>متجر الأغبري</strong>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: themeDraft.accent }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+            <Button variant="outline" disabled={!canManageStorefrontContent || saving} onClick={() => void saveThemePalette(DEFAULT_ADMIN_THEME_PALETTE)}>استعادة الافتراضي</Button>
+            <Button disabled={!canManageStorefrontContent || saving} onClick={() => void saveThemePalette(themeDraft)}>{saving ? 'جارٍ الحفظ والتطبيق…' : 'حفظ وتطبيق المظهر'}</Button>
+          </div>
+        </section>
+      </SettingsPanel>}
       {tab === 'announcements' && canManageStorefrontContent && <StorefrontAnnouncementManager onNotice={onNotice} />}
       {tab === 'access' && canManageRoles && user && <>
         <AdminAccessMatrix />
