@@ -606,7 +606,12 @@ export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchase
           <button className="btn secondary" type="button" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={16}/> تحديث</button>
           <button className="btn secondary" type="button" onClick={exportVisibleOrders} disabled={loading||busy||!visibleOrders.length}><FileSpreadsheet size={16}/> تصدير نتائج Excel</button>
           <button className="btn outline" type="button" onClick={()=>startPrint('results')} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
-          <button className="btn primary" type="button" onClick={()=>{setShowCreate((v)=>!v);setError('');}} disabled={busy}><Plus size={16}/>{showCreate?'إغلاق نموذج الشراء':'إنشاء مسودة أمر شراء'}</button>
+          <button className="btn primary" type="button" onClick={()=>{
+            const opening = !showCreate;
+            if (opening) setDraftLines((current) => current.length ? current : [newLine()]);
+            setShowCreate(opening);
+            setError('');
+          }} disabled={busy}><Plus size={16}/>{showCreate?'إغلاق نموذج الشراء':'إنشاء مسودة أمر شراء'}</button>
         </div>
       </div>
       <PurchaseOrderSummary totalOpen={totalOpen} totalDraft={totalDraft} totalReceived={totalReceived} />
