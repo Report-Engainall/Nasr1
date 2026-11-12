@@ -115,7 +115,8 @@ describe("TaskPerformanceScorecard", () => {
       quality,
     });
     render(<TaskPerformanceScorecard scorecard={scorecard} />);
-    expect(screen.getByText("جودة المهام والتوصيات")).toBeInTheDocument();
+    const qualityRegion = screen.getByRole("region", { name: "مؤشرات جودة المهام والتوصيات" });
+    expect(within(qualityRegion).getByRole("heading", { name: "جودة المهام والتوصيات" })).toBeInTheDocument();
     const actionabilityCard = screen.getByText("قابلية التنفيذ").closest("article");
     const falseAlarmCard = screen.getByText("الإنذارات الكاذبة").closest("article");
     expect(actionabilityCard).not.toBeNull();
