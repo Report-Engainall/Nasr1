@@ -128,7 +128,7 @@ VALUES
  ('11111111-1111-4111-8111-111111111113','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','legacy retail','retail',false);
 
 \ir ../migrations/20261112000527_allow_vip_pricing_rule_target.sql
-\ir ../migrations/20261112010100_vip_customer_tier_preview_label.sql
+\ir ../migrations/20261112001302_vip_customer_tier_preview_label.sql
 
 INSERT INTO public.products(id,organization_id,category_id,base_price,cost_price)
 VALUES('22222222-2222-4222-8222-222222222222','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',NULL,100,70);
@@ -208,6 +208,6 @@ END;
 $acceptance$;
 
 -- Re-running the label patch must be safe and must not duplicate the VIP branch.
-\ir ../migrations/20261112010100_vip_customer_tier_preview_label.sql
+\ir ../migrations/20261112001302_vip_customer_tier_preview_label.sql
 
 SELECT 'PASS: PostgreSQL 17 VIP pricing, existing tier preservation, approval gating, combined fallback and customer preview labels' AS result;
