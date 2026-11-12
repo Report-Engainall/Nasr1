@@ -15,17 +15,17 @@ BEGIN
 
   v_definition := pg_catalog.pg_get_functiondef(v_function);
 
-  IF pg_catalog.position(v_new in v_definition) > 0 THEN
+  IF pg_catalog.strpos(v_definition, v_new) > 0 THEN
     RETURN;
   END IF;
 
-  IF pg_catalog.position(v_old in v_definition) = 0 THEN
+  IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'Expected legacy super_wholesale customer-tier label was not found; refusing to replace an unexpected RPC body';
   END IF;
 
   v_definition := pg_catalog.replace(v_definition, v_old, v_new);
 
-  IF pg_catalog.position(v_new in v_definition) = 0 THEN
+  IF pg_catalog.strpos(v_definition, v_new) = 0 THEN
     RAISE EXCEPTION 'VIP preview label patch did not produce the expected function body';
   END IF;
 
