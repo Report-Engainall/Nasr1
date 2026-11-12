@@ -28,7 +28,7 @@ describe('VIP pricing rule target migration', () => {
     expect(migration).toMatch(/add\s+constraint\s+pricing_rules_target_tier_check\s+check\s*\(\s*target_tier\s+in\s*\(\s*'both'\s*,\s*'vip'\s*,\s*'wholesale'\s*,\s*'retail'\s*\)\s*\)/i);
   });
   it('aligns the server preview label with VIP and preserves the legacy tier alias', () => {
-    expect(labelMigration).toMatch(/preview_customer_order_pricing\\(jsonb,text\\)/i);
+    expect(labelMigration).toContain("public.preview_customer_order_pricing(jsonb,text)");
     expect(labelMigration).toMatch(/pg_get_functiondef/i);
     expect(labelMigration).toMatch(/WHEN ''vip'' THEN ''جملة الجملة''/);
     expect(labelMigration).toMatch(/WHEN ''super_wholesale'' THEN ''جملة الجملة''/);
