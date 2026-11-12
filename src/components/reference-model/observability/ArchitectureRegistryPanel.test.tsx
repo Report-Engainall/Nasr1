@@ -1,7 +1,11 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ArchitectureRegistryPanel } from "./ArchitectureRegistryPanel";
-import { getCurrentArchitectureRegistry } from "@/lib/reference-model/observability/architecture-registry";
+import {
+  buildArchitectureRegistry,
+  getCurrentArchitectureRegistry,
+} from "@/lib/reference-model/observability/architecture-registry";
 
 describe("reference-model architecture registry", () => {
   it("derives the inventory from the current router tree without duplicate route IDs", () => {
@@ -14,6 +18,18 @@ describe("reference-model architecture registry", () => {
     expect(registry.routes.some((route) => route.path === "/checkout")).toBe(true);
     expect(registry.routes.some((route) => route.path === "/admin/ai")).toBe(true);
     expect(registry.routes.some((route) => route.path === "/api/statement-pdf")).toBe(true);
+  });
+
+  it("deduplicates repeated route nodes and reports the source ambiguity", () => {
+    const repeatedNode = { id: "/admin_/ai", path: "/admin/ai" };
+    const registry = buildArchitectureRegistry({
+      id: "__root__",
+      path: "/",
+      children: [repeatedNode, repeatedNode],
+    });
+
+    expect(registry.routes.filter((route) => route.routeId === "/admin_/ai")).toHaveLength(1);
+    expect(registry.warnings).toContain("DUPLICATE_ROUTE_NODE");
   });
 
   it("joins admin routes to the existing navigation groups instead of duplicating them", () => {

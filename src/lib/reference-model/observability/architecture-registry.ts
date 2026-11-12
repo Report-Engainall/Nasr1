@@ -87,7 +87,7 @@ function adminViewId(routeId: string, navigationGroups: readonly (typeof ADMIN_N
   if (!match) return null;
 
   const candidate = match[1].replace(/\/+$/, "");
-  return navigationGroups.some((group) => group.views.includes(candidate as never))
+  return navigationGroups.some((group) => group.views.some((view) => view === candidate))
     ? candidate
     : null;
 }
@@ -102,6 +102,8 @@ export function buildArchitectureRegistry(
 ): ArchitectureRegistrySnapshot {
   const routes: ArchitectureRouteRecord[] = [];
   const warnings: string[] = [];
+  const visitedNodes = new WeakSet<object>();
+  const routeIds = new Set<string>();
 
   if (!isRecord(root)) {
     return {
@@ -112,6 +114,12 @@ export function buildArchitectureRegistry(
   }
 
   const visit = (node: UnknownRecord, parentRouteId: string | null, parentPath: string) => {
+    if (visitedNodes.has(node)) {
+      warnings.push("DUPLICATE_ROUTE_NODE");
+      return;
+    }
+    visitedNodes.add(node);
+
     const options = routeOptions(node);
     const routeId = firstString(node.id, options.id);
     const path = readRoutePath(node, parentPath);
@@ -128,27 +136,26 @@ export function buildArchitectureRegistry(
       ? navigationGroups.find((candidate) => candidate.views.includes(viewId as never))
       : undefined;
 
-    routes.push({
-      routeId,
-      path,
-      parentRouteId,
-      surface: routeSurface(routeId, path),
-      viewId,
-      navigationGroup: group ? { id: group.id, label: group.label } : null,
-      dynamicSegmentCount: path.split("/").filter((segment) => segment.startsWith("$")).length,
-      hasChildren: children.length > 0,
-    });
+    if (routeIds.has(routeId)) {
+      warnings.push("DUPLICATE_ROUTE_ID");
+    } else {
+      routeIds.add(routeId);
+      routes.push({
+        routeId,
+        path,
+        parentRouteId,
+        surface: routeSurface(routeId, path),
+        viewId,
+        navigationGroup: group ? { id: group.id, label: group.label } : null,
+        dynamicSegmentCount: path.split("/").filter((segment) => segment.startsWith("$")).length,
+        hasChildren: children.length > 0,
+      });
+    }
 
     children.forEach((child) => visit(child, routeId, path));
   };
 
   visit(root, null, "/");
-
-  const ids = new Set<string>();
-  for (const route of routes) {
-    if (ids.has(route.routeId)) warnings.push("DUPLICATE_ROUTE_ID");
-    ids.add(route.routeId);
-  }
 
   routes.sort((left, right) =>
     left.path.localeCompare(right.path) || left.routeId.localeCompare(right.routeId),
