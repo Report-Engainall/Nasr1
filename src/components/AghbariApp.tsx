@@ -880,6 +880,7 @@ export function AdminApp({ initialView = 'dashboard' }: AdminAppProps) {
 
 export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { user } = useAuth();
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const { data: stats, loading, error, refetch } = useFetch(fetchDashboardStats);
   const { data: alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useFetch(fetchDashboardAiAlerts);
   const lowStockCandidates = stats?.lowStockPreviewCandidates ?? null;
@@ -917,6 +918,41 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     ['مخزون منخفض', lowStockValue, 'يحتاج إعادة طلب', AlertTriangle, 'red'],
   ] as const;
   const navigationGroups = getVisibleAdminNavigationGroups(user?.roles ?? []);
+  const activeGroup = navigationGroups.find((group) => group.id === activeGroupId);
+  const activeGroupEntries = activeGroup?.views.flatMap((view) => {
+    const item = nav.find((candidate) => candidate.id === view);
+    return item ? [item] : [];
+  }) ?? [];
+  if (activeGroup && activeGroupEntries.length > 0) {
+    const ActiveGroupIcon = activeGroupEntries[0].icon;
+    return (
+      <section className="admin-group-landing" aria-label={`مساحة ${activeGroup.label}`}>
+        <nav className="admin-group-landing__breadcrumb" aria-label="مسار المجموعة">
+          <button type="button" onClick={() => setActiveGroupId(null)}>لوحة المعلومات</button>
+          <span aria-hidden="true">/</span>
+          <strong aria-current="page">{activeGroup.label}</strong>
+        </nav>
+        <header className="admin-group-landing__hero">
+          <span className="admin-group-landing__icon"><ActiveGroupIcon size={24} /></span>
+          <div>
+            <span>مجموعة إدارية</span>
+            <h1>{activeGroup.label}</h1>
+            <p>{activeGroupEntries.length} وجهات عمل متاحة وفق صلاحية الحساب الحالي.</p>
+          </div>
+        </header>
+        <div className="admin-group-landing__grid">
+          {activeGroupEntries.map(({ id, label, icon: ItemIcon }) => (
+            <button type="button" className="admin-group-landing__item" key={id} onClick={() => onNavigate(id)}>
+              <ItemIcon size={19} />
+              <span>{label}</span>
+              <small>فتح مساحة العمل</small>
+              <ChevronLeft size={17} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
   return <>
     <div className="hero"><div><span className="hero-kicker">نظرة تنفيذية مباشرة</span><h1>قرارات أفضل، بتشغيل أذكى</h1><p>تتابع الأغبري الطلبات والمخزون والعملاء في مكان واحد، مع مؤشرات واضحة تساعدك على التحرك بسرعة.</p></div><Button onClick={() => { void refetch(); void refetchAlerts(); void refetchLowStockProducts(); }} variant="secondary"><RefreshCw size={16} /> تحديث البيانات</Button></div>
     <div className="stats-grid">{cards.map(([label, value, note, Icon, color]) => <article className={`stat-card ${color}`} key={label}><div className="stat-top"><Icon size={22} /><span>{note}</span></div><small>{label}</small><strong>{value}</strong></article>)}</div>
@@ -928,10 +964,10 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
         });
         const GroupIcon = entries[0]?.icon ?? LayoutDashboard;
         return <article className={`admin-group-card admin-group-card--${group.id}`} key={group.id}>
-          <div className="admin-group-card__heading">
+          <button type="button" className="admin-group-card__heading" onClick={() => setActiveGroupId(group.id)} aria-label={`فتح مجموعة ${group.label}`}>
             <span className="admin-group-card__icon"><GroupIcon size={20} /></span>
-            <div><h2>{group.label}</h2><p>{entries.length} وجهات متاحة وفق صلاحية الحساب</p></div>
-          </div>
+            <span><strong>{group.label}</strong><small>{entries.length} وجهات متاحة وفق صلاحية الحساب</small></span>
+          </button>
           <div className="admin-group-card__links">
             {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
               <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
