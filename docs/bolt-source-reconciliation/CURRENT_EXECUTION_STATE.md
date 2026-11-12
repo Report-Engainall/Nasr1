@@ -1,17 +1,16 @@
-# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PRICE FIXTURE ALIGNMENT & P2 REVALIDATION
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — STOREFRONT TEST TENANT REBIND
 
-> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
-> Latest exact source/test-harness SHA under P2: `d90f4a343d312d56ca10c895cca7740caf22e036` (the subsequent commits are documentation-only and do not alter this tested source).
-> Verified application code SHA remains `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`; P1 run #43139543761 SUCCESS on that exact source: 68/68 files, 524/524 tests, strict TypeScript PASS, production build PASS.
-> Local P2 fixture root cause is fully identified: migration `20261009060000_quantity_break_pricing.sql` replaces UNIQUE `(product_id,tier)` with UNIQUE `(product_id,tier,min_quantity)` to support quantity breaks. The fixture conflict target was corrected in commit `bf7f01f887bedd5358b2c32de5c0fd2fbad95f7a`; no schema or migration was modified.
-> Commit `d90f4a343d312d56ca10c895cca7740caf22e036` adds safe diagnostic context to the local fixture script only; if a SQL statement fails it reports the statement text without parameter values. It also includes the quantity-key repair through its parent. Current P2 run #43140634250 is IN_PROGRESS on this exact SHA; public UI smoke job #130926597475 is running, and local PostgreSQL acceptance job is dependent on that smoke and has not yet appeared.
-> Older run #43140489508 on `bf7f01f...` was cancelled by the newer P2 run under workflow concurrency; it is not acceptance evidence.
-> External authenticated E2E write path remains SKIPPED because dedicated non-production external credentials/authorization are unavailable. Local loopback P2 acceptance is separate and remains the intended proof for order/tenant tests.
-> P1 security fix on `d6f9421...` prevents `Array.map` index from being passed as the customer-manager financial-field permission; multi-row test proves balance, credit-limit and profile-id fields are removed from every row.
-> Organization appearance palette was implemented in `ad044cf...`; validate only if further integration gaps appear; do not rebuild.
-> Path B remains coordinated through Issue #422 and owns only observability, prompt-persistence, AI governance and developer-tools isolated paths. Old category-tree branch has no unique commits and is 66 commits behind; do not merge or redo categories.
-> No Vercel build/deploy/preview, paid service, hosted Supabase mutation, or production migration was performed.
-> Release remains NO-GO until P2 local order/tenant/finance tests, remaining permission/browser proofs, and production DB bootstrap/migration redesign are accepted.
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Current exact P2 source/test-harness SHA: `fc7963994c08f4d2dde4eadfdb7bd07a502fe823`.
+> Application P1 evidence remains exact to application SHA `d6f9421aba00468960bcf2bf0cb9b4f736d0cfd6`: P1 run #43139543761 SUCCESS — 68/68 files, 524/524 tests, strict TypeScript PASS, production build PASS.
+> Current P2 run [#43141469421](https://github.com/Report-Engainall/Nasr1/actions/runs/43141469421) is `IN_PROGRESS` on `fc796399...`. Infrastructure gate succeeded. Public read-only Playwright job #130929215175 is `IN_PROGRESS`; local PostgreSQL fixture/order job is conditional on its success and has not yet appeared. Do not record order/tenant/finance browser acceptance before those steps complete.
+> Exact P2 failure immediately preceding this repair: run #43140634250 failed in fixture setup because `public_storefront_organization_id()` resolved NULL. Migration `20261108000100_remove_initial_demo_seed.sql` intentionally disables the singleton row in `storefront_publication_config` and clears `warehouse_id`; the local fixture had recreated a warehouse but did not bind it to the publication singleton.
+> Repair commit `fc7963994c08f4d2dde4eadfdb7bd07a502fe823` modifies only `scripts/seed-p2-local-playwright.mjs`: after creating/verifying the canonical tenant's `P2-LOCAL-E2E` warehouse it updates the existing singleton publication row for that exact organization, enables it within the disposable loopback P2 database, and verifies both `public_storefront_organization_id()` and `public_storefront_warehouse_id()` return the expected IDs. It does not insert a replacement tenant, bypass the resolver, change migrations, or touch hosted Supabase.
+> Prior fixture repairs remain: `2e5c7e10...` deterministic local product/warehouse/supplier, `bf7f01f...` correct quantity-tier unique target `(product_id,tier,min_quantity)`, `d90f4a3...` statement diagnostics without SQL parameter values.
+> External authenticated E2E against a hosted Supabase remains SKIPPED because no separate non-production remote write credentials/authorization are available. The intended acceptance is against disposable local Supabase/PostgreSQL on loopback only.
+> Path B coordination remains Issue #422 and limited to observability, prompt-persistence, AI governance and developer tools; the old category-tree branch is 66 commits behind with no unique work. No new Path B deliverable is proven yet.
+> No Vercel build/deploy/preview, paid service, hosted database mutation, production migration execution, or secrets committed.
+> Release remains NO-GO pending successful P2 local order/tenant/finance proofs, browser/permission evidence, and resolution of production migration/bootstrap safety.
 
 ---
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — P2 FIXTURE RECONCILIATION
