@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   rpc: vi.fn(),
-  user: { name: "Buyer", isStaff: false },
+  user: { id: "buyer-user", profileId: "buyer-profile", name: "Buyer", isStaff: false, roles: ["customer"] },
   orderFailuresRemaining: 1,
   orderItems: [] as Array<{ product_id: string | null; quantity: number; approved_quantity: number | null; requested_quantity: number }>,
 }));
