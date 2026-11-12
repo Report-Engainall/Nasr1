@@ -1,3 +1,15 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-12 — PATH A IMPORT HISTORY ENTRY POINT
+
+> Repository: Report-Engainall/Nasr1; canonical branch: main.
+> Application-code SHA: 21284b94fbc36001588a323f63a87feb97a93832 (parent fa175b6b2b15476b46f73dfc5ce2ebffeab48c89).
+> Path A adds a role-gated shortcut from Data Center to the existing import batch history in UnifiedImportEngine; it adds a stable focus/scroll target to the existing batch section and a regression assertion in the existing Data Center wiring suite. It does not add a table, RPC, query, migration, mock, or duplicate history screen.
+> Exact-SHA verification for this application commit: P1 run #43137987360 was IN_PROGRESS at checkpoint (job 130917835835, dependency installation running); P2 run #43137987489 was PENDING. No new PASS is claimed for SHA 21284b94 until those runs complete.
+> The immediately preceding application SHA 7325ad53e39dbe9d8487db662101db07ad753e27 had P1 SUCCESS (67/67 files, 515/515 tests, strict TypeScript and production build PASS); this is historical evidence for that exact SHA only.
+> Path B remains assigned to programmer #2 under Issue #422 and the isolated folders in the fourth handoff; no Path B implementation is attributed to this commit. The 84 reference images were not reopened; the source comparison report remains the authoritative inventory.
+> No Vercel build/deploy/preview, paid service, production database change, or migration execution was performed.
+> Release remains NO-GO until the new exact-SHA checks, authenticated browser/tenant evidence, and financial ledger-source blockers are resolved.
+
+---
 # CURRENT EXECUTION CHECKPOINT — 2026-11-12 — CANONICAL MIGRATION SOURCE RECONCILED
 
 > Repository: `Report-Engainall/Nasr1`; source of truth: `main`.
