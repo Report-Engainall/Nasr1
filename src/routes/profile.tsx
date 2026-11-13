@@ -270,7 +270,7 @@ function CustomerAccountProfileContent({
         { to: "/addresses", title: "عناوين التوصيل", description: "إدارة عناوين حسابك", icon: MapPin },
         { to: "/wishlist", title: "المفضلة", description: "المنتجات التي حفظتها للرجوع إليها", icon: Heart },
         { to: "/compare", title: "مقارنة المنتجات", description: "مقارنة المنتجات التي اخترتها", icon: GitCompareArrows },
-        { to: "/service-cases", title: "حالات خدمة العملاء", description: "فتح الشكاوى والاستفسارات ومتابعة ردود فريق الأغبري", icon: MessageCircle }
+        { to: "/service-cases", title: "حالات خدمة العملاء", description: "فتح الشكاوى والاستفسارات ومتابعة ردود فريق الأغبري", icon: MessageCircle },
         { to: "/notifications", title: "التنبيهات", description: "تحديثات الطلبات وخدمة العملاء", icon: Bell },
         { to: "/help", title: "مركز المساعدة", description: "إرشادات الحساب والطلبات والتوصيل وخدمة العملاء", icon: Headphones },
         { to: "/company/contacts", title: "جهات اتصال الشركة", description: "إدارة جهات الاتصال التشغيلية", icon: Building2 },
