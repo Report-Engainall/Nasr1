@@ -11,6 +11,7 @@ import { useFetch } from '@/lib/useFetch';
 import { formatNumber } from '@/lib/format';
 import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
+import { ProductComparison } from '@/components/store/ProductComparison';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
@@ -984,7 +985,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
         {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
-        {view === 'compare' && <CollectionView title="مقارنة المنتجات" priceVisibilityPolicy={settings?.show_price_on_cards} icon={GitCompare} products={products.filter((p) => compare.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="اختر حتى ثلاثة منتجات من الكتالوج للمقارنة" />}
+        {view === 'compare' && <ProductComparison products={products.filter((product) => compare.includes(product.id))} priceVisibilityPolicy={settings?.show_price_on_cards} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onRemove={toggleCompare} onBack={() => void navigate({ to: '/' })} />}
         {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} alreadyInCart={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
 
         {view === 'cart' && (!cartRestored ? (
