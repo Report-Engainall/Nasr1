@@ -129,7 +129,7 @@ export function SystemHealthPanel() {
       </article>
 
       <p className="text-xs leading-6 text-muted-foreground">
-        حدود الإثبات: هذا الفحص يقرأ ملخصاً إدارياً من قاعدة البيانات فقط. لا يثبت سلامة Auth أو Storage أو Edge Functions أو Onyx أو مزود النموذج، ولا يحل محل سجل Evidence موثق أو فحوص PostgreSQL وRLS.
+        حدود الإثبات: هذا الفحص يقرأ ملخصاً إدارياً من قاعدة البيانات فقط. لا يثبت سلامة Auth أو Storage أو Edge Functions أو Onyx أو مزود النموذج، ولا يحل محل سجل Evidence موثق أو فحوص PostgreSQL وRLS. المدة المعروضة تقيس دورة الطلب كاملة من المتصفح، ولا تمثل زمن تنفيذ قاعدة البيانات وحده.
       </p>
     </section>
   );
