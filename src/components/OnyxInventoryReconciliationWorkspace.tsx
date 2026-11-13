@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { Database, RefreshCw, Scale, X } from "lucide-react";
 import { fetchOnyxSnapshots, type OnyxSnapshotSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -36,6 +36,11 @@ const errorStyle: CSSProperties = {
   padding: 12, borderRadius: 8, border: "1px solid #d97757", background: "#fff5f0",
   color: "#8c3219", lineHeight: 1.7,
 };
+const DIALOG_FOCUSABLE_SELECTOR = [
+  "a[href]", "button:not([disabled])", "input:not([disabled])",
+  "select:not([disabled])", "textarea:not([disabled])",
+  "[tabindex]:not([tabindex=\"-1\"])",
+].join(",");
 
 function snapshotLabel(snapshot: OnyxSnapshotSummary): string {
   const source = snapshot.source_file_name?.trim() || "ملف مصدر بلا اسم";
@@ -148,7 +153,7 @@ function ReconciliationWorkspaceContent({ loading, snapshots, selectedSnapshotId
   );
 }
 
-function ReconciliationWorkspaceDialog({ loading, snapshots, selectedSnapshotId, selectedSnapshot, error, onClose, onSelect, onRefresh }: {
+function ReconciliationWorkspaceDialog({ loading, snapshots, selectedSnapshotId, selectedSnapshot, error, onClose, onSelect, onRefresh, dialogRef }: {
   loading: boolean;
   snapshots: OnyxSnapshotSummary[];
   selectedSnapshotId: string;
@@ -157,10 +162,11 @@ function ReconciliationWorkspaceDialog({ loading, snapshots, selectedSnapshotId,
   onClose: () => void;
   onSelect: (id: string) => void;
   onRefresh: () => void;
+  dialogRef: RefObject<HTMLElement | null>;
 }) {
   return (
     <div style={overlayStyle} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="onyx-reconciliation-workspace-title" style={dialogStyle} dir="rtl">
+      <section ref={dialogRef} id="onyx-inventory-reconciliation-dialog" role="dialog" aria-modal="true" aria-labelledby="onyx-reconciliation-workspace-title" tabIndex={-1} style={dialogStyle} dir="rtl">
         <ReconciliationWorkspaceContent
           loading={loading}
           snapshots={snapshots}
@@ -183,8 +189,66 @@ export function OnyxInventoryReconciliationWorkspace() {
   const [snapshots, setSnapshots] = useState<OnyxSnapshotSummary[]>([]);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [error, setError] = useState("");
-
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
+  const launcherRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open || !ready || !canManage) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusableElements = () => Array.from(
+      dialog.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE_SELECTOR),
+    ).filter((element) => element.getAttribute("aria-hidden") !== "true");
+
+    const initialTarget = focusableElements()[0] ?? dialog;
+    initialTarget.focus();
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = focusableElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      const restoreTarget = previouslyFocused?.isConnected
+        ? previouslyFocused
+        : launcherRef.current;
+      restoreTarget?.focus();
+    };
+  }, [open, ready, canManage]);
+
   if (!ready || !canManage) return null;
 
   async function loadSnapshots() {
@@ -211,7 +275,7 @@ export function OnyxInventoryReconciliationWorkspace() {
 
   return (
     <>
-      <button type="button" style={launcherStyle} onClick={openWorkspace} aria-haspopup="dialog">
+      <button ref={launcherRef} type="button" style={launcherStyle} onClick={openWorkspace} aria-haspopup="dialog" aria-expanded={open} aria-controls="onyx-inventory-reconciliation-dialog">
         <Scale size={17} aria-hidden="true" />
         مصالحة مخزون أونكس
       </button>
@@ -225,6 +289,7 @@ export function OnyxInventoryReconciliationWorkspace() {
           onClose={() => setOpen(false)}
           onSelect={setSelectedSnapshotId}
           onRefresh={() => void loadSnapshots()}
+          dialogRef={dialogRef}
         />
       )}
     </>
