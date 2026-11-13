@@ -80,3 +80,13 @@ This result is tied to the exact SHA above; no results from its parent or earlie
 **P2 GitHub Actions run:** `43365691641`. The authenticated E2E infrastructure gate completed SUCCESS but is only an availability gate. Public read-only Storefront Playwright smoke was still running when this checkpoint was written. The customer order and tenant-isolation job was SKIPPED; therefore it is not an acceptance pass. PostgreSQL 17/authenticated cross-tenant read and write denial remain OPEN.
 
 The P1 failures on the intermediate candidate were corrected and rerun: the shared snapshot clock was restored, and the UI test now navigates the memory book's independent 25-record display pages before checking older history. No production DB writes, migrations, RLS/Auth changes, Vercel builds or deployments were performed.
+
+## P2 browser acceptance — in-progress update — 13 November 2026
+
+For source SHA `880788208fabeb840a6639b38dc133a75f85603d`:
+- Public no-write Playwright: **19/19 SUCCESS**.
+- P1: **SUCCESS** — Vitest 638/638 in 89 files, strict TypeScript SUCCESS, production build SUCCESS.
+- Temporary local Supabase/PostgreSQL 17 stack: migrations applied successfully; isolated users and tenant fixtures created successfully; endpoint allow/deny, atomic pricing rollback/audit/stale-writer race, cash expense source posting/idempotency/concurrency, purchase receipt source-linked draft/restrictions, app build and launch all SUCCESS.
+- Authenticated Chromium: order persistence and cross-tenant denial SUCCESS; warehouse and purchase-order XLSX downloads SUCCESS; checkout replay after a committed response loss SUCCESS; return/review/receipt/credit memo SUCCESS; audited Onyx order XLSX export SUCCESS.
+- Current active P2 step when updated: finance-document and operational-task printing. Customer-manager financial privacy/audit and final proof/cleanup/artifact steps remain pending. Do not call P2 complete yet.
+- These operations ran only against ephemeral local PostgreSQL 17 and test users/tenants. No hosted Supabase project, production data or Vercel deployment was used.

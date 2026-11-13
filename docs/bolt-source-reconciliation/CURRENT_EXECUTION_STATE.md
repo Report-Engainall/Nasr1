@@ -1,3 +1,19 @@
+# P2 PARTIAL ACCEPTANCE CHECKPOINT — 2026-11-13 — LOCAL SUPABASE / FINANCE UI
+
+- VERIFIED_SOURCE_SHA: `880788208fabeb840a6639b38dc133a75f85603d`.
+- P1 run `43365691627`: SUCCESS — 638/638 tests in 89 files; strict TypeScript SUCCESS; production build SUCCESS.
+- P2 run `43365691641`:
+  - Public no-write Storefront smoke: SUCCESS, 19/19 Playwright tests.
+  - Authenticated local Supabase PostgreSQL 17 job `131690321848`: local Supabase started, repository migrations applied, isolated users/tenants seeded, endpoint guard allow/deny, atomic price rollback/audit/stale-writer, cash-expense posting/idempotency/concurrency, purchase receipt source-link/restrictions, source build and launch — all SUCCESS.
+  - Chromium: authenticated order persistence and cross-tenant denial SUCCESS; warehouse stock-count XLSX SUCCESS; purchase-orders XLSX SUCCESS; checkout replay after committed response lost SUCCESS; return/review/receipt/credit memo SUCCESS; audited Onyx order XLSX export SUCCESS.
+  - Current active step at checkpoint: finance document and operational-task print acceptance in Chromium (step 32). Customer-manager authorization/financial privacy/audit, optional device-session fixtures, proof boundary, cleanup/artifact upload are still pending. No final job conclusion yet.
+- P2 NOT COMPLETE until the job reaches terminal state and its artifacts/proof boundary are inspected.
+- All Supabase activity is on a temporary local PostgreSQL 17 stack; no hosted database is used or modified.
+- NO deployment or Vercel builds; no paid provider or secret changes.
+- NEXT: inspect finance printing and customer-manager privacy results; verify optional device-session job is either passed or clearly skipped because fixtures are absent; confirm local stack cleanup and trace/report upload; then update matrix on its final status.
+
+---
+
 # EXACT-SHA ACCEPTANCE CHECKPOINT — 2026-11-13 — DECISION MEMORY COLLECTION
 
 - REPOSITORY: `Report-Engainall/Nasr1`; branch `main`.
