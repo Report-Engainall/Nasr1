@@ -1,3 +1,18 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-13 — DECISION MEMORY COLLECTION UI INTEGRATION
+
+- REPOSITORY: `Report-Engainall/Nasr1`; branch `main`.
+- PARENT_SHA: `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`.
+- PARENT P1 RESULT: Vitest, strict TypeScript and Production Build all SUCCESS on `68da65ecc348d2fcba2f6850fd0b13b525184708`, GitHub Actions run `43364543729`.
+- SOURCE CONTRACT VERIFIED: `supabase/migrations/20261105270000_intelligence_decision_memory.sql` creates append-only organization-scoped snapshots/events and returns the latest persisted `memorySnapshot` from `fetch_decision_outcomes` after finance-role and active-organization checks. `src/lib/intelligence/decision-outcome-client.ts` parses the snapshot and exports `fetchDecisionOutcomeCollection()`.
+- IMPLEMENTATION: `IntelligenceWorkspace` now loads the bounded historical collection independently from the 50-row decision-operation register, feeds parsed persisted snapshots into `buildDecisionMemoryBook`, carries incomplete-coverage reasons into the memory engine, and refreshes the collection after saved decisions, lifecycle transitions, retry and workspace refresh.
+- BOUNDS: collection verifies page size, stable total, unique outcome IDs and first-page fingerprint; maximum read window remains 5,100 rows. Changed/incomplete source remains partial, never represented as complete.
+- TESTS: client pagination/coverage tests plus workspace proof that an archive record outside the first 50-row operational page appears in the memory book, and page navigation does not reload the archive. Previous engine regression suite remains.
+- SAFETY: reuse of existing authenticated RPC/DTO only; no new migration, SQL, RLS, RPC, data, production DB write, Auth change, Vercel build, paid service or deployment.
+- EXACT_SHA: new source/tests/docs commit requires its own P1 result; no PASS is pre-assigned.
+- NEXT: inspect exact-SHA P1 (Vitest, strict TypeScript, build); repair failures on current main. Verify P2 no-write public UI smoke separately. Authenticated tenant/order E2E remains SKIPPED until external fixtures are available.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-13 — DECISION MEMORY ENGINE REGRESSION COVERAGE
 
 - REPOSITORY: `Report-Engainall/Nasr1`; source branch: `main`.
@@ -7,10 +22,10 @@
   - `.github/workflows/p1-admin-context-verification.yml` — added the exact test path to both push and pull-request filters so the full Vitest, strict TypeScript and production-build job is selected for this work.
   - Canonical matrix task: `REF-DECISION-MEMORY-BOOK-001`.
 - SCOPE: P3 intelligence engine regression tests only. No changes to Path B issue #422 owned directories, shared admin routing, server contracts, migrations, RLS, Auth, hosted database, production data, Vercel or deployment.
-- IMPORTANT SOURCE LIMIT: `IntelligenceWorkspace` still supplies an empty snapshot array because no immutable tenant-safe snapshot read DTO is available in the current application source. The test suite does not pretend to solve that server-read gap or claim persisted snapshot rendering.
-- EXACT_SHA: this checkpoint and tests are committed together on the main commit recorded by GitHub. P1 CI is PENDING until a terminal run result is fetched for that exact commit.
-- ACCEPTANCE: no PASS is recorded here. Unit tests, strict TypeScript and build require exact-commit CI. PostgreSQL 17 tenant read/deny and authenticated browser acceptance remain separate and OPEN.
-- NEXT: poll exact-main P1 result; if any test/type/build step fails, repair on top of the inspected main head and rerun on the resulting SHA. Only after CI success may the matrix status be upgraded to exact-SHA CI SUCCESS; leave runtime/DB read acceptance pending.
+- SOURCE CORRECTION: The immutable tenant-scoped read DTO already exists in `supabase/migrations/20261105270000_intelligence_decision_memory.sql`; `fetch_decision_outcomes` includes the latest snapshot, `decision-outcome-client.ts` strictly parses it, and `fetchDecisionOutcomeCollection()` performs bounded history coverage checks. The remaining bug was that `IntelligenceWorkspace` did not call the collection loader.
+- EXACT_SHA: `68da65ecc348d2fcba2f6850fd0b13b525184708`. GitHub Actions P1 completed Vitest, strict TypeScript and Production Build with SUCCESS on this exact SHA: run `43364543729`. The separate UI/tenant E2E gate did not complete all jobs; tenant/order job was SKIPPED.
+- ACCEPTANCE: P1 unit tests, strict TypeScript and build are SUCCESS on the exact parent SHA above. This proves regression coverage, not live PostgreSQL or tenant runtime acceptance. Authenticated order/tenant browser proof remains OPEN/SKIPPED.
+- NEXT: collection UI integration is implemented in the new commit below; run P1 exact-SHA Vitest, TypeScript and Production Build before changing its status. Keep tenant order browser proof separate and do not infer it from the public read-only smoke.
 
 ---
 

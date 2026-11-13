@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomes, resumeDeferredDecisionOutcome } from "./decision-outcome-client";
+import { commandDecisionOutcome, createDecisionOutcomeProposal, deferDecisionOutcome, fetchDecisionOutcomeCollection, fetchDecisionOutcomes, resumeDeferredDecisionOutcome } from "./decision-outcome-client";
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
@@ -112,6 +112,46 @@ describe("persisted decision outcome client", () => {
     const result = await fetchDecisionOutcomes();
     expect(rpc).toHaveBeenCalledWith("fetch_decision_outcomes", { p_limit: 50, p_offset: 0 });
     expect(result).toMatchObject({ ok: true, total: 1, items: [{ id: outcome.id, state: "PROPOSED", ownerLabel: "مدير المالية" }] });
+  });
+
+
+  it("loads a complete decision-memory history with stable count, page sizes, unique IDs and a verified first-page fingerprint", async () => {
+    const identified = Array.from({ length: 150 }, (_, index) => ({
+      ...outcome,
+      id: "00000000-0000-4000-8000-" + (index + 1).toString(16).padStart(12, "0"),
+    }));
+    const firstPage = identified.slice(0, 100);
+    const secondPage = identified.slice(100);
+    rpc.mockResolvedValueOnce({ data: { items: firstPage, total: 150 }, error: null })
+      .mockResolvedValueOnce({ data: { items: secondPage, total: 150 }, error: null })
+      .mockResolvedValueOnce({ data: { items: firstPage, total: 150 }, error: null });
+    const result = await fetchDecisionOutcomeCollection();
+    expect(result).toMatchObject({ ok: true, collection: { total: 150, loaded: 150, pageCount: 2, complete: true, reason: "COMPLETE" } });
+    expect(rpc).toHaveBeenNthCalledWith(1, "fetch_decision_outcomes", { p_limit: 100, p_offset: 0 });
+    expect(rpc).toHaveBeenNthCalledWith(2, "fetch_decision_outcomes", { p_limit: 100, p_offset: 100 });
+    expect(rpc).toHaveBeenNthCalledWith(3, "fetch_decision_outcomes", { p_limit: 100, p_offset: 0 });
+  });
+
+  it("returns partial coverage when history changes during pagination", async () => {
+    const identified = Array.from({ length: 101 }, (_, index) => ({
+      ...outcome,
+      id: "00000000-0000-4000-8000-" + (index + 1).toString(16).padStart(12, "0"),
+    }));
+    rpc.mockResolvedValueOnce({ data: { items: identified.slice(0, 100), total: 101 }, error: null })
+      .mockResolvedValueOnce({ data: { items: identified.slice(100), total: 102 }, error: null });
+    const result = await fetchDecisionOutcomeCollection();
+    expect(result).toMatchObject({ ok: true, collection: { total: 101, loaded: 100, complete: false, reason: "SOURCE_TOTAL_CHANGED" } });
+  });
+
+  it("stops decision-memory coverage on a duplicate record across pages", async () => {
+    const identified = Array.from({ length: 100 }, (_, index) => ({
+      ...outcome,
+      id: "00000000-0000-4000-8000-" + (index + 1).toString(16).padStart(12, "0"),
+    }));
+    rpc.mockResolvedValueOnce({ data: { items: identified, total: 101 }, error: null })
+      .mockResolvedValueOnce({ data: { items: [identified[0]], total: 101 }, error: null });
+    const result = await fetchDecisionOutcomeCollection();
+    expect(result).toMatchObject({ ok: true, collection: { total: 101, loaded: 100, complete: false, reason: "DUPLICATE_RECORD" } });
   });
 
   it("creates a proposal with a server-generated idempotency key and no tenant selector", async () => {

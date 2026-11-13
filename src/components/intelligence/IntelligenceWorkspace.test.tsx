@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   fetchCashflow: vi.fn(),
   fetchExecutiveLiquidity: vi.fn(),
   fetchOutcomes: vi.fn(),
+  fetchMemoryCollection: vi.fn(),
   fetchInventory: vi.fn(),
   fetchShiftWorkspace: vi.fn(),
   fetchProcessBottlenecks: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock("@/lib/intelligence/inventory-intelligence-client", () => ({
 }));
 vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   fetchDecisionOutcomes: mocks.fetchOutcomes,
+  fetchDecisionOutcomeCollection: mocks.fetchMemoryCollection,
   createDecisionOutcomeProposal: mocks.createProposal,
   commandDecisionOutcome: vi.fn(),
 }));
@@ -274,6 +276,7 @@ describe("production intelligence workspace inventory screens", () => {
       ok: false, status: "UNAVAILABLE", message: "executive liquidity fixture deliberately unavailable",
     });
     mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [], total: 0 });
+    mocks.fetchMemoryCollection.mockReset().mockResolvedValue({ ok: true, collection: { items: [], total: 0, loaded: 0, pageCount: 1, complete: true, reason: "COMPLETE" } });
     mocks.createProposal.mockReset().mockResolvedValue({ ok: true, duplicate: false });
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
     mocks.fetchShiftWorkspace.mockReset().mockResolvedValue({
@@ -303,6 +306,29 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.previewPolicyRollback.mockReset().mockResolvedValue({ ok: true, data: {} });
   });
   afterEach(() => cleanup());
+
+  it("loads the complete stabilized decision-memory collection independently from the 50-row register page", async () => {
+    const pageRecords = Array.from({ length: 50 }, (_, index) =>
+      decisionOutcomeFixture("00000000-0000-4000-8000-" + (index + 1).toString(16).padStart(12, "0"), "قرار الصفحة التشغيلية " + (index + 1)));
+    const older = decisionOutcomeFixture("00000000-0000-4000-8000-000000000051", "قرار أقدم خارج الصفحة التشغيلية");
+    mocks.fetchOutcomes.mockReset()
+      .mockResolvedValueOnce({ ok: true, items: pageRecords, total: 51 })
+      .mockResolvedValueOnce({ ok: true, items: [older], total: 51 });
+    mocks.fetchMemoryCollection.mockReset().mockResolvedValue({
+      ok: true,
+      collection: { items: [...pageRecords, older], total: 51, loaded: 51, pageCount: 1, complete: true, reason: "COMPLETE" },
+    });
+    render(<IntelligenceWorkspace />);
+    const memoryBook = await screen.findByRole("region", { name: "دفتر ذاكرة القرارات والتعلم" });
+    expect(memoryBook).toHaveTextContent("الصفحة 51 من 51");
+    expect(memoryBook).toHaveTextContent("قرار أقدم خارج الصفحة التشغيلية");
+    expect(mocks.fetchMemoryCollection).toHaveBeenCalledTimes(1);
+    const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
+    fireEvent.click(within(register).getByRole("button", { name: "التالي" }));
+    expect(await within(register).findByText("عرض 51–51 من 51")).toBeInTheDocument();
+    expect(mocks.fetchOutcomes).toHaveBeenLastCalledWith(50, 50);
+    expect(mocks.fetchMemoryCollection).toHaveBeenCalledTimes(1);
+  });
 
   it("paginates the saved decision register with the server-provided total", async () => {
     const first = decisionOutcomeFixture("00000000-0000-4000-8000-000000000001", "قرار الصفحة الأولى");

@@ -42,3 +42,15 @@ The new test path was added to both push and pull-request filters in `.github/wo
 ## Safety boundary
 
 No SQL, migration application, RLS/Auth change, Supabase production operation, external provider, secret, paid service, Vercel action or deployment was used.
+
+## Correction and follow-on integration — 13 November 2026
+
+The prior note claiming the immutable read DTO did not exist was incorrect. Source inspection confirmed that migration `20261105270000_intelligence_decision_memory.sql` already returns the latest same-organization `memorySnapshot` in the existing authenticated `fetch_decision_outcomes` RPC. The client parser validates that DTO, and `fetchDecisionOutcomeCollection()` already implements bounded pagination, stable total checks, duplicate detection and a first-page fingerprint re-read.
+
+The real gap was UI wiring: `IntelligenceWorkspace` used only the 50-row operational page while the memory book and precedent search should use the bounded full collection. This delivery integrates the existing collection into the workspace, keeping the operational register paginated at 50 while the memory book reads the stabilized historical collection (maximum 5,100). Partial history remains PARTIAL with an explicit source-coverage warning; it is never labeled complete.
+
+Added regression coverage:
+- Client: verified two-page collection and fingerprint, changed total during collection, duplicate identity across pages.
+- Workspace: verifies decision-memory search includes an older record outside the first operational page, and changing operational pages does not refetch the full archive.
+
+The parent source SHA `68da65ecc348d2fcba2f6850fd0b13b525184708` passed P1 Vitest, strict TypeScript and production build in GitHub Actions run `43364543729`. This follow-on source commit still requires its own exact-SHA P1 result. PostgreSQL 17 foreign-tenant runtime proof and authenticated browser order/tenant proof remain separate and OPEN/SKIPPED. No new migration or production DB write was made.

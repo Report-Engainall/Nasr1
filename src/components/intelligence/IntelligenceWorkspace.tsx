@@ -34,6 +34,7 @@ import {
   commandDecisionOutcome,
   createDecisionOutcomeProposal,
   fetchDecisionOutcomes,
+  fetchDecisionOutcomeCollection,
   type DecisionOutcomeEventType,
   type DecisionOutcomeView,
   type DecisionOutcomeListResult,
@@ -378,7 +379,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [outcomesLoading, setOutcomesLoading] = useState(true);
   const [outcomeOffset, setOutcomeOffset] = useState(0);
   const outcomeRequestGeneration = useRef(0);
-  const snapshotAt = useRef(new Date());
+  const [decisionMemoryCollectionResult, setDecisionMemoryCollectionResult] = useState<Awaited<ReturnType<typeof fetchDecisionOutcomeCollection>> | null>(null);
+  const [decisionMemoryLoading, setDecisionMemoryLoading] = useState(true);
+  const decisionMemoryRequestGeneration = useRef(0);
   const outcomesMounted = useRef(false);
   const [outcomeBusyId, setOutcomeBusyId] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
@@ -433,6 +436,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     return () => {
       outcomesMounted.current = false;
       outcomeRequestGeneration.current += 1;
+      decisionMemoryRequestGeneration.current += 1;
     };
   }, []);
 
@@ -772,9 +776,20 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     setOutcomesLoading(false);
   }, [canManage, outcomeOffset]);
 
-  useEffect(() => {
-    snapshotAt.current = new Date();
-  }, [refreshKey]);
+  const loadDecisionMemoryCollection = useCallback(async () => {
+    const requestGeneration = ++decisionMemoryRequestGeneration.current;
+    if (!outcomesMounted.current) return;
+    if (!canManage) {
+      setDecisionMemoryCollectionResult({ ok: false, status: "DENIED", message: "دفتر ذاكرة القرارات متاح للمدير ومدير المؤسسة المالية فقط." });
+      setDecisionMemoryLoading(false);
+      return;
+    }
+    setDecisionMemoryLoading(true);
+    const response = await fetchDecisionOutcomeCollection();
+    if (!outcomesMounted.current || requestGeneration !== decisionMemoryRequestGeneration.current) return;
+    setDecisionMemoryCollectionResult(response);
+    setDecisionMemoryLoading(false);
+  }, [canManage]);
 
   useEffect(() => {
     let mounted = true;
@@ -815,6 +830,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   useEffect(() => {
     void loadOutcomes();
   }, [loadOutcomes, refreshKey]);
+
+  useEffect(() => {
+    void loadDecisionMemoryCollection();
+  }, [loadDecisionMemoryCollection, refreshKey]);
 
   const data = result?.ok ? result.data : null;
   const cashflowDenied = Boolean(result && !result.ok && result.status === "DENIED");
@@ -1093,26 +1112,27 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         ? "error"
         : "unavailable";
   const decisionMemoryBook = useMemo(() => {
-    if (!outcomeResult?.ok) return null;
+    const collection = decisionMemoryCollectionResult?.ok ? decisionMemoryCollectionResult.collection : null;
+    if (!collection) return null;
     try {
       return buildDecisionMemoryBook({
-        generatedAt: snapshotAt.current.toISOString(),
-        outcomes: outcomeResult.items,
-        // P2 has not yet delivered the immutable decision-memory snapshot read contract.
-        // Keep these empty until the server returns actual persisted snapshots.
-        snapshots: [],
-        totalOutcomes: outcomeResult.total,
+        generatedAt: new Date().toISOString(),
+        outcomes: collection.items,
+        snapshots: collection.items.flatMap((outcome) => outcome.memorySnapshot ? [outcome.memorySnapshot] : []),
+        totalOutcomes: collection.total,
+        sourceCoverageComplete: collection.complete,
+        ...(!collection.complete ? { sourceCoverageWarning: "DECISION_HISTORY_COLLECTION_" + collection.reason } : {}),
       });
     } catch {
       return null;
     }
-  }, [outcomeResult]);
-  const decisionMemoryState = outcomesLoading
+  }, [decisionMemoryCollectionResult]);
+  const decisionMemoryState = decisionMemoryLoading
     ? "loading"
-    : outcomeResult && !outcomeResult.ok
-      ? outcomeResult.status === "UNAVAILABLE" ? "unavailable" : "error"
-      : outcomeResult?.ok
-        ? outcomeResult.items.length ? "ready" : "empty"
+    : decisionMemoryCollectionResult && !decisionMemoryCollectionResult.ok
+      ? decisionMemoryCollectionResult.status === "UNAVAILABLE" ? "unavailable" : "error"
+      : decisionMemoryCollectionResult?.ok
+        ? decisionMemoryCollectionResult.collection.total === 0 && decisionMemoryCollectionResult.collection.complete ? "empty" : "ready"
         : "unavailable";
   const verified = Boolean(
     data &&
@@ -1165,6 +1185,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     setOutcomeMessage(created.duplicate ? "هذا المقترح محفوظ مسبقاً؛ تم استرجاع نسخته الحالية." : "تم حفظ المقترح وسجل حدثه على الخادم.");
     if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
     else await loadOutcomes();
+    await loadDecisionMemoryCollection();
   };
 
   const persistEvidenceBackedAction = async (decision: DecisionCandidate, candidateId: string) => {
@@ -1199,6 +1220,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       : "تم حفظ الإجراء المقترح وسجل حدثه على الخادم.");
     if (!created.duplicate && outcomeOffset > 0) setOutcomeOffset(0);
     else await loadOutcomes();
+    await loadDecisionMemoryCollection();
   };
 
   const runTransition = async (
@@ -1227,12 +1249,14 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     setOutcomeBusyId(null);
     if (!updated.ok) {
       setOutcomeMessage(updated.message);
-      if (updated.status === "STALE" || updated.status === "CONFLICT") await loadOutcomes();
+      if (updated.status === "STALE" || updated.status === "CONFLICT") {
+        await Promise.all([loadOutcomes(), loadDecisionMemoryCollection()]);
+      }
       return;
     }
     setOutcomeMessage(updated.duplicate ? "تم التعرف على إعادة إرسال الأمر دون إنشاء حدث مكرر." : "تم تسجيل انتقال القرار وإثباته في سجل التدقيق.");
     setOutcomeReasons((current) => ({ ...current, [outcome.id]: "" }));
-    await loadOutcomes();
+    await Promise.all([loadOutcomes(), loadDecisionMemoryCollection()]);
   };
 
   return (
@@ -1257,7 +1281,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 setSupplierPerformanceRefreshKey((value) => value + 1);
                 setCustomerQuotePipelineRefreshKey((value) => value + 1);
                 setTaskPerformanceRefreshKey((value) => value + 1);
-              }} disabled={loading || outcomesLoading || inventoryLoading || shiftLoading || processLoading || supplierPerformanceLoading || customerQuotePipelineLoading || taskPerformanceLoading}>
+              }} disabled={loading || outcomesLoading || decisionMemoryLoading || inventoryLoading || shiftLoading || processLoading || supplierPerformanceLoading || customerQuotePipelineLoading || taskPerformanceLoading}>
                 <RefreshCw size={16} /> تحديث
               </button>
             </div>
@@ -1643,7 +1667,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
           <DecisionMemoryBook
             result={decisionMemoryBook}
             state={decisionMemoryState}
-            onRetry={() => void loadOutcomes()}
+            onRetry={() => { void loadOutcomes(); void loadDecisionMemoryCollection(); }}
           />
 
           {outcomeMessage ? <div className="panel" role="status">{outcomeMessage}</div> : null}
