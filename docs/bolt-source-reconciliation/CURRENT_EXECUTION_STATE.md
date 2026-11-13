@@ -5545,3 +5545,14 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - P3 source readiness stays honest: per-attempt AI audit read, persistent prompt version/maker-checker store, durable error event source and trusted Developer AI repository access remain BLOCKED. Global health and provider connectivity remain UNKNOWN.
 - Next: P1 adds the missing isolated browser acceptance and reruns P1/P2 on one exact new head; P3 rechecks that head plus final workflow results and integrates only when all required browser/security proof is present. The 41 reference pages and release remain OPEN / NO-GO.
 - No production database, migration, RLS/Auth, external provider, secret, Vercel or paid-service activity.
+
+---
+
+## P2 FOLLOW-UP — PR #442 PUBLIC SMOKE COMPLETE; LOCAL PG17 RUN ACTIVE — 14 NOVEMBER 2026
+
+- PR #442 exact head `9e4a225754776559749ce3ddbec5366b16538388`: P1 #43518625135 **SUCCESS** (105/105 files, 755/755 tests, strict TypeScript and production build).
+- P2 #43518628811: public read-only Storefront Playwright **SUCCESS**; authenticated infrastructure gate **SUCCESS**; external customer/order/tenant job **SKIPPED**; local Supabase/PostgreSQL 17 + Chromium job #132208434512 **IN_PROGRESS**. It had only started dependency installation at last inspection; local migrations, tenant fixtures, DB transaction proofs and Chromium acceptance remained pending.
+- Do not mark the PR P2 overall successful until the local job terminates SUCCESS. Even then, it does not prove the mounted admin observability screen because that path is not covered by the public storefront smoke or local business-flow E2E specs.
+- Admin-settings authenticated browser acceptance remains **NOT RUN / BLOCKED** pending P1's Playwright coverage for admin/manager allow, accountant/unauthorized deny, mobile/desktop layout, session-change clearing and retry behavior.
+- PR remains open/unmerged; sync the PR branch with current main documentation commits, then rerun P1/P2 on one exact resulting head. Main app code is unchanged by checkpoint commits.
+- No hosted/production database, production deployment, Vercel, paid service or external AI call.
