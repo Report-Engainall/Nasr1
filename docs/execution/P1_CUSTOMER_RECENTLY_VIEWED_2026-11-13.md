@@ -37,6 +37,20 @@
 - No changes to predictive search, wishlist, compare, cart, checkout, pricing or inventory source contracts.
 - LocalStorage is a convenience layer and is not an authorization boundary; the account panel is hidden by the existing verified profile-access mode.
 
-## Acceptance still required
+## Exact acceptance evidence
 
-Run the P1 workflow on this exact PR head: full Vitest, strict TypeScript and production build. Run P2 on the exact PR head for public Storefront/browser smoke and the repository's isolated local Supabase/PostgreSQL checks. External hosted customer/tenant E2E remains a separate gate and must be reported SKIPPED when credentials are unavailable. Do not infer production or cross-device acceptance from these local tests.
+- PR: [#432 — merged](https://github.com/Report-Engainall/Nasr1/pull/432).
+- Accepted PR head SHA: `dc307541e99e151ef6580c519243eb646da77f13`.
+- Merged main SHA: `6a7290eb219d906fec7596d125569c5036e0ba9f`.
+- P1 run [#43358781222](https://github.com/Report-Engainall/Nasr1/actions/runs/43358781222): **SUCCESS** on the exact PR head. Vitest reported 81 test files / 597 tests passed; strict TypeScript and production build passed.
+- P2 run [#43358781112](https://github.com/Report-Engainall/Nasr1/actions/runs/43358781112): **SUCCESS** on the exact PR head.
+  - Authenticated E2E infrastructure gate: **SUCCESS**.
+  - Public read-only Storefront Playwright smoke: **SUCCESS**.
+  - Dedicated isolated local Supabase/PostgreSQL 17 job: **SUCCESS**. Migrations applied locally; tenant fixtures created; RPC guards, atomic pricing rollback/audit/race, cash expense posting/idempotency/concurrency, purchase receipt accounting, authenticated order persistence, cross-tenant denial, stock/purchase XLSX, checkout replay, customer returns/credit memo, Onyx export, finance/task print, customer-manager authorization/privacy/audit, and immediate device-session revocation all passed.
+  - Generic external customer/order/tenant E2E job: **SKIPPED** because hosted credentials are not configured. The local dedicated Supabase job did execute the authenticated and cross-tenant assertions. Do not call the hosted test passed.
+- No production deployment, hosted Supabase mutation, SQL migration to production, Vercel use or paid service was involved.
+- The accepted code was merged to `main` without changing its feature code. The merge commit also contains the independent P3 observability commits that reached `main` during acceptance. A separate post-merge combined-tree workflow run is not recorded here; the P1/P2 evidence above is tied to the exact tested PR source SHA.
+
+## Final status
+
+**IMPLEMENTED AND MERGED.** The account-scoped browser history and its customer-only My Aghbari UI are accepted on the exact PR head. External hosted customer/tenant E2E remains an explicit pending gate; no cross-device synchronization or server-side viewing analytics is claimed.
