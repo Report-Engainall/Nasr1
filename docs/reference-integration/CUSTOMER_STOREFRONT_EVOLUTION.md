@@ -128,3 +128,12 @@ The account hub composition follows the account-as-workspace pattern studied in 
 - The comparison table is keyboard-focusable and horizontally scrollable on small screens. Product detail, remove-from-comparison and add-to-cart actions call the existing storefront handlers; no second comparison store, catalog query or cart path was introduced.
 - Implementation: `src/components/store/ProductComparison.tsx`, `src/components/store/ProductComparison.test.tsx`, and the existing compare-view integration in `src/components/Storefront.tsx`.
 - Independently implemented on NASR1's React/TypeScript stack. No external project source, assets, packages, or paid service was copied or added. Component tests cover actual row values, price suppression, unknown stock, disabled ordering, actions, and retry state. CI and full browser acceptance remain separate from source implementation.
+
+## Customer-profile isolation for compare preferences — 2026-11-14
+
+- The existing three-product compare list is retained, but authenticated customer selections are now stored under a profile-specific key instead of the shared guest key. Guest sessions keep the legacy guest key for backwards compatibility.
+- Customer A's selections are therefore not loaded into Customer B's session on the same browser, and guest comparison selections are not inherited by an authenticated customer.
+- The persisted value remains only a bounded set of product IDs (maximum three). Product names, prices, availability and tenant data are never copied into this preference cache; each comparison row still resolves from the current identity-bound catalog.
+- Storage read/write failures fail closed to an empty local selection and do not alter server catalog state or authorization. This is a local convenience isolation improvement, not cloud sync or a security boundary replacing RLS.
+- Implementation: `src/lib/storefront-compare.ts`, `src/lib/storefront-compare.test.ts`, and `src/components/Storefront.tsx`.
+- Tests cover guest-key compatibility, distinct-profile isolation, bounded/normalized selection, corrupt JSON and unavailable browser storage. No migration, RPC, policy, package or paid provider is added.
