@@ -70,4 +70,14 @@ The customer profile now exposes direct navigation to existing account workflows
 
 This is navigation completion only: each card routes to the existing target component and service contract. It does not create a second invoice/quote/wishlist/support implementation, broaden RLS, or infer that missing back-end capabilities are enabled. Customer-only links remain inside the existing `profileAccessMode === "customer"` branch; staff and restricted users retain their prior link sets.
 
-The account hub composition follows the account-as-workspace pattern studied in Shopify Hydrogen's account route, but is independently implemented with Nasr1's TanStack Router routes and existing service components. No Shopify source code or dependency was copied. Recently viewed products remain a separate unimplemented account capability and are not claimed by this change.
+The account hub composition follows the account-as-workspace pattern studied in Shopify Hydrogen's account route, but is independently implemented with Nasr1's TanStack Router routes and existing service components. No Shopify source code or dependency was copied. The separate recently viewed capability is now implemented independently and is documented below.
+
+
+## Recently viewed products in My Aghbari — 2026-11-13
+
+- Added a customer-only recently viewed panel inside the existing /profile account hub; no separate route or duplicate wishlist was introduced.
+- Visits are recorded only after an actual product detail has resolved inside a verified customer-role session. Anonymous, staff and restricted profiles are not recorded.
+- The browser stores only the public product ID, display name, item code, safe image URL and viewed timestamp. It does not retain price, cost, margin, stock, availability, customer fields or tenant identifiers.
+- The panel supports opening the existing /product/$id route, removing one item and clearing the current profile's list. Product details, including server-authoritative price and availability, are fetched again on open.
+- Storage is bounded to the latest 12 unique products and scoped to the authenticated profile in the current browser. This is local-device history only, not cloud synchronization, cross-device history or personalized server analytics.
+- Shopify Hydrogen's account workspace pattern remains the design reference (templates/react-router/app/routes/account.tsx; main commit 043094b0ab0b5b01299e75da33d3f4e2914fda6a; MIT template license already verified). Nasr1's history and storage behavior are independently implemented; no Hydrogen source, package or asset was copied.

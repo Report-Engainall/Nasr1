@@ -5250,3 +5250,18 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - P2 PR run [#43355136206](https://github.com/Report-Engainall/Nasr1/actions/runs/43355136206): public Storefront smoke **SUCCESS**; generic customer order/tenant job **SKIPPED**; local Supabase acceptance was **IN_PROGRESS** at service startup. Do not treat P2 as complete for PR #430.
 - Push runs on merged SHA: P1 [#43355464142](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464142) and P2 [#43355464084](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464084) were **PENDING** at this checkpoint.
 - Expanded implementation record: [P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md](../execution/P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md).
+
+
+---
+
+## ACTIVE PATH A CHECKPOINT — MY AGHBARI RECENTLY VIEWED PRODUCTS — 2026-11-13
+
+- Base main SHA: `184da04ef620f8df9f5e07283c536e80a33a76db`.
+- Work branch: `feat/customer-recently-viewed-main-20261113`.
+- Added a profile-scoped, browser-local recently viewed history to the existing customer product-detail flow and My Aghbari account workspace. It records only public product ID/name/item code/safe image URL/timestamp, is limited to 12 unique entries, and exposes remove/clear controls.
+- Recording is gated on Auth readiness, customer role, non-staff identity, profile ID and the currently resolved product/route ID. Staff, restricted and anonymous sessions do not record or see the panel.
+- Historical browser data is not a price, stock or availability source; opening an entry returns through the existing product route. No SQL, RPC, RLS, Auth, dependency, hosted Supabase write or Vercel change was made.
+- Target-owned tests cover profile isolation, eligibility, unsafe/signed image URLs, history bounds, account visibility, deep links, item removal and profile-scoped clearing.
+- Execution record: [P1_CUSTOMER_RECENTLY_VIEWED_2026-11-13.md](../execution/P1_CUSTOMER_RECENTLY_VIEWED_2026-11-13.md).
+- Reference and license notes updated in the existing CUSTOMER_STOREFRONT_EVOLUTION, GITHUB_REFERENCE_CATALOG, EXTRACTED_COMPONENTS_REGISTER, REFERENCE_UI_COMPARISON and THIRD_PARTY_LICENSE_REGISTER documents. No Hydrogen code was copied.
+- Status: implementation authored on work branch; exact-head P1/P2 acceptance is pending. Do not mark completed until the relevant runs terminate successfully. Hosted external customer/tenant E2E remains distinct from local Supabase acceptance.

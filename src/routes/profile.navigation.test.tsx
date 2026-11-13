@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,12 +51,14 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   return {
     ...actual,
     ClientOnly: ({ children }: { children: ReactNode }) => <>{children}</>,
-    Link: ({ to, children, ...props }: { to: string; children: ReactNode; className?: string }) => (
-      <a href={to} {...props}>{children}</a>
-    ),
+    Link: ({ to, children, params, ...props }: { to: string; children: ReactNode; params?: Record<string, string>; className?: string }) => {
+      const href = params?.id ? to.replace("$id", params.id) : to;
+      return <a href={href} {...props}>{children}</a>;
+    },
   };
 });
 
+import { recordRecentlyViewedProduct } from "@/lib/recently-viewed-products";
 import { CustomerAccountProfilePage } from "./profile";
 
 const CUSTOMER = {
@@ -92,6 +94,7 @@ describe("My Aghbari customer account navigation", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
   });
 
   it("links the customer account hub to existing invoice, quote, saved-product and support routes", async () => {
@@ -116,6 +119,66 @@ describe("My Aghbari customer account navigation", () => {
       expect(document.querySelector(`a[href="${route.path}"]`)).toBeNull();
     }
     expect(document.querySelector('a[href="/admin"]')).not.toBeNull();
+  });
+
+  it("shows recent public product views inside the matching customer account", async () => {
+    const productId = "a1000000-0000-0000-0000-000000000081";
+    expect(recordRecentlyViewedProduct(window.localStorage, CUSTOMER.profileId, {
+      id: productId,
+      name: "هاتف الأغبري",
+      itemCode: "PHONE-081",
+      imageUrl: "https://cdn.example.test/phone.webp",
+    }, "2026-11-13T03:00:00.000Z")).toBe(true);
+
+    render(<CustomerAccountProfilePage />);
+
+    expect(await screen.findByRole("heading", { name: "شوهدت مؤخراً" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /هاتف الأغبري/ })).toHaveAttribute("href", `/product/${productId}`);
+    expect(screen.getByText(/لا تتم مزامنته مع أجهزة أخرى/)).toBeInTheDocument();
+  });
+
+  it("lets the customer remove one viewed product", async () => {
+    const productId = "a1000000-0000-0000-0000-000000000082";
+    recordRecentlyViewedProduct(window.localStorage, CUSTOMER.profileId, {
+      id: productId, name: "حاسوب الأغبري",
+    }, "2026-11-13T03:00:00.000Z");
+    render(<CustomerAccountProfilePage />);
+
+    expect(await screen.findByRole("link", { name: /حاسوب الأغبري/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "إزالة حاسوب الأغبري من سجل المشاهدة" }));
+    expect(screen.queryByRole("link", { name: /حاسوب الأغبري/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/لا توجد منتجات شوهدت مؤخراً/)).toBeInTheDocument();
+  });
+
+  it("lets the customer clear only the current profile's viewed history", async () => {
+    recordRecentlyViewedProduct(window.localStorage, CUSTOMER.profileId, {
+      id: "product-current", name: "منتج حساب العميل",
+    }, "2026-11-13T03:00:00.000Z");
+    recordRecentlyViewedProduct(window.localStorage, STAFF.profileId, {
+      id: "product-staff", name: "منتج حساب آخر",
+    }, "2026-11-13T03:00:00.000Z");
+    render(<CustomerAccountProfilePage />);
+
+    expect(await screen.findByRole("link", { name: /منتج حساب العميل/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "مسح السجل" }));
+    expect(screen.queryByRole("link", { name: /منتج حساب العميل/ })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("aghbari:recently-viewed:v1:" + CUSTOMER.profileId)).toBeNull();
+    expect(window.localStorage.getItem("aghbari:recently-viewed:v1:" + STAFF.profileId)).not.toBeNull();
+  });
+
+  it("does not render customer product history for staff or restricted profiles", () => {
+    recordRecentlyViewedProduct(window.localStorage, CUSTOMER.profileId, {
+      id: "product-hidden",
+      name: "منتج خاص بالحساب",
+    }, "2026-11-13T03:00:00.000Z");
+
+    mocks.user = STAFF;
+    const { rerender } = render(<CustomerAccountProfilePage />);
+    expect(screen.queryByRole("heading", { name: "شوهدت مؤخراً" })).not.toBeInTheDocument();
+
+    mocks.user = { ...CUSTOMER, roles: [], isStaff: false };
+    rerender(<CustomerAccountProfilePage />);
+    expect(screen.queryByRole("heading", { name: "شوهدت مؤخراً" })).not.toBeInTheDocument();
   });
 
   it("does not expose customer-only account shortcuts to an unclassified profile", () => {

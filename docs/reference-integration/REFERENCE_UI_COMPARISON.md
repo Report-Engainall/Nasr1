@@ -55,3 +55,15 @@ The visible query row submits the customer's exact phrase; it is not generated f
 | Role exposure | Customer-specific links were already gated by profile access mode | Account-specific content remains bound to authenticated customer identity | Added links are inside the customer-only branch; staff and restricted profiles do not receive the new customer links |
 
 This is a route-composition change, not a screenshot-parity claim. The Hydrogen account route was inspected at `043094b0ab0b5b01299e75da33d3f4e2914fda6a` (`templates/react-router/app/routes/account.tsx`, blob `ec660e4a801d81dcf26e3413a5d1cb89a8a16963`); only its account-workspace organization was adapted.
+
+
+## My Aghbari — recently viewed products — 2026-11-13
+
+| Concern | Before | Reference principle | NASR1 result |
+|---|---|---|---|
+| Browsing continuity | Product detail views were not surfaced inside the account hub | Treat the customer account as a workspace for commerce activities | A new customer-only section appears within the existing profile page and links to existing product-detail routes |
+| Data minimization | No recently viewed list existed | Reuse the verified account boundary and avoid a second identity model | Retain only public product ID, name, item code, safe image URL and timestamp in a profile-scoped browser key |
+| Data freshness | No history entry point | Let the product route remain authoritative for current commerce data | Reopening a viewed item fetches the current product and server-authoritative price/availability; local history is not used as a pricing or stock source |
+| Customer control | No view-history controls | Keep the small account feature actionable and reversible | Remove one entry or clear this profile's local history |
+
+The interaction takes inspiration from Shopify Hydrogen's account workspace pattern; this is an independent implementation, not copied code or screenshot-parity evidence. The history is browser-local and is not synchronized across devices.

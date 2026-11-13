@@ -1,11 +1,12 @@
 import { ClientOnly, Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Bell, Building2, ClipboardList, FileText, GitCompareArrows, Headphones, Heart, KeyRound, LogOut, MapPin, MessageCircle, Package, ReceiptText, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
+import { ArrowLeft, Bell, Building2, ClipboardList, FileText, GitCompareArrows, Headphones, Heart, History, KeyRound, LogOut, MapPin, MessageCircle, Package, ReceiptText, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
 import { Login } from "@/components/Login";
 import { AccountPersonalizationSettings } from "@/components/AccountPersonalizationSettings";
 import { useAuth } from "@/lib/auth";
 import { resolveProfileAccessMode } from "@/lib/profile-access";
 import { fetchMyCustomerAccountProfile, saveMyCustomerAccountProfile, type CustomerAccountProfile, type CustomerAccountProfileInput } from "@/lib/customer-account-profile";
+import { clearRecentlyViewedProducts, readRecentlyViewedProducts, removeRecentlyViewedProduct, type RecentlyViewedProduct } from "@/lib/recently-viewed-products";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -190,6 +191,121 @@ function CustomerAccountProfileEditor() {
 }
 
 
+function RecentlyViewedProductsPanel({ profileId }: { profileId: string }) {
+  const [items, setItems] = useState<RecentlyViewedProduct[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoaded(false);
+    setError("");
+    try {
+      const next = readRecentlyViewedProducts(window.localStorage, profileId);
+      if (active) setItems(next);
+    } catch {
+      if (active) {
+        setItems([]);
+        setError("تعذر قراءة سجل المشاهدة المحلي في هذا المتصفح.");
+      }
+    } finally {
+      if (active) setLoaded(true);
+    }
+    return () => { active = false; };
+  }, [profileId]);
+
+  function removeProduct(productId: string) {
+    try {
+      if (!removeRecentlyViewedProduct(window.localStorage, profileId, productId)) {
+        setError("تعذر تحديث سجل المشاهدة المحلي.");
+        return;
+      }
+      setItems((current) => current.filter((item) => item.id !== productId));
+      setError("");
+    } catch {
+      setError("تعذر تحديث سجل المشاهدة المحلي.");
+    }
+  }
+
+  function clearHistory() {
+    try {
+      if (!clearRecentlyViewedProducts(window.localStorage, profileId)) {
+        setError("تعذر مسح سجل المشاهدة المحلي.");
+        return;
+      }
+      setItems([]);
+      setError("");
+    } catch {
+      setError("تعذر مسح سجل المشاهدة المحلي.");
+    }
+  }
+
+  return (
+    <section className="mt-7 rounded-2xl border bg-card p-5 sm:p-6" aria-labelledby="recently-viewed-products-heading">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="rounded-xl bg-primary/10 p-3 text-primary"><History size={22}/></span>
+          <div className="min-w-0">
+            <h2 id="recently-viewed-products-heading" className="text-lg font-bold">شوهدت مؤخراً</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              آخر المنتجات التي فتحتها من حسابك على هذا الجهاز. نحفظ الاسم والصورة ورمز الصنف فقط؛ السعر والتوفر يُعاد التحقق منهما عند فتح المنتج.
+            </p>
+          </div>
+        </div>
+        {items.length > 0 ? (
+          <button type="button" className="btn secondary" onClick={clearHistory}>مسح السجل</button>
+        ) : null}
+      </div>
+
+      {error ? <p className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p> : null}
+      {!loaded ? <p className="mt-4 text-sm text-muted-foreground" role="status">جار تحميل سجل المشاهدة...</p> : null}
+      {loaded && items.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed p-5 text-center text-sm leading-6 text-muted-foreground" role="status">
+          لا توجد منتجات شوهدت مؤخراً على هذا الجهاز. عند فتح تفاصيل أي منتج أثناء الدخول بحساب العميل سيظهر هنا.
+        </p>
+      ) : null}
+
+      {items.length > 0 ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <article key={item.id} className="min-w-0 rounded-xl border p-3">
+              <Link
+                to="/product/$id"
+                params={{ id: item.id }}
+                className="flex min-w-0 items-center gap-3 rounded-lg outline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer"
+                    className="h-16 w-16 shrink-0 rounded-lg border bg-muted object-contain" />
+                ) : (
+                  <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border bg-muted text-xs text-muted-foreground">صورة غير متاحة</span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <strong className="block line-clamp-2 text-sm">{item.name}</strong>
+                  {item.itemCode ? <span className="mt-1 block truncate text-xs text-muted-foreground" dir="ltr">{item.itemCode}</span> : null}
+                  <span className="mt-1 block text-xs text-primary">فتح تفاصيل المنتج</span>
+                </span>
+              </Link>
+              <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
+                <span className="truncate text-xs text-muted-foreground">
+                  {new Intl.DateTimeFormat("ar-YE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.viewedAt))}
+                </span>
+                <button type="button" className="shrink-0 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  aria-label={`إزالة ${item.name} من سجل المشاهدة`} onClick={() => removeProduct(item.id)}>
+                  إزالة
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+      <p className="mt-3 text-xs leading-6 text-muted-foreground">
+        الخصوصية: السجل محلي لهذا الحساب على المتصفح الحالي، ولا تتم مزامنته مع أجهزة أخرى أو إرساله إلى الخادم.
+      </p>
+    </section>
+  );
+}
+
 export function CustomerAccountProfilePage() {
   const { user, ready, sessionRevision, signOutOtherSessions, signOutEverywhere } = useAuth();
   if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
@@ -335,6 +451,8 @@ function CustomerAccountProfileContent({
           {links.map(item => <ProfileLink key={item.to} {...item}/>)}
         </div>
       </section>
+
+      {profileAccessMode === "customer" && user.profileId ? <RecentlyViewedProductsPanel profileId={user.profileId}/> : null}
 
       <section className="mt-7 rounded-2xl border bg-card p-5 sm:p-6" aria-labelledby="profile-sessions-heading">
         <div className="flex items-start gap-3">
