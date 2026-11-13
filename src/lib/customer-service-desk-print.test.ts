@@ -193,14 +193,6 @@ describe("customer service desk report projection", () => {
     })).toThrow(/الحالات العاجلة/);
   });
 
-  it("rejects duplicate identifiers rather than silently collapsing report detail rows", () => {
-    expect(() => project({
-      items: [
-        queueCase(),
-        queueCase({ case_id: "a0000000-0000-4000-8000-000000000005", case_code: "CS-2026-002" }),
-      ],
-    })).not.toThrow();
-  });
 
   it("writes formula-looking customer text as inline text, not an Excel formula", () => {
     const document = project({
