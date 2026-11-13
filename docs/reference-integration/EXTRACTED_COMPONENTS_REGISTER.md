@@ -66,3 +66,13 @@ No packages were added, removed or upgraded. The change uses the application's e
 - Customer-only visibility is enforced by the existing profile access mode; the account hub does not expose this module to staff or restricted sessions.
 - Reopening a history item goes through the existing product route, so current price and availability are loaded again rather than read from historical browser data.
 - There is no schema, RPC, migration, server synchronization, cross-device sync, new dependency or change to authorization/RLS in this implementation.
+
+## Customer category navigation and hierarchy — 2026-11-13
+
+| Reference | Inspected source / pin | License | NASR1 counterpart | Transfer decision |
+|---|---|---|---|---|
+| BigCommerce Catalyst category page and breadcrumb composition | `core/app/[locale]/(default)/(faceted)/category/[slug]/page.tsx` blob `53ac0e71431b45d8854fecddf61551f5d58849c8`; `core/components/breadcrumbs/fragment.ts` blob `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`; `canary` HEAD `4cce7bc3d05be54a449140644eb2119dd8d8c821` | Root LICENSE read; MIT | `src/components/StorefrontCategoryLandingPage.tsx`; `src/components/StorefrontCategoryLandingPage.test.tsx`; `e2e/public-storefront-smoke.spec.ts` | Independent RTL breadcrumb, active child state and sibling links; no source code or dependency copied |
+| NASR1 category hierarchy data projection | Native NASR1 `Category.parent_id`, `fetchCategories`, `fetchProducts`, and `storefrontCategorySlug` | First-party project code | `src/lib/storefront-category-groups.ts`; `src/lib/storefront-category-groups.test.ts`; `src/components/StorefrontCollectionsPage.tsx`; `src/components/StorefrontCollectionsPage.test.tsx` | Target-native hierarchy grouping and data-derived counts; retains orphan/deeper categories; no external component transferred |
+
+- PR #436 merged at `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; PR #438 merged at `4451e4625c1cfe0974693ea49d0737a8959fc943`.
+- Category counts reuse the complete public paginated catalogue reader already used by the directory; the presentation adds no product or category read contract, database table or RPC.
