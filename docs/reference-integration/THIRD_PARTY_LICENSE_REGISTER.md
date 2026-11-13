@@ -50,3 +50,6 @@ No dependency was added or upgraded. Because this change does not copy source co
 | Radix UI Primitives | `main` / `eb3a2b7091293e27df8f9ba906632d8daa3d81a3` | Root LICENSE read; MIT | Existing target primitives retained |
 
 A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metadata is not a substitute for checking exact file headers, nested notices and transitive dependencies.
+
+
+| Shopify Hydrogen | `main` / `043094b0ab0b5b01299e75da33d3f4e2914fda6a` | `templates/react-router/LICENSE` read at blob `bf165a7b356128f2dee05ee629364263f98c4d2e`; MIT | Account-route pattern studied; no source code or dependency copied |

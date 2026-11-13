@@ -40,3 +40,5 @@ No packages were added, removed or upgraded. The change uses the application's e
 - Verified zero quantity continues to display out of stock.
 - `src/components/Storefront.product-grid.test.tsx`: regression tests cover unknown stock and authoritative zero.
 - No reference code was copied, no new dependency was introduced, and no inventory write/RPC/RLS/migration was changed.
+
+| Shopify Hydrogen — `templates/react-router/app/routes/account.tsx` | Commit `043094b0ab0b5b01299e75da33d3f4e2914fda6a`; source blob `ec660e4a801d81dcf26e3413a5d1cb89a8a16963` | MIT; `templates/react-router/LICENSE` read (blob `bf165a7b356128f2dee05ee629364263f98c4d2e`) | `src/routes/profile.tsx` | Account workspace organizes identity and order-service entry points; Nasr1 extends its existing account hub with direct links to already implemented account modules | Independent adaptation; no source code copied |

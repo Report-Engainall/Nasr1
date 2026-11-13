@@ -30,7 +30,7 @@ The following repositories were named in the implementation brief. They remain r
 | Frappe Ecommerce Integrations | https://github.com/frappe/ecommerce_integrations | NOT_REVIEWED — no code used |
 | Apache Superset | https://github.com/apache/superset | NOT_REVIEWED — no code used |
 | Metabase | https://github.com/metabase/metabase | NOT_REVIEWED — no code used |
-| Shopify Hydrogen | https://github.com/Shopify/hydrogen | NOT_REVIEWED — no code used |
+| Shopify Hydrogen | https://github.com/Shopify/hydrogen | FILE_REVIEWED — account route and MIT template license checked; no code copied |
 | Saleor Storefront | https://github.com/saleor/storefront | LICENSE_REVIEW_REQUIRED — no code used |
 | GraphCommerce | https://github.com/graphcommerce-org/graphcommerce | LICENSE_REVIEW_REQUIRED — no code used |
 | Medusa Next.js Starter | https://github.com/medusajs/nextjs-starter-medusa | ARCHIVED_REFERENCE_ONLY — no code used |
@@ -80,3 +80,13 @@ The default branches and branch-tip commits below were retrieved from the offici
 - Radix UI Primitives — root `LICENSE` and primitive model checked for compatibility; no dependency added.
 
 Only those exact product-card files are recorded as source-file inspections in this pass. For the remaining projects, the repository/default branch/commit and available SPDX metadata were checked; functional file-level extraction remains pending. `NOASSERTION` means GitHub did not return an SPDX identifier, not that code is free to copy.
+
+
+### Shopify Hydrogen account-route inspection — 2026-11-13
+
+- Repository: [Shopify/hydrogen](https://github.com/Shopify/hydrogen), branch `main`, inspected HEAD `043094b0ab0b5b01299e75da33d3f4e2914fda6a`.
+- Source: `templates/react-router/app/routes/account.tsx`, blob `ec660e4a801d81dcf26e3413a5d1cb89a8a16963`.
+- License: template `templates/react-router/LICENSE`, blob `bf165a7b356128f2dee05ee629364263f98c4d2e`, read and confirmed MIT.
+- Adapted principle: make the customer account a navigable workspace for identity and commerce tasks, rather than an isolated profile form.
+- Nasr1 implementation: expand the existing customer-only link registry in `src/routes/profile.tsx` to expose existing invoice, quote, wishlist, comparison and support routes.
+- Transfer decision: independent reimplementation; no Hydrogen code, package or assets copied. Hydrogen's API/OAuth/session implementation is not transplanted because Nasr1 uses its own Supabase/auth contracts.

@@ -1,6 +1,6 @@
 import { ClientOnly, Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Bell, Building2, FileText, Headphones, KeyRound, LogOut, MapPin, Package, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
+import { ArrowLeft, Bell, Building2, ClipboardList, FileText, GitCompareArrows, Headphones, Heart, KeyRound, LogOut, MapPin, MessageCircle, Package, ReceiptText, RotateCcw, ShieldCheck, Smartphone, UserRound, Wallet } from "lucide-react";
 import { Login } from "@/components/Login";
 import { AccountPersonalizationSettings } from "@/components/AccountPersonalizationSettings";
 import { useAuth } from "@/lib/auth";
@@ -261,11 +261,16 @@ function CustomerAccountProfileContent({
       ]
     : profileAccessMode === "customer" ? [
         { to: "/orders", title: "طلباتي", description: "متابعة الطلبات وحالاتها", icon: Package },
-        { to: "/my-devices", title: "أجهزتي وأصولي", description: "عرض أجهزتك والضمان وسجل الصيانة والملكية", icon: Smartphone },
-        { to: "/returns", title: "مرتجعاتي", description: "متابعة طلبات الإرجاع وقراراتها", icon: RotateCcw },
+        { to: "/invoices", title: "فواتيري", description: "عرض الفواتير المتاحة وحالاتها", icon: ReceiptText },
+        { to: "/quotes", title: "عروض الأسعار", description: "متابعة طلبات عروض الأسعار وردود الإدارة", icon: ClipboardList },
         { to: "/payments", title: "دفعاتي", description: "عرض حركات السداد المسجلة", icon: Wallet },
         { to: "/statement", title: "كشف الحساب", description: "الأرصدة والفواتير والمدفوعات حسب العملة", icon: FileText },
         { to: "/addresses", title: "عناوين التوصيل", description: "إدارة عناوين حسابك", icon: MapPin },
+        { to: "/wishlist", title: "المفضلة", description: "المنتجات التي حفظتها للرجوع إليها", icon: Heart },
+        { to: "/compare", title: "مقارنة المنتجات", description: "مقارنة المنتجات التي اخترتها", icon: GitCompareArrows },
+        { to: "/returns", title: "مرتجعاتي", description: "متابعة طلبات الإرجاع وقراراتها", icon: RotateCcw },
+        { to: "/my-devices", title: "أجهزتي وأصولي", description: "عرض أجهزتك والضمان وسجل الصيانة والملكية", icon: Smartphone },
+        { to: "/service-cases", title: "حالات خدمة العملاء", description: "فتح الشكاوى والاستفسارات ومتابعة ردود فريق الأغبري", icon: MessageCircle },
         { to: "/notifications", title: "التنبيهات", description: "تحديثات الطلبات وخدمة العملاء", icon: Bell },
         { to: "/help", title: "مركز المساعدة", description: "إرشادات الحساب والطلبات والتوصيل وخدمة العملاء", icon: Headphones },
         { to: "/company/contacts", title: "جهات اتصال الشركة", description: "إدارة جهات الاتصال التشغيلية", icon: Building2 },
