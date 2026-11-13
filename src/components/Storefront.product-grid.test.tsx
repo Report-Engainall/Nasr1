@@ -255,8 +255,8 @@ describe("storefront predictive catalogue search", () => {
 
   it("closes the suggestion panel on Escape", () => {
     render(
-      <StorefrontPredictiveSearch        productsAvailable={true}
-
+      <StorefrontPredictiveSearch
+        productsAvailable={true}
         query="رز"
         products={[]}
         categories={[riceCategory]}
