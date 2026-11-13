@@ -78,3 +78,9 @@ A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metad
 - The implementation uses NASR1's existing React, TypeScript, Supabase client, authentication, tenant helpers and audit model. No third-party license or notice obligation is introduced by PR #439.
 - External project references remain inspiration-only for the general storefront experience. This feature does not grant blanket approval to reuse files from Medusa, Vendure, Saleor, BigCommerce Catalyst, Shopify Hydrogen, GraphCommerce, or any other reference project.
 - The feature is still awaiting P1 and local PostgreSQL P2 acceptance on PR #439; no production migration or deployment has occurred.
+
+### Storefront product questions and answers — 2026-11-13
+
+- Implementation is original NASR1 code using existing React, TypeScript, Supabase RPC, identity, tenant and audit contracts.
+- No source code, package, asset, or dependency was copied from any external reference repository. No external license obligations were introduced.
+- The migration creates no second authentication, database, tenant, or role system; it uses the repository's existing authorization and audit helpers.

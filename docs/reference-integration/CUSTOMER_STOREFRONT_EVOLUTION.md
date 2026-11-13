@@ -109,3 +109,12 @@ The account hub composition follows the account-as-workspace pattern studied in 
 - This is an independent NASR1 implementation using the current React/TypeScript/Supabase stack. No external storefront source, package, asset or paid provider was added.
 - Scope boundary: product Q&A, review photos, ratings/review synchronization to an external channel, and external hosted-account acceptance are not included in this change.
 - PR #439: https://github.com/Report-Engainall/Nasr1/pull/439. Acceptance remains pending until P1 and local PostgreSQL P2 both pass on the final PR head. No hosted migration or production deployment has been run.
+
+## Moderated storefront product questions and answers — 2026-11-13
+
+- Product details now include a customer question-and-answer section beside verified reviews. Visitors see answered questions only; pending and rejected questions remain private to their submitting customer and the same-tenant moderation team.
+- A signed-in approved customer can ask about an active product before or after purchase. The server marks whether the customer has a delivered matching purchase; this marker is factual and does not expose customer, order, or tenant identifiers.
+- Managers and administrators can publish a bounded answer or reject a question with a required reason. Submission, answer, and rejection are attributed to the acting profile in the existing audit log.
+- The feature reuses NASR1's current customer identity, organization, Supabase RPC, product detail, and Products workspace. It adds no duplicate account, route, order or permission system.
+- Implementation: \`supabase/migrations/20261113130000_storefront_product_questions.sql\`, \`src/lib/storefront-product-questions.ts\`, \`src/components/StorefrontProductQuestions.tsx\`, \`src/components/StorefrontProductQuestionModeration.tsx\`, and the existing \`Storefront.tsx\` / Products workspace.
+- Independent NASR1 implementation; no external project source, UI asset, package or paid provider was copied or added. P1 and isolated PostgreSQL 17 acceptance are required before merge.
