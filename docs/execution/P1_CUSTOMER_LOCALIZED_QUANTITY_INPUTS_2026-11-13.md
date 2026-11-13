@@ -30,3 +30,24 @@ The input accepts Arabic-Indic digits (`٠١٢٣٤٥٦٧٨٩`), Eastern Arabic-I
 - P1 push run [#43353836138](https://github.com/Report-Engainall/Nasr1/actions/runs/43353836138), merged main SHA `7efcbf51b12b21963eeeec9c85e7a6938bd181fc`: **SUCCESS** — Vitest, strict TypeScript and production build.
 
 This closes the localized quantity-entry implementation only. It does not change the wider NASR1 release/NO-GO decision or certify the remaining browser/database acceptance scope.
+
+
+## Follow-up — storefront purchase quantities — 2026-11-13
+
+A second implementation reused the shared normalizer in the two remaining customer purchase quantity controls:
+
+- `src/components/Storefront.tsx`: product-detail quantity field now accepts Arabic-Indic and Persian digits, then applies strict whole-number parsing before the existing minimum, package-multiple, stock and maximum rules.
+- `src/components/Storefront.tsx`: Quick Order Matrix normalizes localized digits before saving the draft; malformed text is not forwarded.
+- `src/components/Storefront.localized-quantity.test.tsx`: UI interaction tests verify Arabic/Persian normalization and reject malformed input.
+
+Merged PR: [#430](https://github.com/Report-Engainall/Nasr1/pull/430)  
+Merged main commit: `f90f03e65a77733fbfa4c438757d2a072f856635`  
+Source SHA: `ff20fe008862ebea1e4bc721d983f28253e652e3`
+
+### Exact acceptance evidence for the follow-up
+
+- P1 PR run [#43355136346](https://github.com/Report-Engainall/Nasr1/actions/runs/43355136346), source SHA `ff20fe008862ebea1e4bc721d983f28253e652e3`: **SUCCESS** — Vitest, strict TypeScript and production build.
+- P2 PR run [#43355136206](https://github.com/Report-Engainall/Nasr1/actions/runs/43355136206), same source SHA: public read-only Storefront smoke **SUCCESS**; the separate generic customer order/tenant job **SKIPPED**; isolated local Supabase acceptance was **IN_PROGRESS** at `Start isolated local Supabase services`. Do not claim complete P2 for PR #430.
+- Push runs on merged SHA: P1 [#43355464142](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464142) and P2 [#43355464084](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464084) were **PENDING** at the time of this update.
+
+The customer localized quantity slice is now merged across order amendment, return request, product details and quick order. Existing server/RPC policy, cart validation, inventory and pricing were not changed. Overall NASR1 release acceptance remains separate and is not declared complete.
