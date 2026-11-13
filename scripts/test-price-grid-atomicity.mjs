@@ -43,14 +43,50 @@ function payload(id, expected, next) {
     price_retail: next.price_retail,
   };
 }
-async function setClaims(client, userId, email) {
-  await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [userId]);
-  await client.unsafe("select set_config('request.jwt.claims',$1,false)", [
-    JSON.stringify({ sub: userId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
-  ]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function obtainLiveAuthClaims(supabaseUrl, publishableKey, email, password, expectedUserId) {
+  const endpoint = new URL("/auth/v1/token?grant_type=password", supabaseUrl);
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { apikey: publishableKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || typeof body?.access_token !== "string") {
+    throw new Error("Local Supabase Auth could not issue a password-authenticated session for a P2 fixture user (HTTP " + response.status + ").");
+  }
+
+  const tokenParts = body.access_token.split(".");
+  if (tokenParts.length !== 3 || !tokenParts[1]) {
+    throw new Error("Local Supabase Auth returned an invalid access-token shape for a P2 fixture user.");
+  }
+  let claims;
+  try {
+    claims = JSON.parse(Buffer.from(tokenParts[1], "base64url").toString("utf8"));
+  } catch {
+    throw new Error("Local Supabase Auth returned unreadable access-token claims for a P2 fixture user.");
+  }
+
+  const expiresAt = Number(claims?.exp);
+  if (
+    claims?.sub !== expectedUserId ||
+    claims?.role !== "authenticated" ||
+    !UUID_PATTERN.test(String(claims?.session_id ?? "")) ||
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= Math.floor(Date.now() / 1000)
+  ) {
+    throw new Error("Local Supabase Auth did not issue a current session-bound authenticated token for the expected P2 fixture user.");
+  }
+  return claims;
 }
-async function assume(client, userId, email) {
-  await setClaims(client, userId, email);
+
+async function setClaims(client, claims) {
+  await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [claims.sub]);
+  await client.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify(claims)]);
+}
+async function assume(client, claims) {
+  await setClaims(client, claims);
   await client.unsafe("set role authenticated");
 }
 async function readGrid(client, id) {
@@ -85,8 +121,12 @@ async function main() {
   const connectionString=requiredEnv("TEST_DATABASE_URL");
   validateCashExpenseEndpoints(requiredEnv("E2E_SUPABASE_URL"), connectionString);
   const orgId="a0000000-0000-0000-0000-000000000001";
+  const supabaseUrl=requiredEnv("E2E_SUPABASE_URL");
+  const publishableKey=requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
   const managerEmail=requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
+  const managerPassword=requiredEnv("E2E_MANAGER_PASSWORD");
   const customerEmail=requiredEnv("E2E_EMAIL").toLowerCase();
+  const customerPassword=requiredEnv("E2E_PASSWORD");
   const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const privilegedProbe=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const manager=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
@@ -125,11 +165,31 @@ async function main() {
       );
     }
 
-    // Compare helper results before and after SET ROLE. The privileged connection is read-only here.
-    await setClaims(privilegedProbe,mgr.auth_user_id,mgr.email);
+    // Use genuine tokens minted by local Supabase Auth. The tenant helper requires
+    // session_id to match an active auth.sessions row; a synthetic sub-only claim
+    // is intentionally invalid and must not be used by this acceptance.
+    const [managerClaims, customerClaims] = await Promise.all([
+      obtainLiveAuthClaims(supabaseUrl,publishableKey,managerEmail,managerPassword,mgr.auth_user_id),
+      obtainLiveAuthClaims(supabaseUrl,publishableKey,customerEmail,customerPassword,cust.auth_user_id),
+    ]);
+    for (const [label,claims,expectedUserId] of [
+      ["manager",managerClaims,mgr.auth_user_id],
+      ["customer",customerClaims,cust.auth_user_id],
+    ]) {
+      const activeSessions = await db.unsafe(
+        "select id::text,user_id::text from auth.sessions " +
+        "where id=$1::uuid and user_id=$2::uuid and (not_after is null or not_after > pg_catalog.now())",
+        [claims.session_id,expectedUserId],
+      );
+      assert.equal(activeSessions.length,1,"the " + label + " token must map to one live Supabase Auth session row");
+    }
+
+    // Compare helper results before and after SET ROLE using the same live token.
+    await setClaims(privilegedProbe,managerClaims);
     const privilegedContext = (await privilegedProbe.unsafe(
       "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
-      "public.current_organization_id()::text as organization_id, current_user as database_role, " +
+      "public.current_organization_id()::text as organization_id, " +
+      "public.current_auth_session_id()::text as session_id, current_user as database_role, " +
       "current_setting('role',true) as active_role, " +
       "(select p.id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_id, " +
       "(select count(*)::integer from public.profiles p where p.auth_user_id=auth.uid()) as visible_profile_count, " +
@@ -148,22 +208,24 @@ async function main() {
       "(select c.relforcerowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_force_rls",
     ))[0];
 
-    await setClaims(manager,mgr.auth_user_id,mgr.email);
+    await setClaims(manager,managerClaims);
     const managerPreRole = (await manager.unsafe(
       "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
-      "public.current_organization_id()::text as organization_id, current_user as database_role, " +
+      "public.current_organization_id()::text as organization_id, " +
+      "public.current_auth_session_id()::text as session_id, current_user as database_role, " +
       "current_setting('role',true) as active_role",
     ))[0];
     await manager.unsafe("set role authenticated");
     await Promise.all([
-      assume(clientA,mgr.auth_user_id,mgr.email),
-      assume(clientB,mgr.auth_user_id,mgr.email),
-      assume(customer,cust.auth_user_id,cust.email),
+      assume(clientA,managerClaims),
+      assume(clientB,managerClaims),
+      assume(customer,customerClaims),
     ]);
     const managerContextRows = await manager.unsafe(
       "select auth.uid()::text as auth_user_id, " +
       "public.current_profile_id()::text as profile_id, " +
       "public.current_organization_id()::text as organization_id, " +
+      "public.current_auth_session_id()::text as session_id, " +
       "current_user as database_role, session_user as session_role, " +
       "current_setting('role',true) as active_role, " +
       "current_setting('request.jwt.claim.sub',true) as jwt_subject, " +
@@ -200,6 +262,8 @@ async function main() {
       managerContext?.auth_user_id !== mgr.auth_user_id ||
       managerContext?.profile_id !== mgr.id ||
       managerContext?.organization_id !== orgId ||
+      managerContext?.session_id !== managerClaims.session_id ||
+      managerContext?.session_id !== managerClaims.session_id ||
       managerContext?.database_role !== "authenticated" ||
       managerContext?.jwt_subject !== mgr.auth_user_id ||
       managerContext?.has_admin_manager_role !== true
