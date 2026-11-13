@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { fetchAiGatewayBudget } from "@/lib/intelligence/ai-gateway-operations-client";
+import {
+  fetchAiGatewayBudget,
+  type AiGatewayBudgetResult,
+} from "@/lib/intelligence/ai-gateway-operations-client";
 import {
   projectAiGatewayBudgetProbe,
   type AiGatewayBudgetProbe,
@@ -29,21 +32,25 @@ export function SystemHealthPanel() {
   useEffect(() => {
     let active = true;
     const attemptedAt = new Date().toISOString();
+    const requestStartedAt = performance.now();
     setProbe(null);
     setLoading(true);
 
+    const finishProbe = (result: AiGatewayBudgetResult) => {
+      if (!active) return;
+      const completedAt = new Date().toISOString();
+      const latencyMs = performance.now() - requestStartedAt;
+      setProbe(projectAiGatewayBudgetProbe(result, attemptedAt, completedAt, latencyMs));
+    };
+
     void fetchAiGatewayBudget()
-      .then((result) => {
-        if (active) setProbe(projectAiGatewayBudgetProbe(result, attemptedAt));
-      })
+      .then(finishProbe)
       .catch(() => {
-        if (active) {
-          setProbe(projectAiGatewayBudgetProbe({
-            ok: false,
-            status: "UNAVAILABLE",
-            message: "budget_source_unavailable",
-          }, attemptedAt));
-        }
+        finishProbe({
+          ok: false,
+          status: "UNAVAILABLE",
+          message: "budget_source_unavailable",
+        });
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -105,7 +112,13 @@ export function SystemHealthPanel() {
                 <p className="mt-2 text-sm font-semibold">{presentation.label}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{probe.detail}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  وقت محاولة القراءة محلياً: <time dateTime={probe.attemptedAt}>{new Date(probe.attemptedAt).toLocaleString("ar-YE")}</time>
+                  وقت بدء الطلب محلياً: <time dateTime={probe.attemptedAt}>{new Date(probe.attemptedAt).toLocaleString("ar-YE")}</time>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  وقت اكتمال الطلب محلياً: <time dateTime={probe.completedAt}>{new Date(probe.completedAt).toLocaleString("ar-YE")}</time>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  مدة الطلب المقاسة في المتصفح: {probe.latencyMs === null ? "غير متاحة" : String(probe.latencyMs) + " مللي ثانية"}
                 </p>
               </>
             ) : (

@@ -7,6 +7,8 @@ export interface AiGatewayBudgetProbe {
   source: "public.get_ai_gateway_budget";
   status: AiGatewayBudgetProbeStatus;
   attemptedAt: string;
+  completedAt: string;
+  latencyMs: number | null;
   detail: string;
   providerConnectivity: "UNKNOWN";
   systemHealth: "UNKNOWN";
@@ -23,8 +25,22 @@ function validTimestamp(value: unknown): value is string {
 export function projectAiGatewayBudgetProbe(
   result: AiGatewayBudgetResult,
   attemptedAt: string,
+  completedAt: string = attemptedAt,
+  latencyMs: number | null = null,
 ): AiGatewayBudgetProbe {
   const safeAttemptedAt = validTimestamp(attemptedAt) ? attemptedAt : new Date(0).toISOString();
+  const safeCompletedAt = validTimestamp(completedAt) && Date.parse(completedAt) >= Date.parse(safeAttemptedAt)
+    ? completedAt
+    : safeAttemptedAt;
+  const safeLatencyMs = typeof latencyMs === "number" &&
+    Number.isFinite(latencyMs) && latencyMs >= 0 && latencyMs <= 600_000
+      ? Math.round(latencyMs)
+      : null;
+  const timing = {
+    attemptedAt: safeAttemptedAt,
+    completedAt: safeCompletedAt,
+    latencyMs: safeLatencyMs,
+  };
 
   if (result.ok) {
     if (result.status !== "READY" || !validTimestamp(result.readAt)) {
@@ -32,7 +48,7 @@ export function projectAiGatewayBudgetProbe(
         component: "AI_GATEWAY_BUDGET_READ",
         source: "public.get_ai_gateway_budget",
         status: "INVALID",
-        attemptedAt: safeAttemptedAt,
+        ...timing,
         detail: "استجابة ملخص الميزانية لا تحتوي وقت قراءة صالحاً؛ لم تُقبل كدليل.",
         providerConnectivity: "UNKNOWN",
         systemHealth: "UNKNOWN",
@@ -42,7 +58,7 @@ export function projectAiGatewayBudgetProbe(
       component: "AI_GATEWAY_BUDGET_READ",
       source: "public.get_ai_gateway_budget",
       status: "READABLE",
-      attemptedAt: safeAttemptedAt,
+      ...timing,
       detail: "استجاب عقد ملخص الميزانية الإداري. هذا يثبت قابلية قراءة الملخص فقط، ولا يثبت اتصال المزود أو نجاح طلب نموذج.",
       providerConnectivity: "UNKNOWN",
       systemHealth: "UNKNOWN",

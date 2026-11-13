@@ -21,6 +21,49 @@ describe("AI gateway budget read probe", () => {
     });
   });
 
+  it("records browser-observed completion time and bounded request latency", () => {
+    const result: AiGatewayBudgetResult = {
+      ok: true,
+      status: "READY",
+      readAt: attemptedAt,
+      data: {},
+    };
+    expect(projectAiGatewayBudgetProbe(
+      result,
+      attemptedAt,
+      "2026-11-13T04:00:00.125Z",
+      125.4,
+    )).toMatchObject({
+      attemptedAt,
+      completedAt: "2026-11-13T04:00:00.125Z",
+      latencyMs: 125,
+    });
+  });
+
+  it("fails closed for invalid completion timestamps and latency values", () => {
+    const result: AiGatewayBudgetResult = {
+      ok: false,
+      status: "UNAVAILABLE",
+      message: "unavailable",
+    };
+    expect(projectAiGatewayBudgetProbe(
+      result,
+      attemptedAt,
+      "invalid",
+      -1,
+    )).toMatchObject({
+      attemptedAt,
+      completedAt: attemptedAt,
+      latencyMs: null,
+    });
+    expect(projectAiGatewayBudgetProbe(
+      result,
+      attemptedAt,
+      "2026-11-13T04:00:01.000Z",
+      600_001,
+    ).latencyMs).toBeNull();
+  });
+
   it("keeps authorization denial distinct from service availability", () => {
     const result: AiGatewayBudgetResult = {
       ok: false,

@@ -35,6 +35,8 @@ describe("SystemHealthPanel", () => {
     await waitFor(() => expect(screen.getByText("استجابة المصدر مؤكدة")).toBeInTheDocument());
     expect(screen.getByText("public.get_ai_gateway_budget")).toBeInTheDocument();
     expect(screen.getByText(/لا يثبت اتصال المزود أو نجاح طلب نموذج/)).toBeInTheDocument();
+    expect(screen.getByText(/مدة الطلب المقاسة في المتصفح:/)).toBeInTheDocument();
+    expect(screen.getByText(/وقت اكتمال الطلب محلياً:/)).toBeInTheDocument();
   });
 
   it("does not describe a denied read as a service outage", async () => {
