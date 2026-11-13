@@ -7,6 +7,7 @@
   "include": [
     "e2e/helpers/customer-orders-keyboard-test.ts",
     "e2e/storefront-price-visibility.spec.ts",
-    "e2e/critical-path.spec.ts"
+    "e2e/critical-path.spec.ts",
+    "e2e/admin-observability-settings.spec.ts"
   ]
 }
