@@ -11,6 +11,7 @@ import { useFetch } from '@/lib/useFetch';
 import { formatNumber } from '@/lib/format';
 import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
+import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
 import { CustomerOrderPricingPreview } from '@/components/CustomerOrderPricingPreview';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
@@ -1558,6 +1559,7 @@ export function ProductDetail({
           </div>
         </div>
       )}
+      <StorefrontProductReviews productId={product.id} />
     </section>
   );
 }
