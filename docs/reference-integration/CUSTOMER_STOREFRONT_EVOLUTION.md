@@ -137,3 +137,14 @@ The account hub composition follows the account-as-workspace pattern studied in 
 - Storage read/write failures fail closed to an empty local selection and do not alter server catalog state or authorization. This is a local convenience isolation improvement, not cloud sync or a security boundary replacing RLS.
 - Implementation: `src/lib/storefront-compare.ts`, `src/lib/storefront-compare.test.ts`, and `src/components/Storefront.tsx`.
 - Tests cover guest-key compatibility, distinct-profile isolation, bounded/normalized selection, corrupt JSON and unavailable browser storage. No migration, RPC, policy, package or paid provider is added.
+
+
+## Accessible product media carousel and lightbox — 2026-11-14
+
+- Extracted the existing product-image display into src/components/ProductMediaGallery.tsx; the active product route still loads the gallery through src/components/Storefront.tsx and the existing product_media projection.
+- One selected index drives the main image, thumbnail rail, stage controls and lightbox. Previous/next controls wrap within the real image list; the RTL gallery also supports ArrowLeft/ArrowRight, Home and End.
+- The lightbox now traps keyboard focus, closes with Escape or backdrop click, restores focus to the image trigger, and locks background scrolling while open. The image counter is announced for assistive technology.
+- Touch users can swipe the enlarged image; the same selection updates the thumbnail pressed state. Non-HTTPS URLs are filtered before display; the current product image projection and upload/storage services are unchanged.
+- Added src/components/ProductMediaGallery.test.tsx for synchronized selection, wrapping navigation, RTL keyboard behavior, focus trapping/restoration, single-image behavior and unsafe URL filtering.
+- Design reference: BigCommerce Catalyst core/vibes/soul/sections/product-detail/product-gallery.tsx, branch canary, commit 22de59ae265ab754d7105c67a769e6015bcf6ce1, blob b11c42cea3ae1fb2f46590b077f2a427c2b55ec3; root LICENSE read at the same commit and confirmed MIT. NASR1 independently implements the synchronized gallery behavior; no Catalyst source, asset, package or dependency was copied.
+- Source commit: 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d. P1/P2 exact-SHA checks are recorded separately; real Storage upload and authenticated tenant acceptance remain open. No migration, RPC, RLS, role, finance or deployment change was made.

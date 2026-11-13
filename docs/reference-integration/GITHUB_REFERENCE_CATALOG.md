@@ -125,3 +125,13 @@ Source and license inspection for this pass:
 - Applied patterns: separate dashboard regions and explicit empty states; independently inspectable source/filter status; isolate data/action wiring from presentation.
 - Transfer decision: architectural/UI reference only. NASR1's implementation is independently authored on its existing React, Supabase, and RTL design stack. No Superset source code, Redux store, dashboard schema, chart runtime, package, or asset was transferred.
 - Source review does not clear Superset transitive dependencies or unrelated files for reuse.
+
+
+### BigCommerce Catalyst — product media gallery review — 2026-11-14
+
+- Repository: https://github.com/bigcommerce/catalyst, branch canary, inspected HEAD 22de59ae265ab754d7105c67a769e6015bcf6ce1.
+- Exact source: core/vibes/soul/sections/product-detail/product-gallery.tsx, blob b11c42cea3ae1fb2f46590b077f2a427c2b55ec3.
+- Root LICENSE was read at the pinned commit and confirmed MIT.
+- Reviewed the gallery's synchronized main-image and thumbnail selection pattern. NASR1 reimplements that interaction with its existing React/TypeScript stack and adds RTL keyboard, focus-management and touch behavior.
+- Transfer decision: design/interaction reference only. No Catalyst source, asset, Storefront Kit, Next.js runtime or dependency was copied or installed. This inspection does not grant blanket reuse rights to Catalyst packages or nested dependencies.
+- NASR1 implementation commit: 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d.

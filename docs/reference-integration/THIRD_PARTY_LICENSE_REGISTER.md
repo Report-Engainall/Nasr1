@@ -84,3 +84,11 @@ A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metad
 - Implementation is original NASR1 code using existing React, TypeScript, Supabase RPC, identity, tenant and audit contracts.
 - No source code, package, asset, or dependency was copied from any external reference repository. No external license obligations were introduced.
 - The migration creates no second authentication, database, tenant, or role system; it uses the repository's existing authorization and audit helpers.
+
+
+### BigCommerce Catalyst product media gallery reference — 2026-11-14
+
+- Pinned reference: bigcommerce/catalyst, branch canary, commit 22de59ae265ab754d7105c67a769e6015bcf6ce1; inspected file core/vibes/soul/sections/product-detail/product-gallery.tsx (blob b11c42cea3ae1fb2f46590b077f2a427c2b55ec3).
+- The root LICENSE at that commit was read and confirmed MIT.
+- Transfer decision: No code transfer. NASR1 independently authored its own React gallery and tests in commit 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d; no Catalyst file, asset, package, component, or transitive dependency was copied or added. No external license notice obligation is introduced by the new component.
+- MIT status applies to the inspected Catalyst repository revision and does not certify the license of every third-party dependency or nested component in that project.

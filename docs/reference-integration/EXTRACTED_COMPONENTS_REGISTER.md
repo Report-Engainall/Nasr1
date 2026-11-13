@@ -119,3 +119,12 @@ No packages were added, removed or upgraded. The change uses the application's e
 
 - No implementation source, package or UI asset was copied from the listed external repositories. The workflow is independently implemented within NASR1.
 - Public RPC returns answered Q&A only. Customer context returns only that customer's own questions. Manager queue and answer/reject RPCs require an active same-tenant admin/manager. Direct browser table access is revoked.
+
+
+## Product media gallery navigation — 2026-11-14
+
+| Reference project and source | Source commit / file blob | License | Nasr1 destination | Adaptation | Code transfer |
+|---|---|---|---|---|---|
+| BigCommerce Catalyst — core/vibes/soul/sections/product-detail/product-gallery.tsx | canary commit 22de59ae265ab754d7105c67a769e6015bcf6ce1; blob b11c42cea3ae1fb2f46590b077f2a427c2b55ec3 | MIT; root LICENSE read at the pinned commit | src/components/ProductMediaGallery.tsx; src/components/ProductMediaGallery.test.tsx; src/components/Storefront.tsx; src/aghbari.css | Synchronized image/thumbnail selection, explicit navigation, selected-index feedback and responsive media layout; NASR1 adds RTL keyboard mapping, focus trap/restoration and touch swipe | Independent reimplementation; no Catalyst code or dependency copied |
+
+The implementation is in NASR1 source commit 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d. It keeps the existing product_media read contract and image upload lifecycle. It adds no second media store, upload service, storage bucket, API or dependency. The component test is authored; exact-SHA execution is tracked separately from source presence.

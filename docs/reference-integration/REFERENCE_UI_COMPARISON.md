@@ -91,3 +91,15 @@ Delivery: PR #436 merged at `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; PR #438 
 The inspected Superset revision is commit `4ac8bfe29f0399752197f489979d41f6b46c2f9b` on `master`; exact source-file blobs are recorded in `EXTRACTED_COMPONENTS_REGISTER.md`. The root `LICENSE.txt` and file-level Apache-2.0 headers were read. This is an architectural/UI reference comparison, not a pixel-parity claim and not a code transfer.
 
 The NASR1 interface remains Arabic-first RTL and follows existing design tokens/components. No Superset dependency, Redux store, chart runtime, dashboard schema or code was added.
+
+
+## Product media gallery and lightbox — 2026-11-14
+
+| Concern | Nasr1 before | Reference pattern studied | Nasr1 after |
+|---|---|---|---|
+| Image selection | Main image and thumbnail buttons changed the selected URL, but the enlarged lightbox had no previous/next control | BigCommerce Catalyst product-gallery synchronizes a selected slide with its thumbnail navigation | A single bounded index now drives the main image, RTL thumbnail rail, stage navigation and lightbox |
+| Navigation | Product images could be enlarged one at a time; users had to close the lightbox to choose another image | Catalyst provides direct slide selection and synchronized thumbnails | Previous/next navigation works on the stage and inside the lightbox; ArrowLeft/ArrowRight, Home and End are supported in RTL |
+| Accessibility | Lightbox had Escape close but no focus trap, focus restoration or image-position announcement | Explicit selected state and labelled thumbnail controls | Dialog traps Tab focus, restores the opener, announces image position, and supports Escape |
+| Mobile interaction | Thumbnail selection was available; enlarged image had no swipe gesture | Carousel interaction pattern is touch-capable | Touch swipe changes the same selected index; responsive thumbnail and navigation controls remain available |
+
+Reference: BigCommerce Catalyst canary commit 22de59ae265ab754d7105c67a769e6015bcf6ce1, gallery source blob b11c42cea3ae1fb2f46590b077f2a427c2b55ec3; root MIT LICENSE read. This is an interaction comparison, not a screenshot/pixel-parity claim. No Catalyst source, asset, runtime or dependency was copied. NASR1 implementation: commit 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d.
