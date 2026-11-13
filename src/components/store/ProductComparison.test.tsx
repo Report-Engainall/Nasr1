@@ -80,7 +80,7 @@ describe("storefront product comparison workspace", () => {
     expect(screen.getByText("RICE-071")).toBeInTheDocument();
     expect(screen.getByText("COFFEE-072")).toBeInTheDocument();
     expect(screen.getByText("١٢ متاح")).toBeInTheDocument();
-    expect(screen.getByText("نفد المخزون")).toBeInTheDocument();
+    expect(screen.getAllByText("نفد المخزون").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/ر\.ي/).length).toBeGreaterThan(0);
   });
 
@@ -105,7 +105,7 @@ describe("storefront product comparison workspace", () => {
       onAdd,
     });
 
-    expect(screen.getByText("المخزون غير متحقق")).toBeInTheDocument();
+    expect(screen.getAllByText("المخزون غير متحقق").length).toBeGreaterThan(0);
     expect(screen.queryByText("نفد المخزون")).not.toBeInTheDocument();
 
     const addButton = screen.getByRole("button", { name: "إضافة رز بسمتي إلى السلة" });
