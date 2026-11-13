@@ -76,6 +76,15 @@ function mergeProductIntoCart(
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
 
+function readSavedProductIds(key: string, maxItems: number): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return normalizeSavedProductIds(JSON.parse(window.localStorage.getItem(key) || '[]') as unknown, maxItems);
+  } catch {
+    return [];
+  }
+}
+
 type StorefrontProps = {
   onExit: () => void;
   initialView?: StorefrontInitialView;
