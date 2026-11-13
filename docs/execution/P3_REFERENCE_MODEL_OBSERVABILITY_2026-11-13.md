@@ -71,3 +71,26 @@ No SQL/RPC/migration/RLS/Auth changes, hosted DB writes, secrets, Vercel activit
 - Previous P2 attempts on `745989a...` and `930b098...` were **CANCELLED**, not PASS.
 - P1 integration remains open: `AdminPages.tsx` references `ArchitectureRegistryPanel` only, not the two P3 panels. No authenticated desktop/mobile route acceptance has been proven.
 - Overall 41-screen reference acceptance and product release remain **OPEN / NO-GO**.
+
+## Status refresh — exact main and P1 handoff — 14 November 2026
+
+### P3 source on main
+- Main application/source baseline at the start of this checkpoint: `62923d5215e268beeb5945d393b80cbbd85887a9`.
+- P3 observability panels and their supporting modules remain source-backed and isolated. The current source continues to use the existing manager/admin budget RPC only; global system health and external AI provider connectivity remain `UNKNOWN`.
+- Existing P3 acceptance on exact main SHA `62923d5`: P1 run [#43388092831](https://github.com/Report-Engainall/Nasr1/actions/runs/43388092831) **SUCCESS**, 104 test files / 752 tests, including SystemHealthPanel (4) and SourceBoundaryStatusPanel (1), strict TypeScript and production build. P2 run [#43388092978](https://github.com/Report-Engainall/Nasr1/actions/runs/43388092978) **SUCCESS** on the same SHA, including public read-only Storefront smoke and isolated local PostgreSQL 17 / Chromium acceptance. The separate hosted external customer/order/tenant job was **SKIPPED**; no hosted/production acceptance is claimed.
+
+### P1 observability mount — PR #442 (not merged)
+- PR [#442](https://github.com/Report-Engainall/Nasr1/pull/442) is based on main `62923d5`; latest reviewed PR head is `9e4a225754776559749ce3ddbec5366b16538388`.
+- P1 initially failed on head `96cd0876` because the architecture region accessible name changed; this was correctly restored to `aria-label="معمارية النظام"` in `9e4a2257`.
+- P1 run [#43518625135](https://github.com/Report-Engainall/Nasr1/actions/runs/43518625135): **SUCCESS on exact PR head 9e4a2257** — 105/105 test files, 755/755 tests, strict TypeScript passed, production Vite/Nitro build passed.
+- P2 run [#43518628811](https://github.com/Report-Engainall/Nasr1/actions/runs/43518628811): **IN_PROGRESS at checkpoint time** on the same PR head. The public Storefront smoke was running; the authenticated external customer/order/tenant job was **SKIPPED**. Do not convert this to an overall P2 PASS until its workflow reaches a terminal state.
+- P1 mount logic reuses the existing `canManageStorefrontContent` gate (admin/manager) and lazy-loads the existing architecture, health, and source-boundary panels. It adds no new role or backend contract.
+- The new `AdminPages.observability.test.tsx` is a jsdom integration test with mocked panels. It does not prove real authenticated browser rendering on desktop/mobile, session-change clearing, or retry behavior. Review [#5898879606](https://github.com/Report-Engainall/Nasr1/pull/442) therefore requests changes until a local isolated Playwright admin-settings test covers admin/manager allowed and accountant/unauthorized denied at mobile and desktop widths, and verifies that changing session clears the prior probe and retry uses only the existing budget source.
+- PR #442 remains open and unmerged. The panel mount is therefore **not yet part of main**. P3 must re-review the new exact head and exact-SHA P1/P2 plus browser evidence before merge.
+
+### Remaining server contracts / release boundary
+- AI per-attempt audit read, durable prompt-version / maker-checker persistence, permanent error event storage, and trusted server-side Developer AI / repository access remain **BLOCKED** pending approved tenant-derived bounded contracts and tests. No sample records or client-side shortcuts are allowed.
+- The 41 reference-model pages still lack comprehensive end-to-end acceptance; P1 administrative browser acceptance remains open; hosted external E2E remains unproven.
+- Overall product release remains **NO-GO**.
+
+No SQL/RPC/RLS/Auth changes, hosted database writes, production data changes, Vercel use, deployment, paid service, secret or external AI invocation was performed in this status refresh.
