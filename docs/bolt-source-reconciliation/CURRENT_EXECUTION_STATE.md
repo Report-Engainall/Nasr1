@@ -1,3 +1,16 @@
+# P3 CHECKPOINT — COMMERCE POLICY SIMULATION EVIDENCE INTEGRITY — STAGED 2026-11-13
+
+- Base main SHA: `253dfbe832e433ec1d2f1a9346fe56f4d926f4c3`.
+- Matrix task: `REF-POLICY-SIMULATION-EVIDENCE-001`.
+- Existing migration verified: `supabase/migrations/20261106030000_intelligence_commerce_policy_governance.sql`; all five simulation types persist non-empty source refs, typed outcomes and `noWrite=true`; history RPC is tenant/role scoped and bounds the read to 1..100.
+- Client gaps: exported history parser didn't self-enforce 1..100, accepted empty sourceRefs, duplicate run UUID comparison was case-sensitive, and simulation parser relied only on TS for expectedType allow-list.
+- Staged fixes and suite: strict allow-list, parser limit, nonempty sourceRefs, case-insensitive IDs; 22 tests cover all five types, outer/nested noWrite, type parity, UUID/time/fingerprints, history count/limit, source refs, duplicate identity and no-RPC invalid-limit behavior.
+- P2 guard: run `43370121093` remains active on growth-radar SHA `1917eece605c1469134eadfefcc4feb30851e65b`; this package is staged but not pushed to avoid interrupting local PostgreSQL acceptance under cancel-in-progress workflow concurrency.
+- No SQL/migration change, no data write, no auth/RLS change, no hosted DB, Vercel or deployment.
+- Next: wait for P2 terminal status, re-check latest main, then commit/push staged diff with expected-SHA direct-main guard and run P1 exact-SHA.
+
+---
+
 # EXACT P1 ACCEPTANCE CHECKPOINT — TASK QUALITY INSIGHT PACK — 2026-11-13
 
 - VERIFIED_FEATURE_SHA: `bcf0de77a0794e073e562e23ea83ae68746c117e`.

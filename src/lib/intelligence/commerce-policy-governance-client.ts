@@ -190,7 +190,7 @@ export function parseCommercePolicySimulation(
 ): PolicyRpcResult<CommercePolicySimulation> {
   const row = object(value);
   const outcome = object(row?.outcome);
-  if (!row || !uuid(row.simulationId) || row.simulationType !== expectedType ||
+  if (!SIMULATION_TYPES.includes(expectedType) || !row || !uuid(row.simulationId) || row.simulationType !== expectedType ||
       !validInstant(row.asOf) || !validFingerprint(row.inputFingerprint) ||
       !validFingerprint(row.sourceFingerprint) || !outcome ||
       outcome.simulationType !== expectedType || outcome.noWrite !== true || row.noWrite !== true) {
@@ -218,7 +218,8 @@ export function parseCommercePolicySimulationHistory(
   limit: number,
 ): PolicyRpcResult<CommercePolicySimulationHistoryItem[]> {
   const row = object(value);
-  if (!row || !validInstant(row.asOf) || !Number.isSafeInteger(row.returnedCount) ||
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 ||
+      !row || !validInstant(row.asOf) || !Number.isSafeInteger(row.returnedCount) ||
       (row.returnedCount as number) < 0 || (row.returnedCount as number) > limit ||
       !Array.isArray(row.items) || row.returnedCount !== row.items.length) {
     return { ok: false, status: "ERROR", message: "سجل المحاكاة لا يطابق عدد النتائج وحدود المجتمع ووقت المصدر." };
@@ -229,7 +230,7 @@ export function parseCommercePolicySimulationHistory(
     const outcome = object(item?.outcome);
     if (!item || !uuid(item.id) || typeof item.simulationType !== "string" ||
         !SIMULATION_TYPES.includes(item.simulationType as CommercePolicySimulationType) ||
-        !Array.isArray(item.sourceRefs) || item.sourceRefs.length > 20 ||
+        !Array.isArray(item.sourceRefs) || item.sourceRefs.length < 1 || item.sourceRefs.length > 20 ||
         item.sourceRefs.some(ref => !uuid(ref)) ||
         !validFingerprint(item.inputFingerprint) || !validFingerprint(item.sourceFingerprint) ||
         !outcome || outcome.simulationType !== item.simulationType || outcome.noWrite !== true ||
@@ -241,7 +242,7 @@ export function parseCommercePolicySimulationHistory(
   if (items.some(item => item === null))
     return { ok: false, status: "ERROR", message: "سجل المحاكاة يحتوي على عنصر غير صالح أو بلا دليل مصدر موثق." };
   const parsed = items as CommercePolicySimulationHistoryItem[];
-  if (new Set(parsed.map(item => item.id)).size !== parsed.length)
+  if (new Set(parsed.map(item => item.id.toLowerCase())).size !== parsed.length)
     return { ok: false, status: "ERROR", message: "سجل المحاكاة يحتوي على معرفات مكررة؛ تم حجب النتائج." };
   return { ok: true, data: parsed };
 }
