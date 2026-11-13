@@ -1,3 +1,36 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — P1 ARCHITECTURE REGISTRY MOUNT + P2 AUTH CONTEXT DIAGNOSTIC
+
+> Repository: `Report-Engainall/Nasr1`; target branch: `main`.
+> Base `main` SHA at start: `1fd7e6d17a0ebf94d70b3f08c9892df2c68d52e9`.
+> Work branch: `feat/p1-architecture-registry-and-p2-auth-diagnostics-20261113`.
+> Latest implementation commit before this documentation update: `609253b27d03f3e84c4eb0ee23087d4106f288b6`.
+
+## P1 — mounted the existing P3 architecture registry without a new route
+
+- `src/components/AdminPages.tsx`: mounts the already-existing `ArchitectureRegistryPanel` lazily as a tab inside the existing Settings workspace. The tab is visible only to `admin` and `manager`; it adds no route and no second navigation entry.
+- `src/components/AdminPages.settings-architecture.test.tsx`: regression coverage for admin/manager visibility and denial for customer, customer_manager, staff and accountant; the authorized test opens the panel and checks its route table.
+- `.github/workflows/p1-admin-context-verification.yml`: includes the new regression test in both push and pull-request path filters.
+- The P3 panel remains read-only and derives its data from the TanStack Router tree and existing admin access matrix. It does not claim server authorization, RLS, deployment or health status.
+- No dependency, migration, RPC, SQL, RLS policy, authentication rule or production data was changed.
+
+## P2 — one controlled diagnostic extension; no permission bypass
+
+- `scripts/test-price-grid-atomicity.mjs`: sets the exact same ephemeral manager JWT claims on the privileged local PostgreSQL connection and compares helper resolution with the authenticated connection.
+- The privileged comparison records the fixture profile ID, auth-user ID, organization, active state, manager-role count, helper outputs, helper definitions and function configuration/ownership. It then evaluates the same manager context after `SET ROLE authenticated`.
+- The failure output contains identifiers and database metadata only; it does not print passwords, API keys or financial values.
+- This is still a diagnostic test-harness change. It does not modify `current_profile_id()`, `current_organization_id()`, `save_product_price_grid()`, RLS, role grants or profile policies.
+- The previous exact run [#43333792309](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792309) failed before any price write at manager-context resolution. The authenticated external customer/order E2E job was SKIPPED. The privileged-vs-authenticated comparison has not yet run on this branch.
+
+## Verification state
+
+- P1 on this branch: **PENDING** exact-PR Vitest, strict TypeScript and production build.
+- P2 on this branch: **PENDING** exact-PR isolated PostgreSQL 17/Supabase job. Do not infer a pass from fixture creation or successful setup.
+- Root cause of the profile-context mismatch remains **UNPROVEN** until the new comparison returns. Do not weaken tenant RLS or the admin/manager price-grid guard.
+- No Vercel build, deployment, preview, paid service, hosted database write, production migration or production seed operation was used.
+- Reference sources already registered in `docs/reference-integration/` remain the source of provenance for the previous storefront work. This batch reuses the existing NASR1 architecture panel; it copies no third-party code/assets and adds no license obligations.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — STOREFRONT PRODUCT CARD ACCESSIBILITY
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
