@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Layers3, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronLeft, Layers3, RefreshCw } from "lucide-react";
 import { Storefront } from "@/components/Storefront";
 import { fetchCategories } from "@/lib/api";
 import { resolveStorefrontCategorySlug, storefrontCategorySlug } from "@/lib/storefront-slugs";
@@ -62,12 +62,31 @@ function CategoryPageHeader({
         marginBottom: 18,
       }}
     >
-      <div>
-        <Link to="/categories" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#087f8d", textDecoration: "none" }}>
-          <ArrowLeft size={16} /> جميع التصنيفات
-        </Link>
+      <div style={{ minWidth: 0 }}>
+        <nav
+          aria-label="مسار التصنيف"
+          style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", color: "#64777b", fontSize: 13 }}
+        >
+          <Link to="/categories" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#087f8d", textDecoration: "none" }}>
+            <ArrowLeft size={15} aria-hidden="true" />
+            جميع التصنيفات
+          </Link>
+          <ChevronLeft size={14} aria-hidden="true" />
+          {isSubcategory ? (
+            <>
+              <Link
+                to={("/category/" + storefrontCategorySlug(parent)) as never}
+                style={{ color: "#087f8d", textDecoration: "none", fontWeight: 700 }}
+              >
+                {parent.name}
+              </Link>
+              <ChevronLeft size={14} aria-hidden="true" />
+            </>
+          ) : null}
+          <span aria-current="page" style={{ color: "#173b39", fontWeight: 800 }}>{active.name}</span>
+        </nav>
         <p style={{ margin: "12px 0 3px", color: "#64777b", fontSize: 13 }}>
-          {isSubcategory ? parent.name + " / تصنيف فرعي" : "تصنيف المنتجات"}
+          {isSubcategory ? "فرع من " + parent.name : "تصنيف المنتجات"}
         </p>
         <h1 style={{ fontSize: 27, margin: "0 0 6px" }}>{active.name}</h1>
         <p style={{ margin: 0, color: "#526b70" }}>
@@ -84,35 +103,57 @@ function CategoryPageHeader({
 function SubcategoryList({
   parent,
   categories,
+  activeId,
 }: {
   parent: StoreCategory;
   categories: StoreCategory[];
+  activeId?: string;
 }) {
   if (categories.length === 0) return null;
 
+  const isBrowsingSiblings = Boolean(activeId);
+
   return (
-    <section aria-label="التصنيفات الفرعية" style={{ marginBottom: 18 }}>
-      <h2 style={{ fontSize: 18, marginBottom: 10 }}>التصنيفات الفرعية</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 10 }}>
-        {categories.map((category) => (
-          <Link
-            key={category.id}
-            to={("/category/" + storefrontCategorySlug(parent) + "/subcategory/" + storefrontCategorySlug(category)) as never}
-            style={{
-              border: "1px solid #dce9e8",
-              borderRadius: 12,
-              padding: 13,
-              color: "#087f8d",
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              fontWeight: 800,
-            }}
-          >
-            <Layers3 size={18} /> {category.name}
-          </Link>
-        ))}
+    <section
+      aria-label={isBrowsingSiblings ? "التصنيفات الشقيقة" : "التصنيفات الفرعية"}
+      style={{ marginBottom: 18 }}
+    >
+      <h2 style={{ fontSize: 18, marginBottom: 10 }}>
+        {isBrowsingSiblings ? "تصفح فروع " + parent.name : "التصنيفات الفرعية"}
+      </h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,210px),1fr))", gap: 10 }}>
+        {categories.map((category) => {
+          const isCurrent = category.id === activeId;
+          return (
+            <Link
+              key={category.id}
+              to={("/category/" + storefrontCategorySlug(parent) + "/subcategory/" + storefrontCategorySlug(category)) as never}
+              aria-current={isCurrent ? "page" : undefined}
+              style={{
+                border: isCurrent ? "1px solid #087f8d" : "1px solid #dce9e8",
+                background: isCurrent ? "#edf7f5" : "#fff",
+                borderRadius: 12,
+                padding: 13,
+                color: "#087f8d",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 9,
+                minWidth: 0,
+                fontWeight: 800,
+              }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                <Layers3 size={18} aria-hidden="true" />
+                <span>{category.name}</span>
+              </span>
+              {isCurrent ? (
+                <span style={{ flex: "0 0 auto", fontSize: 11, color: "#17675f" }}>التصنيف الحالي</span>
+              ) : null}
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
@@ -145,7 +186,9 @@ export function StorefrontCategoryLandingPage({
         isSubcategory={Boolean(subcategorySlug)}
         onRefresh={() => void categoriesQuery.refetch()}
       />
-      {!subcategorySlug ? <SubcategoryList parent={parent} categories={children} /> : null}
+      {children.length > 0 ? (
+        <SubcategoryList parent={parent} categories={children} activeId={subcategorySlug ? active.id : undefined} />
+      ) : null}
       <Storefront initialCategoryId={active.id} onExit={() => undefined} />
     </main>
   );
