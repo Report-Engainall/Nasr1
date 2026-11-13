@@ -239,6 +239,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
   const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
+  const [recentlyViewedState, setRecentlyViewedState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
+  const recentlyViewed = recentlyViewedState.scopeKey === recentlyViewedStorageKey ? recentlyViewedState.ids : [];
+  const [recentlyViewedHydratedFor, setRecentlyViewedHydratedFor] = useState('');
   const recentlyViewedStorageKey = recentlyViewedProductsStorageKey(user?.profileId, user?.id);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartMutationRevisionRef = useRef(0);
@@ -265,9 +268,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const selectedProduct = selectedProductState.identityKey === storefrontIdentityKey && selectedProductState.productId
     ? products.find((product) => product.id === selectedProductState.productId) ?? null
     : null;
-  const recentlyViewedProducts = recentlyViewed
-    .map((productId) => products.find((product) => product.id === productId))
-    .filter((product): product is ProductWithInventory => Boolean(product));
+  const recentlyViewedProducts = !productsLoading && !productsError
+    ? recentlyViewed
+      .map((productId) => products.find((product) => product.id === productId))
+      .filter((product): product is ProductWithInventory => Boolean(product))
+    : [];
   const recordRecentlyViewedProduct = useCallback((productId: string) => {
     setRecentlyViewedState((current) => {
       const previous = current.scopeKey === recentlyViewedStorageKey
@@ -280,9 +285,6 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     });
   }, [recentlyViewedStorageKey]);
   const [wishlistState, setWishlistState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
-  const [recentlyViewedState, setRecentlyViewedState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
-  const recentlyViewed = recentlyViewedState.scopeKey === recentlyViewedStorageKey ? recentlyViewedState.ids : [];
-  const [recentlyViewedHydratedFor, setRecentlyViewedHydratedFor] = useState('');
   const wishlist = wishlistState.scopeKey === wishlistStorageKey ? wishlistState.ids : [];
   const setWishlist = useCallback((next: string[] | ((previous: string[]) => string[])) => {
     setWishlistState((current) => {
