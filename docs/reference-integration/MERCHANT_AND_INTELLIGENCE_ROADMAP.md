@@ -52,3 +52,16 @@ The exact source commit `7ca17dd3e26bf39d65baf0d021f3e80a89e20973` contains the 
 - A follow-up diagnostic commit `f2ee05cea0d1bd5dc8c651e880af241ed421e9f9` compares tenant helper behavior across session roles. Its P2 run `43338497902` was still executing migrations at the last observation. This is not an acceptance result.
 
 The earlier row label “current commit CI pending” should be read with this exact-SHA proof: P1 and read-only UI smoke passed; authenticated database/order acceptance did not.
+
+
+## Corrected P2 session-context diagnosis — 2026-11-13
+
+The diagnostic rerun on `f2ee05cea0d1bd5dc8c651e880af241ed421e9f9` completed and reproduced the failure. The manager profile and organization were present and visible to the privileged connection. The fixture had manually set only `sub/email/role`, without a real Supabase `session_id` claim and matching `auth.sessions` row. Since `current_profile_id()` intentionally requires that live session row, the helper returned null. This is a test-fixture defect; no RLS relaxation or production database change is justified.
+
+- Commit `4ba82b8796334bf84f47e911183b0581d01ee326` changed the test to obtain password-authenticated JWT claims from the isolated local Supabase Auth endpoint, and to verify the matching active `auth.sessions` row.
+- Commit `482d1774318a1e19cc22a414e189640cb7c3bc41` added explicit profile/organization/session assertions before and after `SET ROLE authenticated`.
+- P2 run `43339928481` targets `482d177...`. At the last check, its read-only public storefront smoke was in progress; the dedicated external customer-order E2E remained skipped because credentials were not supplied. No result is claimed for the local PostgreSQL acceptance until that job completes.
+
+Run links:
+- Diagnostic fixture failure: https://github.com/Report-Engainall/Nasr1/actions/runs/43338497902
+- Session-bound fixture run: https://github.com/Report-Engainall/Nasr1/actions/runs/43339928481
