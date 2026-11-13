@@ -94,3 +94,14 @@ No SQL/RPC/migration/RLS/Auth changes, hosted DB writes, secrets, Vercel activit
 - Overall product release remains **NO-GO**.
 
 No SQL/RPC/RLS/Auth changes, hosted database writes, production data changes, Vercel use, deployment, paid service, secret or external AI invocation was performed in this status refresh.
+
+---
+
+## P2 RUN UPDATE — PR #442 PUBLIC SMOKE AND LOCAL ACCEPTANCE — 14 NOVEMBER 2026
+
+- Exact PR head: `9e4a225754776559749ce3ddbec5366b16538388`.
+- P1 #43518625135: **SUCCESS** on this exact SHA (105/105 test files; 755/755 tests; strict TypeScript and production Vite/Nitro build).
+- P2 #43518628811: public read-only Storefront Playwright job **SUCCESS**; authenticated infrastructure gate **SUCCESS**; external customer/order/tenant job **SKIPPED**; dedicated local Supabase/PostgreSQL 17 + Chromium acceptance job **IN_PROGRESS** (job #132208434512). At last check it was still installing pinned dependencies; migrations, ephemeral tenants, transaction tests and authenticated browser assertions had not run yet. Do not claim full P2 acceptance.
+- The local P2 acceptance job is isolated CI infrastructure, not the hosted/production database. It does not replace the missing authenticated admin observability Playwright coverage (desktop/mobile, manager/admin allow, accountant deny, session-change clearing and re-probe).
+- PR #442 remains open/unmerged. The P1 mount is not on main. Main contains three documentation-only checkpoint commits after the PR base; re-sync the PR branch and rerun both workflows on the resulting exact SHA before integration.
+- Release remains **NO-GO** pending admin panel browser acceptance, all 41 reference page decisions, and remaining blocked server contracts.
