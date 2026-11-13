@@ -5265,3 +5265,17 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Execution record: [P1_CUSTOMER_RECENTLY_VIEWED_2026-11-13.md](../execution/P1_CUSTOMER_RECENTLY_VIEWED_2026-11-13.md).
 - Reference and license notes updated in the existing CUSTOMER_STOREFRONT_EVOLUTION, GITHUB_REFERENCE_CATALOG, EXTRACTED_COMPONENTS_REGISTER, REFERENCE_UI_COMPARISON and THIRD_PARTY_LICENSE_REGISTER documents. No Hydrogen code was copied.
 - Status: implementation authored on work branch; exact-head P1/P2 acceptance is pending. Do not mark completed until the relevant runs terminate successfully. Hosted external customer/tenant E2E remains distinct from local Supabase acceptance.
+
+
+---
+
+## FINAL ACCEPTANCE — MY AGHBARI RECENTLY VIEWED PRODUCTS — 2026-11-13
+
+- PR #432 merged to `main` at `6a7290eb219d906fec7596d125569c5036e0ba9f`; tested feature head was `dc307541e99e151ef6580c519243eb646da77f13`.
+- P1 run [#43358781222](https://github.com/Report-Engainall/Nasr1/actions/runs/43358781222): **SUCCESS** — 81 test files / 597 tests, strict TypeScript and production build.
+- P2 run [#43358781112](https://github.com/Report-Engainall/Nasr1/actions/runs/43358781112): **SUCCESS** — public read-only Storefront Playwright, and dedicated isolated local Supabase/PostgreSQL 17 acceptance.
+- The dedicated local acceptance passed tenant fixture setup, RPC guard checks, price-grid atomicity/audit/concurrency, cash-expense source posting and idempotency, purchase receipt accounting, authenticated order persistence and cross-tenant denial, stock/purchase XLSX, checkout replay, return/credit memo, Onyx export, finance/task print, customer-manager privacy/audit and central device-session immediate revocation.
+- The separate hosted/external customer-order-tenant job was **SKIPPED**; do not infer hosted E2E acceptance or cross-device sync.
+- Feature code is merged and accepted on the exact PR source SHA. No hosted Supabase write, production migration, deployment or Vercel use.
+- Dedicated record: `docs/execution/P1_CUSTOMER_RECENTLY_VIEWED_2026-11-13.md`.
+
