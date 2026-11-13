@@ -20,7 +20,7 @@ function captureBrowserDiagnostics(page: Page): BrowserDiagnostics {
       return;
     }
     if (
-      /\/rest\/v1\/(orders|order_items|order_status_history|customers)$/i.test(pathname) ||
+      /\/rest\/v1\/(orders|order_items|order_status_history|customers|product_media)$/i.test(pathname) ||
       /\/rest\/v1\/rpc\/(submit_customer_order|review_order_lines)$/i.test(pathname) ||
       /\/auth\/v1\/token$/i.test(pathname)
     ) {
