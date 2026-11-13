@@ -164,7 +164,8 @@ describe("storefront predictive catalogue search", () => {
     const matchingProduct = { ...product, name: "رز بسمتي قابل للوصول" };
 
     render(
-      <StorefrontPredictiveSearch
+              productsAvailable={true}
+
         query="رز"
         products={[matchingProduct]}
         categories={[riceCategory]}
@@ -205,7 +206,8 @@ describe("storefront predictive catalogue search", () => {
     const onCategorySelect = vi.fn();
 
     render(
-      <StorefrontPredictiveSearch
+      <StorefrontPredictiveSearch        productsAvailable={true}
+
         query="رز"
         products={[]}
         categories={[riceCategory]}
@@ -230,7 +232,8 @@ describe("storefront predictive catalogue search", () => {
 
   it("does not render stale product options while the server catalogue query is pending", () => {
     render(
-      <StorefrontPredictiveSearch
+      <StorefrontPredictiveSearch        productsAvailable={false}
+
         query="رز"
         products={[]}
         categories={[riceCategory]}
@@ -252,7 +255,8 @@ describe("storefront predictive catalogue search", () => {
 
   it("closes the suggestion panel on Escape", () => {
     render(
-      <StorefrontPredictiveSearch
+      <StorefrontPredictiveSearch        productsAvailable={true}
+
         query="رز"
         products={[]}
         categories={[riceCategory]}
