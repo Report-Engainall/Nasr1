@@ -94,11 +94,16 @@ async function main() {
   );
   assert.equal(deliveredOrderRows.length, 1, "seeded review source must be a delivered order in tenant A");
 
+  // The P2 fixture creates additional delivered orders for this same customer/product.
+  // Mirror the RPC's latest-delivered-line ordering instead of assuming the return order is newest.
   const deliveredLines = await db.unsafe(
-    "select id,product_id from public.order_items where order_id=$1::uuid and product_id=$2::uuid order by id limit 1",
-    [deliveredOrderId, productId],
+    "select oi.id,oi.product_id,o.id as order_id,o.order_number from public.order_items oi " +
+    "join public.orders o on o.id=oi.order_id " +
+    "where o.organization_id=$1::uuid and o.customer_id=$2::uuid and o.status='delivered' and oi.product_id=$3::uuid " +
+    "order by coalesce((select pg_catalog.max(h.created_at) from public.order_status_history h where h.order_id=o.id and h.to_status='delivered'),o.updated_at) desc,oi.id desc limit 1",
+    [organizationId, deliveredOrderRows[0].customer_id, productId],
   );
-  assert.equal(deliveredLines.length, 1, "seeded delivered order contains the target product");
+  assert.equal(deliveredLines.length, 1, "customer has one latest delivered matching line for the target product");
   const deliveredOrderItemId = deliveredLines[0].id;
 
   // Create an undelivered line for the same customer/product. The RPC must reject
@@ -194,7 +199,7 @@ async function main() {
   const pending = await moderationQueue();
   assert.equal(pending.length, 1, "manager sees the one pending review in the active tenant");
   assert.equal(pending[0].id, reviewId);
-  assert.equal(pending[0].order_number, deliveredOrderRows[0].order_number);
+  assert.equal(pending[0].order_number, deliveredLines[0].order_number);
   for (const privateField of ["organization_id", "customer_id", "profile_id", "email", "phone", "order_id", "order_item_id", "moderator_profile_id"]) {
     assert.equal(privateField in pending[0], false, "moderation queue omits private field " + privateField);
   }
@@ -253,7 +258,6 @@ async function main() {
 
   // Return the single pooled connection to its owner role before privileged fixture/audit inspection.
   // Public anon/authenticated denial was already asserted above and remains unchanged.
-  await db.unsafe("reset role");
   await db.unsafe("reset role");
   const reviewRows = await db.unsafe(
     "select id,moderation_status,rating,moderator_profile_id,moderated_at from public.storefront_product_reviews " +
