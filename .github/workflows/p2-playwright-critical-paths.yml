@@ -677,6 +677,11 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p1-device-session-playwright.mjs
+      - name: Run authenticated admin observability role, session-change and retry acceptance in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-observability-settings.spec.ts"
       - name: Run central device-session authorization and immediate-revocation Chromium acceptance
         if: ${{ hashFiles('e2e/device-session-management.spec.ts') != '' && hashFiles('scripts/seed-p1-device-session-playwright.mjs') != '' }}
         env:
