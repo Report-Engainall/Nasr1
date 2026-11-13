@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ProductGrid } from "./Storefront";
 import { StorefrontPredictiveSearch } from "./StorefrontPredictiveSearch";
 import type { Category, ProductWithInventory } from "@/lib/types";
+import { moveRecentlyViewedProductToFront, recentlyViewedProductsStorageKey } from "@/lib/storefront-recently-viewed";
 
 const productId = "a1000000-0000-0000-0000-000000000071";
 const product = {
@@ -273,5 +274,43 @@ describe("storefront predictive catalogue search", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     expect(input).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("listbox", { name: "اقتراحات البحث" })).not.toBeInTheDocument();
+  });
+});
+
+
+describe("storefront recently viewed history", () => {
+  it("uses separate storage scopes for profile, user and guest identities", () => {
+    const firstProfile = recentlyViewedProductsStorageKey("profile-a", "user-a");
+    const secondProfile = recentlyViewedProductsStorageKey("profile-b", "user-a");
+    const guest = recentlyViewedProductsStorageKey(null, null);
+
+    expect(firstProfile).not.toBe(secondProfile);
+    expect(firstProfile).not.toBe(guest);
+    expect(guest).toContain(":guest");
+  });
+
+  it("moves a re-opened product to the front without duplicate identifiers", () => {
+    expect(
+      moveRecentlyViewedProductToFront(["product-a", "product-b", "product-a"], "product-b"),
+    ).toEqual(["product-b", "product-a"]);
+  });
+
+  it("keeps only the eight newest safe identifiers", () => {
+    const ids = Array.from({ length: 10 }, (_, index) => `product-${index}`);
+    expect(moveRecentlyViewedProductToFront(ids, "product-new")).toEqual([
+      "product-new",
+      "product-0",
+      "product-1",
+      "product-2",
+      "product-3",
+      "product-4",
+      "product-5",
+      "product-6",
+    ]);
+  });
+
+  it("ignores blank and non-string identifiers and never stores product objects", () => {
+    expect(moveRecentlyViewedProductToFront(["product-a", 42, null, { id: "product-b" }], "  "))
+      .toEqual(["product-a"]);
   });
 });
