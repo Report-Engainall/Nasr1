@@ -103,7 +103,8 @@ describe("reference-model architecture registry", () => {
       customAccess,
     );
 
-    expect(registry.routes[0].navigationAccess).toEqual({
+    const aiRoute = registry.routes.find((route) => route.path === "/admin/ai");
+    expect(aiRoute?.navigationAccess).toEqual({
       source: "ROLE_PAGE_ACCESS",
       roles: ["admin"],
     });
