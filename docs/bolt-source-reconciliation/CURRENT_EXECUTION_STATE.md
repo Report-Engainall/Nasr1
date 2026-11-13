@@ -5531,3 +5531,17 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Existing dashboard group cards and hierarchical category tree are already implemented; do not rebuild either.
 - AI per-attempt audit, persistent prompt version/audit store, durable error log and developer tooling remain **BLOCKED** pending safe server-side contracts.
 - Next actions: P1 mounts the two existing panels with supported manager/admin checks; P2 finishes exact-main validation. No prior SHA PASS transfers.
+
+---
+
+## P3 CHECKPOINT — REFERENCE-MODEL OBSERVABILITY / PR #442 — 14 NOVEMBER 2026
+
+- Current main before this documentation update: `bb787194e856d1f747223d1c2f2279ed2560ecb6`; P3 application implementation already present on `62923d5215e268beeb5945d393b80cbbd85887a9`.
+- Exact main application acceptance: P1 #43388092831 SUCCESS (104 test files / 752 tests, strict TypeScript and production build); P2 #43388092978 SUCCESS on the same SHA, including local PostgreSQL 17 and authenticated Chromium. Hosted external customer/order/tenant E2E remained SKIPPED.
+- P1 mounting of existing `SystemHealthPanel` and `SourceBoundaryStatusPanel` is under PR #442, based on main `62923d5`; latest PR head `9e4a225754776559749ce3ddbec5366b16538388`. Main does not yet contain that mount.
+- P1 #43518625135: SUCCESS on exact PR head `9e4a2257` — 105/105 test files, 755/755 tests, strict TypeScript PASS and production build PASS. The earlier head `96cd0876` failed 2 existing accessibility-name assertions; P1 restored `aria-label="معمارية النظام"` in `9e4a2257`.
+- P2 #43518628811: IN_PROGRESS on the exact same PR head at checkpoint time. Public Storefront read-only Playwright was still running; authenticated external customer/order/tenant job was SKIPPED. A Storefront smoke does not prove the admin observability tab.
+- PR #442 remains OPEN / NOT MERGED. Review #5898879606 requests changes: add isolated authenticated Playwright admin-settings acceptance for admin/manager allow and accountant/unauthorized denial at desktop and mobile widths; verify session change clears the previous health probe and retry invokes only the existing budget read. Current jsdom integration uses mocked panel components and is not browser proof.
+- P3 source readiness stays honest: per-attempt AI audit read, persistent prompt version/maker-checker store, durable error event source and trusted Developer AI repository access remain BLOCKED. Global health and provider connectivity remain UNKNOWN.
+- Next: P1 adds the missing isolated browser acceptance and reruns P1/P2 on one exact new head; P3 rechecks that head plus final workflow results and integrates only when all required browser/security proof is present. The 41 reference pages and release remain OPEN / NO-GO.
+- No production database, migration, RLS/Auth, external provider, secret, Vercel or paid-service activity.
