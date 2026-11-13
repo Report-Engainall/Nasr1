@@ -59,8 +59,7 @@ test("checkout replays one committed order after its success response is lost an
   const page = await context.newPage();
   const notes = "P2 lost-response idempotency replay";
   let submitCalls = 0;
-  let firstRequest: Record<string, unknown> | null = null;
-  let replayRequest: Record<string, unknown> | null = null;
+  const capturedRequests: { first: Record<string, unknown> | null; replay: Record<string, unknown> | null } = { first: null, replay: null };
   let committedResult: { id?: unknown; order_number?: unknown } | null = null;
   let verifiedOrderCount = 0;
 
@@ -83,7 +82,7 @@ test("checkout replays one committed order after its success response is lost an
       submitCalls += 1;
       const body = route.request().postDataJSON() as Record<string, unknown>;
       if (submitCalls === 1) {
-        firstRequest = body;
+        capturedRequests.first = body;
         const upstream = await route.fetch();
         expect(upstream.ok(), "The real Supabase RPC must commit before the acknowledgement is hidden.").toBe(true);
         const parsed = JSON.parse(await upstream.text());
@@ -97,15 +96,15 @@ test("checkout replays one committed order after its success response is lost an
         });
         return;
       }
-      replayRequest = body;
+      capturedRequests.replay = body;
       await route.continue();
     });
 
     await firstSubmit.click();
     await expect(page.getByText(/لم يصل تأكيد نهائي لنتيجة الطلب/)).toBeVisible({ timeout: 30_000 });
     expect(submitCalls).toBe(1);
-    expect(firstRequest?._idempotency_key).toEqual(expect.stringMatching(/^[A-Za-z0-9_-]{16,128}$/));
-    const firstKey = String(firstRequest?._idempotency_key);
+    expect(capturedRequests.first?._idempotency_key).toEqual(expect.stringMatching(/^[A-Za-z0-9_-]{16,128}$/));
+    const firstKey = String(capturedRequests.first?._idempotency_key);
 
     const savedAttempt = await page.evaluate(() => {
       const entry = Object.entries(window.sessionStorage).find(([key]) => key.startsWith("aghbari:checkout-attempt:v1:"));
