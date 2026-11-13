@@ -89,6 +89,7 @@ export interface FinanceBankStatement {
   voidedAt: string | null;
 }
 export interface CashReconciliationWorkspace {
+  asOf: string;
   role: "admin" | "manager" | "accountant";
   accounts: CashSettlementAccount[];
   evidence: CashAccountEvidence[];
@@ -318,6 +319,7 @@ function bankStatement(value: unknown): FinanceBankStatement {
 export function parseCashReconciliationWorkspace(value: unknown): CashReconciliationWorkspace {
   const row = object(value, "مساحة مطابقة النقد والبنوك");
   const authorization = object(row.authorization, "صلاحيات المساحة");
+  const asOf = timestamp(row.asOf, "وقت لقطة مطابقة النقد");
   if (row.status !== "OK" || row.sideEffects !== "NONE" ||
       authorization.tenantScope !== "SERVER_RESOLVED_AUTHENTICATED_TENANT" ||
       (authorization.effectiveRole !== "admin" && authorization.effectiveRole !== "manager" && authorization.effectiveRole !== "accountant")) {
@@ -345,6 +347,7 @@ export function parseCashReconciliationWorkspace(value: unknown): CashReconcilia
     throw new Error("توجد مستندات أو أرصدة أو كشوف لا تتطابق مع نوع حساب المؤسسة أو عملته.");
   }
   return {
+    asOf,
     role: authorization.effectiveRole,
     accounts,
     evidence: evidenceRows,

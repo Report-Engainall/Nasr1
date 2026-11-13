@@ -6,6 +6,7 @@ export interface CashflowScheduledEntry {id:string;direction:"INFLOW"|"OUTFLOW";
 export interface BuildCashflowForecastInput {
  id:string;generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];openingBalances:MetricSnapshot[];
  entries:CashflowScheduledEntry[];scheduleStatus:EvidenceStatus;scheduleCompleteness:DataCompleteness;scheduleQuality:DataQuality;
+ openingBalanceWarnings?:string[];
 }
 export interface CashflowForecastPoint {
  currency:string;horizonDays:7|30|90;period:EvidencePeriod;asOf:string;openingBalance:number|null;
@@ -73,7 +74,7 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  const duplicateEntryIds=new Set<string>(),seen=new Set<string>();
  for(const entry of input.entries){if(seen.has(entry.id))duplicateEntryIds.add(entry.id);seen.add(entry.id)}
  const scheduleStatus=statusOf(input.scheduleStatus,input.scheduleCompleteness,input.scheduleQuality);
- const result:CashflowForecastPoint[]=[],topWarnings:string[]=[];
+ const result:CashflowForecastPoint[]=[],topWarnings:string[]=(input.openingBalanceWarnings??[]).filter(w=>typeof w==="string"&&w.trim().length>0&&w.length<=500);
  // Scheduled evidence may be displayed without a cash opening balance. The currency
  // is still sourced from a validated schedule metric; no opening or projected balance
  // is synthesized when the bank/cash source is absent.

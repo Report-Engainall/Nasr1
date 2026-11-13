@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { BrainCircuit, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { fetchCashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
 import { CustomerQuotePipelineSummary } from "@/components/intelligence/CustomerQuotePipelineSummary";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
+import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
 import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
@@ -19,7 +21,7 @@ import { fetchCustomerQuotePipeline, type CustomerQuotePipelineFetchResult } fro
 import { fetchTaskPerformanceScorecard, type TaskPerformanceScorecardFetchResult } from "@/lib/intelligence/task-performance-scorecard-client";
 import type { GrowthOpportunityKind } from "@/lib/intelligence/growth-opportunities";
 import type { ShiftQueueSourceKey } from "@/lib/intelligence/shift-operations";
-import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
+import type { DecisionCandidate, EvidencePassport as EvidencePassportData, EvidenceRecord, MetricSnapshot } from "@/lib/intelligence/types";
 import {
   createInventoryIntelligencePeriod,
   fetchInventoryIntelligence,
@@ -375,6 +377,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const [refreshKey, setRefreshKey] = useState(0);
   const [result, setResult] = useState<CashflowScheduleResult | null>(null);
+  const [cashOpeningSource, setCashOpeningSource] = useState<{ asOf: string; metrics: MetricSnapshot[]; evidenceRecords: EvidenceRecord[]; warnings: string[] }>({ asOf: "", metrics: [], evidenceRecords: [], warnings: [] });
   const [loading, setLoading] = useState(true);
   const [outcomeResult, setOutcomeResult] = useState<DecisionOutcomeListResult | null>(null);
   const [outcomesLoading, setOutcomesLoading] = useState(true);
@@ -451,9 +454,20 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     }
     setLoading(true);
     try {
-      const request = createCashflowScheduleRequest({ horizonDays: 90, now: snapshotAt.current });
+      let reconciliationWorkspace: Awaited<ReturnType<typeof fetchCashReconciliationWorkspace>> | null = null;
+      try {
+        reconciliationWorkspace = await fetchCashReconciliationWorkspace();
+      } catch {
+        // The scheduled flow remains readable, but an unavailable opening-balance source is never treated as zero.
+      }
+      const requestTime = reconciliationWorkspace ? new Date(reconciliationWorkspace.asOf) : snapshotAt.current;
+      const request = createCashflowScheduleRequest({ horizonDays: 90, now: requestTime });
+      const openingSource = reconciliationWorkspace
+        ? buildApprovedCashOpeningBalances(reconciliationWorkspace, request.asOf)
+        : { metrics: [], evidenceRecords: [], warnings: ["تعذر قراءة اعتماد الأرصدة الافتتاحية؛ بقي الرصيد النقدي غير متاح."] };
       const response = await fetchCashflowSchedule(request);
       if (!active()) return;
+      setCashOpeningSource({ asOf: request.asOf, ...openingSource });
       setResult(response);
     } catch {
       if (!active()) return;
@@ -923,16 +937,25 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     }));
     return [...scheduledMetrics, ...collectionMetrics];
   }, [data]);
+  const cashOpeningForSnapshot = useMemo(() => {
+    if (!data) return { metrics: [] as MetricSnapshot[], evidenceRecords: [] as EvidenceRecord[], warnings: [] as string[] };
+    if (cashOpeningSource.asOf === data.asOf) return cashOpeningSource;
+    return {
+      metrics: [] as MetricSnapshot[],
+      evidenceRecords: [] as EvidenceRecord[],
+      warnings: ["تاريخ لقطة الرصيد الافتتاحي لا يطابق تاريخ جدول التدفق؛ حُجب ربط الرصيد."],
+    };
+  }, [data, cashOpeningSource]);
   const evidencePassport = useMemo<EvidencePassportData | null>(() => {
     if (!data) return null;
     return buildEvidencePassport({
       id: "cashflow-evidence:" + data.asOf,
       generatedAt: data.asOf,
       asOf: data.asOf,
-      evidenceRecords: data.evidenceRecords,
-      metrics: cashflowMetrics,
+      evidenceRecords: [...data.evidenceRecords, ...cashOpeningForSnapshot.evidenceRecords],
+      metrics: [...cashflowMetrics, ...cashOpeningForSnapshot.metrics],
     });
-  }, [data, cashflowMetrics]);
+  }, [data, cashflowMetrics, cashOpeningForSnapshot]);
   const cashflowForecast = useMemo(() => {
     if (!data) return null;
     const metricsById = new Map(cashflowMetrics.map((metric) => [metric.id, metric]));
@@ -940,8 +963,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       id: "cashflow-forecast:" + data.asOf,
       generatedAt: data.asOf,
       asOf: data.asOf,
-      evidenceRecords: data.evidenceRecords,
-      openingBalances: [],
+      evidenceRecords: [...data.evidenceRecords, ...cashOpeningForSnapshot.evidenceRecords],
+      openingBalances: cashOpeningForSnapshot.metrics,
+      openingBalanceWarnings: cashOpeningForSnapshot.warnings,
       entries: data.schedule.entries.flatMap((entry) => {
         const amount = metricsById.get(entry.amount.id);
         return amount ? [{ id: entry.id, direction: entry.direction, dueDate: entry.dueDate, amount }] : [];
@@ -950,7 +974,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       scheduleCompleteness: data.schedule.completeness,
       scheduleQuality: data.schedule.quality,
     });
-  }, [data, cashflowMetrics]);
+  }, [data, cashflowMetrics, cashOpeningForSnapshot]);
   const evidenceBackedActions = useMemo<EvidenceBackedAction[]>(() => {
     if (!data || !evidencePassport) return [];
     return data.measurementMetrics.flatMap((proof) => {
