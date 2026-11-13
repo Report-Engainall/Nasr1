@@ -42,7 +42,7 @@ afterEach(() => cleanup());
 describe("StorefrontProductQuestions", () => {
   it("shows public answered Q&A but never exposes a customer form to visitors", async () => {
     render(<StorefrontProductQuestions productId={productId} />);
-    expect(await screen.findByText(publicItem.questionText)).toBeInTheDocument();
+    expect(await screen.findByText("س: " + publicItem.questionText)).toBeInTheDocument();
     expect(screen.getByText(publicItem.answerText)).toBeInTheDocument();
     expect(screen.getByText("صاحب السؤال اشترى المنتج فعلياً")).toBeInTheDocument();
     expect(screen.getByText("طرح الأسئلة متاح لحساب العميل المسجّل فقط.")).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("StorefrontProductQuestions", () => {
   it("does not expose question submission or private history to a staff account", async () => {
     mocks.user = { id: "staff-1", profileId: "staff-profile", roles: ["manager"], isStaff: true };
     render(<StorefrontProductQuestions productId={productId} />);
-    expect(await screen.findByText(publicItem.questionText)).toBeInTheDocument();
+    expect(await screen.findByText("س: " + publicItem.questionText)).toBeInTheDocument();
     expect(screen.queryByLabelText("سؤالك عن المنتج")).not.toBeInTheDocument();
     expect(mocks.fetchMine).not.toHaveBeenCalled();
     expect(mocks.submit).not.toHaveBeenCalled();

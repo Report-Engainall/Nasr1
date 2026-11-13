@@ -16,7 +16,7 @@ function questionDate(value: string): string {
 
 export function StorefrontProductQuestionModeration({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
-  const allowed = Boolean(user?.roles?.some((role) => role === "admin" || role === "manager"));
+  const allowed = Boolean(user?.isStaff && user.roles?.some((role) => role === "admin" || role === "manager"));
   const [items, setItems] = useState<PendingProductQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
