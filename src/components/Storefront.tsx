@@ -9,6 +9,7 @@ import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/st
 import { recordStorefrontUnavailableProductSearch } from '@/lib/intelligence/unavailable-product-search-demand-client';
 import { useFetch } from '@/lib/useFetch';
 import { formatNumber } from '@/lib/format';
+import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
 import { CustomerOrderPricingPreview } from '@/components/CustomerOrderPricingPreview';
@@ -1278,9 +1279,10 @@ export function ProductDetail({
   }
 
   function normalizeRequestedQuantity(value: string) {
-    const parsed = Number.parseInt(value, 10);
+    const normalized = normalizeLocalizedDecimalInput(value);
+    const parsed = /^\d+$/.test(normalized) ? Number(normalized) : Number.NaN;
     const minimum = minimumDisplayQuantity ?? 1;
-    const start = Number.isFinite(parsed)
+    const start = Number.isSafeInteger(parsed)
       ? Math.max(minimum, Math.min(maximumDisplayQuantity, parsed))
       : minimum;
     for (let candidate = start; candidate <= maximumDisplayQuantity; candidate += 1) {
@@ -1382,11 +1384,11 @@ export function ProductDetail({
                 ><Minus size={16} /></button>
                 <input
                   id="sf-product-requested-quantity"
-                  type="number"
+                  type="text"
                   inputMode="numeric"
-                  min={minimumDisplayQuantity ?? 1}
-                  max={maximumDisplayQuantity}
-                  step={1}
+                  autoComplete="off"
+                  maxLength={5}
+                  dir="ltr"
                   value={requestedUnitQuantity}
                   aria-label="كمية الطلب"
                   onChange={(event) => normalizeRequestedQuantity(event.currentTarget.value)}
@@ -1964,7 +1966,7 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
                 <td style={{ padding: 12, minWidth: 160 }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                     <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd < minimumAddition || currentQuantity <= 0} onClick={() => { const previousTotal = resultingQuantity <= minimum ? 0 : minimum + Math.max(0, Math.ceil((resultingQuantity - minimum) / multiple) - 1) * multiple; const next = previousTotal - alreadyOrdered; onQuantityChange(product.id, next < minimumAddition ? '' : String(next)); }} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
-                    <input type="number" inputMode="numeric" min={minimumAddition} max={remainingToAdd} step={multiple} value={rawQuantity} disabled={remainingToAdd < minimumAddition} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
+                    <input type="text" inputMode="numeric" autoComplete="off" maxLength={16} dir="ltr" value={rawQuantity} disabled={remainingToAdd < minimumAddition} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = normalizeLocalizedDecimalInput(event.currentTarget.value); if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
                     <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd < minimumAddition || nextIncrease > remainingToAdd} onClick={() => onQuantityChange(product.id, String(nextIncrease))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
                   </div>
                 </td>
