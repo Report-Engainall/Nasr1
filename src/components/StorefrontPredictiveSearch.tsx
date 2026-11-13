@@ -13,6 +13,7 @@ type StorefrontPredictiveSearchProps = {
   products: ProductWithInventory[];
   categories: Category[];
   loading: boolean;
+  productsAvailable: boolean;
   error?: string | null;
   onQueryChange: (value: string) => void;
   onSearch: (value: string) => void;
@@ -32,6 +33,7 @@ export function StorefrontPredictiveSearch({
   products,
   categories,
   loading,
+  productsAvailable,
   error = null,
   onQueryChange,
   onSearch,
@@ -68,7 +70,7 @@ export function StorefrontPredictiveSearch({
         category,
       });
     }
-    if (!loading && !error) {
+    if (productsAvailable && !loading && !error) {
       for (const product of products.slice(0, 5)) {
         entries.push({
           kind: "product",
@@ -79,7 +81,7 @@ export function StorefrontPredictiveSearch({
       }
     }
     return entries;
-  }, [categoryMatches, error, loading, normalizedQuery, products, searchReady]);
+  }, [categoryMatches, error, loading, normalizedQuery, products, productsAvailable, searchReady]);
 
   const isOpen = open && searchReady;
   const safeActiveIndex = activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1;
@@ -287,12 +289,12 @@ export function StorefrontPredictiveSearch({
               تعذر تحميل اقتراحات المنتجات؛ يمكنك متابعة البحث الكامل.
             </div>
           )}
-          {!loading && !error && products.length === 0 && (
+          {productsAvailable && !loading && !error && products.length === 0 && (
             <div role="status" style={{ padding: 10, color: "#607a75", fontSize: 12 }}>
               لا توجد منتجات مطابقة ضمن النتائج الحالية.
             </div>
           )}
-          {!loading && !error && products.length > 0 && (
+          {productsAvailable && !loading && !error && products.length > 0 && (
             <div role="group" aria-label="المنتجات المطابقة">
               <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>المنتجات</div>
               {products.slice(0, 5).map((product, localIndex) => {
