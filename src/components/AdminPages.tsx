@@ -45,6 +45,9 @@ import {
 const ArchitectureRegistryPanel = lazy(async () => ({
   default: (await import('@/components/reference-model/observability/ArchitectureRegistryPanel')).ArchitectureRegistryPanel,
 }));
+const SupplierFinancialWorkspaceHub = lazy(async () => ({
+  default: (await import('@/components/SupplierFinancialWorkspaceHub')).SupplierFinancialWorkspaceHub,
+}));
 
 type IconType = LucideIcon;
 
@@ -1138,6 +1141,9 @@ export function Suppliers({ onNotice, initialSearch }: { onNotice: (m: string) =
           <TableWrap><table><thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>البريد</th><th>العنوان</th><th>الحالة</th></tr></thead><tbody>{visibleSuppliers.map((s: Supplier) => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.supplier_code ?? '—'}</small></td><td>{s.contact_name ?? '—'}</td><td>{s.phone ?? '—'}</td><td>{s.email ?? '—'}</td><td>{s.address ?? '—'}</td><td><span className={`badge ${s.status === 'active' ? 'success' : 'warning'}`}>{s.status}</span></td></tr>)}</tbody></table></TableWrap>}
       </>
     }
+    <Suspense fallback={<div role="status" style={{ marginBlock: 16, color: 'var(--muted-foreground, #64748b)' }}>جار تحميل المساحات المالية للموردين...</div>}>
+      <SupplierFinancialWorkspaceHub />
+    </Suspense>
     {modal && <SupplierModal onClose={() => setModal(false)} onSaved={() => { setModal(false); void refetch(); onNotice('تمت إضافة المورد'); }} />}
   </AdminPage>;
 }
