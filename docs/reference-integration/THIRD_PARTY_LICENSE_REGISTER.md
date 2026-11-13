@@ -57,3 +57,10 @@ A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metad
 - Shopify Hydrogen remains a design reference only for the account-workspace organization. The pinned React Router template license was verified as MIT in the earlier account-hub checkpoint.
 - NASR1's recently viewed storage, event handling, panel and tests are independently authored. No third-party source, package, asset or dependency was transferred, so no new third-party notice was introduced.
 - This decision is narrow to the account-workspace design pattern and does not grant blanket approval for copying other Hydrogen files or dependencies.
+
+### BigCommerce Catalyst category navigation use — scope clarification — 2026-11-13
+
+- The existing Catalyst row's MIT status is confirmed at pinned `canary` HEAD `4cce7bc3d05be54a449140644eb2119dd8d8c821`; root `LICENSE` was read.
+- Category-specific inspected blobs: category page `53ac0e71431b45d8854fecddf61551f5d58849c8` and breadcrumb fragment `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`.
+- Transfer decision remains **No**: NASR1 independently recreated the parent breadcrumb, current-child state, sibling links and hierarchy grouping. No Catalyst source file, UI asset, package, Storefront Kit or Next.js component was copied.
+- MIT applies to the inspected Catalyst project subject to its notices and does not establish the license of every dependency or nested file; no blanket license approval for other reference components is implied.
