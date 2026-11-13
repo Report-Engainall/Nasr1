@@ -18,8 +18,7 @@ The phone identifier normalizer relied on JavaScript's ASCII-only digit class. T
 ## Security and runtime boundary
 No migrations, SQL, RLS policies, role assignment, tenant resolution, provider settings, SMS credentials, or production customer data were changed. The existing server-side verified-phone requirement and pending-customer order gate remain authoritative. This source/test change does not prove that the hosted SMS provider is enabled or that an SMS was delivered; live Auth/SMS acceptance remains external to this commit.
 
-## Verification
-## Exact-SHA acceptance after merge
+## Verification and exact-SHA acceptance after merge
 
 - PR: [#424](https://github.com/Report-Engainall/Nasr1/pull/424) — MERGED as `9cfafa028872ce7abe4a476aca3cca118b0e4f66`.
 - Tested source/test SHA: `510f58a840c71c4749b59fb3596ce1848e6860d9`.

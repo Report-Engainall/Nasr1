@@ -36,8 +36,8 @@ Existing account provisioning, phone-confirmation checks, customer-only role, pe
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
 > Implementation commit: `25148524306ed273a98c922de2aa63c3a2944e45`; parent: `efb7d028b0731ca6d9bc7bf79115605c883767dd`.
-> P2 exact-SHA run [#43344283616](https://github.com/Report-Engainall/Nasr1/actions/runs/43344283616): **IN_PROGRESS** at checkpoint.
-> P1 exact-SHA run [#43344283676](https://github.com/Report-Engainall/Nasr1/actions/runs/43344283676): **QUEUED** at checkpoint. Neither result is PASS until the run completes successfully on this code SHA.
+> P2 exact-SHA run [#43344283616](https://github.com/Report-Engainall/Nasr1/actions/runs/43344283616): **CANCELLED** before terminal browser acceptance.
+> P1 exact-SHA run [#43344283676](https://github.com/Report-Engainall/Nasr1/actions/runs/43344283676): **CANCELLED** before terminal acceptance. Neither run supplies PASS evidence for this product-media repair.
 
 ## Root cause proven from the failing browser trace
 
