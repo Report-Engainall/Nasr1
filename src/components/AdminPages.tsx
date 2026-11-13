@@ -45,6 +45,12 @@ import {
 const ArchitectureRegistryPanel = lazy(async () => ({
   default: (await import('@/components/reference-model/observability/ArchitectureRegistryPanel')).ArchitectureRegistryPanel,
 }));
+const SystemHealthPanel = lazy(async () => ({
+  default: (await import('@/components/reference-model/observability/SystemHealthPanel')).SystemHealthPanel,
+}));
+const SourceBoundaryStatusPanel = lazy(async () => ({
+  default: (await import('@/components/reference-model/observability/SourceBoundaryStatusPanel')).SourceBoundaryStatusPanel,
+}));
 const SupplierFinancialWorkspaceHub = lazy(async () => ({
   default: (await import('@/components/SupplierFinancialWorkspaceHub')).SupplierFinancialWorkspaceHub,
 }));
@@ -1329,8 +1335,12 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
       </SettingsPanel>}
       {tab === 'architecture' && canManageStorefrontContent && (
         <section id="admin-architecture-panel" aria-label="معمارية النظام" className="space-y-3">
-          <Suspense fallback={<div role="status" aria-live="polite" className="rounded-md border p-4 text-sm text-muted-foreground">جارٍ تحميل سجل معمارية التطبيق...</div>}>
-            <ArchitectureRegistryPanel />
+          <Suspense fallback={<div role="status" aria-live="polite" className="rounded-md border p-4 text-sm text-muted-foreground">جارٍ تحميل المعمارية ومراقبة النظام...</div>}>
+            <div className="grid gap-3">
+              <ArchitectureRegistryPanel />
+              <SystemHealthPanel />
+              <SourceBoundaryStatusPanel />
+            </div>
           </Suspense>
         </section>
       )}
