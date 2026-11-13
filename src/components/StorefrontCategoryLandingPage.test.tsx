@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { Category } from "@/lib/types";
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children, ...props }: { to: unknown; children: ReactNode; [key: string]: unknown }) => (
+  Link: ({ to, children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: unknown }) => (
     <a href={String(to)} {...props}>{children}</a>
   ),
 }));
@@ -56,7 +56,7 @@ const otherParent = category("cleaning-parent", "المنظفات", null);
 const soap = category("soap-child", "الصابون", otherParent.id);
 
 beforeEach(() => {
-  mocks.categories = [parent, rice, flour, oil, otherParent, soap];
+  mocks.categories = [parent, rice, flour, oil, otherParent, soap] as unknown as Array<Record<string, unknown>>;
   mocks.refetch.mockClear();
 });
 
