@@ -54,8 +54,8 @@ describe("CustomerServiceDeskPrintSheet", () => {
     expect(sheet.getAttribute("lang")).toBe("ar");
     expect(screen.getByText("توجد صفحات أخرى غير محمّلة؛ لا يمثل هذا التقرير كامل نتائج الطابور."))
       .not.toBeNull();
-    expect(screen.getByText("مؤشرات المؤسسة — جميع الحالات المفتوحة")).toBeInTheDocument();
-    expect(screen.getByText("تفاصيل الحالات ضمن الصفحات المحمّلة")).toBeInTheDocument();
+    expect(screen.getByText("مؤشرات المؤسسة — جميع الحالات المفتوحة")).not.toBeNull();
+    expect(screen.getByText("تفاصيل الحالات ضمن الصفحات المحمّلة")).not.toBeNull();
   });
 
   it("does not show the continuation warning after the loaded queue is complete", () => {
