@@ -19,4 +19,11 @@ The phone identifier normalizer relied on JavaScript's ASCII-only digit class. T
 No migrations, SQL, RLS policies, role assignment, tenant resolution, provider settings, SMS credentials, or production customer data were changed. The existing server-side verified-phone requirement and pending-customer order gate remain authoritative. This source/test change does not prove that the hosted SMS provider is enabled or that an SMS was delivered; live Auth/SMS acceptance remains external to this commit.
 
 ## Verification
-The P1 workflow path filters already include both modified Auth files and their tests. Exact-SHA GitHub Actions results are required before this change can be marked PASS.
+## Exact-SHA acceptance after merge
+
+- PR: [#424](https://github.com/Report-Engainall/Nasr1/pull/424) — MERGED as `9cfafa028872ce7abe4a476aca3cca118b0e4f66`.
+- Tested source/test SHA: `510f58a840c71c4749b59fb3596ce1848e6860d9`.
+- P1 Actions [#43342717323](https://github.com/Report-Engainall/Nasr1/actions/runs/43342717323): PASS — 73/73 files, 552/552 tests, strict TypeScript and production build.
+- P2 Actions [#43342717284](https://github.com/Report-Engainall/Nasr1/actions/runs/43342717284): public read-only Storefront smoke PASS. Local PostgreSQL 17 migrations/fixtures, endpoint authorization, price-grid concurrency/rollback/audit, cash-expense idempotency/concurrency and purchase-receipt accounting PASS.
+- Local browser authenticated order/tenant path FAILED at login because the loopback Supabase URL was blocked by the canonical project guard before any DB request. Workflow inspection shows the test-only `VITE_LOCAL_SUPABASE_E2E=1` is exported for build but not the preview process; this is a P2 CI runtime handoff and must be fixed without loosening the production URL guard.
+- Downstream browser acceptance suites and external authenticated E2E: SKIPPED, not PASS. SMS provider delivery and hosted phone Auth settings remain NOT VERIFIED.

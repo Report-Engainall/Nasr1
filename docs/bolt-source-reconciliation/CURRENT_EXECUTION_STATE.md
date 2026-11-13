@@ -1,3 +1,37 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — CUSTOMER PHONE REGISTRATION LOCALIZED NUMERALS
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Merged implementation commit: `9cfafa028872ce7abe4a476aca3cca118b0e4f66`; PR [#424](https://github.com/Report-Engainall/Nasr1/pull/424) is MERGED.
+> Exact source/test SHA before squash merge: `510f58a840c71c4749b59fb3596ce1848e6860d9`.
+> Parent `7aee911cda767b66f63ecdde24b8581817fd5396` preserves the concurrent product-media tenant-safe repair; this checkpoint does not replace or revert it.
+
+## Implemented on main
+
+- `src/lib/auth-phone.ts`: added `normalizeAuthDigits` for Arabic-Indic (`٠١٢٣٤٥٦٧٨٩`) and Eastern Arabic-Indic/Persian (`۰۱۲۳۴۵۶۷۸۹`) digits. Applied it before phone/E.164 validation, phone sign-in/signup normalization, and SMS OTP validation.
+- `src/components/Login.tsx`: the SMS verification input converts localized digits as the customer types, before numeric filtering and length validation.
+- `src/lib/auth-phone.test.ts`: coverage for local/international Yemen numbers, both localized digit sets, Auth signup payload normalization and localized OTP verification.
+- `src/components/Login.phone-signup.interaction.test.tsx`: jsdom interactive registration test proving Arabic phone input reaches Auth as `+967...` and localized SMS OTP is submitted as ASCII digits.
+- `docs/execution/P1_PHONE_REGISTRATION_LOCALIZED_DIGITS_2026-11-13.md`: implementation and acceptance evidence.
+
+Existing account provisioning, phone-confirmation checks, customer-only role, pending approval, and order-creation gate were left unchanged. No SQL, migration, RPC, RLS, provider configuration, production data, or credentials were changed.
+
+## Exact verification
+
+- P1 Actions [run #43342717323](https://github.com/Report-Engainall/Nasr1/actions/runs/43342717323), source SHA `510f58a...`: **SUCCESS** — 73/73 Vitest files, 552/552 tests, strict TypeScript, and production build.
+- P2 Actions [run #43342717284](https://github.com/Report-Engainall/Nasr1/actions/runs/43342717284): public read-only Storefront Playwright smoke **SUCCESS**.
+- The same P2 run's isolated PostgreSQL 17/Supabase setup, repository migrations, synthetic tenant fixtures, endpoint guard allow/deny, price-grid atomicity/rollback/audit/stale-writer checks, cash-expense idempotency/concurrency, and purchase-receipt accounting checks all **SUCCESS**.
+- The later local browser order/tenant scenarios **FAILED** before any database request: the page displayed `SUPABASE_URL must target the canonical Nasr1 Supabase project ... No database request was sent` because the local loopback URL was rejected by the canonical-project guard. The inspected workflow opts in with `VITE_LOCAL_SUPABASE_E2E=1` during build but does not pass that opt-in in the subsequent preview process. This is a P2-owned CI runtime handoff to confirm/fix; do not weaken the canonical production guard or RLS.
+- Downstream XLSX, checkout replay, return, Onyx export, print, customer-manager and device-session browser steps were **SKIPPED** after the critical browser failure. External authenticated order/tenant E2E was also **SKIPPED**. None are PASS.
+- Hosted SMS provider delivery and hosted Auth settings were not tested by this source-only change.
+
+## Boundaries / next action
+
+- No Vercel or deployment was run; no hosted Supabase data or migration was touched.
+- The registration fix is merged and P1-verified. The product remains **NO-GO** for full release until the loopback P2 preview opt-in is corrected by its owner and the skipped browser suites obtain exact-SHA acceptance.
+- Preserve Issue #422 Path B ownership; do not overlap its observability, prompt-persistence, AI-governance or developer-tools paths.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — PRODUCT_MEDIA RLS / STOREFRONT TENANT-SAFE REPAIR
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
