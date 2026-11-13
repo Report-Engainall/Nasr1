@@ -1,3 +1,21 @@
+# EXACT P1 ACCEPTANCE CHECKPOINT — TASK QUALITY INSIGHT PACK — 2026-11-13
+
+- VERIFIED_FEATURE_SHA: `bcf0de77a0794e073e562e23ea83ae68746c117e`.
+- Implementation SHA: `2ca3cf701486a2e64fdd9db3595cdf91dfbb7b5b`.
+- P1 run `43369818794`: **SUCCESS** on exact feature/test SHA.
+  - Vitest: 657/657 across 92 files.
+  - `task-quality-insights.test.ts`: 13/13.
+  - Strict TypeScript: SUCCESS.
+  - Production Build: SUCCESS.
+- Defect fixed: repeated-cause cards derive confidence from distinct affected tasks; 2–4 LOW_SAMPLE, >=5 READY. EMPTY, RESTRICTED and UNAVAILABLE copy is distinct.
+- Test-only repair: Arabic-Indic/Persian digit normalization is used in assertions; product ar-YE formatting was not changed.
+- Runtime boundary: existing manager-only quality source RPC/RLS and its migration still require their own local PostgreSQL tenant authorization acceptance. This pure engine commit did not change those contracts.
+- Latest main now includes independent Growth Opportunity Radar commit `1917eece605c1469134eadfefcc4feb30851e65b`; its P1/P2 workflows are separate and currently in progress. No code from that delivery was changed in this checkpoint.
+- Safety: no production/hosted DB writes, no SQL/RPC/RLS changes, no Vercel, no deployment.
+- Next P3 focus: harden missing regression coverage for commerce policy simulation evidence (especially strict `noWrite`, type parity, history identity/source-ref integrity and limit bounds). Do not start a competing push while latest P1/P2 workflow on current main is active.
+
+---
+
 # P3 REPAIR CHECKPOINT — TASK QUALITY TEST LOCALE — 2026-11-13
 
 - FAILED_SHA: `2ca3cf701486a2e64fdd9db3595cdf91dfbb7b5b`.

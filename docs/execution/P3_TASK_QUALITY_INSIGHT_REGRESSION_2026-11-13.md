@@ -38,3 +38,15 @@ This source commit must pass the P1 Vitest suite, strict TypeScript and producti
 The first exact-SHA P1 run `43369570643` on `2ca3cf701486a2e64fdd9db3595cdf91dfbb7b5b` reported 652 passed / 5 failed. All five failures were string assertions expecting Latin digits inside Arabic `ar-YE` formatted evidence. Node's ICU rendered those counts with Arabic-Indic digits (for example `١٢`). The other eight Task Quality Insight tests passed.
 
 The test suite now normalizes Arabic-Indic and Persian digits before numeric text comparisons. Product-facing Arabic formatting is deliberately unchanged. The repaired commit needs a fresh exact-SHA P1 run; no PASS is carried forward.
+
+## Terminal P1 acceptance — exact feature SHA
+
+GitHub Actions run `43369818794` completed **SUCCESS** on exact test/feature SHA `bcf0de77a0794e073e562e23ea83ae68746c117e`:
+- Vitest: 657/657 tests across 92 files.
+- New Task Quality Insight suite: 13/13 tests.
+- Strict TypeScript: SUCCESS.
+- Production Build: SUCCESS.
+
+The current main descendant `1917eece605c1469134eadfefcc4feb30851e65b` adds an independent multi-source Growth Opportunity Radar. It does not alter the task-quality engine; separate P1/P2 checks for that delivery are tracked independently.
+
+The existing quality-review source migration/RPC authorization and tenant data acceptance remain a distinct runtime requirement.
