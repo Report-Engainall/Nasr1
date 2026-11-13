@@ -89,10 +89,12 @@ function eventLabel(action: string): string {
 }
 
 
-export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
+export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false }: {
   mode: WorkspaceMode;
   accounts?: AccountingLedgerAccount[];
   onRefresh?: () => Promise<void>;
+  purchaseOrders?: readonly { items: readonly { id: string; quantity_ordered: number }[] }[];
+  purchaseOrdersLoading?: boolean;
 }) {
   const { user } = useAuth();
   const canUseFinance = Boolean(user?.roles.some((role) =>
@@ -152,6 +154,23 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
       setOrderedQuantitiesError("");
       return;
     }
+
+    // Reuse the purchase-order projection already held by the parent page when available.
+    // Only fall back to a direct read in workspaces that do not own the order list.
+    if (purchaseOrders !== undefined) {
+      setOrderedQuantitiesLoading(purchaseOrdersLoading);
+      setOrderedQuantitiesError("");
+      try {
+        setOrderedQuantityByItemId(buildSupplierInvoiceOrderedQuantityIndex(purchaseOrders));
+      } catch (cause) {
+        setOrderedQuantityByItemId(new Map());
+        setOrderedQuantitiesError(cause instanceof Error
+          ? cause.message
+          : "تعذر التحقق من الكميات المطلوبة في أوامر الشراء.");
+      }
+      return;
+    }
+
     let active = true;
     setOrderedQuantityByItemId(new Map());
     setOrderedQuantitiesLoading(true);
@@ -170,7 +189,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
         if (active) setOrderedQuantitiesLoading(false);
       });
     return () => { active = false; };
-  }, [canUseFinance]);
+  }, [canUseFinance, purchaseOrders, purchaseOrdersLoading]);
 
   function restorePreviousPrintMode() {
     if (typeof document === "undefined") return;
