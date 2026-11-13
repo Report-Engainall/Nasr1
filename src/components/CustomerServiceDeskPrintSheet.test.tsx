@@ -50,10 +50,10 @@ describe("CustomerServiceDeskPrintSheet", () => {
   it("renders an Arabic RTL report and warns when more filtered rows are not loaded", () => {
     render(<CustomerServiceDeskPrintSheet document={report} />);
     const sheet = screen.getByTestId("customer-service-desk-print-document");
-    expect(sheet).toHaveAttribute("dir", "rtl");
-    expect(sheet).toHaveAttribute("lang", "ar");
+    expect(sheet.getAttribute("dir")).toBe("rtl");
+    expect(sheet.getAttribute("lang")).toBe("ar");
     expect(screen.getByText("توجد صفحات أخرى غير محمّلة؛ لا يمثل هذا التقرير كامل نتائج الطابور."))
-      .toBeInTheDocument();
+      .not.toBeNull();
     expect(screen.getByText("مؤشرات المؤسسة — جميع الحالات المفتوحة")).toBeInTheDocument();
     expect(screen.getByText("تفاصيل الحالات ضمن الصفحات المحمّلة")).toBeInTheDocument();
   });
@@ -61,6 +61,6 @@ describe("CustomerServiceDeskPrintSheet", () => {
   it("does not show the continuation warning after the loaded queue is complete", () => {
     render(<CustomerServiceDeskPrintSheet document={{ ...report, hasMore: false }} />);
     expect(screen.queryByText("توجد صفحات أخرى غير محمّلة؛ لا يمثل هذا التقرير كامل نتائج الطابور."))
-      .not.toBeInTheDocument();
+      .toBeNull();
   });
 });
