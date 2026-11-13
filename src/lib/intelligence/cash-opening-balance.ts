@@ -124,7 +124,7 @@ export function buildApprovedCashOpeningBalances(
         proposal.reviewDecision === "approved" &&
         proposal.reviewReason?.trim() &&
         proposal.reviewedBy &&
-        proposal.reviewedBy !== proposal.submittedBy &&
+        proposal.reviewedBy?.toLowerCase() !== proposal.submittedBy.toLowerCase() &&
         proposal.postedGlLineCount !== null &&
         proposal.postedGlLineCount > 0 &&
         amountMinor !== null &&

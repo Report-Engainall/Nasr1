@@ -182,6 +182,25 @@ describe("approved cash opening balance forecast source", () => {
     expect(result.metrics).toEqual([]);
   });
 
+  it("treats UUID casing as the same actor in the four-eyes review guard", () => {
+    const sameActorDifferentCase = workspace({
+      accounts: [account(IDS.mappingA, IDS.accountA)],
+      evidence: [document(IDS.evidenceA, IDS.mappingA)],
+      openingBalances: [
+        proposal({
+          id: IDS.proposalA,
+          mappingId: IDS.mappingA,
+          evidenceId: IDS.evidenceA,
+          amount: "10.00",
+          submittedBy: "abcdefab-cdef-4abc-8def-abcdefabcdef",
+          reviewedBy: "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF",
+        }),
+      ],
+    });
+
+    expect(buildApprovedCashOpeningBalances(sameActorDifferentCase, AS_OF).metrics).toEqual([]);
+  });
+
   it("rejects a review by the submitter and a review timestamp after the as-of snapshot", () => {
     const sameActor = workspace({
       openingBalances: [
