@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { BulkProductImageUploader } from "./BulkProductImageUploader";
+import { BulkProductImageUploader, buildProductImageBatchReportCsv, formatProductImageFileSize } from "./BulkProductImageUploader";
 import { uploadProductImage } from "@/lib/api";
 import { toWebp } from "@/lib/product-image";
 import type { ProductWithInventory } from "@/lib/types";
@@ -78,6 +78,10 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
 
     expect(toWebp).toHaveBeenCalledTimes(1);
     expect(uploadProductImage).not.toHaveBeenCalled();
+    const progress = screen.getByRole("progressbar");
+    expect(progress.getAttribute("aria-valuemin")).toBe("0");
+    expect(progress.getAttribute("aria-valuemax")).toBe("1");
+    expect(progress.getAttribute("aria-valuenow")).toBe("0");
 
     await act(async () => {
       resolveConversion?.(new Blob(["webp"], { type: "image/webp" }));
@@ -85,6 +89,7 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
     });
     await waitFor(() => expect(uploadProductImage).toHaveBeenCalledTimes(1));
     expect(onUploaded).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "تصدير نتائج الدفعة الحالية (CSV)" })).toBeTruthy();
   });
 
 
@@ -136,5 +141,41 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
 
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("catalog unavailable"));
     expect((screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)") as HTMLInputElement).disabled).toBe(true);
+  });
+});
+
+
+describe("product image batch result report", () => {
+  it("formats file sizes without inventing values for invalid input", () => {
+    expect(formatProductImageFileSize(0)).toBe("0 بايت");
+    expect(formatProductImageFileSize(1024)).toBe("1 ك.بايت");
+    expect(formatProductImageFileSize(1536)).toBe("1.5 ك.بايت");
+    expect(formatProductImageFileSize(Number.NaN)).toBe("غير معروف");
+    expect(formatProductImageFileSize(-1)).toBe("غير معروف");
+  });
+
+  it("exports the current results as UTF-8 CSV and neutralizes spreadsheet formulas", () => {
+    const csv = buildProductImageBatchReportCsv([
+      {
+        fileName: '=HYPERLINK("https://example.test","open")',
+        productName: "أرز, بسمتي",
+        placement: "primary",
+        ok: true,
+        message: "تم الربط بنجاح",
+      },
+      {
+        fileName: "000126__2.png",
+        productName: "صنف آخر",
+        placement: "gallery",
+        ok: false,
+        message: 'تعذر الرفع\\r\\n"راجع الصلاحية"',
+      },
+    ]);
+
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv).toContain('"أرز, بسمتي"');
+    expect(csv).toContain(String.raw`"'=HYPERLINK(""https://example.test"",""open"")"`);
+    expect(csv).toContain('"تعذر الرفع  ""راجع الصلاحية"""');
+    expect(csv.split("\\r\\n")).toHaveLength(3);
   });
 });
