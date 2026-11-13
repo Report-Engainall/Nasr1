@@ -1,4 +1,9 @@
-import { ADMIN_NAV_GROUPS } from "@/lib/admin-access-matrix";
+import {
+  ADMIN_NAV_GROUPS,
+  ROLE_PAGE_ACCESS,
+  type AdminRoleId,
+  type AdminViewId,
+} from "@/lib/admin-access-matrix";
 import { routeTree } from "@/routeTree.gen";
 
 export type ArchitectureRouteSurface = "ADMIN" | "API" | "PUBLIC";
@@ -8,13 +13,19 @@ export interface ArchitectureNavigationGroup {
   label: string;
 }
 
+export interface ArchitectureNavigationAccess {
+  source: "ROLE_PAGE_ACCESS";
+  roles: AdminRoleId[];
+}
+
 export interface ArchitectureRouteRecord {
   routeId: string;
   path: string;
   parentRouteId: string | null;
   surface: ArchitectureRouteSurface;
-  viewId: string | null;
+  viewId: AdminViewId | null;
   navigationGroup: ArchitectureNavigationGroup | null;
+  navigationAccess: ArchitectureNavigationAccess | null;
   dynamicSegmentCount: number;
   hasChildren: boolean;
 }
@@ -99,6 +110,7 @@ function adminViewId(routeId: string, navigationGroups: readonly (typeof ADMIN_N
 export function buildArchitectureRegistry(
   root: unknown,
   navigationGroups: readonly (typeof ADMIN_NAV_GROUPS)[number][] = ADMIN_NAV_GROUPS,
+  accessByRole: Readonly<Record<AdminRoleId, readonly AdminViewId[]>> = ROLE_PAGE_ACCESS,
 ): ArchitectureRegistrySnapshot {
   const routes: ArchitectureRouteRecord[] = [];
   const warnings: string[] = [];
@@ -131,13 +143,21 @@ export function buildArchitectureRegistry(
       return;
     }
 
+    const surface = routeSurface(routeId, path);
     const viewId = adminViewId(routeId, navigationGroups);
     const group = viewId
       ? navigationGroups.find((candidate) => candidate.views.some((view) => view === viewId))
       : undefined;
+    const navigationAccess = viewId ? navigationAccessForView(viewId, accessByRole) : null;
 
     if (routeIds.has(routeId)) warnings.push("DUPLICATE_ROUTE_ID");
     else routeIds.add(routeId);
+    if (surface === "ADMIN" && routeId.startsWith("/admin_/") && !viewId) {
+      warnings.push("ADMIN_VIEW_NOT_MAPPED");
+    }
+    if (navigationAccess && navigationAccess.roles.length === 0) {
+      warnings.push("ADMIN_VIEW_WITHOUT_NAVIGATION_ROLE");
+    }
 
     // Keep distinct route nodes even if TanStack assigns them the same id
     // (for example, an index route can share "/" while having a different fullPath).
@@ -145,9 +165,10 @@ export function buildArchitectureRegistry(
       routeId,
       path,
       parentRouteId,
-      surface: routeSurface(routeId, path),
+      surface,
       viewId,
       navigationGroup: group ? { id: group.id, label: group.label } : null,
+      navigationAccess,
       dynamicSegmentCount: path.split("/").filter((segment) => segment.startsWith("$")).length,
       hasChildren: children.length > 0,
     });

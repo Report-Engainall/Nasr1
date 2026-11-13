@@ -55,12 +55,42 @@ describe("reference-model architecture registry", () => {
       surface: "ADMIN",
       viewId: "ai",
       navigationGroup: { id: "operations", label: "البيانات والتشغيل" },
+      navigationAccess: { source: "ROLE_PAGE_ACCESS", roles: ["admin", "manager", "staff"] },
     });
     expect(categoryRoute).toMatchObject({
       surface: "ADMIN",
       viewId: "categories",
       navigationGroup: { id: "catalog", label: "الكتالوج والتسعير" },
     });
+  });
+
+  it("projects admin navigation roles from the existing role access matrix", () => {
+    const registry = getCurrentArchitectureRegistry();
+    const aiRoute = registry.routes.find((route) => route.path === "/admin/ai");
+    const financeRoute = registry.routes.find((route) => route.path === "/admin/finance");
+    const categoryRoute = registry.routes.find((route) => route.path === "/admin/categories");
+
+    expect(aiRoute?.navigationAccess).toEqual({
+      source: "ROLE_PAGE_ACCESS",
+      roles: ["admin", "manager", "staff"],
+    });
+    expect(financeRoute?.navigationAccess).toEqual({
+      source: "ROLE_PAGE_ACCESS",
+      roles: ["admin", "manager", "accountant"],
+    });
+    expect(categoryRoute?.navigationAccess?.roles).not.toContain("customer");
+    expect(categoryRoute?.navigationAccess?.roles).not.toContain("accountant");
+  });
+
+  it("does not invent navigation roles for an unmapped admin route", () => {
+    const registry = buildArchitectureRegistry({
+      id: "__root__",
+      path: "/",
+      children: [{ id: "/admin_/not-registered", path: "/admin/not-registered" }],
+    });
+
+    expect(registry.routes[0].navigationAccess).toBeNull();
+    expect(registry.warnings).toContain("ADMIN_VIEW_NOT_MAPPED");
   });
 
   it("counts route parameters without treating them as live customer data", () => {
@@ -81,6 +111,7 @@ describe("reference-model architecture registry", () => {
     expect(aiRouteRow).not.toBeNull();
     if (!aiRouteRow) throw new Error("admin_ai_route_row_missing");
     expect(aiRouteRow).toHaveTextContent("البيانات والتشغيل");
-    expect(screen.getByText(/لا يثبت نشرها أو إتاحتها للمستخدم/)).toBeInTheDocument();
+    expect(aiRouteRow).toHaveTextContent("مدير النظام، مدير، موظف تشغيل");
+    expect(screen.getByText(/لا تمثل إثباتاً لتفويض الخادم أو RLS/)).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { ADMIN_ACCESS_ROLES } from "@/lib/admin-access-matrix";
 import { getCurrentArchitectureRegistry } from "@/lib/reference-model/observability/architecture-registry";
 
 const surfaceLabels = {
@@ -6,6 +7,10 @@ const surfaceLabels = {
   API: "واجهة API",
   PUBLIC: "واجهة عامة",
 } as const;
+
+const roleLabels = Object.fromEntries(
+  ADMIN_ACCESS_ROLES.map((role) => [role.id, role.label]),
+) as Record<string, string>;
 
 export function ArchitectureRegistryPanel() {
   const registry = useMemo(() => getCurrentArchitectureRegistry(), []);
@@ -61,7 +66,7 @@ export function ArchitectureRegistryPanel() {
       ) : (
         <div className="overflow-x-auto rounded-lg border">
           <table
-            className="w-full min-w-[680px] text-right text-sm"
+            className="w-full min-w-[820px] text-right text-sm"
             aria-label="المسارات المسجلة في TanStack Router"
           >
             <thead className="bg-muted/50">
@@ -70,6 +75,7 @@ export function ArchitectureRegistryPanel() {
                 <th scope="col" className="px-3 py-2 font-medium">المسار</th>
                 <th scope="col" className="px-3 py-2 font-medium">السطح</th>
                 <th scope="col" className="px-3 py-2 font-medium">مجموعة الإدارة</th>
+                <th scope="col" className="px-3 py-2 font-medium">أدوار التنقل</th>
                 <th scope="col" className="px-3 py-2 font-medium">المعاملات الديناميكية</th>
               </tr>
             </thead>
@@ -83,6 +89,11 @@ export function ArchitectureRegistryPanel() {
                     {route.navigationGroup?.label ??
                       (route.surface === "ADMIN" ? "غير مصنف في قائمة الإدارة" : "—")}
                   </td>
+                  <td className="px-3 py-2">
+                    {route.navigationAccess
+                      ? route.navigationAccess.roles.map((role) => roleLabels[role] ?? role).join("، ") || "لا توجد أدوار"
+                      : route.surface === "ADMIN" ? "غير مثبت في مصفوفة التنقل" : "—"}
+                  </td>
                   <td className="px-3 py-2 tabular-nums">{route.dynamicSegmentCount}</td>
                 </tr>
               ))}
@@ -92,7 +103,7 @@ export function ArchitectureRegistryPanel() {
       )}
 
       <p className="text-xs leading-6 text-muted-foreground">
-        هذا السجل يصف المسارات المعلنة في الشفرة فقط؛ لا يثبت نشرها أو إتاحتها للمستخدم أو صلاحيات الوصول إليها أو صحة خدماتها الخلفية. تظل صلاحيات الخادم وسياسات RLS هي المرجع النهائي.
+        أدوار الجدول مشتقة من ROLE_PAGE_ACCESS وتصف إتاحة مساحات التنقل في الواجهة فقط؛ لا تمثل إثباتاً لتفويض الخادم أو RLS. هذا السجل لا يثبت النشر أو توافر الخدمات الخلفية، وتظل صلاحيات الخادم وسياسات RLS هي المرجع النهائي.
       </p>
     </section>
   );
