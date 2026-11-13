@@ -43,11 +43,14 @@ function payload(id, expected, next) {
     price_retail: next.price_retail,
   };
 }
-async function assume(client, userId, email) {
+async function setClaims(client, userId, email) {
   await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [userId]);
   await client.unsafe("select set_config('request.jwt.claims',$1,false)", [
     JSON.stringify({ sub: userId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
   ]);
+}
+async function assume(client, userId, email) {
+  await setClaims(client, userId, email);
   await client.unsafe("set role authenticated");
 }
 async function readGrid(client, id) {
@@ -85,6 +88,7 @@ async function main() {
   const managerEmail=requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
   const customerEmail=requiredEnv("E2E_EMAIL").toLowerCase();
   const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const privilegedProbe=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const manager=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const clientA=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const clientB=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
@@ -94,7 +98,7 @@ async function main() {
 
   try {
     const managerRows=await db.unsafe(
-      "select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true",
+      "select id,auth_user_id,email,organization_id,is_active from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true",
       [orgId,managerEmail],
     );
     assert.equal(managerRows.length,1,"the local fixture must provide one same-tenant manager");
@@ -121,8 +125,37 @@ async function main() {
       );
     }
 
+    // Compare helper results before and after SET ROLE. The privileged connection is read-only here.
+    await setClaims(privilegedProbe,mgr.auth_user_id,mgr.email);
+    const privilegedContext = (await privilegedProbe.unsafe(
+      "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
+      "public.current_organization_id()::text as organization_id, current_user as database_role, " +
+      "current_setting('role',true) as active_role, " +
+      "(select p.id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_id, " +
+      "(select count(*)::integer from public.profiles p where p.auth_user_id=auth.uid()) as visible_profile_count, " +
+      "(select p.organization_id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_organization_id, " +
+      "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_owner, " +
+      "(select pr.prosecdef from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_security_definer, " +
+      "(select pr.proconfig::text from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_config, " +
+      "(select pg_catalog.pg_get_functiondef(pr.oid) from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_definition, " +
+      "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_org_function_owner, " +
+      "(select pr.prosecdef from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_org_security_definer, " +
+      "(select pr.proconfig::text from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_org_function_config, " +
+      "(select pg_catalog.pg_get_functiondef(pr.oid) from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_org_function_definition, " +
+      "(select r.rolbypassrls from pg_catalog.pg_roles r where r.rolname=" +
+      "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure)) as current_profile_owner_bypasses_rls, " +
+      "(select c.relrowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_rls_enabled, " +
+      "(select c.relforcerowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_force_rls",
+    ))[0];
+
+    await setClaims(manager,mgr.auth_user_id,mgr.email);
+    const managerPreRole = (await manager.unsafe(
+      "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
+      "public.current_organization_id()::text as organization_id, current_user as database_role, " +
+      "current_setting('role',true) as active_role",
+    ))[0];
+    await manager.unsafe("set role authenticated");
     await Promise.all([
-      assume(manager,mgr.auth_user_id,mgr.email),
       assume(clientA,mgr.auth_user_id,mgr.email),
       assume(clientB,mgr.auth_user_id,mgr.email),
       assume(customer,cust.auth_user_id,cust.email),
@@ -131,14 +164,19 @@ async function main() {
       "select auth.uid()::text as auth_user_id, " +
       "public.current_profile_id()::text as profile_id, " +
       "public.current_organization_id()::text as organization_id, " +
-      "current_user as database_role, " +
+      "current_user as database_role, session_user as session_role, " +
+      "current_setting('role',true) as active_role, " +
       "current_setting('request.jwt.claim.sub',true) as jwt_subject, " +
       "(select p.id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_id, " +
       "(select count(*)::integer from public.profiles p where p.auth_user_id=auth.uid()) as visible_profile_count, " +
       "(select p.organization_id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_organization_id, " +
       "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_owner, " +
       "(select pr.prosecdef from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_security_definer, " +
-      "(select pg_catalog.pg_get_userbyid(c.relowner) from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_table_owner, " +
+      "(select pr.proconfig::text from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_config, " +
+      "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_org_function_owner, " +
+      "(select pr.prosecdef from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_org_security_definer, " +
+      "(select pr.proconfig::text from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_org_function_config, " +
+      "(select c.relrowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_rls_enabled, " +
       "(select c.relforcerowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_force_rls, " +
       "(select string_agg(p.policyname || ':' || p.permissive || ':' || p.cmd, ';' order by p.policyname) " +
       "from pg_catalog.pg_policies p where p.schemaname='public' and p.tablename='profiles') as profiles_policies, " +
@@ -147,7 +185,17 @@ async function main() {
       "and r.role in ('admin','manager')) as has_admin_manager_role",
       [orgId],
     );
-    const managerContext = managerContextRows[0];
+    const managerContext = {
+      ...managerContextRows[0],
+      fixture_profile_id: mgr.id,
+      fixture_auth_user_id: mgr.auth_user_id,
+      fixture_organization_id: mgr.organization_id,
+      fixture_is_active: mgr.is_active,
+      fixture_auth_user_matches_privileged_probe: mgr.auth_user_id === privilegedContext.auth_user_id,
+      fixture_profile_matches_privileged_helper: mgr.id === privilegedContext.profile_id,
+      privileged_context: privilegedContext,
+      pre_role_context: managerPreRole,
+    };
     if (
       managerContext?.auth_user_id !== mgr.auth_user_id ||
       managerContext?.profile_id !== mgr.id ||
@@ -231,6 +279,7 @@ async function main() {
     await clientB.end({timeout:5}).catch(()=>{});
     await clientA.end({timeout:5}).catch(()=>{});
     await manager.end({timeout:5}).catch(()=>{});
+    await privilegedProbe.end({timeout:5}).catch(()=>{});
     await db.end({timeout:5}).catch(()=>{});
   }
 }
