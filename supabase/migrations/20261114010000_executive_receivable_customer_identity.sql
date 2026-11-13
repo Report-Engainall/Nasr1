@@ -31,8 +31,9 @@ BEGIN
         WHERE p.organization_id=v_org AND p.invoice_id=i.id AND p.paid_at<=v_now
      ),0)
      AND (pg_catalog.upper(coalesce(i.currency,'')) !~ '^[A-Z]{3}$'
-       OR NOT EXISTS (SELECT 1 FROM public.customers owner_customer WHERE owner_customer.id=i.customer_id AND owner_customer.organization_id=i.organization_id)
-       OR nullif(pg_catalog.btrim(coalesce(i.customer_name,'')),'') IS NULL OR i.due_at IS NULL);
+       OR NOT EXISTS (SELECT 1 FROM public.customers owner_customer
+         WHERE owner_customer.id=i.customer_id AND owner_customer.organization_id=i.organization_id
+           AND coalesce(nullif(pg_catalog.btrim(owner_customer.business_name),''),nullif(pg_catalog.btrim(owner_customer.contact_name),'')) IS NOT NULL) OR i.due_at IS NULL);
 
   WITH paid AS (
     SELECT p.invoice_id,pg_catalog.sum(p.amount)::numeric(18,2) AS paid_amount,
@@ -42,7 +43,7 @@ BEGIN
      GROUP BY p.invoice_id
   ),
   balances AS (
-    SELECT i.id,i.customer_id,nullif(pg_catalog.btrim(coalesce(i.customer_name,'')),'') AS customer_name,
+    SELECT i.id,i.customer_id,coalesce(nullif(pg_catalog.btrim(owner_customer.business_name),''),nullif(pg_catalog.btrim(owner_customer.contact_name),'')) AS customer_name,
            pg_catalog.upper(coalesce(i.currency,'')) AS currency,i.due_at,
            greatest(i.total_amount-coalesce(p.paid_amount,0),0)::numeric(18,2) AS outstanding,
            coalesce(p.paid_amount,0)::numeric(18,2) AS paid_amount,
@@ -97,7 +98,7 @@ BEGIN
      WHERE p.organization_id=v_org AND p.paid_at<=v_now GROUP BY p.invoice_id
   ),
   balances AS (
-    SELECT i.id,i.customer_id,nullif(pg_catalog.btrim(coalesce(i.customer_name,'')),'') AS customer_name,
+    SELECT i.id,i.customer_id,coalesce(nullif(pg_catalog.btrim(owner_customer.business_name),''),nullif(pg_catalog.btrim(owner_customer.contact_name),'')) AS customer_name,
            pg_catalog.upper(coalesce(i.currency,'')) AS currency,i.due_at,
            greatest(i.total_amount-coalesce(p.paid_amount,0),0)::numeric(18,2) AS outstanding,
            coalesce(p.paid_amount,0)::numeric(18,2) AS paid_amount,
