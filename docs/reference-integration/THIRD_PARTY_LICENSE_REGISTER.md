@@ -50,3 +50,10 @@ No dependency was added or upgraded. Because this change does not copy source co
 | Radix UI Primitives | `main` / `eb3a2b7091293e27df8f9ba906632d8daa3d81a3` | Root LICENSE read; MIT | Existing target primitives retained |
 
 A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metadata is not a substitute for checking exact file headers, nested notices and transitive dependencies.
+
+
+### Recently viewed customer history — license and transfer note — 2026-11-13
+
+- Shopify Hydrogen remains a design reference only for the account-workspace organization. The pinned React Router template license was verified as MIT in the earlier account-hub checkpoint.
+- NASR1's recently viewed storage, event handling, panel and tests are independently authored. No third-party source, package, asset or dependency was transferred, so no new third-party notice was introduced.
+- This decision is narrow to the account-workspace design pattern and does not grant blanket approval for copying other Hydrogen files or dependencies.

@@ -26,6 +26,7 @@ import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
+import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
 
 const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 
@@ -468,6 +469,43 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       productId: products.some((product) => product.id === initialProductId) ? initialProductId : null,
     });
   }, [initialView, initialProductId, products, storefrontIdentityKey]);
+
+  useEffect(() => {
+    if (
+      view !== 'product'
+      || !selectedProduct
+      || !canRecordRecentlyViewedProducts({
+        authReady,
+        profileId: user?.profileId,
+        isStaff: user?.isStaff,
+        roles: user?.roles,
+      })
+      || (initialView === 'product' && selectedProduct.id !== initialProductId)
+      || typeof window === 'undefined'
+    ) return;
+
+    // Record a minimal public snapshot only after the identity-bound product is resolved.
+    // Prices and availability are deliberately reloaded from the current catalogue on revisit.
+    recordRecentlyViewedProduct(window.localStorage, user.profileId, {
+      id: selectedProduct.id,
+      name: selectedProduct.name,
+      itemCode: selectedProduct.item_code,
+      imageUrl: selectedProduct.image_url,
+    });
+  }, [
+    view,
+    selectedProduct?.id,
+    selectedProduct?.name,
+    selectedProduct?.item_code,
+    selectedProduct?.image_url,
+    authReady,
+    user?.profileId,
+    user?.isStaff,
+    user?.roles,
+    initialView,
+    initialProductId,
+  ]);
+
 
   useEffect(() => {
     if (isPagedView || productsLoading || productsError || !cartRestored || !cart.length) return;

@@ -51,3 +51,18 @@ No packages were added, removed or upgraded. The change uses the application's e
 - `src/components/Storefront.tsx`: supplies only the current paginated RPC result after matching query/category/availability/session scope, and routes selected results to existing product/catalog pages.
 - `src/components/Storefront.product-grid.test.tsx`: adds keyboard selection, category selection, query submission, Escape dismissal and stale-result suppression coverage.
 - Existing `src/lib/storefront-catalog.ts` and `get_storefront_catalog_page` remain the only product-search source. No SQL/RPC/RLS/auth files or dependencies were changed.
+
+
+## Customer account history adaptation — 2026-11-13
+
+| Reference | Inspected source / pin | License | NASR1 counterpart | Transfer decision |
+|---|---|---|---|---|
+| Shopify Hydrogen account workspace pattern | templates/react-router/app/routes/account.tsx; branch main; commit 043094b0ab0b5b01299e75da33d3f4e2914fda6a; blob ec660e4a801d81dcf26e3413a5d1cb89a8a16963 | MIT; React Router template license blob bf165a7b356128f2dee05ee629364263f98c4d2e verified in the previous account-hub checkpoint | src/lib/recently-viewed-products.ts; src/lib/recently-viewed-products.test.ts; src/components/Storefront.tsx; src/routes/profile.tsx; src/routes/profile.navigation.test.tsx | Independent account-scoped recently viewed history; no Hydrogen source, dependency or assets copied |
+
+### NASR1 implementation boundary
+
+- The visit event is raised from the existing Storefront product-detail flow after the current identity-bound product is resolved.
+- Storage is keyed by the authenticated customer profile ID and bounded to 12 unique entries. Only the public card snapshot and view timestamp are retained.
+- Customer-only visibility is enforced by the existing profile access mode; the account hub does not expose this module to staff or restricted sessions.
+- Reopening a history item goes through the existing product route, so current price and availability are loaded again rather than read from historical browser data.
+- There is no schema, RPC, migration, server synchronization, cross-device sync, new dependency or change to authorization/RLS in this implementation.

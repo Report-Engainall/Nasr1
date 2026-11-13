@@ -95,3 +95,10 @@ Source and license inspection for this pass:
 - Adapted principle: make the customer account a navigable workspace for identity and commerce tasks, rather than an isolated profile form.
 - Nasr1 implementation: expand the existing customer-only link registry in `src/routes/profile.tsx` to expose existing invoice, quote, wishlist, comparison and support routes.
 - Transfer decision: independent reimplementation; no Hydrogen code, package or assets copied. Hydrogen's API/OAuth/session implementation is not transplanted because Nasr1 uses its own Supabase/auth contracts.
+
+
+### Recently viewed account history implementation — 2026-11-13
+
+- Reference pattern: Shopify Hydrogen account workspace route (`templates/react-router/app/routes/account.tsx`), pinned to main commit `043094b0ab0b5b01299e75da33d3f4e2914fda6a`; the template MIT license was read at blob `bf165a7b356128f2dee05ee629364263f98c4d2e`.
+- NASR1 implementation: `src/lib/recently-viewed-products.ts`, `src/components/Storefront.tsx`, `src/routes/profile.tsx`; target-owned tests under `src/lib` and `src/routes`.
+- Decision: design reference only. The profile-scoped local history and UI were independently authored; no Hydrogen implementation, package, asset or auth/session code was copied.
