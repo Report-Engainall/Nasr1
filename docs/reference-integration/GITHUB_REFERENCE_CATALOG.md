@@ -102,3 +102,14 @@ Source and license inspection for this pass:
 - Reference pattern: Shopify Hydrogen account workspace route (`templates/react-router/app/routes/account.tsx`), pinned to main commit `043094b0ab0b5b01299e75da33d3f4e2914fda6a`; the template MIT license was read at blob `bf165a7b356128f2dee05ee629364263f98c4d2e`.
 - NASR1 implementation: `src/lib/recently-viewed-products.ts`, `src/components/Storefront.tsx`, `src/routes/profile.tsx`; target-owned tests under `src/lib` and `src/routes`.
 - Decision: design reference only. The profile-scoped local history and UI were independently authored; no Hydrogen implementation, package, asset or auth/session code was copied.
+
+### BigCommerce Catalyst category navigation review — 2026-11-13
+
+- Repository: [bigcommerce/catalyst](https://github.com/bigcommerce/catalyst), branch `canary`, inspected HEAD `4cce7bc3d05be54a449140644eb2119dd8d8c821`.
+- License: root `LICENSE` at the pinned repository revision was read and confirmed MIT. This is a repository-level license check for the inspected reference, not approval to copy arbitrary packages or files with separate notices.
+- Actual inspected category sources:
+  - `core/app/[locale]/(default)/(faceted)/category/[slug]/page.tsx`, blob `53ac0e71431b45d8854fecddf61551f5d58849c8`.
+  - `core/components/breadcrumbs/fragment.ts`, blob `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`.
+- Adapted principles: contextual parent breadcrumb, clear current category state and stable category-page navigation. NASR1 independently implements these with its own TanStack routes and `parent_id` data contract.
+- NASR1 results: `StorefrontCategoryLandingPage.tsx` and its unit/Playwright tests (PR #436); hierarchical `/categories` directory and `storefront-category-groups.ts` with tests (PR #438).
+- Transfer decision: reference-only design/architecture adaptation. No Catalyst source file, asset, Storefront Kit, Next.js runtime or dependency was copied or installed.
