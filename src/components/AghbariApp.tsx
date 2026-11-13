@@ -92,10 +92,10 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'customers', label: 'العملاء', icon: Users },
   { id: 'service-desk', label: 'خدمة العملاء', icon: Headphones },
   { id: 'orders', label: 'الطلبات', icon: ShoppingCart },
-  { id: 'pricing', label: 'التسعير والمخزون', icon: SlidersHorizontal },
+  { id: 'pricing', label: 'مركز التسعير', icon: SlidersHorizontal },
   { id: 'stock-count', label: 'الجرد الفعلي', icon: PackageCheck },
   { id: 'inventory-transfers', label: 'سجل تحويلات المخزون', icon: PackageCheck },
-  { id: 'offers', label: 'العروض', icon: Tag },
+  { id: 'offers', label: 'العروض والحملات', icon: Tag },
   { id: 'suppliers', label: 'الموردون', icon: Package },
   { id: 'purchase-orders', label: 'أوامر الشراء والاستلام', icon: PackageCheck },
   { id: 'devices', label: 'الأجهزة والجلسات', icon: Smartphone },
@@ -2153,10 +2153,26 @@ function pricingTargetLabel(rule: PricingRule): string {
   return ({ vip: 'جملة الجملة فقط', both: 'الجملة والتجزئة', wholesale: 'الجملة فقط', retail: 'التجزئة فقط' } as Record<string, string>)[rule.target_tier ?? 'both'] ?? 'شريحة غير معروفة';
 }
 
-function Pricing({ onNotice }: { onNotice: (m: string) => void }) {
+type PricingWorkspaceTab = 'grid' | 'rules' | 'preview' | 'promotions';
+
+const PRICING_WORKSPACE_TABS: ReadonlyArray<{ id: PricingWorkspaceTab; label: string }> = [
+  { id: 'grid', label: 'شبكة أسعار الشرائح' },
+  { id: 'rules', label: 'قواعد التسعير' },
+  { id: 'preview', label: 'محاكاة سعر العميل' },
+  { id: 'promotions', label: 'العروض والحملات' },
+];
+
+function Pricing({
+  onNotice,
+  initialTab = 'grid',
+}: {
+  onNotice: (m: string) => void;
+  initialTab?: PricingWorkspaceTab;
+}) {
   const { user } = useAuth();
   const canApprovePricing = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const { data, loading, error, refetch } = useFetch(fetchPricingRules);
+  const [activeTab, setActiveTab] = useState<PricingWorkspaceTab>(initialTab);
   const [showCreate, setShowCreate] = useState(false);
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
   const [approvalRule, setApprovalRule] = useState<PricingRule | null>(null);
@@ -2199,55 +2215,99 @@ function Pricing({ onNotice }: { onNotice: (m: string) => void }) {
   }
 
   return <>
-    <Heading eyebrow="الأصناف والمخزون" title="التسعير والمخزون" description="إدارة قواعد التسعير حسب طريقة الاحتساب وشريحة العميل والأولوية" icon={SlidersHorizontal} />
-    <section className="panel" style={{ marginBottom: 16 }}>
-      <div className="panel-head"><div><h2>محرك التسعير</h2><p>تُطبّق القاعدة الأعلى أولوية ضمن النطاق والشريحة والكمية والفترة المحددة. الحساب وإعادة تسعير الشرائح يجريان داخل قاعدة البيانات.</p></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button></div></div>
-      <div className="report-grid" style={{ marginTop: 12 }}>
-        <article className="report-metric"><SlidersHorizontal size={22} /><span>القواعد المسجلة</span><strong>{formatNumber(data?.length ?? 0)}</strong></article>
+    <Heading
+      eyebrow="الكتالوج والتسعير"
+      title="مركز التسعير والعروض"
+      description="مساحة موحدة لأسعار جملة الجملة والجملة والتجزئة، وقواعد الاحتساب، ومحاكاة سعر العميل، والحملات؛ الحساب النهائي يبقى خادميًا."
+      icon={SlidersHorizontal}
+    />
+    <section className="panel pricing-workspace" style={{ marginBottom: 16 }}>
+      <div className="panel-head">
+        <div>
+          <h2>إدارة الأسعار والخصومات في مساحة واحدة</h2>
+          <p className="text-muted">الأهداف المستقلة: جملة الجملة · الجملة · التجزئة. خيار «الجملة والتجزئة معًا» لا يشمل جملة الجملة.</p>
+        </div>
+        <div className="toolbar-actions">
+          <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+          {activeTab === 'rules' && <Button onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button>}
+        </div>
+      </div>
+
+      <div className="report-grid" style={{ margin: '12px 0 16px' }}>
+        <article className="report-metric"><SlidersHorizontal size={22} /><span>قواعد التسعير</span><strong>{formatNumber(data?.length ?? 0)}</strong></article>
         <article className="report-metric"><Check size={22} /><span>قواعد نشطة</span><strong>{formatNumber(data?.filter((rule) => rule.is_active).length ?? 0)}</strong></article>
-        <article className="report-metric"><AlertTriangle size={22} /><span>قواعد موقوفة / تتطلب مراجعة</span><strong>{formatNumber(data?.filter((rule) => !rule.is_active || (rule.requires_approval && !rule.approved_at) || !PRICING_SCOPES.has(rule.scope_type)).length ?? 0)}</strong></article>
+        <article className="report-metric"><AlertTriangle size={22} /><span>موقوفة أو بانتظار المراجعة</span><strong>{formatNumber(data?.filter((rule) => !rule.is_active || (rule.requires_approval && !rule.approved_at) || !PRICING_SCOPES.has(rule.scope_type)).length ?? 0)}</strong></article>
+      </div>
+
+      <div className="toolbar-actions" role="group" aria-label="مساحات التسعير والعروض" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        {PRICING_WORKSPACE_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            aria-pressed={activeTab === tab.id}
+            className={activeTab === tab.id ? 'btn primary' : 'btn outline'}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div id="pricing-workspace-panel">
+        {activeTab === 'grid' && (
+          canApprovePricing
+            ? <PricingGrid onNotice={onNotice} />
+            : <div className="report-note" role="note">شبكة الأسعار التفصيلية وتعديل الأسعار محصوران بمدير النظام أو المدير. يمكن لموظف التشغيل استخدام محاكاة السعر ورفع قاعدة جديدة للموافقة.</div>
+        )}
+
+        {activeTab === 'rules' && (
+          <>
+            {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data?.length
+              ? <Empty text="لا توجد قواعد تسعير. أضف أول قاعدة لتحديد أسعار الشرائح." />
+              : <div className="rule-grid">
+                {data.map((rule) => {
+                  const unsupported = !PRICING_SCOPES.has(rule.scope_type);
+                  const awaitingApproval = Boolean(rule.requires_approval && !rule.approved_at);
+                  const locked = Boolean(rule.manually_locked);
+                  return <article className="rule-card" key={rule.id}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                      <div><span className="rule-number">أولوية {rule.priority}</span><h2>{rule.name}</h2></div>
+                      <label className="switch" title={locked ? 'القاعدة مقفلة يدويًا' : unsupported && !rule.is_active ? 'لا يمكن تفعيل نطاق قديم غير مدعوم' : rule.is_active ? 'إيقاف القاعدة' : 'تفعيل القاعدة'}>
+                        <input type="checkbox" aria-label={(rule.is_active ? "إيقاف قاعدة " : "تفعيل قاعدة ") + rule.name} checked={rule.is_active} disabled={!canApprovePricing || locked || busyId === rule.id || (unsupported && !rule.is_active) || awaitingApproval} onChange={() => void toggle(rule)} />
+                        <span />
+                      </label>
+                    </div>
+                    <p><strong>{pricingMethodLabel(rule)}</strong></p>
+                    <p>{pricingTargetLabel(rule)} · الأساس: {rule.base_source === 'cost_price' || rule.base_type === 'cost_price' ? 'التكلفة' : 'السعر الأساسي'}</p>
+                    <p>النطاق: {pricingScopeLabel(rule)}{rule.scope_value ? ' · ' + rule.scope_value : ''}</p>
+                    <p>من كمية {formatNumber(Number(rule.min_quantity ?? 1))} · قيمة الاحتساب {formatNumber(Number(rule.adjustment_value))}</p>
+                    {(rule.min_price != null || rule.max_price != null) && <p>حد السعر: {rule.min_price == null ? '—' : formatCurrency(Number(rule.min_price))} – {rule.max_price == null ? '—' : formatCurrency(Number(rule.max_price))}</p>}
+                    {(rule.effective_from || rule.effective_until) && <p>الفترة: {rule.effective_from ? formatDateShort(rule.effective_from) : 'من البداية'} – {rule.effective_until ? formatDateShort(rule.effective_until) : 'بلا نهاية'}</p>}
+                    {awaitingApproval && <p role="status" style={{ color: '#9a5b13', fontWeight: 800 }}>بانتظار الموافقة — لن تدخل القاعدة في الاحتساب قبل اعتمادها.</p>}
+                    {awaitingApproval && rule.submitted_by && <p style={{ color: '#71868a', fontSize: 12 }}>يجب أن يعتمد القاعدة مدير مختلف عن مقدمها.</p>}
+                    {rule.requires_approval && <p role="status" style={{ color: '#9a5b13' }}>هذه القاعدة خاضعة للموافقة؛ التعديل المباشر معطل حتى لا يتجاوز حوكمة الاعتماد.</p>}
+                    {unsupported && <p role="alert" style={{ color: '#9a5b13' }}>هذه قاعدة قديمة بنطاق غير مدعوم في المحرك الحالي. لن يُسمح بتفعيلها مجددًا.</p>}
+                    {locked && <p role="status">قاعدة مقفلة يدويًا؛ التعديل والحذف معطلان.</p>}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                      <Button variant="outline" disabled={!canApprovePricing || locked || unsupported || Boolean(rule.requires_approval) || busyId === rule.id} onClick={() => setEditingRule(rule)}><Pencil size={15} /> تعديل القاعدة</Button>
+                      <Button variant="danger" disabled={!canApprovePricing || locked || busyId === rule.id} onClick={() => void remove(rule)}><Trash2 size={15} /> حذف القاعدة</Button>
+                    </div>
+                  </article>;
+                })}
+              </div>}
+          </>
+        )}
+
+        {activeTab === 'preview' && <PricingPreviewPanel />}
+        {activeTab === 'promotions' && <PromotionManager onNotice={onNotice} embedded />}
       </div>
     </section>
-    <PricingPreviewPanel />
-    {canApprovePricing && <PricingGrid onNotice={onNotice} />}
-    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data?.length ? <Empty text="لا توجد قواعد تسعير. أضف أول قاعدة لتحديد أسعار الشرائح." /> : <div className="rule-grid">
-      {data.map((rule) => {
-        const unsupported = !PRICING_SCOPES.has(rule.scope_type);
-        const awaitingApproval = Boolean(rule.requires_approval && !rule.approved_at);
-        const locked = Boolean(rule.manually_locked);
-        return <article className="rule-card" key={rule.id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-            <div><span className="rule-number">أولوية {rule.priority}</span><h2>{rule.name}</h2></div>
-            <label className="switch" title={locked ? 'القاعدة مقفلة يدويًا' : unsupported && !rule.is_active ? 'لا يمكن تفعيل نطاق قديم غير مدعوم' : rule.is_active ? 'إيقاف القاعدة' : 'تفعيل القاعدة'}>
-              <input type="checkbox" aria-label={(rule.is_active ? "إيقاف قاعدة " : "تفعيل قاعدة ") + rule.name} checked={rule.is_active} disabled={!canApprovePricing || locked || busyId === rule.id || (unsupported && !rule.is_active) || awaitingApproval} onChange={() => void toggle(rule)} />
-              <span />
-            </label>
-          </div>
-          <p><strong>{pricingMethodLabel(rule)}</strong></p>
-          <p>{pricingTargetLabel(rule)} · الأساس: {rule.base_source === 'cost_price' || rule.base_type === 'cost_price' ? 'التكلفة' : 'السعر الأساسي'}</p>
-          <p>النطاق: {pricingScopeLabel(rule)}{rule.scope_value ? ' · ' + rule.scope_value : ''}</p>
-          <p>من كمية {formatNumber(Number(rule.min_quantity ?? 1))} · قيمة الاحتساب {formatNumber(Number(rule.adjustment_value))}</p>
-          {(rule.min_price != null || rule.max_price != null) && <p>حد السعر: {rule.min_price == null ? '—' : formatCurrency(Number(rule.min_price))} – {rule.max_price == null ? '—' : formatCurrency(Number(rule.max_price))}</p>}
-          {(rule.effective_from || rule.effective_until) && <p>الفترة: {rule.effective_from ? formatDateShort(rule.effective_from) : 'من البداية'} – {rule.effective_until ? formatDateShort(rule.effective_until) : 'بلا نهاية'}</p>}
-          {awaitingApproval && <p role="status" style={{ color: '#9a5b13', fontWeight: 800 }}>بانتظار الموافقة — لن تدخل القاعدة في الاحتساب قبل اعتمادها.</p>}
-          {awaitingApproval && rule.submitted_by && <p style={{ color: '#71868a', fontSize: 12 }}>يجب أن يعتمد القاعدة مدير مختلف عن مقدمها.</p>}
-          {rule.requires_approval && <p role="status" style={{ color: '#9a5b13' }}>هذه القاعدة خاضعة للموافقة؛ التعديل المباشر معطل حتى لا يتجاوز حوكمة الاعتماد.</p>}
-          {awaitingApproval && canApprovePricing && !locked && <Button onClick={() => setApprovalRule(rule)} disabled={busyId === rule.id}>مراجعة واعتماد القاعدة</Button>}
-          {unsupported && <p role="alert" style={{ color: '#9a5b13' }}>هذه قاعدة قديمة بنطاق غير مدعوم في المحرك الحالي. لن يُسمح بتفعيلها مجددًا.</p>}
-          {locked && <p role="status">قاعدة مقفلة يدويًا؛ التعديل والحذف معطلان.</p>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-            <Button variant="outline" disabled={!canApprovePricing || locked || unsupported || Boolean(rule.requires_approval) || busyId === rule.id} onClick={() => setEditingRule(rule)}><Pencil size={15} /> تعديل القاعدة</Button>
-            <Button variant="danger" disabled={!canApprovePricing || locked || busyId === rule.id} onClick={() => void remove(rule)}><Trash2 size={15} /> حذف القاعدة</Button>
-          </div>
-        </article>;
-      })}
-    </div>}
+
     {showCreate && <PricingRuleModal key="create" onClose={() => setShowCreate(false)} onSaved={async () => { await refetch(); setShowCreate(false); onNotice('تم حفظ القاعدة؛ وقد تبقى بانتظار اعتماد المدير قبل تطبيق السعر.'); }} />}
     {editingRule && <PricingRuleModal key={editingRule.id} rule={editingRule} onClose={() => setEditingRule(null)} onSaved={async () => { await refetch(); setEditingRule(null); onNotice('تم حفظ التعديلات؛ وقد تحتاج القاعدة إلى اعتماد المدير قبل تطبيقها.'); }} />}
     {approvalRule && <PricingApprovalModal key={approvalRule.id} rule={approvalRule} onClose={() => setApprovalRule(null)} onSaved={async () => { await refetch(); setApprovalRule(null); onNotice('تم اعتماد قاعدة التسعير وحُفظ سبب الاعتماد في سجل التدقيق.'); }} />}
   </>;
 }
-
 
 function PricingPreviewPanel() {
   const [customerSearch, setCustomerSearch] = useState('');
@@ -2568,7 +2628,7 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
   </Modal>;
 }
 
-function Offers({ onNotice }: { onNotice: (m: string) => void }) { return <PromotionManager onNotice={onNotice} />; }
+function Offers({ onNotice }: { onNotice: (m: string) => void }) { return <Pricing onNotice={onNotice} initialTab="promotions" />; }
 
 function Reports() {
   const { user } = useAuth();
