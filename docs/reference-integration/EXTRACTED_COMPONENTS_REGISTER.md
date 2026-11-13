@@ -76,3 +76,19 @@ No packages were added, removed or upgraded. The change uses the application's e
 
 - PR #436 merged at `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; PR #438 merged at `4451e4625c1cfe0974693ea49d0737a8959fc943`.
 - Category counts reuse the complete public paginated catalogue reader already used by the directory; the presentation adds no product or category read contract, database table or RPC.
+
+## Verified customer product review workflow — 2026-11-13
+
+| Origin / reference | Inspected source and pin | License / transfer | NASR1 implementation | Decision |
+|---|---|---|---|---|
+| NASR1 existing tenant/auth/audit/RPC patterns | Existing `profiles`, `customers`, `orders`, `order_items`, `audit_logs`, `current_profile_id()`, `is_staff()`, and `public_storefront_organization_id()` | First-party code | `supabase/migrations/20261113110000_storefront_product_reviews.sql` | Reuse the existing identity, tenant boundary and audit model; no second auth or permissions layer |
+| Existing product detail and catalog workspaces | `src/components/Storefront.tsx`; `src/components/AghbariApp.tsx` | First-party code | `src/components/StorefrontProductReviews.tsx`; `src/components/StorefrontProductReviewModeration.tsx` | Extend existing product and catalog surfaces, not new routes or duplicate product modules |
+| Existing Supabase RPC client | `src/lib/supabase.ts` and current `@/lib/supabase` client | First-party code | `src/lib/storefront-product-reviews.ts` | Narrow RPC service; browser table grants remain revoked |
+| Target-native automated acceptance | Existing P1 Vitest/TypeScript workflow and P2 local PostgreSQL 17 workflow | First-party code | `src/lib/storefront-product-reviews.test.ts`; `src/components/StorefrontProductReviews.test.tsx`; `src/components/StorefrontProductReviewModeration.test.tsx`; `scripts/test-storefront-product-reviews.mjs` | Tests response allow-listing, real delivered-order gating, tenant denial, moderation, re-review and audit |
+
+### Transfer and safety record
+
+- No source file, UI asset, package, dependency or code block was copied from ERPNext, Dolibarr, Medusa, Vendure, Saleor, BigCommerce Catalyst, Vercel Shop, Hydrogen, GraphCommerce, or other listed projects for this feature.
+- The review lifecycle was written directly against NASR1's current customer/order/product and audit schema. It does not create a second order, identity, role, or tenant model.
+- Direct `anon` / `authenticated` table privileges are revoked. Public list RPC returns approved-only allow-listed data; customer context and submission derive identity from `auth.uid()`; moderation is restricted to the same-tenant admin/manager roles.
+- PR #439 is awaiting exact-head CI acceptance. The local PostgreSQL test is wired into the existing P2 workflow but has not yet been claimed as passed.
