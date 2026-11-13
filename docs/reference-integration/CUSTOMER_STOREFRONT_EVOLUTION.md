@@ -63,3 +63,11 @@ Product cards now distinguish an unavailable inventory projection from a verifie
 
 - Personalized or learned query completions from customer search history are **not implemented**; no approved privacy-safe search-history contract was available in this change.
 - This is a target-owned UI/component-test implementation. It is not a claim of hosted SMS, production, authenticated order/tenant, or full Playwright acceptance; exact-SHA P1 CI is the acceptance gate for this PR.
+
+## My Aghbari customer account hub — 2026-11-13
+
+The customer profile now exposes direct navigation to existing account workflows that previously required a detour through other pages. Added routes are invoices (`/invoices`), quotations (`/quotes`), wishlist (`/wishlist`), product comparison (`/compare`), and customer-service cases (`/service-cases`). Existing order history, payments, statement, addresses, returns, warranty/assets, notifications, help and company contacts remain in place.
+
+This is navigation completion only: each card routes to the existing target component and service contract. It does not create a second invoice/quote/wishlist/support implementation, broaden RLS, or infer that missing back-end capabilities are enabled. Customer-only links remain inside the existing `profileAccessMode === "customer"` branch; staff and restricted users retain their prior link sets.
+
+The account hub composition follows the account-as-workspace pattern studied in Shopify Hydrogen's account route, but is independently implemented with Nasr1's TanStack Router routes and existing service components. No Shopify source code or dependency was copied. Recently viewed products remain a separate unimplemented account capability and are not claimed by this change.

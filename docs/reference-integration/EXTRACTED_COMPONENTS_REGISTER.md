@@ -13,6 +13,8 @@
 | Nasr1 own test coverage | Target base `55da486475112466e0f456a953ba998daa11acfe` | Project-owned | `src/components/Storefront.product-grid.test.tsx` | Tests image details action, focusability, sibling quick actions and callback wiring | New target-owned test |
 | Shopify Hydrogen — `README.md` predictive-search architecture and official predictive-search guidance | `main` commit `043094b0ab0b5b01299e75da33d3f4e2914fda6a`; README blob `950472436d8a52807ef96e40f46df999e2d65ba5`; root `LICENSE.md` blob `2f2d7cf0012189f59ffe2f1bff10aca6ab4dc478` | MIT | `src/components/StorefrontPredictiveSearch.tsx`, `src/components/Storefront.tsx`, `src/components/Storefront.product-grid.test.tsx` | Grouped query-action/category/product suggestions, keyboard navigation, and stale-response discipline adapted to the existing paginated storefront RPC and TanStack URL state | Independent reimplementation; no Hydrogen code or dependency copied |
 
+| Shopify Hydrogen — `templates/react-router/app/routes/account.tsx` | Commit `043094b0ab0b5b01299e75da33d3f4e2914fda6a`; source blob `ec660e4a801d81dcf26e3413a5d1cb89a8a16963` | MIT; `templates/react-router/LICENSE` read (blob `bf165a7b356128f2dee05ee629364263f98c4d2e`) | `src/routes/profile.tsx` | Account workspace organizes identity and order-service entry points; Nasr1 extends its existing account hub with direct links to already implemented account modules | Independent adaptation; no source code copied |
+
 ## Existing target modules preserved
 
 - `src/lib/storefront-catalog.ts`: server RPC catalog pagination and payload validation.

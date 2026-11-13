@@ -45,3 +45,13 @@ This comparison describes the implemented code change; it is not a claim of brow
 | Privacy and runtime | Existing server-backed catalogue remains authoritative | Hydrogen uses its own server handler/store | No Hydrogen runtime is imported; no price, stock-on-hand, tenant or customer-private fields are added to suggestion rows |
 
 The visible query row submits the customer's exact phrase; it is not generated from search-history analytics. Personalized query completion remains outside this implementation. This comparison is implementation documentation, not browser screenshot parity evidence.
+
+## Customer account hub navigation — 2026-11-13
+
+| Concern | Nasr1 before | Reference pattern studied | Nasr1 after |
+|---|---|---|---|
+| Customer account entry points | Core account links existed, but invoices, quotes, wishlist, comparison and support cases were not direct links from My Aghbari | Shopify Hydrogen's account route presents the account as a dedicated workspace for customer identity and order activity | Existing Nasr1 modules are now directly reachable from the customer-only profile link grid |
+| Feature ownership | Several capabilities already existed behind independent routes | Keep account navigation separate from the underlying feature implementation | Each card reuses its existing route; no duplicate module, database table or RPC was introduced |
+| Role exposure | Customer-specific links were already gated by profile access mode | Account-specific content remains bound to authenticated customer identity | Added links are inside the customer-only branch; staff and restricted profiles do not receive the new customer links |
+
+This is a route-composition change, not a screenshot-parity claim. The Hydrogen account route was inspected at `043094b0ab0b5b01299e75da33d3f4e2914fda6a` (`templates/react-router/app/routes/account.tsx`, blob `ec660e4a801d81dcf26e3413a5d1cb89a8a16963`); only its account-workspace organization was adapted.

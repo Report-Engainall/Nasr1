@@ -15,7 +15,7 @@ The storefront changes are independent implementations of interaction and layout
 
 ## Sources not cleared for code reuse by this integration
 
-- ERPNext, Dolibarr, IDURAR, Medusa, Vendure, Saleor, InvenTree, ModernWMS, Frappe Ecommerce Integrations, Superset, Metabase, Shopify Hydrogen, shadcn/ui and HeroUI: exact source files, commit pins, nested notices and dependency licenses remain to be inspected before any code transfer.
+- ERPNext, Dolibarr, IDURAR, Medusa, Vendure, Saleor, InvenTree, ModernWMS, Frappe Ecommerce Integrations, Superset, Metabase, shadcn/ui and HeroUI: exact source files, commit pins, nested notices and dependency licenses remain to be inspected before any code transfer. Shopify Hydrogen's root and React Router template MIT licenses were both read for the specific predictive-search and account-route design references; no source code was copied.
 - Saleor Storefront and GraphCommerce remain excluded from code transfer pending the competitive-hosting restrictions/license analysis identified in the project brief.
 - Medusa Next.js Starter is treated as an archived design/reference candidate, not as a base application.
 
@@ -41,7 +41,7 @@ No dependency was added or upgraded. Because this change does not copy source co
 | Metabase | `master` / `22d436e064c2e2e10eb7af88bcd9fc505c488877` | API returned `NOASSERTION`; edition/scope unresolved | No code transfer |
 | BigCommerce Catalyst | `canary` / `4cce7bc3d05be54a449140644eb2119dd8d8c821` | Root LICENSE read; MIT | Pattern independently reimplemented; no file copied |
 | Vercel Shop | `main` / `c92f3df11e2fd3c5cf7b870518aa43e5534725eb` | Root LICENSE read; MIT | Pattern independently reimplemented; no file copied |
-| Shopify Hydrogen | `main` / `043094b0ab0b5b01299e75da33d3f4e2914fda6a` | Root `LICENSE.md` read; MIT (blob `2f2d7cf0012189f59ffe2f1bff10aca6ab4dc478`) | Predictive-search design reference only; no source code or dependency copied |
+| Shopify Hydrogen | `main` / `043094b0ab0b5b01299e75da33d3f4e2914fda6a` | Root `LICENSE.md` and `templates/react-router/LICENSE` both read; MIT (blobs `2f2d7cf0012189f59ffe2f1bff10aca6ab4dc478`, `bf165a7b356128f2dee05ee629364263f98c4d2e`) | Predictive-search and account-route design references only; no source code or dependency copied |
 | Saleor Storefront | `main` / `651f8cb1f404fa7e72f0290407abd2d3a8eaf28c` | Root LICENSE read; FSL-1.1-ALv2 with Competing Use restrictions | Visual/technical reference only; no code transfer |
 | GraphCommerce | `canary` / `5f39fff4b5b25533fc101f7eb7add0643836a545` | API returned `NOASSERTION`; supplied ELv2 claim awaits exact pinned file review | Reference only; no code transfer |
 | Medusa Next.js Starter | `main` / `9818886f06e493cb2249733d114d339aa216ef00` | MIT metadata; archived | Historical reference only |
