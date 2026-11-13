@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
-  Heart, GitCompare, ArrowRight, SlidersHorizontal,
+  Heart, GitCompare, ArrowRight, SlidersHorizontal, History,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/storefront-catalog';
@@ -18,6 +18,7 @@ import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
 import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
 import { StorefrontPredictiveSearch } from '@/components/StorefrontPredictiveSearch';
+import { MAX_RECENTLY_VIEWED_PRODUCTS, moveRecentlyViewedProductToFront, recentlyViewedProductsStorageKey } from '@/lib/storefront-recently-viewed';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
@@ -66,7 +67,7 @@ function mergeProductIntoCart(
     ? { ...item, quantity: latestNextQuantity }
     : item);
 }
-type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout';
+type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'recent' | 'matrix' | 'cart' | 'checkout';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
 
 function readSavedProductIds(key: string, maxItems: number): string[] {
@@ -238,6 +239,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
   const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
+  const recentlyViewedStorageKey = recentlyViewedProductsStorageKey(user?.profileId, user?.id);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
@@ -263,7 +265,24 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const selectedProduct = selectedProductState.identityKey === storefrontIdentityKey && selectedProductState.productId
     ? products.find((product) => product.id === selectedProductState.productId) ?? null
     : null;
+  const recentlyViewedProducts = recentlyViewed
+    .map((productId) => products.find((product) => product.id === productId))
+    .filter((product): product is ProductWithInventory => Boolean(product));
+  const recordRecentlyViewedProduct = useCallback((productId: string) => {
+    setRecentlyViewedState((current) => {
+      const previous = current.scopeKey === recentlyViewedStorageKey
+        ? current.ids
+        : readSavedProductIds(recentlyViewedStorageKey, MAX_RECENTLY_VIEWED_PRODUCTS);
+      return {
+        scopeKey: recentlyViewedStorageKey,
+        ids: moveRecentlyViewedProductToFront(previous, productId),
+      };
+    });
+  }, [recentlyViewedStorageKey]);
   const [wishlistState, setWishlistState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
+  const [recentlyViewedState, setRecentlyViewedState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
+  const recentlyViewed = recentlyViewedState.scopeKey === recentlyViewedStorageKey ? recentlyViewedState.ids : [];
+  const [recentlyViewedHydratedFor, setRecentlyViewedHydratedFor] = useState('');
   const wishlist = wishlistState.scopeKey === wishlistStorageKey ? wishlistState.ids : [];
   const setWishlist = useCallback((next: string[] | ((previous: string[]) => string[])) => {
     setWishlistState((current) => {
@@ -450,6 +469,25 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     });
     return () => { cancelled = true; };
   }, [isOnline, authReady, user?.id, user?.profileId, wishlistHydratedFor, wishlistStorageKey, setWishlist]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    const ids = readSavedProductIds(recentlyViewedStorageKey, MAX_RECENTLY_VIEWED_PRODUCTS);
+    setRecentlyViewedState({ scopeKey: recentlyViewedStorageKey, ids });
+    setRecentlyViewedHydratedFor(recentlyViewedStorageKey);
+  }, [authReady, recentlyViewedStorageKey]);
+
+  useEffect(() => {
+    if (!authReady || recentlyViewedHydratedFor !== recentlyViewedStorageKey || recentlyViewedState.scopeKey !== recentlyViewedStorageKey) return;
+    try { window.localStorage.setItem(recentlyViewedStorageKey, JSON.stringify(recentlyViewed)); } catch { /* browsing history is optional and device-local */ }
+  }, [authReady, recentlyViewed, recentlyViewedHydratedFor, recentlyViewedStorageKey, recentlyViewedState.scopeKey]);
+
+  useEffect(() => {
+    if (!authReady || view !== 'product' || !selectedProduct ||
+      selectedProductState.identityKey !== storefrontIdentityKey ||
+      recentlyViewedHydratedFor !== recentlyViewedStorageKey) return;
+    recordRecentlyViewedProduct(selectedProduct.id);
+  }, [authReady, view, selectedProduct?.id, selectedProductState.identityKey, storefrontIdentityKey, recentlyViewedHydratedFor, recentlyViewedStorageKey, recordRecentlyViewedProduct]);
 
   useEffect(() => {
     if (!authReady || wishlistHydratedFor !== wishlistStorageKey || wishlistState.scopeKey !== wishlistStorageKey) return;
@@ -883,7 +921,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             )}
 
             <section className="sf-products">
-              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
+              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button type="button" onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button type="button" onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button type="button" onClick={() => setView('recent')}><History size={15} /> شاهدت مؤخرًا ({recentlyViewed.length})</button><button type="button" onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
                 : productsError && !products.length
@@ -942,6 +980,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
         {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
         {view === 'compare' && <CollectionView title="مقارنة المنتجات" priceVisibilityPolicy={settings?.show_price_on_cards} icon={GitCompare} products={products.filter((p) => compare.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="اختر حتى ثلاثة منتجات من الكتالوج للمقارنة" />}
+        {view === 'recent' && <CollectionView title="شاهدت مؤخرًا" icon={History} products={recentlyViewedProducts} priceVisibilityPolicy={settings?.show_price_on_cards} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => setView('shop')} onClear={() => setRecentlyViewedState({ scopeKey: recentlyViewedStorageKey, ids: [] })} note="هذا السجل محلي لهذا الحساب على هذا الجهاز؛ تُعرض تفاصيل المنتجات من الكتالوج الحالي فقط." empty="لم تشاهد أي منتجات بعد، أو لم تعد بعض المنتجات ضمن الكتالوج المنشور." />}
         {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} alreadyInCart={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
 
         {view === 'cart' && (!cartRestored ? (
@@ -1513,6 +1552,8 @@ function CollectionView({
   onCompare,
   onBack,
   empty,
+  onClear,
+  note,
 }: {
   title: string;
   icon: typeof Heart;
@@ -1529,13 +1570,17 @@ function CollectionView({
   onCompare: (id: string) => void;
   onBack: () => void;
   empty: string;
+  onClear?: () => void;
+  note?: string;
 }) {
   return (
     <section className="sf-collection">
       <button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للمتجر</button>
       <div className="sf-products-head">
         <div><h2><Icon size={21} /> {title}</h2><span>{products.length} منتجات</span></div>
+        {onClear && products.length > 0 && <button type="button" className="sf-btn-secondary" onClick={onClear}>مسح السجل</button>}
       </div>
+      {note && <p role="note" style={{ margin: '0 0 12px', color: '#647b80', fontSize: 12 }}>{note}</p>}
       {products.length
         ? <ProductGrid
             products={products}
