@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { AlertCircle, ClipboardCheck, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { normalizeLocalizedDecimalInput } from "@/lib/localized-number-input";
 import {
   buildCustomerReturnLines,
   createReturnIdempotencyKey,
@@ -283,14 +284,14 @@ function CustomerReturnItemRow({
         كمية الإرجاع
         <input
           aria-label={"كمية الإرجاع: " + item.product_name}
-          type="number"
+          type="text"
           inputMode="decimal"
-          min="0"
-          max={item.remaining_quantity}
-          step="0.001"
+          autoComplete="off"
+          maxLength={16}
+          dir="ltr"
           value={value}
-          onChange={(event) => onChange(event.target.value)}
-          style={field}
+          onChange={(event) => onChange(normalizeLocalizedDecimalInput(event.target.value))}
+          style={{ ...field, textAlign: "right" }}
           disabled={disabled}
         />
       </label>
