@@ -13,8 +13,8 @@ type UploadResult = {
 };
 
 function csvCell(value: string): string {
-  const safeText = value.replace(/[\\u0000-\\u001f\\u007f]/gu, " ");
-  const formulaSafe = /^[\\s]*[=+@-]/u.test(safeText) ? "'" + safeText : safeText;
+  const safeText = value.replace(/[\u0000-\u001f\u007f]/gu, " ");
+  const formulaSafe = /^[\s]*[=+@-]/u.test(safeText) ? "'" + safeText : safeText;
   return '"' + formulaSafe.replace(/"/g, '""') + '"';
 }
 
@@ -46,7 +46,7 @@ export function buildProductImageBatchReportCsv(results: readonly UploadResult[]
     result.ok ? "نجاح" : "تعذر",
     result.message,
   ]);
-  return "\\uFEFF" + [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\\r\\n");
+  return "\uFEFF" + [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
 const MAX_BATCH_FILES = 200;
