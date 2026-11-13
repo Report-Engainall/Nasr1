@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { ArrowRight, Package, ShoppingCart, X } from "lucide-react";
 import type { ProductWithInventory } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
@@ -71,7 +71,7 @@ function stockState(product: ProductWithInventory): {
   };
 }
 
-function comparisonCellStyle(): React.CSSProperties {
+function comparisonCellStyle(): CSSProperties {
   return {
     minWidth: 168,
     maxWidth: 260,
@@ -85,7 +85,7 @@ function comparisonCellStyle(): React.CSSProperties {
   };
 }
 
-function comparisonLabelStyle(): React.CSSProperties {
+function comparisonLabelStyle(): CSSProperties {
   return {
     ...comparisonCellStyle(),
     position: "sticky",
