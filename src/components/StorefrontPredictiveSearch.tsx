@@ -1,6 +1,6 @@
 import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import { Package, Search, Tags } from "lucide-react";
-import { MAX_CATALOG_SEARCH_LENGTH, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
+import { MAX_CATALOG_SEARCH_LENGTH, normalizeArabicSearchText, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
 import type { Category, ProductWithInventory } from "@/lib/types";
 
 type PredictiveSuggestion =
@@ -47,10 +47,9 @@ export function StorefrontPredictiveSearch({
 
   const categoryMatches = useMemo(() => {
     if (!searchReady) return [];
-    const needle = normalizedQuery.toLocaleLowerCase();
+    const needle = normalizeArabicSearchText(normalizedQuery);
     return categories
-      .filter((category) => category.is_active && normalizeCatalogSearchQuery(category.name)
-        .toLocaleLowerCase().includes(needle))
+      .filter((category) => category.is_active && normalizeArabicSearchText(category.name).includes(needle))
       .slice(0, 4);
   }, [categories, normalizedQuery, searchReady]);
 
@@ -153,7 +152,7 @@ export function StorefrontPredictiveSearch({
           role="option"
           aria-selected={selected}
           tabIndex={-1}
-          onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.preventDefault()}
           onClick={() => selectSuggestion(suggestion)}
           style={commonStyle}
         >
