@@ -171,7 +171,7 @@ export function StorefrontPredictiveSearch({
           role="option"
           aria-selected={selected}
           tabIndex={-1}
-          onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.preventDefault()}
           onClick={() => selectSuggestion(suggestion)}
           style={commonStyle}
         >
@@ -192,7 +192,7 @@ export function StorefrontPredictiveSearch({
         role="option"
         aria-selected={selected}
         tabIndex={-1}
-        onMouseDown={(event) => event.preventDefault()}
+        onPointerDown={(event) => event.preventDefault()}
         onClick={() => selectSuggestion(suggestion)}
         style={commonStyle}
       >
