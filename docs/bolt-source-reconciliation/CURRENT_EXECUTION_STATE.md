@@ -1,3 +1,23 @@
+# EXACT-SHA ACCEPTANCE — COMMERCE POLICY SIMULATION PARSER — 2026-11-13
+
+- VERIFIED_SHA: `712ade47af5a6a5185800452eb8627a4e946cfd3`.
+- P1 workflow: [43371555651](https://github.com/Report-Engainall/Nasr1/actions/runs/43371555651) — **SUCCESS**.
+  - Vitest: **691/691 passed across 95 files**.
+  - New `commerce-policy-governance-client.test.ts`: **22/22 passed**.
+  - Strict TypeScript: SUCCESS.
+  - Production Build: SUCCESS.
+- P2 workflow: [43371555744](https://github.com/Report-Engainall/Nasr1/actions/runs/43371555744) — **SUCCESS**.
+  - Public Storefront Playwright: **19/19 passed**.
+  - Fresh local Supabase/PostgreSQL 17 stack: migrations, isolated users/tenants, endpoint guard allow/deny, atomic price rollback/audit/race, cash expense idempotency/concurrency, purchase receipt source linkage/restrictions, exact app build+launch — SUCCESS.
+  - Authenticated Chromium: order persistence and cross-tenant denial SUCCESS; HTTP 403 / SQLSTATE 42501 and foreign customer tier unchanged; stock-count and purchase-order XLSX SUCCESS; checkout replay after committed response loss SUCCESS; return/receipt/credit memo SUCCESS; audited Onyx XLSX SUCCESS; financial/task printing SUCCESS; customer-manager financial privacy/audit SUCCESS; device-session authorization and immediate revocation SUCCESS.
+  - Proof boundary, local teardown, trace/report/server-log upload SUCCESS.
+  - External secret-gated hosted E2E remains SKIPPED; this is not a pass. The local PostgreSQL 17 tests are independent and passed.
+- P3 implementation: simulation expected type is runtime allow-listed; history parser self-enforces limit 1..100; sourceRefs must be nonempty and bounded; sourceRefs and history UUID uniqueness are case-insensitive.
+- Safety: no migration/RPC/RLS/role changes, no production/hosted Supabase writes, no Vercel, no paid providers, no deployment.
+- Evidence artifact: [P2 local authenticated E2E](https://github.com/Report-Engainall/Nasr1/actions/runs/43371555744/artifacts/14012982176); [P2 public smoke](https://github.com/Report-Engainall/Nasr1/actions/runs/43371555744/artifacts/14012344204).
+
+---
+
 # P3 CHECKPOINT — COMMERCE POLICY SIMULATION EVIDENCE INTEGRITY — STAGED 2026-11-13
 
 - Base main SHA: `253dfbe832e433ec1d2f1a9346fe56f4d926f4c3`.
