@@ -115,7 +115,9 @@ export function StorefrontPredictiveSearch({
       event.preventDefault();
       setOpen(true);
       if (suggestions.length === 0) return;
-      setActiveIndex((current) => {
+      setActiveIndex(() => {
+        // Base navigation on the currently rendered option, not stale state from a prior response.
+        const current = safeActiveIndex;
         if (event.key === "ArrowDown") return current < 0 ? 0 : (current + 1) % suggestions.length;
         return current < 0 ? suggestions.length - 1 : (current - 1 + suggestions.length) % suggestions.length;
       });
