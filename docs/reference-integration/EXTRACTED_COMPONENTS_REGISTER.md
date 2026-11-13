@@ -76,3 +76,18 @@ No packages were added, removed or upgraded. The change uses the application's e
 
 - PR #436 merged at `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; PR #438 merged at `4451e4625c1cfe0974693ea49d0737a8959fc943`.
 - Category counts reuse the complete public paginated catalogue reader already used by the directory; the presentation adds no product or category read contract, database table or RPC.
+## Growth Opportunity Radar source integration — 2026-11-13
+
+| Reference project and source | Pin / source blob | License | NASR1 destination | Adaptation decision |
+|---|---|---|---|---|
+| Apache Superset — `superset-frontend/src/dashboard/components/DashboardGrid.tsx` | `master` / commit `4ac8bfe29f0399752197f489979d41f6b46c2f9b`; blob `1e7f816e6a257bad557ff18db28da8e0c03b9ee2` | Apache-2.0; root `LICENSE.txt` read at the same commit | `src/components/intelligence/GrowthOpportunityRadar.tsx` and `src/components/intelligence/IntelligenceWorkspace.tsx` | Use dashboard composition and clear empty/occupied-region patterns as design reference; NASR1 retains its current cards and RTL layout. No Superset grid or drag/drop code copied |
+| Apache Superset — `superset-frontend/src/dashboard/components/FiltersBadge/DetailsPanel/index.tsx` | same pin; blob `1df3cbf4bbbecaccc5bfc1bf209f9cebc0ab2b74` | Apache-2.0 file header; root license read | `GrowthOpportunityRadar.tsx` | Apply the principle that source/coverage status is explicit and separately inspectable. No Redux/popover/filter implementation copied |
+| Apache Superset — `superset-frontend/src/components/Chart/ChartContainer.tsx` | same pin; blob `70a7c6e7c04974425d74dc1112b2848278997e0c` | Apache-2.0 file header; root license read | `customer-retention-client.ts`, `IntelligenceWorkspace.tsx`, `natural-language-assistant-client.ts` | Preserve a clear data-access / presentation boundary; NASR1 uses existing Supabase clients and its own React components. No Superset Redux or chart dependency imported |
+| NASR1-owned implementation | feature branch and PR #437 | Project-owned | `growth-opportunities.ts`, `customer-retention-client.ts`, `GrowthOpportunityRadar.tsx`, `IntelligenceWorkspace.tsx`, `natural-language-assistant-client.ts` | Multi-source deterministic aggregation, source coverage and shared assistant calculation implemented inside existing contracts; no reference source code copied |
+
+### Proof and data boundary
+
+- The customer, unavailable-product-demand and product-performance readers are existing NASR1 services. They are invoked concurrently with one period and one `asOf`, and each retains its own authorization and completeness result.
+- The combined result is not labelled VERIFIED unless all three source populations are verified and no evidence or metric identifiers collide.
+- No direct quote-to-order conversion is claimed without a verified relation; no purchase order is created automatically.
+- No third-party source, asset, runtime, package or database component was copied from Superset.

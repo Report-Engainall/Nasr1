@@ -64,3 +64,10 @@ A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metad
 - Category-specific inspected blobs: category page `53ac0e71431b45d8854fecddf61551f5d58849c8` and breadcrumb fragment `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`.
 - Transfer decision remains **No**: NASR1 independently recreated the parent breadcrumb, current-child state, sibling links and hierarchy grouping. No Catalyst source file, UI asset, package, Storefront Kit or Next.js component was copied.
 - MIT applies to the inspected Catalyst project subject to its notices and does not establish the license of every dependency or nested file; no blanket license approval for other reference components is implied.
+
+### Apache Superset — Growth Opportunity Radar reference review — 2026-11-13
+
+- Repository pin: `apache/superset`, `master`, commit `4ac8bfe29f0399752197f489979d41f6b46c2f9b`.
+- Root license: `LICENSE.txt`, blob `56313ab5a54a163e7d46224cb5470a814c3a2436`, read and confirmed Apache License 2.0.
+- Inspected source files and blobs: `DashboardGrid.tsx` / `1e7f816e6a257bad557ff18db28da8e0c03b9ee2`; `FiltersBadge/DetailsPanel/index.tsx` / `1df3cbf4bbbecaccc5bfc1bf209f9cebc0ab2b74`; `ChartContainer.tsx` / `70a7c6e7c04974425d74dc1112b2848278997e0c`. Each source contains the Apache-2.0 header.
+- Decision: use these files as architecture and UI design references only. No code, assets, chart packages, Redux integration or transitive dependencies were copied into NASR1. This decision is limited to the inspected files and does not approve unrelated Superset code for reuse.
