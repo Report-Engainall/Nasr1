@@ -98,11 +98,14 @@ test("subcategory deep link renders the child category screen", async ({ page })
   const organizationId = "11111111-1111-4111-8111-111111111111";
   const parentId = "a1000000-0000-4000-8000-000000000222";
   const childId = "a1000000-0000-4000-8000-000000000333";
+  const siblingId = "a1000000-0000-4000-8000-000000000555";
   const parentCategory = { id: parentId, name: "Beverages", name_en: "Beverages" };
   const childCategory = { id: childId, name: "Juices", name_en: "Juices" };
+  const siblingCategory = { id: siblingId, name: "Soft Drinks", name_en: "Soft Drinks" };
   // Use the same production slug contract as category cards; hard-coded slugs drift when normalization changes.
   const parentSlug = storefrontCategorySlug(parentCategory);
   const childSlug = storefrontCategorySlug(childCategory);
+  const siblingSlug = storefrontCategorySlug(siblingCategory);
   const headers = {
     "access-control-allow-origin": "*",
     "access-control-allow-headers":
@@ -141,6 +144,7 @@ test("subcategory deep link renders the child category screen", async ({ page })
         body: JSON.stringify([
           { id: parentId, name: "Beverages", code: "BEV", parent_id: null, sort_order: 1, is_active: true },
           { id: childId, name: "Juices", code: "JUICE", parent_id: parentId, sort_order: 2, is_active: true },
+          { id: siblingId, name: "Soft Drinks", code: "SOFT-DRINKS", parent_id: parentId, sort_order: 3, is_active: true },
         ]),
       });
       return;
@@ -193,8 +197,18 @@ test("subcategory deep link renders the child category screen", async ({ page })
   await page.goto(`/category/${parentSlug}/subcategory/${childSlug}`);
   await expect(page).toHaveURL(new RegExp("/category/.*/subcategory/.*$"));
   await expect(page.getByRole("heading", { name: "Juices", exact: true })).toBeVisible();
-  await expect(page.getByText("Beverages / تصنيف فرعي", { exact: true })).toBeVisible();
+
+  const breadcrumbs = page.getByRole("navigation", { name: "مسار التصنيف" });
+  await expect(breadcrumbs.getByRole("link", { name: "جميع التصنيفات" })).toHaveAttribute("href", "/categories");
+  await expect(breadcrumbs.getByRole("link", { name: "Beverages", exact: true }))
+    .toHaveAttribute("href", "/category/" + parentSlug);
+  await expect(breadcrumbs.getByText("Juices", { exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "Beverages", exact: true })).toHaveCount(0);
+
+  const siblings = page.getByRole("region", { name: "التصنيفات الشقيقة" });
+  await expect(siblings.getByRole("link", { name: /Juices/ })).toHaveAttribute("aria-current", "page");
+  await expect(siblings.getByRole("link", { name: /Soft Drinks/ }))
+    .toHaveAttribute("href", "/category/" + parentSlug + "/subcategory/" + siblingSlug);
   expect(pageErrors).toEqual([]);
 });
 
