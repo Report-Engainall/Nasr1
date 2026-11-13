@@ -30,6 +30,7 @@ import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-add
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
+import { readStorefrontCompareIds, storefrontCompareStorageKey, writeStorefrontCompareIds } from '@/lib/storefront-compare';
 import { buildStorefrontProductStructuredData, serializeStorefrontProductStructuredData } from '@/lib/storefront-product-structured-data';
 
 const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
@@ -74,15 +75,6 @@ function mergeProductIntoCart(
 }
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
-
-function readSavedProductIds(key: string, maxItems: number): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    return normalizeSavedProductIds(JSON.parse(window.localStorage.getItem(key) || '[]') as unknown, maxItems);
-  } catch {
-    return [];
-  }
-}
 
 type StorefrontProps = {
   onExit: () => void;
@@ -244,6 +236,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
   const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
+  const compareStorageKey = storefrontCompareStorageKey(user?.profileId);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
@@ -278,7 +271,29 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       return { scopeKey: wishlistStorageKey, ids };
     });
   }, [wishlistStorageKey]);
-  const [compare, setCompare] = useState<string[]>(() => readSavedProductIds('aghbari:compare:v1', 3));
+  const [compareState, setCompareState] = useState<{ storageKey: string; ids: string[] }>(() => {
+    try {
+      return {
+        storageKey: compareStorageKey,
+        ids: typeof window === 'undefined'
+          ? []
+          : readStorefrontCompareIds(window.localStorage, compareStorageKey),
+      };
+    } catch {
+      return { storageKey: compareStorageKey, ids: [] };
+    }
+  });
+  const compare = compareState.storageKey === compareStorageKey ? compareState.ids : [];
+  const setCompare = useCallback((next: string[] | ((previous: string[]) => string[])) => {
+    setCompareState((current) => {
+      const previous = current.storageKey === compareStorageKey ? current.ids : [];
+      const ids = typeof next === 'function' ? next(previous) : next;
+      return {
+        storageKey: compareStorageKey,
+        ids: normalizeSavedProductIds(ids, 3),
+      };
+    });
+  }, [compareStorageKey]);
   const [savedListNotice, setSavedListNotice] = useState('');
   const [wishlistHydratedFor, setWishlistHydratedFor] = useState('');
   const [wishlistSyncState, setWishlistSyncState] = useState<'loading' | 'local' | 'synced' | 'pending'>('loading');
@@ -463,8 +478,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   }, [authReady, wishlist, wishlistHydratedFor, wishlistStorageKey, wishlistState.scopeKey]);
 
   useEffect(() => {
-    try { window.localStorage.setItem('aghbari:compare:v1', JSON.stringify(compare)); } catch { /* saved preferences are optional */ }
-  }, [compare]);
+    if (compareState.storageKey !== compareStorageKey || typeof window === 'undefined') return;
+    try {
+      writeStorefrontCompareIds(window.localStorage, compareStorageKey, compare);
+    } catch {
+      // Local comparison state is optional; live catalog and server remain authoritative.
+    }
+  }, [compare, compareState.storageKey, compareStorageKey]);
 
   useEffect(() => {
     if (initialView !== 'product' || !initialProductId || !products.length) return;
