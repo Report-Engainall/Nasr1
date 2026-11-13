@@ -79,7 +79,7 @@ export function projectAiGatewayBudgetProbe(
     component: "AI_GATEWAY_BUDGET_READ",
     source: "public.get_ai_gateway_budget",
     status,
-    attemptedAt: safeAttemptedAt,
+    ...timing,
     detail,
     providerConnectivity: "UNKNOWN",
     systemHealth: "UNKNOWN",
