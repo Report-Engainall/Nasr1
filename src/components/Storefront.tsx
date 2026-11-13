@@ -27,6 +27,7 @@ import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-add
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
+import { buildStorefrontProductStructuredData, serializeStorefrontProductStructuredData } from '@/lib/storefront-product-structured-data';
 
 const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 
@@ -1218,6 +1219,28 @@ export function ProductDetail({
   });
   const [requestedUnitQuantity, setRequestedUnitQuantity] = useState(minimumOrderQuantity);
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
+  const productStructuredData = useMemo(() => buildStorefrontProductStructuredData({
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    sku: product.sku,
+    itemCode: product.item_code,
+    categoryName: product.category?.name,
+    imageUrls: [product.image_url, ...(product.image_gallery_urls ?? [])],
+    pageOrigin: typeof window === 'undefined' ? null : window.location.origin,
+    priceVisible: pricePresentation.visible,
+    displayPrice: product.display_price,
+    availableQuantity: quantityKnown ? availableQuantity : null,
+    minimumOrderQuantity,
+  }), [
+    product.id, product.name, product.description, product.sku, product.item_code,
+    product.category?.name, product.image_url, product.image_gallery_urls,
+    pricePresentation.visible, product.display_price, quantityKnown, availableQuantity, minimumOrderQuantity,
+  ]);
+  const productStructuredDataJson = useMemo(
+    () => productStructuredData ? serializeStorefrontProductStructuredData(productStructuredData) : null,
+    [productStructuredData],
+  );
 
   useEffect(() => {
     setSelectedImageUrl(product.image_url ?? product.image_gallery_urls?.[0] ?? null);
@@ -1338,6 +1361,7 @@ export function ProductDetail({
 
   return (
     <section className="sf-product-detail">
+      {productStructuredDataJson ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: productStructuredDataJson }} /> : null}
       <button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للكتالوج</button>
       <div className="sf-detail-layout">
         <div className="sf-detail-image">
