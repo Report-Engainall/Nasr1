@@ -1,3 +1,32 @@
+# LATEST EXECUTION ADDENDUM — 2026-11-13
+
+This addendum records implementation completed after the initial 2026-11-12 gap-closure plan. It does not replace the original acceptance list or classify unresolved backend gates as complete.
+
+## Implemented product increments
+
+- Predictive RTL catalog search was merged from PR #427 at `db7a3f1cd69943731824d5654d66907842a844bc`. It reuses the current catalog RPC and includes keyboard behavior plus stale-result suppression. Exact P1 passed; P2 was cancelled, so browser acceptance remains separate.
+- Customer profile account hub was extended to existing invoice, quote, wishlist, comparison and service-case routes. The new role regression test keeps these links inside the customer scope. The initial syntax regression was corrected; P1 passed on `860d6e47705f79676c7e1ed2697075a9644048f4`.
+- Supplier finance hub was committed on main at `d8024dc73228dc98be3aba57430a6703321e8a72`. It mounts existing payment, invoice capture, variance-review and supplier-account activity components from the current Suppliers screen, lazily and only for finance-authorized roles. It reuses the existing finance-authorized ledger RPC and does not add an SQL/migration/RLS/payment endpoint.
+- Ordered purchase quantities appear in invoice capture/review only when matched by immutable purchase-order-item ID. The PurchaseOrdersPage passes its already loaded purchase-order list. Admin/manager may use the fallback read; accountant does not get an additional PO read. Missing/invalid source values display `غير متاح`, not a fabricated zero.
+- Ledger-account requests are invalidated on authentication identity/session changes so a delayed response from a prior session cannot repopulate the current account options.
+- CI path filters now include the new supplier hub and tests, customer profile navigation regression, and cross-trigger the P1/P2 workflows when either workflow definition changes.
+
+## Exact files and evidence
+
+Supplier finance files: `SupplierFinancialWorkspaceHub.tsx`, `SupplierFinancialWorkspaceHub.test.tsx`, `supplier-invoice-order-quantities.ts`, `supplier-invoice-order-quantities.test.ts`, `AdminPages.tsx`, `PurchaseOrdersPage.tsx`, `SupplierInvoiceWorkspace.tsx`.
+
+P1/P2 on the common CI SHA must be read from the exact GitHub Actions run, not inferred from older branch runs. At the time this addendum was created, the exact run status was still pending/in progress. Do not call these increments accepted until those jobs complete and their reports are recorded.
+
+## Path separation
+
+Path A: storefront, customer account, supplier and commerce UX integration.
+
+Path B (Issue #422): reference-model prompt persistence, observability, AI governance and developer tools. Path B must refresh from latest main before committing; it must not edit the shared files owned by Path A.
+
+No hosted database, production data, secrets, Vercel, deploy, or paid services were touched. The 84 reference images were not reopened because the task was to close documented code gaps, not repeat the asset inventory.
+
+---
+
 # الوثيقة الرابعة — التنفيذ الفعلي وتقسيم العمل المستمر
 
 **المشروع:** الأغبري Aghbari Commerce — `Report-Engainall/Nasr1`  

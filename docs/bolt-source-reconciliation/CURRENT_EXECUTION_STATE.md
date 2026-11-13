@@ -1,3 +1,44 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — PREDICTIVE SEARCH, CUSTOMER ACCOUNT HUB, SUPPLIER FINANCE
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Code integration base SHA: `ce01e35912c39a954e30c3917a76aed867cd09c8`.
+> This checkpoint supplements and does not replace earlier checkpoints below. Any new Actions result must be tied to its own exact SHA; pending, cancelled, skipped, or failed are not PASS.
+
+## Newly implemented on main
+
+1. **Predictive storefront catalog search** — PR #427 was squash-merged as `db7a3f1cd69943731824d5654d66907842a844bc`. It uses the existing paginated catalog RPC, groups suggestions for phrases/categories/products, supports keyboard navigation, suppresses stale results on query/filter/session changes, and does not expose prices, costs, stock-on-hand, or private customer data. Exact-head P1 run #43352450718 succeeded; P2 run #43352450808 was cancelled and is not acceptance.
+2. **Customer account hub navigation** — `src/routes/profile.tsx` now links customers to existing invoices, quotes, wishlist, comparison and service-case screens, within the existing customer-only link set. Existing staff and restricted-role link sets remain unchanged. `src/routes/profile.navigation.test.tsx` tests customer visibility and staff/unclassified denial. Implementation/fix commits: `54f6023ac9f137f6ffd4c10210b779bd80624e1b`, `971f2931be1addd3aa6d43beac67954bee75fa39`; role-test commit: `dedbec0730539fbbc82839635465a45f87c036ec`. The first P2 run exposed a missing comma in the route list; this was fixed at `971f293...`. P1 run #43352876967 passed on exact SHA `860d6e47705f79676c7e1ed2697075a9644048f4`.
+3. **Supplier financial workspace hub** — implemented in `d8024dc73228dc98be3aba57430a6703321e8a72` then CI path filters were extended. It mounts existing payment, invoice capture, price-variance review and supplier-account activity workspaces lazily from the existing supplier directory. Finance data is requested only for `admin`, `manager`, and `accountant`; the chart of accounts is validated from the existing tenant-scoped `fetch_general_ledger` RPC; no new ledger or payment endpoint exists. Ordered quantity is matched by immutable purchase-order item ID, using the list already loaded by PurchaseOrdersPage. Only admin/manager may use a fallback PO read; if the source is missing or invalid, UI says `غير متاح`, never zero. Late ledger responses are invalidated on user/session changes. Tests cover the ledger projection, tab wiring, non-finance denial, session changes and exact PO-item ID matching.
+4. **CI trigger coverage** — P1 filters now include customer profile navigation and supplier hub/unit tests; P2 filters include supplier finance source files. P1 and P2 workflow files cross-trigger each other so workflow-filter changes are verified on a common head.
+
+## Changed files in the supplier finance batch
+
+- `src/components/SupplierFinancialWorkspaceHub.tsx`
+- `src/components/SupplierFinancialWorkspaceHub.test.tsx`
+- `src/lib/supplier-invoice-order-quantities.ts`
+- `src/lib/supplier-invoice-order-quantities.test.ts`
+- `src/components/AdminPages.tsx`
+- `src/components/PurchaseOrdersPage.tsx`
+- `src/components/SupplierInvoiceWorkspace.tsx`
+- `docs/execution/P1_SUPPLIER_FINANCE_HUB_2026-11-13.md`
+
+## Exact verification status at checkpoint creation
+
+- Main code SHA: `d8024dc73228dc98be3aba57430a6703321e8a72`. P1/P2 were cancelled by subsequent workflow-only commits; do not count them as accepted on this code SHA.
+- Common CI-head SHA before this checkpoint edit: `ce01e35912c39a954e30c3917a76aed867cd09c8`; P1 run #43353480636 was IN_PROGRESS and P2 run #43353480696 was PENDING at the last observation.
+- No exact-head PASS is recorded here for the supplier hub. Await P1 and P2 results on the final CI head and append them only after completion.
+- The older P2 local run on `dedbec...` failed because the customer links array had a missing comma. That exact syntax issue was corrected and must not be confused with the current supplier feature.
+- Database/tenant/authenticated order workflows remain separate acceptance gates. A successful public UI smoke alone does not establish finance posting, supplier payments, order persistence, or tenant isolation.
+
+## Safety and ownership boundary
+
+- No SQL, migrations, RPC definitions, RLS, tenant policy, hosted Supabase data, credentials, or production settings were changed.
+- No Vercel build, deployment, or paid-service usage.
+- Path A owns storefront/customer/supplier/product surfaces. Path B remains assigned under Issue #422 to `src/lib/reference-model/{prompt-persistence,observability}/**` and `src/components/reference-model/{ai-governance,observability,developer-tools}/**`. Path B must refresh from the latest main SHA before writing; no ownership overlap is authorized.
+- No reference screenshots were reopened or re-indexed.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — CUSTOMER PHONE REGISTRATION LOCALIZED NUMERALS
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
