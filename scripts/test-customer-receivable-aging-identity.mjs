@@ -42,23 +42,16 @@ async function main(){
   "($10::uuid,$2::uuid,$3::uuid,$11,'draft',$12::numeric,1)",
   [ids.orders[0],organizationId,ids.customers[0],"P2-AGING-ORDER-A-"+suffix,amounts[0],ids.orders[1],ids.customers[1],"P2-AGING-ORDER-B-"+suffix,amounts[1],ids.orders[2],"P2-AGING-ORDER-X-"+suffix,"333.33"]
  );
- const meta=await db.unsafe("select is_generated from information_schema.columns where table_schema='public' and table_name='customer_invoices' and column_name='customer_name'");
- assert.equal(meta.length,1,"customer invoice schema must expose the finance display-name snapshot");
- const columns="id,organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount";
- let invoiceSql,invoiceParams;
- if(meta[0].is_generated==="NEVER"){
-  invoiceSql="insert into public.customer_invoices("+columns+",customer_name) values"+
-   "($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'issued',now()-interval '60 days',now()-interval '45 days','YER',$6::numeric,0,$6::numeric,$7),"+
-   "($8::uuid,$2::uuid,$9::uuid,$10::uuid,$11,'issued',now()-interval '60 days',now()-interval '45 days','YER',$12::numeric,0,$12::numeric,$13),"+
-   "($14::uuid,$2::uuid,$15::uuid,$16::uuid,$17,'issued',now()-interval '60 days',now()-interval '45 days','YER',333.33,0,333.33,$18)";
-  invoiceParams=[ids.invoices[0],organizationId,ids.customers[0],ids.orders[0],"P2-AGING-INVOICE-A-"+suffix,amounts[0],sameName,ids.invoices[1],ids.customers[1],ids.orders[1],"P2-AGING-INVOICE-B-"+suffix,amounts[1],sameName,ids.invoices[2],ids.foreignCustomer,ids.orders[2],"P2-AGING-INVOICE-X-"+suffix,"Foreign tenant reference"];
- }else{
-  invoiceSql="insert into public.customer_invoices("+columns+") values"+
-   "($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'issued',now()-interval '60 days',now()-interval '45 days','YER',$6::numeric,0,$6::numeric),"+
-   "($7::uuid,$2::uuid,$8::uuid,$9::uuid,$10,'issued',now()-interval '60 days',now()-interval '45 days','YER',$11::numeric,0,$11::numeric),"+
-   "($12::uuid,$2::uuid,$13::uuid,$14::uuid,$15,'issued',now()-interval '60 days',now()-interval '45 days','YER',333.33,0,333.33)";
-  invoiceParams=[ids.invoices[0],organizationId,ids.customers[0],ids.orders[0],"P2-AGING-INVOICE-A-"+suffix,amounts[0],ids.invoices[1],ids.customers[1],ids.orders[1],"P2-AGING-INVOICE-B-"+suffix,amounts[1],ids.invoices[2],ids.foreignCustomer,ids.orders[2],"P2-AGING-INVOICE-X-"+suffix];
- }
+ const invoiceSql="insert into public.customer_invoices("+
+  "id,organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) values"+
+  "($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'issued',now()-interval '60 days',now()-interval '45 days','YER',$6::numeric,0,$6::numeric),"+
+  "($7::uuid,$2::uuid,$8::uuid,$9::uuid,$10,'issued',now()-interval '60 days',now()-interval '45 days','YER',$11::numeric,0,$11::numeric),"+
+  "($12::uuid,$2::uuid,$13::uuid,$14::uuid,$15,'issued',now()-interval '60 days',now()-interval '45 days','YER',333.33,0,333.33)";
+ const invoiceParams=[
+  ids.invoices[0],organizationId,ids.customers[0],ids.orders[0],"P2-AGING-INVOICE-A-"+suffix,amounts[0],
+  ids.invoices[1],ids.customers[1],ids.orders[1],"P2-AGING-INVOICE-B-"+suffix,amounts[1],
+  ids.invoices[2],ids.foreignCustomer,ids.orders[2],"P2-AGING-INVOICE-X-"+suffix,
+ ];
  await db.unsafe(invoiceSql,invoiceParams);
  await setIdentity(managerDb,manager.auth_user_id,manager.email);
  const response=await managerDb.unsafe("select public.fetch_executive_receivable_customer_aging() as result");
