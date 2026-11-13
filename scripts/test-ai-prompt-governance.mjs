@@ -284,6 +284,14 @@ async function main() {
       [draft1Result.version.id, submitCommand],
     ))[0].result);
     assert.equal(submitReplay.replayed, true);
+    await expectSqlState(
+      "another administrator cannot replay the maker's submit command",
+      () => checkerDb.unsafe(
+        "select public.submit_ai_prompt_version($1::uuid,$2::uuid)",
+        [draft1Result.version.id, submitCommand],
+      ),
+      "42501",
+    );
 
     await expectSqlState(
       "prompt maker cannot approve their own submission",

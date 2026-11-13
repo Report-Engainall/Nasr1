@@ -399,6 +399,9 @@ BEGIN
     IF v_event.prompt_version_id <> p_version_id THEN
       RAISE EXCEPTION USING ERRCODE = '23505', MESSAGE = 'AI prompt command id was already used for another submission';
     END IF;
+    IF v_event.actor_profile_id <> v_actor THEN
+      RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'AI prompt submission replay belongs to another administrator';
+    END IF;
     RETURN pg_catalog.jsonb_build_object('version', to_jsonb(v_version), 'event', to_jsonb(v_event), 'replayed', true);
   END IF;
 
@@ -772,6 +775,7 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_org uuid;
+  v_profile_count bigint;
   v_prompt public.ai_prompt_versions%ROWTYPE;
 BEGIN
   IF coalesce(pg_catalog.current_setting('request.jwt.claim.role', true), '') <> 'service_role' THEN
@@ -789,6 +793,13 @@ BEGIN
       AND (s.not_after IS NULL OR s.not_after > pg_catalog.now())
   ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'a live user Auth session is required for AI prompt lookup';
+  END IF;
+
+  SELECT count(*) INTO v_profile_count
+  FROM public.profiles p
+  WHERE p.auth_user_id = p_user_id AND p.is_active = true;
+  IF v_profile_count <> 1 THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'exactly one active organization profile is required for AI prompt lookup';
   END IF;
 
   SELECT p.organization_id INTO v_org
