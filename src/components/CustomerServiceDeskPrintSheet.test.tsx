@@ -60,7 +60,7 @@ describe("CustomerServiceDeskPrintSheet", () => {
 
   it("does not show the continuation warning after the loaded queue is complete", () => {
     render(<CustomerServiceDeskPrintSheet document={{ ...report, hasMore: false }} />);
-    expect(screen.queryByText("توجد صفحات أخرى غير محمّلة؛ لا يمثل هذا التقرير كامل نتائج الطابور."))
-      .toBeNull();
+    const sheet = screen.getByTestId("customer-service-desk-print-document");
+    expect(sheet.textContent ?? "").not.toContain("توجد صفحات أخرى غير محمّلة؛ لا يمثل هذا التقرير كامل نتائج الطابور.");
   });
 });
