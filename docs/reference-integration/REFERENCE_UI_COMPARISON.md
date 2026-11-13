@@ -67,3 +67,16 @@ This is a route-composition change, not a screenshot-parity claim. The Hydrogen 
 | Customer control | No view-history controls | Keep the small account feature actionable and reversible | Remove one entry or clear this profile's local history |
 
 The interaction takes inspiration from Shopify Hydrogen's account workspace pattern; this is an independent implementation, not copied code or screenshot-parity evidence. The history is browser-local and is not synchronized across devices.
+
+## Storefront category navigation and directory hierarchy — 2026-11-13
+
+| Concern | Before | Reference principle | NASR1 result |
+|---|---|---|---|
+| Subcategory context | Parent name was plain text; no explicit path or sibling route collection | BigCommerce Catalyst category page and breadcrumb fragment expose the active category within its navigation context | Accessible RTL path: all categories → parent → active child; active state is announced and direct sibling links remain within the same parent |
+| Category directory | Parent and child categories appeared as unrelated cards in one flat grid | Organize the category landing area around parent context, keeping the route into a child category explicit | `/categories` groups active direct children below their parent; child links navigate through existing parent/subcategory routes |
+| Product counts | Counts were shown independently on every flat card | Present count in the context of the category level being browsed | Parent totals include the parent and immediate children only; children show their direct count; deeper levels remain separately reachable |
+| Incomplete hierarchy | A public projection with an absent parent or deeper relation could be flattened or obscured | Preserve navigation context and avoid inventing a missing hierarchy | Detached roots and additional levels remain visible with the immediate known relation; no category or product count is fabricated |
+
+Reference inspection: BigCommerce Catalyst `canary` HEAD `4cce7bc3d05be54a449140644eb2119dd8d8c821`, category page blob `53ac0e71431b45d8854fecddf61551f5d58849c8`, breadcrumb fragment blob `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`, root MIT LICENSE read. This is an architectural comparison, not a screenshot-parity claim; no Catalyst source, asset or dependency was copied.
+
+Delivery: PR #436 merged at `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; PR #438 merged at `4451e4625c1cfe0974693ea49d0737a8959fc943`. Exact-main P1: 91 test files / 644 tests, strict TypeScript and build SUCCESS. Public Chromium smoke: 19/19 SUCCESS. Hosted authenticated order/tenant E2E remains SKIPPED.
