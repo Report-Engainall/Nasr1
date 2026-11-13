@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatNumber } from '@/lib/format';
+import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { ORDER_STATUS_LABELS, type Order, type OrderItem } from '@/lib/types';
 import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
 import { downloadCustomerOrderWorkbookXlsx } from '@/lib/customer-order-xlsx';
@@ -594,7 +595,9 @@ function OrderInvoiceInner({ id }: { id: string }) {
     setAmendmentFeedback(null);
     const lines = items.map((item) => ({
       item_id: item.id,
-      quantity: Number(amendmentQuantities[item.id] ?? item.approved_quantity ?? item.quantity),
+      quantity: Number(normalizeLocalizedDecimalInput(
+        amendmentQuantities[item.id] ?? String(item.approved_quantity ?? item.quantity),
+      )),
     }));
     if (lines.some((line) => !Number.isFinite(line.quantity) || line.quantity<=0 || line.quantity>10000
       || Math.abs(line.quantity*1000-Math.round(line.quantity*1000))>0.000001)) {
@@ -818,12 +821,15 @@ function OrderInvoiceInner({ id }: { id: string }) {
                       <td>{item.unit_snapshot ?? '—'}</td>
                       <td>
                         <input
-                          type="number" min="0.001" max="10000" step="0.001"
+                          type="text" inputMode="decimal" autoComplete="off" maxLength={16} dir="ltr"
                           aria-label={'الكمية المعدلة ' + item.product_name_snapshot}
                           value={amendmentQuantities[item.id] ?? String(item.approved_quantity ?? item.quantity)}
                           disabled={amendmentBusy}
-                          onChange={(event) => setAmendmentQuantities((previous) => ({ ...previous, [item.id]:event.target.value }))}
-                          style={{ width:140, padding:'8px 10px', border:'1px solid #b8d7f3', borderRadius:8, background:'#eef7ff' }}
+                          onChange={(event) => setAmendmentQuantities((previous) => ({
+                            ...previous,
+                            [item.id]: normalizeLocalizedDecimalInput(event.target.value),
+                          }))}
+                          style={{ width:140, padding:'8px 10px', border:'1px solid #b8d7f3', borderRadius:8, background:'#eef7ff', textAlign:'right' }}
                         />
                       </td>
                     </tr>
