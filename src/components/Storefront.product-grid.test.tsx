@@ -235,7 +235,7 @@ describe("storefront predictive catalogue search", () => {
       <StorefrontPredictiveSearch
         productsAvailable={false}
         query="رز"
-        products={[]}
+        products={[product]}
         categories={[riceCategory]}
         loading={true}
         onQueryChange={vi.fn()}
