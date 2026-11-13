@@ -1,3 +1,44 @@
+# ACTIVE SESSION CHECKPOINT — 2026-11-13 — CATEGORY PRICE/STOCK DETAIL VIEW
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Implementation SHA: 49e1684d5b5d64de60ad34c09fe18afacbf88f26 (code-bearing commit).
+- Scope: Path A / existing admin catalog UI; no Path B files under Issue #422 changed.
+
+## Delivered
+
+1. Added a read-only «الأسعار والمخزون» tab to the existing AdminCategoryTree detail panel.
+2. Reused the current fetchAdminProductsPage data contract and fetch_staff_products RPC. It accepts an optional canonical category UUID, adds an equality filter to the existing category_id, and retains the current tenant scope, active warehouse, product validation and 40-row pagination.
+3. Added a read-only projection that fails closed for negative/non-finite values, leaves absent inventory unavailable, and classifies stock only when available quantity and reorder threshold are known.
+4. Price is displayed only for the existing admin/manager UI roles; inventory is displayed for roles already allowed to open the catalog. This UI gate is not a replacement for server authorization: the reused admin product RPC remains the existing data contract and no new backend permission is claimed.
+5. Product row actions return to the existing product workspace; no second editor or mutation path was created. The minimal admin-category-products preview reader remains unchanged and non-financial.
+6. P1 workflow path filters include the new projection module and tests.
+
+## Exact-SHA verification
+
+- P1 Actions #43356766216 (https://github.com/Report-Engainall/Nasr1/actions/runs/43356766216), exact SHA 49e1684d5b5d64de60ad34c09fe18afacbf88f26: SUCCESS — Vitest, strict TypeScript and production build.
+- P2 Actions #43356766280 (https://github.com/Report-Engainall/Nasr1/actions/runs/43356766280), exact SHA 49e1684d5b5d64de60ad34c09fe18afacbf88f26: IN_PROGRESS at last observation. Isolated placeholder build and local servers completed; read-only Playwright public UI assertions were still running.
+- Separate authenticated customer/order/tenant job: SKIPPED because the external infrastructure gate was not ready. This is not accepted as tenant-isolation proof. The dependent local tenant path had not reached a terminal result at checkpoint time.
+- No browser acceptance, live database access-control pass, or production proof is claimed for this feature yet.
+
+## Changed files
+
+- src/components/AdminCategoryTree.tsx
+- src/lib/api.ts
+- src/lib/product-admin-pagination.ts
+- src/lib/product-admin-pagination.test.ts
+- src/lib/admin-category-catalog.ts
+- src/lib/admin-category-catalog.test.ts
+- src/test/admin-category-ui-command-wiring.test.ts
+- src/aghbari.css
+- .github/workflows/p1-admin-context-verification.yml
+
+## Boundaries
+
+- No migrations, DDL, RPC definitions, RLS policies, hosted Supabase writes, credentials, Vercel actions, deployments or live integration settings were changed.
+- Missing inventory remains unavailable, not zero. The panel lists products directly assigned to the selected category; it does not claim to aggregate descendants or show a population-wide count.
+- Product release remains NO-GO until all applicable P2 and release gates have terminal, exact-SHA evidence.
+
+---
 # ACTIVE SESSION CHECKPOINT — 2026-11-13 — CUSTOMER, SUPPLIER AND SESSION ISOLATION
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main`.
