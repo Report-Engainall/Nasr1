@@ -1,3 +1,41 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — PRODUCT_MEDIA RLS / STOREFRONT TENANT-SAFE REPAIR
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Implementation commit: `25148524306ed273a98c922de2aa63c3a2944e45`; parent: `efb7d028b0731ca6d9bc7bf79115605c883767dd`.
+> P2 exact-SHA run [#43344283616](https://github.com/Report-Engainall/Nasr1/actions/runs/43344283616): **IN_PROGRESS** at checkpoint.
+> P1 exact-SHA run [#43344283676](https://github.com/Report-Engainall/Nasr1/actions/runs/43344283676): **QUEUED** at checkpoint. Neither result is PASS until the run completes successfully on this code SHA.
+
+## Root cause proven from the failing browser trace
+
+- Prior P2 run [#43341573067](https://github.com/Report-Engainall/Nasr1/actions/runs/43341573067), source SHA `efb7d028b0731ca6d9bc7bf79115605c883767dd`, passed local PostgreSQL 17 migrations/fixtures, endpoint allow/deny checks, atomic price-grid write/rollback/audit/stale-writer race, cash-expense source posting/idempotency/void-post concurrency, and purchase-receipt accounting source-link/restriction checks.
+- It failed in the authenticated customer browser path before checkout. The trace shows the customer's `GET /rest/v1/product_media` returned HTTP 403 with PostgreSQL `42501 permission denied for function public_storefront_organization_id`.
+- The stale policy `product_media_tenant_read` created by `20261106160000_product_media_gallery_lifecycle.sql` called `public.public_storefront_organization_id()` directly. Later `20261108000200_rpc_surface_lockdown.sql` intentionally revoked EXECUTE on internal storefront tenant and warehouse resolver functions from `anon` and `authenticated`. The intended privacy lockdown was correct; the dependent RLS policy was not updated and therefore broke an authenticated storefront read.
+- The cart screen then could not finish loading the product catalogue and remained in its restoration state. This was not a Playwright timeout, fake/missing Auth session, or reason to relax tenant RLS.
+
+## Additive repair on main
+
+- Added `supabase/migrations/20261113090000_product_media_safe_read_policy.sql`.
+- Added `public.can_read_product_media(uuid)`, a narrowly scoped `SECURITY DEFINER` boolean helper with an empty `search_path`. It evaluates either (a) an active product in the enabled and active public storefront, or (b) a staff product within the current authenticated tenant. It returns only allow/deny and never returns organization or warehouse IDs.
+- Replaced only the stale `product_media_tenant_read` policy to call the boolean helper. The internal `public_storefront_organization_id()` and `public_storefront_warehouse_id()` functions remain revoked from `PUBLIC`, `anon`, and `authenticated`.
+- Migration-time assertions verify the helper is SECURITY DEFINER with empty search_path, browser-role EXECUTE is limited to the boolean helper, both internal context functions remain inaccessible to browser roles, the policy uses the new helper, `product_media` RLS stays enabled, and the authenticated restrictive tenant relation policy remains installed.
+- Updated `e2e/critical-path.spec.ts` to treat HTTP errors from `/rest/v1/product_media` as critical browser API failures. The authenticated catalog → cart → order flow remains the functional acceptance path; it has not yet passed on the new SHA.
+
+## Coordination and boundaries
+
+- Path B scope remains isolated under Issue #422; Path A sent the proven root cause and the exact migration/E2E ownership boundary to the second programmer. No Path B files were changed by this repair.
+- No historic migration was rewritten. No application role gained access to tenant/warehouse identifier resolvers. No service-role key, client bypass, mock result, hosted database, or production data was used.
+- No Vercel build/deploy/preview or paid service was used. Migrations were added to the repository only; no hosted migration was applied.
+- Release remains **NO-GO** pending exact-SHA P1/P2 completion and the still-unrun downstream order, tenant, stock, export, return, print, customer-manager and device-session browser gates. SKIPPED/QUEUED/IN_PROGRESS are not acceptance.
+
+## Exact next actions
+
+1. Read P2 run #43344283616; require local migration assertion success and the formerly failing `product_media` authenticated read, then follow the real order creation/readback and cross-tenant denial steps.
+2. Read P1 run #43344283676; require Vitest, strict TypeScript and production build success on the same code SHA.
+3. After the initial gate passes, address each downstream P2 suite independently. Do not mark skipped tests as passed or the release ready.
+4. Refresh main HEAD before integrating any Path B delivery. Keep Path A and Path B file ownership separate.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — STOREFRONT PRODUCT CARD ACCESSIBILITY
 
 > Repository: `Report-Engainall/Nasr1`; branch: `main`.
