@@ -700,3 +700,76 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* Unknown stock is distinct from a verified zero balance. */
 .sf-stock-unknown { color: var(--aghbari-text-muted); }
+
+
+/* Product media gallery: synchronized RTL thumbnails, touch navigation and accessible lightbox. */
+.sf-detail-image { display: block; padding: 14px; }
+.sf-detail-image .sf-detail-code { position: static; display: inline-block; justify-self: start; margin-top: 9px; }
+.sf-product-media-gallery { display: grid; align-content: start; gap: 10px; width: 100%; min-width: 0; }
+.sf-product-media-stage {
+  position: relative; display: grid; place-items: center; width: 100%; min-height: 250px;
+  aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--aghbari-border);
+  border-radius: 14px; background: #fff;
+}
+.sf-product-media-stage-trigger {
+  position: absolute; inset: 0; display: grid; place-items: center; width: 100%; height: 100%;
+  padding: 16px; border: 0; background: transparent; cursor: zoom-in;
+}
+.sf-product-media-stage-trigger img {
+  display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain;
+}
+.sf-product-media-stage-trigger:focus-visible,
+.sf-product-media-nav:focus-visible,
+.sf-product-media-thumbnails button:focus-visible,
+.sf-image-lightbox-nav:focus-visible { outline: 3px solid var(--aghbari-accent, #c6a45b); outline-offset: 3px; }
+.sf-product-media-nav {
+  position: absolute; z-index: 2; top: 50%; display: grid; place-items: center; width: 42px; height: 42px;
+  padding: 0; border: 1px solid rgba(255,255,255,.85); border-radius: 50%; color: var(--aghbari-text);
+  background: rgba(255,255,255,.94); box-shadow: 0 5px 18px rgba(7,34,39,.14); transform: translateY(-50%);
+}
+.sf-product-media-nav--previous { inset-inline-start: 12px; }
+.sf-product-media-nav--next { inset-inline-end: 12px; }
+.sf-product-media-footer { display: grid; justify-items: center; gap: 6px; min-width: 0; }
+.sf-product-media-thumbnails {
+  display: flex; gap: 8px; width: 100%; max-width: 100%; padding: 5px 3px;
+  overflow-x: auto; direction: rtl; scrollbar-width: thin;
+}
+.sf-product-media-thumbnails button {
+  flex: 0 0 64px; width: 64px; height: 64px; padding: 3px; overflow: hidden;
+  border: 1px solid var(--aghbari-border); border-radius: 10px; background: #fff;
+}
+.sf-product-media-thumbnails button[aria-pressed="true"] {
+  border: 2px solid var(--aghbari-brand); padding: 2px; box-shadow: 0 0 0 2px var(--aghbari-brand-soft);
+}
+.sf-product-media-thumbnails img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.sf-product-media-count { color: var(--aghbari-text-muted); font-size: 10px; font-weight: 700; }
+.sf-product-media-empty {
+  display: grid; align-content: center; justify-items: center; gap: 10px;
+  min-height: 300px; color: #9db9bd; font-size: 11px;
+}
+.sf-image-lightbox-panel { gap: 12px; }
+.sf-image-lightbox-navigation {
+  display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items: center; gap: 10px;
+  width: 100%; direction: rtl;
+}
+.sf-image-lightbox-image { display: grid; place-items: center; min-width: 0; min-height: 160px; }
+.sf-image-lightbox-image img {
+  display: block; max-width: 100%; max-height: calc(100dvh - 150px); object-fit: contain;
+  border-radius: 12px; background: #fff; touch-action: pan-y;
+}
+.sf-image-lightbox-nav {
+  display: grid; place-items: center; width: 42px; height: 42px; padding: 0;
+  border: 1px solid rgba(255,255,255,.5); border-radius: 50%; color: #fff; background: rgba(12,31,35,.9);
+}
+.sf-image-lightbox-count { color: #fff; font-size: 12px; font-weight: 700; text-align: center; }
+.sf-image-lightbox-close { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 700px) {
+  .sf-detail-image { min-height: 0; padding: 10px; }
+  .sf-product-media-stage { min-height: 220px; }
+  .sf-product-media-thumbnails button { flex-basis: 56px; width: 56px; height: 56px; }
+  .sf-product-media-nav { width: 36px; height: 36px; }
+  .sf-image-lightbox { padding: 12px; }
+  .sf-image-lightbox-navigation { grid-template-columns: 34px minmax(0,1fr) 34px; gap: 5px; }
+  .sf-image-lightbox-nav { width: 32px; height: 38px; border-radius: 9px; }
+  .sf-image-lightbox-image img { max-height: calc(100dvh - 120px); }
+}
