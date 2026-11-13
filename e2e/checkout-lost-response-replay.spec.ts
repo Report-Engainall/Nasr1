@@ -135,6 +135,8 @@ test("checkout replays one committed order after its success response is lost an
     // the server-backed print document; no transient confirmation panel is expected.
     await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/i, { timeout: 45_000 });
     const detailPath = new URL(page.url()).pathname;
+    const orderId = String(committedResult!.id);
+    expect(orderId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(detailPath.split("/").filter(Boolean).at(-1)).toBe(orderId);
 
     const orderDocument = page.getByTestId("customer-order-print-document");
