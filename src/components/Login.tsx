@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Activity, Eye, EyeOff, Lock, Mail, ShieldCheck, User } from 'lucide-react';
 import { normalizeAuthPhoneIdentifier, useAuth } from '@/lib/auth';
+import { normalizeAuthDigits } from '@/lib/auth-phone';
 
 type Mode = 'login' | 'register' | 'forgot';
 
@@ -113,7 +114,7 @@ function LoginPhoneVerificationField({ value, onChange }: { value: string; onCha
         <input
           type="text"
           value={value}
-          onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, 8))}
+          onChange={(event) => onChange(normalizeAuthDigits(event.target.value).replace(/\D/g, '').slice(0, 8))}
           inputMode="numeric"
           autoComplete="one-time-code"
           placeholder="000000"

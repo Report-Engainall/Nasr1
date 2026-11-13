@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { Login } from "./Login";
@@ -42,6 +44,27 @@ describe("customer phone registration UI integration", () => {
     expect(source).toContain("verifyPhoneSignup(pendingPhone, verificationCode)");
     expect(source).toContain("resendPhoneSignupCode(pendingPhone)");
     expect(source).toContain("رمز التحقق المرسل إلى الهاتف");
+  });
+
+  it("accepts Arabic phone digits and converts localized SMS digits before verification", async () => {
+    vi.clearAllMocks();
+    authMocks.signUp.mockResolvedValue({ needsConfirmation: true, confirmationType: "phone", existingAccount: false });
+    authMocks.verifyPhoneSignup.mockResolvedValue(undefined);
+
+    render(createElement(Login, { initialMode: "register" }));
+    fireEvent.change(screen.getByLabelText("الاسم الكامل"), { target: { value: "تاجر الأغبري" } });
+    fireEvent.change(screen.getByLabelText(/رقم الهاتف/), { target: { value: "٠٧١٢٣٤٥٦٧٨" } });
+    fireEvent.change(screen.getByLabelText("كلمة المرور"), { target: { value: "secure-pass-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "إنشاء الحساب" }));
+
+    const verificationInput = await screen.findByLabelText("رمز التحقق المرسل إلى الهاتف");
+    fireEvent.change(verificationInput, { target: { value: "١٢٣٤٥٦" } });
+    expect((verificationInput as HTMLInputElement).value).toBe("123456");
+    fireEvent.click(screen.getByRole("button", { name: "تأكيد رقم الهاتف" }));
+
+    await waitFor(() => {
+      expect(authMocks.verifyPhoneSignup).toHaveBeenCalledWith("+967712345678", "123456");
+    });
   });
 
   it("keeps email signup, login and password recovery controls in the same component", () => {

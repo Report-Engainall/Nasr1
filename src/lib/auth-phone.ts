@@ -2,12 +2,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PhoneAuthApi = Pick<SupabaseClient["auth"], "signInWithPassword" | "signUp" | "verifyOtp" | "resend">;
 
+/** Convert Arabic-Indic and Eastern Arabic-Indic numerals to ASCII digits. */
+export function normalizeAuthDigits(value: string): string {
+  return value.replace(/[٠-٩۰-۹]/g, (digit) => {
+    const codePoint = digit.charCodeAt(0);
+    const zeroCodePoint = codePoint >= 0x06f0 ? 0x06f0 : 0x0660;
+    return String(codePoint - zeroCodePoint);
+  });
+}
+
 /**
  * Accepts Yemeni mobile numbers in local, 967, 00967 or E.164 form.
  * Formatting punctuation is allowed; alphabetic or misplaced-plus input is not.
  */
 export function normalizeAuthPhoneIdentifier(value: string): string | null {
-  const compact = value.trim().replace(/[()\s-]/g, "");
+  const compact = normalizeAuthDigits(value).trim().replace(/[()\s-]/g, "");
   if (!compact || !/^\+?\d+$/.test(compact)) return null;
 
   if (compact.startsWith("+")) {
@@ -65,7 +74,7 @@ export async function verifyPhoneSignupCode(
   tokenInput: string,
 ) {
   const phone = normalizeAuthPhoneIdentifier(phoneInput);
-  const token = tokenInput.replace(/\D/g, "");
+  const token = normalizeAuthDigits(tokenInput).replace(/\D/g, "");
   if (!phone) throw new Error("رقم الهاتف غير صالح. أعد إدخال رقمك.");
   if (!/^\d{4,8}$/.test(token)) {
     throw new Error("أدخل رمز التحقق المكوّن من 4 إلى 8 أرقام.");
