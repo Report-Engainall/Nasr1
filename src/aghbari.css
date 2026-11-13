@@ -695,3 +695,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .admin-category-product-row:hover{background:#f0f9fa}
 .admin-category-product-row:focus-visible{outline:3px solid rgba(8,145,158,.25);outline-offset:2px}
 .admin-category-product-row>svg{flex:none;color:#0e8fa3}
+
+
+/* Unknown stock is distinct from a verified zero balance. */
+.sf-stock-unknown { color: var(--aghbari-text-muted); }

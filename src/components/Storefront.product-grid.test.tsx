@@ -83,4 +83,61 @@ describe("storefront product card accessibility", () => {
     expect(screen.getByRole("button", { name: "إزالة رز بسمتي قابل للوصول من المفضلة" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "إزالة رز بسمتي قابل للوصول من المقارنة" }).getAttribute("aria-pressed")).toBe("true");
   });
+
+  it("does not report missing inventory evidence as confirmed out of stock or allow an unchecked add", () => {
+    const productWithoutInventory = {
+      ...product,
+      inventory: undefined,
+    } as unknown as ProductWithInventory;
+
+    render(
+      <ProductGrid
+        products={[productWithoutInventory]}
+        priceVisibilityPolicy={false}
+        wishlist={[]}
+        compare={[]}
+        emptyTitle="لا توجد منتجات"
+        emptyDescription=""
+        onOpen={vi.fn()}
+        onAdd={vi.fn()}
+        onWishlist={vi.fn()}
+        onCompare={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("لم يتم التحقق من المخزون")).toBeInTheDocument();
+    expect(screen.queryByText("نفد المخزون")).toBeNull();
+    const addButton = screen.getByRole("button", {
+      name: "إضافة رز بسمتي قابل للوصول إلى السلة",
+    });
+    expect(addButton).toBeDisabled();
+    expect(addButton).toHaveTextContent("التوفر غير مؤكد");
+  });
+
+  it("continues to report out of stock for an authoritative zero balance", () => {
+    const productWithZeroStock = {
+      ...product,
+      inventory: { quantity_available: 0 },
+    } as unknown as ProductWithInventory;
+
+    render(
+      <ProductGrid
+        products={[productWithZeroStock]}
+        priceVisibilityPolicy={false}
+        wishlist={[]}
+        compare={[]}
+        emptyTitle="لا توجد منتجات"
+        emptyDescription=""
+        onOpen={vi.fn()}
+        onAdd={vi.fn()}
+        onWishlist={vi.fn()}
+        onCompare={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("نفد المخزون")).toBeInTheDocument();
+    expect(screen.getByRole("button", {
+      name: "إضافة رز بسمتي قابل للوصول إلى السلة",
+    })).toBeDisabled();
+  });
 });

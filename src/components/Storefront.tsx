@@ -1017,11 +1017,16 @@ export function ProductGrid({
   return (
     <div className="sf-product-grid">
       {products.map((product) => {
-        const qty = product.inventory?.quantity_available ?? 0;
+        const rawAvailableQuantity = product.inventory?.quantity_available;
+        const quantityKnown =
+          typeof rawAvailableQuantity === "number" &&
+          Number.isFinite(rawAvailableQuantity) &&
+          rawAvailableQuantity >= 0;
+        const qty = quantityKnown ? rawAvailableQuantity : 0;
         const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
           ? Number(product.min_order_quantity) : 1;
-        const out = qty <= 0;
-        const belowMinimum = qty > 0 && qty < minimum;
+        const out = quantityKnown && qty <= 0;
+        const belowMinimum = quantityKnown && qty > 0 && qty < minimum;
         const liked = wishlist.includes(product.id);
         const compared = compare.includes(product.id);
 
@@ -1070,14 +1075,22 @@ export function ProductGrid({
                 className="sf-product-price"
                 unitLabel={product.unit}
               />
-              <div className="sf-product-stock">
-                {out
-                  ? <span className="sf-out">نفد المخزون</span>
-                  : <span className={belowMinimum ? "sf-out" : "sf-in"}>{formatNumber(qty)} متوفر{belowMinimum ? ' — أقل من الحد الأدنى' : ''}</span>}
+              <div className="sf-product-stock" aria-live="polite">
+                {!quantityKnown
+                  ? <span className="sf-stock-unknown">لم يتم التحقق من المخزون</span>
+                  : out
+                    ? <span className="sf-out">نفد المخزون</span>
+                    : <span className={belowMinimum ? "sf-out" : "sf-in"}>{formatNumber(qty)} متوفر{belowMinimum ? ' — أقل من الحد الأدنى' : ''}</span>}
               </div>
             </button>
-            <button type="button" className="sf-add-btn" aria-label={`إضافة ${product.name} إلى السلة`} disabled={out || belowMinimum} onClick={() => onAdd(product)}>
-              {out ? 'غير متوفر' : belowMinimum ? 'الكمية المتاحة أقل من الحد الأدنى' : <><Plus size={16} /> أضف للسلة</>}
+            <button type="button" className="sf-add-btn" aria-label={`إضافة ${product.name} إلى السلة`} disabled={!quantityKnown || out || belowMinimum} onClick={() => onAdd(product)}>
+              {!quantityKnown
+                ? 'التوفر غير مؤكد'
+                : out
+                  ? 'غير متوفر'
+                  : belowMinimum
+                    ? 'الكمية المتاحة أقل من الحد الأدنى'
+                    : <><Plus size={16} /> أضف للسلة</>}
             </button>
           </article>
         );
