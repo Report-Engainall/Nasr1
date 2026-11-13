@@ -50,8 +50,13 @@ export function StorefrontPredictiveSearch({
   const categoryMatches = useMemo(() => {
     if (!searchReady) return [];
     const needle = normalizeArabicSearchText(normalizedQuery);
+    if (!needle) return [];
     return categories
-      .filter((category) => category.is_active && normalizeArabicSearchText(category.name).includes(needle))
+      .filter((category) => {
+        if (!category.is_active) return false;
+        const candidate = normalizeArabicSearchText(category.name);
+        return Boolean(candidate && (candidate.includes(needle) || needle.includes(candidate)));
+      })
       .slice(0, 4);
   }, [categories, normalizedQuery, searchReady]);
 
@@ -241,16 +246,13 @@ export function StorefrontPredictiveSearch({
       />
       {isOpen && (
         <div
-          id={listboxId}
-          role="listbox"
-          aria-label="اقتراحات البحث"
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",
             insetInline: 0,
             zIndex: 80,
             display: "grid",
-            gap: 5,
+            gap: 8,
             maxHeight: 380,
             overflowY: "auto",
             padding: 8,
@@ -261,53 +263,61 @@ export function StorefrontPredictiveSearch({
             color: "#173b39",
           }}
         >
-          <div role="group" aria-label="البحث بالعبارة">
-            <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>البحث</div>
-            {renderOption({ kind: "query", id: "query", label: normalizedQuery }, 0)}
-          </div>
-          {categoryMatches.length > 0 && (
-            <div role="group" aria-label="التصنيفات المطابقة">
-              <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>التصنيفات</div>
-              {categoryMatches.map((category, localIndex) => {
-                const index = localIndex + 1;
-                return renderOption({
-                  kind: "category",
-                  id: `category-${category.id}`,
-                  label: category.name,
-                  category,
-                }, index);
-              })}
-            </div>
-          )}
           {loading && (
-            <div role="status" style={{ padding: 10, color: "#607a75", fontSize: 12 }}>
+            <div role="status" style={{ padding: 8, color: "#607a75", fontSize: 12 }}>
               جار البحث في كتالوج المتجر...
             </div>
           )}
           {error && (
-            <div role="status" style={{ padding: 10, color: "#8a5b24", fontSize: 12 }}>
+            <div role="status" style={{ padding: 8, color: "#8a5b24", fontSize: 12 }}>
               تعذر تحميل اقتراحات المنتجات؛ يمكنك متابعة البحث الكامل.
             </div>
           )}
           {productsAvailable && !loading && !error && products.length === 0 && (
-            <div role="status" style={{ padding: 10, color: "#607a75", fontSize: 12 }}>
+            <div role="status" style={{ padding: 8, color: "#607a75", fontSize: 12 }}>
               لا توجد منتجات مطابقة ضمن النتائج الحالية.
             </div>
           )}
-          {productsAvailable && !loading && !error && products.length > 0 && (
-            <div role="group" aria-label="المنتجات المطابقة">
-              <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>المنتجات</div>
-              {products.slice(0, 5).map((product, localIndex) => {
-                const index = 1 + categoryMatches.length + localIndex;
-                return renderOption({
-                  kind: "product",
-                  id: `product-${product.id}`,
-                  label: product.name,
-                  product,
-                }, index);
-              })}
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label="اقتراحات البحث"
+            aria-busy={loading}
+            style={{ display: "grid", gap: 5 }}
+          >
+            <div role="group" aria-label="البحث بالعبارة">
+              <div role="presentation" aria-hidden="true" style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>البحث</div>
+              {renderOption({ kind: "query", id: "query", label: normalizedQuery }, 0)}
             </div>
-          )}
+            {categoryMatches.length > 0 && (
+              <div role="group" aria-label="التصنيفات المطابقة">
+                <div role="presentation" aria-hidden="true" style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>التصنيفات</div>
+                {categoryMatches.map((category, localIndex) => {
+                  const index = localIndex + 1;
+                  return renderOption({
+                    kind: "category",
+                    id: `category-${category.id}`,
+                    label: category.name,
+                    category,
+                  }, index);
+                })}
+              </div>
+            )}
+            {productsAvailable && !loading && !error && products.length > 0 && (
+              <div role="group" aria-label="المنتجات المطابقة">
+                <div role="presentation" aria-hidden="true" style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>المنتجات</div>
+                {products.slice(0, 5).map((product, localIndex) => {
+                  const index = 1 + categoryMatches.length + localIndex;
+                  return renderOption({
+                    kind: "product",
+                    id: `product-${product.id}`,
+                    label: product.name,
+                    product,
+                  }, index);
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
