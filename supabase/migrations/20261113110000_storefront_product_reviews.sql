@@ -181,7 +181,7 @@ BEGIN
     AND o.customer_id = v_customer_id
     AND o.status = 'delivered'
     AND oi.product_id = p_product_id
-  ORDER BY v_delivered_at DESC, oi.id DESC
+  ORDER BY COALESCE((SELECT pg_catalog.max(h.created_at) FROM public.order_status_history h WHERE h.order_id = o.id AND h.to_status = 'delivered'), o.updated_at) DESC, oi.id DESC
   LIMIT 1;
 
   v_eligible := v_order_item_id IS NOT NULL;
@@ -392,23 +392,28 @@ BEGIN
 
   SELECT COALESCE(pg_catalog.jsonb_agg(
     pg_catalog.jsonb_build_object(
-      'id', r.id,
-      'product_id', r.product_id,
-      'product_name', p.name,
-      'item_code', p.item_code,
-      'order_number', o.order_number,
-      'rating', r.rating,
-      'title', r.title,
-      'body', r.body,
-      'created_at', r.created_at
-    ) ORDER BY r.created_at, r.id
+      'id', page.id,
+      'product_id', page.product_id,
+      'product_name', page.product_name,
+      'item_code', page.item_code,
+      'order_number', page.order_number,
+      'rating', page.rating,
+      'title', page.title,
+      'body', page.body,
+      'created_at', page.created_at
+    ) ORDER BY page.created_at, page.id
   ), '[]'::jsonb)
   INTO v_result
-  FROM public.storefront_product_reviews r
-  JOIN public.products p ON p.id = r.product_id AND p.organization_id = v_org
-  JOIN public.orders o ON o.id = r.order_id AND o.organization_id = v_org
-  WHERE r.organization_id = v_org AND r.moderation_status = 'pending'
-  LIMIT p_limit;
+  FROM (
+    SELECT r.id, r.product_id, p.name AS product_name, p.item_code,
+           o.order_number, r.rating, r.title, r.body, r.created_at
+    FROM public.storefront_product_reviews r
+    JOIN public.products p ON p.id = r.product_id AND p.organization_id = v_org
+    JOIN public.orders o ON o.id = r.order_id AND o.organization_id = v_org
+    WHERE r.organization_id = v_org AND r.moderation_status = 'pending'
+    ORDER BY r.created_at, r.id
+    LIMIT p_limit
+  ) page;
 
   RETURN v_result;
 END;
@@ -449,7 +454,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Administrator or manager permission is required';
   END IF;
 
-  IF p_review_id IS NULL OR p_decision NOT IN ('approve', 'reject')
+  IF p_review_id IS NULL OR p_decision IS NULL OR p_decision NOT IN ('approve', 'reject')
      OR (p_decision = 'reject' AND v_note = '') THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Review decision and rejection reason are required';
   END IF;
