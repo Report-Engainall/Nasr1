@@ -5105,3 +5105,32 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Enabled central device-session fixtures in `ee2a70c5...`: a distinct, confirmed local admin Auth profile and separate manager target are created in the same isolated local tenant. The verifier enforces loopback endpoints, active Auth-linked profiles, roles and tenant equality. No synthetic JWT or server-policy change is used.
 - Current P2 exact-source run [#43351991031](https://github.com/Report-Engainall/Nasr1/actions/runs/43351991031) verifies source SHA `5d5fa012d53b6f3d6a22ec6096444740cecc1108`. At this checkpoint the terminal outcome has not been proven; prior SHA PASS labels do not transfer. Intermediate run [#43351800195](https://github.com/Report-Engainall/Nasr1/actions/runs/43351800195) was cancelled by the later commit and is not evidence.
 - Release remains **NO-GO** until P2 succeeds on the final source SHA, including customer-manager privacy/audit and central device-session immediate revocation. No Vercel, hosted Supabase mutation, production migration, deployment or paid service was used.
+
+---
+
+## ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — CUSTOMER LOCALIZED QUANTITY INPUTS
+
+> Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+> Merged commit: `7efcbf51b12b21963eeeec9c85e7a6938bd181fc`; PR [#429](https://github.com/Report-Engainall/Nasr1/pull/429) is **MERGED**.
+> Implementation source SHA: `8efe6c1c4a2ed66f305d1818e9adeb955fc25d9b`.
+> Record: [P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md](../execution/P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md).
+
+## Implemented
+
+- Shared normalizer `src/lib/localized-number-input.ts` and unit tests `src/lib/localized-number-input.test.ts`.
+- Customer return quantity input in `src/components/CustomerReturnRequest.tsx` accepts Arabic-Indic and Persian digits and the Arabic decimal separator.
+- Customer order amendment quantities in `src/components/CustomerOrders.tsx` use the same normalization before existing validation/submission.
+
+## Preserved contracts
+
+- Existing returnable-quantity ceiling, positive-value rule and three-decimal precision remain enforced by `buildCustomerReturnLines`.
+- Existing order amendment ceiling, positive-value rule and three-decimal precision remain unchanged.
+- Existing Supabase RPCs, idempotency, amendment version history, approval and inventory behavior remain unchanged.
+- No SQL, migration, RLS, Auth, pricing, inventory-write or production data change; no Vercel or paid service.
+
+## Exact proof boundary
+
+- P1 PR run [#43353568219](https://github.com/Report-Engainall/Nasr1/actions/runs/43353568219), source SHA `8efe6c1c4a2ed66f305d1818e9adeb955fc25d9b`: **SUCCESS** — Vitest, strict TypeScript and production build.
+- P2 PR run [#43353568302](https://github.com/Report-Engainall/Nasr1/actions/runs/43353568302), same source SHA: public read-only Storefront Playwright smoke **SUCCESS**; authenticated order/tenant job **SKIPPED**; local Supabase/order acceptance was **IN_PROGRESS** at this checkpoint. No order/tenant PASS is claimed.
+- P1 push run [#43353836138](https://github.com/Report-Engainall/Nasr1/actions/runs/43353836138), merged main SHA `7efcbf51b12b21963eeeec9c85e7a6938bd181fc`: **IN_PROGRESS** at checkpoint time.
+- Overall product release remains **NO-GO** until the unrelated database/tenant/finance/order acceptance gates in this document are closed. This commit closes only localized quantity entry.
