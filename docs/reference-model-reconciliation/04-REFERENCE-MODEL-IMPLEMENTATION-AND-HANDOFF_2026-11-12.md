@@ -1,3 +1,36 @@
+# ACTIVE SESSION CHECKPOINT — 2026-11-13 — CUSTOMER, SUPPLIER AND SESSION ISOLATION
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Code SHA tested: `f90f03e65a77733fbfa4c438757d2a072f856635`.
+- Current main at documentation update: `3189298c395a9b0829947ba0709abce04b5ab56c`. The latest commit after the code SHA is documentation-only; the code tested on `f90f03e...` is unchanged.
+
+## Product changes now on main
+
+1. Predictive storefront search merged in PR #427 at `db7a3f1cd69943731824d5654d66907842a844bc`, using the existing paginated catalogue RPC, Arabic RTL suggestions, keyboard interaction and stale-result suppression.
+2. Customer account hub exposes existing invoices, quotes, wishlist, product comparison and service-case routes under the existing customer-only role branch. Added role regression test; the route-list syntax regression found in P2 was fixed.
+3. Supplier finance hub mounted lazily in the existing supplier directory, reusing payment, invoice capture, variance review and supplier-account activity components. Ledger accounts come from the current tenant-scoped `fetch_general_ledger` RPC; no new payment or posting endpoint.
+4. Supplier invoice tables show purchase-order requested quantity by immutable `purchaseOrderItemId`, using the already loaded purchase-order list. No name-based approximation or fake zero; missing source renders `غير متاح`. Accountant does not get an additional purchase-order read.
+5. Supplier invoice workspace requests for invoice rows, due dates, evidence and signed evidence URLs are protected against late responses across user/profile/session changes; previous session projections are cleared before the next identity's data is loaded.
+6. PurchaseOrdersPage is keyed by authenticated identity/profile/session revision and its async loader invalidates stale responses. This prevents a same-role manager switch from briefly retaining or passing the prior institution's supplier/order data into invoice quantity matching.
+7. Arabic-Indic and Persian digits are normalized for product detail and Quick Order Matrix. Existing minimum quantity, package multiple and availability limits remain authoritative; malformed input is rejected. PR #430 merged as `f90f03e...`.
+
+## Exact validation evidence
+
+- P1 exact code SHA `f90f03e...`: run #43355464142 **SUCCESS** — Vitest, strict TypeScript and production bundle.
+- P1 documentation head `3189298...` (code unchanged): run #43355622878 **SUCCESS**.
+- P2 exact code SHA `f90f03e...`: run #43355464084. Public storefront read-only Playwright smoke **SUCCESS**. The dedicated local Supabase/PostgreSQL 17 acceptance job #131657416408 is **IN_PROGRESS** at step 16, starting isolated local services; no failure recorded. Authenticated external customer-order/tenant job is **SKIPPED** and is not accepted.
+- Historical full P2 run #43353568302 completed **SUCCESS** on source SHA `8efe6c1c4a2ed66f305d1818e9adeb955fc25d9b`, with all 44 local-job steps successful (including order persistence/cross-tenant denial, finance print, customer-manager privacy/audit and device-session revocation). This is valid evidence only for that historical source SHA and is not transferred to `f90f03e...`.
+- Product release remains **NO-GO** until P2 on the current code SHA reaches terminal SUCCESS and remaining release gates are accepted.
+
+## Ownership, source archive and safety
+
+- Path A in this session: storefront, customer profile, supplier finance, purchase-order context and session isolation.
+- Path B remains isolated under Issue #422: `src/lib/reference-model/{observability,prompt-persistence}/**` and `src/components/reference-model/{observability,ai-governance,developer-tools}/**`. The old worker branches were reviewed and not merged because they are stale/behind and change shared files outside the assigned boundary. No newer isolated Path B delivery is evidenced in the issue thread yet.
+- The requested Library folder `/Nasr1-Reference-Model-2026-11-12` and `all.rar` were not present in the full Library listing/search. Do not claim the archive was restored. The reconciliation report remains in the repository; the 84 reference images were not reopened.
+- No Vercel build/deploy, paid usage, hosted Supabase database, production secret, production migration or live integration was used.
+
+---
+
 # LATEST EXECUTION ADDENDUM — 2026-11-13
 
 This addendum records implementation completed after the initial 2026-11-12 gap-closure plan. It does not replace the original acceptance list or classify unresolved backend gates as complete.
