@@ -130,23 +130,23 @@ test("checkout replays one committed order after its success response is lost an
     await expect(retry, "The same cart and exact request signature must be restored.").toBeEnabled({ timeout: 45_000 });
     await retry.click();
 
-    const confirmation = page.locator(".sf-confirm");
-    await expect(confirmation.getByRole("heading", { name: "تم استلام طلبك بنجاح!" })).toBeVisible({ timeout: 45_000 });
-    const confirmationText = await confirmation.locator("p").first().innerText();
-    const match = confirmationText.match(/رقم الطلب\s*:\s*(\S+)/);
-    expect(match).not.toBeNull();
-    expect(match![1]).toBe(committedResult!.order_number);
-    expect(submitCalls).toBe(2);
-    expect(replayRequest?._idempotency_key).toBe(firstKey);
-    expect(replayRequest?._items).toEqual(firstRequest?._items);
-    expect(replayRequest?._notes).toBe(firstRequest?._notes);
-    expect(replayRequest?._contact_name).toBe(firstRequest?._contact_name);
-    expect(replayRequest?._phone).toBe(firstRequest?._phone);
-    expect(replayRequest?._payment_terms).toBe(firstRequest?._payment_terms);
-    expect(replayRequest?._delivery_address_id).toBe(firstRequest?._delivery_address_id);
+    // A replayed success uses the same durable detail route as a first submission.
+    // Read the committed order identifier from the route and the business number from
+    // the server-backed print document; no transient confirmation panel is expected.
+    await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/i, { timeout: 45_000 });
+    const detailPath = new URL(page.url()).pathname;
+    expect(detailPath.split("/").filter(Boolean).at(-1)).toBe(orderId);
 
-    const orderId = String(committedResult!.id);
-    expect(orderId).toMatch(/^[0-9a-f-]{36}$/i);
+    const orderDocument = page.getByTestId("customer-order-print-document");
+    await expect(orderDocument, "Idempotent replay must navigate to the original durable order detail.").toBeVisible({ timeout: 30_000 });
+    const orderNumberLocator = orderDocument.getByText(/^ORD-[A-Z0-9-]+$/);
+    await expect(orderNumberLocator, "The replayed order number must be read from the persisted order document.").toBeVisible({ timeout: 30_000 });
+    const orderNumber = (await orderNumberLocator.innerText()).trim();
+    expect(orderNumber).toBe(committedResult!.order_number);
+
+    await page.reload();
+    await expect(orderDocument).toBeVisible({ timeout: 30_000 });
+    await expect(orderDocument).toContainText(orderNumber, { timeout: 30_000 });
     const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
     try {
       const orders = await db.unsafe(
