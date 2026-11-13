@@ -148,3 +148,11 @@ The account hub composition follows the account-as-workspace pattern studied in 
 - Added src/components/ProductMediaGallery.test.tsx for synchronized selection, wrapping navigation, RTL keyboard behavior, focus trapping/restoration, single-image behavior and unsafe URL filtering.
 - Design reference: BigCommerce Catalyst core/vibes/soul/sections/product-detail/product-gallery.tsx, branch canary, commit 22de59ae265ab754d7105c67a769e6015bcf6ce1, blob b11c42cea3ae1fb2f46590b077f2a427c2b55ec3; root LICENSE read at the same commit and confirmed MIT. NASR1 independently implements the synchronized gallery behavior; no Catalyst source, asset, package or dependency was copied.
 - Source commit: 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d. P1/P2 exact-SHA checks are recorded separately; real Storage upload and authenticated tenant acceptance remain open. No migration, RPC, RLS, role, finance or deployment change was made.
+
+
+### Exact-SHA verification update — 2026-11-14
+
+- Source code SHA: 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d (retained in current main ancestry).
+- P1 workflow 43528039098: SUCCESS on that exact code SHA. Vitest 114/114 files and 805/805 tests passed, including ProductMediaGallery.test.tsx (5/5); strict TypeScript and production build passed.
+- P2 workflow 43528039111: public Chromium UI smoke SUCCESS, 19/19 assertions. It covers the existing public/customer route, RTL, viewport and price-privacy smoke paths; it is not claimed as a dedicated visual test of every gallery interaction.
+- Isolated local Supabase/PostgreSQL 17 order/tenant acceptance job 132239609646 was still IN_PROGRESS at this documentation update. Hosted authenticated customer/order/tenant E2E remains SKIPPED. Storage-backed gallery upload and live authenticated media UAT remain open.

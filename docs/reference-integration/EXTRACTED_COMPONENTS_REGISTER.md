@@ -128,3 +128,11 @@ No packages were added, removed or upgraded. The change uses the application's e
 | BigCommerce Catalyst — core/vibes/soul/sections/product-detail/product-gallery.tsx | canary commit 22de59ae265ab754d7105c67a769e6015bcf6ce1; blob b11c42cea3ae1fb2f46590b077f2a427c2b55ec3 | MIT; root LICENSE read at the pinned commit | src/components/ProductMediaGallery.tsx; src/components/ProductMediaGallery.test.tsx; src/components/Storefront.tsx; src/aghbari.css | Synchronized image/thumbnail selection, explicit navigation, selected-index feedback and responsive media layout; NASR1 adds RTL keyboard mapping, focus trap/restoration and touch swipe | Independent reimplementation; no Catalyst code or dependency copied |
 
 The implementation is in NASR1 source commit 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d. It keeps the existing product_media read contract and image upload lifecycle. It adds no second media store, upload service, storage bucket, API or dependency. The component test is authored; exact-SHA execution is tracked separately from source presence.
+
+
+### Exact-SHA execution evidence — 2026-11-14
+
+- Product media implementation SHA: 4e6b6114e262eff4387c9cc421f8ac06a3bfbf7d.
+- P1 run 43528039098 SUCCESS: ProductMediaGallery.test.tsx passed 5/5; full Vitest passed 114/114 files and 805/805 tests; strict TypeScript and production build passed on the exact source SHA.
+- P2 run 43528039111 public Chromium smoke passed 19/19 on the same exact source SHA. This verifies the existing public storefront route/RTL/viewport and price-privacy smoke suite, not a separate gallery-specific visual or production UAT.
+- Local Supabase/PostgreSQL 17 order and tenant acceptance job 132239609646 was IN_PROGRESS at this update; hosted authenticated order/tenant E2E and real Storage media UAT are not claimed.
