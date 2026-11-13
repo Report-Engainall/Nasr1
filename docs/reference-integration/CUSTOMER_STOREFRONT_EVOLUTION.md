@@ -118,3 +118,13 @@ The account hub composition follows the account-as-workspace pattern studied in 
 - The feature reuses NASR1's current customer identity, organization, Supabase RPC, product detail, and Products workspace. It adds no duplicate account, route, order or permission system.
 - Implementation: \`supabase/migrations/20261113130000_storefront_product_questions.sql\`, \`src/lib/storefront-product-questions.ts\`, \`src/components/StorefrontProductQuestions.tsx\`, \`src/components/StorefrontProductQuestionModeration.tsx\`, and the existing \`Storefront.tsx\` / Products workspace.
 - Independent NASR1 implementation; no external project source, UI asset, package or paid provider was copied or added. P1 and isolated PostgreSQL 17 acceptance are required before merge.
+
+## Side-by-side product comparison workspace — 2026-11-14
+
+- The existing compare selection, three-product limit, local browser persistence, product-card action and storefront view were retained; the compare route now renders a true specification comparison table instead of repeating the product grid.
+- Each selected product is compared using the current tenant-scoped catalog projection: category, item code, SKU, unit, published description, server-returned display price, available quantity, minimum order quantity, order multiple and featured status.
+- Price display continues through the existing fail-closed `resolveStorefrontPricePresentation` / `StorefrontPricePresentation` contract. Hidden, missing, malformed or zero-sentinel prices are not reconstructed from product-tier or client-side price fields.
+- Stock is shown as unavailable for checking when the inventory projection is missing or malformed; it is not incorrectly labeled as out of stock. Add-to-cart is disabled unless the available quantity is authoritative and meets the product's minimum order quantity.
+- The comparison table is keyboard-focusable and horizontally scrollable on small screens. Product detail, remove-from-comparison and add-to-cart actions call the existing storefront handlers; no second comparison store, catalog query or cart path was introduced.
+- Implementation: `src/components/store/ProductComparison.tsx`, `src/components/store/ProductComparison.test.tsx`, and the existing compare-view integration in `src/components/Storefront.tsx`.
+- Independently implemented on NASR1's React/TypeScript stack. No external project source, assets, packages, or paid service was copied or added. Component tests cover actual row values, price suppression, unknown stock, disabled ordering, actions, and retry state. CI and full browser acceptance remain separate from source implementation.
