@@ -23,6 +23,7 @@ afterEach(() => {
 
 describe("SystemHealthPanel", () => {
   it("renders the actual budget source probe but keeps global and provider health unknown", async () => {
+    // The latency assertion covers the browser round trip, not database execution time.
     mocks.fetchAiGatewayBudget.mockResolvedValue({
       ok: true,
       status: "READY",
