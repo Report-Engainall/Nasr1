@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CheckCircle2, ClipboardList, FileSpreadsheet, PackageCheck, Plus, Printer,
   RefreshCw, Send, Trash2, Warehouse,
@@ -327,7 +327,7 @@ function PurchaseOrderPrintViews({ printMode, orderDocument, resultsDocument }: 
 }
 
 export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchaseOrderId?: string } = {}) {
-  const { user } = useAuth();
+  const { user, sessionRevision } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [orders,setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers,setSuppliers] = useState<Supplier[]>([]);
@@ -350,6 +350,7 @@ export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchase
   const [receiveBatchDrafts,setReceiveBatchDrafts] = useState<Record<string,string>>({});
   const [receiveExpiryDrafts,setReceiveExpiryDrafts] = useState<Record<string,string>>({});
   const [printMode,setPrintMode] = useState<'results'|'order'|null>(null);
+  const loadRequestRef = useRef(0);
 
   useEffect(() => {
     const resetPrintMode = () => setPrintMode(null);
@@ -363,12 +364,17 @@ export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchase
   }
 
   const load = useCallback(async () => {
-    if (!canManage) { setLoading(false); return; }
+    const requestId = ++loadRequestRef.current;
+    if (!canManage) {
+      if (requestId === loadRequestRef.current) setLoading(false);
+      return;
+    }
     setLoading(true); setError('');
     try {
       const [nextOrders,nextSuppliers,nextProducts,nextWarehouses] = await Promise.all([
         fetchPurchaseOrders(),fetchSuppliers(),fetchProducts(),fetchActiveInventoryWarehouses(),
       ]);
+      if (requestId !== loadRequestRef.current) return;
       setOrders(nextOrders);
       setSuppliers(nextSuppliers);
       setProducts(nextProducts.filter((product) => product.status === 'active'));
@@ -378,13 +384,38 @@ export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchase
       setWarehouseId((current) => current && nextWarehouses.some((warehouse) => warehouse.id === current)
         ? current : nextWarehouses[0]?.id ?? '');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'تعذر تحميل أوامر الشراء والمراجع.');
+      if (requestId === loadRequestRef.current) {
+        setError(cause instanceof Error ? cause.message : 'تعذر تحميل أوامر الشراء والمراجع.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
-  },[canManage]);
+  },[canManage,user?.id,user?.profileId,sessionRevision]);
 
-  useEffect(() => { void load(); },[load]);
+  useEffect(() => {
+    // Clear and invalidate user-scoped purchase data before loading a new identity.
+    loadRequestRef.current += 1;
+    setOrders([]);
+    setSuppliers([]);
+    setProducts([]);
+    setWarehouses([]);
+    setSelectedId(null);
+    setSupplierId('');
+    setWarehouseId('');
+    setStatusFilter('all');
+    setShowCreate(false);
+    setDraftLines([newLine()]);
+    setReceiveDrafts({});
+    setReceiveBatchDrafts({});
+    setReceiveExpiryDrafts({});
+    setReceiptNotes('');
+    setCancelReason('');
+    setError('');
+    setNotice('');
+    setPrintMode(null);
+    void load();
+    return () => { loadRequestRef.current += 1; };
+  },[load]);
   useEffect(() => {
     if (!initialPurchaseOrderId || loading) return;
     const target = orders.find((order) => order.id === initialPurchaseOrderId);
