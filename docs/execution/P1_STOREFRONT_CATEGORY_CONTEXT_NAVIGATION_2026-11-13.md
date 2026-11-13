@@ -43,3 +43,12 @@ No schema, migration, RPC, RLS, Auth, pricing, stock, cart, checkout, tenant acc
 - Playwright public Storefront coverage now checks the real subcategory deep link, parent breadcrumb, selected child and sibling navigation using an isolated, read-only RPC fixture; it does not write to an external backend.
 - Exact-head P1/P2 GitHub Actions results are required before merge; pending runs are not acceptance.
 - External/hosted customer database acceptance is out of scope; no claim of cross-device category-data behavior is made.
+
+## Final merge and exact-head evidence — 13 November 2026
+
+- PR [#436](https://github.com/Report-Engainall/Nasr1/pull/436) merged to `main` at `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; tested PR head: `ad5acb8d16ab8c3073e4be20a6e1b38a671e804d`.
+- P1 exact-head run [#43364274617](https://github.com/Report-Engainall/Nasr1/actions/runs/43364274617): **SUCCESS**.
+- P2 exact-head run [#43364274572](https://github.com/Report-Engainall/Nasr1/actions/runs/43364274572): public read-only Storefront Chromium smoke **SUCCESS**, 19/19 tests, including the subcategory deep-link assertions.
+- P1 after merge on exact main SHA [#43364890089](https://github.com/Report-Engainall/Nasr1/actions/runs/43364890089): **SUCCESS**.
+- P2 after merge [#43364889951](https://github.com/Report-Engainall/Nasr1/actions/runs/43364889951): public Storefront browser assertions completed successfully; full workflow was still in progress at the last recorded poll and hosted authenticated customer/tenant E2E was **SKIPPED**.
+- No database, RPC, RLS, Auth, pricing, inventory, cart or checkout changes; no Vercel/deployment/paid service.
