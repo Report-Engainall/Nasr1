@@ -18,6 +18,7 @@
     "src/test/admin-customer-360-display.test.tsx",
     "src/components/AghbariApp.tsx",
     "src/components/AdminPages.tsx",
+    "src/components/AdminPages.settings-architecture.test.tsx",
     "src/routes/__root.tsx",
     "src/lib/admin-theme.ts",
     "src/lib/admin-theme.test.ts",
