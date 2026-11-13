@@ -128,7 +128,7 @@ export function StorefrontProductReviewModeration({ onBack }: { onBack: () => vo
             <p style={{ margin: 0, color: "#4c6259", fontSize: 12, lineHeight: 1.9, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{item.body}</p>
             <label style={{ display: "grid", gap: 5, color: "#536a60", fontSize: 11, fontWeight: 700 }}>
               سبب الرفض (إلزامي عند الرفض)
-              <textarea value={notes[item.id] ?? ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.currentTarget.value }))} maxLength={500} rows={2} placeholder="اكتب سبباً واضحاً ومختصراً عند رفض التقييم..." style={{ width: "100%", boxSizing: "border-box", minHeight: 60, border: "1px solid #d8e3dc", borderRadius: 8, padding: 9, resize: "vertical" }} />
+              <textarea value={notes[item.id] ?? ""} onChange={(event) => { const value = event.currentTarget.value; setNotes((current) => ({ ...current, [item.id]: value })); }} maxLength={500} rows={2} placeholder="اكتب سبباً واضحاً ومختصراً عند رفض التقييم..." style={{ width: "100%", boxSizing: "border-box", minHeight: 60, border: "1px solid #d8e3dc", borderRadius: 8, padding: 9, resize: "vertical" }} />
             </label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button type="button" disabled={Boolean(busyId)} onClick={() => void decide(item, "approve")} className="sf-btn-primary"><Check size={14} /> {busyId === item.id ? "جار الحفظ..." : "اعتماد ونشر"}</button>
