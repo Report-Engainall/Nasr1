@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ProductWithInventory } from "@/lib/types";
@@ -41,7 +42,7 @@ const coffee = {
 
 afterEach(() => cleanup());
 
-function renderComparison(overrides: Partial<React.ComponentProps<typeof ProductComparison>> = {}) {
+function renderComparison(overrides: Partial<ComponentProps<typeof ProductComparison>> = {}) {
   const onOpen = vi.fn();
   const onAdd = vi.fn();
   const onRemove = vi.fn();
