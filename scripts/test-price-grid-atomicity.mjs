@@ -127,6 +127,40 @@ async function main() {
       assume(clientB,mgr.auth_user_id,mgr.email),
       assume(customer,cust.auth_user_id,cust.email),
     ]);
+
+    // Compare the identical JWT claims as the privileged database role and as
+    // authenticated. This separates fixture linkage from role/RLS context without
+    // changing any production policy or weakening the RPC guard.
+    await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [mgr.auth_user_id]);
+    await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ sub: mgr.auth_user_id, email: mgr.email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    ]);
+    const privilegedContextRows = await db.unsafe(
+      "select auth.uid()::text as auth_user_id, " +
+      "public.current_profile_id()::text as current_profile_id, " +
+      "public.current_organization_id()::text as current_organization_id, " +
+      "current_user as database_role, " +
+      "current_setting('request.jwt.claim.sub',true) as jwt_subject, " +
+      "(select p.id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_id, " +
+      "(select p.organization_id::text from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_organization_id, " +
+      "(select p.is_active from public.profiles p where p.auth_user_id=auth.uid() order by p.id limit 1) as visible_profile_is_active, " +
+      "(select count(*)::integer from public.profiles p where p.auth_user_id=auth.uid()) as visible_profile_count, " +
+      "(select count(*)::integer from public.profiles p join public.user_roles r on r.profile_id=p.id " +
+      "where p.auth_user_id=auth.uid() and p.organization_id=$1::uuid and p.is_active=true and r.role in ('admin','manager')) as manager_role_count, " +
+      "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_owner, " +
+      "(select pr.prosecdef from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_security_definer, " +
+      "(select pr.proconfig::text from pg_catalog.pg_proc pr where pr.oid='public.current_profile_id()'::regprocedure) as current_profile_function_config, " +
+      "(select pg_catalog.pg_get_functiondef('public.current_profile_id()'::regprocedure)) as current_profile_function_definition, " +
+      "(select pg_catalog.pg_get_userbyid(pr.proowner) from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_organization_function_owner, " +
+      "(select pr.prosecdef from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_organization_security_definer, " +
+      "(select pr.proconfig::text from pg_catalog.pg_proc pr where pr.oid='public.current_organization_id()'::regprocedure) as current_organization_function_config, " +
+      "(select pg_catalog.pg_get_functiondef('public.current_organization_id()'::regprocedure)) as current_organization_function_definition, " +
+      "(select pg_catalog.pg_get_userbyid(c.relowner) from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_table_owner, " +
+      "(select c.relrowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_row_security, " +
+      "(select c.relforcerowsecurity from pg_catalog.pg_class c where c.oid='public.profiles'::regclass) as profiles_force_rls",
+      [orgId],
+    );
+    const privilegedContext = privilegedContextRows[0];
     const managerContextRows = await manager.unsafe(
       "select auth.uid()::text as auth_user_id, " +
       "public.current_profile_id()::text as profile_id, " +
@@ -149,6 +183,11 @@ async function main() {
     );
     const managerContext = managerContextRows[0];
     if (
+      privilegedContext?.auth_user_id !== mgr.auth_user_id ||
+      privilegedContext?.current_profile_id !== mgr.id ||
+      privilegedContext?.current_organization_id !== orgId ||
+      privilegedContext?.visible_profile_id !== mgr.id ||
+      Number(privilegedContext?.manager_role_count ?? 0) < 1 ||
       managerContext?.auth_user_id !== mgr.auth_user_id ||
       managerContext?.profile_id !== mgr.id ||
       managerContext?.organization_id !== orgId ||
@@ -156,7 +195,16 @@ async function main() {
       managerContext?.jwt_subject !== mgr.auth_user_id ||
       managerContext?.has_admin_manager_role !== true
     ) {
-      throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify(managerContext));
+      throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify({
+        fixture: {
+          profile_id: mgr.id,
+          auth_user_id: mgr.auth_user_id,
+          organization_id: orgId,
+          is_active: true,
+        },
+        privileged_context: privilegedContext,
+        authenticated_context: managerContext,
+      }));
     }
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
