@@ -105,3 +105,43 @@ No SQL/RPC/RLS/Auth changes, hosted database writes, production data changes, Ve
 - The local P2 acceptance job is isolated CI infrastructure, not the hosted/production database. It does not replace the missing authenticated admin observability Playwright coverage (desktop/mobile, manager/admin allow, accountant deny, session-change clearing and re-probe).
 - PR #442 remains open/unmerged. The P1 mount is not on main. Main contains three documentation-only checkpoint commits after the PR base; re-sync the PR branch and rerun both workflows on the resulting exact SHA before integration.
 - Release remains **NO-GO** pending admin panel browser acceptance, all 41 reference page decisions, and remaining blocked server contracts.
+
+
+---
+
+## P3 CHECKPOINT — AI AUDIT QUALITY ENGINE + LEGACY READ SAFETY — 14 NOVEMBER 2026
+
+- Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+- Base SHA: `3e45227d13d1c25fd1e1ded4aa0e48d21964302f`.
+- P3 implementation SHA: `3e45227d13d1c25fd1e1ded4aa0e48d21964302f`.
+- Implementation commit: `feat(ai-governance): add usage quality insights and repair legacy audit safety`.
+
+### Delivered source changes
+
+- Repaired `supabase/migrations/20261114110000_ai_gateway_audit_tenant_read_contract.sql`. The preceding main revision had a 49,625-byte SQL file with 32 repeated COMMIT statements and truncated expressions; this checkpoint replaces it with one 199-line function definition and one COMMIT.
+- The tenant-derived admin/manager RPC now validates JSONB `provider_attempts` before extracting provider metadata. Scalar/object payloads, overlong arrays, count mismatches, invalid entries and unsafe numeric values are marked `provider_attempts_integrity=false`; the RPC withholds the entire attempt-detail array and preserves the original source count. It does not reinterpret malformed telemetry as a successful provider call.
+- Extended the bounded audit DTO with `providerAttemptTelemetryAvailable`; the client rejects missing/invalid integrity flags and requires a malformed payload to contain no returned provider details.
+- Added deterministic, read-only quality insights on the existing AI audit screen: provider-attempt failure rate, fallback reliance, nearest-rank P95 request latency, and missing usage-measurement rate.
+- The quality view is explicitly scoped to the currently visible page (maximum 25 rows), uses a minimum sample of five before a rate/latency can be labeled, displays denominators, and suppresses summary metrics when a status filter biases the sample. Thresholds are explicitly labeled as operational heuristics, not contractual SLA or proof of provider connectivity.
+- Added eight deterministic unit cases for empty/insufficient samples, provider failure denominator, fallback denominator, P95, measurement gaps, malformed legacy telemetry and source immutability.
+- Added an isolated P2 PostgreSQL 17 regression fixture containing a JSONB scalar in `provider_attempts`; it asserts the RPC returns no attempt details, integrity=false and preserves the source attempt count.
+- Added the new engine/test directory to the P1 workflow push and pull_request path filters.
+
+### Exact-SHA validation status at checkpoint
+
+- P1 run [#43525085475](https://github.com/Report-Engainall/Nasr1/actions/runs/43525085475): **IN_PROGRESS** on exact SHA `3e45227d13d1c25fd1e1ded4aa0e48d21964302f`. No pass is claimed.
+- P2 run [#43525085539](https://github.com/Report-Engainall/Nasr1/actions/runs/43525085539): **IN_PROGRESS** on the same exact SHA. PostgreSQL 17 scalar-payload regression and remaining local Chromium acceptance are not yet certified.
+- P1 source tests, strict TypeScript and production build are pending terminal run results. P2 local migration/auth/tenant/browser checks are pending terminal results.
+- Prior exact-head P1/P2 failures on SHA `777f7b3...` are historical failures and are not transferred to this implementation SHA.
+
+### Security and release boundary
+
+- No hosted or production database was queried or mutated; migration is source-controlled only and must be proven in isolated CI before any future application.
+- No production deployment, Vercel operation, external AI provider request, paid service, live integration, secret, finance write, inventory write or customer-data mutation was performed.
+- Provider/model zero-cost evidence, privacy verification and deployed Edge Function remain unproven; external provider egress and dynamic model use remain disabled.
+- Durable runtime-error events and trusted server-side Developer AI repository access remain BLOCKED; no fake error data or client-side GitHub token path was introduced.
+- Overall product release remains **OPEN / NO-GO**. The 41 reference screens are not certified complete by this P3 slice.
+
+### Next P3 action
+
+Read the terminal P1/P2 result for this exact SHA. Fix any test or migration regression found, re-run on the new exact SHA, then append the terminal evidence here and update the canonical execution state/matrix. Do not merge or label PASS from a prior SHA.

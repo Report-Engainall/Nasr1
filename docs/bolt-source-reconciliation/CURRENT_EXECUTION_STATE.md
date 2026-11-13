@@ -5556,3 +5556,16 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Admin-settings authenticated browser acceptance remains **NOT RUN / BLOCKED** pending P1's Playwright coverage for admin/manager allow, accountant/unauthorized deny, mobile/desktop layout, session-change clearing and retry behavior.
 - PR remains open/unmerged; sync the PR branch with current main documentation commits, then rerun P1/P2 on one exact resulting head. Main app code is unchanged by checkpoint commits.
 - No hosted/production database, production deployment, Vercel, paid service or external AI call.
+
+
+---
+
+## CURRENT MAIN P3 STATUS — AI AUDIT QUALITY / LEGACY TELEMETRY — 14 NOVEMBER 2026
+
+- Source implementation main SHA: `3e45227d13d1c25fd1e1ded4aa0e48d21964302f` (parent `3e45227d13d1c25fd1e1ded4aa0e48d21964302f`).
+- P3 added deterministic quality insights to the existing per-attempt AI audit view and repaired the SQL reader against malformed historical JSONB. The source carries a per-record integrity flag; corrupt attempt details are withheld, while the original source count remains visible.
+- Added eight unit cases and a local PostgreSQL 17 scalar-JSONB acceptance fixture. The fixture is not production data.
+- Exact-SHA P1 run [#43525085475](https://github.com/Report-Engainall/Nas1/actions/runs/43525085475) is **IN_PROGRESS**; exact-SHA P2 run [#43525085539](https://github.com/Report-Engainall/Nas1/actions/runs/43525085539) is **IN_PROGRESS**. Neither is PASS at this update.
+- The preceding main migration blob was malformed (32 repeated COMMIT markers / 1,334 lines). It was replaced on this SHA by one 199-line SQL function and one COMMIT; final proof is pending P2 PostgreSQL 17 application.
+- Prompt-version persistence and bounded AI audit now exist in source/migrations; acceptance of maker-checker, tenant isolation, scalar-history handling and UI remains dependent on the current exact P2 run. Provider/model verification, free-tier and privacy proof, deployed Edge Function, durable error log and trusted Developer AI repository access remain BLOCKED.
+- No production DB, live provider, Vercel, paid service or deployment was used. Release remains **NO-GO** until exact-SHA acceptance and broader 41-screen/browser gates close.
