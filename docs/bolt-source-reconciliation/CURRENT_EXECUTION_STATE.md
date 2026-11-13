@@ -1,3 +1,30 @@
+# FINAL P1/P2 ACCEPTANCE UPDATE — 2026-11-13 — CURRENT MAIN SOURCE
+
+- Current documentation HEAD before this update: 2f61d185c4bb4e2180836497953658abe8deee31 (documentation-only child of code SHA 6a7290eb219d906fec7596d125569c5036e0ba9f).
+- Exact tested application source SHA: 6a7290eb219d906fec7596d125569c5036e0ba9f; latest main source code is unchanged from this SHA.
+- P3 observability implementation remains at code SHA ad97e2a8136edc618c109a130d156edc9b5db598; the later Path A code commit does not modify the isolated P3 observability files.
+
+## Exact-SHA acceptance
+
+- P1 run #43360203647: SUCCESS on exact code SHA 6a7290eb219d906fec7596d125569c5036e0ba9f. Vitest: 85/85 test files and 608/608 tests; strict TypeScript: SUCCESS; production build: SUCCESS. The non-blocking Vite open-handle warning did not fail the job.
+- P2 run #43360203606: SUCCESS on exact code SHA 6a7290eb219d906fec7596d125569c5036e0ba9f. Public read-only Storefront Playwright: SUCCESS. Dedicated local Supabase/PostgreSQL 17 + authenticated Chromium acceptance: SUCCESS.
+- Local P2 evidence: repository migrations applied to isolated PostgreSQL 17; temporary users and two tenant fixtures created; RPC allow/deny guard tests passed; atomic price-grid write/rollback/audit/stale-writer race passed; cash-expense source posting/idempotency/void-post concurrency passed; purchase receipt source-linked draft/restrictions passed; exact build and local app startup passed; authenticated order persistence and cross-tenant denial passed; stock-count XLSX and purchase-order XLSX downloads passed; checkout lost-response replay passed; returns/receipt/credit memo passed; audited Onyx XLSX passed; finance/task print passed; customer-manager financial privacy/authorization/audit passed; device-session authorization and immediate revocation passed. Local cleanup and evidence artifact upload passed.
+- Separate authenticated hosted customer/order/tenant E2E job: SKIPPED because external hosted test accounts/infrastructure were not configured. This does not invalidate the isolated local PostgreSQL/Chromium results, but no hosted-production tenant, cross-device, or deployed-session acceptance is claimed.
+
+## P3 integration state and remaining blockers
+
+- P3 SystemHealthPanel and SourceBoundaryStatusPanel are implemented and unit-tested in issue-owned observability paths; they are still isolated components and not mounted in shared Settings/Admin navigation. Path A owns that shared navigation mount and must perform direct browser UAT after integration.
+- `get_ai_gateway_budget` proves only the budget aggregate is readable. Global health and provider connectivity remain UNKNOWN without provider probes and server-issued EvidenceRecord contracts.
+- Per-attempt AI audit read remains BLOCKED without a tenant-derived, role-checked bounded RPC; prompt version persistence and permanent error storage remain BLOCKED without verified append-only server contracts; Developer tools remain BLOCKED without a trusted server-side repository read contract.
+- Category price/stock tab has P1 source coverage and P2 general tenant/database acceptance, but category-detail-specific authenticated browser UAT has not been separately claimed.
+
+## Release decision
+
+- P1/P2 source and isolated local critical-path acceptance are PASS on the exact code SHA above.
+- Product-wide coverage of the 41 reference screens, mounted P3 browser UAT, all missing server contracts, hosted external E2E, and production acceptance are not complete.
+- Overall product release remains NO-GO. No production or hosted database change, Vercel deployment, secret use, paid provider, or external AI call was performed in this work.
+
+---
 # ACTIVE P3 CHECKPOINT — 2026-11-13 — REFERENCE MODEL OBSERVABILITY
 
 - Repository: Report-Engainall/Nasr1; branch: main.
