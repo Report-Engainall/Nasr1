@@ -94,7 +94,7 @@ function parseAttempt(value: unknown): AiUsageProviderAttempt {
   if (
     (elapsedMs as number) < 0 ||
     (errorCode !== null && !/^[a-z0-9_]{1,80}$/.test(errorCode)) ||
-    (value.status === "succeeded" && (observedInputTokens === null || observedOutputTokens === null || estimatedCost === null || errorCode !== null)) ||
+    (value.status === "succeeded" && errorCode !== null) ||
     (value.status === "failed" && (observedInputTokens !== null || observedOutputTokens !== null || estimatedCost !== null))
   ) {
     throw new Error("ai_audit_response_invalid");

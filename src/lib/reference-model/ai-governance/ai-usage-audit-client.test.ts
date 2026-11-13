@@ -67,8 +67,9 @@ describe("listAiUsageAudit", () => {
   });
 
   it("refuses unsupported query bounds before making an RPC call", async () => {
+    mocks.rpc.mockClear();
     await expect(listAiUsageAudit({ limit: 101 })).rejects.toThrow("ai_audit_query_invalid");
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledTimes(0);
   });
 
   it("fails closed for a malformed provider attempt", async () => {

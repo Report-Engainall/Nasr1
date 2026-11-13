@@ -78,11 +78,84 @@ BEGIN
           jsonb_build_object(
             'provider', a.value->>'provider',
             'model', a.value->>'model',
-            'fallback', (a.value->>'fallback')::boolean,
+            'fallback', lower(a.value->>'fallback') = 'true',
             'status', a.value->>'status',
             'elapsed_ms', (a.value->>'elapsed_ms')::integer,
             'observed_input_tokens', CASE
-              WHEN a.value ? 'observed_input_tokens'
+              WHEN coalesce(a.value->>'observed_input_tokens','') ~ '^[0-9]{1,12}
+            'observed_output_tokens', CASE
+              WHEN coalesce(a.value->>'observed_output_tokens','') ~ '^[0-9]{1,12}
+            'estimated_cost', CASE
+              WHEN coalesce(a.value->>'estimated_cost','') ~ '^[0-9]{1,12}([.][0-9]{1,8})?
+            'error_code', CASE WHEN coalesce(a.value->>'error_code','') ~ '^[a-z0-9_]{1,80}
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
               THEN (a.value->>'observed_input_tokens')::bigint
               ELSE NULL
             END,
@@ -100,8 +173,1138 @@ BEGIN
           )
           ORDER BY a.ordinality
         )
-        FROM jsonb_array_elements(coalesce(l.provider_attempts, '[]'::jsonb))
-          WITH ORDINALITY AS a(value, ordinality)
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_input_tokens')::bigint
+              ELSE NULL
+            END,
+            'observed_output_tokens', CASE
+              WHEN a.value ? 'observed_output_tokens'
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_input_tokens')::bigint
+              ELSE NULL
+            END,
+            'observed_output_tokens', CASE
+              WHEN a.value ? 'observed_output_tokens'
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_input_tokens')::bigint
+              ELSE NULL
+            END,
+            'observed_output_tokens', CASE
+              WHEN a.value ? 'observed_output_tokens'
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+ THEN a.value->>'error_code' ELSE NULL END
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_input_tokens')::bigint
+              ELSE NULL
+            END,
+            'observed_output_tokens', CASE
+              WHEN a.value ? 'observed_output_tokens'
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_input_tokens')::bigint
+              ELSE NULL
+            END,
+            'observed_output_tokens', CASE
+              WHEN a.value ? 'observed_output_tokens'
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_input_tokens')::bigint
+              ELSE NULL
+            END,
+            'observed_output_tokens', CASE
+              WHEN a.value ? 'observed_output_tokens'
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
+              THEN (a.value->>'observed_input_tokens')::bigint
+              ELSE NULL
+            END,
+            'observed_output_tokens', CASE
+              WHEN a.value ? 'observed_output_tokens'
+              THEN (a.value->>'observed_output_tokens')::bigint
+              ELSE NULL
+            END,
+            'estimated_cost', CASE
+              WHEN a.value ? 'estimated_cost'
+              THEN (a.value->>'estimated_cost')::numeric
+              ELSE NULL
+            END,
+            'error_code', a.value->>'error_code'
+          )
+          ORDER BY a.ordinality
+        )
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(l.provider_attempts) = 'array' THEN l.provider_attempts
+            ELSE '[]'::jsonb
+          END
+        ) WITH ORDINALITY AS a(value, ordinality)
+        WHERE jsonb_typeof(a.value) = 'object'
+          AND a.value->>'provider' IN ('openai_compatible','gemini')
+          AND a.value->>'status' IN ('succeeded','failed')
+          AND nullif(a.value->>'model','') IS NOT NULL
+          AND lower(coalesce(a.value->>'fallback','')) IN ('true','false')
+          AND coalesce(a.value->>'elapsed_ms','') ~ '^[0-9]{1,6}      ), '[]'::jsonb) AS provider_attempts,
+      l.outcome_reason,
+      l.created_at
+    FROM public.ai_usage_ledger l
+    WHERE l.organization_id = v_org
+      AND (p_result_status IS NULL OR l.result_status = p_result_status)
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT v_limit OFFSET v_offset
+  ) AS page_row;
+
+  RETURN jsonb_build_object(
+    'items', v_items,
+    'total', v_total,
+    'limit', v_limit,
+    'offset', v_offset
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) TO authenticated;
+
+COMMENT ON FUNCTION public.list_ai_gateway_audit(text, integer, integer) IS
+  'Returns a bounded tenant-derived admin/manager read model of whitelisted AI provider attempt metadata. Never returns prompt or response bodies, raw payloads, credentials, or service secrets.';
+
+COMMIT;
+
       ), '[]'::jsonb) AS provider_attempts,
       l.outcome_reason,
       l.created_at

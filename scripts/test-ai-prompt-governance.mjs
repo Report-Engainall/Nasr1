@@ -121,6 +121,8 @@ async function oneRow(client, sql, parameters = []) {
   return rows[0];
 }
 async function main() {
+  let currentPhase = "read local test configuration";
+  const setPhase = (value) => { currentPhase = value; process.stdout.write("AI_PROMPT_GOVERNANCE_PHASE " + value + String.fromCharCode(10)); };
   const apiUrl = requiredEnv("E2E_SUPABASE_URL");
   const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
   const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
@@ -215,6 +217,7 @@ async function main() {
     const checkerDb = await connectIdentity(checkerClaims);
     const operatorDb = await connectIdentity(operatorClaims);
 
+    setPhase("insert source-backed local AI audit fixture");
     const aiAuditRequestId = "p2-ai-audit-" + suffix;
     await db.unsafe(
       "insert into public.ai_usage_ledger(" +
@@ -241,6 +244,7 @@ async function main() {
       ],
     );
 
+    setPhase("read AI audit as organization admin");
     const aiAudit = asJson((await adminDb.unsafe(
       "select public.list_ai_gateway_audit(null,50,0) as result",
     ))[0].result);
@@ -258,6 +262,7 @@ async function main() {
         );
       }
     }
+    setPhase("read AI audit as same-tenant manager");
     const managerAiAudit = asJson((await managerDb.unsafe(
       "select public.list_ai_gateway_audit(null,10,0) as result",
     ))[0].result);
@@ -268,6 +273,7 @@ async function main() {
       () => accountantDb.unsafe("select public.list_ai_gateway_audit(null,10,0)"),
       "42501",
     );
+    setPhase("prove foreign-tenant AI audit isolation");
     const foreignAiAudit = asJson((await foreignAdminDb.unsafe(
       "select public.list_ai_gateway_audit(null,10,0) as result",
     ))[0].result);
@@ -283,6 +289,8 @@ async function main() {
       "22023",
     );
 
+    setPhase("verify AI audit tenant and field allowlist");
+    setPhase("begin prompt maker-checker lifecycle");
     const promptKey = "assistant.system";
     const content1 = "أجب بالعربية، ولا تخمّن بيانات الأعمال. استخدم الأدلة الموثقة فقط.";
     const createCommand = randomUUID();
@@ -599,6 +607,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("AI prompt governance local acceptance failed:", error?.message ?? error);
+  console.error("AI prompt governance local acceptance failed at phase:", error?.message ?? error, "phase:", error?.phase ?? "see preceding phase marker", "sqlstate:", error?.code ?? "n/a", "detail:", error?.detail ?? "n/a");
   process.exitCode = 1;
 });
