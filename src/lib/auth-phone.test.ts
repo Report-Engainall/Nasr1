@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  normalizeAuthDigits,
   normalizeAuthPhoneIdentifier,
   requestPhoneSignup,
   resendPhoneSignupCode,
@@ -27,6 +28,10 @@ describe("phone authentication contract", () => {
     ["00967 7 1234 5678", "+967712345678"],
     ["967712345678", "+967712345678"],
     ["+1 (415) 555-2671", "+14155552671"],
+    ["٠٧١٢٣٤٥٦٧٨", "+967712345678"],
+    ["٧١٢٣٤٥٦٧٨", "+967712345678"],
+    ["۰۷۱۲۳۴۵۶۷۸", "+967712345678"],
+    ["+٩٦٧ ٧ ١٢٣٤ ٥٦٧٨", "+967712345678"],
   ])("normalizes %s to %s", (input, expected) => {
     expect(normalizeAuthPhoneIdentifier(input)).toBe(expected);
   });
@@ -38,6 +43,10 @@ describe("phone authentication contract", () => {
 
   let auth: PhoneAuthApi;
   beforeEach(() => { auth = createAuthApi(); });
+
+  it("normalizes Arabic-Indic and Eastern Arabic-Indic digits before validation", () => {
+    expect(normalizeAuthDigits("رقم ٧١٢٣٤٥٦٧٨ / ۰۷۱۲۳۴۵۶۷۸")).toBe("رقم 712345678 / 0712345678");
+  });
 
   it("uses the phone credential property for password sign-in", async () => {
     await signInWithPhonePassword(auth, "0712345678", TEST_SECRET);
@@ -63,6 +72,15 @@ describe("phone authentication contract", () => {
     });
   });
 
+  it("submits Arabic-Indic phone digits to Auth as a normalized E.164 identifier", async () => {
+    await requestPhoneSignup(auth, "٠٧١٢٣٤٥٦٧٨", TEST_SECRET, "تاجر");
+    expect(auth.signUp).toHaveBeenCalledWith({
+      phone: "+967712345678",
+      password: TEST_SECRET,
+      options: { data: { full_name: "تاجر", business_name: "تاجر" }, channel: "sms" },
+    });
+  });
+
   it("uses the optional business name in Auth metadata without trusting it as an account permission", async () => {
     await requestPhoneSignup(auth, "0712345678", TEST_SECRET, "نصر", "متجر الأغبري");
     expect(auth.signUp).toHaveBeenCalledWith({
@@ -80,7 +98,7 @@ describe("phone authentication contract", () => {
   });
 
   it("verifies the SMS token against the normalized phone", async () => {
-    await verifyPhoneSignupCode(auth, "7 1234 5678", "123-456");
+    await verifyPhoneSignupCode(auth, "٠٧١٢٣٤٥٦٧٨", "١٢٣-٤٥٦");
     expect(auth.verifyOtp).toHaveBeenCalledWith({ phone: "+967712345678", token: "123456", type: "sms" });
   });
 
