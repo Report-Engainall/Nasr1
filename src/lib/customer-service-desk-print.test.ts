@@ -201,7 +201,7 @@ describe("customer service desk report projection", () => {
     const bytes = buildCustomerServiceDeskWorkbookXlsx(document);
     const workbook = new TextDecoder().decode(bytes);
     expect(workbook).toContain('t="inlineStr"');
-    expect(workbook).toContain('=HYPERLINK("https://invalid.example","open")');
+    expect(workbook).toContain('=HYPERLINK(&quot;https://invalid.example&quot;,&quot;open&quot;)');
     expect(workbook).not.toMatch(/<f(?:\s|>)/);
     expect(workbook).toContain("نطاق التقرير");
     expect(workbook).toContain("مؤشرات المؤسسة");
