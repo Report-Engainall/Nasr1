@@ -209,6 +209,19 @@ test("subcategory deep link renders the child category screen", async ({ page })
   await expect(siblings.getByRole("link", { name: /Juices/ })).toHaveAttribute("aria-current", "page");
   await expect(siblings.getByRole("link", { name: /Soft Drinks/ }))
     .toHaveAttribute("href", "/category/" + parentSlug + "/subcategory/" + siblingSlug);
+
+  // The directory must group the same public fixture under its parent rather than flattening child cards.
+  await page.goto("/categories");
+  await expect(page.getByRole("heading", { name: "تصنيفات المنتجات", exact: true })).toBeVisible();
+  const mainCategories = page.getByRole("region", { name: "التصنيفات الرئيسية" });
+  const beverageBranches = page.getByRole("region", { name: "الفروع التابعة لـ Beverages" });
+  await expect(mainCategories.getByRole("heading", { name: "Beverages", exact: true })).toBeVisible();
+  await expect(beverageBranches.getByRole("link", { name: /Juices/ })).toBeVisible();
+  await expect(beverageBranches.getByRole("link", { name: /Soft Drinks/ })).toBeVisible();
+  await expect(mainCategories.getByRole("heading", { name: "Juices", exact: true })).toHaveCount(0);
+  await expect(mainCategories.getByRole("heading", { name: "Soft Drinks", exact: true })).toHaveCount(0);
+  await expect(mainCategories.getByText((0).toLocaleString("ar-YE") + " صنف في التصنيف وفروعه")).toBeVisible();
+
   expect(pageErrors).toEqual([]);
 });
 
