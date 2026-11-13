@@ -1,6 +1,6 @@
 import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import { Package, Search, Tags } from "lucide-react";
-import { normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
+import { MAX_CATALOG_SEARCH_LENGTH, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
 import type { Category, ProductWithInventory } from "@/lib/types";
 
 type PredictiveSuggestion =
@@ -207,8 +207,6 @@ export function StorefrontPredictiveSearch({
     );
   }
 
-  let optionIndex = 0;
-
   return (
     <div className="sf-search" style={{ position: "relative", minWidth: 0 }}>
       <Search size={17} aria-hidden="true" />
@@ -222,7 +220,7 @@ export function StorefrontPredictiveSearch({
         aria-controls={listboxId}
         aria-activedescendant={isOpen && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
         value={query}
-        maxLength={120}
+        maxLength={MAX_CATALOG_SEARCH_LENGTH}
         autoComplete="off"
         onFocus={() => {
           if (searchReady) setOpen(true);
@@ -264,15 +262,13 @@ export function StorefrontPredictiveSearch({
           <div role="group" aria-label="البحث بالعبارة">
             <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>البحث</div>
             {renderOption(suggestions[0], 0)}
-            {optionIndex = 1}
           </div>
           {categoryMatches.length > 0 && (
             <div role="group" aria-label="التصنيفات المطابقة">
               <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>التصنيفات</div>
               {categoryMatches.map((category, localIndex) => {
-                const index = optionIndex++;
-                const suggestion = suggestions[index];
-                return renderOption(suggestion, index);
+                const index = localIndex + 1;
+                return renderOption(suggestions[index], index);
               })}
             </div>
           )}
@@ -294,10 +290,9 @@ export function StorefrontPredictiveSearch({
           {!loading && !error && products.length > 0 && (
             <div role="group" aria-label="المنتجات المطابقة">
               <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>المنتجات</div>
-              {products.slice(0, 5).map((product) => {
-                const index = optionIndex++;
-                const suggestion = suggestions[index];
-                return renderOption(suggestion, index);
+              {products.slice(0, 5).map((product, localIndex) => {
+                const index = 1 + categoryMatches.length + localIndex;
+                return renderOption(suggestions[index], index);
               })}
             </div>
           )}
