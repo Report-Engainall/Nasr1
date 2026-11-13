@@ -81,3 +81,19 @@ The account hub composition follows the account-as-workspace pattern studied in 
 - The panel supports opening the existing /product/$id route, removing one item and clearing the current profile's list. Product details, including server-authoritative price and availability, are fetched again on open.
 - Storage is bounded to the latest 12 unique products and scoped to the authenticated profile in the current browser. This is local-device history only, not cloud synchronization, cross-device history or personalized server analytics.
 - Shopify Hydrogen's account workspace pattern remains the design reference (templates/react-router/app/routes/account.tsx; main commit 043094b0ab0b5b01299e75da33d3f4e2914fda6a; MIT template license already verified). Nasr1's history and storage behavior are independently implemented; no Hydrogen source, package or asset was copied.
+
+## Category page context and direct branch navigation — 2026-11-13
+
+- Subcategory pages now show an accessible path from all categories to the parent category and current child, with the child marked as the active page.
+- Direct sibling branches are shown only from the current parent's existing `parent_id` relationship. A child slug associated with another parent remains invalid; no unrelated category is mixed into the branch list.
+- The page continues to use the existing category slug helper and `Storefront` product listing; price, availability and order services were not changed.
+- Reference pattern: BigCommerce Catalyst `core/app/[locale]/(default)/(faceted)/category/[slug]/page.tsx` (blob `53ac0e71431b45d8854fecddf61551f5d58849c8`) and `core/components/breadcrumbs/fragment.ts` (blob `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`), pinned to `canary` HEAD `4cce7bc3d05be54a449140644eb2119dd8d8c821`; root LICENSE verified MIT. Only information architecture was adapted; no Catalyst source, assets or packages were copied.
+- Delivered in PR #436 at merge SHA `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; P1 and the read-only public Storefront browser smoke passed on exact feature SHA, with P1 passing again after merge.
+
+## Hierarchical category directory — 2026-11-13
+
+- `/categories` now groups each active parent with direct child links, rather than showing the parent and every child as unrelated cards.
+- Parent totals equal the existing product count for the parent plus its immediate active children. Each child displays its own direct count. Deeper descendants are kept separately with their immediate-parent route and are not silently dropped or incorrectly rolled into the one-level total.
+- Categories whose parent is not in the active public category result remain visible as detached groups. Cyclic or deeper nodes are surfaced separately rather than disappearing.
+- Counts come from the existing fully paginated public catalogue read. Inactive categories, inactive products, inactive status and uncategorized products do not inflate counts. No count or category is fabricated.
+- Delivered in PR #438 at merge SHA `4451e4625c1cfe0974693ea49d0737a8959fc943`. Exact main P1 passed with 91 test files / 644 tests, strict TypeScript and production build; public Chromium smoke passed 19/19. Hosted authenticated order/tenant acceptance remains distinct and was skipped for unavailable external credentials.
