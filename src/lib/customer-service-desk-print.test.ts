@@ -107,13 +107,13 @@ describe("customer service desk report projection", () => {
         case_code: "CS-2026-002",
         status: "resolved",
       })],
-      filters: { ...filters, status: "open", priority: "urgent" },
+      filters: { ...filters, status: "active", priority: "urgent" },
       hasMore: true,
     });
     expect(document.fullOpenSummary).toEqual(summary);
     expect(document.loadedCount).toBe(2);
     expect(document.hasMore).toBe(true);
-    expect(document.filters.status).toBe("مفتوحة");
+    expect(document.filters.status).toBe("الحالات النشطة");
     expect(document.filters.priority).toBe("عاجلة");
   });
 
