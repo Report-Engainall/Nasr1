@@ -132,7 +132,15 @@ async function main() {
     [productId],
   );
   assert.equal(context.eligible, true, "customer with a delivered matching order is eligible");
-  assert.equal(context.order_item_id, deliveredOrderItemId);
+  assert.match(context.order_item_id ?? "", /^[0-9a-f-]{36}$/i, "server returns one eligible delivered order line");
+  const eligibleLineRows = await db.unsafe(
+    "select oi.id,o.id as order_id from public.order_items oi join public.orders o on o.id=oi.order_id " +
+    "where oi.id=$1::uuid and oi.product_id=$2::uuid and o.customer_id=$3::uuid " +
+    "and o.organization_id=$4::uuid and o.status='delivered'",
+    [context.order_item_id, productId, deliveredOrderRows[0].customer_id, organizationId],
+  );
+  assert.equal(eligibleLineRows.length, 1, "server-selected eligibility line belongs to this customer, product, tenant and a delivered order");
+  const eligibleOrderItemId = context.order_item_id;
   assert.equal(context.review, null);
 
   await expectFailure(
@@ -151,7 +159,7 @@ async function main() {
 
   const submitted = await rpcJson(
     "select public.submit_storefront_product_review($1::uuid,$2::uuid,$3::smallint,$4::text,$5::text) as result",
-    [productId, deliveredOrderItemId, 5, "P2 review acceptance", "تجربة شراء موثقة من بيئة الاختبار المحلية"],
+    [productId, eligibleOrderItemId, 5, "P2 review acceptance", "تجربة شراء موثقة من بيئة الاختبار المحلية"],
   );
   assert.match(submitted.id, /^[0-9a-f-]{36}$/i);
   assert.equal(submitted.moderation_status, "pending");
@@ -172,7 +180,7 @@ async function main() {
     "customer from another tenant cannot use tenant A purchase evidence",
     () => rpcJson(
       "select public.submit_storefront_product_review($1::uuid,$2::uuid,$3::smallint,$4::text,$5::text) as result",
-      [productId, deliveredOrderItemId, 4, "Cross-tenant attempt", "محاولة من حساب عميل في منشأة أخرى"],
+      [productId, eligibleOrderItemId, 4, "Cross-tenant attempt", "محاولة من حساب عميل في منشأة أخرى"],
     ),
     /not available|organization/i,
   );
@@ -215,7 +223,7 @@ async function main() {
 
   const resubmitted = await rpcJson(
     "select public.submit_storefront_product_review($1::uuid,$2::uuid,$3::smallint,$4::text,$5::text) as result",
-    [productId, deliveredOrderItemId, 4, "P2 review acceptance revised", "بعد مراجعة الملاحظات أرسل تجربة الشراء مرة أخرى"],
+    [productId, eligibleOrderItemId, 4, "P2 review acceptance revised", "بعد مراجعة الملاحظات أرسل تجربة الشراء مرة أخرى"],
   );
   assert.equal(resubmitted.id, reviewId, "resubmission updates one customer/product row instead of creating a duplicate");
   assert.equal(resubmitted.moderation_status, "pending");
@@ -238,7 +246,7 @@ async function main() {
     assert.equal(privateField in summary.items[0], false, "public review omits private field " + privateField);
   }
 
-  await submit(customer, deliveredOrderItemId, 3, "تعديل لاحق للتقييم يعيد المراجعة قبل النشر");
+  await submit(customer, eligibleOrderItemId, 3, "تعديل لاحق للتقييم يعيد المراجعة قبل النشر");
   await setAnonymous();
   summary = await publicSummary();
   assert.equal(summary.review_count, 0, "editing an approved review removes it from the public aggregate until re-approved");
