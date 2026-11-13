@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ChevronDown, MessageSquareText, Send, ShieldCheck, Star } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -16,7 +16,7 @@ function formatReviewDate(value: string): string {
     : "تاريخ غير متاح";
 }
 
-function StatusMessage({ children, kind = "info" }: { children: React.ReactNode; kind?: "info" | "error" | "success" }) {
+function StatusMessage({ children, kind = "info" }: { children: ReactNode; kind?: "info" | "error" | "success" }) {
   const color = kind === "error" ? "#a23d35" : kind === "success" ? "#176b4b" : "#526b70";
   const background = kind === "error" ? "#fff3f1" : kind === "success" ? "#effaf4" : "#f3f8f7";
   return <p role={kind === "error" ? "alert" : "status"} style={{ margin: 0, padding: "10px 12px", borderRadius: 9, background, color, fontSize: 12, lineHeight: 1.8 }}>{children}</p>;
@@ -113,7 +113,7 @@ export function StorefrontProductReviews({ productId }: { productId: string }) {
     return () => { active = false; };
   }, [productId, user?.id, user?.profileId, isCustomer]);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isCustomer || !context?.eligible || !context.orderItemId || saving) return;
     setSaving(true);
