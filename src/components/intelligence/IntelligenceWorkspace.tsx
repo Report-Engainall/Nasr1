@@ -382,6 +382,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [decisionMemoryCollectionResult, setDecisionMemoryCollectionResult] = useState<Awaited<ReturnType<typeof fetchDecisionOutcomeCollection>> | null>(null);
   const [decisionMemoryLoading, setDecisionMemoryLoading] = useState(true);
   const decisionMemoryRequestGeneration = useRef(0);
+  const snapshotAt = useRef(new Date());
   const outcomesMounted = useRef(false);
   const [outcomeBusyId, setOutcomeBusyId] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
@@ -826,6 +827,10 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       processRequestGeneration.current += 1;
     };
   }, [loadProcessBottlenecks, processRefreshKey]);
+
+  useEffect(() => {
+    snapshotAt.current = new Date();
+  }, [refreshKey]);
 
   useEffect(() => {
     void loadOutcomes();

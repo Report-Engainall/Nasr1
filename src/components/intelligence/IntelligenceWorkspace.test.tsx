@@ -321,7 +321,9 @@ describe("production intelligence workspace inventory screens", () => {
     render(<IntelligenceWorkspace />);
     const memoryBook = await screen.findByRole("region", { name: "دفتر ذاكرة القرارات والتعلم" });
     expect(memoryBook).toHaveTextContent("الصفحة 51 من 51");
-    expect(memoryBook).toHaveTextContent("قرار أقدم خارج الصفحة التشغيلية");
+    fireEvent.click(within(memoryBook).getByRole("button", { name: "الأقدم" }));
+    fireEvent.click(within(memoryBook).getByRole("button", { name: "الأقدم" }));
+    expect(await within(memoryBook).findByText("قرار أقدم خارج الصفحة التشغيلية")).toBeInTheDocument();
     expect(mocks.fetchMemoryCollection).toHaveBeenCalledTimes(1);
     const register = screen.getByRole("region", { name: "دورة القرارات المحفوظة" });
     fireEvent.click(within(register).getByRole("button", { name: "التالي" }));

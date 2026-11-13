@@ -1,3 +1,17 @@
+# LIVE REPAIR CHECKPOINT — 2026-11-13 — DECISION MEMORY UI P1 FAILURES
+
+- REPOSITORY: `Report-Engainall/Nasr1`; branch `main`.
+- FAILED_SHA: `be795e52c1a68281708eb63d6f565ec94129d94d`.
+- P1 RUN: `43365404509`. Vitest: 634 passed / 4 failed across 89 files; strict TypeScript: 3 errors; production build: SUCCESS.
+- ROOT CAUSE 1: an edit removed `snapshotAt` although three other intelligence loaders still use it for their point-in-time request period. Restoring its ref and refresh clock addresses those TypeScript/runtime errors.
+- ROOT CAUSE 2: the new workspace test asserted that record 51 was visible before moving past the DecisionMemoryBook's separate 25-record display pages. The test now advances to the final memory page before asserting that the older record is available.
+- DATA FINDING: the server snapshot DTO and bounded collection loader already exist in the prior migration/client; integration is UI-only and uses existing authenticated reads.
+- CURRENT STATUS: repair is on top of the failed SHA; no P1 PASS is assigned until all tests, strict TypeScript and production build finish successfully on the repaired SHA.
+- SAFETY: no DB migration or production data changes; no paid/Vercel use. Authenticated tenant/order E2E remains separate and previously SKIPPED when external fixtures were unavailable.
+- NEXT: run exact-SHA P1 and inspect any remaining failures before changing the matrix.
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-11-13 — DECISION MEMORY COLLECTION UI INTEGRATION
 
 - REPOSITORY: `Report-Engainall/Nasr1`; branch `main`.

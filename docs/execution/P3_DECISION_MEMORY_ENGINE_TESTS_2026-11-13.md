@@ -54,3 +54,13 @@ Added regression coverage:
 - Workspace: verifies decision-memory search includes an older record outside the first operational page, and changing operational pages does not refetch the full archive.
 
 The parent source SHA `68da65ecc348d2fcba2f6850fd0b13b525184708` passed P1 Vitest, strict TypeScript and production build in GitHub Actions run `43364543729`. This follow-on source commit still requires its own exact-SHA P1 result. PostgreSQL 17 foreign-tenant runtime proof and authenticated browser order/tenant proof remain separate and OPEN/SKIPPED. No new migration or production DB write was made.
+
+## P1 failure and targeted repair — 13 November 2026
+
+The follow-on integration commit `be795e52c1a68281708eb63d6f565ec94129d94d` did **not** pass P1. Its production build succeeded, but Vitest recorded 634 passed / 4 failed and strict TypeScript reported three `snapshotAt` references as undefined.
+
+The errors were localized:
+- The timestamp ref also serves three existing point-in-time intelligence requests. It is restored along with its refresh effect.
+- The archive UI intentionally displays 25 records per visual page. The integration test now navigates to the last page before asserting access to record 51; the archive collection itself remains fully loaded and independent of the 50-row operational register.
+
+The repair commit is subject to a fresh exact-SHA P1 run. No prior PASS is carried forward.
