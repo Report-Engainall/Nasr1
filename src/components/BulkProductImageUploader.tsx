@@ -12,6 +12,43 @@ type UploadResult = {
   message: string;
 };
 
+function csvCell(value: string): string {
+  const safeText = value.replace(/[\\u0000-\\u001f\\u007f]/gu, " ");
+  const formulaSafe = /^[\\s]*[=+@-]/u.test(safeText) ? "'" + safeText : safeText;
+  return '"' + formulaSafe.replace(/"/g, '""') + '"';
+}
+
+/** Human-readable, locale-stable size display for the selected local file. */
+export function formatProductImageFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "غير معروف";
+  if (bytes < 1024) return bytes + " بايت";
+  const units = ["ك.بايت", "م.بايت", "ج.بايت", "ت.بايت"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const rounded = value >= 10 ? Math.round(value) : Number(value.toFixed(1));
+  return rounded + " " + units[unitIndex];
+}
+
+/**
+ * Creates a local-only CSV record for the current batch result list.
+ * Values are quoted and formula-leading text is neutralized before spreadsheet use.
+ */
+export function buildProductImageBatchReportCsv(results: readonly UploadResult[]): string {
+  const headers = ["اسم الملف", "الصنف", "موضع الصورة", "الحالة", "النتيجة"];
+  const rows = results.map((result) => [
+    result.fileName,
+    result.productName,
+    imagePlacementLabel(result.placement),
+    result.ok ? "نجاح" : "تعذر",
+    result.message,
+  ]);
+  return "\\uFEFF" + [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\\r\\n");
+}
+
 const MAX_BATCH_FILES = 200;
 
 function errorMessage(cause: unknown): string {
@@ -59,6 +96,17 @@ export function BulkProductImageUploader({
   );
   const invalidFiles = fileChecks.filter((item) => item.issue);
   const validFiles = fileChecks.filter((item) => !item.issue).map((item) => item.file);
+  const previewUrls = useMemo(() => {
+    const urls = new Map<File, string>();
+    if (typeof URL.createObjectURL !== "function") return urls;
+    for (const { file, issue } of fileChecks) {
+      if (!issue) urls.set(file, URL.createObjectURL(file));
+    }
+    return urls;
+  }, [fileChecks]);
+  useEffect(() => () => {
+    for (const url of previewUrls.values()) URL.revokeObjectURL(url);
+  }, [previewUrls]);
   const catalogReady = products !== null;
   const entries = useMemo(
     () => matchProductImagesByCode(products ?? [], validFiles),
@@ -126,6 +174,23 @@ export function BulkProductImageUploader({
     }
     setSelectionError("");
     setFiles(selected);
+  }
+
+  function downloadBatchReport() {
+    if (results.length === 0) return;
+    const blob = new Blob([buildProductImageBatchReportCsv(results)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "aghbari-product-image-batch-" + new Date().toISOString().replace(/[:.]/g, "-") + ".csv";
+    link.hidden = true;
+    document.body.appendChild(link);
+    try {
+      link.click();
+    } finally {
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
   }
 
   async function uploadMatchedImages() {
@@ -244,13 +309,24 @@ export function BulkProductImageUploader({
                 {file.name}: {issue}
               </div>
             ))}
-            <div style={{ maxHeight: 260, overflow: "auto", border: "1px solid var(--border, #dbe3e8)", borderRadius: 10 }}>
+            <div style={{ maxHeight: 320, overflow: "auto", border: "1px solid var(--border, #dbe3e8)", borderRadius: 10 }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr><th style={{ textAlign: "right", padding: 8 }}>الملف</th><th style={{ textAlign: "right", padding: 8 }}>الصنف</th><th style={{ textAlign: "right", padding: 8 }}>النتيجة</th></tr></thead>
+                <thead><tr><th style={{ textAlign: "right", padding: 8 }}>معاينة الملف</th><th style={{ textAlign: "right", padding: 8 }}>الصنف</th><th style={{ textAlign: "right", padding: 8 }}>النتيجة المتوقعة</th></tr></thead>
                 <tbody>
                   {entries.map((entry) => (
                     <tr key={entry.file.name + entry.file.lastModified + "-" + (entry.product?.id ?? "unmatched")}>
-                      <td style={{ padding: 8 }}><code>{entry.file.name}</code></td>
+                      <td style={{ padding: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 220 }}>
+                          {previewUrls.has(entry.file)
+                            ? <img src={previewUrls.get(entry.file)} alt={"معاينة " + entry.file.name} loading="lazy"
+                                width={56} height={56} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                            : <span aria-hidden="true" style={{ width: 56, height: 56, display: "grid", placeItems: "center", borderRadius: 8, background: "var(--muted)" }}>صورة</span>}
+                          <span style={{ display: "grid", gap: 4 }}>
+                            <code dir="auto">{entry.file.name}</code>
+                            <small>{formatProductImageFileSize(entry.file.size)} · {entry.file.type || "صيغة غير محددة"}</small>
+                          </span>
+                        </div>
+                      </td>
                       <td style={{ padding: 8 }}>{entry.product?.name ?? "—"}</td>
                       <td style={{ padding: 8 }}>
                         {entry.status === "ready" ? matchStatusLabel(entry) : entry.message ?? matchStatusLabel(entry)}
@@ -269,8 +345,16 @@ export function BulkProductImageUploader({
               </button>
             </div>
             {busy && (
-              <div className="progress-track" aria-label="تقدم رفع الصور">
-                <i style={{ width: Math.round((progress / Math.max(1, readyEntries.length)) * 100) + "%" }} />
+              <div
+                className="progress-track"
+                role="progressbar"
+                aria-label="تقدم معالجة ورفع الصور"
+                aria-valuemin={0}
+                aria-valuemax={readyEntries.length}
+                aria-valuenow={progress}
+                aria-valuetext={"تمت معالجة " + progress + " من " + readyEntries.length + " صورة"}
+              >
+                <i aria-hidden="true" style={{ width: Math.round((progress / Math.max(1, readyEntries.length)) * 100) + "%" }} />
               </div>
             )}
           </>
@@ -278,7 +362,18 @@ export function BulkProductImageUploader({
 
         {results.length > 0 && (
           <section aria-label="نتائج رفع الصور" className="panel" style={{ padding: 12 }}>
-            <strong>نتائج التنفيذ</strong>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <strong>نتائج تنفيذ الدفعة</strong>
+              <span role="status" aria-live="polite">
+                نجح {results.filter((result) => result.ok).length} · تعذر {results.filter((result) => !result.ok).length} · الإجمالي {results.length}
+              </span>
+              <button type="button" className="btn outline" onClick={downloadBatchReport}>
+                تصدير نتائج الدفعة الحالية (CSV)
+              </button>
+            </div>
+            <p className="privacy-note" style={{ margin: "8px 0 0" }}>
+              هذا تقرير محلي للدفعة المعروضة فقط؛ لا ينشئ سجلاً دائماً ولا يغيّر بيانات الصور عند التصدير.
+            </p>
             {results.map((result) => (
               <p key={result.fileName + "-" + result.productName} role={result.ok ? "status" : "alert"} style={{ margin: "8px 0 0", color: result.ok ? "var(--success, #16734b)" : "var(--danger, #b42318)" }}>
                 {result.fileName} — {result.productName} — {imagePlacementLabel(result.placement)}: {result.message}
