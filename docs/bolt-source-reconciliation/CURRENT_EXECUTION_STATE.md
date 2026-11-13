@@ -1,3 +1,17 @@
+# P3 EXECUTION CHECKPOINT — TASK QUALITY INSIGHT CONFIDENCE — 2026-11-13
+
+- REPOSITORY: `Report-Engainall/Nasr1`; canonical branch: `main`.
+- BASE_MAIN_SHA: `8ecf74f61157ddbbf4d3f2f927081fd6e24ee5cc`.
+- MATRIX TASK: `REF-TASK-QUALITY-INSIGHT-PACK-001`.
+- DEFECT: repeated-cause leader was marked READY even with only 2–4 affected distinct tasks, bypassing the engine's own five-observation confidence threshold.
+- FIX: derive state from `affectedTaskCount` so 2–4 => LOW_SAMPLE and >=5 => READY. Separate EMPTY/RESTRICTED/UNAVAILABLE explanatory notes so an empty review source is not described as permission-blocked or unavailable.
+- REGRESSION SOURCE: new `src/lib/intelligence/task-quality-insights.test.ts` covers source states, six unique read-only insights, sample threshold, deterministic ordering, denominator exclusions, zero-denominator withholding, zero visible tasks and source immutability.
+- SAFETY: pure deterministic read-only engine only. No task/decision/policy/alert/stock/credit/finance writes; no migration/RPC/role changes; no hosted Supabase writes; no Vercel or deployment.
+- EXACT-SHA STATUS: P1 CI pending for the new commit; do not assign PASS from parent runs.
+- NEXT: run exact-SHA Vitest, strict TypeScript and production build; fix any regression without altering server source contracts. Then update this checkpoint and the matrix on the resulting SHA.
+
+---
+
 # P2 PARTIAL ACCEPTANCE CHECKPOINT — 2026-11-13 — LOCAL SUPABASE / FINANCE UI
 
 - VERIFIED_SOURCE_SHA: `880788208fabeb840a6639b38dc133a75f85603d`.

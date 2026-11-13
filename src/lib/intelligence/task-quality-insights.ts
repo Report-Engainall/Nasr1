@@ -10,14 +10,26 @@ const REASONS:Record<TaskQualityReasonCode,string>={
 const fmt=(n:number)=>n.toLocaleString("ar-YE");
 const pct=(n:number,d:number)=>d>0?(Math.round(n/d*10000)/100).toLocaleString("ar-YE",{maximumFractionDigits:2})+"٪":"غير محسوب";
 const sample=(n:number):TaskQualityInsightState=>n<5?"LOW_SAMPLE":"READY";
-const note=(s:TaskQualityInsightState)=>s==="LOW_SAMPLE"?"العينة أقل من 5 أحكام حاسمة؛ القراءة وصفية وليست اتجاهاً مستقراً.":s==="WITHHELD"?"حُجب المؤشر لغياب مقام صالح أو دليل كافٍ.":"القيمة مشتقة من عدّ المراجعات المصرح به دون تقدير أو ملء بيانات.";
+const note=(s:TaskQualityInsightState)=>{
+ if(s==="LOW_SAMPLE")return"العينة أقل من 5 أحكام حاسمة؛ القراءة وصفية وليست اتجاهاً مستقراً.";
+ if(s==="WITHHELD")return"حُجب المؤشر لغياب مقام صالح أو دليل كافٍ.";
+ if(s==="EMPTY")return"لا توجد نتيجة مثبتة لهذه الفئة؛ الغياب لا يثبت جودة أعلى أو عدم وجود مشكلة.";
+ if(s==="RESTRICTED")return"لم تُقرأ بيانات المصدر بسبب حدود الصلاحية.";
+ if(s==="UNAVAILABLE")return"لم تُستبدل بيانات المصدر غير المتاحة بأصفار أو بيانات تقديرية.";
+ return"القيمة مشتقة من عدّ المراجعات المصرح به دون تقدير أو ملء بيانات.";
+};
 function card(key:string,title:string,value:string,state:TaskQualityInsightState,evidence:string,interpretation:string,nextStep:string):TaskQualityInsight{
  return{key,title,value,state,evidence,interpretation:interpretation+" "+note(state),nextStep};
 }
 function sourceState(status:"RESTRICTED"|"UNAVAILABLE"|"EMPTY",evidence:string):TaskQualityInsight[]{
  const value=status==="EMPTY"?"لا توجد مراجعات محفوظة":status==="RESTRICTED"?"يتطلب صلاحية مدير أو مسؤول":"المصدر غير متاح";
  const next=status==="EMPTY"?"ابدأ بتسجيل مراجعات مرتبطة بمهام فعلية؛ لا تستنتج الجودة من غياب المراجعات.":status==="RESTRICTED"?"اعرض المؤشرات داخل جلسة مدير/مسؤول مخولة فقط.":"تحقق من ترحيل خدمة الجودة وتعاقد المصدر؛ لا تستبدل النتيجة بأصفار.";
- return[card("SOURCE_STATE","حالة مصدر جودة المهام",value,status,evidence,"لا تُنتج المنظومة مؤشرات من مصدر محجوب أو غير متاح.",next)];
+ const interpretation=status==="EMPTY"
+  ?"لا توجد مراجعات محفوظة في المصدر الحالي؛ لا تُفسّر ذلك كصفر في جودة الأداء أو كدليل على أن المهام قابلة للتنفيذ."
+  :status==="RESTRICTED"
+   ?"المصدر محجوب بسبب صلاحيات الجلسة؛ لم تُقرأ سجلات الجودة ولم تُعرض مؤشرات بديلة."
+   :"تعذر الحصول على مصدر جودة صالح؛ لا تُعرض أصفار أو نتائج تقديرية بديلاً عنه.";
+ return[card("SOURCE_STATE","حالة مصدر جودة المهام",value,status,evidence,interpretation,next)];
 }
 /** Evidence-bounded insight pack: no composite score, causal claim, trend inference or mutation. */
 export function buildTaskQualityInsights(m:TaskQualityMetrics):TaskQualityInsight[]{
@@ -39,7 +51,7 @@ export function buildTaskQualityInsights(m:TaskQualityMetrics):TaskQualityInsigh
  out.push(card("DEFERRED_DISPOSITION_SHARE","حصة قرارات التأجيل",dc===0?"غير محسوب":pct(m.disposition.deferredCount,dc),dc===0?"WITHHELD":sample(dc),fmt(m.disposition.deferredCount)+" تأجيل من "+fmt(dc)+" قرار مراجعة.","التأجيل قرار مستقل وليس رفضاً ولا قبولاً.","راجع أسباب التأجيل والموعد والمالك التالي قبل إعادة إدراج التوصية."));
  const cause=[...m.repeatedCauses].sort((a,b)=>b.affectedTaskCount-a.affectedTaskCount||b.reviewCount-a.reviewCount||a.reasonCode.localeCompare(b.reasonCode))[0];
  out.push(cause
-  ?card("REPEATED_CAUSE_LEADER","أكثر سبب متكرر عبر مهام مختلفة",REASONS[cause.reasonCode],"READY",fmt(cause.affectedTaskCount)+" مهام مختلفة · "+fmt(cause.reviewCount)+" مراجعات مرتبطة.","تكرار وصفي في المراجعات؛ لا يثبت سبباً جذرياً أو علاقة سببية.","افحص عينات المهام والمصدر قبل فتح إجراء تحسين أو تغيير سياسة.")
+  ?card("REPEATED_CAUSE_LEADER","أكثر سبب متكرر عبر مهام مختلفة",REASONS[cause.reasonCode],sample(cause.affectedTaskCount),fmt(cause.affectedTaskCount)+" مهام مختلفة · "+fmt(cause.reviewCount)+" مراجعات مرتبطة.","تكرار وصفي في المراجعات؛ لا يثبت سبباً جذرياً أو علاقة سببية.","افحص عينات المهام والمصدر قبل فتح إجراء تحسين أو تغيير سياسة.")
   :card("REPEATED_CAUSE_LEADER","أكثر سبب متكرر عبر مهام مختلفة","لا يوجد سبب متكرر مثبت","EMPTY",fmt(m.causeReviewCount)+" مراجعات سلبية مصنفة؛ لا يوجد سبب يتجاوز مهمة واحدة وفق تعريف المصدر.","لا تُختلق مجموعة متكررة عند غياب دليل على تعدد المهام.","واصل تسجيل الأسباب الموحدة ثم راجع ما يتكرر فعلياً."));
  return out;
 }
