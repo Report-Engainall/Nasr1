@@ -100,6 +100,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   const canUseFinance = Boolean(user?.roles.some((role) =>
     role === "admin" || role === "manager" || role === "accountant"
   ));
+  const canReadPurchaseOrders = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const isCapture = mode === "capture";
   const [workspace, setWorkspace] = useState<SupplierInvoiceWorkspace | null>(null);
   const [orderOptions, setOrderOptions] = useState<SupplierInvoiceWorkspace["purchaseOrders"]>([]);
@@ -171,6 +172,15 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
       return;
     }
 
+    // Only admin/manager purchase-order readers may use this fallback. Finance-only
+    // accountants retain invoice review access without a duplicate or unauthorized PO read.
+    if (!isCapture || !canReadPurchaseOrders) {
+      setOrderedQuantityByItemId(new Map());
+      setOrderedQuantitiesLoading(false);
+      setOrderedQuantitiesError("");
+      return;
+    }
+
     let active = true;
     setOrderedQuantityByItemId(new Map());
     setOrderedQuantitiesLoading(true);
@@ -189,7 +199,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
         if (active) setOrderedQuantitiesLoading(false);
       });
     return () => { active = false; };
-  }, [canUseFinance, purchaseOrders, purchaseOrdersLoading]);
+  }, [canUseFinance, canReadPurchaseOrders, isCapture, purchaseOrders, purchaseOrdersLoading]);
 
   function restorePreviousPrintMode() {
     if (typeof document === "undefined") return;
