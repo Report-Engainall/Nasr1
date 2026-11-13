@@ -1,3 +1,35 @@
+# EXACT-SHA ACCEPTANCE — AI PROMPT GOVERNANCE HISTORY INTEGRITY — 2026-11-13
+
+- Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+- Base code SHA before this P3 slice: `8f2605ad9c349b03675f4f6d80b7781b29dae167`.
+- P3 implementation commits: `9b47b65bcd9a14ff241a76f263344dd72a26ca11` and final normalization commit `1f3c9990fca3f40d63aed354ad2f29bcdd0845f5`.
+- VERIFIED_CODE_SHA: `1f3c9990fca3f40d63aed354ad2f29bcdd0845f5`.
+- P1 workflow [#43382275496](https://github.com/Report-Engainall/Nasr1/actions/runs/43382275496) — **SUCCESS on the exact code SHA**.
+  - Vitest: **101/101 files passed; 727/727 tests passed**.
+  - `src/lib/intelligence/ai-prompt-governance.test.ts`: **15/15 passed**.
+  - Strict TypeScript: **SUCCESS**.
+  - Production build: **SUCCESS**.
+- Implementation:
+  - Added runtime validation of prompt history before version creation and activation.
+  - Rejects malformed history identities/statuses, case-insensitive duplicate version IDs, duplicate `(organization_id, prompt_key, version)` tuples, and multiple active versions for the same tenant/prompt.
+  - Draft IDs are normalized for duplicate checks; unsafe version-number overflow fails closed.
+  - Organization UUID casing is normalized when selecting the version sequence and identifying the previously active version; activation deactivates the prior active row within the same tenant/prompt scope.
+  - Added cross-tenant duplicate identity, duplicate version sequence, and UUID-casing regression coverage; existing multi-active coverage now uses distinct valid IDs and version numbers.
+  - Added both prompt governance source/test files to P1 workflow push and pull-request path filters.
+- Proof boundary:
+  - This is a pure TypeScript governance engine and regression suite, not persistent prompt-library delivery.
+  - No migration, table, RPC, RLS, role, auth, route, provider, or production change was made.
+  - No prompt text was connected to the live gateway; no provider key, paid call, quota reservation, external egress, Vercel use, deployment, or hosted/production DB write occurred.
+  - The AI gateway remains fail-closed because server-verifiable free-quota/privacy evidence is absent. Do not infer a working external model from source configuration.
+- Remaining blockers:
+  - Persistent tenant-scoped prompt version storage and append-only audit are absent; P2 must provide the authorized persistence contract and PostgreSQL 17 proof for uniqueness, four-eyes, single-active promotion, atomicity, and safe rollback before UI/P1 connects it.
+  - Provider/model verification evidence, free-tier quota/reset/cooldown proof, privacy classification, and a bounded tenant-safe per-attempt read DTO remain missing.
+  - Edge gateway source is not proof of a deployed Edge Function or hosted provider connectivity.
+  - Existing read-only aggregate budget panel is not a per-attempt audit interface.
+- Release status: **NO-GO for production readiness**. This slice closes only in-memory prompt history integrity with exact P1 evidence.
+
+---
+
 # EXACT-SHA ACCEPTANCE — COMMERCE POLICY SIMULATION PARSER — 2026-11-13
 
 - VERIFIED_SHA: `712ade47af5a6a5185800452eb8627a4e946cfd3`.
