@@ -29,6 +29,8 @@
 
 - `src/components/StorefrontCategoryLandingPage.tsx`
 - `src/components/StorefrontCategoryLandingPage.test.tsx`
+- `e2e/public-storefront-smoke.spec.ts` — the public subcategory deep-link browser fixture now proves the breadcrumb and sibling URLs against a second child category.
+- `.github/workflows/p1-admin-context-verification.yml` — the page, unit test and category browser acceptance spec are included in P1 path filters so the exact files cannot bypass the P1 assurance job.
 - This execution record.
 
 ## Boundaries
@@ -38,5 +40,6 @@ No schema, migration, RPC, RLS, Auth, pricing, stock, cart, checkout, tenant acc
 ## Acceptance evidence
 
 - Component regression tests cover parent breadcrumb, sibling routing, active-child state, branch isolation, parent-page navigation and invalid cross-parent URL rejection.
+- Playwright public Storefront coverage now checks the real subcategory deep link, parent breadcrumb, selected child and sibling navigation using an isolated, read-only RPC fixture; it does not write to an external backend.
 - Exact-head P1/P2 GitHub Actions results are required before merge; pending runs are not acceptance.
 - External/hosted customer database acceptance is out of scope; no claim of cross-device category-data behavior is made.
