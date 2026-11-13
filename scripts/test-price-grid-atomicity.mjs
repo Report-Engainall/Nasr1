@@ -94,13 +94,13 @@ async function main() {
 
   try {
     const managerRows=await db.unsafe(
-      "select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true",
+      "select id,auth_user_id,email,organization_id,is_active from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true",
       [orgId,managerEmail],
     );
     assert.equal(managerRows.length,1,"the local fixture must provide one same-tenant manager");
     const mgr=managerRows[0];
     const customerRows=await db.unsafe(
-      "select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true",
+      "select id,auth_user_id,email,organization_id,is_active from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true",
       [orgId,customerEmail],
     );
     assert.equal(customerRows.length,1,"the local fixture must provide one same-tenant customer");
@@ -187,6 +187,8 @@ async function main() {
       privilegedContext?.current_profile_id !== mgr.id ||
       privilegedContext?.current_organization_id !== orgId ||
       privilegedContext?.visible_profile_id !== mgr.id ||
+      privilegedContext?.visible_profile_organization_id !== orgId ||
+      privilegedContext?.visible_profile_is_active !== true ||
       Number(privilegedContext?.manager_role_count ?? 0) < 1 ||
       managerContext?.auth_user_id !== mgr.auth_user_id ||
       managerContext?.profile_id !== mgr.id ||
@@ -199,8 +201,8 @@ async function main() {
         fixture: {
           profile_id: mgr.id,
           auth_user_id: mgr.auth_user_id,
-          organization_id: orgId,
-          is_active: true,
+          organization_id: mgr.organization_id,
+          is_active: mgr.is_active,
         },
         privileged_context: privilegedContext,
         authenticated_context: managerContext,
