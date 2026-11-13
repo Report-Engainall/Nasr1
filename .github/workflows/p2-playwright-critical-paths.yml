@@ -591,6 +591,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # This opt-in is scoped to the local-only CI build. The browser client then permits loopback only.
+          export VITE_LOCAL_SUPABASE_E2E=1
           export VITE_SUPABASE_URL="$SUPABASE_URL"
           export VITE_SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
           export SUPABASE_URL="$SUPABASE_URL"

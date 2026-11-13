@@ -35,3 +35,43 @@ export function assertCanonicalSupabaseUrl(value: string): string {
 
   return `https://${CANONICAL_SUPABASE_HOST}`;
 }
+
+
+/**
+ * Validate the browser-only Supabase endpoint used by the isolated local P2 suite.
+ * This does not expand the canonical production/server allow-list.
+ */
+export function assertLocalSupabaseE2EUrl(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    throw new Error("Local Supabase E2E URL must be a valid loopback HTTP URL.");
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (
+    parsed.protocol !== "http:" ||
+    (host !== "127.0.0.1" && host !== "localhost") ||
+    parsed.port === "" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    throw new Error("Local Supabase E2E URL must use HTTP, an explicit port, and only localhost or 127.0.0.1. No database request was sent.");
+  }
+
+  return parsed.origin;
+}
+
+/**
+ * Browser-client URL selection. The local override is opt-in at build time and
+ * must still pass the strict loopback-only validator.
+ */
+export function assertClientSupabaseUrl(value: string, allowLocalSupabaseE2E = false): string {
+  return allowLocalSupabaseE2E
+    ? assertLocalSupabaseE2EUrl(value)
+    : assertCanonicalSupabaseUrl(value);
+}

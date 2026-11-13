@@ -1,7 +1,7 @@
 // Project-owned database client adapter. Runtime credentials come from the active host.
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
-import { assertCanonicalSupabaseUrl } from './project-config';
+import { assertClientSupabaseUrl } from './project-config';
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
@@ -44,7 +44,8 @@ function createSupabaseClient() {
   }
 
   // Fail closed before any HTTP request if Bolt or another host still has a stale project URL.
-  const SUPABASE_URL = assertCanonicalSupabaseUrl(configuredUrl);
+  const allowLocalSupabaseE2E = import.meta.env['VITE_LOCAL_SUPABASE_E2E'] === '1';
+  const SUPABASE_URL = assertClientSupabaseUrl(configuredUrl, allowLocalSupabaseE2E);
 
   // A server/secret API key must never enter a browser build.
   if (SUPABASE_PUBLISHABLE_KEY.startsWith('sb_secret_')) {
