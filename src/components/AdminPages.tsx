@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback, type FormEvent } from 'react';
+import { lazy, Suspense, useState, useMemo, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 
@@ -34,6 +34,10 @@ import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleA
 import { AdminAccessMatrix } from '@/components/AdminAccessMatrix';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 import { AiGatewayOperationsPanel } from '@/components/intelligence';
+
+const ArchitectureRegistryPanel = lazy(async () => ({
+  default: (await import('@/components/reference-model/observability/ArchitectureRegistryPanel')).ArchitectureRegistryPanel,
+}));
 import {
   ADMIN_THEME_PRESETS,
   ADMIN_THEME_UPDATE_EVENT,
@@ -1206,8 +1210,9 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canManageRoles = Boolean(user?.roles.includes('admin'));
   const canManageStorefrontContent = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canViewArchitectureRegistry = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const { data: settings, loading, error, refetch } = useFetch(fetchSettings);
-  const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access' | 'announcements'>('general');
+  const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access' | 'announcements' | 'architecture'>('general');
   const [saving, setSaving] = useState(false);
   const map = useMemo(() => { const m: Record<string, unknown> = {}; settings?.forEach((s: AdminSetting) => m[s.key] = s.value); return m; }, [settings]);
   const savedTheme = useMemo(
@@ -1237,7 +1242,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
 
   return <AdminPage eyebrow="النظام" title="الإعدادات العامة" description="تحكم كامل في إعدادات المتجر والمظهر" icon={Settings} note="" toolbar={<Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>}>
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !settings ? <Empty text="تعذر التحقق من الإعدادات؛ حدّث البيانات." /> : <>
-      <div className="settings-tabs"><button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>عام</button><button className={tab === 'storefront' ? 'active' : ''} onClick={() => setTab('storefront')}>المتجر</button><button className={tab === 'appearance' ? 'active' : ''} onClick={() => setTab('appearance')}>المظهر</button>{canManageStorefrontContent && <button className={tab === 'announcements' ? 'active' : ''} onClick={() => setTab('announcements')}>إعلانات المتجر</button>}{canManageRoles && <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>المستخدمون والصلاحيات</button>}</div>
+      <div className="settings-tabs"><button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>عام</button><button className={tab === 'storefront' ? 'active' : ''} onClick={() => setTab('storefront')}>المتجر</button><button className={tab === 'appearance' ? 'active' : ''} onClick={() => setTab('appearance')}>المظهر</button>{canManageStorefrontContent && <button className={tab === 'announcements' ? 'active' : ''} onClick={() => setTab('announcements')}>إعلانات المتجر</button>}{canManageRoles && <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>المستخدمون والصلاحيات</button>}{canViewArchitectureRegistry && <button className={tab === 'architecture' ? 'active' : ''} onClick={() => setTab('architecture')}>معمارية التطبيق</button>}</div>
       {tab === 'general' && <SettingsPanel title="معلومات المتجر"><SettingInput label="اسم المتجر" value={(map.store_name as string) ?? ''} onSave={(v) => save('store_name', v, 'general')} saving={saving} /><SettingInput label="الوصف المختصر" value={(map.store_tagline as string) ?? ''} onSave={(v) => save('store_tagline', v, 'general')} saving={saving} /><SettingInput label="الهاتف" value={(map.store_phone as string) ?? ''} onSave={(v) => save('store_phone', v, 'general')} saving={saving} /><SettingInput label="البريد" value={(map.store_email as string) ?? ''} onSave={(v) => save('store_email', v, 'general')} saving={saving} /><SettingInput label="العنوان" value={(map.store_address as string) ?? ''} onSave={(v) => save('store_address', v, 'general')} saving={saving} /></SettingsPanel>}
       {tab === 'storefront' && <>
         <SettingsPanel title="إعدادات المتجر">
@@ -1314,6 +1319,11 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
         <OrganizationRoleManagement currentProfileId={user.profileId} onNotice={onNotice} />
         <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={onNotice} />
       </>}
+      {tab === 'architecture' && canViewArchitectureRegistry && (
+        <Suspense fallback={<Loading />}>
+          <ArchitectureRegistryPanel />
+        </Suspense>
+      )}
     </>}
   </AdminPage>;
 }
