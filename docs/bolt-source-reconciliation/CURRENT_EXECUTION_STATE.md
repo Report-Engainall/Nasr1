@@ -5134,3 +5134,16 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - P2 PR run [#43353568302](https://github.com/Report-Engainall/Nasr1/actions/runs/43353568302), source SHA `8efe6c1c4a2ed66f305d1818e9adeb955fc25d9b`: **SUCCESS**. Public read-only Storefront smoke and isolated local Supabase/PostgreSQL 17 acceptance both passed; the local acceptance job completed all 43 workflow steps, including authenticated order persistence and cross-tenant denial, stock/purchase-order XLSX, checkout replay, full customer return request/review/receipt/credit-memo workflow, audited Onyx export, finance/operational print, customer-manager authorization, and device-session revocation. The separate generic order/tenant job was **SKIPPED**, but the dedicated local Supabase job executed and passed the authenticated order/tenant assertions.
 - P1 push run [#43353836138](https://github.com/Report-Engainall/Nasr1/actions/runs/43353836138), merged main SHA `7efcbf51b12b21963eeeec9c85e7a6938bd181fc`: **SUCCESS** — Vitest, strict TypeScript and production build.
 - Overall product release remains **NO-GO** until the unrelated database/tenant/finance/order acceptance gates in this document are closed. This commit closes only localized quantity entry.
+
+
+---
+
+## FOLLOW-UP CHECKPOINT — STOREFRONT LOCALIZED PURCHASE QUANTITY — 2026-11-13
+
+- PR [#430](https://github.com/Report-Engainall/Nasr1/pull/430) merged to `main`: `f90f03e65a77733fbfa4c438757d2a072f856635`.
+- Reused `normalizeLocalizedDecimalInput` in product-detail quantity and Quick Order Matrix; added `Storefront.localized-quantity.test.tsx`.
+- Existing product quantity policy (minimum, package multiple, stock and safe whole-number check) and `validateQuickOrderLines` remain the authority; no pricing, stock, RPC, SQL or RLS change.
+- P1 PR run [#43355136346](https://github.com/Report-Engainall/Nasr1/actions/runs/43355136346), source SHA `ff20fe008862ebea1e4bc721d983f28253e652e3`: **SUCCESS** (Vitest, strict TypeScript, production build).
+- P2 PR run [#43355136206](https://github.com/Report-Engainall/Nasr1/actions/runs/43355136206): public Storefront smoke **SUCCESS**; generic customer order/tenant job **SKIPPED**; local Supabase acceptance was **IN_PROGRESS** at service startup. Do not treat P2 as complete for PR #430.
+- Push runs on merged SHA: P1 [#43355464142](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464142) and P2 [#43355464084](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464084) were **PENDING** at this checkpoint.
+- Expanded implementation record: [P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md](../execution/P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md).
