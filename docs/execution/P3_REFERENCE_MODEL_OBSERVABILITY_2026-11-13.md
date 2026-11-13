@@ -145,3 +145,18 @@ No SQL/RPC/RLS/Auth changes, hosted database writes, production data changes, Ve
 ### Next P3 action
 
 Read the terminal P1/P2 result for this exact SHA. Fix any test or migration regression found, re-run on the new exact SHA, then append the terminal evidence here and update the canonical execution state/matrix. Do not merge or label PASS from a prior SHA.
+
+
+---
+
+## P3 CHECKPOINT ADDENDUM — EXACT-HEAD ACCEPTANCE RETRY — 14 NOVEMBER 2026
+
+- Integrated P3 feature commit: `3e45227d13d1c25fd1e1ded4aa0e48d21964302f`.
+- P3 rollback-only test harness correction: `2bfcd37a1eb35bc6d95666fdfc4f73e02348d42b`.
+- Another programmer then integrated the separate storefront product-comparison slice as commit `a09eb5def9f87a90f5edaf37b17b30d7c08403ff`; it did not overlap the AI governance files. Current source HEAD at this checkpoint is that SHA.
+- The prior P2 retry on `2bfcd37...` was cancelled when the storefront commit moved main. Do not count it as a test pass/failure.
+- P1 [run #43526165500](https://github.com/Report-Engainall/Nasr1/actions/runs/43526165500) completed **SUCCESS** on exact SHA `a09eb5def9f87a90f5edaf37b17b30d7c08403ff`: Vitest, strict TypeScript and production build all succeeded.
+- P2 [run #43526165559](https://github.com/Report-Engainall/Nasr1/actions/runs/43526165559) is **IN_PROGRESS** on the same exact source SHA. The authenticated infrastructure gate passed. The public Storefront Playwright smoke is active; the local PostgreSQL 17 job is conditional on its completion. The external hosted customer-order/tenant job is **SKIPPED**, not passed.
+- The preceding completed P2 run on `3e45227...` applied repository migrations successfully to isolated PostgreSQL 17 but its AI fixture failed before the audit RPC because the harness inserted a scalar while the production JSONB array CHECK constraints were correctly enabled.
+- The test harness now inserts the legacy scalar only in a disposable transaction, drops the two array CHECK constraints inside that transaction, calls the RPC with real local admin JWT/session claims, asserts integrity=false / empty details / original count, forces rollback, then asserts both constraints are restored and the scalar fixture row is absent. No production migration or constraint was weakened.
+- P2 acceptance of that rollback-only case is **NOT YET PROVEN**. Keep the release boundary NO-GO until the current P2 run reaches its local DB job and completes.

@@ -5569,3 +5569,15 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - The preceding main migration blob was malformed (32 repeated COMMIT markers / 1,334 lines). It was replaced on this SHA by one 199-line SQL function and one COMMIT; final proof is pending P2 PostgreSQL 17 application.
 - Prompt-version persistence and bounded AI audit now exist in source/migrations; acceptance of maker-checker, tenant isolation, scalar-history handling and UI remains dependent on the current exact P2 run. Provider/model verification, free-tier and privacy proof, deployed Edge Function, durable error log and trusted Developer AI repository access remain BLOCKED.
 - No production DB, live provider, Vercel, paid service or deployment was used. Release remains **NO-GO** until exact-SHA acceptance and broader 41-screen/browser gates close.
+
+
+---
+
+## CURRENT P3 ACCEPTANCE — AI USAGE QUALITY / LEGACY JSONB — 14 NOVEMBER 2026
+
+- Current code source SHA before this documentation update: `a09eb5def9f87a90f5edaf37b17b30d7c08403ff`.
+- P3 feature commit: `3e45227d13d1c25fd1e1ded4aa0e48d21964302f`; rollback-only legacy test fix: `2bfcd37a1eb35bc6d95666fdfc4f73e02348d42b`.
+- P1 [#43526165500](https://github.com/Report-Engainall/Nasr1/actions/runs/43526165500) **SUCCESS** on exact source SHA `a09eb5...`: Vitest, strict TypeScript and production build passed.
+- P2 [#43526165559](https://github.com/Report-Engainall/Nasr1/actions/runs/43526165559) remains **IN_PROGRESS** on exact source SHA `a09eb5...`. Public UI Playwright is running; PostgreSQL 17 local acceptance starts only after it completes. External hosted E2E is SKIPPED and is not accepted as proof.
+- The prior P2 DB migration application succeeded, but the scalar fixture was correctly rejected by existing production array CHECK constraints. The harness was fixed to exercise a legacy scalar using transactional DDL + forced ROLLBACK; the current retry must prove constraints restoration and no fixture persistence.
+- Do not mark the AI audit compatibility/read path as DB-tested until the current exact P2 local PostgreSQL job completes. Product launch remains **NO-GO**.
