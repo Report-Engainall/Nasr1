@@ -20,6 +20,7 @@
 - `src/lib/storefront-category-groups.ts`: pure hierarchy projection; no database writes or category mutations.
 - `src/lib/storefront-category-groups.test.ts`: direct parent grouping, orphan preservation, deeper levels and cycle/no-drop guarantees.
 - `src/components/StorefrontCollectionsPage.test.tsx`: parent/child rendering, real-count filtering, hidden/inactive category exclusion, deeper-level route and refetch behavior.
+- `e2e/public-storefront-smoke.spec.ts`: extends the isolated public subcategory fixture to navigate to `/categories` and assert parent grouping, child links, absence of flat child headings and zero-count output without external writes.
 - `.github/workflows/p1-admin-context-verification.yml`: adds the page, page test, helper and helper test to both P1 push and pull-request path filters.
 
 ## Data and count semantics
