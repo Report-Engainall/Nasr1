@@ -88,7 +88,7 @@ async function main() {
   const manager = await findProfile(managerEmail, organizationId);
 
   const deliveredOrderRows = await db.unsafe(
-    "select id,customer_id,status,organization_id from public.orders " +
+    "select id,customer_id,status,organization_id,order_number from public.orders " +
     "where id=$1::uuid and organization_id=$2::uuid and status='delivered'",
     [deliveredOrderId, organizationId],
   );
@@ -182,10 +182,11 @@ async function main() {
     /not available|organization/i,
   );
 
+  await setIdentity(manager);
   const pending = await moderationQueue();
   assert.equal(pending.length, 1, "manager sees the one pending review in the active tenant");
   assert.equal(pending[0].id, reviewId);
-  assert.equal(pending[0].order_number, deliveredOrderRows[0].id ? (await db.unsafe("select order_number from public.orders where id=$1::uuid", [deliveredOrderId]))[0].order_number : null);
+  assert.equal(pending[0].order_number, deliveredOrderRows[0].order_number);
   for (const privateField of ["organization_id", "customer_id", "profile_id", "email", "phone", "order_id", "order_item_id", "moderator_profile_id"]) {
     assert.equal(privateField in pending[0], false, "moderation queue omits private field " + privateField);
   }
@@ -219,6 +220,7 @@ async function main() {
   assert.equal(resubmitted.id, reviewId, "resubmission updates one customer/product row instead of creating a duplicate");
   assert.equal(resubmitted.moderation_status, "pending");
 
+  await setIdentity(manager);
   const managerQueue = await moderationQueue();
   assert.equal(managerQueue.length, 1, "resubmitted review returns to the pending queue");
   assert.equal(managerQueue[0].rating, 4);
