@@ -61,3 +61,13 @@ P3 change chain: `7506b65f987483858a3295f8834563a6fbe978d6`, `2c697ce44a6849b8dc
 A short-lived edit to finance source and P1 workflow filters crossed the P3 boundary. Exact original contents were restored in normal corrective commit `3baadc625ea67fb2690612f0e2cd7c6213ee8b17`; no force-push/reset was used and no out-of-scope finance/workflow change remains. This was reported in Issue #422.
 
 No SQL/RPC/migration/RLS/Auth changes, hosted DB writes, secrets, Vercel activity, deployment, paid service or external AI call was performed.
+
+
+## Status refresh — current-main revalidation — 13 November 2026
+
+- Documentation checkpoint HEAD: `b90e2d1881861f7f4253ac1cfdc0361ebf377726`; application source for the current P2 run: `f6c3ea016113e05b18cbc629afc483f8b56de59c` (documentation-only descendant).
+- Latest P1 [#43385519690](https://github.com/Report-Engainall/Nasr1/actions/runs/43385519690): **IN_PROGRESS** on exact main SHA `b90e2d1881861f7f4253ac1cfdc0361ebf377726`. Previous P1 [#43385044639](https://github.com/Report-Engainall/Nasr1/actions/runs/43385044639): **SUCCESS only** on exact `745989a...` (102 files / 737 tests / strict TypeScript / production build).
+- P2 [#43385446766](https://github.com/Report-Engainall/Nasr1/actions/runs/43385446766): **IN_PROGRESS** on source `f6c3ea016113e05b18cbc629afc483f8b56de59c`; local source build/server startup succeeded, public browser assertions pending; external customer/order/tenant E2E **SKIPPED**.
+- Previous P2 attempts on `745989a...` and `930b098...` were **CANCELLED**, not PASS.
+- P1 integration remains open: `AdminPages.tsx` references `ArchitectureRegistryPanel` only, not the two P3 panels. No authenticated desktop/mobile route acceptance has been proven.
+- Overall 41-screen reference acceptance and product release remain **OPEN / NO-GO**.

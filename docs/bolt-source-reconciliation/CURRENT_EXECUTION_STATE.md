@@ -5517,3 +5517,17 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - No hosted DB writes, migrations, RLS/Auth changes, secrets, Vercel, deployment, paid services or external AI calls.
 - Next: P1 mounts the two existing observability panels with supported manager/admin gates and authenticated desktop/mobile browser acceptance. P2 must finish exact-current-main validation. Do not transfer PASS across SHAs.
 
+
+
+---
+
+## P3 STATUS REFRESH — CURRENT MAIN AND CI — 2026-11-13
+
+- Main documentation checkpoint: `b90e2d1881861f7f4253ac1cfdc0361ebf377726`; application source is unchanged from code SHA `f6c3ea016113e05b18cbc629afc483f8b56de59c` (documentation-only descendant).
+- Latest P1 revalidation [#43385519690](https://github.com/Report-Engainall/Nasr1/actions/runs/43385519690): **IN_PROGRESS** on exact main SHA `b90e2d1881861f7f4253ac1cfdc0361ebf377726`; no outcome claimed. Previous P1 [#43385044639](https://github.com/Report-Engainall/Nasr1/actions/runs/43385044639) remains **SUCCESS only** on exact code SHA `745989a0e4fe1bc5cc3724a62aa3f0384abfce0d`.
+- Current P2 [#43385446766](https://github.com/Report-Engainall/Nasr1/actions/runs/43385446766): **IN_PROGRESS** on exact source SHA `f6c3ea016113e05b18cbc629afc483f8b56de59c`; local build and server startup completed, public read-only browser assertions remain pending. External customer/order/tenant E2E: **SKIPPED**.
+- Previous P2 attempts on `745989a...` and `930b098...` were **CANCELLED** by later main updates; do not count them as acceptance.
+- P1-owned mounting remains open: `AdminPages.tsx` imports/renders `ArchitectureRegistryPanel` only; it does not import/render `SystemHealthPanel` or `SourceBoundaryStatusPanel`. P1 owns mounting and authenticated desktop/mobile browser acceptance under Issue #422.
+- Existing dashboard group cards and hierarchical category tree are already implemented; do not rebuild either.
+- AI per-attempt audit, persistent prompt version/audit store, durable error log and developer tooling remain **BLOCKED** pending safe server-side contracts.
+- Next actions: P1 mounts the two existing panels with supported manager/admin checks; P2 finishes exact-main validation. No prior SHA PASS transfers.
