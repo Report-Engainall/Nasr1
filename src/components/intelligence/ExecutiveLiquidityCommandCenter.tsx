@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { createDecisionOutcomeProposal } from "@/lib/intelligence/decision-outcome-client";
 import { fetchExecutiveCustomerReceivableAging, type CustomerReceivableAgingItem, type CustomerReceivableAgingResult } from "@/lib/intelligence/customer-receivable-aging-client";
+import { compareCustomerReceivableAgingRows } from "@/lib/intelligence/customer-receivable-aging-ranking";
 import { RefreshCw } from "lucide-react";
 import {
   fetchExecutiveLiquidityWorkspace,
@@ -245,16 +246,20 @@ function CustomerAgingDecisionSection({
   const [message,setMessage] = useState<string|null>(null);
   const rows = result?.ok ? result.data.items
     .filter(item=>item.overdueAmount>0)
-    .sort((a,b)=>(b.oldestAgeDays??-1)-(a.oldestAgeDays??-1) || b.overdueAmount-a.overdueAmount)
+    .sort(compareCustomerReceivableAgingRows)
     .slice(0,10) : [];
   const saveDecision = async (item: CustomerReceivableAgingItem) => {
     if (!userProfileId || busyKey) return;
+    if (item.status !== "VERIFIED" || item.customerNameStatus !== "VERIFIED") {
+      setMessage("لا يمكن إنشاء قرار تحصيل قبل اكتمال هوية العميل والتحقق من جميع بيانات الذمم ومراجعها.");
+      return;
+    }
     const evidenceIds=[...new Set(item.agingBuckets.filter(bucket=>bucket.bucket.startsWith("OVERDUE_")).flatMap(bucket=>bucket.evidenceIds))].slice(0,500);
     if (!evidenceIds.length) { setMessage("لا يمكن حفظ قرار تحصيل دون مراجع فواتير/دفعات مثبتة."); return; }
     const priority: "P0" | "P1" | "P2" | "P3" =
       (item.oldestAgeDays??0)>=90 ? "P0" : (item.oldestAgeDays??0)>=60 ? "P1" : (item.oldestAgeDays??0)>=30 ? "P2" : "P3";
     const priorityScore = priority==="P0"?400:priority==="P1"?300:priority==="P2"?200:100;
-    const candidateId = ("receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)).slice(0,150);
+    const candidateId = "receivables.collection:"+item.customerId+":"+item.currency+":"+item.asOf.slice(0,10);
     const expectedOutcome="خفض الرصيد المتأخر للعميل وتسجيل نتيجة التحصيل في مستندات المؤسسة.";
     const impactVerified=item.status==="VERIFIED" && item.overdueAmount>=0;
     const candidateSnapshot={
@@ -290,7 +295,7 @@ function CustomerAgingDecisionSection({
       </div>
       <p className="text-xs text-muted-foreground">الأرصدة بعد خصم الدفعات المسجلة على الفاتورة نفسها. لا تدمج العملات، ولا يظهر العميل كقرار تحصيل دون مراجع مصدرية.</p>
       {rows.length?rows.map(item=>(
-        <article key={item.customerName+":"+item.currency} className="rounded-lg border p-3 space-y-2">
+        <article key={item.customerId+":"+item.currency} className="rounded-lg border p-3 space-y-2">
           <div className="flex flex-wrap justify-between gap-2">
             <strong>{item.customerName} · {item.currency}</strong>
             <span className="text-sm font-semibold">{amount(item.overdueAmount,item.currency)} متأخر</span>
@@ -305,7 +310,7 @@ function CustomerAgingDecisionSection({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground"><EvidenceStatusLabel status={item.status}/>: <EvidenceReferences ids={item.agingBuckets.flatMap(bucket=>bucket.evidenceIds).slice(0,12)}/></span>
-            <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
+            <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||item.status!=="VERIFIED"||item.customerNameStatus!=="VERIFIED"||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
               {busyKey==="receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)?"جارٍ الحفظ...":"حفظ قرار متابعة التحصيل"}
             </button>
           </div>
