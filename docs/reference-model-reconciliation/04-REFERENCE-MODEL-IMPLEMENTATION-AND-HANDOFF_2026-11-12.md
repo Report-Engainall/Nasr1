@@ -324,3 +324,31 @@ P1 code proof remains `d6f9421...` (#43139543761): 68/68 files, 524/524 tests, s
 P1 remains PASS on application SHA `d6f9421...`: 68/68 test files, 524/524 tests, strict TypeScript and production build. This does not prove the P2 transaction and tenant paths.
 
 الخطوة التالية: انتظر fixture ثم اقرأ تشخيص profiles. إن أثبت أن وظيفة تحديد السياق لا تستطيع قراءة الملف الشخصي بسبب RLS أو ملكية الوظيفة، أصلح عقد RLS/المساعدة بأقل migration آمن وأضف اختبارين: own profile readable + cross-tenant profile unreadable. لا تُضعف عزل المؤسسة ولا bypass من جهة العميل.
+
+## 6.15 — دمج سجل معمارية الإدارة ونتيجة P1 الدقيقة — 13 نوفمبر 2026
+
+**التكامل المنفذ على main:**
+- commit `edf4266377b40823c5b77606fe33d24fe40f95a2` يضيف تبويب «معمارية النظام» إلى `SettingsPage` في `src/components/AdminPages.tsx`، ويحمّل `ArchitectureRegistryPanel` عبر lazy import عند فتح التبويب فقط.
+- يظهر التبويب ومحتواه لدوري `admin` و`manager` فقط. أُعيد استخدام لوحة القراءة فقط التي سلّمها Path B؛ لا route جديد، ولا menu entry مكرر، ولا نسخة ثانية من سجل المعمارية.
+- أضيف `src/test/admin-settings-architecture-registry.test.tsx`: يغطي وصول admin/manager وحجب staff/accountant/customer_manager/customer. جميع الاختبارات الستة نجحت.
+- أظهرت المراجعة أن بطاقات مجموعات لوحة المعلومات والشجرة الهرمية للتصنيفات موجودتان ومربوطتان بالفعل؛ وكذلك `BulkProductImageUploader` ظاهر في مساحة المنتجات للأدوار المصرح لها. لم يُنشأ بديل لأي منها.
+
+**إصلاح تهيئة الاختبارات:**
+- تشغيل P1 الأول على SHA `edf4266...` كشف فشلين مستقلين في `src/components/Storefront.product-grid.test.tsx` بسبب غياب استيراد `@testing-library/jest-dom/vitest`، لا بسبب لوحة المعمارية؛ اختبارات اللوحة الستة نجحت في ذلك التشغيل.
+- commit `7ca17dd3e26bf39d65baf0d021f3e80a89e20973` أضاف استيراد matcher إلى ملف الاختبار فقط، دون تغيير سلوك المتجر أو المخزون.
+- P1 run [#43337456908](https://github.com/Report-Engainall/Nasr1/actions/runs/43337456908) على SHA `7ca17dd3e26bf39d65baf0d021f3e80a89e20973` = **SUCCESS**: 71/71 ملف اختبار، 543/543 اختبار، strict TypeScript PASS، production build PASS.
+- الرأس الحالي عند تسجيل هذا checkpoint هو `13a72ff839499260b290ea2b22c3d126dda17aa9`، وهو لاحق لالتزام الاختبار. نتيجة P1 مربوطة صراحةً إلى SHA أعلاه، ولا تُنقل تلقائياً إلى أي تغيير لاحق في ملفات التطبيق.
+
+**حالة P2 في نفس دفعة التحقق:**
+- P2 run [#43337456921](https://github.com/Report-Engainall/Nasr1/actions/runs/43337456921) على SHA `7ca17dd3...`: build المحلي وتهيئة وتشغيل تطبيق smoke نجحت؛ Playwright public UI smoke كان IN_PROGRESS عند تحديث هذا القسم.
+- Authenticated E2E infrastructure gate = SUCCESS كفحص تهيئة فقط؛ اختبار customer order / tenant isolation = SKIPPED لغياب بيئة اختبار مصادق عليها ومصرح لها. لا يُحتسب هذا قبولاً للطلبات أو العزل أو الماليات.
+- عائق P2 السابق بشأن سياق مدير الأسعار وملف المستخدم/RLS ما زال بحاجة إلى استكمال تشخيصه ضمن قاعدة اختبار محلية؛ لا تغيير في RPC أو RLS أو قاعدة مستضافة.
+
+**الأرشيف والوثائق:**
+- تمت مراجعة كامل صفحات Library المتاحة (229 عنصراً عبر صفحتين). لم يظهر المسار `Nasr1-Reference-Model-2026-11-12` أو ملف `all.rar` أو نسخة التقرير في المكتبة. هذا عائق استرجاع موثق؛ التقرير المرجعي والوثيقة الرابعة متاحان في المستودع، وبصمة الأرشيف المسجلة سابقاً محفوظة. لم يُعد فحص الصور الـ84 ولم تُفتح واحدة منها.
+
+**التقسيم والخطوة التالية:**
+- Path A لم يلمس أي ملف من نطاق Path B. تم إرسال نتيجة التكامل إلى Issue #422 مع تثبيت منع التعارض على `AdminPages.tsx` و`AghbariApp.tsx` وملفات المسارات المشتركة.
+- يستمر Path B في مكونات observability / AI governance / prompt persistence المعزولة. بعد تسليمها، يراجع Path A العقود والاختبارات ثم يربط ما يثبت فقط.
+- الأولوية التالية: إغلاق مسارات P2 المحلية للطلبات والتسعير والعزل مع قراءة تشخيص profile/RLS دون تخفيف السياسة، ثم استكمال أي فجوة مرجعية متبقية لم تُغطَّ فعلياً. حالة الإطلاق تبقى **NO-GO** حتى نجاح أدلة P2 المطلوبة.
+- لا تغييرات إنتاجية، لا migrations مستضافة، لا نشر، ولا استخدام Vercel.
