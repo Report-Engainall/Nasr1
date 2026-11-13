@@ -1,3 +1,36 @@
+# ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — STOREFRONT PRODUCT CARD ACCESSIBILITY
+
+> Repository: `Report-Engainall/Nasr1`; branch: `main`.
+> Product implementation commit: `bc39fad922bae6802f5c0831d6189e89ec21e9d0` (parent HEAD `55da486475112466e0f456a953ba998daa11acfe`).
+> Scope: Path A customer storefront; no Path B-owned directories or issue #422 files were modified.
+
+## Implemented on main
+
+- `src/components/Storefront.tsx`: product image changed from a click-only `div` to a named native button; favorite/compare controls are sibling buttons, with per-product accessible labels and `aria-pressed`; cart action has a product-specific accessible name; product image uses lazy loading and asynchronous decoding.
+- `src/aghbari.css`: responsive 4:3 media frame, focus-visible outline, quick actions revealed by hover and `:focus-within`, and persistent action visibility on coarse/touch pointers.
+- `src/components/Storefront.product-grid.test.tsx`: added regression tests for focusability, non-nested interactive controls, pressed-state labels, and product-action callback wiring.
+- `.github/workflows/p1-admin-context-verification.yml`: P1 push/pull request paths explicitly include the current storefront component and its regression test.
+- Created the six required reference-integration documents in `docs/reference-integration/`.
+
+## Exact CI evidence at checkpoint time
+
+- P1 workflow run [#43333792228](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792228), source SHA `bc39fad922bae6802f5c0831d6189e89ec21e9d0`: dependency installation SUCCESS; full Vitest regression suite SUCCESS; strict TypeScript check IN PROGRESS; production build PENDING.
+- P2 workflow run [#43333792309](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792309), same source SHA: local build and public read-only browser smoke had started; result not yet known at checkpoint time. Authenticated order/tenant-isolation job was SKIPPED; this is not a pass.
+- No Vercel, paid build, hosted database write, migration or seed-data operation was used.
+
+## Reference provenance and licensing
+
+- Vercel Shop, MIT: commit `c92f3df11e2fd3c5cf7b870518aa43e5534725eb`, `components/product-card/product-card.tsx`, file blob `3cf8ff5975eafc243891911f42b388c6ce38d3ae`.
+- BigCommerce Catalyst, MIT: commit `4cce7bc3d05be54a449140644eb2119dd8d8c821`, `core/vibes/soul/primitives/product-card/index.tsx`, file blob `0f98b768f379c94e364a945c416af595fb667f4f`.
+- Radix UI Primitives, MIT: commit `eb3a2b7091293e27df8f9ba906632d8daa3d81a3`.
+- Design patterns were independently implemented. No upstream code or assets were copied; no dependency was added.
+
+## Preserved boundaries
+
+Existing catalog RPC, public price privacy, server cart synchronization, tenant/session guards, wishlist/compare state, checkout behavior, RLS and database schema remain unchanged. This commit closes a specific customer product-card accessibility/usability gap; it does not mark the full storefront, merchant platform or intelligence roadmap complete.
+
+---
+
 # ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — P3 PATH B ROUTER ARCHITECTURE REGISTRY
 
 > Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
