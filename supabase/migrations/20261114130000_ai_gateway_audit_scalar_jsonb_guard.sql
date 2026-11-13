@@ -3,8 +3,6 @@
 -- Keep the original source type for integrity=false and preserve provider_attempt_count.
 BEGIN;
 
-BEGIN;
-
 CREATE OR REPLACE FUNCTION public.list_ai_gateway_audit(
   p_result_status text DEFAULT NULL,
   p_limit integer DEFAULT 50,
