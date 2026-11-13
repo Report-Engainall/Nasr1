@@ -11,6 +11,7 @@ import { useFetch } from '@/lib/useFetch';
 import { formatNumber } from '@/lib/format';
 import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
+import { ProductComparison } from '@/components/store/ProductComparison';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
@@ -29,6 +30,7 @@ import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-add
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
+import { readStorefrontCompareIds, storefrontCompareStorageKey, writeStorefrontCompareIds } from '@/lib/storefront-compare';
 import { buildStorefrontProductStructuredData, serializeStorefrontProductStructuredData } from '@/lib/storefront-product-structured-data';
 
 const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
@@ -243,6 +245,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
   const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
+  const compareStorageKey = storefrontCompareStorageKey(user?.profileId);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
@@ -277,7 +280,29 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       return { scopeKey: wishlistStorageKey, ids };
     });
   }, [wishlistStorageKey]);
-  const [compare, setCompare] = useState<string[]>(() => readSavedProductIds('aghbari:compare:v1', 3));
+  const [compareState, setCompareState] = useState<{ storageKey: string; ids: string[] }>(() => {
+    try {
+      return {
+        storageKey: compareStorageKey,
+        ids: typeof window === 'undefined'
+          ? []
+          : readStorefrontCompareIds(window.localStorage, compareStorageKey),
+      };
+    } catch {
+      return { storageKey: compareStorageKey, ids: [] };
+    }
+  });
+  const compare = compareState.storageKey === compareStorageKey ? compareState.ids : [];
+  const setCompare = useCallback((next: string[] | ((previous: string[]) => string[])) => {
+    setCompareState((current) => {
+      const previous = current.storageKey === compareStorageKey ? current.ids : [];
+      const ids = typeof next === 'function' ? next(previous) : next;
+      return {
+        storageKey: compareStorageKey,
+        ids: normalizeSavedProductIds(ids, 3),
+      };
+    });
+  }, [compareStorageKey]);
   const [savedListNotice, setSavedListNotice] = useState('');
   const [wishlistHydratedFor, setWishlistHydratedFor] = useState('');
   const [wishlistSyncState, setWishlistSyncState] = useState<'loading' | 'local' | 'synced' | 'pending'>('loading');
@@ -462,8 +487,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   }, [authReady, wishlist, wishlistHydratedFor, wishlistStorageKey, wishlistState.scopeKey]);
 
   useEffect(() => {
-    try { window.localStorage.setItem('aghbari:compare:v1', JSON.stringify(compare)); } catch { /* saved preferences are optional */ }
-  }, [compare]);
+    if (compareState.storageKey !== compareStorageKey || typeof window === 'undefined') return;
+    try {
+      writeStorefrontCompareIds(window.localStorage, compareStorageKey, compare);
+    } catch {
+      // Local comparison state is optional; live catalog and server remain authoritative.
+    }
+  }, [compare, compareState.storageKey, compareStorageKey]);
 
   useEffect(() => {
     if (initialView !== 'product' || !initialProductId || !products.length) return;
@@ -984,7 +1014,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
         {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
-        {view === 'compare' && <CollectionView title="مقارنة المنتجات" priceVisibilityPolicy={settings?.show_price_on_cards} icon={GitCompare} products={products.filter((p) => compare.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="اختر حتى ثلاثة منتجات من الكتالوج للمقارنة" />}
+        {view === 'compare' && <ProductComparison products={products.filter((product) => compare.includes(product.id))} priceVisibilityPolicy={settings?.show_price_on_cards} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onRemove={toggleCompare} onBack={() => void navigate({ to: '/' })} />}
         {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} alreadyInCart={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
 
         {view === 'cart' && (!cartRestored ? (
