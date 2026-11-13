@@ -97,3 +97,15 @@ The account hub composition follows the account-as-workspace pattern studied in 
 - Categories whose parent is not in the active public category result remain visible as detached groups. Cyclic or deeper nodes are surfaced separately rather than disappearing.
 - Counts come from the existing fully paginated public catalogue read. Inactive categories, inactive products, inactive status and uncategorized products do not inflate counts. No count or category is fabricated.
 - Delivered in PR #438 at merge SHA `4451e4625c1cfe0974693ea49d0737a8959fc943`. Exact main P1 passed with 91 test files / 644 tests, strict TypeScript and production build; public Chromium smoke passed 19/19. Hosted authenticated order/tenant acceptance remains distinct and was skipped for unavailable external credentials.
+
+## Verified customer product reviews — 2026-11-13
+
+- Product details now have a real review section backed by tenant-scoped Supabase RPCs. The public summary, rating average, count, and pages are calculated from database rows in the `approved` state only; an empty catalogue starts at zero and never manufactures scores or review text.
+- A review can be created or revised only by an active approved customer profile that owns a matching order line for the same active product and organization, where the order state is exactly `delivered`. The browser cannot submit a customer, profile, tenant, order, or moderator identity.
+- One review row is maintained per customer/product. Any revision clears prior moderation and returns the row to `pending`; it disappears from public averages until a manager or administrator approves it again.
+- The existing Products workspace contains the moderation queue for managers and administrators. Rejection requires a reason; all submit, resubmit, approve and reject actions create actor-attributed audit entries.
+- The public response is allow-listed to review id, stars, title, body, date and the verified-purchase marker. Customer name, phone, email, profile/customer/order ids, organization ids, price, cost and stock are not returned.
+- Implementation counterpart: `supabase/migrations/20261113110000_storefront_product_reviews.sql`, `src/lib/storefront-product-reviews.ts`, `src/components/StorefrontProductReviews.tsx`, `src/components/StorefrontProductReviewModeration.tsx`, `src/components/Storefront.tsx`, and the existing Products workspace in `src/components/AghbariApp.tsx`.
+- This is an independent NASR1 implementation using the current React/TypeScript/Supabase stack. No external storefront source, package, asset or paid provider was added.
+- Scope boundary: product Q&A, review photos, ratings/review synchronization to an external channel, and external hosted-account acceptance are not included in this change.
+- PR #439: https://github.com/Report-Engainall/Nasr1/pull/439. Acceptance remains pending until P1 and local PostgreSQL P2 both pass on the final PR head. No hosted migration or production deployment has been run.

@@ -71,3 +71,10 @@ A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metad
 - Root license: `LICENSE.txt`, blob `56313ab5a54a163e7d46224cb5470a814c3a2436`, read and confirmed Apache License 2.0.
 - Inspected source files and blobs: `DashboardGrid.tsx` / `1e7f816e6a257bad557ff18db28da8e0c03b9ee2`; `FiltersBadge/DetailsPanel/index.tsx` / `1df3cbf4bbbecaccc5bfc1bf209f9cebc0ab2b74`; `ChartContainer.tsx` / `70a7c6e7c04974425d74dc1112b2848278997e0c`. Each source contains the Apache-2.0 header.
 - Decision: use these files as architecture and UI design references only. No code, assets, chart packages, Redux integration or transitive dependencies were copied into NASR1. This decision is limited to the inspected files and does not approve unrelated Superset code for reuse.
+
+### Verified product review feature — license and transfer note — 2026-11-13
+
+- No third-party source code, UI asset, package or dependency was copied or added for the verified product review workflow.
+- The implementation uses NASR1's existing React, TypeScript, Supabase client, authentication, tenant helpers and audit model. No third-party license or notice obligation is introduced by PR #439.
+- External project references remain inspiration-only for the general storefront experience. This feature does not grant blanket approval to reuse files from Medusa, Vendure, Saleor, BigCommerce Catalyst, Shopify Hydrogen, GraphCommerce, or any other reference project.
+- The feature is still awaiting P1 and local PostgreSQL P2 acceptance on PR #439; no production migration or deployment has occurred.
