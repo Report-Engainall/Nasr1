@@ -361,8 +361,23 @@ test("customer manager: directory privacy, audited customer commands, activation
     for (const route of ["/admin/finance", "/admin/orders", "/admin/devices", "/admin/audit", "/admin/settings"]) {
       await managerPage.goto(route);
       await expect(managerPage.getByRole("heading", { name: "مساحة مسؤول العملاء" })).toBeVisible({ timeout: 20_000 });
-      const restrictedText = await managerPage.locator("body").innerText();
-      expect(restrictedText).not.toMatch(/الأجهزة والجلسات|سجل التدقيق|الفواتير والتحصيل|إشعارات المرتجعات الدائنة/);
+      const restrictedPanel = managerPage
+        .locator('section.panel[role="status"]')
+        .filter({ has: managerPage.getByRole("heading", { name: "مساحة مسؤول العملاء", exact: true }) });
+      await expect(restrictedPanel).toHaveCount(1);
+      const restrictedPanelText = await restrictedPanel.innerText();
+      expect(restrictedPanelText).not.toMatch(/الأجهزة والجلسات|سجل التدقيق|دفتر الأستاذ العام وقيود اليومية|إشعارات المرتجعات الدائنة/);
+
+      // Route breadcrumbs name the requested destination (including finance) even when
+      // the workspace is correctly denied. Assert the actual role boundary instead of
+      // treating that non-sensitive breadcrumb as evidence of an exposed finance screen.
+      const restrictedAdminNavigation = managerPage.getByRole("navigation", { name: "التنقل الإداري" });
+      await expect(restrictedAdminNavigation.getByRole("button")).toHaveCount(1);
+      await expect(restrictedAdminNavigation.getByRole("button", { name: "العملاء", exact: true })).toHaveCount(1);
+      await expect(managerPage.getByRole("heading", { name: "جلسات المؤسسة المسجلة خادميًا" })).toHaveCount(0);
+      await expect(managerPage.getByRole("heading", { name: "دفتر الأستاذ العام وقيود اليومية" })).toHaveCount(0);
+      await expect(managerPage.getByRole("button", { name: /إبطال جلسة/ })).toHaveCount(0);
+      await expect(managerPage.getByRole("button", { name: "إشعارات المرتجعات الدائنة" })).toHaveCount(0);
     }
 
     const ordinaryContext = await browser.newContext();
