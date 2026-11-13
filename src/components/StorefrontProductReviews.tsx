@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquareText, RefreshCw, Send, ShieldCheck, Star } from "lucide-react";
+import { ChevronDown, MessageSquareText, Send, ShieldCheck, Star } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   fetchCustomerProductReviewContext,
@@ -29,6 +29,7 @@ export function StorefrontProductReviews({ productId }: { productId: string }) {
   const [context, setContext] = useState<CustomerProductReviewContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [contextError, setContextError] = useState("");
   const [rating, setRating] = useState(5);
@@ -47,6 +48,28 @@ export function StorefrontProductReviews({ productId }: { productId: string }) {
       if (isActive()) setError(cause instanceof Error ? cause.message : "تعذر تحميل تقييمات المنتج.");
     } finally {
       if (isActive()) setLoading(false);
+    }
+  }
+
+  async function loadMoreReviews() {
+    if (!summary || !summary.hasMore || loadingMore || summary.items.length > 10000) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const next = await fetchStorefrontProductReviews(productId, 8, summary.items.length);
+      setSummary((current) => {
+        if (!current) return next;
+        const seen = new Set(current.items.map((item) => item.id));
+        return {
+          ...current,
+          items: [...current.items, ...next.items.filter((item) => !seen.has(item.id))],
+          hasMore: next.hasMore,
+        };
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل بقية التقييمات.");
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -215,7 +238,7 @@ export function StorefrontProductReviews({ productId }: { productId: string }) {
           لإضافة تقييم موثّق، سجّل الدخول بحساب عميل بعد استلام طلب يحتوي على هذا المنتج.
         </div>
       )}
-      {summary?.hasMore ? <button type="button" className="sf-btn-secondary" onClick={() => void loadSummary()}><RefreshCw size={14} /> تحديث التقييمات</button> : null}
+      {summary?.hasMore && summary.items.length <= 10000 ? <button type="button" className="sf-btn-secondary" onClick={() => void loadMoreReviews()} disabled={loadingMore}><ChevronDown size={14} /> {loadingMore ? "جار تحميل المزيد..." : "عرض المزيد من التقييمات"}</button> : null}
     </section>
   );
 }
