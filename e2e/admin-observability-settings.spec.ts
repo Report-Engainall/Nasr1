@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 type Credentials = { email: string; password: string };
 type ViewportCase = {
@@ -108,7 +108,7 @@ async function verifyDeniedRole(
   }
 }
 
-async function assertPanelFitsViewport(health: ReturnType<Page["getByRole"]>, width: number): Promise<void> {
+async function assertPanelFitsViewport(health: Locator, width: number): Promise<void> {
   const bounds = await health.boundingBox();
   expect(bounds, "The authenticated health panel must have a browser layout box.").not.toBeNull();
   expect(bounds!.x).toBeGreaterThanOrEqual(-1);
@@ -186,8 +186,17 @@ for (const viewport of VIEWPORTS) {
       expect(budgetCalls).toHaveLength(1);
       await assertPanelFitsViewport(health, viewport.width);
 
-      // A second real browser tab signs in as manager. Supabase broadcasts the new
-      // session; the first tab must discard the previous probe before the next read resolves.
+      // Hold the next probe before authenticating the manager in a second tab.
+      // Supabase broadcasts the real session change to the first tab; its previous
+      // probe must disappear while the manager-scoped read is still unresolved.
+      let resolveHeld: (() => void) | null = null;
+      const managerReadWasHeld = new Promise<void>((resolve) => { resolveHeld = resolve; });
+      heldBudgetRead = managerReadWasHeld;
+      managerBudgetGate = new Promise<void>((resolve) => { releaseManagerBudget = resolve; });
+      signalHeldBudgetRead = resolveHeld;
+      holdNextBudgetRead = true;
+      const managerRead = page.waitForResponse((response) => isBudgetResponse(response.url()));
+
       const managerPage = await context.newPage();
       await managerPage.goto("/login");
       await expect(managerPage.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
@@ -195,18 +204,10 @@ for (const viewport of VIEWPORTS) {
       await managerPage.locator('input[autocomplete="current-password"]').fill(credentials.manager.password);
       await managerPage.getByRole("button", { name: "دخول", exact: true }).click();
       await expect(managerPage).toHaveURL((url) => new URL(url).pathname === "/", { timeout: 20_000 });
-
-      let resolveHeld: (() => void) | null = null;
-      heldBudgetRead = new Promise<void>((resolve) => { resolveHeld = resolve; });
-      managerBudgetGate = new Promise<void>((resolve) => { releaseManagerBudget = resolve; });
-      signalHeldBudgetRead = resolveHeld;
-      holdNextBudgetRead = true;
-
+      await managerReadWasHeld;
+      expect(managerBudgetGate).not.toBeNull();
+      expect(heldBudgetRead).not.toBeNull();
       await expect(page.getByRole("button", { name: "معمارية النظام", exact: true })).toBeVisible({ timeout: 30_000 });
-      const managerTab = page.getByRole("button", { name: "معمارية النظام", exact: true });
-      const managerRead = page.waitForResponse((response) => isBudgetResponse(response.url()));
-      await managerTab.click();
-      await heldBudgetRead;
 
       health = page.getByRole("region", { name: "فحوص صحة النظام" });
       await expect(health).toBeVisible();
