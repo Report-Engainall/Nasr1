@@ -107,7 +107,7 @@ describe("PromptGovernancePanel", () => {
   it("prevents the maker from approving their own pending version in the UI", async () => {
     mocks.listAiPromptVersions.mockResolvedValue({ items: [version], total: 1 });
     render(<PromptGovernancePanel />);
-    expect(await screen.findByText("بانتظار المراجعة")).toBeInTheDocument();
+    expect(await screen.findAllByText("بانتظار المراجعة")).toHaveLength(2);
     expect(screen.getByText("أنت منشئ هذه النسخة؛ لا يمكنك اعتمادها أو رفضها.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "اعتماد" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "رفض" })).toBeDisabled();
@@ -154,7 +154,7 @@ describe("PromptGovernancePanel", () => {
     render(<PromptGovernancePanel />);
     expect(await screen.findByText("مقارنة الإصدارات")).toBeInTheDocument();
     expect(screen.getByText("النص السابق للإصدار الأول بغرض المقارنة الفعلية.")).toBeInTheDocument();
-    expect(screen.getByText("النص الحالي للإصدار الثاني المعتمد والفعال.")).toBeInTheDocument();
+    expect(screen.getAllByText("النص الحالي للإصدار الثاني المعتمد والفعال.")).toHaveLength(2);
     expect(await screen.findByText("سجل التدقيق append-only")).toBeInTheDocument();
     expect(screen.getByText("تم التفعيل بعد المراجعة")).toBeInTheDocument();
   });
