@@ -474,6 +474,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     if (
       view !== 'product'
       || !selectedProduct
+      || !user?.profileId
       || !canRecordRecentlyViewedProducts({
         authReady,
         profileId: user?.profileId,
