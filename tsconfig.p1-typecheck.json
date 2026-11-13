@@ -74,6 +74,7 @@
     "src/lib/finance-cash-account-reconciliation.ts",
     "src/lib/intelligence/cash-opening-balance.ts",
     "src/lib/intelligence/cash-opening-balance.test.ts",
+    "src/lib/intelligence/free-ai-provider-failover.test.ts",
     "src/lib/intelligence/cashflow-forecast.ts",
     "src/components/intelligence/IntelligenceWorkspace.tsx",
     "src/components/intelligence/CashflowForecastCard.tsx",
