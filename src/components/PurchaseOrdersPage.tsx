@@ -326,7 +326,13 @@ function PurchaseOrderPrintViews({ printMode, orderDocument, resultsDocument }: 
   );
 }
 
-export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchaseOrderId?: string } = {}) {
+export function PurchaseOrdersPage(props: { initialPurchaseOrderId?: string } = {}) {
+  const { user, sessionRevision } = useAuth();
+  const sessionKey = [user?.id ?? "anonymous", user?.profileId ?? "unresolved", sessionRevision ?? 0].join(":");
+  return <PurchaseOrdersPageSession key={sessionKey} initialPurchaseOrderId={props.initialPurchaseOrderId} />;
+}
+
+function PurchaseOrdersPageSession({ initialPurchaseOrderId }: { initialPurchaseOrderId?: string } = {}) {
   const { user, sessionRevision } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [orders,setOrders] = useState<PurchaseOrder[]>([]);
