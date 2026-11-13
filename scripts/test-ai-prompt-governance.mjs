@@ -245,16 +245,70 @@ async function main() {
     );
 
 
+    setPhase("verify malformed legacy JSONB in a rollback-only local transaction");
     const malformedAiAuditRequestId = "p2-ai-audit-malformed-" + suffix;
-    await db.unsafe(
-      "insert into public.ai_usage_ledger(" +
-      "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
-      "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
-      "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
-      ") values($1::uuid,$2::uuid,$3::text,$4::text,0,0,0,320,false,'completed','unknown',null,null,1,$5::jsonb,null) " +
-      "on conflict(organization_id,request_id) do nothing",
-      [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", JSON.stringify("legacy_scalar_payload")],
+    const rollbackLegacyFixture = new Error("ROLLBACK_ONLY_LEGACY_AI_AUDIT_FIXTURE");
+    let legacyFixtureRolledBack = false;
+    try {
+      await db.begin(async (tx) => {
+        // The production table correctly rejects scalar JSONB. Drop only its two
+        // array-shape CHECK constraints inside this disposable transaction so
+        // that the RPC can be tested against a pre-constraint legacy row.
+        // Throwing the private marker below rolls back both DDL and fixture row.
+        await tx.unsafe(
+          "alter table public.ai_usage_ledger drop constraint ai_usage_ledger_attempts_array_check",
+        );
+        await tx.unsafe(
+          "alter table public.ai_usage_ledger drop constraint ai_usage_ledger_attempt_count_matches_check",
+        );
+        setPhase("insert legacy scalar JSONB fixture inside rollback-only transaction");
+        await tx.unsafe(
+          "insert into public.ai_usage_ledger(" +
+          "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
+          "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
+          "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
+          ") values($1::uuid,$2::uuid,$3::text,$4::text,0,0,0,320,false,'completed','unknown',null,null,1,$5::jsonb,null)",
+          [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", JSON.stringify("legacy_scalar_payload")],
+        );
+        await setIdentity(tx, adminClaims);
+        setPhase("read legacy scalar JSONB through the tenant-scoped AI audit RPC");
+        const legacyAudit = asJson((await tx.unsafe(
+          "select public.list_ai_gateway_audit(null,50,0) as result",
+        ))[0].result);
+        const legacyRow = legacyAudit.items.find((item) => item.request_id === malformedAiAuditRequestId);
+        assert.ok(legacyRow, "AI audit RPC must not abort when an isolated legacy scalar provider_attempts row exists");
+        assert.equal(legacyRow.provider_attempts_integrity, false);
+        assert.deepEqual(legacyRow.provider_attempts, []);
+        assert.equal(
+          legacyRow.provider_attempt_count,
+          1,
+          "the original attempt count must remain visible without claiming the malformed details are valid",
+        );
+        await tx.unsafe("reset role");
+        throw rollbackLegacyFixture;
+      });
+    } catch (error) {
+      if (error !== rollbackLegacyFixture) throw error;
+      legacyFixtureRolledBack = true;
+    }
+    assert.equal(legacyFixtureRolledBack, true, "the malformed legacy fixture must always roll back");
+    const restoredAttemptConstraints = await db.unsafe(
+      "select conname from pg_catalog.pg_constraint " +
+      "where conrelid='public.ai_usage_ledger'::regclass " +
+      "and conname = any($1::text[])",
+      [["ai_usage_ledger_attempts_array_check", "ai_usage_ledger_attempt_count_matches_check"]],
     );
+    assert.deepEqual(
+      restoredAttemptConstraints.map((row) => row.conname).sort(),
+      ["ai_usage_ledger_attempt_count_matches_check", "ai_usage_ledger_attempts_array_check"].sort(),
+      "both production JSONB shape constraints must be restored after the rollback-only fixture",
+    );
+    const persistedLegacyFixture = await db.unsafe(
+      "select count(*)::integer as count from public.ai_usage_ledger " +
+      "where organization_id=$1::uuid and request_id=$2::text",
+      [organizationId, malformedAiAuditRequestId],
+    );
+    assert.equal(Number(persistedLegacyFixture[0].count), 0, "rollback-only legacy fixture must not persist");
 
     setPhase("read AI audit as organization admin");
     const aiAudit = asJson((await adminDb.unsafe(
