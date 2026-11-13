@@ -46,3 +46,8 @@ This is a targeted product-card accessibility and visual improvement. It does no
 ## Follow-up storefront data-truth correction — 2026-11-13
 
 Product cards now distinguish an unavailable inventory projection from a verified zero balance. Unknown, non-finite or negative stock is explicitly unverified and cannot be added to the cart; an authoritative zero remains out of stock. The change is covered by target-owned component regression tests and does not change server inventory or checkout contracts.
+
+
+## Explicit remaining customer-facing gap
+
+The header/catalog search is URL-aware and debounced against the existing server-backed catalog, but a Hydrogen-style predictive suggestion panel (live grouped product/query suggestions with keyboard navigation) has not been implemented in this tranche. Do not mark predictive search complete merely because debounced search exists.

@@ -39,3 +39,16 @@ For every proposed merchant or intelligence capability, compare the navigation i
 The latest P2 local PostgreSQL job applied migrations and seeded users, then failed in `scripts/test-price-grid-atomicity.mjs` while resolving the manager's profile/organization context: `current_profile_id()` and `current_organization_id()` returned null under the authenticated test role. The same diagnostic showed the direct profile SELECT saw zero rows under current RLS policies. This is an authorization/context blocker, not a reason to relax tenant isolation. Dependent finance/order/browser steps were skipped.
 
 No statement above claims that a UI module alone completes its backend workflow.
+
+
+## Verified CI proof boundary — 2026-11-13 (supersedes pending note above)
+
+The exact source commit `7ca17dd3e26bf39d65baf0d021f3e80a89e20973` contains the storefront stock-evidence correction and product-card accessibility updates.
+
+- P1 Admin Context Verification: **PASS** — 71 Vitest files / 543 tests passed; strict TypeScript and production builds passed. Run: https://github.com/Report-Engainall/Nasr1/actions/runs/43337456908
+- P2 public read-only storefront browser smoke: **PASS**. P2 Authenticated E2E infrastructure gate: **PASS**.
+- P2 full authenticated customer-order/tenant-isolation job: **SKIPPED** because external E2E credentials were not configured.
+- P2 isolated PostgreSQL price-grid transaction test: **FAIL** at the test identity precondition. Migrations, isolated local services and fixture seeding passed; the manager session returned null from the current profile/organization resolvers and direct profile visibility was zero under the current authenticated RLS context. Price write, cash expense, purchase receipt and dependent browser tests were skipped. Run: https://github.com/Report-Engainall/Nasr1/actions/runs/43337456921
+- A follow-up diagnostic commit `f2ee05cea0d1bd5dc8c651e880af241ed421e9f9` compares tenant helper behavior across session roles. Its P2 run `43338497902` was still executing migrations at the last observation. This is not an acceptance result.
+
+The earlier row label “current commit CI pending” should be read with this exact-SHA proof: P1 and read-only UI smoke passed; authenticated database/order acceptance did not.
