@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { CustomerServiceDeskPrintSheet } from "./CustomerServiceDeskPrintSheet";
 import type { CustomerServiceDeskPrintDocument } from "@/lib/customer-service-desk-print";
 
@@ -47,6 +47,7 @@ const report: CustomerServiceDeskPrintDocument = {
 };
 
 describe("CustomerServiceDeskPrintSheet", () => {
+  afterEach(() => cleanup());
   it("renders an Arabic RTL report and warns when more filtered rows are not loaded", () => {
     render(<CustomerServiceDeskPrintSheet document={report} />);
     const sheet = screen.getByTestId("customer-service-desk-print-document");
