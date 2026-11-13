@@ -243,6 +243,9 @@ async function main() {
   summary = await publicSummary();
   assert.equal(summary.review_count, 0, "editing an approved review removes it from the public aggregate until re-approved");
 
+  // Return the single pooled connection to its owner role before privileged fixture/audit inspection.
+  // Public anon/authenticated denial was already asserted above and remains unchanged.
+  await db.unsafe("reset role");
   const reviewRows = await db.unsafe(
     "select id,moderation_status,rating,moderator_profile_id,moderated_at from public.storefront_product_reviews " +
     "where organization_id=$1::uuid and product_id=$2::uuid and customer_id=(select id from public.customers where organization_id=$1::uuid and profile_id=$3::uuid and status='approved' limit 1)",
