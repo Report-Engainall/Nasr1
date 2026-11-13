@@ -107,3 +107,15 @@ No packages were added, removed or upgraded. The change uses the application's e
 - The review lifecycle was written directly against NASR1's current customer/order/product and audit schema. It does not create a second order, identity, role, or tenant model.
 - Direct `anon` / `authenticated` table privileges are revoked. Public list RPC returns approved-only allow-listed data; customer context and submission derive identity from `auth.uid()`; moderation is restricted to the same-tenant admin/manager roles.
 - PR #439 is awaiting exact-head CI acceptance. The local PostgreSQL test is wired into the existing P2 workflow but has not yet been claimed as passed.
+
+## Moderated product questions and answers — 2026-11-13
+
+| Origin / reference | Inspected source and pin | License / transfer | NASR1 implementation | Decision |
+|---|---|---|---|---|
+| Existing NASR1 customer/order/product/RPC/audit model | \`profiles\`, \`customers\`, \`products\`, \`orders\`, \`audit_logs\`, \`auth.uid()\`, \`public_storefront_organization_id()\`, and \`is_staff()\` | First-party code | \`supabase/migrations/20261113130000_storefront_product_questions.sql\` | Use the existing tenant, identity, and audit model; no parallel auth or tenant layer |
+| Existing product detail and Products workspace | \`src/components/Storefront.tsx\`, \`src/components/AghbariApp.tsx\` | First-party code | \`StorefrontProductQuestions.tsx\`, \`StorefrontProductQuestionModeration.tsx\` | Add Q&A to the existing product page and Products workspace |
+| Existing Supabase client | \`src/lib/supabase.ts\` | First-party code | \`src/lib/storefront-product-questions.ts\` | Narrow RPC-only access; browser table privileges remain revoked |
+| Existing P1/P2 acceptance | Vitest, TypeScript, local PostgreSQL 17 and Playwright workflows | First-party code | \`*.test.ts\`, \`*.test.tsx\`, \`scripts/test-storefront-product-questions.mjs\` | Verify public allow-list, customer-private history, manager moderation, tenant isolation and audit |
+
+- No implementation source, package or UI asset was copied from the listed external repositories. The workflow is independently implemented within NASR1.
+- Public RPC returns answered Q&A only. Customer context returns only that customer's own questions. Manager queue and answer/reject RPCs require an active same-tenant admin/manager. Direct browser table access is revoked.

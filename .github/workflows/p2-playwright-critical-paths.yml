@@ -15,6 +15,7 @@ on:
       - "scripts/test-cash-expense-journal-posting.mjs"
       - "scripts/test-purchase-receipt-accounting.mjs"
       - "scripts/test-storefront-product-reviews.mjs"
+      - "scripts/test-storefront-product-questions.mjs"
       - "e2e/**"
       - "playwright.config.ts"
       - "tsconfig.p2-e2e-typecheck.json"
@@ -597,6 +598,8 @@ jobs:
         run: node scripts/test-purchase-receipt-accounting.mjs
       - name: Test verified storefront product review lifecycle and tenant isolation
         run: node scripts/test-storefront-product-reviews.mjs
+      - name: Test storefront product questions, moderation and tenant isolation
+        run: node scripts/test-storefront-product-questions.mjs
       - name: Build exact source against local Supabase
         shell: bash
         run: |

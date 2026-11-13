@@ -16,6 +16,7 @@ import {
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { StorefrontProductReviewModeration } from '@/components/StorefrontProductReviewModeration';
+import { StorefrontProductQuestionModeration } from '@/components/StorefrontProductQuestionModeration';
 import { archiveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix';
@@ -1011,6 +1012,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const canManageReorderPoint = canManageProductLifecycle;
   const [lifecycleBusyId, setLifecycleBusyId] = useState<string | null>(null);
   const [showReviewModeration, setShowReviewModeration] = useState(false);
+  const [showQuestionModeration, setShowQuestionModeration] = useState(false);
   const [page, setPage] = useState(1);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [query, setQuery] = useState(initialSearch ?? '');
@@ -1231,6 +1233,13 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     );
   }
 
+  if (showQuestionModeration && canManageProductLifecycle) {
+    return <>
+      <Heading eyebrow="خدمة العملاء" title="أسئلة العملاء وأجوبة المنتجات" description="مراجعة أسئلة العملاء والإجابة عنها قبل نشرها في واجهة المتجر." icon={MessageSquareText} />
+      <StorefrontProductQuestionModeration onBack={() => setShowQuestionModeration(false)} />
+    </>;
+  }
+
   if (showReviewModeration && canManageProductLifecycle) {
     return <>
       <Heading eyebrow="جودة الكتالوج" title="مراجعة تقييمات العملاء" description="مراجعة التقييمات المرتبطة بمشتريات مسلّمة قبل نشرها في واجهة المتجر." icon={MessageSquareText} />
@@ -1240,7 +1249,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
+    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
     <BulkProductImageUploader
       loadProducts={fetchProducts}
       catalogRevision={catalogRevision}
