@@ -1,3 +1,32 @@
+# ACTIVE P3 CHECKPOINT — 2026-11-13 — REFERENCE MODEL OBSERVABILITY
+
+- Repository: Report-Engainall/Nasr1; branch: main.
+- Implemented code SHA tested by P1: ad97e2a8136edc618c109a130d156edc9b5db598.
+- Ownership: Path B / Issue #422. Eight implementation files plus one test-only correction file remain within issue-owned observability paths.
+
+## Delivered
+
+1. Added an evidence-bounded probe around the existing admin-only `get_ai_gateway_budget` RPC using the current typed client. It distinguishes READABLE, DENIED, UNAVAILABLE and INVALID; a budget aggregate read never proves external provider connectivity or overall system health, so both stay UNKNOWN.
+2. Added an isolated read-only `SystemHealthPanel`, with explicit unknown global status, one actual source probe, refresh, session revision invalidation and late-response suppression.
+3. Added a source readiness register/panel for the remaining reference-model scopes. The persisted AI usage ledger has no tenant-safe per-attempt read RPC in current source; prompt governance has lifecycle logic but no verified persistence table/RPC; error reporting remains ephemeral/console-only; developer tools lack a trusted server-side repository read contract. Each is shown BLOCKED, not simulated.
+4. Added pure and component tests. The first Vitest run identified one text assertion mismatch; commit `ad97e2a8136edc618c109a130d156edc9b5db598` corrected only the assertion to match the actual UI evidence wording.
+
+## Exact-SHA validation
+
+- Initial code commit: c86badc05d9dd972d4f0fa55c6b8a8ea67d62bef (P1 had 1 failing wording assertion; TypeScript and build succeeded).
+- Corrected/tested code SHA: ad97e2a8136edc618c109a130d156edc9b5db598. P1 run #43359643353: SUCCESS — 84/84 test files, 598/598 tests, strict TypeScript and production build passed.
+- P2 run #43359643254 on the same corrected SHA: public read-only Storefront Playwright smoke IN_PROGRESS at checkpoint. Exact-source build and local servers completed; public browser assertions were still running.
+- The separate authenticated customer/order/tenant Playwright job was SKIPPED by the infrastructure gate. It is not isolation acceptance.
+- The isolated P3 components are not yet mounted into shared Settings/Admin navigation; Path A owns that integration. Component tests are not browser-UAT for the unmounted panel.
+
+## Boundaries
+
+- No SQL, migration, RPC, RLS, Auth, shared navigation/settings, hosted database, secrets, Vercel actions, deployments, paid model or external AI call was changed or performed.
+- No per-attempt AI ledger viewer, persistent Prompt library, permanent error log, or developer patch execution UI is claimed.
+- Architecture registry existed already and was not duplicated.
+- Release remains NO-GO pending remaining P2/product acceptance and backend contracts.
+
+---
 # ACTIVE SESSION CHECKPOINT — 2026-11-13 — CATEGORY PRICE/STOCK DETAIL VIEW
 
 - Repository: Report-Engainall/Nasr1; branch: main.
