@@ -94,21 +94,24 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
   const submit = page.getByRole("button", { name: "تأكيد الطلب", exact: true });
   await expect(submit, "Server-side cart and pricing validation must finish before submission.").toBeEnabled({ timeout: 45_000 });
   await submit.click();
-  const confirmation = page.locator(".sf-confirm");
-  await expect(confirmation.getByRole("heading", { name: "تم استلام طلبك بنجاح!" })).toBeVisible({ timeout: 45_000 });
-  const confirmationText = await confirmation.locator("p").first().innerText();
-  const orderNumberMatch = confirmationText.match(/رقم الطلب\s*:\s*(\S+)/);
-  expect(orderNumberMatch, "Order number must come from the successful server response.").not.toBeNull();
-  const orderNumber = orderNumberMatch![1];
-
-  await confirmation.getByRole("link", { name: "تفاصيل الطلب" }).click();
-  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/i, { timeout: 30_000 });
+  // Checkout intentionally replaces the form with the persisted order-detail route.
+  // Read the order number back from that server-backed page; the legacy transient
+  // confirmation panel is not part of the current production checkout flow.
+  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]{36}$/i, { timeout: 45_000 });
   const detailPath = new URL(page.url()).pathname;
-  await expect(page.getByText(orderNumber, { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(page.getByText(orderNumber, { exact: true })).toBeVisible({ timeout: 30_000 });
   const orderId = detailPath.split("/").filter(Boolean).at(-1);
   expect(orderId).toMatch(/^[0-9a-f-]{36}$/i);
+
+  const printArea = page.getByTestId("customer-order-print-document");
+  await expect(printArea, "Successful checkout must navigate to the persisted customer order document.").toBeVisible({ timeout: 30_000 });
+  const orderNumberLocator = printArea.getByText(/^ORD-[A-Z0-9-]+$/);
+  await expect(orderNumberLocator, "The order number must be read back from the server-owned order detail.").toBeVisible({ timeout: 30_000 });
+  const orderNumber = (await orderNumberLocator.innerText()).trim();
+  expect(orderNumber).toMatch(/^ORD-[A-Z0-9-]+$/);
+
+  await page.reload();
+  await expect(printArea).toBeVisible({ timeout: 30_000 });
+  await expect(printArea).toContainText(orderNumber, { timeout: 30_000 });
   await page.evaluate(() => {
     window.print = () => { document.documentElement.dataset.e2ePrintInvoked = "true"; };
   });
@@ -116,7 +119,6 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
   await expect(printButton).toBeEnabled();
   await printButton.click();
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
-  const printArea = page.locator('[data-testid="customer-order-print-document"]');
   await expect(printArea).toContainText(orderNumber);
   await expect(printArea).toContainText(runLabel);
   const printableMarkup = await printArea.evaluate((element) => ({
@@ -160,12 +162,15 @@ async function approveCustomerOrderAsManager(
 async function assertOrderPersistenceAndInventory(
   db: OrderAcceptanceDatabase,
   orderId: string,
+  browserOrderNumber: string,
 ): Promise<string> {
   const orders = await db.unsafe(
-    "select id::text,status,total_items,idempotency_key,created_by::text,organization_id::text,payment_request_status from public.orders where id=$1::uuid",
+    "select id::text,order_number,status,total_items,idempotency_key,created_by::text,organization_id::text,payment_request_status from public.orders where id=$1::uuid",
     [orderId],
   );
   expect(orders, "Exactly one durable order row must exist for the browser-created UUID.").toHaveLength(1);
+  expect(orders[0].id).toBe(orderId);
+  expect(orders[0].order_number, "The Chromium order number must match the same persisted PostgreSQL order UUID.").toBe(browserOrderNumber);
   expect(orders[0].status).toBe("confirmed");
   expect(orders[0].idempotency_key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
   expect(orders[0].payment_request_status).toBe("requested");
@@ -282,6 +287,7 @@ async function verifyIsolatedOrderDatabaseProof(
   databaseUrl: string,
   detailPath: string,
   managerEmail: string,
+  browserOrderNumber: string,
 ): Promise<void> {
   const databaseHost = new URL(databaseUrl).hostname;
   if (databaseHost !== "localhost" && databaseHost !== "127.0.0.1") {
@@ -291,7 +297,7 @@ async function verifyIsolatedOrderDatabaseProof(
   const orderId = resolveOrderId(detailPath);
   const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
   try {
-    const eventId = await assertOrderPersistenceAndInventory(db, orderId);
+    const eventId = await assertOrderPersistenceAndInventory(db, orderId, browserOrderNumber);
     const workerName = "p2-browser-e2e-" + (process.env.GITHUB_RUN_ID ?? "local");
     await assertOutboxDeliveryIsExactlyOnce(db, orderId, eventId, managerEmail, workerName);
   } finally {
@@ -409,7 +415,7 @@ async function completeManagerApprovalProof(
   }
 
   await test.step("isolated PostgreSQL: assert the same browser order, invoice, reservation, cart and status history", async () => {
-    await verifyIsolatedOrderDatabaseProof(process.env.TEST_DATABASE_URL!, order.detailPath, managerEmail);
+    await verifyIsolatedOrderDatabaseProof(process.env.TEST_DATABASE_URL!, order.detailPath, managerEmail, order.orderNumber);
   });
   return { managerTransitionProven: true, databaseReadbackProven: true };
 }
