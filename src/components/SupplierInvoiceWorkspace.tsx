@@ -96,7 +96,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   purchaseOrders?: readonly { items: readonly { id: string; quantity_ordered: number }[] }[];
   purchaseOrdersLoading?: boolean;
 }) {
-  const { user } = useAuth();
+  const { user, sessionRevision } = useAuth();
   const canUseFinance = Boolean(user?.roles.some((role) =>
     role === "admin" || role === "manager" || role === "accountant"
   ));
@@ -147,6 +147,9 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   const [printDocument, setPrintDocument] = useState<SupplierInvoiceAccountingPrintDocument | null>(null);
   const [printError, setPrintError] = useState("");
   const previousPrintMode = useRef<string | null>(null);
+  const workspaceRequestRef = useRef(0);
+  const dueDateRequestRef = useRef(0);
+  const evidenceRequestRef = useRef(0);
 
   useEffect(() => {
     if (!canUseFinance) {
@@ -185,7 +188,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
       })
       .finally(() => { if (active) setOrderedQuantitiesLoading(false); });
     return () => { active = false; };
-  }, [canUseFinance, canReadPurchaseOrders, isCapture, purchaseOrders, purchaseOrdersLoading]);
+  }, [canUseFinance, canReadPurchaseOrders, isCapture, purchaseOrders, purchaseOrdersLoading, user?.id, user?.profileId, sessionRevision]);
 
   function restorePreviousPrintMode() {
     if (typeof document === "undefined") return;
@@ -196,31 +199,39 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   }
 
   const refreshDueDates = useCallback(async () => {
+    const requestId = ++dueDateRequestRef.current;
     if (!canUseFinance) {
       setDueDateRows([]);
       setDueDateError("");
+      setDueDateLoading(false);
       return;
     }
+    setDueDateRows([]);
     setDueDateLoading(true);
     setDueDateError("");
     try {
-      setDueDateRows(await fetchSupplierInvoiceDueDates());
+      const rows = await fetchSupplierInvoiceDueDates();
+      if (requestId === dueDateRequestRef.current) setDueDateRows(rows);
     } catch (cause) {
-      setDueDateError(cause instanceof Error ? cause.message : "تعذر تحميل تواريخ استحقاق الموردين.");
+      if (requestId === dueDateRequestRef.current) {
+        setDueDateError(cause instanceof Error ? cause.message : "تعذر تحميل تواريخ استحقاق الموردين.");
+      }
     } finally {
-      setDueDateLoading(false);
+      if (requestId === dueDateRequestRef.current) setDueDateLoading(false);
     }
-  }, [canUseFinance]);
+  }, [canUseFinance, user?.id, user?.profileId, sessionRevision]);
 
   useEffect(() => {
     void refreshDueDates();
   }, [refreshDueDates]);
 
   const refreshEvidence = useCallback(async (invoiceId: string | null) => {
+    const requestId = ++evidenceRequestRef.current;
     if (!canUseFinance || !invoiceId) {
       setEvidenceRows([]);
       setEvidenceError("");
       setDueDateEvidenceId("");
+      setEvidenceLoading(false);
       return;
     }
     setEvidenceRows([]);
@@ -228,13 +239,16 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
     setEvidenceLoading(true);
     setEvidenceError("");
     try {
-      setEvidenceRows(await fetchSupplierInvoiceEvidence(invoiceId));
+      const rows = await fetchSupplierInvoiceEvidence(invoiceId);
+      if (requestId === evidenceRequestRef.current) setEvidenceRows(rows);
     } catch (cause) {
-      setEvidenceError(cause instanceof Error ? cause.message : "تعذر تحميل مرفقات الفاتورة.");
+      if (requestId === evidenceRequestRef.current) {
+        setEvidenceError(cause instanceof Error ? cause.message : "تعذر تحميل مرفقات الفاتورة.");
+      }
     } finally {
-      setEvidenceLoading(false);
+      if (requestId === evidenceRequestRef.current) setEvidenceLoading(false);
     }
-  }, [canUseFinance]);
+  }, [canUseFinance, user?.id, user?.profileId, sessionRevision]);
   useEffect(() => {
     setEvidenceLinks({});
     void refreshEvidence(selectedInvoiceId);
@@ -349,8 +363,15 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
   }
 }
 
-  const load = useCallback(async (requestedOffset = offset, requestedOrderId?: string | null) => {
-  if (!canUseFinance) { setLoading(false); return null; }
+  const load = useCallback(async (requestedOffset: number, requestedOrderId?: string | null) => {
+    const requestId = ++workspaceRequestRef.current;
+    if (!canUseFinance) {
+      setWorkspace(null);
+      setOrderOptions([]);
+      setSelectedInvoiceId(null);
+      setLoading(false);
+      return null;
+    }
     setLoading(true);
     setError("");
     try {
@@ -362,8 +383,9 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         limit: 25,
         offset: requestedOffset,
       });
+      if (requestId !== workspaceRequestRef.current) return null;
       setWorkspace(result);
-      setOrderOptions((current) => current.length ? current : result.purchaseOrders);
+      setOrderOptions(result.purchaseOrders);
       setSelectedInvoiceId((current) =>
         current && result.invoices.some((invoice) => invoice.id === current)
           ? current
@@ -371,17 +393,33 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
       );
       return result;
     } catch (cause) {
-      setError(supplierInvoiceUnavailableMessage(cause));
+      if (requestId === workspaceRequestRef.current) {
+        setError(supplierInvoiceUnavailableMessage(cause));
+      }
       return null;
     } finally {
-      setLoading(false);
+      if (requestId === workspaceRequestRef.current) setLoading(false);
     }
-  }, [canUseFinance, isCapture, purchaseOrderId, offset]);
+  }, [canUseFinance, isCapture, purchaseOrderId, user?.id, user?.profileId, sessionRevision]);
 
-  useEffect(() => { void load(0, isCapture ? null : null); }, [canUseFinance, isCapture]);
   useEffect(() => {
-    if (isCapture && purchaseOrderId) void load(0, purchaseOrderId);
-  }, [isCapture, purchaseOrderId, load]);
+    // Invalidate and clear user-scoped invoice rows before loading the next identity.
+    workspaceRequestRef.current += 1;
+    evidenceRequestRef.current += 1;
+    dueDateRequestRef.current += 1;
+    setWorkspace(null);
+    setOrderOptions([]);
+    setSelectedInvoiceId(null);
+    setEvidenceRows([]);
+    setDueDateRows([]);
+    setEvidenceLinks({});
+    setEvidenceError("");
+    setDueDateError("");
+    setLineDrafts({});
+    submissionKey.current = null;
+    accountingKey.current = null;
+    void load(0, isCapture ? purchaseOrderId || null : null);
+  }, [canUseFinance, isCapture, purchaseOrderId, user?.id, user?.profileId, sessionRevision]);
 
   useEffect(() => {
     let active = true;
@@ -408,7 +446,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         if (active) setAccountingLoading(false);
       });
     return () => { active = false; };
-  }, [mode, canUseFinance, selectedInvoiceId]);
+  }, [mode, canUseFinance, selectedInvoiceId, user?.id, user?.profileId, sessionRevision]);
 
   const selectedOrder = useMemo(
     () => orderOptions.find((order) => order.id === purchaseOrderId) ?? null,
