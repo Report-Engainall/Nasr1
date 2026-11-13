@@ -35,3 +35,29 @@ The source readiness panel marks the remaining reference-model surfaces accurate
 No SQL, migration, RPC, RLS/Auth, hosted database data, secrets, Vercel operation, deployment, paid model or external AI request was used for the P3 changes. The local P2 database was an isolated disposable CI environment.
 
 P1/P2 critical source and local tenant/data acceptance are now PASS on the exact current code SHA, but product-wide coverage of all 41 reference screens, P3 panel mounting/browser UAT, hosted external E2E and production acceptance remain open. Overall product release remains **NO-GO**.
+
+
+---
+
+## Follow-up — measured probe timing and exact-SHA validation — 13 November 2026
+
+### P3 implementation
+The existing `SystemHealthPanel` now records request start, response completion, and elapsed browser round-trip duration using monotonic `performance.now()`; duration is bounded to 0–600,000 ms and rounded to whole milliseconds. Invalid/out-of-order completion timestamps fall back to request start; invalid/out-of-range durations become `null`. The UI explicitly says this is a browser round trip, not database execution latency. Denied/unavailable/invalid source outcomes preserve timing fields. The only live-shaped probe remains the existing admin-only budget-summary RPC. Global health and AI-provider connectivity remain **UNKNOWN**.
+
+P3 change chain: `7506b65f987483858a3295f8834563a6fbe978d6`, `2c697ce44a6849b8dcd148efd3ae29bb6cf18fbb`, `3da17f102b4316892812bdb6caae3980d094e463`, `cc41742ff3152a581ad524c8ff93e360bbfc3003`, and tested source `745989a0e4fe1bc5cc3724a62aa3f0384abfce0d`.
+
+### Exact validation
+- P1 [#43385044639](https://github.com/Report-Engainall/Nasr1/actions/runs/43385044639): **SUCCESS** on exact SHA `745989a0e4fe1bc5cc3724a62aa3f0384abfce0d` — 102 test files / 737 tests, strict TypeScript, production Vite/Nitro build.
+- P2 [#43385044627](https://github.com/Report-Engainall/Nasr1/actions/runs/43385044627) on that SHA: **CANCELLED**, not PASS; external E2E: **SKIPPED**.
+- Current-main P2 [#43385210670](https://github.com/Report-Engainall/Nasr1/actions/runs/43385210670) on `930b098ccbd072fc9b87d1952a6da7c6aa3e4586`: **IN_PROGRESS** at last read. Public read-only Playwright completed local build/server startup; browser assertions pending. External customer/order/tenant E2E is **SKIPPED**. No authenticated panel UAT, hosted DB or production acceptance is claimed.
+
+### Integration and blockers
+- `SystemHealthPanel` and `SourceBoundaryStatusPanel` remain **not mounted** in shared Settings/Admin navigation; P1 owns mounting and authenticated desktop/mobile browser UAT through existing manager/admin authorization.
+- `ArchitectureRegistryPanel` is already mounted in existing protected Settings; no duplicate.
+- Per-attempt AI audit, persistent prompt history, permanent error storage and Developer AI/Patches remain **BLOCKED** pending tenant-derived bounded read contracts, append-only write/audit, RLS, idempotency/four-eyes and trusted server-side repository access.
+- The 41 reference-model pages have not all passed end-to-end acceptance. Overall product release remains **OPEN / NO-GO**.
+
+### Scope correction
+A short-lived edit to finance source and P1 workflow filters crossed the P3 boundary. Exact original contents were restored in normal corrective commit `3baadc625ea67fb2690612f0e2cd7c6213ee8b17`; no force-push/reset was used and no out-of-scope finance/workflow change remains. This was reported in Issue #422.
+
+No SQL/RPC/migration/RLS/Auth changes, hosted DB writes, secrets, Vercel activity, deployment, paid service or external AI call was performed.

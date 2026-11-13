@@ -5499,3 +5499,21 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - Feature code is merged and accepted on the exact PR source SHA. No hosted Supabase write, production migration, deployment or Vercel use.
 - Dedicated record: `docs/execution/P1_CUSTOMER_RECENTLY_VIEWED_2026-11-13.md`.
 
+
+
+---
+
+## ACTIVE P3 CHECKPOINT — REFERENCE-MODEL OBSERVABILITY — 2026-11-13 10:25 Asia/Aden
+
+- Repository: `Report-Engainall/Nasr1`; canonical branch: `main`; current main at checkpoint creation: `f6c3ea016113e05b18cbc629afc483f8b56de59c`.
+- P3 observability source/test changes were tested on exact application SHA `745989a0e4fe1bc5cc3724a62aa3f0384abfce0d`; the current main is a descendant and preserves those four P3 files.
+- P1 [run #43385044639](https://github.com/Report-Engainall/Nasr1/actions/runs/43385044639): **SUCCESS** on exact SHA `745989a0e4fe1bc5cc3724a62aa3f0384abfce0d` — 102/102 test files, 737/737 tests, strict TypeScript PASS and production build PASS. P3 probe tests: 6; P3 panel tests: 4.
+- P2 [run #43385044627](https://github.com/Report-Engainall/Nasr1/actions/runs/43385044627) on SHA `745989a...`: **CANCELLED** by a later main update; external customer/order/tenant E2E: **SKIPPED**.
+- Current-main P2 [run #43385210670](https://github.com/Report-Engainall/Nasr1/actions/runs/43385210670) on `930b098ccbd072fc9b87d1952a6da7c6aa3e4586`: **IN_PROGRESS** at last verified read. The public read-only Playwright job built and launched the local app but had not completed browser assertions; separate external customer/order/tenant job: **SKIPPED**. Do not mark P2 PASS.
+- P3 probe increment: existing admin-only `get_ai_gateway_budget` read now records local request start/completion and bounded monotonic browser round-trip duration. The UI states this is not DB execution latency. Denied/unavailable/invalid results preserve timing; malformed timestamps and invalid duration fail closed. Global system health and provider connectivity remain **UNKNOWN**.
+- P1-owned mounting remains open: `SystemHealthPanel` and `SourceBoundaryStatusPanel` exist with tests but are not mounted in shared Settings/Admin navigation. `ArchitectureRegistryPanel` is already mounted in protected manager/admin Settings; do not duplicate it. P1 owns shared navigation and authenticated browser acceptance under Issue #422.
+- Dashboard group cards and category hierarchy already exist on main; do not rebuild either.
+- Still **BLOCKED** pending secure server contracts: tenant-scoped per-attempt AI audit read; append-only persistent prompt version/audit storage; durable error event store; trusted server-side repository read and human-approved developer patch pipeline.
+- No hosted DB writes, migrations, RLS/Auth changes, secrets, Vercel, deployment, paid services or external AI calls.
+- Next: P1 mounts the two existing observability panels with supported manager/admin gates and authenticated desktop/mobile browser acceptance. P2 must finish exact-current-main validation. Do not transfer PASS across SHAs.
+
