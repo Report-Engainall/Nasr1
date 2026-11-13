@@ -263,7 +263,12 @@ async function main() {
       managerContext?.profile_id !== mgr.id ||
       managerContext?.organization_id !== orgId ||
       managerContext?.session_id !== managerClaims.session_id ||
-      managerContext?.session_id !== managerClaims.session_id ||
+      managerContext?.pre_role_context?.profile_id !== mgr.id ||
+      managerContext?.pre_role_context?.organization_id !== orgId ||
+      managerContext?.pre_role_context?.session_id !== managerClaims.session_id ||
+      managerContext?.privileged_context?.profile_id !== mgr.id ||
+      managerContext?.privileged_context?.organization_id !== orgId ||
+      managerContext?.privileged_context?.session_id !== managerClaims.session_id ||
       managerContext?.database_role !== "authenticated" ||
       managerContext?.jwt_subject !== mgr.auth_user_id ||
       managerContext?.has_admin_manager_role !== true
