@@ -623,7 +623,7 @@ export function PurchaseOrdersPage({ initialPurchaseOrderId }: { initialPurchase
 
     <SupplierReturnWorkspace />
 
-    <SupplierInvoiceWorkspace mode="capture" />
+    <SupplierInvoiceWorkspace mode="capture" purchaseOrders={orders} purchaseOrdersLoading={loading} />
 
 
     {showCreate && <PurchaseOrderCreatePanel

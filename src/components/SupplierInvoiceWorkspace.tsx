@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FileSpreadsheet, FileText, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { fetchPurchaseOrders } from "@/lib/api";
+import { buildSupplierInvoiceOrderedQuantityIndex } from "@/lib/supplier-invoice-order-quantities";
 import { supplierInvoiceUnavailableMessage } from "@/lib/supplier-invoice-messages";
 import {
   fetchSupplierInvoiceWorkspace,
@@ -87,18 +89,24 @@ function eventLabel(action: string): string {
 }
 
 
-export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
+export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purchaseOrders, purchaseOrdersLoading = false }: {
   mode: WorkspaceMode;
   accounts?: AccountingLedgerAccount[];
   onRefresh?: () => Promise<void>;
+  purchaseOrders?: readonly { items: readonly { id: string; quantity_ordered: number }[] }[];
+  purchaseOrdersLoading?: boolean;
 }) {
   const { user } = useAuth();
   const canUseFinance = Boolean(user?.roles.some((role) =>
     role === "admin" || role === "manager" || role === "accountant"
   ));
+  const canReadPurchaseOrders = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const isCapture = mode === "capture";
   const [workspace, setWorkspace] = useState<SupplierInvoiceWorkspace | null>(null);
   const [orderOptions, setOrderOptions] = useState<SupplierInvoiceWorkspace["purchaseOrders"]>([]);
+  const [orderedQuantityByItemId, setOrderedQuantityByItemId] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [orderedQuantitiesLoading, setOrderedQuantitiesLoading] = useState(false);
+  const [orderedQuantitiesError, setOrderedQuantitiesError] = useState("");
   const [purchaseOrderId, setPurchaseOrderId] = useState("");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -139,6 +147,45 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh }: {
   const [printDocument, setPrintDocument] = useState<SupplierInvoiceAccountingPrintDocument | null>(null);
   const [printError, setPrintError] = useState("");
   const previousPrintMode = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!canUseFinance) {
+      setOrderedQuantityByItemId(new Map());
+      setOrderedQuantitiesLoading(false);
+      setOrderedQuantitiesError("");
+      return;
+    }
+    if (purchaseOrders !== undefined) {
+      setOrderedQuantitiesLoading(purchaseOrdersLoading);
+      setOrderedQuantitiesError("");
+      try {
+        setOrderedQuantityByItemId(buildSupplierInvoiceOrderedQuantityIndex(purchaseOrders));
+      } catch (cause) {
+        setOrderedQuantityByItemId(new Map());
+        setOrderedQuantitiesError(cause instanceof Error ? cause.message : "تعذر التحقق من الكميات المطلوبة في أوامر الشراء.");
+      }
+      return;
+    }
+    if (!isCapture || !canReadPurchaseOrders) {
+      setOrderedQuantityByItemId(new Map());
+      setOrderedQuantitiesLoading(false);
+      setOrderedQuantitiesError("");
+      return;
+    }
+    let active = true;
+    setOrderedQuantityByItemId(new Map());
+    setOrderedQuantitiesLoading(true);
+    setOrderedQuantitiesError("");
+    void fetchPurchaseOrders()
+      .then((orders) => {
+        if (active) setOrderedQuantityByItemId(buildSupplierInvoiceOrderedQuantityIndex(orders));
+      })
+      .catch((cause: unknown) => {
+        if (active) setOrderedQuantitiesError(cause instanceof Error ? cause.message : "تعذر تحميل الكميات المطلوبة من أوامر الشراء.");
+      })
+      .finally(() => { if (active) setOrderedQuantitiesLoading(false); });
+    return () => { active = false; };
+  }, [canUseFinance, canReadPurchaseOrders, isCapture, purchaseOrders, purchaseOrdersLoading]);
 
   function restorePreviousPrintMode() {
     if (typeof document === "undefined") return;
@@ -673,6 +720,8 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         </button>
       </header>
 
+      {orderedQuantitiesLoading && <p role="status" style={mutedStyle}>جار تحميل الكميات المطلوبة من أوامر الشراء الأصلية...</p>}
+      {orderedQuantitiesError && <p role="alert" style={{ ...mutedStyle, color: "#991b1b" }}>تعذر تحميل الكمية المطلوبة من مصدر أمر الشراء: {orderedQuantitiesError}. لن تُستنتج الكمية؛ يعرض الجدول "غير متاح" حتى يعود المصدر.</p>}
       {error && <div role="alert" style={{ ...cardStyle, color: "#991b1b", background: "#fff7f7" }}><AlertTriangle size={16} />{error}</div>}
       {notice && <div role="status" style={{ ...cardStyle, color: "#166534", background: "#f0fdf4" }}><CheckCircle2 size={16} />{notice}</div>}
 
@@ -702,12 +751,13 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
             <div style={{ overflowX: "auto", maxWidth: "100%" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
                 <thead><tr style={{ textAlign: "right", background: "var(--muted, #f3f6f8)" }}>
-                  <th style={{ padding: 8 }}>الإيصال / الصنف</th><th>المستلم</th><th>مفوتر سابقًا</th><th>متبقٍ للفوترة</th><th>سعر أمر الشراء</th><th>سعر الاستلام</th><th>كمية الفاتورة</th><th>سعر فاتورة المورد</th><th>إجمالي البند</th>
+                  <th style={{ padding: 8 }}>الإيصال / الصنف</th><th>الكمية المطلوبة</th><th>المستلم</th><th>مفوتر سابقًا</th><th>متبقٍ للفوترة</th><th>سعر أمر الشراء</th><th>سعر الاستلام</th><th>كمية الفاتورة</th><th>سعر فاتورة المورد</th><th>إجمالي البند</th>
                 </tr></thead>
                 <tbody>{availableInvoiceLines.map((line: SupplierInvoiceReceivableLine) => {
                   const draft = lineDrafts[line.receiptItemId] ?? emptyLine();
                   return <tr key={line.receiptItemId} style={{ borderTop: "1px solid var(--border, #e2e8f0)" }}>
                     <td style={{ padding: 8 }}><strong>{line.productName}</strong><p style={mutedStyle}>{line.itemCode} · {line.receiptNumber}</p></td>
+                    <td>{orderedQuantityByItemId.has(line.purchaseOrderItemId) ? quantityText(orderedQuantityByItemId.get(line.purchaseOrderItemId)!) : "غير متاح"}</td>
                     <td>{quantityText(line.sourceReceivedQuantity)}</td>
                     <td>{quantityText(line.invoicedQuantity)}</td>
                     <td>{quantityText(line.remainingToInvoice)}</td>
@@ -949,9 +999,10 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
           </section>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
-              <thead><tr style={{ textAlign: "right" }}><th style={{ padding: 8 }}>الصنف / الإيصال</th><th>كمية الفاتورة</th><th>سعر الأمر</th><th>سعر الاستلام</th><th>سعر الفاتورة</th><th>القيمة المصدرية</th><th>القيمة الفعلية</th><th>مطابقة</th></tr></thead>
+              <thead><tr style={{ textAlign: "right" }}><th style={{ padding: 8 }}>الصنف / الإيصال</th><th>الكمية المطلوبة</th><th>كمية الفاتورة</th><th>سعر الأمر</th><th>سعر الاستلام</th><th>سعر الفاتورة</th><th>القيمة المصدرية</th><th>القيمة الفعلية</th><th>مطابقة</th></tr></thead>
               <tbody>{selectedInvoice.lines.map((line) => <tr key={line.id} style={{ borderTop: "1px solid var(--border, #e2e8f0)" }}>
                 <td style={{ padding: 8 }}>{line.productName}<p style={mutedStyle}>{line.receiptNumber} · {line.itemCode}</p></td>
+                <td>{orderedQuantityByItemId.has(line.purchaseOrderItemId) ? quantityText(orderedQuantityByItemId.get(line.purchaseOrderItemId)!) : "غير متاح"}</td>
                 <td>{quantityText(line.invoicedQuantity)}</td><td>{moneyText(line.orderedUnitCost, selectedInvoice.currency)}</td><td>{moneyText(line.receivedUnitCost, selectedInvoice.currency)}</td><td>{moneyText(line.invoicedUnitCost, selectedInvoice.currency)}</td><td>{moneyText(line.expectedLineTotal, selectedInvoice.currency)}</td><td>{moneyText(line.actualLineTotal, selectedInvoice.currency)}</td><td>{line.priceMatch ? "مطابق" : "فرق سعر"}</td>
               </tr>)}</tbody>
             </table>
