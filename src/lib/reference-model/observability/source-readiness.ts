@@ -2,7 +2,8 @@ export type ReferenceSourceReadinessStatus =
   | "BLOCKED_NO_PERSISTENT_SOURCE"
   | "BLOCKED_NO_TENANT_SAFE_READ_CONTRACT"
   | "BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE"
-  | "PERSISTENT_SOURCE_ADMIN_ONLY";
+  | "PERSISTENT_SOURCE_ADMIN_ONLY"
+  | "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY";
 
 export interface ReferenceSourceReadiness {
   id: "ai_audit" | "prompt_persistence" | "error_log" | "developer_tools";
@@ -20,9 +21,9 @@ export const REFERENCE_SOURCE_READINESS: readonly ReferenceSourceReadiness[] = [
   {
     id: "ai_audit",
     title: "تدقيق محاولات الذكاء",
-    status: "BLOCKED_NO_TENANT_SAFE_READ_CONTRACT",
-    source: "public.ai_usage_ledger",
-    detail: "السجل الدائم موجود، لكن عقد الواجهة الحالي get_ai_gateway_budget يعرض ملخصاً مجمعاً فقط؛ لا توجد قراءة مفوضة ومحدودة لكل محاولة. يمنع الوصول المباشر إلى الجدول.",
+    status: "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY",
+    source: "public.ai_usage_ledger · public.list_ai_gateway_audit()",
+    detail: "تتوفر قراءة خادمية محدودة للمؤسسة الحالية ولأدوار admin/manager فقط، بحد أقصى 100 سجل للصفحة. يعيد العقد حقول المحاولة المسموحة فقط، ويستبعد نص السؤال والإجابة والحمولات والأسرار؛ التكلفة تقديرية والرموز غير المقاسة تبقى غير معلومة.",
   },
   {
     id: "prompt_persistence",

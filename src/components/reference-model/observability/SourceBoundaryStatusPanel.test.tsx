@@ -8,7 +8,7 @@ describe("SourceBoundaryStatusPanel", () => {
   it("surfaces actual missing contracts and does not show placeholder data actions", () => {
     render(<SourceBoundaryStatusPanel />);
     expect(screen.getByRole("region", { name: "حالة عقود مصادر الوظائف المرجعية" })).toBeInTheDocument();
-    expect(screen.getByText("BLOCKED_NO_TENANT_SAFE_READ_CONTRACT")).toBeInTheDocument();
+    expect(screen.getByText("PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY")).toBeInTheDocument();
     expect(screen.getByText("PERSISTENT_SOURCE_ADMIN_ONLY")).toBeInTheDocument();
     expect(screen.getByText("BLOCKED_NO_PERSISTENT_SOURCE")).toBeInTheDocument();
     expect(screen.getByText("BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE")).toBeInTheDocument();

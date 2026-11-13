@@ -76,6 +76,13 @@ vi.mock("@/lib/intelligence/commerce-policy-governance-client", () => ({
   previewCommercePolicyRollback: mocks.previewPolicyRollback,
 }));
 
+vi.mock("@/components/reference-model/ai-governance/PromptGovernancePanel", () => ({
+  PromptGovernancePanel: () => <section role="region" aria-label="حوكمة مكتبة أوامر الذكاء">prompt-governance-mounted</section>,
+}));
+vi.mock("@/components/reference-model/ai-governance/AiUsageAuditPanel", () => ({
+  AiUsageAuditPanel: () => <section role="region" aria-label="تدقيق محاولات الذكاء">ai-usage-audit-mounted</section>,
+}));
+
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace";
 
 const asOf = "2026-10-31T09:00:00.000Z";
@@ -459,6 +466,13 @@ describe("production intelligence workspace inventory screens", () => {
     const commandCenter = await screen.findByRole("region", { name: "مركز القيادة المالية والسيولة" });
     expect(commandCenter).toHaveTextContent("executive liquidity fixture deliberately unavailable");
     expect(mocks.fetchExecutiveLiquidity).toHaveBeenCalledTimes(1);
+  });
+
+  it("mounts the protected prompt governance and AI audit surfaces in the existing intelligence workspace", async () => {
+    render(<IntelligenceWorkspace />);
+    expect(await screen.findByRole("region", { name: "حوكمة مكتبة أوامر الذكاء" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "تدقيق محاولات الذكاء" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "حوكمة الذكاء ومراجعة التشغيل" })).toBeInTheDocument();
   });
 
 });

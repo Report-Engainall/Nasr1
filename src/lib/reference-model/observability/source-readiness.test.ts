@@ -11,17 +11,18 @@ describe("reference model source readiness", () => {
       "developer_tools",
     ]);
     expect(REFERENCE_SOURCE_READINESS.map((item) => item.status)).toEqual([
-      "BLOCKED_NO_TENANT_SAFE_READ_CONTRACT",
+      "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY",
       "PERSISTENT_SOURCE_ADMIN_ONLY",
       "BLOCKED_NO_PERSISTENT_SOURCE",
       "BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE",
     ]);
   });
 
-  it("distinguishes the persisted AI ledger from its missing tenant-safe read contract", () => {
+  it("records the bounded tenant-derived AI audit read model and its redaction boundary", () => {
     const audit = REFERENCE_SOURCE_READINESS.find((item) => item.id === "ai_audit");
-    expect(audit?.source).toBe("public.ai_usage_ledger");
-    expect(audit?.status).toBe("BLOCKED_NO_TENANT_SAFE_READ_CONTRACT");
+    expect(audit?.source).toContain("public.list_ai_gateway_audit()");
+    expect(audit?.status).toBe("PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY");
+    expect(audit?.detail).toMatch(/يستبعد نص السؤال والإجابة/);
   });
 
   it("records prompt storage as persistent but restricted to the server-enforced admin lifecycle", () => {

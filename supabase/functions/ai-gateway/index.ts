@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { readBoundedTextBody } from "../_shared/bounded-body.ts";
 import { buildGeminiRequestConfig, estimateCost, estimateInputTokens, isSafeProviderBaseUrl, parseProviderResponse, runProviderCandidates, sanitizeAiQuestion, summarizeAiProviderAttempts, type AiProvider, type AiProviderCandidate, type AiCostRates } from "./logic.ts";
 import { chooseFreeAiRoute, type FreeProviderQuota, type FreeQuotaEvidence } from "../../../src/lib/intelligence/free-ai-policy.ts";
+import { sessionIdFromVerifiedJwt, verifiedActivePromptContent } from "../../../src/lib/intelligence/active-ai-prompt-runtime.ts";
 type Runtime={env:{get(n:string):string|undefined};serve(h:(r:Request)=>Response|Promise<Response>):void};
 type Settings={status:string;primary_provider:AiProvider;primary_model:string;primary_base_url:string;fallback_enabled:boolean;fallback_provider:AiProvider;fallback_model:string;fallback_base_url:string};
 type Candidate=AiProviderCandidate;
@@ -26,22 +27,6 @@ function candidate(provider:AiProvider,model:string,baseUrl:string,fallback:bool
  return {provider,model,baseUrl:baseUrl.replace(/\/+$/,""),key,rates:r,fallback};
 }
 function cleanText(value:string){let out="";for(const c of value){const n=c.charCodeAt(0);if((n<32&&n!==9&&n!==10)||n===127)continue;out+=c;}return out.trim().slice(0,5000);}
-function sessionIdFromJwt(token:string):string|null {
- const parts=token.split(".");
- if(parts.length!==3||!parts[1])return null;
- try{
-  const normalized=parts[1].replace(/-/g,"+").replace(/_/g,"/");
-  const decoded=atob(normalized.padEnd(Math.ceil(normalized.length/4)*4,"="));
-  const bytes=Uint8Array.from(decoded,(character)=>character.charCodeAt(0));
-  const claims=JSON.parse(new TextDecoder().decode(bytes)) as Record<string,unknown>;
-  const value=claims.session_id;
-  return typeof value==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)?value:null;
- }catch{return null;}
-}
-async function sha256Hex(value:string):Promise<string>{
- const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
- return Array.from(new Uint8Array(digest),(byte)=>byte.toString(16).padStart(2,"0")).join("");
-}
 async function activeSystemPrompt(db:ReturnType<typeof createClient>,userId:string,sessionId:string):Promise<string>{
  const {data,error}=await db.rpc("get_active_ai_prompt",{p_user_id:userId,p_session_id:sessionId,p_prompt_key:"assistant.system"});
  if(error){
@@ -49,12 +34,7 @@ async function activeSystemPrompt(db:ReturnType<typeof createClient>,userId:stri
   throw new Error("active_prompt_source_unavailable");
  }
  if(data===null||data===undefined)return SYSTEM;
- if(typeof data!=="object"||Array.isArray(data))throw new Error("active_prompt_response_invalid");
- const record=data as Record<string,unknown>;
- if(typeof record.content!=="string"||record.content.length<16||record.content.length>8000||
-    typeof record.content_sha256!=="string"||!/^[a-f0-9]{64}$/.test(record.content_sha256))throw new Error("active_prompt_response_invalid");
- if(await sha256Hex(record.content)!==record.content_sha256)throw new Error("active_prompt_integrity_failed");
- return record.content;
+ return verifiedActivePromptContent(data);
 }
 async function callProvider(c:Candidate,q:string,signal:AbortSignal,systemPrompt:string){
  let url:URL,headers:Record<string,string>,payload:unknown;
@@ -96,7 +76,7 @@ if(d)d.serve(async(request)=>{
   const {data:roles,error}=await db.from("user_roles").select("role").eq("profile_id",profile.id);
   if(error||!Array.isArray(roles)||!roles.some((r:{role?:string})=>r.role==="admin"||r.role==="manager"))return reply({error:"administrator_or_manager_required"},403);
  }
- const currentSessionId=sessionIdFromJwt(bearer[1]);
+ const currentSessionId=sessionIdFromVerifiedJwt(bearer[1]);
  if(!currentSessionId)return reply({error:"unauthorized"},401);
  let systemPrompt:string;
  try{systemPrompt=await activeSystemPrompt(db,authData.user.id,currentSessionId);}

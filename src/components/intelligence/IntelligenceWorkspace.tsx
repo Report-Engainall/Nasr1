@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { BrainCircuit, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchCashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
@@ -61,6 +61,13 @@ import {
   TaskPerformanceScorecard,
   NaturalLanguageAssistant,
 } from "@/components/intelligence";
+
+const PromptGovernancePanel = lazy(async () => ({
+  default: (await import("@/components/reference-model/ai-governance/PromptGovernancePanel")).PromptGovernancePanel,
+}));
+const AiUsageAuditPanel = lazy(async () => ({
+  default: (await import("@/components/reference-model/ai-governance/AiUsageAuditPanel")).AiUsageAuditPanel,
+}));
 
 const DECISION_PAGE_SIZE = 50;
 const formatDay = (value: string) => new Date(value + "T00:00:00.000Z").toLocaleDateString("ar-YE", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
@@ -1788,6 +1795,24 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 )}
               </div>
             </div>
+          </section>
+
+          <section className="panel space-y-4" aria-label="حوكمة الذكاء ومراجعة التشغيل">
+            <header>
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={20} aria-hidden="true" />
+                <h2>حوكمة الذكاء ومراجعة التشغيل</h2>
+              </div>
+              <p className="report-note">
+                مصادر مفوضة من الخادم: تدقيق المحاولات للمدير ومدير المؤسسة، وحوكمة نسخ الأوامر للمدير فقط.
+              </p>
+            </header>
+            <Suspense fallback={<div role="status" aria-live="polite" className="rounded-lg border p-4 text-sm text-muted-foreground">جارٍ تحميل وحدات حوكمة الذكاء…</div>}>
+              <div className="space-y-4">
+                <AiUsageAuditPanel />
+                <PromptGovernancePanel />
+              </div>
+            </Suspense>
           </section>
         </>
       )}

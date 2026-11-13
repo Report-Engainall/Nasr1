@@ -215,6 +215,74 @@ async function main() {
     const checkerDb = await connectIdentity(checkerClaims);
     const operatorDb = await connectIdentity(operatorClaims);
 
+    const aiAuditRequestId = "p2-ai-audit-" + suffix;
+    await db.unsafe(
+      "insert into public.ai_usage_ledger(" +
+      "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
+      "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
+      "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
+      ") values($1::uuid,$2::uuid,$3::text,$4::text,120,48,0.0042,840,false,'completed','measured',120,48,1,$5::jsonb,null) " +
+      "on conflict(organization_id,request_id) do nothing",
+      [
+        organizationId,
+        admin.id,
+        aiAuditRequestId,
+        "openai_compatible/example-model",
+        JSON.stringify([{
+          provider: "openai_compatible",
+          model: "example-model",
+          fallback: false,
+          status: "succeeded",
+          elapsed_ms: 840,
+          observed_input_tokens: 120,
+          observed_output_tokens: 48,
+          estimated_cost: "0.0042",
+        }]),
+      ],
+    );
+
+    const aiAudit = asJson((await adminDb.unsafe(
+      "select public.list_ai_gateway_audit(null,50,0) as result",
+    ))[0].result);
+    assert.ok(Array.isArray(aiAudit.items), "admin AI audit must return bounded ledger items");
+    assert.ok(Number.isSafeInteger(Number(aiAudit.total)) && Number(aiAudit.total) >= aiAudit.items.length);
+    assert.ok(aiAudit.items.some((item) => item.request_id === aiAuditRequestId), "audit RPC must return the source-backed local fixture");
+    for (const item of aiAudit.items) {
+      assert.ok(!("prompt" in item) && !("response" in item) && !("raw_payload" in item));
+      assert.ok(Array.isArray(item.provider_attempts) && item.provider_attempts.length <= 2);
+      for (const attempt of item.provider_attempts) {
+        assert.deepEqual(
+          Object.keys(attempt).sort(),
+          ["provider","model","fallback","status","elapsed_ms","observed_input_tokens","observed_output_tokens","estimated_cost","error_code"].sort(),
+          "AI audit must expose only the approved provider-attempt allowlist",
+        );
+      }
+    }
+    const managerAiAudit = asJson((await managerDb.unsafe(
+      "select public.list_ai_gateway_audit(null,10,0) as result",
+    ))[0].result);
+    assert.ok(Array.isArray(managerAiAudit.items), "manager must read same-tenant AI audit metadata");
+    assert.ok(managerAiAudit.items.some((item) => item.request_id === aiAuditRequestId), "manager must see the same-tenant source-backed audit fixture");
+    await expectSqlState(
+      "accountant cannot read per-attempt AI audit",
+      () => accountantDb.unsafe("select public.list_ai_gateway_audit(null,10,0)"),
+      "42501",
+    );
+    const foreignAiAudit = asJson((await foreignAdminDb.unsafe(
+      "select public.list_ai_gateway_audit(null,10,0) as result",
+    ))[0].result);
+    assert.equal(foreignAiAudit.total, 0, "foreign administrator may only read their own tenant's AI audit");
+    await expectSqlState(
+      "AI audit rejects an unsupported result status",
+      () => adminDb.unsafe("select public.list_ai_gateway_audit('unknown',10,0)"),
+      "22023",
+    );
+    await expectSqlState(
+      "AI audit rejects an excessive page size",
+      () => adminDb.unsafe("select public.list_ai_gateway_audit(null,101,0)"),
+      "22023",
+    );
+
     const promptKey = "assistant.system";
     const content1 = "أجب بالعربية، ولا تخمّن بيانات الأعمال. استخدم الأدلة الموثقة فقط.";
     const createCommand = randomUUID();
