@@ -52,7 +52,7 @@ DECLARE
   v_result jsonb;
 BEGIN
   IF p_product_id IS NULL OR p_limit IS NULL OR p_limit < 1 OR p_limit > 20
-     OR p_offset IS NULL OR p_offset < 0 OR p_offset > 1000 THEN
+     OR p_offset IS NULL OR p_offset < 0 OR p_offset > 10000 THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Invalid product review page';
   END IF;
 
