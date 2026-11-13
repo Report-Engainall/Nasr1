@@ -248,10 +248,11 @@ function CustomerAgingDecisionSection({
     .filter(item=>item.overdueAmount>0)
     .sort(compareCustomerReceivableAgingRows)
     .slice(0,10) : [];
+  const hasCompleteAgingCoverage = result?.ok === true && result.data.status === "VERIFIED" && result.data.complete;
   const saveDecision = async (item: CustomerReceivableAgingItem) => {
     if (!userProfileId || busyKey) return;
-    if (item.status !== "VERIFIED" || item.customerNameStatus !== "VERIFIED") {
-      setMessage("لا يمكن إنشاء قرار تحصيل قبل اكتمال هوية العميل والتحقق من جميع بيانات الذمم ومراجعها.");
+    if (!hasCompleteAgingCoverage || item.status !== "VERIFIED" || item.customerNameStatus !== "VERIFIED") {
+      setMessage("لا يمكن إنشاء قرار تحصيل قبل اكتمال تغطية جميع الذمم والتحقق من هوية العميل ومراجعها.");
       return;
     }
     const evidenceIds=[...new Set(item.agingBuckets.filter(bucket=>bucket.bucket.startsWith("OVERDUE_")).flatMap(bucket=>bucket.evidenceIds))].slice(0,500);
@@ -310,7 +311,7 @@ function CustomerAgingDecisionSection({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground"><EvidenceStatusLabel status={item.status}/>: <EvidenceReferences ids={item.agingBuckets.flatMap(bucket=>bucket.evidenceIds).slice(0,12)}/></span>
-            <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||item.status!=="VERIFIED"||item.customerNameStatus!=="VERIFIED"||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
+            <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||!hasCompleteAgingCoverage||item.status!=="VERIFIED"||item.customerNameStatus!=="VERIFIED"||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
               {busyKey==="receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)?"جارٍ الحفظ...":"حفظ قرار متابعة التحصيل"}
             </button>
           </div>
