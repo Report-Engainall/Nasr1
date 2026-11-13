@@ -46,13 +46,16 @@ vi.mock("@/lib/customer-account-profile", () => ({
   saveMyCustomerAccountProfile: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => () => ({}),
-  ClientOnly: ({ children }: { children: ReactNode }) => <>{children}</>,
-  Link: ({ to, children, ...props }: { to: string; children: ReactNode; className?: string }) => (
-    <a href={to} {...props}>{children}</a>
-  ),
-}));
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    ClientOnly: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Link: ({ to, children, ...props }: { to: string; children: ReactNode; className?: string }) => (
+      <a href={to} {...props}>{children}</a>
+    ),
+  };
+});
 
 import { CustomerAccountProfilePage } from "./profile";
 
