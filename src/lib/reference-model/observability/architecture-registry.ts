@@ -93,14 +93,26 @@ function routeSurface(routeId: string, path: string): ArchitectureRouteSurface {
   return "PUBLIC";
 }
 
-function adminViewId(routeId: string, navigationGroups: readonly (typeof ADMIN_NAV_GROUPS)[number][]): string | null {
+function adminViewId(
+  routeId: string,
+  navigationGroups: readonly (typeof ADMIN_NAV_GROUPS)[number][],
+): AdminViewId | null {
   const match = routeId.match(/^\/admin_\/(.+)$/);
   if (!match) return null;
 
   const candidate = match[1].replace(/\/+$/, "");
   return navigationGroups.some((group) => group.views.some((view) => view === candidate))
-    ? candidate
+    ? candidate as AdminViewId
     : null;
+}
+
+function navigationAccessForView(
+  viewId: AdminViewId,
+  accessByRole: Readonly<Record<AdminRoleId, readonly AdminViewId[]>>,
+): ArchitectureNavigationAccess {
+  const roles = (Object.keys(accessByRole) as AdminRoleId[])
+    .filter((role) => accessByRole[role].includes(viewId));
+  return { source: "ROLE_PAGE_ACCESS", roles };
 }
 
 /**
