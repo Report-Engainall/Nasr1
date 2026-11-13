@@ -271,11 +271,12 @@ async function main() {
     "select action,actor_id from public.audit_logs where organization_id=$1::uuid and entity_type='storefront_product_review' and entity_id=$2::uuid order by created_at",
     [organizationId, reviewId],
   );
-  assert.equal(auditRows.length, 4, "submit, reject, resubmit, and edit-after-approval are all audited");
+  assert.equal(auditRows.length, 5, "submit, reject, first resubmit, approval, and edit-after-approval are all audited");
   assert.deepEqual(auditRows.map((row) => row.action), [
     "storefront.product_review.submitted",
     "storefront.product_review.moderated",
     "storefront.product_review.resubmitted",
+    "storefront.product_review.moderated",
     "storefront.product_review.resubmitted",
   ]);
   assert.ok(auditRows.every((row) => row.actor_id), "every review action is attributed to an organization profile");
