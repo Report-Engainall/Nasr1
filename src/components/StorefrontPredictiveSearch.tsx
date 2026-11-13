@@ -83,7 +83,8 @@ export function StorefrontPredictiveSearch({
   }, [categoryMatches, error, loading, normalizedQuery, products, searchReady]);
 
   const isOpen = open && searchReady;
-  const activeSuggestion = activeIndex >= 0 ? suggestions[activeIndex] : undefined;
+  const safeActiveIndex = activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1;
+  const activeSuggestion = safeActiveIndex >= 0 ? suggestions[safeActiveIndex] : undefined;
 
   function selectSuggestion(suggestion: PredictiveSuggestion) {
     setOpen(false);
@@ -127,7 +128,7 @@ export function StorefrontPredictiveSearch({
   }
 
   function renderOption(suggestion: PredictiveSuggestion, index: number) {
-    const selected = activeIndex === index;
+    const selected = safeActiveIndex === index;
     const commonStyle = {
       width: "100%",
       display: "flex",
@@ -218,7 +219,7 @@ export function StorefrontPredictiveSearch({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-controls={listboxId}
-        aria-activedescendant={isOpen && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
+        aria-activedescendant={isOpen && safeActiveIndex >= 0 ? `${listboxId}-option-${safeActiveIndex}` : undefined}
         value={query}
         maxLength={MAX_CATALOG_SEARCH_LENGTH}
         autoComplete="off"
@@ -261,14 +262,19 @@ export function StorefrontPredictiveSearch({
         >
           <div role="group" aria-label="البحث بالعبارة">
             <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>البحث</div>
-            {renderOption(suggestions[0], 0)}
+            {renderOption({ kind: "query", id: "query", label: normalizedQuery }, 0)}
           </div>
           {categoryMatches.length > 0 && (
             <div role="group" aria-label="التصنيفات المطابقة">
               <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>التصنيفات</div>
               {categoryMatches.map((category, localIndex) => {
                 const index = localIndex + 1;
-                return renderOption(suggestions[index], index);
+                return renderOption({
+                  kind: "category",
+                  id: `category-${category.id}`,
+                  label: category.name,
+                  category,
+                }, index);
               })}
             </div>
           )}
@@ -292,7 +298,12 @@ export function StorefrontPredictiveSearch({
               <div style={{ padding: "5px 10px", color: "#718985", fontSize: 11, fontWeight: 800 }}>المنتجات</div>
               {products.slice(0, 5).map((product, localIndex) => {
                 const index = 1 + categoryMatches.length + localIndex;
-                return renderOption(suggestions[index], index);
+                return renderOption({
+                  kind: "product",
+                  id: `product-${product.id}`,
+                  label: product.name,
+                  product,
+                }, index);
               })}
             </div>
           )}
