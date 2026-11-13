@@ -60,6 +60,17 @@ NASR1 reimplements the relevant separation of source/data handling and presentat
 
 ## Test evidence
 
-- P1 Admin Context Verification: **PASS** on `3d6411dcd320ff03d63774d2bdb69e838bc36830`; Vitest, P1 strict TypeScript and production build all passed. Run: [43368078248](https://github.com/Report-Engainall/Nasr1/actions/runs/43368078248).
-- The following P2 public Chromium smoke and local Supabase order/tenant suite are not claimed as passed by this document until the exact-head run completes.
-- External hosted authenticated E2E is skipped when the required external secrets are absent; a skip is not a pass.
+- **P1 Admin Context Verification: PASS** on exact application SHA `3d6411dcd320ff03d63774d2bdb69e838bc36830`: complete Vitest suite, strict TypeScript and production build. Run: [43368078248](https://github.com/Report-Engainall/Nasr1/actions/runs/43368078248).
+- **P2 public Chromium smoke: PASS** on the same application SHA.
+- **P2 isolated local Supabase/PostgreSQL 17 acceptance: PASS** on the same application SHA, run [43368078285 (attempt 2)](https://github.com/Report-Engainall/Nasr1/actions/runs/43368078285). The job applied repository migrations to its isolated PostgreSQL 17 stack, created two transient users in distinct organizations, passed endpoint guard and transactional price/cash-expense/purchase-receipt checks, built/launched the exact application, and passed all Chromium acceptance steps:
+  - authenticated order persistence after refresh and cross-tenant denial;
+  - warehouse stock-count XLSX download and content/privacy checks;
+  - purchase-orders XLSX creation/download and content/privacy checks;
+  - checkout replay after a committed response was lost, without duplicate order creation;
+  - customer return request, review, receipt and credit memo;
+  - audited Onyx order XLSX export;
+  - finance-document and operational-task printing by role;
+  - customer-manager authorization, financial privacy and audit;
+  - multi-device session authorization and immediate revocation.
+- The external hosted customer-order/tenant-isolation job was **SKIPPED** because the required external secrets were not supplied. This is not a hosted-environment PASS. The local PostgreSQL 17/Chromium test above is the evidence for local order persistence and tenant isolation.
+- The feature merged through PR [#437](https://github.com/Report-Engainall/Nasr1/pull/437) as merge commit `1917eece605c1469134eadfefcc4feb30851e65b`, based on `bcf0de77a0794e073e562e23ea83ae68746c117e`. The post-merge `main` head at the time this evidence update was prepared is `c8fb02e9c3928524b02a9023a290da4c55fe8deb`; subsequent changes to task-quality insight docs/code are separate from the radar files.
