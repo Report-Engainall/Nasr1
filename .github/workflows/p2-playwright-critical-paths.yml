@@ -22,6 +22,12 @@ on:
       - "package-lock.json"
       - "bun.lock"
       - ".github/workflows/p2-playwright-critical-paths.yml"
+      - "src/components/PurchaseOrdersPage.tsx"
+      - "src/components/SupplierInvoiceWorkspace.tsx"
+      - "src/components/SupplierFinancialWorkspaceHub.tsx"
+      - "src/components/SupplierFinancialWorkspaceHub.test.tsx"
+      - "src/lib/supplier-invoice-order-quantities.ts"
+      - "src/lib/supplier-invoice-order-quantities.test.ts"
   pull_request:
     branches:
       - main
