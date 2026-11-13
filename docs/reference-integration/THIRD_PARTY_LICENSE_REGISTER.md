@@ -64,3 +64,10 @@ A GitHub `NOASSERTION` response is a blocker, not permission to copy. SPDX metad
 - Category-specific inspected blobs: category page `53ac0e71431b45d8854fecddf61551f5d58849c8` and breadcrumb fragment `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`.
 - Transfer decision remains **No**: NASR1 independently recreated the parent breadcrumb, current-child state, sibling links and hierarchy grouping. No Catalyst source file, UI asset, package, Storefront Kit or Next.js component was copied.
 - MIT applies to the inspected Catalyst project subject to its notices and does not establish the license of every dependency or nested file; no blanket license approval for other reference components is implied.
+
+### Verified product review feature — license and transfer note — 2026-11-13
+
+- No third-party source code, UI asset, package or dependency was copied or added for the verified product review workflow.
+- The implementation uses NASR1's existing React, TypeScript, Supabase client, authentication, tenant helpers and audit model. No third-party license or notice obligation is introduced by PR #439.
+- External project references remain inspiration-only for the general storefront experience. This feature does not grant blanket approval to reuse files from Medusa, Vendure, Saleor, BigCommerce Catalyst, Shopify Hydrogen, GraphCommerce, or any other reference project.
+- The feature is still awaiting P1 and local PostgreSQL P2 acceptance on PR #439; no production migration or deployment has occurred.
