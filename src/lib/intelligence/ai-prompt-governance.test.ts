@@ -172,11 +172,18 @@ describe("AI prompt version governance", () => {
     );
     expect(firstActive.versions[0].status).toBe("ACTIVE");
 
-    const secondDraft = await create("prompt-version-2", firstActive.versions);
+    // PostgreSQL UUID output is canonical, but history contracts must still
+    // treat alternate UUID casing as the same tenant rather than a new scope.
+    const caseVariantHistory = firstActive.versions.map(version => ({
+      ...version,
+      organizationId: version.organizationId.toUpperCase(),
+    }));
+    const secondDraft = await create("prompt-version-2", caseVariantHistory);
+    expect(secondDraft.version.version).toBe(2);
     const secondPending = submitPromptVersionForApproval(secondDraft.version, actor("creator"), "submit-2", "2026-11-09T18:22:00.000Z");
     const secondApproved = approvePromptVersion(secondPending.version, actor("reviewer"), "approve-2", "2026-11-09T18:23:00.000Z", "اجتاز المراجعة");
     const result = activatePromptVersion(
-      [...firstActive.versions, secondApproved.version], secondApproved.version.id,
+      [...caseVariantHistory, secondApproved.version], secondApproved.version.id,
       actor("operator-2"), "activate-2", "2026-11-09T18:24:00.000Z", "استبدال النسخة النشطة",
     );
     expect(result.versions.filter(v => v.status === "ACTIVE")).toHaveLength(1);

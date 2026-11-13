@@ -117,7 +117,8 @@ function assertPromptVersionHistoryIntegrity(versions: readonly AiPromptVersion[
     const version = row.version;
     const status = row.status;
 
-    if (!id || !organizationId || !/^[a-z][a-z0-9_.-]{1,79}$/.test(promptKey) ||
+    if (!id || id !== row.id || !organizationId || organizationId !== row.organizationId ||
+        !/^[a-z][a-z0-9_.-]{1,79}$/.test(promptKey) || promptKey !== row.promptKey ||
         !Number.isSafeInteger(version) || (version as number) < 1 ||
         typeof status !== "string" || !promptLifecycleStatuses.has(status as PromptLifecycleStatus)) {
       throw new Error("prompt_version_history_invalid");
@@ -219,8 +220,9 @@ export async function createPromptDraft(
       existingVersions.some(row => row.id.toLowerCase() === inputId.toLowerCase())) {
     throw new Error("prompt_draft_identity_invalid");
   }
+  const organizationScope = actor.organizationId.toLowerCase();
   const matching = existingVersions.filter(row =>
-    row.organizationId === actor.organizationId && row.promptKey === promptKey);
+    row.organizationId.toLowerCase() === organizationScope && row.promptKey === promptKey);
   const maxVersion = matching.reduce((max, row) => {
     if (!Number.isSafeInteger(row.version) || row.version < 1) {
       throw new Error("prompt_version_history_invalid");
@@ -359,11 +361,12 @@ export function activatePromptVersion(
       actor.profileId === target.approvedByProfileId) {
     throw new Error("prompt_activation_separation_required");
   }
+  const targetOrganizationScope = target.organizationId.toLowerCase();
   const samePrompt = versions.filter(row =>
-    row.organizationId === target.organizationId && row.promptKey === target.promptKey);
+    row.organizationId.toLowerCase() === targetOrganizationScope && row.promptKey === target.promptKey);
   const active = samePrompt.filter(row => row.status === "ACTIVE");
   if (active.length > 1) throw new Error("prompt_multiple_active_versions");
-  if (active.some(row => row.id === target.id)) throw new Error("prompt_already_active");
+  if (active.some(row => row.id.toLowerCase() === target.id.toLowerCase())) throw new Error("prompt_already_active");
 
   const nextVersions: AiPromptVersion[] = [];
   const events: AiPromptAuditEvent[] = [];
