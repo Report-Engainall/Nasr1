@@ -25,6 +25,7 @@ import {
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { getCurrentTenantScope, supabase } from "@/lib/supabase";
+import { normalizeLocalizedBarcodeInput } from "@/lib/localized-barcode-input";
 import { formatCurrency, formatDate, formatDateShort, formatNumber } from "@/lib/format";
 import {
   classifyAssistantIntent,
@@ -2323,7 +2324,7 @@ function Barcode() {
   const navigate = useNavigate();
   const lookup = useCallback(
     async (raw = value) => {
-      const code = raw.trim();
+      const code = normalizeLocalizedBarcodeInput(raw);
       if (!code) {
         setError("أدخل رقم الباركود أو رمز الصنف.");
         return;
@@ -2371,6 +2372,13 @@ function Barcode() {
     },
     [value],
   );
+
+  // Keep the scanner loop stable while always invoking the latest lookup callback.
+  const lookupRef = useRef(lookup);
+  useEffect(() => {
+    lookupRef.current = lookup;
+  }, [lookup]);
+
   useEffect(() => {
     if (!scanning) return;
     let active = true;
@@ -2407,9 +2415,12 @@ function Barcode() {
           if (!active || !video) return;
           try {
             const hits = await detector.detect(video);
-            if (hits[0]?.rawValue) {
-              setValue(hits[0].rawValue);
+            const detectedCode = hits[0]?.rawValue;
+            if (detectedCode) {
+              setValue(detectedCode);
+              setCameraError("");
               setScanning(false);
+              void lookupRef.current(detectedCode);
               return;
             }
           } catch {
@@ -2462,12 +2473,19 @@ function Barcode() {
           style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
         >
           <input
+            type="text"
+            inputMode="text"
+            maxLength={100}
             autoComplete="off"
+            dir="ltr"
             aria-label="رقم الباركود"
             style={{ ...field, flex: "1 1 260px" }}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="امسح الرمز أو اكتب رقم الباركود"
+            onChange={(e) => {
+              setValue(normalizeLocalizedBarcodeInput(e.currentTarget.value));
+              setError("");
+            }}
+            placeholder="امسح الرمز أو اكتب الباركود / رمز الصنف"
           />
           <button type="submit" style={primary} disabled={busy}>
             <Search size={16} />
