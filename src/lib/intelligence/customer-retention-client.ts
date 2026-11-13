@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { buildCustomerRetentionReport, type CustomerRetentionCoverage, type CustomerRetentionRecord, type CustomerRetentionReport, type CustomerRetentionSaleRecord } from "./customer-retention";
-import { buildGrowthOpportunityRadar, type GrowthOpportunityRadarResult, type GrowthOpportunitySignal } from "./growth-opportunities";
+import { buildGrowthOpportunityRadar, type GrowthOpportunityRadarResult, type GrowthOpportunitySignal, type GrowthOpportunitySourceCoverage } from "./growth-opportunities";
+import { fetchUnavailableProductSearchDemand } from "./unavailable-product-search-demand-client";
+import { fetchProductPerformanceGrowthContext } from "./product-performance-growth-client";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -14,7 +16,6 @@ export type CustomerRetentionAggregateResult =
   | {
       ok: true;
       data: CustomerRetentionReport;
-      growthRadar: GrowthOpportunityRadarResult;
       growthInputs: CustomerRetentionGrowthInputs;
     }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
@@ -246,17 +247,128 @@ export async function fetchCustomerRetentionAggregate(
       signals: growthSignals,
       sourceSnapshotVerified,
     };
-    const growthRadar = buildGrowthOpportunityRadar({
-      id: raw.id,
-      generatedAt: asOf,
-      asOf,
-      evidenceRecords: safeEvidence,
-      metrics: retentionMetrics,
-      signals: growthSignals,
-      sourceSnapshotVerified,
-    });
-    return { ok: true, data: report, growthRadar, growthInputs };
+    return { ok: true, data: report, growthInputs };
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بخدمة تحليلات الاحتفاظ بالعملاء." };
   }
+}
+
+
+export interface CustomerRetentionWorkspaceAggregate {
+  retentionResult: CustomerRetentionAggregateResult;
+  growthRadar: GrowthOpportunityRadarResult;
+  productCoverage: { totalCount: number; returnedCount: number; uncomparableUnitCount: number } | null;
+  unavailableDemandCoverage: { totalCount: number; returnedCount: number; coverageStartedOn: string | null } | null;
+}
+
+/**
+ * Loads retention, unavailable-demand and product-performance sources independently.
+ * One source failure is visible in coverage but does not prevent the other sources
+ * from producing evidence-backed opportunities for the same tenant and as-of instant.
+ */
+export async function fetchCustomerRetentionWorkspaceAggregate(
+  periodDays: 30 | 60 | 90 | 180 | 365,
+  asOf: string,
+): Promise<CustomerRetentionWorkspaceAggregate> {
+  const [retentionResult, unavailableDemandResult, productPerformanceResult] = await Promise.all([
+    fetchCustomerRetentionAggregate(periodDays, asOf),
+    fetchUnavailableProductSearchDemand(periodDays, asOf),
+    fetchProductPerformanceGrowthContext(periodDays, asOf),
+  ]);
+
+  const retentionInputs = retentionResult.ok ? retentionResult.growthInputs : null;
+  const unavailableDemand = unavailableDemandResult.ok ? unavailableDemandResult.context : null;
+  const productPerformance = productPerformanceResult.ok ? productPerformanceResult.context : null;
+
+  const combinedEvidenceRecords: EvidenceRecord[] = [
+    ...(retentionInputs?.evidenceRecords ?? []),
+    ...(unavailableDemand?.evidenceRecords ?? []),
+    ...(productPerformance?.evidenceRecords ?? []),
+  ];
+  const combinedMetrics: MetricSnapshot[] = [
+    ...(retentionInputs?.metrics ?? []),
+    ...(unavailableDemand?.metrics ?? []),
+    ...(productPerformance?.metrics ?? []),
+  ];
+  const combinedSignals: GrowthOpportunitySignal[] = [
+    ...(retentionInputs?.signals ?? []),
+    ...(unavailableDemand?.signals ?? []),
+    ...(productPerformance?.signals ?? []),
+  ];
+
+  const sourceCoverage: GrowthOpportunitySourceCoverage[] = [
+    {
+      key: "CUSTOMER_RETENTION",
+      status: retentionResult.ok
+        ? retentionResult.growthInputs.sourceSnapshotVerified ? "VERIFIED" : "PARTIAL"
+        : retentionResult.status,
+      evidenceCount: retentionInputs?.evidenceRecords.length ?? 0,
+      signalCount: retentionInputs?.signals.length ?? 0,
+      warnings: retentionResult.ok
+        ? retentionResult.growthInputs.sourceSnapshotVerified ? [] : ["CUSTOMER_RETENTION_POPULATION_INCOMPLETE"]
+        : ["CUSTOMER_RETENTION_SOURCE_NOT_READ"],
+      message: retentionResult.ok ? null : retentionResult.message,
+    },
+    {
+      key: "UNAVAILABLE_PRODUCT_DEMAND",
+      status: unavailableDemandResult.ok
+        ? unavailableDemandResult.context.completePopulation ? "VERIFIED" : "PARTIAL"
+        : unavailableDemandResult.status,
+      evidenceCount: unavailableDemand?.evidenceRecords.length ?? 0,
+      signalCount: unavailableDemand?.signals.length ?? 0,
+      warnings: unavailableDemand?.warnings ?? [],
+      message: unavailableDemandResult.ok ? null : unavailableDemandResult.message,
+    },
+    {
+      key: "PRODUCT_PERFORMANCE",
+      status: productPerformanceResult.ok
+        ? productPerformanceResult.context.completePopulation ? "VERIFIED" : "PARTIAL"
+        : productPerformanceResult.status,
+      evidenceCount: productPerformance?.evidenceRecords.length ?? 0,
+      signalCount: productPerformance?.signals.length ?? 0,
+      warnings: productPerformance?.warnings ?? [],
+      message: productPerformanceResult.ok ? null : productPerformanceResult.message,
+    },
+  ];
+
+  const sourceWarnings = [
+    ...sourceCoverage.flatMap(source => source.warnings),
+    ...(unavailableDemand ? [] : ["UNAVAILABLE_PRODUCT_DEMAND_SOURCE_NOT_READ"]),
+    ...(productPerformance ? [] : ["PRODUCT_PERFORMANCE_SOURCE_NOT_READ"]),
+    "QUOTE_ACCEPTANCE_IS_NOT_VERIFIED_ORDER_CONVERSION",
+  ];
+  const allSourcePopulationsVerified = sourceCoverage.every(source => source.status === "VERIFIED");
+  const mergedSourceSnapshotVerified = allSourcePopulationsVerified &&
+    new Set(combinedEvidenceRecords.map(item => item.id)).size === combinedEvidenceRecords.length &&
+    new Set(combinedMetrics.map(item => item.id)).size === combinedMetrics.length;
+  if (!mergedSourceSnapshotVerified && allSourcePopulationsVerified) {
+    sourceWarnings.push("GROWTH_SOURCE_ID_COLLISION");
+  }
+
+  const growthRadar = buildGrowthOpportunityRadar({
+    id: retentionResult.ok ? retentionResult.data.id : "growth-radar:" + asOf,
+    generatedAt: asOf,
+    asOf,
+    evidenceRecords: combinedEvidenceRecords,
+    metrics: combinedMetrics,
+    signals: combinedSignals,
+    sourceSnapshotVerified: mergedSourceSnapshotVerified,
+    sourceCoverage,
+    sourceWarnings,
+  });
+
+  return {
+    retentionResult,
+    growthRadar,
+    productCoverage: productPerformance ? {
+      totalCount: productPerformance.totalProductUnitCount,
+      returnedCount: productPerformance.returnedProductUnitCount,
+      uncomparableUnitCount: productPerformance.uncomparableUnitCount,
+    } : null,
+    unavailableDemandCoverage: unavailableDemand ? {
+      totalCount: unavailableDemand.totalProductCount,
+      returnedCount: unavailableDemand.returnedProductCount,
+      coverageStartedOn: unavailableDemand.coverageStartedOn,
+    } : null,
+  };
 }

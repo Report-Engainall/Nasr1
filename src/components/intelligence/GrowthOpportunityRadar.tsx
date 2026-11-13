@@ -12,6 +12,18 @@ export interface GrowthOpportunityRadarProps {
 }
 
 const priorityLabels = { P1: "مرتفع", P2: "متوسط", P3: "متابعة" } as const;
+const sourceLabels: Record<NonNullable<GrowthOpportunityRadarResult["sourceCoverage"]>[number]["key"], string> = {
+  CUSTOMER_RETENTION: "نشاط العملاء والشراء المتكرر",
+  UNAVAILABLE_PRODUCT_DEMAND: "الطلب على المنتجات غير المتاحة",
+  PRODUCT_PERFORMANCE: "اتجاه أداء المنتجات",
+};
+const sourceStatusLabels = {
+  VERIFIED: "مكتمل وموثق",
+  PARTIAL: "تغطية جزئية",
+  UNAVAILABLE: "غير متاح",
+  DENIED: "غير مصرح",
+  ERROR: "تعذر التحقق",
+} as const;
 const withheldLabels: Record<GrowthOpportunityRadarResult["withheld"][number]["reason"], string> = {
   INVALID_SIGNAL: "إشارة غير صالحة",
   DUPLICATE_SIGNAL: "إشارة مكررة",
@@ -145,7 +157,7 @@ export function GrowthOpportunityRadar({
   if (state !== "ready") {
     return <IntelligenceStatePanel state={state} onRetry={onRetry} errorMessage="تعذر تحميل رادار فرص النمو." />;
   }
-  if (!result || result.status === "UNAVAILABLE") {
+  if (!result) {
     return <IntelligenceStatePanel state="unavailable" unavailableMessage="مصادر رادار النمو غير متاحة؛ لم يتم إنشاء فرص أو قيم بديلة." />;
   }
 
@@ -161,6 +173,31 @@ export function GrowthOpportunityRadar({
         </div>
       </header>
       <p className="text-sm text-muted-foreground">الفرصة تثبت الإشارة التجارية فقط؛ لا تمثل وعداً بالبيع أو توقعاً للربح ولا تنفذ إجراءً نيابة عن المستخدم.</p>
+      {result.sourceCoverage?.length ? (
+        <section className="rounded-lg border p-3" aria-label="تغطية مصادر رادار النمو">
+          <h3 className="mb-2 text-sm font-semibold">مصادر التحليل وحدود تغطيتها</h3>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {result.sourceCoverage.map(source => (
+              <article key={source.key} className="rounded-lg border p-3 text-xs">
+                <p className="font-semibold">{sourceLabels[source.key]}</p>
+                <p className="mt-1">{sourceStatusLabels[source.status]}</p>
+                <p className="mt-1 text-muted-foreground">
+                  {formatEvidenceNumber(source.signalCount)} إشارة · {formatEvidenceNumber(source.evidenceCount)} دليل
+                </p>
+                {source.message ? <p className="mt-2 text-muted-foreground">{source.message}</p> : null}
+                {source.warnings.length ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-muted-foreground">حدود المصدر ({source.warnings.length})</summary>
+                    <ul className="mt-1 list-disc space-y-1 ps-4 text-muted-foreground">
+                      {source.warnings.map((warning, index) => <li key={source.key + ":" + index}>{warning}</li>)}
+                    </ul>
+                  </details>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {result.opportunities.length === 0 && result.withheld.length === 0 && result.status === "VERIFIED" ? (
         <div role="status" className="rounded-lg border p-3 text-sm">لا توجد فرص تجاوزت العتبات المحددة في مجتمع البيانات المكتمل لهذه الفترة.</div>
       ) : null}
