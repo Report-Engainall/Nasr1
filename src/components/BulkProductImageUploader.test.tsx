@@ -168,14 +168,14 @@ describe("product image batch result report", () => {
         productName: "صنف آخر",
         placement: "gallery",
         ok: false,
-        message: 'تعذر الرفع\\r\\n"راجع الصلاحية"',
+        message: 'تعذر الرفع\r\n"راجع الصلاحية"',
       },
     ]);
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('"أرز, بسمتي"');
-    expect(csv).toContain(String.raw`"'=HYPERLINK(""https://example.test"",""open"")"`);
+    expect(csv).toContain(`"'=HYPERLINK(""https://example.test"",""open"")"`);
     expect(csv).toContain('"تعذر الرفع  ""راجع الصلاحية"""');
-    expect(csv.split("\\r\\n")).toHaveLength(3);
+    expect(csv.split("\r\n")).toHaveLength(3);
   });
 });
