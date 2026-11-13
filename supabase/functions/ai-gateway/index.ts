@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { readBoundedTextBody } from "../_shared/bounded-body.ts";
-import { buildGeminiRequestConfig, estimateCost, estimateInputTokens, isSafeProviderBaseUrl, parseProviderResponse, runProviderCandidates, sanitizeAiQuestion, summarizeAiProviderAttempts, type AiProvider, type AiProviderCandidate, type AiCostRates } from "./logic.ts";
+import { buildGeminiRequestConfig, estimateCost, estimateInputTokens, hasHardZeroCostRates, isSafeProviderBaseUrl, parseProviderResponse, runProviderCandidates, sanitizeAiQuestion, summarizeAiProviderAttempts, type AiProvider, type AiProviderCandidate, type AiCostRates } from "./logic.ts";
 import { chooseFreeAiRoute, type FreeProviderQuota, type FreeQuotaEvidence } from "../../../src/lib/intelligence/free-ai-policy.ts";
 import { sessionIdFromVerifiedJwt, verifiedActivePromptContent } from "../../../src/lib/intelligence/active-ai-prompt-runtime.ts";
 type Runtime={env:{get(n:string):string|undefined};serve(h:(r:Request)=>Response|Promise<Response>):void};
@@ -23,7 +23,7 @@ function rates(provider:AiProvider):AiCostRates|null {
 }
 function candidate(provider:AiProvider,model:string,baseUrl:string,fallback:boolean):Candidate|null {
  const key=d?.env.get(provider==="gemini"?"AI_GEMINI_API_KEY":"AI_OPENAI_COMPATIBLE_API_KEY")?.trim(),r=rates(provider);
- if(!key||!r||!model.trim()||!isSafeProviderBaseUrl(baseUrl, provider))return null;
+ if(!key||!r||!hasHardZeroCostRates(r)||!model.trim()||!isSafeProviderBaseUrl(baseUrl, provider))return null;
  return {provider,model,baseUrl:baseUrl.replace(/\/+$/,""),key,rates:r,fallback};
 }
 function cleanText(value:string){let out="";for(const c of value){const n=c.charCodeAt(0);if((n<32&&n!==9&&n!==10)||n===127)continue;out+=c;}return out.trim().slice(0,5000);}
@@ -95,7 +95,7 @@ if(d)d.serve(async(request)=>{
  if(!config||config.status!=="enabled"){
   const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"ai_disabled"});
   if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
-  return reply({status:"fallback",reason:"ai_disabled",answer:SAFE});
+  return reply({status:"fallback",mode:"MODEL_UNAVAILABLE",reason:"ai_disabled",answer:SAFE});
  }
  const primary=candidate(config.primary_provider,config.primary_model,config.primary_base_url,false);
  const fallback=config.fallback_enabled?candidate(config.fallback_provider,config.fallback_model,config.fallback_base_url,true):null;
@@ -104,26 +104,29 @@ if(d)d.serve(async(request)=>{
   question:input.question,
   sanitize:sanitizeAiQuestion,
   asOf:new Date().toISOString(),
-  providers:FREE_PROVIDER_QUOTAS.filter(quota=>configuredCandidates.some(value=>value.provider===quota.provider&&value.model===quota.model)),
+  providers:configuredCandidates.flatMap(value=>FREE_PROVIDER_QUOTAS.filter(quota=>quota.provider===value.provider&&quota.model===value.model)),
   quotaEvidence:FREE_QUOTA_EVIDENCE,
-  ruleEngineAvailable:true,
+  // The in-app deterministic engine is separate; this Edge handler must not claim to run it.
+  ruleEngineAvailable:false,
  });
- if(freeRoute.mode!=="MODEL"){
+ if(freeRoute.mode!=="MODEL"||freeRoute.eligibleProviders.length===0){
   const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"provider_not_configured"});
   if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
   return action==="test_connection"
    ?reply({error:"no_verified_free_provider",reason:freeRoute.reason},424)
-   :reply({status:"fallback",mode:freeRoute.mode,reason:freeRoute.reason,answer:SAFE});
+   :reply({status:"fallback",mode:"MODEL_UNAVAILABLE",reason:freeRoute.reason,answer:SAFE});
  }
- const selectedCandidate=configuredCandidates.find(value=>value.provider===freeRoute.provider&&value.model===freeRoute.model);
- if(!selectedCandidate){
+ const attempts=freeRoute.eligibleProviders.flatMap((eligible,index)=>{
+  const match=configuredCandidates.find(value=>value.provider===eligible.provider&&value.model===eligible.model);
+  return match?[{...match,fallback:match.fallback||index>0}]:[];
+ });
+ if(!attempts.length||attempts.some(value=>!hasHardZeroCostRates(value.rates))){
   const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"provider_not_configured"});
   if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
   return action==="test_connection"
    ?reply({error:"verified_provider_configuration_missing"},424)
-   :reply({status:"fallback",mode:"RULE_BASED",reason:"verified_provider_configuration_missing",answer:SAFE});
+   :reply({status:"fallback",mode:"MODEL_UNAVAILABLE",reason:"verified_provider_configuration_missing",answer:SAFE});
  }
- const attempts=[selectedCandidate];
  const outputEstimate=action==="test_connection"?64:384,inputEstimate=estimateInputTokens(input.question,SYSTEM.length);
  const reservedCostEstimate=attempts.reduce((sum,c)=>sum+estimateCost(inputEstimate,outputEstimate,c.rates),0);
  const {data:reservedRaw,error:reserveError}=await db.rpc("reserve_ai_gateway_usage",{p_user_id:authData.user.id,p_request_id:requestId,p_estimated_input_tokens:inputEstimate*attempts.length,p_estimated_output_tokens:outputEstimate*attempts.length,p_estimated_cost:Number(reservedCostEstimate.toFixed(6))});
@@ -135,7 +138,7 @@ if(d)d.serve(async(request)=>{
    const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"quota_reservation_disabled"});
    if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
   }
-  return action==="test_connection"?reply({error:reason},reason==="quota_exceeded"?429:503):reply({status:"fallback",reason,answer:SAFE});
+  return action==="test_connection"?reply({error:reason},reason==="quota_exceeded"?429:503):reply({status:"fallback",mode:"MODEL_UNAVAILABLE",reason,answer:SAFE});
  }
  const started=Date.now();
  const providerRun=await runProviderCandidates(attempts,input.question,(candidateValue,question,signal)=>callProvider(candidateValue,question,signal,systemPrompt),action==="test_connection"?10000:15000);
@@ -158,7 +161,7 @@ if(d)d.serve(async(request)=>{
   p_usage_measurement_status:summary.status,p_provider_attempts:attemptPayload,
  });
  if(recordError){console.error("AI usage ledger finalization failed",{code:(recordError as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},500);}
- if(!result||!used)return action==="test_connection"?reply({error:"provider_connection_failed"},502):reply({status:"fallback",reason:"provider_unavailable",answer:SAFE});
+ if(!result||!used)return action==="test_connection"?reply({error:"provider_connection_failed"},502):reply({status:"fallback",mode:"MODEL_UNAVAILABLE",reason:"provider_unavailable",answer:SAFE});
  if(action==="test_connection")return reply({status:"connection_ok",provider:used.provider,model:used.model,fallback_used:fallbackUsed});
- return reply({status:fallbackUsed?"fallback":"completed",answer:cleanText(result.text),provider:used.provider,model:used.model,fallback_used:fallbackUsed});
+ return reply({status:fallbackUsed?"fallback":"completed",mode:"MODEL",answer:cleanText(result.text),provider:used.provider,model:used.model,fallback_used:fallbackUsed});
 });

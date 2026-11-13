@@ -15,6 +15,12 @@ export type AiCostRates = {
   outputPerThousand: number;
 };
 
+/** Provider transport is permitted only when both unit prices are exactly zero. */
+export function hasHardZeroCostRates(rates: AiCostRates): boolean {
+ return Number.isFinite(rates.inputPerThousand) && rates.inputPerThousand === 0 &&
+  Number.isFinite(rates.outputPerThousand) && rates.outputPerThousand === 0;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -253,6 +259,9 @@ export async function runProviderCandidates<C extends AiProviderCandidate>(
 ): Promise<{ result: ParsedProviderResponse | null; used: C | null; attempts: ProviderAttemptTelemetry[] }> {
  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600000) {
   throw new Error("invalid_provider_timeout");
+ }
+ if (candidates.some(candidate => !hasHardZeroCostRates(candidate.rates))) {
+  throw new Error("paid_provider_candidate_rejected");
  }
  let result: ParsedProviderResponse | null = null;
  let used: C | null = null;

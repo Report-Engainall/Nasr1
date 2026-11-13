@@ -19,7 +19,7 @@ function sanitize(question: unknown) {
 function provider(overrides: Partial<FreeProviderQuota> = {}): FreeProviderQuota {
   return {
     provider: "gemini", model: MODEL, quotaStatus: "AVAILABLE", quotaRemaining: 100,
-    freeTierConfirmed: true, zeroCostConfirmed: true, privacyReviewed: true,
+    freeTierConfirmed: true, zeroCostConfirmed: true, billingSafety: "NO_PAYMENT_METHOD", privacyReviewed: true,
     privacyAllowsQuestionOnly: true, inputRate: 0, outputRate: 0,
     verifiedAt: VERIFIED_AT, sourceEvidenceId: "quota-proof-1", cooldownUntil: null,
     ...overrides,
@@ -28,7 +28,7 @@ function provider(overrides: Partial<FreeProviderQuota> = {}): FreeProviderQuota
 function evidence(overrides: Partial<FreeQuotaEvidence> = {}): FreeQuotaEvidence {
   return {
     id: "quota-proof-1", status: "VERIFIED", asOf: VERIFIED_AT,
-    completeness: "COMPLETE", quality: "ACCEPTABLE", ...overrides,
+    completeness: "COMPLETE", quality: "ACCEPTABLE", billingSafety: "NO_PAYMENT_METHOD", ...overrides,
   };
 }
 function route(
@@ -52,7 +52,7 @@ describe("chooseFreeAiRoute", () => {
   it("fails closed when the evidence registry is empty", () => {
     expect(route([], [])).toMatchObject({
       mode: "RULE_BASED", provider: null, model: null,
-      reason: "ALL_FREE_QUOTAS_UNAVAILABLE", attemptedProviders: [], paidSpendLimit: 0,
+      reason: "ALL_FREE_QUOTAS_UNAVAILABLE", attemptedProviders: [], eligibleProviders: [], paidSpendLimit: 0,
     });
   });
   it("reports unavailable when no deterministic engine is available", () => {
@@ -66,6 +66,29 @@ describe("chooseFreeAiRoute", () => {
       expect(decision.mode).toBe("RULE_BASED");
       expect(decision.attemptedProviders[0]?.reason).toBe("COST_NOT_ZERO");
     }
+  });
+  it("rejects providers requiring payment details or permitting automatic billing",()=>{
+    for(const billingSafety of ["PAYMENT_METHOD_REQUIRED","AUTO_BILLING_POSSIBLE","UNKNOWN"] as const){
+      const decision=route([provider({billingSafety})],[evidence({billingSafety})]);
+      expect(decision.mode).toBe("RULE_BASED");expect(decision.eligibleProviders).toEqual([]);
+      expect(decision.attemptedProviders[0]?.reason).toBe("PAYMENT_METHOD_REQUIRED_OR_BILLING_UNSAFE");
+    }
+    const mismatch=route([provider()],[evidence({billingSafety:"AUTO_BILLING_POSSIBLE"})]);
+    expect(mismatch.eligibleProviders).toEqual([]);
+    expect(mismatch.attemptedProviders[0]?.reason).toBe("FREE_QUOTA_EVIDENCE_NOT_VERIFIED");
+  });
+  it("returns every eligible model in configured primary-to-fallback order",()=>{
+    const fallback=provider({provider:"openai_compatible",model:"free-compatible-model",sourceEvidenceId:"quota-proof-2"});
+    const decision=route([provider(),fallback],[evidence(),evidence({id:"quota-proof-2"})]);
+    expect(decision).toMatchObject({mode:"MODEL",provider:"gemini",model:MODEL,eligibleProviders:[
+      {provider:"gemini",model:MODEL},{provider:"openai_compatible",model:"free-compatible-model"}]});
+    expect(decision.attemptedProviders).toHaveLength(2);
+  });
+  it("skips an exhausted primary and selects the next eligible free model",()=>{
+    const fallback=provider({provider:"openai_compatible",model:"free-compatible-model",sourceEvidenceId:"quota-proof-2"});
+    const decision=route([provider({quotaStatus:"EXHAUSTED"}),fallback],[evidence(),evidence({id:"quota-proof-2"})]);
+    expect(decision).toMatchObject({mode:"MODEL",provider:"openai_compatible",model:"free-compatible-model",eligibleProviders:[{provider:"openai_compatible",model:"free-compatible-model"}]});
+    expect(decision.attemptedProviders.map(item=>item.reason)).toEqual(["QUOTA_EXHAUSTED","ELIGIBLE"]);
   });
   it("requires explicit free-tier and question-only privacy approval", () => {
     const noFree = route([provider({ freeTierConfirmed: false })], [evidence()]);
