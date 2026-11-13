@@ -1,3 +1,19 @@
+# LIVE EXECUTION CHECKPOINT — 2026-11-13 — DECISION MEMORY ENGINE REGRESSION COVERAGE
+
+- REPOSITORY: `Report-Engainall/Nasr1`; source branch: `main`.
+- BASE_MAIN_SHA: `5f23cd42e727c631604caacc7cfbca35dba5372d`.
+- IMPLEMENTED_PATHS:
+  - `src/lib/intelligence/decision-memory.test.ts` — new dedicated Vitest suite for source coverage, immutable snapshot ambiguity, evidence withholding, currency-safe metric comparison, review-suggestion gating and historical precedent bounds.
+  - `.github/workflows/p1-admin-context-verification.yml` — added the exact test path to both push and pull-request filters so the full Vitest, strict TypeScript and production-build job is selected for this work.
+  - Canonical matrix task: `REF-DECISION-MEMORY-BOOK-001`.
+- SCOPE: P3 intelligence engine regression tests only. No changes to Path B issue #422 owned directories, shared admin routing, server contracts, migrations, RLS, Auth, hosted database, production data, Vercel or deployment.
+- IMPORTANT SOURCE LIMIT: `IntelligenceWorkspace` still supplies an empty snapshot array because no immutable tenant-safe snapshot read DTO is available in the current application source. The test suite does not pretend to solve that server-read gap or claim persisted snapshot rendering.
+- EXACT_SHA: this checkpoint and tests are committed together on the main commit recorded by GitHub. P1 CI is PENDING until a terminal run result is fetched for that exact commit.
+- ACCEPTANCE: no PASS is recorded here. Unit tests, strict TypeScript and build require exact-commit CI. PostgreSQL 17 tenant read/deny and authenticated browser acceptance remain separate and OPEN.
+- NEXT: poll exact-main P1 result; if any test/type/build step fails, repair on top of the inspected main head and rerun on the resulting SHA. Only after CI success may the matrix status be upgraded to exact-SHA CI SUCCESS; leave runtime/DB read acceptance pending.
+
+---
+
 # FINAL P1/P2 ACCEPTANCE UPDATE — 2026-11-13 — CURRENT MAIN SOURCE
 
 - Current documentation HEAD before this update: 2f61d185c4bb4e2180836497953658abe8deee31 (documentation-only child of code SHA 6a7290eb219d906fec7596d125569c5036e0ba9f).
