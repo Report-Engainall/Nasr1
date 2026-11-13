@@ -68,6 +68,57 @@ describe("AI prompt version governance", () => {
     }, createdAt)).rejects.toThrow("prompt_content_secret_rejected");
   });
 
+  it("rejects case-insensitive duplicate version identities across organizations", async () => {
+    const first = await create("version-id");
+    const crossTenantCopy = {
+      ...first.version,
+      id: first.version.id.toUpperCase(),
+      organizationId: "org-b",
+      promptKey: "assistant.other",
+    };
+
+    await expect(createPromptDraft([first.version, crossTenantCopy], actor("creator"), {
+      id: "next-version",
+      eventId: "next-event",
+      promptKey: "assistant.other",
+      content: "محتوى توجيه صالح لمؤسسة أخرى دون أي أسرار.",
+    }, createdAt)).rejects.toThrow("prompt_version_identity_duplicate");
+  });
+
+  it("rejects ambiguous organization and prompt version sequences", async () => {
+    const first = await create("version-one");
+    const duplicateSequence = {
+      ...first.version,
+      id: "different-record-id",
+    };
+
+    await expect(createPromptDraft([first.version, duplicateSequence], actor("creator"), {
+      id: "version-two",
+      eventId: "version-two-event",
+      promptKey: "assistant.system",
+      content: "نسخة ثانية لا يجوز إنشاؤها فوق تاريخ ملتبس.",
+    }, createdAt)).rejects.toThrow("prompt_version_sequence_duplicate");
+  });
+
+  it("rejects cross-tenant duplicate identities before prompt activation", async () => {
+    const approvedPrompt = await approved();
+    const duplicateIdentity = {
+      ...approvedPrompt.version,
+      id: approvedPrompt.version.id.toUpperCase(),
+      organizationId: "org-b",
+      promptKey: "assistant.other",
+    };
+
+    expect(() => activatePromptVersion(
+      [approvedPrompt.version, duplicateIdentity],
+      approvedPrompt.version.id,
+      actor("operator"),
+      "activate-duplicate",
+      "2026-11-09T18:20:00.000Z",
+      "محاولة تفعيل سجل ملتبس",
+    )).toThrow("prompt_version_identity_duplicate");
+  });
+
   it("requires a draft and the creator to submit it", async () => {
     const draft = await create();
     expect(() => submitPromptVersionForApproval(draft.version, actor("another-admin"), "e", createdAt))
@@ -145,7 +196,7 @@ describe("AI prompt version governance", () => {
   it("fails closed when legacy history contains multiple active versions", async () => {
     const result = await approved();
     const active = activatePromptVersion([result.version], result.version.id, actor("operator"), "a1", "2026-11-09T18:20:00.000Z", "تشغيل");
-    const duplicate = { ...active.versions[0], id: "duplicate" };
+    const duplicate = { ...active.versions[0], id: "historical-active-duplicate", version: 3 };
     const next = { ...result.version, id: "next", version: 2, status: "APPROVED" as const };
     expect(() => activatePromptVersion(
       [...active.versions, duplicate, next], "next", actor("operator-2"), "a2",

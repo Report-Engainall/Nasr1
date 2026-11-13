@@ -87,6 +87,68 @@ function validatePromptKey(value: string): string {
   return key;
 }
 
+const promptLifecycleStatuses = new Set<PromptLifecycleStatus>([
+  "DRAFT", "PENDING_APPROVAL", "APPROVED", "ACTIVE", "REJECTED", "RETIRED",
+]);
+
+/**
+ * Rejects ambiguous or malformed in-memory history before it can influence
+ * version sequencing or activation. The database must still enforce the same
+ * unique and append-only invariants transactionally.
+ */
+function assertPromptVersionHistoryIntegrity(versions: readonly AiPromptVersion[]): void {
+  if (!Array.isArray(versions)) {
+    throw new Error("prompt_version_history_invalid");
+  }
+
+  const ids = new Set<string>();
+  const versionKeys = new Set<string>();
+  const activePromptKeys = new Set<string>();
+
+  for (const value of versions as readonly unknown[]) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("prompt_version_history_invalid");
+    }
+
+    const row = value as Record<string, unknown>;
+    const id = typeof row.id === "string" ? row.id.trim() : "";
+    const organizationId = typeof row.organizationId === "string" ? row.organizationId.trim() : "";
+    const promptKey = typeof row.promptKey === "string" ? row.promptKey.trim() : "";
+    const version = row.version;
+    const status = row.status;
+
+    if (!id || !organizationId || !/^[a-z][a-z0-9_.-]{1,79}$/.test(promptKey) ||
+        !Number.isSafeInteger(version) || (version as number) < 1 ||
+        typeof status !== "string" || !promptLifecycleStatuses.has(status as PromptLifecycleStatus)) {
+      throw new Error("prompt_version_history_invalid");
+    }
+
+    const idKey = id.toLowerCase();
+    if (ids.has(idKey)) {
+      throw new Error("prompt_version_identity_duplicate");
+    }
+    ids.add(idKey);
+
+    const scopeKey = JSON.stringify([
+      organizationId.toLowerCase(),
+      promptKey,
+      version,
+    ]);
+    if (versionKeys.has(scopeKey)) {
+      throw new Error("prompt_version_sequence_duplicate");
+    }
+    versionKeys.add(scopeKey);
+
+    if (status === "ACTIVE") {
+      const promptScope = JSON.stringify([organizationId.toLowerCase(), promptKey]);
+      if (activePromptKeys.has(promptScope)) {
+        throw new Error("prompt_multiple_active_versions");
+      }
+      activePromptKeys.add(promptScope);
+    }
+  }
+}
+
 function validatePromptContent(value: string): string {
   const content = typeof value === "string" ? value.trim() : "";
   if (content.length < 16 || content.length > 8000) {
@@ -149,10 +211,12 @@ export async function createPromptDraft(
   createdAt: string,
 ): Promise<{ version: AiPromptVersion; event: AiPromptAuditEvent }> {
   requireActor(actor, actor.organizationId);
+  assertPromptVersionHistoryIntegrity(existingVersions);
   const promptKey = validatePromptKey(input.promptKey);
   const content = validatePromptContent(input.content);
-  if (!input.id?.trim() || !validTimestamp(createdAt) ||
-      existingVersions.some(row => row.id === input.id)) {
+  const inputId = typeof input.id === "string" ? input.id.trim() : "";
+  if (!inputId || !validTimestamp(createdAt) ||
+      existingVersions.some(row => row.id.toLowerCase() === inputId.toLowerCase())) {
     throw new Error("prompt_draft_identity_invalid");
   }
   const matching = existingVersions.filter(row =>
@@ -163,8 +227,11 @@ export async function createPromptDraft(
     }
     return Math.max(max, row.version);
   }, 0);
+  if (!Number.isSafeInteger(maxVersion + 1)) {
+    throw new Error("prompt_version_history_invalid");
+  }
   const version: AiPromptVersion = {
-    id: input.id,
+    id: inputId,
     organizationId: actor.organizationId,
     promptKey,
     version: maxVersion + 1,
@@ -277,7 +344,11 @@ export function activatePromptVersion(
   activatedAt: string,
   reason: string,
 ): { versions: AiPromptVersion[]; events: AiPromptAuditEvent[] } {
-  const target = versions.find(row => row.id === versionId);
+  assertPromptVersionHistoryIntegrity(versions);
+  const requestedId = typeof versionId === "string" ? versionId.trim().toLowerCase() : "";
+  const target = requestedId
+    ? versions.find(row => row.id.toLowerCase() === requestedId)
+    : undefined;
   if (!target) throw new Error("prompt_version_not_found");
   requireActor(actor, target.organizationId);
   const auditReason = requireReason(reason);
@@ -297,11 +368,11 @@ export function activatePromptVersion(
   const nextVersions: AiPromptVersion[] = [];
   const events: AiPromptAuditEvent[] = [];
   for (const row of versions) {
-    if (row.id === target.id) {
+    if (row.id.toLowerCase() === target.id.toLowerCase()) {
       const next = { ...row, status: "ACTIVE" as const, activatedAt, deactivatedAt: null };
       nextVersions.push(next);
       events.push(makeAuditEvent(eventId, next, "ACTIVATED", actor, "APPROVED", "ACTIVE", activatedAt, auditReason));
-    } else if (row.id === active[0]?.id) {
+    } else if (active[0] && row.id.toLowerCase() === active[0].id.toLowerCase()) {
       const next = { ...row, status: "APPROVED" as const, deactivatedAt: activatedAt };
       nextVersions.push(next);
       events.push(makeAuditEvent(eventId + ":deactivated", next, "DEACTIVATED", actor, "ACTIVE", "APPROVED", activatedAt, auditReason));
