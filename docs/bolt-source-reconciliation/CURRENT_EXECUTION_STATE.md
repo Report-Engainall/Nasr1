@@ -1,3 +1,15 @@
+# P3 REPAIR CHECKPOINT — TASK QUALITY TEST LOCALE — 2026-11-13
+
+- FAILED_SHA: `2ca3cf701486a2e64fdd9db3595cdf91dfbb7b5b`.
+- P1 RUN: `43369570643`.
+- Vitest result on failed SHA: 652 passed / 5 failed across 92 test files; the five failures were all assertions comparing Latin digits to locale-formatted `ar-YE` digits. The other eight new Task Quality Insight assertions passed.
+- STRICT TYPESCRIPT AND PRODUCTION BUILD: inspect terminal P1 job before copying their results; do not infer from Vitest.
+- ROOT CAUSE: Node formats `ar-YE` counts with Arabic-Indic digits (for example `١٢`), while test assertions used Latin digit literals. This is a test portability issue, not a business formula failure.
+- FIX: new test helper normalizes Arabic-Indic and Persian digits to Latin before comparing numeric evidence copy; production locale formatting remains unchanged.
+- NEXT: rerun exact-head P1. Require 13/13 Task Quality tests and full Vitest/strict TypeScript/production build before acceptance.
+
+---
+
 # P3 EXECUTION CHECKPOINT — TASK QUALITY INSIGHT CONFIDENCE — 2026-11-13
 
 - REPOSITORY: `Report-Engainall/Nasr1`; canonical branch: `main`.

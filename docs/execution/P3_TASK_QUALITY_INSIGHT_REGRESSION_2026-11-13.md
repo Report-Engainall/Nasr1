@@ -32,3 +32,9 @@ No task, decision, workflow, policy, alert, inventory, credit or financial mutat
 ## Acceptance
 
 This source commit must pass the P1 Vitest suite, strict TypeScript and production build on its exact SHA. P2 local PostgreSQL and authenticated browser tests are required only if the change touches an authorization contract or persistence; this batch does not. No hosted database, production data, provider, deployment or Vercel change is involved.
+
+## Locale-sensitive assertion correction — 13 November 2026
+
+The first exact-SHA P1 run `43369570643` on `2ca3cf701486a2e64fdd9db3595cdf91dfbb7b5b` reported 652 passed / 5 failed. All five failures were string assertions expecting Latin digits inside Arabic `ar-YE` formatted evidence. Node's ICU rendered those counts with Arabic-Indic digits (for example `١٢`). The other eight Task Quality Insight tests passed.
+
+The test suite now normalizes Arabic-Indic and Persian digits before numeric text comparisons. Product-facing Arabic formatting is deliberately unchanged. The repaired commit needs a fresh exact-SHA P1 run; no PASS is carried forward.

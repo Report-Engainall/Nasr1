@@ -76,6 +76,14 @@ function insight(metrics: TaskQualityMetrics, key: string) {
   return found;
 }
 
+function latinDigits(value: string): string {
+  const arabicIndic = "٠١٢٣٤٥٦٧٨٩";
+  const persian = "۰۱۲۳۴۵۶۷۸۹";
+  return value
+    .replace(/[٠-٩]/g, digit => String(arabicIndic.indexOf(digit)))
+    .replace(/[۰-۹]/g, digit => String(persian.indexOf(digit)));
+}
+
 describe("buildTaskQualityInsights", () => {
   it("fails closed for restricted and unavailable sources without fabricating metrics", () => {
     const restricted = buildTaskQualityInsights({
@@ -100,7 +108,7 @@ describe("buildTaskQualityInsights", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ key: "SOURCE_STATE", state: "EMPTY", value: "لا توجد مراجعات محفوظة" });
-    expect(result[0].evidence).toContain("0");
+    expect(latinDigits(result[0].evidence)).toContain("0");
     expect(result[0].interpretation).toContain("لا توجد مراجعات محفوظة");
     expect(result[0].interpretation).not.toContain("مصدر محجوب");
     expect(result[0].interpretation).toContain("لا تُفسّر ذلك كصفر");
@@ -132,7 +140,7 @@ describe("buildTaskQualityInsights", () => {
     const card = insight(result, "REPEATED_CAUSE_LEADER");
 
     expect(card.state).toBe("LOW_SAMPLE");
-    expect(card.evidence).toContain("2");
+    expect(latinDigits(card.evidence)).toContain("2");
     expect(card.interpretation).toContain("العينة أقل من 5");
   });
 
@@ -163,9 +171,9 @@ describe("buildTaskQualityInsights", () => {
     const result = makeReady();
     const card = insight(result, "ACTIONABILITY_RATE");
 
-    expect(card.evidence).toContain("6");
-    expect(card.evidence).toContain("8");
-    expect(card.evidence).toContain("المؤجل 2 مستبعد");
+    expect(latinDigits(card.evidence)).toContain("6");
+    expect(latinDigits(card.evidence)).toContain("8");
+    expect(latinDigits(card.evidence)).toContain("المؤجل 2 مستبعد");
     expect(card.state).toBe("READY");
     expect(card.value).not.toBe("غير محسوب");
   });
@@ -175,17 +183,17 @@ describe("buildTaskQualityInsights", () => {
     const approval = insight(result, "DISPOSITION_APPROVAL_RATE");
     const deferred = insight(result, "DEFERRED_DISPOSITION_SHARE");
 
-    expect(approval.evidence).toContain("3 قبول من 5 قرار قبول/رفض");
-    expect(approval.evidence).toContain("المؤجل 1 مستبعد");
-    expect(deferred.evidence).toContain("1 تأجيل من 6 قرار مراجعة");
+    expect(latinDigits(approval.evidence)).toContain("3 قبول من 5 قرار قبول/رفض");
+    expect(latinDigits(approval.evidence)).toContain("المؤجل 1 مستبعد");
+    expect(latinDigits(deferred.evidence)).toContain("1 تأجيل من 6 قرار مراجعة");
     expect(approval.value).not.toBe("غير محسوب");
   });
 
   it("excludes NEEDS_REVIEW alerts from the false-alarm denominator", () => {
     const card = insight(makeReady(), "FALSE_ALARM_RATE");
 
-    expect(card.evidence).toContain("1 كاذب من 7");
-    expect(card.evidence).toContain("1 يحتاج مراجعة ومستبعد");
+    expect(latinDigits(card.evidence)).toContain("1 كاذب من 7");
+    expect(latinDigits(card.evidence)).toContain("1 يحتاج مراجعة ومستبعد");
     expect(card.state).toBe("READY");
   });
 
