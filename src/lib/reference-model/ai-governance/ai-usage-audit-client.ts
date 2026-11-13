@@ -29,6 +29,7 @@ export interface AiUsageAuditRecord {
   observedInputTokens: number | null;
   observedOutputTokens: number | null;
   providerAttemptCount: number;
+  providerAttemptTelemetryAvailable: boolean;
   providerAttempts: AiUsageProviderAttempt[];
   outcomeReason: string | null;
   createdAt: string;
@@ -122,12 +123,15 @@ function parseRecord(value: unknown): AiUsageAuditRecord {
   const observedInputTokens = integer(value.observed_input_tokens, 2000000, true);
   const observedOutputTokens = integer(value.observed_output_tokens, 100000, true);
   const providerAttemptCount = integer(value.provider_attempt_count, 2);
+  const providerAttemptTelemetryAvailable = value.provider_attempts_integrity;
+  if (typeof providerAttemptTelemetryAvailable !== "boolean") throw new Error("ai_audit_response_invalid");
   if (!UUID.test(id) || (actorProfileId !== null && !UUID.test(actorProfileId)) ||
       typeof value.fallback_used !== "boolean" ||
       typeof value.result_status !== "string" || !RESULT_STATUSES.has(value.result_status as AiUsageResultStatus) ||
       typeof value.usage_measurement_status !== "string" || !MEASUREMENT_STATUSES.has(value.usage_measurement_status as AiUsageMeasurementStatus) ||
       !Array.isArray(value.provider_attempts) || value.provider_attempts.length > 2 ||
-      (providerAttemptCount as number) !== value.provider_attempts.length) {
+      (providerAttemptTelemetryAvailable && (providerAttemptCount as number) !== value.provider_attempts.length) ||
+      (!providerAttemptTelemetryAvailable && value.provider_attempts.length !== 0)) {
     throw new Error("ai_audit_response_invalid");
   }
   if (value.usage_measurement_status === "measured" && (observedInputTokens === null || observedOutputTokens === null)) {
@@ -154,6 +158,7 @@ function parseRecord(value: unknown): AiUsageAuditRecord {
     observedInputTokens,
     observedOutputTokens,
     providerAttemptCount: providerAttemptCount as number,
+    providerAttemptTelemetryAvailable,
     providerAttempts: value.provider_attempts.map(parseAttempt),
     outcomeReason,
     createdAt,

@@ -26,6 +26,7 @@ const record = {
   observedInputTokens: 120,
   observedOutputTokens: 48,
   providerAttemptCount: 1,
+  providerAttemptTelemetryAvailable: true,
   providerAttempts: [{
     provider: "openai_compatible" as const,
     model: "example-model",
@@ -70,6 +71,8 @@ describe("AiUsageAuditPanel", () => {
     expect(screen.getByText(/التكلفة المقدّرة: 0[.]0042/)).toBeInTheDocument();
     expect(screen.queryByText(/نص السؤال الخام/)).not.toBeInTheDocument();
     expect(screen.queryByText(/الرد السري/)).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "مؤشرات جودة تشغيل الذكاء" })).toBeInTheDocument();
+    expect(screen.getAllByText("عينة غير كافية").length).toBeGreaterThan(0);
   });
 
   it("denies accountant roles before requesting the audit RPC", () => {
@@ -92,6 +95,8 @@ describe("AiUsageAuditPanel", () => {
     await screen.findByText("لا توجد محاولات تطابق المرشح");
     fireEvent.change(screen.getByLabelText("حالة النتيجة"), { target: { value: "completed" } });
     await waitFor(() => expect(mocks.listAiUsageAudit).toHaveBeenLastCalledWith({ status: "completed", limit: 25, offset: 0 }));
+    expect(screen.queryByRole("region", { name: "مؤشرات جودة تشغيل الذكاء" })).not.toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("أُخفيت مؤشرات الجودة");
   });
 
   it("does not keep stale ledger rows visible when a read fails", async () => {

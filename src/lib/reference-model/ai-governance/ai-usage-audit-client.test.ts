@@ -18,6 +18,7 @@ const row = {
   observed_input_tokens: 120,
   observed_output_tokens: 48,
   provider_attempt_count: 1,
+  provider_attempts_integrity: true,
   provider_attempts: [{
     provider: "openai_compatible",
     model: "example-model",
@@ -57,6 +58,7 @@ describe("listAiUsageAudit", () => {
       observedInputTokens: 120,
       observedOutputTokens: 48,
       providerAttemptCount: 1,
+      providerAttemptTelemetryAvailable: true,
     });
     expect(page.items[0]).not.toHaveProperty("rawResponse");
     expect(page.items[0].providerAttempts[0]).not.toHaveProperty("rawPrompt");
@@ -70,6 +72,27 @@ describe("listAiUsageAudit", () => {
     mocks.rpc.mockClear();
     await expect(listAiUsageAudit({ limit: 101 })).rejects.toThrow("ai_audit_query_invalid");
     expect(mocks.rpc).toHaveBeenCalledTimes(0);
+  });
+
+  it("withholds malformed historical scalar attempt payloads while preserving the source count", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        items: [{
+          ...row,
+          provider_attempt_count: 1,
+          provider_attempts_integrity: false,
+          provider_attempts: [],
+        }],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      },
+      error: null,
+    });
+    const page = await listAiUsageAudit();
+    expect(page.items[0].providerAttemptCount).toBe(1);
+    expect(page.items[0].providerAttemptTelemetryAvailable).toBe(false);
+    expect(page.items[0].providerAttempts).toEqual([]);
   });
 
   it("fails closed for a malformed provider attempt", async () => {

@@ -244,6 +244,18 @@ async function main() {
       ],
     );
 
+
+    const malformedAiAuditRequestId = "p2-ai-audit-malformed-" + suffix;
+    await db.unsafe(
+      "insert into public.ai_usage_ledger(" +
+      "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
+      "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
+      "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
+      ") values($1::uuid,$2::uuid,$3::text,$4::text,0,0,0,320,false,'completed','unknown',null,null,1,$5::jsonb,null) " +
+      "on conflict(organization_id,request_id) do nothing",
+      [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", JSON.stringify("legacy_scalar_payload")],
+    );
+
     setPhase("read AI audit as organization admin");
     const aiAudit = asJson((await adminDb.unsafe(
       "select public.list_ai_gateway_audit(null,50,0) as result",
@@ -251,9 +263,16 @@ async function main() {
     assert.ok(Array.isArray(aiAudit.items), "admin AI audit must return bounded ledger items");
     assert.ok(Number.isSafeInteger(Number(aiAudit.total)) && Number(aiAudit.total) >= aiAudit.items.length);
     assert.ok(aiAudit.items.some((item) => item.request_id === aiAuditRequestId), "audit RPC must return the source-backed local fixture");
+    const malformedAttemptRecord = aiAudit.items.find((item) => item.request_id === malformedAiAuditRequestId);
+    assert.ok(malformedAttemptRecord, "audit RPC must tolerate an isolated legacy scalar provider_attempts fixture");
+    assert.equal(malformedAttemptRecord.provider_attempts_integrity, false);
+    assert.deepEqual(malformedAttemptRecord.provider_attempts, []);
+    assert.equal(malformedAttemptRecord.provider_attempt_count, 1, "the original attempt count remains visible without claiming valid details");
     for (const item of aiAudit.items) {
       assert.ok(!("prompt" in item) && !("response" in item) && !("raw_payload" in item));
+      assert.equal(typeof item.provider_attempts_integrity, "boolean");
       assert.ok(Array.isArray(item.provider_attempts) && item.provider_attempts.length <= 2);
+      if (item.provider_attempts_integrity === false) assert.deepEqual(item.provider_attempts, []);
       for (const attempt of item.provider_attempts) {
         assert.deepEqual(
           Object.keys(attempt).sort(),

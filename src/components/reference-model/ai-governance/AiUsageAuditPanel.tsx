@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, Clock3, RefreshCw, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { buildAiUsageQualityInsights } from "@/lib/reference-model/ai-governance/ai-usage-quality-insights";
 import {
   listAiUsageAudit,
   type AiUsageAuditRecord,
@@ -42,6 +43,22 @@ function costLabel(value: number): string {
 }
 function recordLabel(record: AiUsageAuditRecord): string {
   return record.providerAttempts.length ? record.providerAttempts.map((attempt) => attempt.provider + " / " + attempt.model).join(" ← ") : record.modelName;
+}
+function qualityStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    INSUFFICIENT_SAMPLE: "عينة غير كافية",
+    NOT_MEASURABLE: "لا توجد قياسات قابلة للحساب",
+    HEALTHY: "ضمن النطاق الإرشادي",
+    WATCH: "يحتاج متابعة",
+    DEGRADED: "تدهور ملحوظ",
+  };
+  return labels[status] ?? "غير متاح";
+}
+function qualityRateLabel(numerator: number, denominator: number, rate: number | null): string {
+  if (rate === null) return "غير متاح";
+  return new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 1 }).format(rate * 100) + "% (" +
+    new Intl.NumberFormat("ar-YE").format(numerator) + " / " +
+    new Intl.NumberFormat("ar-YE").format(denominator) + ")";
 }
 
 export function AiUsageAuditPanel() {
@@ -103,6 +120,7 @@ export function AiUsageAuditPanel() {
   }
 
   const hasMore = offset + items.length < total;
+  const quality = buildAiUsageQualityInsights(items);
   return (
     <section dir="rtl" aria-label="تدقيق محاولات الذكاء" className="space-y-4 rounded-xl border p-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -185,6 +203,7 @@ export function AiUsageAuditPanel() {
                 <div className="rounded-md bg-muted/30 p-2">
                   <p className="text-xs text-muted-foreground">عدد محاولات المزود</p>
                   <p className="mt-1 text-sm tabular-nums">{numberLabel(record.providerAttemptCount)}</p>
+                  {record.providerAttemptTelemetryAvailable === false ? <p role="note" className="mt-1 text-xs text-muted-foreground">تفاصيل المحاولات التاريخية غير متاحة بسبب صيغة مصدر غير معروفة؛ لم تُحتسب نجاحاً أو فشلاً.</p> : null}
                 </div>
                 <div className="rounded-md bg-muted/30 p-2">
                   <p className="text-xs text-muted-foreground">الفاعل</p>
@@ -223,6 +242,57 @@ export function AiUsageAuditPanel() {
           ))}
         </ol>
       )}
+
+
+      {!loading && !error && status === "all" ? (
+        <section role="region" aria-label="مؤشرات جودة تشغيل الذكاء" className="space-y-3 rounded-lg border p-3">
+          <header>
+            <h3 className="font-semibold">مؤشرات جودة التشغيل — العينة المعروضة</h3>
+            <p className="mt-1 text-xs leading-6 text-muted-foreground">
+              تحليل حتمي للصفحة الحالية فقط ({items.length} سجلاً بحد أقصى 25)، ولا يمثل كامل المؤسسة أو اتفاقية مستوى خدمة.
+              الحد الأدنى لكل معدل هو 5 مشاهدات؛ العينة الأصغر لا تُصنّف سليمة.
+            </p>
+          </header>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">فشل محاولات المزود</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{qualityRateLabel(quality.providerFailures.numerator, quality.providerFailures.denominator, quality.providerFailures.rate)}</p>
+              <p className="mt-1 text-xs">{qualityStatusLabel(quality.providerFailures.status)}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">متابعة عند 15%، وتدهور عند 30% بعد اكتمال العينة</p>
+            </div>
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">الاعتماد على الاحتياطي</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{qualityRateLabel(quality.fallbackReliance.numerator, quality.fallbackReliance.denominator, quality.fallbackReliance.rate)}</p>
+              <p className="mt-1 text-xs">{qualityStatusLabel(quality.fallbackReliance.status)}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">متابعة عند 25%، وتدهور عند 40%</p>
+            </div>
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">زمن الاستجابة P95</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{quality.p95Latency.p95Ms === null ? "غير متاح" : numberLabel(quality.p95Latency.p95Ms) + " مللي ثانية"}</p>
+              <p className="mt-1 text-xs">{qualityStatusLabel(quality.p95Latency.status)}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">متابعة من 5 ثوانٍ، وتدهور من 10 ثوانٍ؛ عينة المحاولات: {numberLabel(quality.p95Latency.sampleCount)}</p>
+            </div>
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">نقص قياس الاستهلاك</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{qualityRateLabel(quality.measurementGaps.numerator, quality.measurementGaps.denominator, quality.measurementGaps.rate)}</p>
+              <p className="mt-1 text-xs">{qualityStatusLabel(quality.measurementGaps.status)}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">متابعة عند 20%، وتدهور عند 40% من المحاولات</p>
+            </div>
+          </div>
+          {quality.unclassifiedAttemptRecords > 0 ? (
+            <p role="note" className="text-xs leading-6 text-muted-foreground">
+              توجد {numberLabel(quality.unclassifiedAttemptRecords)} سجلات ذات تفاصيل محاولات غير صالحة؛ استُبعدت من معدل فشل المزود ولم تُحسب نجاحاً.
+            </p>
+          ) : null}
+          <p className="text-[11px] text-muted-foreground">
+            هذه حدود تشغيلية إرشادية ثابتة، وليست تنبيهات آلية أو إثبات اتصال بمزود خارجي.
+          </p>
+        </section>
+      ) : !loading && !error && status !== "all" ? (
+        <p role="note" className="rounded-lg border p-3 text-xs leading-6 text-muted-foreground">
+          أُخفيت مؤشرات الجودة لأن مرشح حالة النتيجة يغيّر تركيب العينة وقد يحرّف معدلات الفشل والاحتياطي.
+        </p>
+      ) : null}
 
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
         <p className="flex items-start gap-2 text-xs leading-6 text-muted-foreground">
