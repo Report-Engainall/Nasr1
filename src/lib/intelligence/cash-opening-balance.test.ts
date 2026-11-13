@@ -209,6 +209,25 @@ describe("approved cash opening balance forecast source", () => {
     expect(result.metrics).toEqual([]);
   });
 
+  it("withholds currencies when one ledger account is mapped to different currencies", () => {
+    const result = buildApprovedCashOpeningBalances(workspace({
+      accounts: [
+        account(IDS.mappingA, IDS.accountA, "YER"),
+        account(IDS.mappingB, IDS.accountA, "USD"),
+      ],
+      evidence: [
+        document(IDS.evidenceA, IDS.mappingA),
+        document(IDS.evidenceB, IDS.mappingB),
+      ],
+      openingBalances: [
+        proposal({ id: IDS.proposalA, mappingId: IDS.mappingA, evidenceId: IDS.evidenceA, amount: "100.00", currency: "YER" }),
+        proposal({ id: IDS.proposalB, mappingId: IDS.mappingB, evidenceId: IDS.evidenceB, amount: "25.00", currency: "USD" }),
+      ],
+    }), AS_OF);
+    expect(result.metrics).toEqual([]);
+    expect(result.warnings).toHaveLength(2);
+  });
+
   it("rejects opening evidence from another as-of timestamp", () => {
     const result = buildApprovedCashOpeningBalances(workspace({ asOf: "2026-11-13T08:59:59.000Z" }), AS_OF);
     expect(result.metrics).toEqual([]);

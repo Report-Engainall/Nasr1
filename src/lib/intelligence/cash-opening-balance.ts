@@ -73,6 +73,17 @@ export function buildApprovedCashOpeningBalances(
   }
 
   const evidenceById = new Map(workspace.evidence.map((item) => [item.id, item]));
+  const currenciesByAccountingAccount = new Map<string, Set<string>>();
+  for (const account of accounts) {
+    const currencies = currenciesByAccountingAccount.get(account.accountId) ?? new Set<string>();
+    currencies.add(account.currency);
+    currenciesByAccountingAccount.set(account.accountId, currencies);
+  }
+  const crossCurrencyAccountingIds = new Set(
+    [...currenciesByAccountingAccount.entries()]
+      .filter(([, currencies]) => currencies.size > 1)
+      .map(([accountId]) => accountId),
+  );
   const accountGroups = new Map<string, typeof accounts>();
   for (const account of accounts) {
     const group = accountGroups.get(account.currency) ?? [];
@@ -86,8 +97,12 @@ export function buildApprovedCashOpeningBalances(
   for (const [currency, groupAccounts] of [...accountGroups.entries()].sort(([left], [right]) => left.localeCompare(right))) {
     const mappingIds = new Set(groupAccounts.map((account) => account.id));
     const accountingIds = new Set(groupAccounts.map((account) => account.accountId));
-    if (mappingIds.size !== groupAccounts.length || accountingIds.size !== groupAccounts.length) {
-      warnings.push("عملة " + currency + ": توجد روابط مكررة لحساب أستاذ واحد؛ حُجب مجموع العملة لمنع احتساب الحساب مرتين.");
+    if (
+      mappingIds.size !== groupAccounts.length ||
+      accountingIds.size !== groupAccounts.length ||
+      groupAccounts.some((account) => crossCurrencyAccountingIds.has(account.accountId))
+    ) {
+      warnings.push("عملة " + currency + ": يوجد حساب أستاذ مكرر أو مربوط بأكثر من عملة؛ حُجب رصيد العملة لمنع ازدواج الحساب أو خلط العملات.");
       continue;
     }
 
