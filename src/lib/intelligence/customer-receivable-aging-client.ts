@@ -11,6 +11,7 @@ export interface CustomerReceivableAgingBucket {
   evidenceIds: string[];
 }
 export interface CustomerReceivableAgingItem {
+  customerId: string;
   customerName: string;
   customerNameStatus: "VERIFIED" | "NEEDS_REVIEW";
   currency: string;
@@ -39,13 +40,15 @@ const numeric = (value: unknown): number | null => {
   const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
   return Number.isFinite(parsed) && Math.abs(parsed) <= Number.MAX_SAFE_INTEGER ? parsed : null;
 };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const buckets = new Set<CustomerReceivableBucketName>(["NOT_DUE","OVERDUE_1_30","OVERDUE_31_60","OVERDUE_61_90","OVERDUE_90_PLUS","UNKNOWN_DUE_DATE"]);
 const statuses = new Set(["VERIFIED","NEEDS_REVIEW"]);
 function parseItem(value: unknown, asOf: string): CustomerReceivableAgingItem | null {
   if (!isRecord(value)) return null;
   const total = numeric(value.totalOutstanding), overdue = numeric(value.overdueAmount);
   const warnings = Array.isArray(value.warnings) && value.warnings.every(item => text(item,500)) ? value.warnings as string[] : null;
-  if (!text(value.customerName,200) || !statuses.has(String(value.customerNameStatus)) ||
+  if (!text(value.customerId,36) || !UUID.test(value.customerId) ||
+      !text(value.customerName,200) || !statuses.has(String(value.customerNameStatus)) ||
       !text(value.currency,3) || !/^[A-Z]{3}$/.test(value.currency) ||
       total === null || total < 0 || overdue === null || overdue < 0 ||
       !Number.isSafeInteger(value.invoiceCount) || (value.invoiceCount as number) < 1 ||
@@ -72,7 +75,7 @@ function parseItem(value: unknown, asOf: string): CustomerReceivableAgingItem | 
   const bucketTotal = parsedBuckets.reduce((sum,row)=>sum+row.amount,0);
   const overdueTotal = parsedBuckets.filter(row=>row.bucket.startsWith("OVERDUE_")).reduce((sum,row)=>sum+row.amount,0);
   if (Math.abs(bucketTotal-total)>0.011 || Math.abs(overdueTotal-overdue)>0.011) return null;
-  return { customerName:value.customerName,customerNameStatus:value.customerNameStatus as CustomerReceivableAgingItem["customerNameStatus"],
+  return { customerId:value.customerId.toLowerCase(),customerName:value.customerName,customerNameStatus:value.customerNameStatus as CustomerReceivableAgingItem["customerNameStatus"],
     currency:value.currency,totalOutstanding:total,overdueAmount:overdue,invoiceCount:value.invoiceCount as number,
     partiallyPaidCount:value.partiallyPaidCount as number,oldestAgeDays:value.oldestAgeDays as number|null,
     status:value.status as CustomerReceivableAgingItem["status"],agingBuckets:parsedBuckets,asOf,
@@ -98,7 +101,7 @@ export async function fetchExecutiveCustomerReceivableAging(): Promise<CustomerR
     const items=data.items.map(item=>parseItem(item,data.asOf as string));
     if(items.some(item=>item===null)) return { ok:false,status:"ERROR",message:"تعذر التحقق من صفوف أعمار الذمم؛ لم تُعرض بيانات جزئية غير متصالحة." };
     const seen=new Set<string>();
-    for(const item of items as CustomerReceivableAgingItem[]){const key=item.customerName+"|"+item.currency;if(seen.has(key))return {ok:false,status:"ERROR",message:"تكرر العميل والعملة في استجابة أعمار الذمم."};seen.add(key);}
+    for(const item of items as CustomerReceivableAgingItem[]){const key=item.customerId+"|"+item.currency;if(seen.has(key))return {ok:false,status:"ERROR",message:"تكرر العميل والعملة في استجابة أعمار الذمم."};seen.add(key);}
     if(data.complete && (data.status!=="VERIFIED" || data.unresolvedRows!==0 || data.returnedGroups!==data.totalGroups)) return {ok:false,status:"ERROR",message:"حالة اكتمال أعمار الذمم لا تتفق مع التغطية الفعلية."};
     return {ok:true,data:{status:data.status as "VERIFIED"|"PARTIAL",asOf:data.asOf as string,complete:data.complete,
       totalGroups:data.totalGroups as number,returnedGroups:data.returnedGroups as number,unresolvedRows:data.unresolvedRows as number,
