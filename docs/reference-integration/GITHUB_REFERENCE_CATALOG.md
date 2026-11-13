@@ -79,4 +79,10 @@ The default branches and branch-tip commits below were retrieved from the offici
 - BigCommerce Catalyst — `core/vibes/soul/primitives/product-card/index.tsx`; commit `4cce7bc3d05be54a449140644eb2119dd8d8c821`; blob `0f98b768f379c94e364a945a416af595fb667f4f`.
 - Radix UI Primitives — root `LICENSE` and primitive model checked for compatibility; no dependency added.
 
-Only those exact product-card files are recorded as source-file inspections in this pass. For the remaining projects, the repository/default branch/commit and available SPDX metadata were checked; functional file-level extraction remains pending. `NOASSERTION` means GitHub did not return an SPDX identifier, not that code is free to copy.
+Source and license inspection for this pass:
+
+- Vercel Shop and BigCommerce Catalyst: the exact product-card source files above were reviewed for the product-card adaptation.
+- Shopify Hydrogen: `README.md` blob `950472436d8a52807ef96e40f46df999e2d65ba5` at `main` commit `043094b0ab0b5b01299e75da33d3f4e2914fda6a` identifies predictive search as a server-handler/search-store capability; its root `LICENSE.md` blob `2f2d7cf0012189f59ffe2f1bff10aca6ab4dc478` was read and is MIT. The [official Hydrogen collections/search guide](https://shopify.dev/docs/storefronts/hydrogen/collections-search) and [predictive-search store API guide](https://shopify.dev/docs/api/hydrogen/latest/predictive-search/create-predictive-search-store) were used as design references.
+- No Hydrogen code, UI assets or package was copied into Nasr1. The implementation reuses the existing Nasr1 paginated catalogue RPC and independent target-owned React component.
+
+`NOASSERTION` means GitHub did not return an SPDX identifier, not that code is free to copy. Repository-level or README inspection is not equivalent to a full file/dependency audit.

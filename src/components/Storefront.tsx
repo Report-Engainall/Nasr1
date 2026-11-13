@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, Minus, Plus, Search, ShoppingCart, Trash2,
+  Activity, Minus, Plus, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
   Heart, GitCompare, ArrowRight, SlidersHorizontal,
 } from 'lucide-react';
@@ -12,11 +12,12 @@ import { formatNumber } from '@/lib/format';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
 import { CustomerOrderPricingPreview } from '@/components/CustomerOrderPricingPreview';
-import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
+import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
 import { loadOfflineCartDraft, offlineCartStorageKey, saveOfflineCartDraft } from '@/lib/offline-cart';
 import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
 import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
+import { StorefrontPredictiveSearch } from '@/components/StorefrontPredictiveSearch';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
@@ -30,7 +31,7 @@ const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 type CartItem = { product: ProductWithInventory; quantity: number };
 type ProductUnitSelection = { unit_name: string; base_units_per_unit: number; selected_quantity: number };
 type StorefrontProductsSnapshot =
-  | ({ mode: 'paged'; identityKey: string } & StorefrontCatalogPage)
+  | ({ mode: 'paged'; identityKey: string; search: string; categoryId: string | null; availableOnly: boolean } & StorefrontCatalogPage)
   | { mode: 'full'; items: ProductWithInventory[]; identityKey: string; publicCacheable: boolean };
 
 function pendingCartProduct(productId: string): ProductWithInventory {
@@ -138,7 +139,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       // The Supabase session is authoritative. useAuth can briefly lag a sign-in,
       // sign-out, account switch, or token refresh; all catalog modes fail closed on mismatch.
       const emptySnapshot = (): StorefrontProductsSnapshot => isPagedView
-        ? { mode: 'paged', identityKey: storefrontIdentityKey, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [] }
+        ? { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [] }
         : { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
       if (!authReady) return emptySnapshot();
 
@@ -188,7 +189,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
         }
         assertLiveIdentity(sessionUserAfter, 'after');
-        return { mode: 'paged', identityKey: storefrontIdentityKey, ...page };
+        return { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, ...page };
       }
 
       const items = await fetchProducts();
@@ -717,6 +718,18 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     void navigate({ to: '/product/$id', params: { id: product.id } });
   }
 
+  function submitPredictiveSearch(searchText: string, categoryId: string | null = activeCat || null) {
+    const normalizedSearch = normalizeCatalogSearchQuery(searchText).trim();
+    void navigate({
+      to: '/catalog',
+      search: {
+        ...(normalizedSearch ? { q: normalizedSearch } : {}),
+        ...(categoryId ? { category: categoryId } : {}),
+        ...(availableOnly ? { available: '1' as const } : {}),
+      },
+    });
+  }
+
   const serverPageActive = Boolean(
     isPagedView && pageInfo && !productsLoading && !productsError && isOnline && query === debouncedQuery
   );
@@ -730,6 +743,21 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     return list;
   }, [products, activeCat, query, availableOnly, serverPageActive]);
   const catalogCount = serverPageActive && pageInfo ? pageInfo.totalCount : products.length;
+  const predictiveSearchQuery = normalizeCatalogSearchQuery(query).trim();
+  const predictiveSearchHasQuery = predictiveSearchQuery.length >= 2;
+  const predictiveSearchSnapshotIsCurrent = Boolean(authReady && isPagedView && pageInfo &&
+    pageInfo.search === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
+    pageInfo.categoryId === (activeCat || null) &&
+    pageInfo.availableOnly === availableOnly);
+  const predictiveSearchProducts = isPagedView && predictiveSearchHasQuery &&
+    predictiveSearchQuery === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
+    predictiveSearchSnapshotIsCurrent && !productsLoading && !productsError && isOnline
+    ? pageInfo?.items ?? [] : [];
+  const predictiveSearchLoading = isPagedView && predictiveSearchHasQuery && !productsError &&
+    (predictiveSearchQuery !== normalizeCatalogSearchQuery(debouncedQuery).trim() || productsLoading || !predictiveSearchSnapshotIsCurrent);
+  const predictiveSearchError = predictiveSearchHasQuery && productsError
+    ? 'تعذر تحميل اقتراحات المنتجات من الكتالوج.' : null;
+  const predictiveSearchProductsAvailable = predictiveSearchSnapshotIsCurrent && !productsLoading && !productsError && isOnline;
 
   const tickerMessages = (settings?.ticker_messages as string[]) ?? [];
   const tickerEnabled = settings?.ticker_enabled as boolean ?? true;
@@ -742,7 +770,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           {user?.isStaff === true && (
             <button className="sf-admin-btn" onClick={onExit}><Activity size={16} /> لوحة التحكم</button>
           )}
-          <div className="sf-search"><Search size={17} /><input value={query} maxLength={MAX_CATALOG_SEARCH_LENGTH} onChange={(e) => { setQuery(normalizeCatalogSearchQuery(e.target.value)); setCatalogPage(1); }} placeholder="ابحث عن منتج..." /></div>
+          <StorefrontPredictiveSearch query={query} products={predictiveSearchProducts} categories={categories ?? []} loading={predictiveSearchLoading} productsAvailable={predictiveSearchProductsAvailable} error={predictiveSearchError} onQueryChange={(value) => { setQuery(normalizeCatalogSearchQuery(value)); setCatalogPage(1); }} onSearch={(value) => submitPredictiveSearch(value)} onProductSelect={openProduct} onCategorySelect={(category) => submitPredictiveSearch(query, category.id)} />
           <div className="sf-header-links"><Link to="/search/advanced" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'inherit', textDecoration: 'none', fontSize: 11, fontWeight: 700 }}><SlidersHorizontal size={15} /> بحث متقدم</Link><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={16} /> المفضلة <b>{wishlist.length}</b></button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={16} /> مقارنة</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={16} /> طلب سريع</button><Link to="/orders" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'inherit', textDecoration: 'none', fontSize: 11, fontWeight: 700 }}><FileText size={16} /> طلباتي</Link>{!user && <Link to="/login" style={{ color: '#0b97a5', fontWeight: 800, fontSize: 11 }}>دخول</Link>}</div>
           <button className="sf-cart-btn" onClick={() => void navigate({ to: '/cart' })}><ShoppingCart size={20} /> {cartCount > 0 && <b>{cartCount}</b>}</button>
           <button className="sf-mobile-toggle" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={22} /></button>
