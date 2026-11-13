@@ -32,3 +32,11 @@ No packages were added, removed or upgraded. The change uses the application's e
 - `src/components/Storefront.product-grid.test.tsx` blob: `7cae87a4998b2ace91245decdb2b80680cd621bd`.
 - P1 workflow path-coverage blob: `300fd08e2a1c697b1c94487eabc745cfe249be5b`.
 - Exact-SHA CI proof: P1 full Vitest, strict TypeScript and production build passed (run `43333792228`); P2 public read-only Storefront browser assertions passed (run `43333792309`). The same P2 run failed separately in the local authenticated price-grid precondition; no database acceptance pass is claimed.
+
+
+## Additional target-owned correction — stock evidence state
+
+- `src/components/Storefront.tsx`: absent, non-finite or negative stock projection is no longer coerced into a zero balance. The customer sees an unverified-stock label; adding to cart remains disabled until a verified quantity is returned.
+- Verified zero quantity continues to display out of stock.
+- `src/components/Storefront.product-grid.test.tsx`: regression tests cover unknown stock and authoritative zero.
+- No reference code was copied, no new dependency was introduced, and no inventory write/RPC/RLS/migration was changed.

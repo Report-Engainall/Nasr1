@@ -23,3 +23,13 @@
 ## Evidence boundary
 
 This comparison describes the implemented code change; it is not a claim of browser screenshot parity or a production UI acceptance pass. The component test and GitHub Actions result for the implementation commit are the acceptance evidence to consult.
+
+
+## Inventory evidence semantics — 2026-11-13
+
+| Concern | Previous customer display | Current customer display |
+|---|---|---|
+| Inventory projection missing | Coerced to zero and shown out of stock | `لم يتم التحقق من المخزون`; add-to-cart disabled |
+| Invalid/non-finite/negative quantity | Could be confused with zero | Treated as unknown; add-to-cart disabled |
+| Verified zero | Out of stock | Still out of stock |
+| Verified positive quantity | Quantity and minimum-order rule | Preserved |

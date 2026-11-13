@@ -24,3 +24,18 @@ Existing modules include the unified import engine and batch history, Onyx snaps
 ## Remaining execution rule
 
 For every proposed merchant or intelligence capability, compare the navigation item, screen, service, RPC/table, tenant policy and action before adding anything. If a durable source or permission contract is absent, record the blocker rather than synthesizing data. The present change introduces no schema, RPC, RLS or provider dependency.
+
+
+## Execution checkpoint — 2026-11-13
+
+| Capability | Current code evidence | Current proof / blocker | State |
+|---|---|---|---|
+| Customer storefront product card | `src/components/Storefront.tsx`; `Storefront.product-grid.test.tsx` | Product actions are keyboard/touch accessible; inventory unknown/zero distinction has regression coverage in this commit. | Implemented in code; current commit CI pending |
+| Unified finance/liquidity | `ExecutiveLiquidityCommandCenter`, `executive-liquidity-client`, migrations for opening cash/bank reconciliation and aging snapshots | Latest isolated P2 pipeline failed before price-grid assertions because the seeded manager profile was not resolvable through the authenticated context. Do not weaken RLS. | Existing implementation; local acceptance blocked |
+| Daily decisions | `DailyDecisionBoard`, decision outcome client and decision memory migration | Code modules exist; end-to-end ownership/action/outcome validation not proven by the current P2 run. | Existing implementation; acceptance incomplete |
+| Replenishment | Replenishment client/card and `20261105230000_intelligence_replenishment_open_purchase_orders.sql` plus later shipment/sales reconciliation migration | Deterministic recommendation engine exists; purchase execution remains separately authorized. | Existing implementation; full workflow acceptance pending |
+| Returned-order amendment history | Customer amendment components and migrations `20261106260000`–`20261106300000` | Versioned history and idempotency guards exist in SQL; full customer/admin browser acceptance is not proven by the current run. | Existing implementation; acceptance incomplete |
+
+The latest P2 local PostgreSQL job applied migrations and seeded users, then failed in `scripts/test-price-grid-atomicity.mjs` while resolving the manager's profile/organization context: `current_profile_id()` and `current_organization_id()` returned null under the authenticated test role. The same diagnostic showed the direct profile SELECT saw zero rows under current RLS policies. This is an authorization/context blocker, not a reason to relax tenant isolation. Dependent finance/order/browser steps were skipped.
+
+No statement above claims that a UI module alone completes its backend workflow.

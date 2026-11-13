@@ -44,3 +44,39 @@ The following repositories were named in the implementation brief. They remain r
 - Reusable ideas are reimplemented against Nasr1's existing React, TypeScript, TanStack Router and Supabase contracts.
 - A component may be copied only after its exact file-level license, notices, and dependency licenses are checked.
 - No dependency was added in this integration.
+
+
+## GitHub snapshot pinned 2026-11-13
+
+The default branches and branch-tip commits below were retrieved from the official GitHub repositories. This is repository-level verification; it does not imply that every source file, nested license, or transitive dependency was reviewed.
+
+| Project | Repository | Branch | Pinned HEAD | License observation |
+|---|---|---|---|---|
+| ERPNext | [frappe/erpnext](https://github.com/frappe/erpnext) | `develop` | `2db122fbd545b3754d117efd489a4ff705090db8` | GPL-3.0 metadata |
+| Dolibarr | [Dolibarr/dolibarr](https://github.com/Dolibarr/dolibarr) | `develop` | `35c2e5c48e2f9abea5fd219e49b956f278abbef7` | GPL-3.0 metadata |
+| IDURAR ERP CRM | [idurar/idurar-erp-crm](https://github.com/idurar/idurar-erp-crm) | `master` | `e935dec13cf8b6082a7e7fc4736669e5151a80a3` | AGPL-3.0 metadata |
+| Medusa | [medusajs/medusa](https://github.com/medusajs/medusa) | `develop` | `5fd67e5e7ba092ed4d027d883572f279986312ec` | MIT except Enterprise Edition files |
+| Vendure | [vendurehq/vendure](https://github.com/vendurehq/vendure) | `master` | `d00adf9b546c9156725e548c3e1467c7f252e122` | NOASSERTION from GitHub API; scope unresolved |
+| Saleor core | [saleor/saleor](https://github.com/saleor/saleor) | `main` | `6f714faf25f3dbdd6ee2cbc2427b40cc890990c5` | BSD-3-Clause metadata |
+| InvenTree | [inventree/InvenTree](https://github.com/inventree/InvenTree) | `master` | `cdfa7f19218e22567433b145b1ed73c1d87e2d3e` | MIT metadata |
+| ModernWMS | [fjykTec/ModernWMS](https://github.com/fjykTec/ModernWMS) | `master` | `1837e17e6017f3cb6aea93437d2370659ee9392b` | Apache-2.0 metadata |
+| Frappe Ecommerce Integrations | [frappe/ecommerce_integrations](https://github.com/frappe/ecommerce_integrations) | `develop` | `cc8aba55ff490668687096e7d824119f3f1fb2f3` | GPL-3.0 metadata |
+| Apache Superset | [apache/superset](https://github.com/apache/superset) | `master` | `4ac8bfe29f0399752197f489979d41f6b46c2f9b` | Apache-2.0 metadata |
+| Metabase | [metabase/metabase](https://github.com/metabase/metabase) | `master` | `22d436e064c2e2e10eb7af88bcd9fc505c488877` | NOASSERTION from GitHub API; edition/scope unresolved |
+| BigCommerce Catalyst | [bigcommerce/catalyst](https://github.com/bigcommerce/catalyst) | `canary` | `4cce7bc3d05be54a449140644eb2119dd8d8c821` | MIT root LICENSE read |
+| Vercel Shop | [vercel/shop](https://github.com/vercel/shop) | `main` | `c92f3df11e2fd3c5cf7b870518aa43e5534725eb` | MIT root LICENSE read |
+| Shopify Hydrogen | [Shopify/hydrogen](https://github.com/Shopify/hydrogen) | `main` | `043094b0ab0b5b01299e75da33d3f4e2914fda6a` | MIT metadata |
+| Saleor Storefront | [saleor/storefront](https://github.com/saleor/storefront) | `main` | `651f8cb1f404fa7e72f0290407abd2d3a8eaf28c` | FSL-1.1-ALv2 root LICENSE; Competing Use restriction |
+| GraphCommerce | [graphcommerce-org/graphcommerce](https://github.com/graphcommerce-org/graphcommerce) | `canary` | `5f39fff4b5b25533fc101f7eb7add0643836a545` | NOASSERTION; ELv2 claim awaits pinned license file verification |
+| Medusa Next.js Starter | [medusajs/nextjs-starter-medusa](https://github.com/medusajs/nextjs-starter-medusa) | `main (archived)` | `9818886f06e493cb2249733d114d339aa216ef00` | MIT metadata; archived |
+| shadcn/ui | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) | `main` | `dd41d19e2f80ff6891951f7ced74c2c9a650b065` | MIT metadata |
+| HeroUI | [heroui-inc/heroui](https://github.com/heroui-inc/heroui) | `v3` | `8037a0198427faf1c1d09c6eb9e7bd09290ea3e2` | Apache-2.0 metadata |
+| Radix UI Primitives | [radix-ui/primitives](https://github.com/radix-ui/primitives) | `main` | `eb3a2b7091293e27df8f9ba906632d8daa3d81a3` | MIT root LICENSE read |
+
+### Source files inspected for this storefront adaptation
+
+- Vercel Shop — `components/product-card/product-card.tsx`; commit `c92f3df11e2fd3c5cf7b870518aa43e5534725eb`; blob `3cf8ff5975eafc243891911f42b388c6ce38d3ae`.
+- BigCommerce Catalyst — `core/vibes/soul/primitives/product-card/index.tsx`; commit `4cce7bc3d05be54a449140644eb2119dd8d8c821`; blob `0f98b768f379c94e364a945a416af595fb667f4f`.
+- Radix UI Primitives — root `LICENSE` and primitive model checked for compatibility; no dependency added.
+
+Only those exact product-card files are recorded as source-file inspections in this pass. For the remaining projects, the repository/default branch/commit and available SPDX metadata were checked; functional file-level extraction remains pending. `NOASSERTION` means GitHub did not return an SPDX identifier, not that code is free to copy.
