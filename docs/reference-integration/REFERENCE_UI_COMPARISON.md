@@ -80,3 +80,14 @@ The interaction takes inspiration from Shopify Hydrogen's account workspace patt
 Reference inspection: BigCommerce Catalyst `canary` HEAD `4cce7bc3d05be54a449140644eb2119dd8d8c821`, category page blob `53ac0e71431b45d8854fecddf61551f5d58849c8`, breadcrumb fragment blob `dd8cdbe070f40f4a58f3810ba6c181df02b48baf`, root MIT LICENSE read. This is an architectural comparison, not a screenshot-parity claim; no Catalyst source, asset or dependency was copied.
 
 Delivery: PR #436 merged at `0b15e5a64ab3de9616cb8a9593bbeac25e11b048`; PR #438 merged at `4451e4625c1cfe0974693ea49d0737a8959fc943`. Exact-main P1: 91 test files / 644 tests, strict TypeScript and build SUCCESS. Public Chromium smoke: 19/19 SUCCESS. Hosted authenticated order/tenant E2E remains SKIPPED.
+## Merchant intelligence — multi-source growth radar — 2026-11-13
+
+| Concern | Apache Superset source pattern studied | NASR1 adaptation |
+|---|---|---|
+| Dashboard composition | `DashboardGrid.tsx` composes dashboard content into distinct layout regions with explicit empty-state behavior | The radar groups opportunity cards and a separate three-source coverage region within the current intelligence workspace; it does not import Superset's drag/drop dashboard |
+| Source/filters visibility | `FiltersBadge/DetailsPanel/index.tsx` keeps applied and incompatible filter states visible and inspectable | Each growth source shows its own completeness status, evidence/signal counts, warnings and failure message so a healthy source does not mask a failed source |
+| Data/presentation boundary | `ChartContainer.tsx` keeps connected data/action wiring at a boundary around the presentation component | NASR1 reads evidence through tenant-authorized Supabase clients, builds one shared deterministic radar, and presents it in a target-owned React component and the assistant |
+
+The inspected Superset revision is commit `4ac8bfe29f0399752197f489979d41f6b46c2f9b` on `master`; exact source-file blobs are recorded in `EXTRACTED_COMPONENTS_REGISTER.md`. The root `LICENSE.txt` and file-level Apache-2.0 headers were read. This is an architectural/UI reference comparison, not a pixel-parity claim and not a code transfer.
+
+The NASR1 interface remains Arabic-first RTL and follows existing design tokens/components. No Superset dependency, Redux store, chart runtime, dashboard schema or code was added.

@@ -65,3 +65,31 @@ The diagnostic rerun on `f2ee05cea0d1bd5dc8c651e880af241ed421e9f9` completed and
 Run links:
 - Diagnostic fixture failure: https://github.com/Report-Engainall/Nasr1/actions/runs/43338497902
 - Session-bound fixture run: https://github.com/Report-Engainall/Nasr1/actions/runs/43339928481
+
+
+## Growth Opportunity Radar — multi-source implementation — 2026-11-13
+
+The growth radar is now connected to three independent, tenant-authorized evidence sources rather than relying only on the customer-retention aggregate:
+
+| Source | NASR1 reader | Signal family | Coverage rule |
+|---|---|---|---|
+| Customer retention and repeat activity | `fetchCustomerRetentionAggregate` in `src/lib/intelligence/customer-retention-client.ts` | Customer activity decline and repeat purchase | Retention population and evidence snapshot must be complete before the source is marked VERIFIED |
+| Demand for unavailable products | `fetchUnavailableProductSearchDemand` | Verified product demand while available stock was zero at event time | The source's own tracker-coverage window, returned population and minimum sample checks remain authoritative |
+| Product performance | `fetchProductPerformanceGrowthContext` | Current-vs-baseline product quantity and order-count movement | Equal-length windows, comparable unit of measure and minimum transaction samples remain mandatory |
+
+`fetchCustomerRetentionWorkspaceAggregate` starts the three reads concurrently for the same analysis window and `asOf` timestamp. A failure or denied response from one source no longer prevents the other sources from being read or their supported opportunities from being shown. The radar reports per-source status, evidence count, signal count, warnings and source message. A combined snapshot is VERIFIED only when all three populations are verified and evidence/metric identifiers do not collide.
+
+The same aggregate now feeds both `IntelligenceWorkspace` and the natural-language assistant's `GROWTH_RADAR_OVERVIEW` intent; there is one calculation path rather than two subtly different implementations. The customer interface renders source coverage separately from opportunity cards and does not claim that an incomplete sample proves the absence of a growth opportunity.
+
+The deterministic thresholds remain in `src/lib/intelligence/growth-opportunities.ts`: at least five unavailable-product searches from at least three distinct searchers; at least three prior customer orders before a decline comparison; and product trends require equal-length periods, compatible units, at least five order transactions per comparison period and a minimum 20% change. Insufficient or incomparable evidence is withheld rather than estimated.
+
+Quote acceptance is not counted as a verified sales-order conversion because the current quote aggregate does not provide a verified quote-to-order relation. No conversion rate or sales amount is invented. The existing idempotent purchase-review task action remains an explicit manager/admin action; the radar does not create purchase orders or place orders automatically.
+
+### Delivery proof boundary
+
+PR `#437`, branch `feat/growth-radar-multi-source-20261113`, target SHA `3d6411dcd320ff03d63774d2bdb69e838bc36830` (base `8ecf74f61157ddbbf4d3f2f927081fd6e24ee5cc`).
+
+- P1 Admin Context Verification: PASS — complete Vitest suite, strict TypeScript and production build, run `43368078248`.
+- P2 public read-only Chromium smoke and authenticated infrastructure gate: the current run is tracked separately; this test does not validate admin source-RPC reads.
+- External authenticated order/tenant E2E is skipped when external secrets are not present. Do not interpret that skip as a pass.
+- The growth-specific component and engine tests are target-owned. No new database migration, RPC, RLS policy, package or deployment was added by this feature.

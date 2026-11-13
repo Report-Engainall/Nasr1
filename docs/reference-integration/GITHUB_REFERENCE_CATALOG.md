@@ -113,3 +113,15 @@ Source and license inspection for this pass:
 - Adapted principles: contextual parent breadcrumb, clear current category state and stable category-page navigation. NASR1 independently implements these with its own TanStack routes and `parent_id` data contract.
 - NASR1 results: `StorefrontCategoryLandingPage.tsx` and its unit/Playwright tests (PR #436); hierarchical `/categories` directory and `storefront-category-groups.ts` with tests (PR #438).
 - Transfer decision: reference-only design/architecture adaptation. No Catalyst source file, asset, Storefront Kit, Next.js runtime or dependency was copied or installed.
+
+### Apache Superset — source-file review for the Growth Opportunity Radar — 2026-11-13
+
+- Repository: [apache/superset](https://github.com/apache/superset), branch `master`, pinned commit `4ac8bfe29f0399752197f489979d41f6b46c2f9b`.
+- Exact files reviewed:
+  - `superset-frontend/src/dashboard/components/DashboardGrid.tsx`, blob `1e7f816e6a257bad557ff18db28da8e0c03b9ee2`.
+  - `superset-frontend/src/dashboard/components/FiltersBadge/DetailsPanel/index.tsx`, blob `1df3cbf4bbbecaccc5bfc1bf209f9cebc0ab2b74`.
+  - `superset-frontend/src/components/Chart/ChartContainer.tsx`, blob `70a7c6e7c04974425d74dc1112b2848278997e0c`.
+- License file: root `LICENSE.txt`, read at the same commit; blob `56313ab5a54a163e7d46224cb5470a814c3a2436`; Apache License 2.0. Each inspected source file also carries the Apache-2.0 license header.
+- Applied patterns: separate dashboard regions and explicit empty states; independently inspectable source/filter status; isolate data/action wiring from presentation.
+- Transfer decision: architectural/UI reference only. NASR1's implementation is independently authored on its existing React, Supabase, and RTL design stack. No Superset source code, Redux store, dashboard schema, chart runtime, package, or asset was transferred.
+- Source review does not clear Superset transitive dependencies or unrelated files for reuse.

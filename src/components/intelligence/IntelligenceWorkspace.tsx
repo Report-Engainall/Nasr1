@@ -10,7 +10,8 @@ import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
-import { fetchCustomerRetentionAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
+import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
+import type { GrowthOpportunityRadarResult } from "@/lib/intelligence/growth-opportunities";
 import { fetchOperationalShiftWorkspace, startOperationalShift, recordOperationalShiftCashCount, recordOperationalShiftHandover, acceptOperationalShiftHandover, captureOperationalShiftSnapshot } from "@/lib/intelligence/shift-operations-client";
 import { fetchProcessBottlenecks, type ProcessBottleneckFetchResult } from "@/lib/intelligence/process-bottlenecks-client";
 import { fetchSupplierPerformance, type SupplierPerformanceFetchResult } from "@/lib/intelligence/supplier-performance-client";
@@ -394,6 +395,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [retentionResult, setRetentionResult] = useState<CustomerRetentionAggregateResult | null>(null);
   const [retentionLoading, setRetentionLoading] = useState(true);
+  const [growthRadarResult, setGrowthRadarResult] = useState<GrowthOpportunityRadarResult | null>(null);
   const [shiftBusinessDate, setShiftBusinessDate] = useState(() => dayInTimeZone(browserTimeZone()));
   const [shiftLabel, setShiftLabel] = useState("الوردية الصباحية");
   const [shiftHandoverId, setShiftHandoverId] = useState<string | null>(null);
@@ -482,15 +484,22 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   const loadCustomerRetention = useCallback(async (active: () => boolean) => {
     if (!canManage) {
       setRetentionResult({ ok: false, status: "DENIED", message: "تتطلب قراءة مجتمع العملاء صلاحية موظف نشط داخل المؤسسة." });
+      setGrowthRadarResult(null);
       setRetentionLoading(false);
       return;
     }
     setRetentionLoading(true);
     try {
-      const response = await fetchCustomerRetentionAggregate(90, snapshotAt.current.toISOString());
-      if (active()) setRetentionResult(response);
+      const response = await fetchCustomerRetentionWorkspaceAggregate(90, snapshotAt.current.toISOString());
+      if (active()) {
+        setRetentionResult(response.retentionResult);
+        setGrowthRadarResult(response.growthRadar);
+      }
     } catch {
-      if (active()) setRetentionResult({ ok: false, status: "ERROR", message: "تعذر إنشاء لقطة الاحتفاظ بالعملاء." });
+      if (active()) {
+        setRetentionResult({ ok: false, status: "ERROR", message: "تعذر إنشاء لقطة الاحتفاظ بالعملاء." });
+        setGrowthRadarResult(null);
+      }
     } finally {
       if (active()) setRetentionLoading(false);
     }
@@ -1570,16 +1579,15 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 </div>
                 <p className="report-note">الفترة الحالية: {customerRetention.period.from} — {customerRetention.period.to} · السابقة: {customerRetention.previousPeriod.from} — {customerRetention.previousPeriod.to} · اللقطة: {customerRetention.asOf}. لم يرسل مصدر الاحتفاظ مبيعات أو أرصدة أو أسعاراً؛ لذلك يظل تركيز المبيعات حسب العميل خارج الحساب.</p>
                 {customerRetention.warnings.length > 0 && <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{customerRetention.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
-                <GrowthOpportunityRadar
-                  result={retentionResult?.ok ? retentionResult.growthRadar : null}
-                  state={retentionLoading ? "loading" : retentionResult?.ok
-                    ? "ready"
-                    : retentionResult?.status === "DENIED" ? "error" : "unavailable"}
-                  onRetry={() => setRefreshKey((value) => value + 1)}
-                  onOpenRecord={onOpenRecord}
-                />
               </>
             ) : null}
+            <GrowthOpportunityRadar
+              result={growthRadarResult}
+              state={retentionLoading ? "loading" : growthRadarResult ? "ready"
+                : retentionResult && !retentionResult.ok && retentionResult.status === "DENIED" ? "error" : "unavailable"}
+              onRetry={() => setRefreshKey((value) => value + 1)}
+              onOpenRecord={onOpenRecord}
+            />
           </section>
 
           {!loading && data ? (

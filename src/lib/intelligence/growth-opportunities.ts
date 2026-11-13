@@ -80,6 +80,20 @@ export interface GrowthOpportunityWithheld {
     | "SOURCE_AMOUNT_WITHHELD";
 }
 
+export type GrowthOpportunitySourceKey =
+  | "CUSTOMER_RETENTION"
+  | "UNAVAILABLE_PRODUCT_DEMAND"
+  | "PRODUCT_PERFORMANCE";
+
+export interface GrowthOpportunitySourceCoverage {
+  key: GrowthOpportunitySourceKey;
+  status: "VERIFIED" | "PARTIAL" | "UNAVAILABLE" | "DENIED" | "ERROR";
+  evidenceCount: number;
+  signalCount: number;
+  warnings: string[];
+  message: string | null;
+}
+
 export interface GrowthOpportunityRadarResult {
   generatedAt: string;
   asOf: string;
@@ -88,6 +102,7 @@ export interface GrowthOpportunityRadarResult {
   opportunities: GrowthOpportunity[];
   withheld: GrowthOpportunityWithheld[];
   summary: Record<GrowthOpportunityKind, number>;
+  sourceCoverage?: GrowthOpportunitySourceCoverage[];
   warnings: string[];
 }
 
@@ -216,11 +231,11 @@ function recommendation(kind: GrowthOpportunityKind, direction: GrowthOpportunit
     case "QUOTE_UNCONVERTED":
       return {
         classification: "GROWTH",
-        what: "مراجعة عروض الأسعار المفتوحة أو غير المحولة",
-        soWhat: "هناك عروض موثقة لم تسجل لها عملية طلب؛ لا يعني ذلك أن العميل وافق أو أن القيمة ستتحول إلى مبيعات.",
-        whatNext: "افتح عرض السعر وسجل سبب عدم التحويل أو الخطوة التالية، ثم تابع العميل وفق تفضيله.",
+        what: "مراجعة عروض الأسعار التي تنتظر قرار العميل أو متابعة الفريق",
+        soWhat: "حالة العرض مصدر مستقل؛ قبول العميل لا يثبت إنشاء طلب بيع ما لم يوجد ارتباط موثق بأمر البيع.",
+        whatNext: "افتح العرض الأصلي وسجل قرار العميل أو متابعة الفريق على سجل العرض نفسه.",
         owner: "المبيعات",
-        expectedOutcome: "تسجيل نتيجة المتابعة أو سبب عدم التحويل على سجل العرض الأصلي.",
+        expectedOutcome: "توثيق قرار العرض أو المتابعة دون افتراض تحويله إلى طلب بيع.",
       };
     case "PRODUCT_UNAVAILABLE_DEMAND":
       return {
@@ -275,6 +290,10 @@ export function buildGrowthOpportunityRadar(input: {
   signals: GrowthOpportunitySignal[];
   /** True only when every source population required for this radar was complete. */
   sourceSnapshotVerified?: boolean;
+  /** Per-source completeness, kept separate so one unavailable source cannot hide another. */
+  sourceCoverage?: GrowthOpportunitySourceCoverage[];
+  /** Non-fatal source caveats, such as missing quote-to-order lineage. */
+  sourceWarnings?: string[];
 }): GrowthOpportunityRadarResult {
   if (!input.id.trim() || !validTime(input.generatedAt) || !validTime(input.asOf) ||
       Date.parse(input.generatedAt) < Date.parse(input.asOf)) {
@@ -469,7 +488,7 @@ export function buildGrowthOpportunityRadar(input: {
           ? "رُصد نشاط حالي بعد فترة أساس مكتملة لم تسجل قيمة؛ لا تُعرض نسبة نمو غير معرفة."
           : "تغير المؤشر بنسبة " + (changePercent as number).toFixed(1) + "% مقارنة بفترة سابقة متساوية المدة."
         : signal.kind === "QUOTE_UNCONVERTED"
-          ? "عروض غير محولة: " + observed.value + " من أصل " + sample.value + " عروض في الفترة."
+          ? "عروض تحتاج متابعة: " + observed.value + " من أصل " + sample.value + " عروض في الفترة."
           : signal.kind === "PRODUCT_UNAVAILABLE_DEMAND"
             ? "عمليات بحث غير متاحة: " + observed.value + " من " + sample.value + " باحثين مميزين على الأقل."
             : "عدد الطلبات المسجلة لهذا المرجع: " + observed.value + ".";
@@ -538,8 +557,10 @@ export function buildGrowthOpportunityRadar(input: {
     opportunities,
     withheld,
     summary,
+    ...(input.sourceCoverage ? { sourceCoverage: input.sourceCoverage } : {}),
     warnings: [...new Set([
       ...passport.warnings,
+      ...(input.sourceWarnings ?? []),
       ...(withheld.length ? ["SOME_SIGNALS_WITHHELD"] : []),
       ...(populationWarning ? [populationWarning] : []),
     ])],
