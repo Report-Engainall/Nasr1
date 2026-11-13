@@ -23,3 +23,12 @@
 ## Dependency impact
 
 No packages were added, removed or upgraded. The change uses the application's existing React, lucide-react and CSS stack.
+
+## Target-side immutable evidence
+
+- Storefront implementation commit: `bc39fad922bae6802f5c0831d6189e89ec21e9d0` (parent `55da486475112466e0f456a953ba998daa11acfe`).
+- `src/components/Storefront.tsx` blob: `f6a26d8ae587ba1a222cae6269c98544d06024b3`.
+- `src/aghbari.css` blob: `f5e55183d1602dbd462c39a0948ad79124cf7c3a`.
+- `src/components/Storefront.product-grid.test.tsx` blob: `7cae87a4998b2ace91245decdb2b80680cd621bd`.
+- P1 workflow path-coverage blob: `300fd08e2a1c697b1c94487eabc745cfe249be5b`.
+- Exact-SHA CI proof: P1 full Vitest, strict TypeScript and production build passed (run `43333792228`); P2 public read-only Storefront browser assertions passed (run `43333792309`). The same P2 run failed separately in the local authenticated price-grid precondition; no database acceptance pass is claimed.

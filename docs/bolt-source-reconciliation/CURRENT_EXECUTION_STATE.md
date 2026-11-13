@@ -14,8 +14,8 @@
 
 ## Exact CI evidence at checkpoint time
 
-- P1 workflow run [#43333792228](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792228), source SHA `bc39fad922bae6802f5c0831d6189e89ec21e9d0`: dependency installation SUCCESS; full Vitest regression suite SUCCESS; strict TypeScript check IN PROGRESS; production build PENDING.
-- P2 workflow run [#43333792309](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792309), same source SHA: local build and public read-only browser smoke had started; result not yet known at checkpoint time. Authenticated order/tenant-isolation job was SKIPPED; this is not a pass.
+- P1 workflow run [#43333792228](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792228), source SHA `bc39fad922bae6802f5c0831d6189e89ec21e9d0`: dependency installation SUCCESS; full Vitest regression suite SUCCESS; strict TypeScript check SUCCESS; production application build SUCCESS. The following docs-only checkpoint does not change application source.
+- P2 workflow run [#43333792309](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792309), same application SHA: local build SUCCESS and public read-only Storefront Playwright assertions SUCCESS. Isolated local PostgreSQL 17/Supabase acceptance FAILED at `Test atomic price grid writes, rollback, audit and stale-writer race` before downstream finance/order browser checks. The manager JWT subject was correct, but `current_profile_id()` and `current_organization_id()` returned NULL and the authenticated session saw zero matching `profiles` rows (`own_profile_read` + restrictive `tenant_org_scope_profiles`; `profiles` owner `postgres`, `FORCE RLS=false`). The fixture/service lookup found the manager row. Root cause is not yet proven; keep RLS and role gates unchanged. External authenticated order/tenant E2E remains SKIPPED, not PASS.
 - No Vercel, paid build, hosted database write, migration or seed-data operation was used.
 
 ## Reference provenance and licensing
@@ -4971,3 +4971,14 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 > Required implementation policy: preserve every current Nasr1 feature, reuse existing engines, and add only missing reference screens/capabilities. Main admin groups remain the existing six `ADMIN_NAV_GROUPS`; add the separate restricted Developer Tools group only for the four new developer pages. Build group cards from the same navigation registry. Complete the category hierarchy above existing `parent_id`; do not create a second category engine.
 > Review boundary: source mapping only; no application code, Supabase schema/data/RLS, production deployment, or Vercel action was changed by this report task. The Vercel browser view was not accepted as runtime proof. Follow the evidence requirements in the linked report and do not transfer PASS across SHAs.
 > Resume instruction: read the linked report and retrieve the archived `all.rar` from the Library path above, then fetch the current `main` HEAD before implementing. Do not repeat the archive inventory or source review unless a new code SHA materially changes the route/component map.
+
+
+## Follow-up P2 failure diagnosis — 2026-11-13
+
+- Failed job: [P2 local Supabase order persistence and tenant isolation](https://github.com/Report-Engainall/Nasr1/actions/runs/43333792309), job ID `131586016315`.
+- Exact failing acceptance: `scripts/test-price-grid-atomicity.mjs` at manager identity/role precondition, before the atomic write/rollback/audit/stale-writer assertions.
+- Recorded context: authenticated JWT subject `b5c1f633-106e-491c-95b7-4940c86eaa03`; `current_profile_id()=NULL`; `current_organization_id()=NULL`; direct authenticated profile visibility count `0`; profiles policies are `own_profile_read:PERMISSIVE:SELECT` and `tenant_org_scope_profiles:RESTRICTIVE:ALL`; profile table owner is `postgres`, `FORCE ROW LEVEL SECURITY=false`; `current_profile_id()` is owned by `postgres` and `SECURITY DEFINER=true`.
+- The service-role fixture query finds exactly one active manager profile by the generated manager email, and the fixture creates that profile with the auth user ID returned by local Supabase Auth. Thus the visible evidence points to an authenticated-session/profile-context mismatch, but it does not yet isolate whether the cause is the local JWT/session test harness or a database policy/helper interaction.
+- Do not weaken `tenant_org_scope_profiles`, `current_profile_id()`, price-grid manager authorization, or tenant isolation to force this test green. Next repair must add a focused isolated diagnostic/test for the profile helper under the authenticated role, then correct only the proven fixture or helper defect and rerun the exact local acceptance job.
+- Since this step failed, the subsequent local cash expense, purchase receipt, built-source authenticated checkout, cross-tenant denial, XLSX, return, print and customer-manager browser checks in that job did not execute. No success is claimed for them.
+- The separate public Storefront read-only Playwright smoke completed successfully. No hosted Supabase project or production data was used.
