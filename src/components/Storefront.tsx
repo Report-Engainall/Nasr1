@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, Minus, Plus, Search, ShoppingCart, Trash2,
+  Activity, Minus, Plus, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
   Heart, GitCompare, ArrowRight, SlidersHorizontal,
 } from 'lucide-react';
@@ -12,7 +12,7 @@ import { formatNumber } from '@/lib/format';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
 import { CustomerOrderPricingPreview } from '@/components/CustomerOrderPricingPreview';
-import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
+import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
 import { loadOfflineCartDraft, offlineCartStorageKey, saveOfflineCartDraft } from '@/lib/offline-cart';
 import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
