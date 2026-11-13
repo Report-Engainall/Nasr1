@@ -1027,26 +1027,39 @@ export function ProductGrid({
 
         return (
           <article className="sf-product-card" key={product.id}>
-            <div className="sf-product-img" onClick={() => onOpen(product)}>
-              {product.image_url ? <img src={product.image_url} alt={product.name} /> : <Package size={36} />}
-              <div className="sf-card-actions">
+            <div className="sf-product-media">
+              <button
+                type="button"
+                className="sf-product-img"
+                aria-label={`عرض تفاصيل ${product.name}`}
+                onClick={() => onOpen(product)}
+              >
+                {product.image_url
+                  ? <img src={product.image_url} alt="" loading="lazy" decoding="async" />
+                  : <Package size={36} aria-hidden="true" />}
+              </button>
+              <div className="sf-card-actions" role="group" aria-label={`إجراءات ${product.name}`}>
                 <button
-                  aria-label="إضافة للمفضلة"
+                  type="button"
+                  aria-label={liked ? `إزالة ${product.name} من المفضلة` : `إضافة ${product.name} إلى المفضلة`}
+                  aria-pressed={liked}
                   className={liked ? 'active' : ''}
-                  onClick={(event) => { event.stopPropagation(); onWishlist(product.id); }}
+                  onClick={() => onWishlist(product.id)}
                 >
-                  <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
+                  <Heart size={16} fill={liked ? 'currentColor' : 'none'} aria-hidden="true" />
                 </button>
                 <button
-                  aria-label="إضافة للمقارنة"
+                  type="button"
+                  aria-label={compared ? `إزالة ${product.name} من المقارنة` : `إضافة ${product.name} إلى المقارنة`}
+                  aria-pressed={compared}
                   className={compared ? 'active' : ''}
-                  onClick={(event) => { event.stopPropagation(); onCompare(product.id); }}
+                  onClick={() => onCompare(product.id)}
                 >
-                  <GitCompare size={16} />
+                  <GitCompare size={16} aria-hidden="true" />
                 </button>
               </div>
             </div>
-            <button className="sf-product-body sf-product-open" onClick={() => onOpen(product)}>
+            <button className="sf-product-body sf-product-open" type="button" onClick={() => onOpen(product)}>
               <h3>{product.name}</h3>
               {product.name_en ? <small dir="auto" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 500 }}>{product.name_en}</small> : null}
               <p>{product.category?.name ?? 'غير مصنف'} · {product.item_code}</p>
@@ -1063,7 +1076,7 @@ export function ProductGrid({
                   : <span className={belowMinimum ? "sf-out" : "sf-in"}>{formatNumber(qty)} متوفر{belowMinimum ? ' — أقل من الحد الأدنى' : ''}</span>}
               </div>
             </button>
-            <button className="sf-add-btn" disabled={out || belowMinimum} onClick={() => onAdd(product)}>
+            <button type="button" className="sf-add-btn" aria-label={`إضافة ${product.name} إلى السلة`} disabled={out || belowMinimum} onClick={() => onAdd(product)}>
               {out ? 'غير متوفر' : belowMinimum ? 'الكمية المتاحة أقل من الحد الأدنى' : <><Plus size={16} /> أضف للسلة</>}
             </button>
           </article>
