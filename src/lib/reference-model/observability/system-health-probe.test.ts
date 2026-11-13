@@ -22,12 +22,12 @@ describe("AI gateway budget read probe", () => {
   });
 
   it("records browser-observed completion time and bounded request latency", () => {
-    const result: AiGatewayBudgetResult = {
+    const result = {
       ok: true,
       status: "READY",
       readAt: attemptedAt,
       data: {},
-    };
+    } as unknown as AiGatewayBudgetResult;
     expect(projectAiGatewayBudgetProbe(
       result,
       attemptedAt,
