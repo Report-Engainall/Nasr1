@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
-  Heart, GitCompare, ArrowRight, SlidersHorizontal,
+  Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/storefront-catalog';
@@ -649,8 +649,21 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   }, [authReady, persistentCartProfileId, cartRestored, isOnline, customerCartHydratedFor, cart]);
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
+  const canBuyNow = cartRestored && isOnline && (
+    !persistentCartProfileId ||
+    customerCartHydratedFor === persistentCartProfileId
+  );
+  const buyNowDisabledMessage = !cartRestored
+    ? "جار استعادة سلة الشراء قبل بدء الإتمام."
+    : !isOnline
+      ? "يلزم اتصال بالإنترنت للتحقق من السلة وإتمام الطلب."
+      : persistentCartProfileId && customerCartHydratedFor !== persistentCartProfileId
+        ? customerCartSyncState === "error"
+          ? "تعذر استعادة سلة حسابك؛ افتح السلة وأعد مزامنتها قبل الشراء المباشر."
+          : "جار مزامنة سلة حسابك المحفوظة قبل بدء الإتمام."
+        : null;
 
-  function addToCart(product: ProductWithInventory, requestedQuantity?: number, unitSelection?: ProductUnitSelection) {
+  function addToCart(product: ProductWithInventory, requestedQuantity?: number, unitSelection?: ProductUnitSelection): boolean {
     const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
       ? Number(product.min_order_quantity) : 1;
     const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
@@ -665,13 +678,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     );
     if (!explicitQuantityValid) {
       setCartActionNotice(`الكمية المطلوبة يجب أن تبدأ من الحد الأدنى (${minimum}) وتزيد بمضاعف (${multiple}) ${product.unit}.`);
-      return;
+      return false;
     }
     const currentQuantity = cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
     const nextQuantity = requestedQuantity ?? nextOrderQuantity(currentQuantity, minimum, multiple);
     if (available !== null && nextQuantity > available) {
       setCartActionNotice(`لا يمكن إضافة «${product.name}»: الكمية المطلوبة (${nextQuantity}) تتجاوز المتاح (${available} ${product.unit}).`);
-      return;
+      return false;
     }
 
     setCartActionNotice(unitSelection
@@ -680,6 +693,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     // The order/cart contract deliberately stores base units. Alternate-unit quantities
     // are converted before this point and continue through the same stock/pricing RPCs.
     setCart((previous) => mergeProductIntoCart(previous, product, requestedQuantity, minimum, multiple, available));
+    return true;
   }
   function updateQty(productId: string, delta: number) {
     const existingItem = cart.find((item) => item.product.id === productId);
@@ -1004,8 +1018,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               inWishlist={wishlist.includes(selectedProduct.id)}
               inCompare={compare.includes(selectedProduct.id)}
               initialQuantity={cart.find((item) => item.product.id === selectedProduct.id)?.quantity ?? null}
+              canBuyNow={canBuyNow}
+              buyNowDisabledMessage={buyNowDisabledMessage}
               onBack={() => void navigate({ to: '/' })}
               onAdd={(quantity, unitSelection) => addToCart(selectedProduct, quantity, unitSelection)}
+              onBuyNow={(quantity, unitSelection) => {
+                if (addToCart(selectedProduct, quantity, unitSelection)) setView('checkout');
+              }}
               onWishlist={() => toggleWishlist(selectedProduct.id)}
               onCompare={() => toggleCompare(selectedProduct.id)}
               onOpenRelated={openProduct}
@@ -1207,8 +1226,11 @@ export function ProductDetail({
   inWishlist,
   inCompare,
   initialQuantity,
+  canBuyNow,
+  buyNowDisabledMessage,
   onBack,
   onAdd,
+  onBuyNow,
   onWishlist,
   onCompare,
   onOpenRelated,
@@ -1219,8 +1241,11 @@ export function ProductDetail({
   inWishlist: boolean;
   inCompare: boolean;
   initialQuantity: number | null;
+  canBuyNow: boolean;
+  buyNowDisabledMessage: string | null;
   onBack: () => void;
   onAdd: (baseQuantity: number, selection: ProductUnitSelection) => void;
+  onBuyNow: (baseQuantity: number, selection: ProductUnitSelection) => void;
   onWishlist: () => void;
   onCompare: () => void;
   onOpenRelated: (product: ProductWithInventory) => void;
@@ -1521,6 +1546,20 @@ export function ProductDetail({
                 selected_quantity: requestedUnitQuantity,
               })}
             ><ShoppingCart size={17} /> إضافة إلى السلة</button>
+            <button
+              type="button"
+              className="sf-btn-secondary"
+              aria-label={`شراء المنتج ${product.name} الآن`}
+              disabled={!canBuyNow || !requestedQuantityValid || !quantityKnown || belowMinimum}
+              onClick={() => onBuyNow(requestedBaseQuantity, {
+                unit_name: selectedUnit.unit_name,
+                base_units_per_unit: selectedUnit.base_units_per_unit,
+                selected_quantity: requestedUnitQuantity,
+              })}
+            ><CreditCard size={17} /> شراء الآن</button>
+            {!canBuyNow && buyNowDisabledMessage ? (
+              <small role="status">{buyNowDisabledMessage}</small>
+            ) : null}
             <button type="button" className={`sf-icon-action ${inWishlist ? 'active' : ''}`} aria-pressed={inWishlist} onClick={onWishlist}>
               <Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}
             </button>
