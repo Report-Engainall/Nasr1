@@ -33,3 +33,15 @@ This comparison describes the implemented code change; it is not a claim of brow
 | Invalid/non-finite/negative quantity | Could be confused with zero | Treated as unknown; add-to-cart disabled |
 | Verified zero | Out of stock | Still out of stock |
 | Verified positive quantity | Quantity and minimum-order rule | Preserved |
+
+
+## Predictive search interaction — 2026-11-13
+
+| Concern | Existing behavior | Hydrogen pattern studied | Nasr1 implementation |
+|---|---|---|---|
+| Search while typing | Debounced URL-aware catalog filter; no suggestion panel | Predictive results are loaded asynchronously and grouped by result type | Header combobox shows a search-phrase action, active category matches and live product matches from the existing paginated RPC |
+| Keyboard use | Search input only | Search suggestions support active result navigation | Arrow Up/Down selects an option; Enter opens it; Escape closes the list; ARIA combobox/listbox state is exposed |
+| Request freshness | Catalog data may remain cached while a new query is loading | Predictive store keeps the current search state | Product options are withheld until the query/category/availability/session snapshot matches the current input |
+| Privacy and runtime | Existing server-backed catalogue remains authoritative | Hydrogen uses its own server handler/store | No Hydrogen runtime is imported; no price, stock-on-hand, tenant or customer-private fields are added to suggestion rows |
+
+The visible query row submits the customer's exact phrase; it is not generated from search-history analytics. Personalized query completion remains outside this implementation. This comparison is implementation documentation, not browser screenshot parity evidence.
