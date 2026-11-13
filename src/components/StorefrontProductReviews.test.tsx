@@ -116,7 +116,9 @@ describe("StorefrontProductReviews", () => {
 
     expect(await screen.findByText(/تقييمك قيد مراجعة المتجر/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "إعادة إرسال للمراجعة" })).toBeInTheDocument();
-    expect(screen.getByText("وصل المنتج بحالة سليمة ومطابقاً للوصف.")).toBeInTheDocument();
-    expect(screen.queryByText(/التقييم بانتظار اعتماد الإدارة/)).not.toBeInTheDocument();
+    const publicReviewCards = screen.getAllByRole("article");
+    expect(publicReviewCards).toHaveLength(1);
+    expect(publicReviewCards[0]).toHaveTextContent("وصل المنتج بحالة سليمة ومطابقاً للوصف.");
+    expect(publicReviewCards[0]).not.toHaveTextContent(/التقييم بانتظار اعتماد الإدارة/);
   });
 });
