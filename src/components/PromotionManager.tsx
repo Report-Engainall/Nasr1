@@ -120,7 +120,7 @@ function PromotionListContent(props: PromotionListContentProps) {
   );
 }
 
-export function PromotionManager({ onNotice }: { onNotice: (message: string) => void }) {
+export function PromotionManager({ onNotice, embedded = false }: { onNotice: (message: string) => void; embedded?: boolean }) {
   const { data: promotions, loading, error, refetch } = useFetch(fetchPromotions);
   const { data: products, loading: productsLoading } = useFetch(fetchProducts);
   const { data: categories, loading: categoriesLoading } = useFetch(fetchCategories);
@@ -199,14 +199,14 @@ export function PromotionManager({ onNotice }: { onNotice: (message: string) => 
 
   const discountType = form.discount_type as PromotionDiscountType;
   return <section className="promotion-manager" dir="rtl">
-    <header className="heading">
+    {!embedded && <header className="heading">
       <div className="heading-icon"><Tag size={24} /></div>
       <div>
         <span>التجارة والتسويق</span>
         <h1>إدارة الحملات والعروض</h1>
         <p>حفظ الحملات في قاعدة البيانات مع تحقق خادمي من المؤسسة والصلاحيات والتواريخ وتدقيق التغييرات.</p>
       </div>
-    </header>
+    </header>}
     <section className="panel">
       <div className="panel-head">
         <div><h2>الحملات المحفوظة</h2><p className="text-muted">المنشور للمتجر هو النشط فقط ضمن نطاق تواريخه، ولا يمكن للحسابات العامة قراءة سجل الإدارة.</p></div>
