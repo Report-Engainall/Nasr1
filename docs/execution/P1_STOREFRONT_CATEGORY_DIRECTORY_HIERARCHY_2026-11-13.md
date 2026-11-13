@@ -34,3 +34,13 @@ No SQL/migration, RPC, RLS, Auth, tenant contract, pricing, stock mutation, cart
 ## Acceptance evidence
 
 The new pure helper and component tests are included in the P1 workflow filters. PR acceptance must be read from exact-head GitHub Actions runs. P2 browser checks remain separate from hosted authenticated order/tenant acceptance; skipped external credentials are not a pass.
+
+## Final merge and exact-head evidence — 13 November 2026
+
+- PR [#438](https://github.com/Report-Engainall/Nasr1/pull/438) merged to `main` at `4451e4625c1cfe0974693ea49d0737a8959fc943`; tested PR head: `f312147c87f2c518ccab85af0175b5ae4892e85d`.
+- P1 PR run [#43366286275](https://github.com/Report-Engainall/Nasr1/actions/runs/43366286275): **SUCCESS** — 91/91 test files, 640/640 tests, strict TypeScript and production build.
+- P2 PR run [#43366286295](https://github.com/Report-Engainall/Nasr1/actions/runs/43366286295): public, read-only Chromium Storefront smoke **SUCCESS**, 19/19 tests, including category deep-link and `/categories` hierarchy assertions.
+- On merged `main` SHA `4451e4625c1cfe0974693ea49d0737a8959fc943`, P1 run [#43366791056](https://github.com/Report-Engainall/Nasr1/actions/runs/43366791056): **SUCCESS** — 91/91 test files, 644/644 tests, strict TypeScript and production build.
+- Main P2 run [#43366791042](https://github.com/Report-Engainall/Nasr1/actions/runs/43366791042): public Chromium smoke **SUCCESS**, 19/19 tests. The overall workflow was still in progress at the last poll; the separate customer-order/tenant job was **SKIPPED**.
+- PR P2's independent local PostgreSQL 17 acceptance job had not reached migration/test steps at the last poll (still starting local Supabase services). It is **not** a pass and is not required to validate this UI-only change. No database files were changed.
+- Merge verified against the live `main` branch at the merge SHA above. No Vercel, deployment, hosted database writes or paid services.
