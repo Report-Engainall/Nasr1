@@ -150,6 +150,7 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   const workspaceRequestRef = useRef(0);
   const dueDateRequestRef = useRef(0);
   const evidenceRequestRef = useRef(0);
+  const evidenceLinkRequestRef = useRef(0);
 
   useEffect(() => {
     if (!canUseFinance) {
@@ -351,15 +352,20 @@ async function saveDueDate() {
 
 async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
   if (evidenceLinkBusy) return;
+  const requestId = ++evidenceLinkRequestRef.current;
   setEvidenceLinkBusy(evidence.id);
   setEvidenceError("");
   try {
     const url = await createSupplierInvoiceEvidenceSignedUrl(evidence.storagePath);
-    setEvidenceLinks((current) => ({ ...current, [evidence.id]: url }));
+    if (requestId === evidenceLinkRequestRef.current) {
+      setEvidenceLinks((current) => ({ ...current, [evidence.id]: url }));
+    }
   } catch (cause) {
-    setEvidenceError(cause instanceof Error ? cause.message : "تعذر فتح رابط مستند الفاتورة.");
+    if (requestId === evidenceLinkRequestRef.current) {
+      setEvidenceError(cause instanceof Error ? cause.message : "تعذر فتح رابط مستند الفاتورة.");
+    }
   } finally {
-    setEvidenceLinkBusy(null);
+    if (requestId === evidenceLinkRequestRef.current) setEvidenceLinkBusy(null);
   }
 }
 
@@ -405,8 +411,8 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
   useEffect(() => {
     // Invalidate and clear user-scoped invoice rows before loading the next identity.
     workspaceRequestRef.current += 1;
-    evidenceRequestRef.current += 1;
-    dueDateRequestRef.current += 1;
+    evidenceLinkRequestRef.current += 1;
+    setEvidenceLinkBusy(null);
     setWorkspace(null);
     setOrderOptions([]);
     setSelectedInvoiceId(null);
