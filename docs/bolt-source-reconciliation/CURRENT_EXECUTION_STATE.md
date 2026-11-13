@@ -5221,3 +5221,36 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 - P2 PR run [#43355136206](https://github.com/Report-Engainall/Nasr1/actions/runs/43355136206): public Storefront smoke **SUCCESS**; generic customer order/tenant job **SKIPPED**; local Supabase acceptance was **IN_PROGRESS** at service startup. Do not treat P2 as complete for PR #430.
 - Push runs on merged SHA: P1 [#43355464142](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464142) and P2 [#43355464084](https://github.com/Report-Engainall/Nasr1/actions/runs/43355464084) were **PENDING** at this checkpoint.
 - Expanded implementation record: [P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md](../execution/P1_CUSTOMER_LOCALIZED_QUANTITY_INPUTS_2026-11-13.md).
+
+
+---
+
+## ACTIVE EXECUTION CHECKPOINT — 2026-11-13 — STOREFRONT RECENTLY VIEWED PRODUCTS
+
+- Repository: `Report-Engainall/Nasr1`.
+- Base `main` SHA: `184da04ef620f8df9f5e07283c536e80a33a76db`.
+- Working branch: `feat/storefront-recent-products-20261113`.
+- Code commits:
+  - `92f0aebbc7015328b12f57c060fdc3ff3a0c2bfc` — account-scoped recently viewed storefront collection and helper/tests.
+  - `86f61493267cb65c932d11855a860243bced2284` — preserve ability to clear history when saved IDs no longer resolve and assert the hard retention cap.
+- Implemented:
+  - Added a **شاهدت مؤخرًا** collection to the storefront discovery controls and collection views.
+  - History is isolated by customer profile; it falls back to authenticated user ID, then a separate guest scope. The storefront's existing auth-keyed remount remains the identity boundary.
+  - Stores only product identifiers, de-duplicates and promotes a re-opened product to the front, retains at most eight newest identifiers, and supports clearing.
+  - Product cards are re-resolved from the live, identity-bound catalog. They are not reconstructed from cached product objects; the recent list stays empty during catalog loading/error and omits products no longer returned by the current catalog.
+  - Reuses existing `ProductGrid`, wishlist/compare/cart actions and existing price-visibility policy. No parallel product-card or price path was introduced.
+- Changed files:
+  - `src/components/Storefront.tsx`
+  - `src/lib/storefront-recently-viewed.ts`
+  - `src/lib/storefront-recently-viewed.test.ts`
+- Regression coverage:
+  - Profile/user/guest key isolation.
+  - Re-open ordering and de-duplication.
+  - Eight-item retention.
+  - Rejection of blank/oversized IDs and non-string stored entries.
+  - Defensive cap for oversized custom limits.
+- Safety boundary: no localStorage product object, price, inventory balance, customer financial data, server RPC, SQL, migration, RLS, Auth, tenant policy, checkout, order or production data change. No Vercel, hosted Supabase write, paid service or deployment.
+- Source comparison: an earlier similarly named remote branch was divergent from current `main` (12 commits behind). It was not merged or overwritten; this implementation was rebased as a focused new branch from the exact base SHA above.
+- Acceptance status: implementation and regression source committed; P1 Vitest + strict TypeScript + production build are **PENDING exact-SHA GitHub Actions**. No PASS or runtime/browser acceptance is claimed before the workflow finishes.
+- Next action: inspect exact-head P1/P2 workflow results, repair only failures attributable to this change, and update this checkpoint with immutable run IDs and conclusions.
+
