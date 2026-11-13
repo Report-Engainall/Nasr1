@@ -52,7 +52,6 @@ import { downloadCustomerInvoiceWorkbookXlsx } from "@/lib/customer-invoice-xlsx
 import { downloadCustomerPaymentHistoryWorkbookXlsx } from "@/lib/customer-payment-history-xlsx";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
-import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
 import { fetchCustomerCompanyContacts, saveCustomerCompanyContact, deleteCustomerCompanyContact, type CustomerCompanyContact, type CustomerCompanyContactInput } from "@/lib/customer-company-contacts";
 import { loadOfflineCartDraft, mergeOfflineCartDraft, saveOfflineCartDraft } from "@/lib/offline-cart";
@@ -4228,7 +4227,6 @@ export function StaffFinancePage({ initialInvoiceId }: { initialInvoiceId?: stri
         )}
       </section>
       <CashExpenseLedger />
-      <GeneralLedgerWorkspace />
     </section>
   );
 }
