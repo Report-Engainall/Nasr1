@@ -1,0 +1,26 @@
+import { describe, expect, it } from "vitest";
+import { REFERENCE_SOURCE_READINESS } from "./source-readiness";
+
+describe("reference model source readiness", () => {
+  it("records real blockers without creating sample errors, prompts, audit rows or patches", () => {
+    expect(REFERENCE_SOURCE_READINESS).toHaveLength(4);
+    expect(REFERENCE_SOURCE_READINESS.map((item) => item.id)).toEqual([
+      "ai_audit",
+      "prompt_persistence",
+      "error_log",
+      "developer_tools",
+    ]);
+    expect(REFERENCE_SOURCE_READINESS.map((item) => item.status)).toEqual([
+      "BLOCKED_NO_TENANT_SAFE_READ_CONTRACT",
+      "BLOCKED_NO_PERSISTENT_SOURCE",
+      "BLOCKED_NO_PERSISTENT_SOURCE",
+      "BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE",
+    ]);
+  });
+
+  it("distinguishes the persisted AI ledger from its missing tenant-safe read contract", () => {
+    const audit = REFERENCE_SOURCE_READINESS.find((item) => item.id === "ai_audit");
+    expect(audit?.source).toBe("public.ai_usage_ledger");
+    expect(audit?.status).toBe("BLOCKED_NO_TENANT_SAFE_READ_CONTRACT");
+  });
+});
