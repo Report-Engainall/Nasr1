@@ -64,3 +64,19 @@ The errors were localized:
 - The archive UI intentionally displays 25 records per visual page. The integration test now navigates to the last page before asserting access to record 51; the archive collection itself remains fully loaded and independent of the 50-row operational register.
 
 The repair commit is subject to a fresh exact-SHA P1 run. No prior PASS is carried forward.
+
+## Exact-SHA repair acceptance — 13 November 2026
+
+**Verified source SHA:** `880788208fabeb840a6639b38dc133a75f85603d`
+
+**P1 GitHub Actions run:** `43365691627` — terminal SUCCESS.
+
+- Vitest regression suite: SUCCESS.
+- Strict TypeScript: SUCCESS.
+- Production application build: SUCCESS.
+
+This result is tied to the exact SHA above; no results from its parent or earlier commits were transferred.
+
+**P2 GitHub Actions run:** `43365691641`. The authenticated E2E infrastructure gate completed SUCCESS but is only an availability gate. Public read-only Storefront Playwright smoke was still running when this checkpoint was written. The customer order and tenant-isolation job was SKIPPED; therefore it is not an acceptance pass. PostgreSQL 17/authenticated cross-tenant read and write denial remain OPEN.
+
+The P1 failures on the intermediate candidate were corrected and rerun: the shared snapshot clock was restored, and the UI test now navigates the memory book's independent 25-record display pages before checking older history. No production DB writes, migrations, RLS/Auth changes, Vercel builds or deployments were performed.

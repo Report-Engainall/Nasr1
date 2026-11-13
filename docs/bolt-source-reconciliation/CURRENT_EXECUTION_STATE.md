@@ -1,3 +1,26 @@
+# EXACT-SHA ACCEPTANCE CHECKPOINT — 2026-11-13 — DECISION MEMORY COLLECTION
+
+- REPOSITORY: `Report-Engainall/Nasr1`; branch `main`.
+- VERIFIED_SHA: `880788208fabeb840a6639b38dc133a75f85603d`.
+- P1 WORKFLOW: GitHub Actions run `43365691627` — SUCCESS.
+  - Vitest regression suite: SUCCESS.
+  - Strict TypeScript: SUCCESS.
+  - Production Build: SUCCESS.
+- P2 WORKFLOW: run `43365691641`.
+  - Authenticated E2E infrastructure gate: SUCCESS (environment gate only).
+  - Playwright public no-write Storefront smoke: IN_PROGRESS when this checkpoint was written; no PASS until terminal job inspected.
+  - Customer order and tenant isolation: SKIPPED; not acceptance. PostgreSQL 17/authenticated browser isolation proof remains OPEN.
+- IMPLEMENTED SOURCE:
+  - Dedicated engine suite: `src/lib/intelligence/decision-memory.test.ts`.
+  - Full stabilized collection wired to `DecisionMemoryBook` independently from the 50-row operational decision register.
+  - Existing organization-scoped snapshot DTO and bounded collection loader reused; no duplicate schema/RPC.
+  - Partial history, changed totals, duplicate page identities and missing/ambiguous evidence remain visibly partial/withheld.
+- REPAIR AUDIT: intermediate `be795e52c1a68281708eb63d6f565ec94129d94d` failed P1 (634/638 tests; three missing `snapshotAt` errors). `8807882...` restored the shared point-in-time clock and corrected the display-page UI test. All three P1 gates now pass on the verified SHA.
+- SAFETY: no production DB writes, migrations, RLS/Auth changes, Vercel actions, paid service, secrets or deployment.
+- NEXT: obtain terminal P2 public smoke result for exact SHA `8807882...`. Do not promote tenant/order SKIPPED to PASS. Preserve NO-GO for full product release until authenticated order/tenant isolation and other release gates are proven.
+
+---
+
 # LIVE REPAIR CHECKPOINT — 2026-11-13 — DECISION MEMORY UI P1 FAILURES
 
 - REPOSITORY: `Report-Engainall/Nasr1`; branch `main`.
