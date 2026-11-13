@@ -49,5 +49,9 @@ describe("storefront recently viewed history", () => {
       "d", "a", "b", "c",
     ]);
     expect(moveRecentlyViewedProductToFront(ids, "d", 1000)).toHaveLength(4);
+    const oversizedHistory = Array.from({ length: 120 }, (_, index) => `item-${index}`);
+    const bounded = moveRecentlyViewedProductToFront(oversizedHistory, "new-item", 1000);
+    expect(bounded).toHaveLength(100);
+    expect(bounded[0]).toBe("new-item");
   });
 });

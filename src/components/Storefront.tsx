@@ -1585,7 +1585,7 @@ function CollectionView({
       <button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للمتجر</button>
       <div className="sf-products-head">
         <div><h2><Icon size={21} /> {title}</h2><span>{products.length} منتجات</span></div>
-        {onClear && products.length > 0 && <button type="button" className="sf-btn-secondary" onClick={onClear}>مسح السجل</button>}
+        {onClear && <button type="button" className="sf-btn-secondary" onClick={onClear}>مسح السجل</button>}
       </div>
       {note && <p role="note" style={{ margin: '0 0 12px', color: '#647b80', fontSize: 12 }}>{note}</p>}
       {products.length
