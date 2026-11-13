@@ -26,15 +26,45 @@ function candidate(provider:AiProvider,model:string,baseUrl:string,fallback:bool
  return {provider,model,baseUrl:baseUrl.replace(/\/+$/,""),key,rates:r,fallback};
 }
 function cleanText(value:string){let out="";for(const c of value){const n=c.charCodeAt(0);if((n<32&&n!==9&&n!==10)||n===127)continue;out+=c;}return out.trim().slice(0,5000);}
-async function callProvider(c:Candidate,q:string,signal:AbortSignal){
+function sessionIdFromJwt(token:string):string|null {
+ const parts=token.split(".");
+ if(parts.length!==3||!parts[1])return null;
+ try{
+  const normalized=parts[1].replace(/-/g,"+").replace(/_/g,"/");
+  const decoded=atob(normalized.padEnd(Math.ceil(normalized.length/4)*4,"="));
+  const bytes=Uint8Array.from(decoded,(character)=>character.charCodeAt(0));
+  const claims=JSON.parse(new TextDecoder().decode(bytes)) as Record<string,unknown>;
+  const value=claims.session_id;
+  return typeof value==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)?value:null;
+ }catch{return null;}
+}
+async function sha256Hex(value:string):Promise<string>{
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
+ return Array.from(new Uint8Array(digest),(byte)=>byte.toString(16).padStart(2,"0")).join("");
+}
+async function activeSystemPrompt(db:ReturnType<typeof createClient>,userId:string,sessionId:string):Promise<string>{
+ const {data,error}=await db.rpc("get_active_ai_prompt",{p_user_id:userId,p_session_id:sessionId,p_prompt_key:"assistant.system"});
+ if(error){
+  console.error("AI active prompt lookup failed",{code:(error as {code?:string}).code??"unknown"});
+  throw new Error("active_prompt_source_unavailable");
+ }
+ if(data===null||data===undefined)return SYSTEM;
+ if(typeof data!=="object"||Array.isArray(data))throw new Error("active_prompt_response_invalid");
+ const record=data as Record<string,unknown>;
+ if(typeof record.content!=="string"||record.content.length<16||record.content.length>8000||
+    typeof record.content_sha256!=="string"||!/^[a-f0-9]{64}$/.test(record.content_sha256))throw new Error("active_prompt_response_invalid");
+ if(await sha256Hex(record.content)!==record.content_sha256)throw new Error("active_prompt_integrity_failed");
+ return record.content;
+}
+async function callProvider(c:Candidate,q:string,signal:AbortSignal,systemPrompt:string){
  let url:URL,headers:Record<string,string>,payload:unknown;
  if(c.provider==="openai_compatible"){
   url=new URL(c.baseUrl+"/chat/completions");headers={"content-type":"application/json",authorization:"Bearer "+c.key};
-  payload={model:c.model,messages:[{role:"system",content:SYSTEM},{role:"user",content:q}],temperature:0.2,max_tokens:384};
+  payload={model:c.model,messages:[{role:"system",content:systemPrompt},{role:"user",content:q}],temperature:0.2,max_tokens:384};
  }else{
   const request=buildGeminiRequestConfig(c.baseUrl,c.model,c.key);
   url=request.url;headers=request.headers;
-  payload={systemInstruction:{parts:[{text:SYSTEM}]},contents:[{role:"user",parts:[{text:q}]}],generationConfig:{temperature:0.2,maxOutputTokens:384}};
+  payload={systemInstruction:{parts:[{text:systemPrompt}]},contents:[{role:"user",parts:[{text:q}]}],generationConfig:{temperature:0.2,maxOutputTokens:384}};
  }
  const r=await fetch(url,{method:"POST",headers,body:JSON.stringify(payload),signal});
  if(!r.ok)throw new Error("provider_http_"+r.status);
@@ -66,6 +96,11 @@ if(d)d.serve(async(request)=>{
   const {data:roles,error}=await db.from("user_roles").select("role").eq("profile_id",profile.id);
   if(error||!Array.isArray(roles)||!roles.some((r:{role?:string})=>r.role==="admin"||r.role==="manager"))return reply({error:"administrator_or_manager_required"},403);
  }
+ const currentSessionId=sessionIdFromJwt(bearer[1]);
+ if(!currentSessionId)return reply({error:"unauthorized"},401);
+ let systemPrompt:string;
+ try{systemPrompt=await activeSystemPrompt(db,authData.user.id,currentSessionId);}
+ catch{return reply({error:"prompt_runtime_unavailable"},503);}
  const input=action==="test_connection"?{ok:true as const,question:"Reply with exactly: Aghbari AI gateway connection confirmed."}:sanitizeAiQuestion(body.question);
  if(!input.ok)return reply({error:input.reason},400);
  const requestId=crypto.randomUUID();
@@ -123,7 +158,7 @@ if(d)d.serve(async(request)=>{
   return action==="test_connection"?reply({error:reason},reason==="quota_exceeded"?429:503):reply({status:"fallback",reason,answer:SAFE});
  }
  const started=Date.now();
- const providerRun=await runProviderCandidates(attempts,input.question,callProvider,action==="test_connection"?10000:15000);
+ const providerRun=await runProviderCandidates(attempts,input.question,(candidateValue,question,signal)=>callProvider(candidateValue,question,signal,systemPrompt),action==="test_connection"?10000:15000);
  const {result,used,attempts:providerAttempts}=providerRun;
  const summary=summarizeAiProviderAttempts(providerAttempts),failedAttempt=providerAttempts.some((a)=>a.status==="failed");
  const fallbackUsed=Boolean(used?.fallback),last=used??attempts[attempts.length-1];

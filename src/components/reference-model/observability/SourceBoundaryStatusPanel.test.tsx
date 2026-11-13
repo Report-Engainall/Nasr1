@@ -9,7 +9,8 @@ describe("SourceBoundaryStatusPanel", () => {
     render(<SourceBoundaryStatusPanel />);
     expect(screen.getByRole("region", { name: "حالة عقود مصادر الوظائف المرجعية" })).toBeInTheDocument();
     expect(screen.getByText("BLOCKED_NO_TENANT_SAFE_READ_CONTRACT")).toBeInTheDocument();
-    expect(screen.getAllByText("BLOCKED_NO_PERSISTENT_SOURCE")).toHaveLength(2);
+    expect(screen.getByText("PERSISTENT_SOURCE_ADMIN_ONLY")).toBeInTheDocument();
+    expect(screen.getByText("BLOCKED_NO_PERSISTENT_SOURCE")).toBeInTheDocument();
     expect(screen.getByText("BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE")).toBeInTheDocument();
     expect(screen.getByText(/لا تعرض هذه اللوحة بيانات تشغيل أو سجلات افتراضية/)).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();

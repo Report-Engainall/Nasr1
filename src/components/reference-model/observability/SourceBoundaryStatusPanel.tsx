@@ -1,4 +1,4 @@
-import { AlertTriangle, Database, GitBranch, ScrollText, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Database, GitBranch, ScrollText, ShieldAlert, ShieldCheck } from "lucide-react";
 import { REFERENCE_SOURCE_READINESS } from "@/lib/reference-model/observability/source-readiness";
 
 const icons = {
@@ -22,11 +22,12 @@ export function SourceBoundaryStatusPanel() {
       </header>
       <div className="grid gap-3 lg:grid-cols-2">
         {REFERENCE_SOURCE_READINESS.map((item) => {
-          const Icon = icons[item.id];
+          const Icon = item.status === "PERSISTENT_SOURCE_ADMIN_ONLY" ? ShieldCheck : icons[item.id];
+          const statusClass = item.status === "PERSISTENT_SOURCE_ADMIN_ONLY" ? "text-emerald-700" : "text-amber-700";
           return (
             <article key={item.id} className="min-w-0 rounded-lg border p-3">
               <div className="flex items-start gap-2">
-                <Icon size={17} aria-hidden="true" className="mt-0.5 shrink-0 text-amber-700" />
+                <Icon size={17} aria-hidden="true" className={"mt-0.5 shrink-0 " + statusClass} />
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold">{item.title}</h3>
                   <p className="mt-1 text-xs font-semibold break-all" dir="ltr">{item.status}</p>

@@ -1,7 +1,8 @@
 export type ReferenceSourceReadinessStatus =
   | "BLOCKED_NO_PERSISTENT_SOURCE"
   | "BLOCKED_NO_TENANT_SAFE_READ_CONTRACT"
-  | "BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE";
+  | "BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE"
+  | "PERSISTENT_SOURCE_ADMIN_ONLY";
 
 export interface ReferenceSourceReadiness {
   id: "ai_audit" | "prompt_persistence" | "error_log" | "developer_tools";
@@ -26,9 +27,9 @@ export const REFERENCE_SOURCE_READINESS: readonly ReferenceSourceReadiness[] = [
   {
     id: "prompt_persistence",
     title: "مكتبة Prompts وإصداراتها",
-    status: "BLOCKED_NO_PERSISTENT_SOURCE",
-    source: "src/lib/intelligence/ai-prompt-governance.ts",
-    detail: "محرك دورة الحياة والتحقق والبصمة وأربع العيون موجود؛ لم يُثبت جدول أو RPC دائم لحفظ الإصدارات وسجل الأحداث append-only.",
+    status: "PERSISTENT_SOURCE_ADMIN_ONLY",
+    source: "public.ai_prompt_versions · public.ai_prompt_audit_events · admin-only RPCs",
+    detail: "تتوفر الآن نسخ PostgreSQL دائمة وبصمة SHA-256 ثابتة وسجل append-only. الإنشاء والمراجعة والاعتماد والتفعيل محكومة بـRPC خادمي، وفصل المنشئ عن المراجع والمفعّل. يتطلب الوصول دور admin وجلسة Auth نشطة داخل المؤسسة؛ لا توجد بيانات افتراضية مزروعة.",
   },
   {
     id: "error_log",
