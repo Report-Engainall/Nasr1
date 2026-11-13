@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 const adminApp = readFileSync(join(process.cwd(), "src/components/AghbariApp.tsx"), "utf8");
 const categoryScreen = readFileSync(join(process.cwd(), "src/components/AdminCategoryTree.tsx"), "utf8");
 const categoryReader = readFileSync(join(process.cwd(), "src/lib/admin-category-products.ts"), "utf8");
+const categoryCatalog = readFileSync(join(process.cwd(), "src/lib/admin-category-catalog.ts"), "utf8");
+const productApi = readFileSync(join(process.cwd(), "src/lib/api.ts"), "utf8");
 const categoryCommands = readFileSync(join(process.cwd(), "src/lib/admin-catalog-commands.ts"), "utf8");
 const accessMatrix = readFileSync(join(process.cwd(), "src/lib/admin-access-matrix.ts"), "utf8");
 const routeTree = readFileSync(join(process.cwd(), "src/routeTree.gen.ts"), "utf8");
@@ -55,6 +57,17 @@ describe("admin category workspace wiring", () => {
     expect(categoryReader).toContain(".limit(100)");
     expect(categoryReader).toContain("select('id,name,item_code,unit,status')");
     expect(categoryReader).not.toMatch(/base_price|price_wholesale|balance|inventory_balances/);
+  });
+
+  it("shows category price and stock through the existing tenant-scoped paginated product reader", () => {
+    expect(categoryScreen).toContain("fetchAdminProductsPage({ page: catalogPage, categoryId: selected.id })");
+    expect(categoryScreen).toContain('aria-label="الأسعار والمخزون"');
+    expect(categoryScreen).toContain("canViewPrices");
+    expect(categoryScreen).toContain("projectAdminCategoryCatalogMetrics");
+    expect(productApi).toContain("input.categoryId");
+    expect(productApi).toContain(".eq('category_id', input.categoryId)");
+    expect(categoryCatalog).toContain("getInventoryAvailabilityStatus");
+    expect(categoryCatalog).toContain("access.canViewPrice ? nonNegativeFinite(product.base_price) : null");
   });
 
   it("opens a related product in the existing product workspace without duplicating product editing", () => {

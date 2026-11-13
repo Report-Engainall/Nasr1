@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildProductAdminSearchFilter } from "./product-admin-pagination";
+import { buildProductAdminSearchFilter, isValidProductAdminCategoryId } from "./product-admin-pagination";
 
 describe("buildProductAdminSearchFilter", () => {
   it("searches Arabic and Latin text across the four supported product identifiers", () => {
@@ -31,5 +31,18 @@ describe("buildProductAdminSearchFilter", () => {
 
   it("rejects an excessive search term", () => {
     expect(() => buildProductAdminSearchFilter("a".repeat(101))).toThrow("طويلة جدًا");
+  });
+});
+
+
+describe("isValidProductAdminCategoryId", () => {
+  it("accepts a canonical category UUID", () => {
+    expect(isValidProductAdminCategoryId("2c4a6e80-1234-4abc-8def-1234567890ab")).toBe(true);
+  });
+
+  it("rejects malformed, padded and non-string identifiers", () => {
+    expect(isValidProductAdminCategoryId("not-a-uuid")).toBe(false);
+    expect(isValidProductAdminCategoryId(" 2c4a6e80-1234-4abc-8def-1234567890ab")).toBe(false);
+    expect(isValidProductAdminCategoryId(null)).toBe(false);
   });
 });

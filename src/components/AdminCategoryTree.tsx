@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, FolderTree, LoaderCircle, Pencil, Plus, RefreshCw, RotateCcw, Search, Tags, X } from 'lucide-react';
-import { fetchCategories } from '@/lib/api';
+import { fetchAdminProductsPage, fetchCategories } from '@/lib/api';
+import { formatCurrency, formatNumber } from '@/lib/format';
+import { projectAdminCategoryCatalogMetrics } from '@/lib/admin-category-catalog';
 import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { fetchAdminCategoryProducts, type AdminCategoryProductRow } from '@/lib/admin-category-products';
 import { buildAdminCategoryTree, filterAdminCategoryTree, getAdminCategoryAncestorIds, getAdminCategoryPath, type AdminCategoryTreeNode } from '@/lib/admin-category-tree';
-import type { Category } from '@/lib/types';
+import type { Category, ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 
-type DetailTab = 'overview' | 'children' | 'products';
+type DetailTab = 'overview' | 'children' | 'products' | 'catalog';
 type CreateParent = string | null | undefined;
 function readSelectedCategory(): string | null {
   if (typeof window === 'undefined') return null;
@@ -61,6 +63,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   const { user } = useAuth();
   const canOpen = Boolean(user?.roles.some((role) => ['admin', 'manager', 'staff'].includes(role)));
   const canManage = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canViewPrices = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -78,6 +81,12 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   const [products, setProducts] = useState<AdminCategoryProductRow[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState('');
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogItems, setCatalogItems] = useState<ProductWithInventory[]>([]);
+  const [catalogHasNextPage, setCatalogHasNextPage] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
+  const [catalogRetry, setCatalogRetry] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,6 +127,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
     if (id) {
       setExpandedIds((current) => new Set([...current, ...getAdminCategoryAncestorIds(categories, id)]));
       setTab('overview');
+      setCatalogPage(1);
     }
   }, [categories]);
 
@@ -133,7 +143,11 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   }, [categories, tree, selectedId]);
 
   useEffect(() => {
-    const sync = () => setSelectedId(readSelectedCategory());
+    const sync = () => {
+      setSelectedId(readSelectedCategory());
+      setTab('overview');
+      setCatalogPage(1);
+    };
     window.addEventListener('popstate', sync);
     return () => window.removeEventListener('popstate', sync);
   }, []);
@@ -154,6 +168,26 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       .finally(() => { if (active) setProductsLoading(false); });
     return () => { active = false; };
   }, [tab, selected?.id]);
+
+  useEffect(() => {
+    if (tab !== 'catalog' || !selected) return;
+    let active = true;
+    setCatalogLoading(true);
+    setCatalogError('');
+    setCatalogItems([]);
+    setCatalogHasNextPage(false);
+    fetchAdminProductsPage({ page: catalogPage, categoryId: selected.id })
+      .then((result) => {
+        if (!active) return;
+        setCatalogItems(result.items);
+        setCatalogHasNextPage(result.hasNextPage);
+      })
+      .catch((cause) => {
+        if (active) setCatalogError(cause instanceof Error ? cause.message : 'تعذر تحميل أسعار ومخزون التصنيف.');
+      })
+      .finally(() => { if (active) setCatalogLoading(false); });
+    return () => { active = false; };
+  }, [tab, selected?.id, catalogPage, catalogRetry]);
 
   useEffect(() => { setRenameDraft(selected?.name ?? ''); }, [selected?.id, selected?.name]);
 
@@ -287,6 +321,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
             <button role="tab" type="button" aria-selected={tab === 'overview'} onClick={() => setTab('overview')}>نظرة عامة</button>
             <button role="tab" type="button" aria-selected={tab === 'children'} onClick={() => setTab('children')}>التصنيفات الفرعية</button>
             <button role="tab" type="button" aria-selected={tab === 'products'} onClick={() => setTab('products')}>المنتجات المرتبطة</button>
+            <button role="tab" type="button" aria-label="الأسعار والمخزون" aria-selected={tab === 'catalog'} onClick={() => setTab('catalog')}>الأسعار والمخزون</button>
           </div>
           {tab === 'overview' && <div className="admin-category-overview">
             <p>المعرّف: <code dir="ltr">{selected.id}</code></p>
@@ -306,6 +341,47 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
               : productsError ? <div className="admin-category-error" role="alert"><AlertTriangle size={16}/>{productsError}</div>
                 : products.length ? <>{products.map((product) => <button type="button" key={product.id} className="admin-category-product-row" aria-label={`فتح المنتج ${product.name}`} onClick={() => onOpenProduct(product)}><div><strong>{product.name}</strong><span>{product.item_code} · {product.unit}</span></div><span>{product.status ?? 'الحالة غير محددة'}</span><ChevronLeft size={15} /></button>)}{products.length === 100 && <p className="admin-category-legend">يعرض المصدر أول 100 منتج فقط، دون ادعاء عدد إجمالي.</p>}</>
                   : <div className="admin-category-empty"><strong>لا توجد منتجات مرتبطة</strong><span>هذه نتيجة المصدر الفعلي للتصنيف المختار.</span></div>}
+          </div>}
+
+          {tab === 'catalog' && <div className="admin-category-catalog" aria-label="الأسعار والمخزون">
+            <div className="admin-category-catalog__toolbar">
+              <div>
+                <strong>قراءة فقط من كتالوج المؤسسة</strong>
+                <p>{canViewPrices ? 'السعر الأساسي متاح للأدوار الإدارية المصرح لها.' : 'السعر الأساسي غير معروض وفق صلاحية الدور.'} أرصدة المخزون مرتبطة بالمستودع النشط في سياق الحساب.</p>
+              </div>
+              <span>صفحة {catalogPage}</span>
+            </div>
+            {catalogLoading ? <div className="admin-category-state"><LoaderCircle size={17} className="spin" /> جارٍ تحميل بيانات الكتالوج والمخزون</div>
+              : catalogError ? <div className="admin-category-error" role="alert"><AlertTriangle size={16} /><span>{catalogError}</span><button type="button" className="btn outline" onClick={() => setCatalogRetry((value) => value + 1)}><RefreshCw size={14} /> إعادة المحاولة</button></div>
+                : catalogItems.length ? <>
+                  <div className="admin-category-catalog__table-wrap">
+                    <table aria-label="أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف">
+                      <thead><tr><th>الصنف</th><th>الحالة</th>{canViewPrices && <th>السعر الأساسي</th>}<th>على اليد</th><th>المتاح</th><th>حد إعادة الطلب</th><th>حالة المخزون</th></tr></thead>
+                      <tbody>{catalogItems.map((product) => {
+                        const metrics = projectAdminCategoryCatalogMetrics(product, { canViewPrice: canViewPrices, canViewInventory: canOpen });
+                        const stockLabel = metrics.stockStatus === 'low' ? 'منخفض' : metrics.stockStatus === 'adequate' ? 'ضمن الحد' : 'غير متاح';
+                        const lifecycleLabel = product.status === 'active' ? 'نشط' : product.status === 'inactive' ? 'مؤرشف' : 'غير محدد';
+                        return <tr key={product.id}>
+                          <td><button type="button" className="admin-category-catalog__product" aria-label={'فتح المنتج ' + product.name} onClick={() => onOpenProduct({ id: product.id, name: product.name, item_code: product.item_code, unit: product.unit, status: product.status ?? null })}><strong>{product.name}</strong><small>{product.item_code} · {product.unit}</small></button></td>
+                          <td>{lifecycleLabel}</td>
+                          {canViewPrices && <td>{metrics.price === null ? 'غير متاح' : formatCurrency(metrics.price)}</td>}
+                          <td>{metrics.quantityOnHand === null ? 'غير متاح' : formatNumber(metrics.quantityOnHand)}</td>
+                          <td>{metrics.quantityAvailable === null ? 'غير متاح' : formatNumber(metrics.quantityAvailable)}</td>
+                          <td>{metrics.reorderPoint === null ? 'غير متاح' : formatNumber(metrics.reorderPoint)}</td>
+                          <td><span className={'admin-category-catalog__status is-' + metrics.stockStatus}>{stockLabel}</span></td>
+                        </tr>;
+                      })}</tbody>
+                    </table>
+                  </div>
+                  {catalogItems.some((product) => !product.inventory) && <p className="admin-category-legend">بعض الأرصدة غير متاحة في المستودع النشط؛ لم يتم استبدالها بقيم صفرية.</p>}
+                  <div className="admin-category-catalog__pagination">
+                    <span>صفحة {catalogPage} · يعرض المصدر حتى 40 منتجاً في الصفحة</span>
+                    <div>
+                      {catalogPage > 1 && <button type="button" className="btn outline" onClick={() => setCatalogPage((page) => Math.max(1, page - 1))}>السابق</button>}
+                      {catalogHasNextPage && <button type="button" className="btn outline" onClick={() => setCatalogPage((page) => page + 1)}>التالي</button>}
+                    </div>
+                  </div>
+                </> : <div className="admin-category-empty"><strong>لا توجد منتجات مرتبطة مباشرة بهذا التصنيف</strong><span>هذه نتيجة صفحة الكتالوج المؤسسية؛ لا تشمل منتجات الفروع التابعة ولا تعرض عدداً إجمالياً غير محسوب.</span></div>}
           </div>}
         </>}
       </section>

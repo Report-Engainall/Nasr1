@@ -9,7 +9,7 @@ import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './cu
 import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
 import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
-import { buildProductAdminSearchFilter } from './product-admin-pagination';
+import { buildProductAdminSearchFilter, isValidProductAdminCategoryId } from './product-admin-pagination';
 import { getImportJobsPageBounds } from './import-job-pagination';
 import { calculateBusinessInventoryValue } from './business-inventory-valuation';
 import { summarizeDashboardOrders } from './dashboard-metrics';
@@ -497,11 +497,15 @@ export async function fetchAdminProductsPage(input: {
   page: number;
   search?: string;
   activeOnly?: boolean;
+  categoryId?: string;
 }): Promise<AdminProductPage> {
   const page = input.page;
   const pageSize = ADMIN_PRODUCT_PAGE_SIZE;
   if (!Number.isSafeInteger(page) || page < 1 || page > ADMIN_PRODUCT_MAX_PAGE) {
     throw new Error('رقم صفحة المنتجات غير صالح.');
+  }
+  if (input.categoryId !== undefined && !isValidProductAdminCategoryId(input.categoryId)) {
+    throw new Error('معرّف التصنيف غير صالح لعرض الكتالوج.');
   }
 
   const scope = await getStorefrontDataScope();
@@ -523,6 +527,7 @@ export async function fetchAdminProductsPage(input: {
     .order('name', { ascending: true })
     .order('id', { ascending: true });
 
+  if (input.categoryId) productQuery = productQuery.eq('category_id', input.categoryId);
   if (input.activeOnly) productQuery = productQuery.eq('status', 'active');
   const filteredProductQuery = searchFilter
     ? productQuery.or(searchFilter)
