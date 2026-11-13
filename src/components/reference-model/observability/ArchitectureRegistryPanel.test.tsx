@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ArchitectureRegistryPanel } from "./ArchitectureRegistryPanel";
+import type { AdminRoleId, AdminViewId } from "@/lib/admin-access-matrix";
 import {
   buildArchitectureRegistry,
   getCurrentArchitectureRegistry,
@@ -80,6 +81,32 @@ describe("reference-model architecture registry", () => {
     });
     expect(categoryRoute?.navigationAccess?.roles).not.toContain("customer");
     expect(categoryRoute?.navigationAccess?.roles).not.toContain("accountant");
+  });
+
+  it("uses the supplied role access registry instead of a duplicated role map", () => {
+    const customAccess = {
+      admin: ["ai"],
+      manager: [],
+      staff: [],
+      accountant: [],
+      customer_manager: [],
+      customer: [],
+    } satisfies Readonly<Record<AdminRoleId, readonly AdminViewId[]>>;
+
+    const registry = buildArchitectureRegistry(
+      {
+        id: "__root__",
+        path: "/",
+        children: [{ id: "/admin_/ai", path: "/admin/ai" }],
+      },
+      undefined,
+      customAccess,
+    );
+
+    expect(registry.routes[0].navigationAccess).toEqual({
+      source: "ROLE_PAGE_ACCESS",
+      roles: ["admin"],
+    });
   });
 
   it("does not invent navigation roles for an unmapped admin route", () => {
