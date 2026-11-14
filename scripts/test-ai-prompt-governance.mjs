@@ -671,7 +671,7 @@ async function main() {
         "select public.activate_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
         [draft2.version.id, randomUUID(), "محاولة إعادة تفعيل نسخة معطلة"],
       ),
-      "22023",
+      "42501",
     );
     await expectSqlState(
       "a disabled prompt cannot be retired or rewritten into another lifecycle state",
