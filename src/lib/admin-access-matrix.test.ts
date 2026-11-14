@@ -6,10 +6,11 @@ import {
 
 describe("admin access presentation contract", () => {
   it("assigns every admin page to exactly one navigation group", () => {
-    const ids = ADMIN_NAV_GROUPS.flatMap((group) => group.views.map(({ id }) => id));
+    const ids = ADMIN_NAV_GROUPS.flatMap((group) => [...group.views]);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toHaveLength(24);
-    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.views.map(({ id }) => id)).toContain('categories');
+    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.views).toContain('categories');
+    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.items).toEqual(ADMIN_NAV_ITEMS.filter(({ id }) => ['products', 'categories', 'pricing', 'offers'].includes(id)));
     expect(ADMIN_NAV_GROUPS).toHaveLength(6);
     expect(ADMIN_NAV_ITEMS).toHaveLength(24);
     expect(new Set(ADMIN_NAV_ITEMS.map(({ path }) => path)).size).toBe(24);
