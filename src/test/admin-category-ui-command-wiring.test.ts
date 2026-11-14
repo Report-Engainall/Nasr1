@@ -78,7 +78,8 @@ describe("admin category workspace wiring", () => {
   });
 
   it("places categories in the existing catalog group and registers the dedicated route", () => {
-    expect(accessMatrix).toContain('views: ["products", "categories", "pricing", "offers"]');
+    expect(accessMatrix).toContain('defineAdminNavigationGroup("catalog", "الكتالوج والتسعير"');
+    expect(accessMatrix).toContain('{ id: "categories", label: "التصنيفات الرئيسية والفرعية", path: "/admin/categories" }');
     expect(routeTree).toContain("path: '/admin/categories'");
     expect(routeTree).toContain("AdminCategoriesRouteImport");
   });
