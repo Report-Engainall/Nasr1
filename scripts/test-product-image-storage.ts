@@ -378,7 +378,8 @@ async function main(): Promise<void> {
     const staleResponse = await handler(makeUploadRequest(accessToken, PRODUCT_ID));
     const staleBody = await readJson(staleResponse);
     assert(staleResponse.status === 409 && staleBody.error === "image_link_changed",
-      "A stale primary image version must return a conflict and clean the unlinked object.");
+      "A stale primary image version must return HTTP 409 image_link_changed; received HTTP " +
+        staleResponse.status + " body=" + JSON.stringify(staleBody));
     const stalePath = profile.organization_id + "/" + PRODUCT_ID + "/" + staleUuid + ".webp";
     const staleDownload = await adminStorage.download(stalePath);
     assert(staleDownload.error, "The stale upload object remained in Storage after the atomic link conflict.");
