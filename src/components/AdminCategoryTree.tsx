@@ -259,7 +259,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       && item.parent_id !== category.id
       && getAdminCategoryAncestorIds(categories, item.id).includes(category.id));
     if (hasActiveChild || hasActiveDeeperDescendant) {
-      onNotice('لا يمكن أرشفة تصنيف أب قبل معالجة جميع فروعه النشطة؛ حتى لا تبقى فروع تشغيلية تحت أب مؤرشف.');
+      onNotice('لا يمكن أرشفة تصنيف أب قبل معالجة فروعه النشطة جميعها؛ حتى لا تبقى فروع تشغيلية تحت أب مؤرشف.');
       return;
     }
     if (!window.confirm(`أرشفة «${category.name}»؟ سيبقى السجل والمنتجات دون حذف.`)) return;
