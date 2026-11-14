@@ -27,6 +27,17 @@ function sourceLabel(result: AiGatewayBudgetResult | null): string {
   return "المصدر غير متاح";
 }
 
+function safeSourceFailureReason(result: AiGatewayBudgetResult): string {
+  if (result.ok) return "";
+  if (result.status === "DENIED") {
+    return "رفضت صلاحيات الجلسة الحالية قراءة ملخص ميزانية بوابة الذكاء.";
+  }
+  if (result.status === "ERROR") {
+    return "استجابة مصدر ميزانية بوابة الذكاء غير مطابقة للعقد؛ لم تُقبل كدليل.";
+  }
+  return "تعذرت قراءة المصدر المعتمد حالياً.";
+}
+
 export function SystemHealthScreen() {
   const [probeState, setProbeState] = useState<ProbeState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,7 +139,7 @@ export function SystemHealthScreen() {
               <p className="mt-1 text-sm text-muted-foreground">
                 {result.ok
                   ? "استجاب RPC الإداري. هذا يؤكد قراءة الملخص فقط، ولا يثبت اتصال مزود خارجي أو نجاح طلب نموذج."
-                  : result.message}
+                  : safeSourceFailureReason(result)}
               </p>
             )}
             {probeState && (

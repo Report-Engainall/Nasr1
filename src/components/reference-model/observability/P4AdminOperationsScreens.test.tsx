@@ -147,6 +147,24 @@ describe("P4 monitoring screens", () => {
     expect(screen.getByText("public.get_ai_gateway_budget")).toBeInTheDocument();
   });
 
+  it("never renders an untrusted raw failure message from the health source", async () => {
+    const unsafeMessage = "Authorization: Bearer test-secret customer@example.test payload=private stack trace";
+    mocks.fetchAiGatewayBudget.mockResolvedValue({
+      ok: false,
+      status: "UNAVAILABLE",
+      message: unsafeMessage,
+    });
+    render(<SystemHealthScreen />);
+
+    expect(await screen.findByText("المصدر غير متاح")).toBeInTheDocument();
+    expect(screen.getByText("تعذرت قراءة المصدر المعتمد حالياً.")).toBeInTheDocument();
+    expect(screen.queryByText(unsafeMessage)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("test-secret");
+    expect(document.body.textContent).not.toContain("customer@example.test");
+    expect(document.body.textContent).not.toContain("payload=private");
+    expect(document.body.textContent).not.toContain("stack trace");
+  });
+
   it("does not describe permission denial as a system outage", async () => {
     mocks.fetchAiGatewayBudget.mockResolvedValue({
       ok: false,
