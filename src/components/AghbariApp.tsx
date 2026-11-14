@@ -113,8 +113,8 @@ const ADMIN_NAV_ICONS: Readonly<Record<View, IconType>> = {
 };
 
 const nav: { id: View; label: string; path: string; icon: IconType }[] =
-  ADMIN_NAV_GROUPS.flatMap(({ views }) =>
-    views.map(({ id, label, path }) => ({ id, label, path, icon: ADMIN_NAV_ICONS[id] })),
+  ADMIN_NAV_GROUPS.flatMap(({ items }) =>
+    items.map(({ id, label, path }) => ({ id, label, path, icon: ADMIN_NAV_ICONS[id] })),
   );
 
 
@@ -483,15 +483,14 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
   const visibleNavGroups = getVisibleAdminNavigationGroups(user?.roles ?? []).map((group) => ({
     ...group,
-    items: group.views
-      .map(({ id }) => nav.find((item) => item.id === id))
+    items: group.items.map(({ id }) => nav.find((item) => item.id === id))
       .filter((item): item is (typeof nav)[number] => Boolean(item)),
   }));
   const visibleNav = visibleNavGroups.flatMap(({ items }) => items);
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
   const activeNavigationItem = nav.find((item) => item.id === view);
-  const activeNavigationGroup = ADMIN_NAV_GROUPS.find((group) => group.views.some(({ id }) => id === view));
+  const activeNavigationGroup = ADMIN_NAV_GROUPS.find((group) => group.views.includes(view));
   const [mobileNav, setMobileNav] = useState(false);
   const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -923,7 +922,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   ] as const;
   const navigationGroups = getVisibleAdminNavigationGroups(user?.roles ?? []);
   const activeGroup = navigationGroups.find((group) => group.id === activeGroupId);
-  const activeGroupEntries = activeGroup?.views.flatMap(({ id }) => {
+  const activeGroupEntries = activeGroup?.items.flatMap(({ id }) => {
     const item = nav.find((candidate) => candidate.id === id);
     return item ? [item] : [];
   }) ?? [];
@@ -962,7 +961,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     <div className="stats-grid">{cards.map(([label, value, note, Icon, color]) => <article className={`stat-card ${color}`} key={label}><div className="stat-top"><Icon size={22} /><span>{note}</span></div><small>{label}</small><strong>{value}</strong></article>)}</div>
     <section className="admin-group-cards" aria-label="مجموعات الإدارة">
       {navigationGroups.map((group) => {
-        const entries = group.views.flatMap(({ id }) => {
+        const entries = group.items.flatMap(({ id }) => {
           const item = nav.find((candidate) => candidate.id === id);
           return item ? [item] : [];
         });
