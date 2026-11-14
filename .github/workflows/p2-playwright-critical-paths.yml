@@ -706,11 +706,6 @@ jobs:
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
-          SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          E2E_ADMIN_EMAIL: ${{ env.E2E_DEVICE_ADMIN_EMAIL }}
-          E2E_ADMIN_PASSWORD: ${{ env.E2E_DEVICE_ADMIN_PASSWORD }}
-          E2E_MANAGER_EMAIL: ${{ env.E2E_MANAGER_EMAIL }}
-          E2E_MANAGER_PASSWORD: ${{ env.E2E_MANAGER_PASSWORD }}
           E2E_PROOF_PATH: ${{ runner.temp }}/admin-access-matrix-browser-proof.json
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-access-matrix-browser.spec.ts"
       - name: Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit

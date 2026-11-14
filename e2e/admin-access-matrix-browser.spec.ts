@@ -53,7 +53,7 @@ test("admin access matrix is complete, responsive, keyboard reachable and admin-
   let operationCount = 0;
 
   try {
-    await signIn(admin, requiredEnv("E2E_ADMIN_EMAIL"), requiredEnv("E2E_ADMIN_PASSWORD"));
+    await signIn(admin, requiredEnv("E2E_DEVICE_ADMIN_EMAIL"), requiredEnv("E2E_DEVICE_ADMIN_PASSWORD"));
     await admin.goto("/admin/settings");
     await expect(admin.getByRole("heading", { name: "الإعدادات العامة", exact: true })).toBeVisible({ timeout: 30_000 });
 
