@@ -4,7 +4,8 @@ export type PromptLifecycleStatus =
   | "APPROVED"
   | "ACTIVE"
   | "REJECTED"
-  | "RETIRED";
+  | "RETIRED"
+  | "DISABLED";
 
 export type PromptAuditAction =
   | "CREATED"
@@ -13,7 +14,8 @@ export type PromptAuditAction =
   | "REJECTED"
   | "ACTIVATED"
   | "DEACTIVATED"
-  | "RETIRED";
+  | "RETIRED"
+  | "DISABLED";
 
 export interface PromptGovernanceActor {
   profileId: string;
@@ -40,6 +42,7 @@ export interface AiPromptVersion {
   decisionReason: string | null;
   activatedAt: string | null;
   deactivatedAt: string | null;
+  disabledAt: string | null;
   retiredAt: string | null;
 }
 
@@ -88,7 +91,7 @@ function validatePromptKey(value: string): string {
 }
 
 const promptLifecycleStatuses = new Set<PromptLifecycleStatus>([
-  "DRAFT", "PENDING_APPROVAL", "APPROVED", "ACTIVE", "REJECTED", "RETIRED",
+  "DRAFT", "PENDING_APPROVAL", "APPROVED", "ACTIVE", "REJECTED", "RETIRED", "DISABLED",
 ]);
 
 /**
@@ -250,6 +253,7 @@ export async function createPromptDraft(
     decisionReason: null,
     activatedAt: null,
     deactivatedAt: null,
+    disabledAt: null,
     retiredAt: null,
   };
   return {
@@ -386,6 +390,22 @@ export function activatePromptVersion(
   return { versions: nextVersions, events };
 }
 
+
+/** Emergency stop for an active prompt; the disabled version cannot be reactivated. */
+export function disablePromptVersion(
+  version: AiPromptVersion,
+  actor: PromptGovernanceActor,
+  eventId: string,
+  disabledAt: string,
+  reason: string,
+): { version: AiPromptVersion; event: AiPromptAuditEvent } {
+  requireActor(actor, version.organizationId);
+  const auditReason = requireReason(reason);
+  if (version.status !== "ACTIVE" || !validTimestamp(disabledAt)) throw new Error("prompt_disable_transition_invalid");
+  const next = { ...version, status: "DISABLED" as const, disabledAt, decisionReason: auditReason };
+  return { version: next, event: makeAuditEvent(eventId, next, "DISABLED", actor, "ACTIVE", "DISABLED", disabledAt, auditReason) };
+}
+
 export function retirePromptVersion(
   version: AiPromptVersion,
   actor: PromptGovernanceActor,
@@ -396,7 +416,7 @@ export function retirePromptVersion(
   requireActor(actor, version.organizationId);
   const auditReason = requireReason(reason);
   if (version.status === "ACTIVE" || version.status === "PENDING_APPROVAL" ||
-      version.status === "RETIRED" || !validTimestamp(retiredAt)) {
+      version.status === "RETIRED" || version.status === "DISABLED" || !validTimestamp(retiredAt)) {
     throw new Error("prompt_retirement_transition_invalid");
   }
   const next = { ...version, status: "RETIRED" as const, retiredAt, decisionReason: auditReason };

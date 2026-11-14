@@ -3,6 +3,7 @@ import {
   activatePromptVersion,
   approvePromptVersion,
   createPromptDraft,
+  disablePromptVersion,
   rejectPromptVersion,
   retirePromptVersion,
   submitPromptVersionForApproval,
@@ -223,4 +224,54 @@ describe("AI prompt version governance", () => {
     expect(() => retirePromptVersion(active, actor("admin-2"), "e2", createdAt, "إيقاف"))
       .toThrow("prompt_retirement_transition_invalid");
   });
+
+  it("disables an active prompt with an immutable audit event and reason", async () => {
+    const approvedPrompt = await approved();
+    const active = activatePromptVersion([approvedPrompt.version], approvedPrompt.version.id, actor("operator"),
+      "event-activate", "2026-11-14T01:00:00.000Z", "نسخة اجتازت المراجعة").versions[0];
+    const result = disablePromptVersion(active, actor("incident-admin"), "event-disable",
+      "2026-11-14T01:05:00.000Z", "إيقاف احترازي بسبب مراجعة الخصوصية");
+    expect(result.version).toMatchObject({
+      status: "DISABLED", disabledAt: "2026-11-14T01:05:00.000Z",
+      decisionReason: "إيقاف احترازي بسبب مراجعة الخصوصية",
+      contentSha256: active.contentSha256, content: active.content,
+    });
+    expect(result.event).toMatchObject({
+      action: "DISABLED", previousStatus: "ACTIVE", nextStatus: "DISABLED",
+      actorProfileId: "incident-admin", reason: "إيقاف احترازي بسبب مراجعة الخصوصية",
+    });
+  });
+
+  it("denies disabling non-active, cross-tenant, non-admin or reasonless prompts", async () => {
+    const draft = await create();
+    expect(() => disablePromptVersion(draft.version, actor("admin"), "e", createdAt, "إيقاف"))
+      .toThrow("prompt_disable_transition_invalid");
+    const approvedPrompt = await approved();
+    const active = activatePromptVersion([approvedPrompt.version], approvedPrompt.version.id, actor("operator"),
+      "event-activate-2", "2026-11-14T01:00:00.000Z", "مراجعة مستقلة").versions[0];
+    expect(() => disablePromptVersion(active, actor("foreign", ["admin"], "org-b"), "foreign",
+      "2026-11-14T01:05:00.000Z", "إيقاف بسبب الخصوصية")).toThrow("prompt_governance_actor_scope_denied");
+    expect(() => disablePromptVersion(active, actor("manager", ["manager"]), "manager",
+      "2026-11-14T01:05:00.000Z", "إيقاف بسبب الخصوصية")).toThrow("prompt_governance_admin_required");
+    expect(() => disablePromptVersion(active, actor("incident-admin"), "reason",
+      "2026-11-14T01:05:00.000Z", "  ")).toThrow("prompt_governance_reason_required");
+  });
+
+
+  it("keeps a disabled prompt terminal", async () => {
+    const approvedPrompt = await approved();
+    const active = activatePromptVersion(
+      [approvedPrompt.version], approvedPrompt.version.id, actor("operator"),
+      "terminal-activate", "2026-11-14T01:15:00.000Z", "مراجعة مستقلة",
+    ).versions[0];
+    const disabled = disablePromptVersion(
+      active, actor("incident-admin"), "terminal-disable",
+      "2026-11-14T01:20:00.000Z", "إيقاف احترازي موثق",
+    ).version;
+    expect(() => retirePromptVersion(
+      disabled, actor("archive-admin"), "terminal-retire",
+      "2026-11-14T01:25:00.000Z", "لا يسمح بأرشفة سجل معطل",
+    )).toThrow("prompt_retirement_transition_invalid");
+  });
+
 });

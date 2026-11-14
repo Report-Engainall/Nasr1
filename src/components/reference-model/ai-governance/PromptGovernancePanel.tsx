@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, Check, Clock3, FilePlus2, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react";
+import { Archive, Check, Clock3, FilePlus2, PowerOff, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import type { AiPromptAuditEvent, AiPromptVersion, PromptLifecycleStatus } from "@/lib/intelligence/ai-prompt-governance";
 import {
@@ -10,6 +10,7 @@ import {
   listAiPromptAuditEvents,
   rejectAiPromptVersion,
   retireAiPromptVersion,
+  disableAiPromptVersion,
   submitAiPromptVersion,
 } from "@/lib/reference-model/prompt-persistence/prompt-persistence-client";
 
@@ -20,6 +21,7 @@ const eventLabels: Record<AiPromptAuditEvent["action"], string> = {
   REJECTED: "رفض",
   ACTIVATED: "تفعيل",
   DEACTIVATED: "إيقاف النسخة السابقة",
+  DISABLED: "تعطيل النسخة النشطة",
   RETIRED: "أرشفة",
 };
 
@@ -30,6 +32,7 @@ const statusLabels: Record<PromptLifecycleStatus, string> = {
   ACTIVE: "نشطة",
   REJECTED: "مرفوضة",
   RETIRED: "مؤرشفة",
+  DISABLED: "معطلة",
 };
 
 function dateLabel(value: string | null): string {
@@ -201,6 +204,7 @@ export function PromptGovernancePanel() {
   const canReview = selected?.status === "PENDING_APPROVAL" && !isOwnDraft;
   const canActivate = selected?.status === "APPROVED" && !isOwnDraft && !isOwnApproval;
   const canRetire = Boolean(selected && ["DRAFT", "APPROVED", "REJECTED"].includes(selected.status));
+  const canDisable = selected?.status === "ACTIVE";
 
   return (
     <section dir="rtl" aria-label="حوكمة مكتبة أوامر الذكاء" className="space-y-4 rounded-xl border p-4">
@@ -380,7 +384,7 @@ export function PromptGovernancePanel() {
               </section>
 
               <label className="block space-y-1 text-sm">
-                <span className="font-medium">سبب المراجعة أو التفعيل أو الأرشفة</span>
+                <span className="font-medium">سبب المراجعة أو التفعيل أو التعطيل أو الأرشفة</span>
                 <input
                   className="w-full rounded-md border bg-background px-3 py-2"
                   value={reason}
@@ -411,6 +415,14 @@ export function PromptGovernancePanel() {
                     <ShieldCheck size={15} aria-hidden="true" /> تفعيل النسخة
                   </button>
                 ) : null}
+
+                {canDisable ? (
+                  <button type="button" disabled={busyAction !== null || reason.trim().length < 3}
+                    onClick={() => void perform("disable", "عُطلت النسخة النشطة وسُجل سبب الإيقاف.", () => disableAiPromptVersion(selected.id, commandId(), reason))}
+                    className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50">
+                    <PowerOff size={15} aria-hidden="true" /> تعطيل النسخة النشطة
+                  </button>
+                ) : null}
                 {canRetire ? (
                   <button type="button" disabled={busyAction !== null || reason.trim().length < 3} onClick={() => void perform("retire", "أُرشفت النسخة مع حفظ سبب القرار.", () => retireAiPromptVersion(selected.id, commandId(), reason))} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50">
                     <Archive size={15} aria-hidden="true" /> أرشفة
@@ -423,8 +435,8 @@ export function PromptGovernancePanel() {
               {selected.status === "APPROVED" && (isOwnDraft || isOwnApproval) ? (
                 <p className="text-xs text-muted-foreground">يلزم مسؤول ثالث غير المنشئ والمراجع لتفعيل هذه النسخة.</p>
               ) : null}
-              {selected.status === "ACTIVE" ? (
-                <p className="text-xs text-muted-foreground">لا يوفر عقد الحفظ تعطيلًا مستقلاً للنسخة النشطة؛ عند تفعيل نسخة بديلة معتمدة يسجل الخادم DEACTIVATED للنسخة الحالية ويعيدها إلى APPROVED. تعطيل مباشر بلا بديل غير متاح.</p>
+              {selected.status === "DISABLED" ? (
+                <p className="text-xs text-muted-foreground">هذه النسخة معطلة نهائياً لهذا الإصدار. لا يختارها الموجّه النشط؛ تتطلب العودة إلى الاستخدام إنشاء إصدار جديد ومراجعته واعتماده وتفعيله من جديد.</p>
               ) : null}
             </>
           )}
