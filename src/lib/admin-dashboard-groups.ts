@@ -6,7 +6,7 @@ import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix'
  */
 export function getVisibleAdminNavigationGroups(roles: readonly string[]) {
   return ADMIN_NAV_GROUPS.flatMap((group) => {
-    const views = group.views.filter((view) => rolesCanAccessView(roles, view));
+    const views = group.views.filter(({ id }) => rolesCanAccessView(roles, id));
     return views.length > 0 ? [{ ...group, views }] : [];
   });
 }
