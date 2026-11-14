@@ -74,3 +74,25 @@ P2 must fail closed on posted credit-note invoice/customer/organization/currency
 - P2 on main `67153d...`: **SUCCESS**; external E2E **SKIPPED**.
 - Issue #477: **OPEN**, preventing financial reconciliation acceptance.
 - Product release remains **NO-GO**.
+
+# P3 CATEGORY HIERARCHY — MERGED AND EXACT-MAIN ACCEPTANCE — 14 NOVEMBER 2026
+
+## Integration
+- Canonical repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+- PR #470 (category-tree component and component tests) merged at `1bd720cd3a6d56e4a030df8fe25f1e65f9e1d7ff`.
+- PR #474 (tenant-scoped server integrity, lock ordering and PostgreSQL 17 acceptance) merged at `e7028f576366c88d805e2dcb83fa7c1b190f046d`. Main HEAD is that merge commit. It carries tested category candidate `292d42d1911e58863d9698dac013552f10651608` and the current main-side P3 AI-gateway governance integration as its other parent.
+- The category migration is `supabase/migrations/20261114140100_admin_catalog_category_hierarchy_integrity.sql`. The full main tree contains 294 SQL migrations and zero duplicated 14-digit migration versions.
+
+## Exact-SHA acceptance
+- **P1 TESTED_EXACT_SHA:** run [#43544675111](https://github.com/Report-Engainall/Nasr1/actions/runs/43544675111) completed SUCCESS on exact main SHA `e7028f576366c88d805e2dcb83fa7c1b190f046d`: 120/120 Vitest files, 841/841 tests, strict TypeScript and production build all passed. `AdminCategoryTree.test.tsx` passed 7/7; `IntelligenceWorkspace.test.tsx` passed 10/10; `AiGatewayOperationsPanel.test.tsx` passed 2/2.
+- **P2 TESTED_EXACT_SHA:** run [#43544675327](https://github.com/Report-Engainall/Nasr1/actions/runs/43544675327) completed SUCCESS on the same exact main SHA. The authenticated local Supabase/PostgreSQL 17 + Chromium job passed all 43 steps, including fresh migration application, local fixture setup, tenant/role guards, atomic pricing, cash/receipt/product checks, application build/launch, authenticated order isolation, stock-count and purchase-order XLSX, checkout replay idempotency, customer returns/credit memo, audited Onyx export, financial printing, customer-manager privacy/audit, device-session immediate revocation, AI prompt lifecycle/four-eyes/tenant isolation/append-only audit, local teardown and evidence upload.
+- PostgreSQL 17 category step 23 emitted: `PASS category hierarchy PostgreSQL 17 acceptance: direct-child denial; transitive-grandchild denial; descendant active-product denial; inactive-product preservation; tenant-scoped RPC denial; create/archive lock race; product-save/archive lock race; cycle-safe recursive traversal; ordinary-customer role denial`.
+- P2 local authenticated artifact: `14093393395`; public read-only Storefront artifact: `14093631763`. Both were non-expired at verification.
+- P2's separate hosted customer/order/tenant E2E job is **SKIPPED**, not PASS. No hosted database writes or production verification are claimed.
+
+## Remaining acceptance boundary
+- The tree is implemented and integrated. Its seven component tests and helper tests cover the component/helper behavior, but a dedicated authenticated browser UAT of the mounted Admin Categories route has **NOT RUN**. Do not label that route BROWSER_PROVEN yet.
+- Keep `REF-CATEGORY-PRICE-STOCK-001` open for its separate category-detail prices/inventory browser UAT. Do not close or overwrite it with hierarchy evidence.
+- Next UI acceptance, using only approved local/non-production fixtures: admin/manager versus staff/customer access; desktop and mobile RTL; expand/collapse; nested search context; URL deep link/back navigation; root and child creation proving persisted `parent_id`; details and path; archived-row visibility and restore under an active parent; archive denials with active grandchildren/products; product preservation; price/inventory role visibility and unavailable-value handling. Capture before/after authorization evidence; no hosted production writes.
+- Independent financial blocker issue #477 remains OPEN (posted credit memo deduction from executive receivables). P4 observability PR #475 remains Draft/open. Overall release remains **NO-GO**; this category integration is not a product release declaration.
+- No production migration application, hosted DB write, deployment, paid provider, or paid service was used.
