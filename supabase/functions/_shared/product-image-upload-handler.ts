@@ -306,7 +306,7 @@ async function executeUploadCommand(
     } catch {
       cleanupFailed = true;
     }
-    const stale = rpcErrorCode(error) === "40001";
+    const stale = rpcErrorCode(error) === "PT409";
     const galleryLimit = command.mode === "gallery" && rpcErrorCode(error) === "22023";
     return reply({
       error: stale
@@ -352,7 +352,7 @@ async function executeUnlinkCommand(
     null,
   );
   if (error) {
-    const stale = rpcErrorCode(error) === "40001";
+    const stale = rpcErrorCode(error) === "PT409";
     return reply({ error: stale ? "image_link_changed" : "image_unlink_failed" }, stale ? 409 : 502);
   }
 
