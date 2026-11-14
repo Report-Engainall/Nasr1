@@ -5618,3 +5618,19 @@ Continue with another source-backed Section 45–64 gap; keep the simulator read
 ### P2 handoff — required next implementation
 
 Implement the trusted free-provider balance and rotation contract only after inspecting existing `ai_usage_ledger`, prompt-governance and gateway RPCs. Do not create a second AI usage engine. Add the minimum migration/RPC for provider quota evidence and atomic free-only reservation: provider/model/account alias, quota unit, free balance or request/token allowance, reset/expiry, evidence timestamp/source, `NO_PAYMENT_METHOD` plus no-auto-billing proof, reserved amount, idempotency key, and cooldown/exhaustion state. Reject any debit that would exceed the verified free grant. Test concurrent reservations, replay, quota exhaustion, provider-1 failure to provider-2 selection, all-free-quota exhaustion to local-only, and card-required/unknown billing denial on isolated PostgreSQL 17. Never deploy or call a live provider during acceptance.
+
+
+---
+
+## CURRENT P3 STATUS — AI GOVERNANCE JSONB INSERT ACCEPTANCE — 14 NOVEMBER 2026
+
+- Latest code-bearing SHA for the AI prompt acceptance harness: `e020947f76b2353615d44590fd268882ad734bb9`.
+- P3 exact checkpoint commit: `ad91dee75c70e2ae031714c9baee65fd6493e64b` (documentation update after the code-bearing SHA; no application or migration code change).
+- Issue #455: root-cause analysis is documented in the issue thread. The harness now uses explicit `db.json(value)` / `tx.json(value)` wrappers from locked `postgres@3.4.9`, with pre-insert assertions proving JSONB array and scalar shapes. This avoids passing pre-serialized JSON text through the driver's JSONB serializer a second time.
+- The first local P2 failure occurred at `insert source-backed local AI audit fixture` with SQLSTATE `22023` / `cannot get array length of a scalar`. No database CHECK constraint was relaxed. The historical scalar fixture remains a separate rollback-only test.
+- Exact P2 run [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657) is **QUEUED** for code SHA `e020947f76b2353615d44590fd268882ad734bb9`. There is no terminal PostgreSQL 17 result yet; do not mark PASS.
+- Earlier P2 runs [#43533130281](https://github.com/Report-Engainall/Nasr1/actions/runs/43533130281) and [#43533589204](https://github.com/Report-Engainall/Nasr1/actions/runs/43533589204) target earlier code revisions and are not evidence for the final explicit JSONB binding.
+- Public Storefront smoke success on the earlier `a8445923...` run does not replace the local PostgreSQL 17 / authenticated Chromium gate. External customer/order/tenant E2E remains a separate `SKIPPED` boundary, not PASS.
+- No production/hosted DB change, migration apply, Edge deployment, live AI provider call, payment/billing setup, secret, Vercel operation or paid service.
+- Next: collect terminal logs from run #43533714657, verify normal `provider_attempts` insert and subsequent prompt lifecycle/four-eyes/tenant/append-only audit, then verify rollback restores both CHECK constraints and leaves no legacy scalar row. Fix only confirmed defects and bind every retry to its exact SHA.
+- Product-wide production readiness remains **NO-GO**. The 41-screen reference acceptance, admin browser acceptance, hosted tenant E2E, free-quota evidence source/rotation contract, durable error event source and trusted Developer AI source remain separate open items.
