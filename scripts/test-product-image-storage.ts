@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import postgres from "postgres";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
@@ -27,6 +28,83 @@ type AssertionName =
   | "unlink-removes-database-reference-before-object-cleanup";
 
 const assertions: AssertionName[] = [];
+let localDatabaseDiagnostics: Record<string, unknown> | null = null;
+
+async function captureLocalDatabaseDiagnostics(): Promise<Record<string, unknown>> {
+  const databaseUrl = requiredEnv("TEST_DATABASE_URL");
+  const parsed = new URL(databaseUrl);
+  if (
+    !["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) ||
+    !parsed.port ||
+    parsed.port === "5432" ||
+    parsed.port === "6543"
+  ) {
+    throw new Error("Refusing Postgres diagnostics unless TEST_DATABASE_URL targets an isolated loopback Supabase database.");
+  }
+
+  const sql = postgres(databaseUrl, {
+    max: 1,
+    connect_timeout: 5,
+    idle_timeout: 1,
+    prepare: false,
+  });
+  try {
+    const server = await sql`select current_database() as database, current_setting('server_version') as server_version`;
+    const activity = await sql`
+      select
+        pid,
+        application_name,
+        usename,
+        state,
+        wait_event_type,
+        wait_event,
+        pg_blocking_pids(pid) as blocking_pids,
+        case when query_start is null then null
+             else round(extract(epoch from (clock_timestamp() - query_start))::numeric, 2)
+        end as query_age_seconds,
+        left(query, 220) as query
+      from pg_stat_activity
+      where datname = current_database()
+        and pid <> pg_backend_pid()
+        and (
+          state is distinct from 'idle'
+          or wait_event is not null
+          or cardinality(pg_blocking_pids(pid)) > 0
+        )
+      order by query_start nulls last
+      limit 30
+    `;
+    const locks = await sql`
+      select
+        l.locktype,
+        l.mode,
+        l.granted,
+        l.relation::regclass::text as relation,
+        l.page,
+        l.tuple,
+        a.pid,
+        a.application_name,
+        a.state,
+        a.wait_event_type,
+        a.wait_event,
+        left(a.query, 180) as query
+      from pg_locks l
+      left join pg_stat_activity a on a.pid = l.pid
+      where not l.granted
+         or l.relation = 'public.products'::regclass
+      order by l.granted, a.query_start nulls last
+      limit 40
+    `;
+    return {
+      database: server[0]?.database ?? null,
+      serverVersion: server[0]?.server_version ?? null,
+      activeSessions: activity,
+      relevantLocks: locks,
+    };
+  } finally {
+    await sql.end({ timeout: 2 }).catch(() => undefined);
+  }
+}
 const apiUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
 const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
 const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
@@ -86,6 +164,7 @@ async function writeProof(result: "PASS" | "FAIL", failure?: string): Promise<vo
     supabaseOrigin: api.origin,
     bucket: PRODUCT_IMAGE_BUCKET,
     assertions,
+    localDatabaseDiagnostics,
     noProductionWrites: true,
     edgeRuntimeDeployed: false,
     hostedSupabaseUsed: false,
@@ -389,6 +468,16 @@ async function main(): Promise<void> {
     activeObjectUuid = staleUuid;
     const staleResponse = await handler(makeUploadRequest(accessToken, PRODUCT_ID));
     const staleBody = await readJson(staleResponse);
+  if (
+    staleResponse.status !== 409 &&
+    lastProductImageRpcError?.message?.toLowerCase().includes("timing out")
+  ) {
+    try {
+      localDatabaseDiagnostics = await captureLocalDatabaseDiagnostics();
+    } catch (diagnosticError) {
+      localDatabaseDiagnostics = { captureError: errorMessage(diagnosticError) };
+    }
+  }
     assert(staleResponse.status === 409 && staleBody.error === "image_link_changed",
       "A stale primary image version must return HTTP 409 image_link_changed; received HTTP " +
         staleResponse.status + " body=" + JSON.stringify(staleBody) +
