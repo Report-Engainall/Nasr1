@@ -73,6 +73,16 @@ async function archiveCategory(client, id) {
   return asJson(rows[0]?.result);
 }
 
+async function insertProductFixture(db, organizationId, categoryId, status, suffix) {
+  const id = randomUUID();
+  await db.unsafe(
+    "insert into public.products(id,organization_id,category_id,name,item_code,unit,base_price,cost_price,min_stock,status) " +
+    "values($1::uuid,$2::uuid,$3::uuid,$4,$5,'piece',10,0,0,$6)",
+    [id, organizationId, categoryId, "P2 archive product " + suffix, "P2-ARCHIVE-" + suffix, status],
+  );
+  return id;
+}
+
 async function createProduct(client, categoryId, status, suffix) {
   const payload = {
     name: "P2 category archive fixture " + suffix,
@@ -142,7 +152,6 @@ async function main() {
   const managerB = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const customer = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const lockDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-  const createdProducts = [];
 
   try {
     for (const [label, claims] of [["manager", managerClaims], ["customer", customerClaims]]) {
@@ -232,8 +241,7 @@ async function main() {
     // An active product on an archived descendant is still a live dependency of its ancestors.
     const productRoot = await createCategory(managerA, "P2-PRODUCT-ROOT-" + suffix);
     const archivedProductCategory = await createCategory(managerA, "P2-PRODUCT-CHILD-" + suffix, productRoot);
-    const activeProduct = await createProduct(managerA, archivedProductCategory, "active", "ACT-" + suffix);
-    createdProducts.push(activeProduct);
+    const activeProduct = await insertProductFixture(db, organizationId, archivedProductCategory, "active", "ACT-" + suffix);
     await db.unsafe(
       "update public.categories set is_active=false where id=$1::uuid and organization_id=$2::uuid",
       [archivedProductCategory, organizationId],
@@ -254,12 +262,7 @@ async function main() {
     // Successful archive of a subtree with only an inactive product must preserve the product.
     const safeRoot = await createCategory(managerA, "P2-SAFE-ROOT-" + suffix);
     const safeChild = await createCategory(managerA, "P2-SAFE-CHILD-" + suffix, safeRoot);
-    const inactiveProduct = await createProduct(managerA, safeChild, "active", "INACT-" + suffix);
-    createdProducts.push(inactiveProduct);
-    await db.unsafe(
-      "update public.products set status='inactive' where organization_id=$1::uuid and id=$2::uuid",
-      [organizationId, inactiveProduct],
-    );
+    const inactiveProduct = await insertProductFixture(db, organizationId, safeChild, "inactive", "INACT-" + suffix);
     const beforeProduct = await db.unsafe(
       "select id::text,organization_id::text,category_id::text,status,item_code from public.products " +
       "where organization_id=$1::uuid and id=$2::uuid",
