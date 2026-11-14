@@ -598,6 +598,128 @@ async function main() {
     );
     assert.equal(activeCount[0].count, 1, "exactly one active prompt version is allowed per organization/key");
 
+    setPhase("disable active prompt with reason, idempotency and immutable audit");
+    const disabledReason = "إيقاف احترازي بسبب مراجعة الخصوصية";
+    const disableCommand = randomUUID();
+    await expectSqlState(
+      "prompt disable rejects a missing decision reason",
+      () => adminDb.unsafe(
+        "select public.disable_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
+        [draft2.version.id, randomUUID(), "  "],
+      ),
+      "22023",
+    );
+    await expectSqlState(
+      "ordinary manager cannot disable an active AI prompt",
+      () => managerDb.unsafe(
+        "select public.disable_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
+        [draft2.version.id, randomUUID(), disabledReason],
+      ),
+      "42501",
+    );
+    await expectSqlState(
+      "foreign administrator cannot disable another tenant's prompt",
+      () => foreignAdminDb.unsafe(
+        "select public.disable_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
+        [draft2.version.id, randomUUID(), disabledReason],
+      ),
+      "42501",
+    );
+
+    const disabled = asJson((await adminDb.unsafe(
+      "select public.disable_ai_prompt_version($1::uuid,$2::uuid,$3::text) as result",
+      [draft2.version.id, disableCommand, disabledReason],
+    ))[0].result);
+    assert.equal(disabled.version.status, "DISABLED");
+    assert.equal(disabled.version.id, draft2.version.id);
+    assert.ok(disabled.version.disabled_at, "disabled version must persist the server timestamp");
+    assert.equal(disabled.version.decision_reason, disabledReason);
+    assert.equal(disabled.version.content, content2, "emergency disable must not rewrite the immutable prompt content");
+    assert.equal(disabled.event.action, "DISABLED");
+    assert.equal(disabled.event.previous_status, "ACTIVE");
+    assert.equal(disabled.event.next_status, "DISABLED");
+    assert.equal(disabled.event.actor_profile_id, admin.id);
+    assert.equal(disabled.event.reason, disabledReason);
+    assert.equal(disabled.replayed, false);
+
+    const disableReplay = asJson((await adminDb.unsafe(
+      "select public.disable_ai_prompt_version($1::uuid,$2::uuid,$3::text) as result",
+      [draft2.version.id, disableCommand, disabledReason],
+    ))[0].result);
+    assert.equal(disableReplay.replayed, true, "the same disable command must replay idempotently");
+    assert.equal(disableReplay.version.status, "DISABLED");
+    assert.equal(disableReplay.event.id, disabled.event.id);
+    await expectSqlState(
+      "a disable command id cannot be replayed with a different reason",
+      () => adminDb.unsafe(
+        "select public.disable_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
+        [draft2.version.id, disableCommand, "سبب مختلف لإعادة الطلب"],
+      ),
+      "23505",
+    );
+    await expectSqlState(
+      "a disabled prompt cannot be disabled again with a new command",
+      () => adminDb.unsafe(
+        "select public.disable_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
+        [draft2.version.id, randomUUID(), disabledReason],
+      ),
+      "22023",
+    );
+    await expectSqlState(
+      "a disabled prompt cannot be reactivated",
+      () => adminDb.unsafe(
+        "select public.activate_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
+        [draft2.version.id, randomUUID(), "محاولة إعادة تفعيل نسخة معطلة"],
+      ),
+      "22023",
+    );
+    await expectSqlState(
+      "a disabled prompt cannot be retired or rewritten into another lifecycle state",
+      () => adminDb.unsafe(
+        "select public.retire_ai_prompt_version($1::uuid,$2::uuid,$3::text)",
+        [draft2.version.id, randomUUID(), "محاولة أرشفة نسخة معطلة"],
+      ),
+      "22023",
+    );
+
+    const disabledAuditCount = await db.unsafe(
+      "select count(*)::integer as count from public.ai_prompt_audit_events " +
+      "where organization_id=$1::uuid and prompt_version_id=$2::uuid and command_id=$3::uuid and action='DISABLED'",
+      [organizationId, draft2.version.id, disableCommand],
+    );
+    assert.equal(disabledAuditCount[0].count, 1, "disable replay must not duplicate the append-only audit event");
+    await expectSqlState(
+      "authenticated admin cannot update the immutable disable audit event",
+      () => adminDb.unsafe(
+        "update public.ai_prompt_audit_events set reason='تعديل غير مسموح' where id=$1::uuid",
+        [disabled.event.id],
+      ),
+      "42501",
+    );
+    await expectSqlState(
+      "authenticated admin cannot delete the immutable disable audit event",
+      () => adminDb.unsafe(
+        "delete from public.ai_prompt_audit_events where id=$1::uuid",
+        [disabled.event.id],
+      ),
+      "42501",
+    );
+
+    const disabledListed = asJson((await adminDb.unsafe(
+      "select public.list_ai_prompt_versions($1::text,'DISABLED',100,0) as result",
+      [promptKey],
+    ))[0].result);
+    const listedDisabled = disabledListed.items.find((row) => row.id === draft2.version.id);
+    assert.ok(listedDisabled, "the tenant prompt library must list the disabled version");
+    assert.equal(listedDisabled.disabled_at, disabled.version.disabled_at);
+    assert.equal(disabledListed.total, 1);
+
+    const disabledRuntimePrompt = asJson((await serviceDb.unsafe(
+      "select public.get_active_ai_prompt($1::uuid,$2::uuid,$3::text) as result",
+      [operatorClaims.sub, operatorClaims.session_id, promptKey],
+    ))[0].result);
+    assert.equal(disabledRuntimePrompt, null, "the service runtime must not select a disabled prompt when no active replacement exists");
+
     const rejectedDraft = asJson((await adminDb.unsafe(
       "select public.create_ai_prompt_draft($1::text,$2::text,$3::uuid) as result",
       ["assistant.rejected", "هذا توجيه صالح لاختبار مسار الرفض ومنع اعتماده.", randomUUID()],
