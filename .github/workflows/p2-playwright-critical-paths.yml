@@ -10,6 +10,7 @@ on:
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
       - "scripts/test-product-image-storage.ts"
+      - "scripts/prepare-p2-local-storage-migrations.mjs"
       - "scripts/test-local-endpoint-guard.mjs"
       - "scripts/lib/local-endpoint-guard.mjs"
       - "scripts/test-price-grid-atomicity.mjs"
@@ -517,10 +518,12 @@ jobs:
           grep -q "^shadow_port = ${shadow_port}$" "$local_project/supabase/config.toml"
           echo "- Allocated local PostgreSQL ports dynamically for this run (database $db_port, shadow $shadow_port) to prevent runner port collisions." >> "$GITHUB_STEP_SUMMARY"
           test -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql"
+          node scripts/prepare-p2-local-storage-migrations.mjs "$local_project/supabase/migrations"
           {
             echo "## Local order, tenant and product-image Storage migration boundary"
-            echo "- All repository migrations, including the product-images bucket, MIME and 8 MiB constraints, are applied to a disposable local PostgreSQL 17/Supabase stack."
-            echo "- The actual storage-api and imgproxy services are started for object upload/download acceptance; edge-runtime remains excluded and the shared handler is invoked in-process."
+            echo "- All repository migrations are applied to a disposable local PostgreSQL 17/Supabase stack; the three historical product-image policy/grant migrations are adapted only in this temporary copy because storage.objects is platform-owned."
+            echo "- The temporary copy retains the real product-images bucket, public-read mode, WebP-only MIME type and 8 MiB limit; committed migrations and hosted database policy state remain unchanged."
+            echo "- The actual storage-api and imgproxy services are exercised; direct authenticated writes must be denied while the shared handler uploads via the server-only service-role client. Edge Runtime remains excluded."
             echo "- No hosted Supabase project, remote migration, production secret or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Authenticate read-only to GHCR for isolated Supabase images
