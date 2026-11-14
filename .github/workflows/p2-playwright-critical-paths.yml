@@ -721,6 +721,24 @@ jobs:
             echo "- Product-image Storage is proven only if the isolated local Storage API integration script passes: bucket configuration, direct authenticated-write denial, WebP/8 MiB restrictions, service-role upload through the shared handler, public read, stale-link cleanup and unlink. Supabase Edge Runtime itself is not deployed or invoked."
             echo "- No hosted Supabase project, production secret, remote migration, or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Capture local Supabase diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          output="$RUNNER_TEMP/p2-local-supabase-diagnostics.log"
+          : > "$output"
+          echo "=== Isolated local Supabase container status ===" >> "$output"
+          docker ps -a --format '{{.Names}} {{.Status}}' | grep -F 'p2-local-e2e' >> "$output" || true
+          while IFS= read -r container; do
+            [ -n "$container" ] || continue
+            echo "=== Recent diagnostic lines: $container ===" >> "$output"
+            docker logs --since 15m --tail 500 "$container" 2>&1 |
+              grep -Ei 'error|warn|timeout|deadlock|lock|cancel|terminat|connection|pool|postgres|postgrest|upstream|statement|SQLSTATE' |
+              sed -E 's/(Bearer )[A-Za-z0-9._-]+/\1[REDACTED]/g; s/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/[JWT_REDACTED]/g' |
+              tail -n 350 >> "$output" || true
+          done < <(docker ps -a --format '{{.Names}}' | grep -F 'p2-local-e2e' || true)
+          cat "$output" >> "$GITHUB_STEP_SUMMARY"
       - name: Stop local application and Supabase
         if: always()
         shell: bash
@@ -738,4 +756,5 @@ jobs:
             ${{ runner.temp }}/p2-local-e2e-preview.log
             ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
             ${{ runner.temp }}/product-image-storage-proof.json
+            ${{ runner.temp }}/p2-local-supabase-diagnostics.log
           if-no-files-found: ignore
