@@ -5,6 +5,7 @@ import postgres from "postgres";
 const connectionString = requiredEnv("TEST_DATABASE_URL");
 const managerEmail = requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
 const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL").toLowerCase();
+const companyMemberEmail = requiredEnv("E2E_COMPANY_MEMBER_EMAIL").toLowerCase();
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const foreignOrganizationId = "a1111111-1111-4111-8111-111111111111";
 const ids = { customers:[randomUUID(),randomUUID()], foreignCustomer:randomUUID(), orders:[randomUUID(),randomUUID(),randomUUID()], invoices:[randomUUID(),randomUUID(),randomUUID()] };
@@ -30,6 +31,9 @@ async function main(){
  const accountants=await db.unsafe("select p.id::text,p.auth_user_id::text,p.email from public.profiles p join public.user_roles r on r.profile_id=p.id and r.role='accountant' where p.organization_id=$1::uuid and lower(p.email)=lower($2) and p.is_active=true",[organizationId,accountantEmail]);
  assert.equal(accountants.length,1,"P2 fixture must expose exactly one active accountant in the target organization");
  const accountant=accountants[0];
+ const companyMembers=await db.unsafe("select p.id::text,p.auth_user_id::text,p.email from public.profiles p join public.user_roles r on r.profile_id=p.id and r.role='customer' where p.organization_id=$1::uuid and lower(p.email)=lower($2) and p.is_active=true",[organizationId,companyMemberEmail]);
+ assert.equal(companyMembers.length,1,"P2 fixture must expose exactly one active non-finance company member");
+ const companyMember=companyMembers[0];
  const manager=managers[0];
  await db.unsafe(
   "insert into public.customers(id,organization_id,customer_code,business_name,contact_name,tier,credit_limit,current_balance,status,approved_at) values"+
@@ -93,15 +97,20 @@ async function main(){
  }
  assert.ok(!result.items.some(item=>item.customerId===ids.foreignCustomer),"foreign customer UUID must never appear in results");
  await setIdentity(managerDb,accountant.auth_user_id,accountant.email);
- let accountantDenied=null;
+ const accountantResponse=await managerDb.unsafe("select public.fetch_executive_receivable_customer_aging() as result");
+ assert.equal(accountantResponse.length,1,"finance-capable accountant must read executive receivable aging");
+ const accountantResult=asJson(accountantResponse[0].result);
+ assert.ok(accountantResult&&Array.isArray(accountantResult.items),"accountant response must preserve the validated finance payload");
+ await setIdentity(managerDb,companyMember.auth_user_id,companyMember.email);
+ let customerDenied=null;
  try {
   await managerDb.unsafe("select public.fetch_executive_receivable_customer_aging() as result");
  } catch(error) {
-  accountantDenied=error;
+  customerDenied=error;
  }
- assert.ok(accountantDenied,"accountant role must not read executive customer receivable aging");
- assert.equal(accountantDenied.code,"42501","non-finance role must be rejected by the server authorization boundary");
- process.stdout.write("P2 customer receivable identity PASS: same-name UUID separation, cross-tenant FK rejection, and accountant read denial.\n");
+ assert.ok(customerDenied,"non-finance company member must not read executive customer receivable aging");
+ assert.equal(customerDenied.code,"42501","customer role must be rejected by the server authorization boundary");
+ process.stdout.write("P2 customer receivable identity PASS: same-name UUID separation, cross-tenant FK rejection, accountant finance access, and non-finance customer denial.\\n");
 }
 try{
  try{await main();}
