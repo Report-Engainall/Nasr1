@@ -32,6 +32,10 @@ import { Login } from '@/components/Login';
 import { DashboardLoadError } from '@/components/DashboardLoadError';
 import { StorefrontPublicationReadiness } from '@/components/StorefrontPublicationReadiness';
 const AdminCategoryTree = lazy(async () => ({ default: (await import('@/components/AdminCategoryTree')).AdminCategoryTree }));
+const SystemHealthScreen = lazy(async () => ({ default: (await import('@/components/admin/operations')).SystemHealthScreen }));
+const ErrorLogScreen = lazy(async () => ({ default: (await import('@/components/admin/operations')).ErrorLogScreen }));
+const ArchitectureScreen = lazy(async () => ({ default: (await import('@/components/admin/operations')).ArchitectureScreen }));
+const EngineStatusScreen = lazy(async () => ({ default: (await import('@/components/admin/operations')).EngineStatusScreen }));
 
 import {
   AiCenter, Field, Loading, ErrorBox, Empty, Button,
@@ -78,7 +82,7 @@ import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
 import { adminRecordContextStorageKey, previousAdminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
 
-export type AdminView = 'dashboard' | 'products' | 'categories' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk';
+export type AdminView = 'dashboard' | 'products' | 'categories' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk' | 'system-health' | 'error-log' | 'architecture' | 'engine-status';
 export type AdminAppProps = { initialView?: AdminView };
 type View = AdminView;
 
@@ -97,6 +101,10 @@ const ADMIN_NAV_ICONS: Readonly<Record<View, IconType>> = {
   reports: BarChart3,
   data: Database,
   operations: Zap,
+  'system-health': Activity,
+  'error-log': AlertTriangle,
+  architecture: Settings,
+  'engine-status': Zap,
   notifications: Bell,
   ai: Bot,
   suppliers: Package,
@@ -324,6 +332,14 @@ function AdminWorkspaceContent({
       return <DataCenter onNotice={onNotice} onNavigate={onNavigate} initialImportJobId={recordContext?.kind === "import" ? recordContext.id : undefined} />;
     case "operations":
       return <OperationsCenter onNotice={onNotice} onOpenTask={(taskId) => { setNotificationTaskId(taskId); onNavigate("tasks"); }} />;
+    case "system-health":
+      return <SystemHealthScreen />;
+    case "error-log":
+      return <ErrorLogScreen />;
+    case "architecture":
+      return <ArchitectureScreen />;
+    case "engine-status":
+      return <EngineStatusScreen />;
     case "settings":
       return (
         <>
