@@ -313,9 +313,9 @@ export function PromptGovernancePanel() {
                 </div>
               </div>
               <dl className="grid gap-2 text-xs sm:grid-cols-2">
-                <div><dt className="text-muted-foreground">أنشأه</dt><dd className="mt-1 break-all" dir="ltr">{selected.createdByProfileId}</dd></div>
+                <div><dt className="text-muted-foreground">أنشأه</dt><dd className="mt-1">مسؤول موثق في سجل الخادم</dd></div>
                 <div><dt className="text-muted-foreground">تاريخ الإنشاء</dt><dd className="mt-1">{dateLabel(selected.createdAt)}</dd></div>
-                <div><dt className="text-muted-foreground">المراجع</dt><dd className="mt-1 break-all" dir="ltr">{selected.approvedByProfileId ?? "—"}</dd></div>
+                <div><dt className="text-muted-foreground">المراجع</dt><dd className="mt-1">{selected.approvedByProfileId ? "مراجع موثق في سجل الخادم" : "لم يعتمد بعد"}</dd></div>
                 <div><dt className="text-muted-foreground">تاريخ الاعتماد</dt><dd className="mt-1">{dateLabel(selected.approvedAt)}</dd></div>
               </dl>
               <div className="rounded-lg border p-3">
@@ -323,8 +323,9 @@ export function PromptGovernancePanel() {
                 <code className="mt-1 block break-all text-xs" dir="ltr">{selected.contentSha256}</code>
               </div>
               <div className="space-y-1 rounded-lg border p-3">
-                <p className="text-sm font-semibold">المحتوى غير القابل للتحرير</p>
-                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm leading-7">{selected.content}</pre>
+                <p className="text-sm font-semibold">محتوى الإصدار محمي</p>
+                <p className="text-xs text-muted-foreground">النص المحفوظ لا يُعرض في واجهة الحوكمة لتجنب كشف تعليمات النظام الحساسة. تُستخدم البصمة للتحقق من ثبات النسخة، ويظل قرار الاعتماد مسجلاً مستقلاً.</p>
+                <p className="text-xs text-muted-foreground">حجم المحتوى: {selected.content.length.toLocaleString("ar-YE")} محرفاً.</p>
               </div>
               {selected.decisionReason ? <p className="rounded-lg border p-3 text-sm">سبب القرار: {selected.decisionReason}</p> : null}
 
@@ -334,11 +335,15 @@ export function PromptGovernancePanel() {
                   <div className="grid gap-3 lg:grid-cols-2">
                     <article className="min-w-0 rounded-md bg-muted/30 p-3">
                       <p className="text-xs text-muted-foreground">الإصدار السابق · v{previousVersion.version}</p>
-                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs leading-6">{previousVersion.content}</pre>
+                      <p className="mt-2 text-xs">المحتوى محفوظ ومحجوب من العرض.</p>
+                      <code className="mt-2 block break-all text-[11px]" dir="ltr">{previousVersion.contentSha256}</code>
+                      <p className="mt-1 text-xs text-muted-foreground">الحجم: {previousVersion.content.length.toLocaleString("ar-YE")} محرفاً</p>
                     </article>
                     <article className="min-w-0 rounded-md bg-muted/30 p-3">
                       <p className="text-xs text-muted-foreground">الإصدار المحدد · v{selected.version}</p>
-                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs leading-6">{selected.content}</pre>
+                      <p className="mt-2 text-xs">المحتوى محفوظ ومحجوب من العرض.</p>
+                      <code className="mt-2 block break-all text-[11px]" dir="ltr">{selected.contentSha256}</code>
+                      <p className="mt-1 text-xs text-muted-foreground">الحجم: {selected.content.length.toLocaleString("ar-YE")} محرفاً</p>
                     </article>
                   </div>
                 ) : (
@@ -366,7 +371,7 @@ export function PromptGovernancePanel() {
                           {event.previousStatus ? statusLabels[event.previousStatus] + " ← " : ""}
                           {statusLabels[event.nextStatus]}
                         </p>
-                        <p className="mt-1 break-all text-xs text-muted-foreground" dir="ltr">{event.actorProfileId}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">المنفذ: مسؤول موثق لدى الخادم</p>
                         {event.reason ? <p className="mt-1 text-xs">{event.reason}</p> : null}
                       </li>
                     ))}
@@ -417,6 +422,9 @@ export function PromptGovernancePanel() {
               ) : null}
               {selected.status === "APPROVED" && (isOwnDraft || isOwnApproval) ? (
                 <p className="text-xs text-muted-foreground">يلزم مسؤول ثالث غير المنشئ والمراجع لتفعيل هذه النسخة.</p>
+              ) : null}
+              {selected.status === "ACTIVE" ? (
+                <p className="text-xs text-muted-foreground">لا يوفر عقد الحفظ تعطيلًا مستقلاً للنسخة النشطة؛ عند تفعيل نسخة بديلة معتمدة يسجل الخادم DEACTIVATED للنسخة الحالية ويعيدها إلى APPROVED. تعطيل مباشر بلا بديل غير متاح.</p>
               ) : null}
             </>
           )}

@@ -68,6 +68,8 @@ describe("AiUsageAuditPanel", () => {
     expect(await screen.findByText("req-p2-ai-audit-001")).toBeInTheDocument();
     expect(screen.getAllByText("openai_compatible / example-model")).toHaveLength(2);
     expect(screen.getByText("استهلاك مقاس من المزود")).toBeInTheDocument();
+    expect(screen.getByText("مسؤول موثق لدى سجل الخادم")).toBeInTheDocument();
+    expect(screen.queryByText(record.actorProfileId)).not.toBeInTheDocument();
     expect(screen.getByText(/التكلفة المقدّرة: 0[.]0042/)).toBeInTheDocument();
     expect(screen.queryByText(/نص السؤال الخام/)).not.toBeInTheDocument();
     expect(screen.queryByText(/الرد السري/)).not.toBeInTheDocument();
