@@ -481,8 +481,6 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
   const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&
     !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
-  const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const canManageIntelligence = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const visibleNavGroups = getVisibleAdminNavigationGroups(user?.roles ?? []).map((group) => ({
     ...group,
     items: group.views
