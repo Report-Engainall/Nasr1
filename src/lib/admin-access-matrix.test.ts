@@ -16,7 +16,7 @@ describe("admin access presentation contract", () => {
     expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.items).toEqual(ADMIN_NAV_ITEMS.filter(({ id }) => ['products', 'categories', 'pricing', 'offers'].includes(id)));
     expect(ADMIN_NAV_GROUPS).toHaveLength(6);
     expect(ADMIN_NAV_ITEMS).toHaveLength(28);
-    expect(new Set(ADMIN_NAV_ITEMS.map(({ path }) => path)).size).toBe(24);
+    expect(new Set(ADMIN_NAV_ITEMS.map(({ path }) => path)).size).toBe(ADMIN_NAV_ITEMS.length);
     expect(ADMIN_NAV_ITEMS.every(({ label, path }) => label.trim().length > 0 && path.startsWith('/admin'))).toBe(true);
     expect(ADMIN_NAV_PATHS.categories).toBe('/admin/categories');
     expect(ADMIN_NAV_PATHS['system-health']).toBe('/admin/system-health');
