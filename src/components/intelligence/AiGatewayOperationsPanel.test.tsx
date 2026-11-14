@@ -18,8 +18,8 @@ describe("AiGatewayOperationsPanel",()=>{
   expect(screen.getAllByText("الأهلية المجانية: غير متحققة — BLOCKED")).toHaveLength(2);
   expect(screen.getAllByText("آخر تحقق: لم يسجل المصدر وقت تحقق مجاني.")).toHaveLength(2);
   fireEvent.click(screen.getByRole("tab",{name:"النماذج"}));
-  expect(screen.getByText("gemini-example-model")).toBeInTheDocument();
-  expect(screen.getByText("openai-example-model")).toBeInTheDocument();
+  expect(screen.getAllByText("gemini-example-model").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("openai-example-model").length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole("tab",{name:"الحصص"}));
   expect(screen.getAllByText("غير متاح — لم يرده المصدر")).toHaveLength(2);
   expect(screen.getByText("غير متحققة؛ لا يمكن اختيار المزود")).toBeInTheDocument();

@@ -294,7 +294,11 @@ async function main() {
       "where organization_id=$1::uuid and id=$2::uuid",
       [organizationId, inactiveProduct],
     );
-    assert.deepEqual(afterProduct, beforeProduct, "category archival must not delete, reassign, or modify its product row");
+    assert.deepEqual(
+      Array.from(afterProduct, (row) => ({ ...row })),
+      Array.from(beforeProduct, (row) => ({ ...row })),
+      "category archival must not delete, reassign, or modify its product row",
+    );
     assert.equal(await countAudit(db, organizationId, safeRoot), 1, "successful parent archive must emit one audit event");
     assert.equal(await countAudit(db, organizationId, safeChild), 1, "successful child archive must emit one audit event");
 
@@ -319,13 +323,13 @@ async function main() {
       "select organization_id::text,is_active,parent_id::text from public.categories where id=$1::uuid",
       [foreignCategoryId],
     );
-    assert.deepEqual(foreignState, [{
+    assert.deepEqual(Array.from(foreignState, (row) => ({ ...row })), [{
       organization_id: foreignOrganizationId,
       is_active: true,
       parent_id: null,
     }], "cross-tenant denial must leave the foreign category unchanged");
 
-    // CREATE-vs-ARCHIVE race: parent FOR UPDATE must block child FOR KEY SHARE.
+    // CREATE-vs-ARCHIVE race: parent FOR UPDATE must block child FOR SHARE.
     const createRaceRoot = await createCategory(managerA, "P2-CREATE-RACE-" + suffix);
     let createSettled = false;
     let createRacePromise;
