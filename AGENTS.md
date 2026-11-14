@@ -40,15 +40,22 @@ Only acceptance matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPT
 - Preserve audit/history and existing customer order amendment/return/cancellation, supplier finance, liquidity/reconciliation, replenishment, task/service, Customer 360, Onyx, analytics and export modules. Verify before extending; never rebuild them.
 - No fabricated balances, invoices, payments, tax, FX, stock or delivery status.
 
-## Work ownership
+## Sole execution owner and unified responsibility
 
-- P1: product UI, route/screen integration, customer/admin workflows and client data handling.
-- P2: database schema, migrations, RPC, RLS, tenant authorization, finance, inventory and server integrations.
-- P3: intelligent/rule engines, formulas, evidence-backed decisions and intelligence contracts.
-- Coordinate shared contracts; do not duplicate P3 engines. The user's latest explicit session instructions override stale historical ownership notes.
+- **One programmer only: ChatGPT — P1.** The user has explicitly consolidated all former P1, P2 and P3 responsibilities under ChatGPT. These labels describe technical domains only; they are not separate owners, workers, agents or handoffs.
+- ChatGPT owns the complete product lifecycle: customer/admin UI, routes, workflows, client data handling, database schema and migrations, RPC, RLS, tenant authorization, finance, inventory, server integrations, intelligent engines, formulas, evidence-backed decisions, tests, security review, integration, PR reconciliation and safe merge.
+- Do not wait for, delegate to, or create parallel assignments for P2/P3/other programmers or external builders. Sequence work by dependency, but retain one accountable implementation path.
+- Preserve existing contracts and working modules. Reuse existing engines; never create duplicate engines or rebuild completed features.
+- Database, security and finance changes still require exact schema/ledger inspection, additive migrations, isolated PostgreSQL 17 acceptance and tenant/RLS proof. Consolidating ownership does not weaken these technical gates.
+- main remains the only source of truth. Preserve existing branches and unmerged work; reconcile overlap before merging. Never delete branches, discard user work, force-push or rewrite history.
+- No task is complete because a file or screen exists. Complete a vertical slice from route/UI through service, data contract, authorization and appropriate tests; repair failures before advancing.
+- A blocker on one integration must not stop independent implementation. Record the exact blocker in the single execution pointer, continue other eligible work, then return to it.
+- Reports are delivery evidence, not the work itself. Do not repeat repository-wide discovery or produce status-only updates when an actionable change is available.
+
 
 ## Tooling and quota-protection policy — mandatory for every programmer/agent
 
+- **Bolt New is permanently prohibited.** Do not open it, sync to it, connect it, use its database/auth/storage/functions, or plan a later migration/rebuild there. Do not use Lovable or Lovable Cloud as a substitute.
 - **GitHub is the default and required engineering workspace** for this project: inspect and edit source, commit changes, review diffs, track issues, and use GitHub Actions for source-level CI where appropriate.
 - **Do not use Vercel as a coding, editing, build, test, review, or agent-execution workspace.** Do not invoke Vercel CLI, Vercel build/deploy/preview operations, remote sandboxes, or deployment agents for routine implementation or verification.
 - **Do not spend Vercel build/deployment quota or credits** for source checks, linting, tests, typechecking, builds, or code review. Prefer GitHub repository operations and the repository's GitHub Actions workflows; use local/free checks when available.
