@@ -25,6 +25,7 @@ const STATUSES = new Set<PromptLifecycleStatus>([
   "ACTIVE",
   "REJECTED",
   "RETIRED",
+  "DISABLED",
 ]);
 const ACTIONS = new Set<PromptAuditAction>([
   "CREATED",
@@ -34,6 +35,7 @@ const ACTIONS = new Set<PromptAuditAction>([
   "ACTIVATED",
   "DEACTIVATED",
   "RETIRED",
+  "DISABLED",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,6 +96,7 @@ function parseVersion(value: unknown): AiPromptVersion {
     decisionReason: nullableString(value.decision_reason),
     activatedAt: nullableString(value.activated_at),
     deactivatedAt: nullableString(value.deactivated_at),
+    disabledAt: nullableString(value.disabled_at),
     retiredAt: nullableString(value.retired_at),
   };
 }
@@ -214,6 +217,15 @@ export function activateAiPromptVersion(versionId: string, commandId: string, re
     "تعذر تفعيل النسخة.",
   );
 }
+
+export function disableAiPromptVersion(versionId: string, commandId: string, reason: string): Promise<PromptGovernanceMutation> {
+  return runMutation(
+    "disable_ai_prompt_version",
+    { p_version_id: versionId, p_command_id: commandId, p_reason: reason },
+    "تعذر تعطيل النسخة النشطة.",
+  );
+}
+
 export function retireAiPromptVersion(versionId: string, commandId: string, reason: string): Promise<PromptGovernanceMutation> {
   return runMutation(
     "retire_ai_prompt_version",

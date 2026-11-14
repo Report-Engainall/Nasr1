@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   rejectAiPromptVersion: vi.fn(),
   activateAiPromptVersion: vi.fn(),
   retireAiPromptVersion: vi.fn(),
+  disableAiPromptVersion: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: mocks.useAuth }));
@@ -25,6 +26,7 @@ vi.mock("@/lib/reference-model/prompt-persistence/prompt-persistence-client", ()
   rejectAiPromptVersion: mocks.rejectAiPromptVersion,
   activateAiPromptVersion: mocks.activateAiPromptVersion,
   retireAiPromptVersion: mocks.retireAiPromptVersion,
+  disableAiPromptVersion: mocks.disableAiPromptVersion,
 }));
 
 import { PromptGovernancePanel } from "./PromptGovernancePanel";
@@ -47,6 +49,7 @@ const version = {
   decisionReason: null,
   activatedAt: null,
   deactivatedAt: null,
+  disabledAt: null,
   retiredAt: null,
 };
 
@@ -128,6 +131,41 @@ describe("PromptGovernancePanel", () => {
     expect(await screen.findByText("يلزم مسؤول ثالث غير المنشئ والمراجع لتفعيل هذه النسخة.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تفعيل النسخة" })).toBeDisabled();
   });
+
+  it("disables an active prompt only after a reason and reloads the server state", async () => {
+    const active = { ...version, status: "ACTIVE" as const,
+      approvedByProfileId: "00000000-0000-4000-8000-000000000021",
+      approvedAt: "2026-11-14T00:02:00.000Z", activatedAt: "2026-11-14T00:03:00.000Z" };
+    const disabled = { ...active, status: "DISABLED" as const,
+      disabledAt: "2026-11-14T00:10:00.000Z", decisionReason: "إيقاف احترازي بسبب مراجعة الخصوصية" };
+    const auditEvent = {
+      id: "00000000-0000-4000-8000-000000000031", organizationId: disabled.organizationId,
+      promptVersionId: disabled.id, promptKey: disabled.promptKey, version: disabled.version,
+      action: "DISABLED" as const, actorProfileId: "00000000-0000-4000-8000-000000000022",
+      previousStatus: "ACTIVE" as const, nextStatus: "DISABLED" as const,
+      reason: "إيقاف احترازي بسبب مراجعة الخصوصية", occurredAt: "2026-11-14T00:10:00.000Z",
+    };
+    mocks.listAiPromptVersions.mockResolvedValueOnce({ items: [active], total: 1 })
+      .mockResolvedValueOnce({ items: [disabled], total: 1 });
+    mocks.listAiPromptAuditEvents.mockResolvedValueOnce([]).mockResolvedValue([auditEvent]);
+    mocks.disableAiPromptVersion.mockResolvedValue({ version: disabled, replayed: false, events: [auditEvent] });
+    render(<PromptGovernancePanel />);
+    expect(await screen.findAllByText("نشطة")).toHaveLength(2);
+    const button = screen.getByRole("button", { name: "تعطيل النسخة النشطة" });
+    expect(button).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("سبب المراجعة أو التفعيل أو التعطيل أو الأرشفة"), {
+      target: { value: "إيقاف احترازي بسبب مراجعة الخصوصية" },
+    });
+    fireEvent.click(button);
+    await waitFor(() => expect(mocks.disableAiPromptVersion).toHaveBeenCalledWith(
+      active.id, expect.any(String), "إيقاف احترازي بسبب مراجعة الخصوصية",
+    ));
+    expect(await screen.findByText("عُطلت النسخة النشطة وسُجل سبب الإيقاف.")).toBeInTheDocument();
+    expect(await screen.findAllByText("معطلة")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "تعطيل النسخة النشطة" })).not.toBeInTheDocument();
+    expect(screen.getByText("هذه النسخة معطلة نهائياً لهذا الإصدار. لا يختارها الموجّه النشط؛ تتطلب العودة إلى الاستخدام إنشاء إصدار جديد ومراجعته واعتماده وتفعيله من جديد.")).toBeInTheDocument();
+  });
+
   it("shows the previous persisted version and server audit events for comparison", async () => {
     const prior = { ...version, id: "00000000-0000-4000-8000-000000000002", version: 1, status: "APPROVED" as const, content: "النص السابق للإصدار الأول بغرض المقارنة الفعلية." };
     const current = { ...version, version: 2, status: "ACTIVE" as const, content: "النص الحالي للإصدار الثاني المعتمد والفعال." };
@@ -160,7 +198,7 @@ describe("PromptGovernancePanel", () => {
     expect(screen.getAllByText("مسؤول موثق في سجل الخادم").length).toBeGreaterThan(0);
     expect(screen.queryByText("00000000-0000-4000-8000-000000000020")).not.toBeInTheDocument();
     expect(screen.queryByText("00000000-0000-4000-8000-000000000040")).not.toBeInTheDocument();
-    expect(await screen.findByText("لا يوفر عقد الحفظ تعطيلًا مستقلاً للنسخة النشطة؛ عند تفعيل نسخة بديلة معتمدة يسجل الخادم DEACTIVATED للنسخة الحالية ويعيدها إلى APPROVED. تعطيل مباشر بلا بديل غير متاح.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "تعطيل النسخة النشطة" })).toBeInTheDocument();
     expect(await screen.findByText("سجل التدقيق append-only")).toBeInTheDocument();
     expect(screen.getByText("تم التفعيل بعد المراجعة")).toBeInTheDocument();
   });
