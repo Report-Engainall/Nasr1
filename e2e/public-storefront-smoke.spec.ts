@@ -945,8 +945,9 @@ test("help center navigation, Arabic search and action destinations are browser-
     ["عروض الأسعار", "/quotes"],
     ["أعضاء الشركة", "/company/members"],
   ] as const;
+  const helpActionRegion = page.getByRole("region", { name: "ابدأ من الخدمة المطلوبة" });
   for (const [label, href] of expectedActionPaths) {
-    const action = page.getByRole("link", { name: label });
+    const action = helpActionRegion.getByRole("link", { name: label });
     await expect(action, "Help action should lead to the existing " + href + " route").toHaveAttribute("href", href);
   }
   await expect(page.getByRole("link", { name: /فتح مركز خدمة العملاء/ }))
