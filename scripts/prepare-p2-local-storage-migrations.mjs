@@ -16,9 +16,7 @@ if (!process.argv[2]) {
 
 const relativeDirectory = relative(runnerTemp, migrationsDirectory);
 if (
-  relativeDirectory.startsWith("..") ||
-  relativeDirectory === "" ||
-  !migrationsDirectory.endsWith(["supabase", "migrations"].join(sep))
+  relativeDirectory !== ["p2-local-supabase", "supabase", "migrations"].join(sep)
 ) {
   throw new Error("Refusing to rewrite migrations outside the isolated RUNNER_TEMP Supabase copy.");
 }
@@ -72,7 +70,7 @@ await writeFile(edgeBoundaryPath, localOnlyNoop(edgeBoundaryMigration), "utf8");
 for (const file of [bucketMigration, policyScopeMigration, edgeBoundaryMigration]) {
   const content = await readFile(resolve(migrationsDirectory, file), "utf8");
   assert.ok(!content.includes("ALTER TABLE storage.objects"), `${file} must not alter managed Storage tables in the local migration runner.`);
-  assert.ok(!content.includes("CREATE POLICY") || file === bucketMigration, `${file} must not create RLS policies on managed storage.objects in the local migration runner.`);
+  assert.ok(!content.includes("CREATE POLICY"), `${file} must not create Storage RLS policies in the local migration runner.`);
 }
 
 process.stdout.write(
