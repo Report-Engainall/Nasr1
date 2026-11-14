@@ -160,3 +160,35 @@ Read the terminal P1/P2 result for this exact SHA. Fix any test or migration reg
 - The preceding completed P2 run on `3e45227...` applied repository migrations successfully to isolated PostgreSQL 17 but its AI fixture failed before the audit RPC because the harness inserted a scalar while the production JSONB array CHECK constraints were correctly enabled.
 - The test harness now inserts the legacy scalar only in a disposable transaction, drops the two array CHECK constraints inside that transaction, calls the RPC with real local admin JWT/session claims, asserts integrity=false / empty details / original count, forces rollback, then asserts both constraints are restored and the scalar fixture row is absent. No production migration or constraint was weakened.
 - P2 acceptance of that rollback-only case is **NOT YET PROVEN**. Keep the release boundary NO-GO until the current P2 run reaches its local DB job and completes.
+
+
+---
+
+## P3 CHECKPOINT — EXPLICIT JSONB BINDING FOR AI GOVERNANCE PG17 ACCEPTANCE — 14 NOVEMBER 2026
+
+- Repository: `Report-Engainall/Nasr1`; branch: `main`.
+- Code/test commit: `e020947f76b2353615d44590fd268882ad734bb9`.
+- Changed path: `scripts/test-ai-prompt-governance.mjs`; resulting blob: `a94fa0165ac829f61bb4f3b33cfd0bb73d668061`.
+- Issue tracked: [#455](https://github.com/Report-Engainall/Nasr1/issues/455).
+
+### Failure analysis and correction
+
+- The prior local PostgreSQL 17 run failed during the phase `insert source-backed local AI audit fixture` with SQLSTATE `22023` / `cannot get array length of a scalar`.
+- The repository locks `postgres@3.4.9`. Its source shows JSONB OID 3802 is associated with a JSON serializer that calls `JSON.stringify(value)`. For an explicitly cast/inferred JSONB parameter, passing a string that already contains `JSON.stringify(array)` can be serialized again as a JSON string scalar.
+- The acceptance harness now uses the explicit `db.json(value)` and `tx.json(value)` wrappers. These set the JSONB parameter type deliberately and let the driver serialize the original JavaScript array/string exactly once.
+- Before the normal ledger insert, the test now asserts `jsonb_typeof($1::jsonb) = 'array'` and `jsonb_array_length($1::jsonb) = 1`. The historical scalar fixture asserts type `string`; it remains inside a rollback-only transaction that temporarily drops only the two array-shape constraints, then verifies both constraints return and the fixture row is absent.
+- Production CHECK constraints, migration files, RPCs, table data, tenant/RLS policy and application runtime were not modified by this test-harness correction.
+
+### Exact-SHA acceptance state
+
+- Latest code SHA: `e020947f76b2353615d44590fd268882ad734bb9`.
+- P2 run [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657): **QUEUED** on this exact SHA at checkpoint time. No database acceptance is claimed.
+- Previous runs [#43533130281](https://github.com/Report-Engainall/Nasr1/actions/runs/43533130281) and [#43533589204](https://github.com/Report-Engainall/Nasr1/actions/runs/43533589204) target earlier SHAs and do not validate the final `db.json/tx.json` implementation.
+- P1 was not triggered by the P2-only test-script path. No P1 evidence is transferred to this SHA.
+- External customer/order/tenant E2E is separately gated and may be SKIPPED; it is not a PASS and cannot substitute for local PG17 acceptance.
+
+### Safety and next step
+
+- No production/hosted database, migration, live Edge Function, provider call, payment/billing setup, secret, Vercel build/deployment or paid service was used.
+- Keep the AI prompt persistence acceptance and overall release **OPEN / NO-GO** until P2 reaches a terminal result on the exact SHA and proves normal JSONB array insertion, four-eyes lifecycle, tenant isolation, append-only audit, malformed legacy read, rollback and constraint restoration.
+- Next action: inspect terminal P2 job logs for run `43533714657`; only fix source-backed failures and re-run every affected gate on the resulting exact SHA.
