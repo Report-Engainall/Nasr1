@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
 import {
   readAdminEngineObservations,
   type AdminEngineObservation,
