@@ -212,3 +212,12 @@ Read the terminal P1/P2 result for this exact SHA. Fix any test or migration reg
 - Customer-manager finance privacy, device-session immediate revocation, and the AI prompt governance step (step 38) remain pending. In particular, the `db.json/tx.json` fix has not yet been exercised by the live PG17 prompt-governance test.
 - Public Storefront smoke and infrastructure gate are SUCCESS; external customer/order/tenant E2E is SKIPPED. P2 overall stays **IN_PROGRESS**.
 - Release remains **NO-GO** until the local run terminates successfully and proves the AI usage/prompt JSONB path, including rollback restoration.
+
+
+### P2 AI audit RPC visibility retest — 14 November 2026
+
+- P2 run [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657) on code SHA `e020947...` completed **FAILURE** at AI audit acceptance step 38 after 37 earlier successful steps. It inserted both the valid array fixture and rollback-only scalar fixture using explicit JSONB wrappers; the audit RPC did not throw SQLSTATE 22023, but the scalar fixture was absent from the first 50 result items. The run does not prove scalar sanitization or Maker/Checker completion.
+- Corrective harness-only commit `126727f4aaf8d487ded39bc9991b01ecdd2d28fc` changes `scripts/test-ai-prompt-governance.mjs` only: database `clock_timestamp()` for source-backed and rollback-only fixture ordering, a direct source-presence assertion, audit RPC limit 100 (the supported maximum), and total/request-id diagnostics on failure.
+- No production RPC or permission was widened; no migration or constraint changed. Scalar fixture remains rollback-only, with both production array constraints and absence of a persisted legacy row checked after rollback.
+- Retest [#43534854634](https://github.com/Report-Engainall/Nasr1/actions/runs/43534854634) is **QUEUED** on exact SHA `126727f4...`. The prior 37 successes are not proof for this new revision. Wait for exact-SHA rerun and specifically prove malformed scalar details are withheld, attempt count is retained, then finish Maker/Checker, tenant isolation, append-only audit and rollback.
+- External customer/order/tenant acceptance remains SKIPPED, not PASS. Release remains NO-GO.
