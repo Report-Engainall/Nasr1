@@ -18,6 +18,16 @@ describe('getVisibleAdminNavigationGroups', () => {
     ]);
   });
 
+  it('keeps destination labels and paths attached to the filtered catalog links', () => {
+    const catalog = getVisibleAdminNavigationGroups(['staff']).find(({ id }) => id === 'catalog');
+    expect(catalog?.items.find(({ id }) => id === 'categories')).toMatchObject({
+      id: 'categories',
+      label: 'التصنيفات الرئيسية والفرعية',
+      path: '/admin/categories',
+    });
+    expect(catalog?.views).toEqual(catalog?.items.map(({ id }) => id));
+  });
+
   it('does not expose administration groups to customer identities', () => {
     expect(getVisibleAdminNavigationGroups(['customer'])).toEqual([]);
     expect(getVisibleAdminNavigationGroups(['customer_manager']).map(({ id, views }) => [id, [...views]])).toEqual([
