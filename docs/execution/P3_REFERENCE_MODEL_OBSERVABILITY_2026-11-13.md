@@ -192,3 +192,11 @@ Read the terminal P1/P2 result for this exact SHA. Fix any test or migration reg
 - No production/hosted database, migration, live Edge Function, provider call, payment/billing setup, secret, Vercel build/deployment or paid service was used.
 - Keep the AI prompt persistence acceptance and overall release **OPEN / NO-GO** until P2 reaches a terminal result on the exact SHA and proves normal JSONB array insertion, four-eyes lifecycle, tenant isolation, append-only audit, malformed legacy read, rollback and constraint restoration.
 - Next action: inspect terminal P2 job logs for run `43533714657`; only fix source-backed failures and re-run every affected gate on the resulting exact SHA.
+
+
+### P1 exact-main verification addendum — 14 November 2026
+
+- Documentation descendant main SHA: `1fdd2edaa09c223dde7ff95cd59919e04f32c315`; code under test is unchanged from code-bearing SHA `e020947f76b2353615d44590fd268882ad734bb9`.
+- P1 [#43533795662](https://github.com/Report-Engainall/Nasr1/actions/runs/43533795662): **SUCCESS** on exact head `1fdd2edaa09c223dde7ff95cd59919e04f32c315`; 116 test files / 818 tests passed, strict TypeScript passed, production Vite/Nitro build passed.
+- P2 [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657): **IN_PROGRESS** on exact code SHA `e020947f76b2353615d44590fd268882ad734bb9`. Infrastructure gate and public read-only Storefront smoke are SUCCESS. Local isolated Supabase/PostgreSQL job #132258262810 is starting local Supabase services; repository migrations and authenticated DB acceptance are still pending. External customer/order/tenant E2E is SKIPPED.
+- The P1 result proves the repository test/type/build gates for the current source, but it does not test the `scripts/test-ai-prompt-governance.mjs` PostgreSQL JSONB parameter path. Only the dependent P2 local job can prove that path.
