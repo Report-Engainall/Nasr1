@@ -92,7 +92,7 @@ async function main(){
   );
  }
  await setIdentity(managerDb,manager.auth_user_id,manager.email);
- const payment=await managerDb.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,'cash')::text as id",[ids.invoices[0],"10.00"]);
+ const payment=await managerDb.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,'cash',$3::uuid)::text as id",[ids.invoices[0],"10.00",randomUUID()]);
  ids.payments.push(payment[0].id);
 
  // The canonical composite tenant FK must reject an invoice whose customer belongs
