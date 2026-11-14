@@ -317,7 +317,7 @@ describe("product-image-upload Edge handler", () => {
 
   it("removes a newly uploaded object when the atomic database link fails", async () => {
     const harness = createHarness();
-    harness.state.primaryError = { code: "40001" };
+    harness.state.primaryError = { code: "PT409" };
 
     const response = await harness.handler(imageRequest());
     expect(response.status).toBe(409);
@@ -334,6 +334,16 @@ describe("product-image-upload Edge handler", () => {
     expect(response.status).toBe(503);
     expect(await responseBody(response)).toEqual({ error: "image_link_state_unconfirmed" });
     expect(harness.calls.remove).not.toHaveBeenCalled();
+  });
+
+  it("does not treat PostgreSQL serialization failures as an image-version conflict", async () => {
+    const harness = createHarness();
+    harness.state.primaryError = { code: "40001" };
+
+    const response = await harness.handler(imageRequest());
+    expect(response.status).toBe(502);
+    expect(await responseBody(response)).toEqual({ error: "image_link_failed" });
+    expect(harness.calls.remove).toHaveBeenCalledWith([OBJECT_PATH]);
   });
 
   it("reports an explicit cleanup-pending error when storage cleanup also fails", async () => {
@@ -403,7 +413,7 @@ describe("product-image-upload Edge handler", () => {
 
   it("does not remove an object when unlink is rejected as stale", async () => {
     const harness = createHarness();
-    harness.state.primaryError = { code: "40001" };
+    harness.state.primaryError = { code: "PT409" };
     const response = await harness.handler(jsonRequest({
       action: "unlink",
       product_id: PRODUCT_ID,
