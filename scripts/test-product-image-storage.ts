@@ -468,20 +468,23 @@ async function main(): Promise<void> {
     activeObjectUuid = staleUuid;
     const staleResponse = await handler(makeUploadRequest(accessToken, PRODUCT_ID));
     const staleBody = await readJson(staleResponse);
-  if (
-    staleResponse.status !== 409 &&
-    lastProductImageRpcError?.message?.toLowerCase().includes("timing out")
-  ) {
-    try {
-      localDatabaseDiagnostics = await captureLocalDatabaseDiagnostics();
-    } catch (diagnosticError) {
-      localDatabaseDiagnostics = { captureError: errorMessage(diagnosticError) };
+    if (
+      staleResponse.status !== 409 &&
+      lastProductImageRpcError?.message?.toLowerCase().includes("timing out")
+    ) {
+      try {
+        localDatabaseDiagnostics = await captureLocalDatabaseDiagnostics();
+      } catch (diagnosticError) {
+        localDatabaseDiagnostics = { captureError: errorMessage(diagnosticError) };
+      }
     }
-  }
     assert(staleResponse.status === 409 && staleBody.error === "image_link_changed",
       "A stale primary image version must return HTTP 409 image_link_changed; received HTTP " +
         staleResponse.status + " body=" + JSON.stringify(staleBody) +
         " rpcError=" + JSON.stringify(lastProductImageRpcError));
+    assert(lastProductImageRpcError?.code === "PT409",
+      "The atomic stale-image RPC must return PostgREST HTTP-conflict code PT409 without retry; received " +
+        JSON.stringify(lastProductImageRpcError));
     const stalePath = profile.organization_id + "/" + PRODUCT_ID + "/" + staleUuid + ".webp";
     const staleDownload = await adminStorage.download(stalePath);
     assert(staleDownload.error, "The stale upload object remained in Storage after the atomic link conflict.");
