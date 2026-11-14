@@ -411,6 +411,7 @@ async function main() {
     "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_MANAGER_EMAIL=" + managerEmail,
     "E2E_MANAGER_PASSWORD=" + managerPassword,
+    "E2E_PRODUCT_ID=" + productId,
     "E2E_DEVICE_ADMIN_EMAIL=" + adminEmail,
     "E2E_DEVICE_ADMIN_PASSWORD=" + adminPassword,
     "E2E_DEVICE_TARGET_EMAIL=" + managerEmail,

@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 test.describe.configure({ retries: 0 });
@@ -114,21 +115,25 @@ test("manager reads, edits, reloads and restores all four product prices through
     await expect(restoredEditor).toBeHidden();
 
     expect(browserErrors, "The product editor must not throw browser runtime errors.").toEqual([]);
+    const proof = {
+      result: "PASS",
+      browserResult: "BROWSER_PROVEN",
+      sourceSha: requiredEnv("E2E_SOURCE_SHA"),
+      environment: "isolated-local-supabase-postgresql-17",
+      role: "manager",
+      productFixture: PRODUCT_NAME,
+      tiers: ["base", "vip", "wholesale", "retail"],
+      readInitialSnapshot: ORIGINAL,
+      editAllFourPrices: EDITED,
+      reopenedFromServerAndConfirmed: true,
+      restoredFixturePrices: originalPricesRestored,
+      fixtureRestoredAndReopened: true,
+      browserRuntimeErrors: browserErrors,
+      noProductionWrites: true,
+    };
+    await writeFile(requiredEnv("E2E_PROOF_PATH"), JSON.stringify(proof, null, 2) + "\n", "utf8");
     await test.info().attach("admin-product-tier-price-editor-browser-proof.json", {
-      body: JSON.stringify({
-        result: "BROWSER_PROVEN",
-        sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
-        environment: "isolated-local-supabase-postgresql-17",
-        role: "manager",
-        productFixture: PRODUCT_NAME,
-        readInitialSnapshot: ORIGINAL,
-        editAllFourPrices: EDITED,
-        reopenedFromServerAndConfirmed: true,
-        restoredFixturePrices: originalPricesRestored,
-        staleWriterProtection: "existing atomic catalog command with expected original prices",
-        browserRuntimeErrors: browserErrors,
-        noProductionWrites: true,
-      }, null, 2),
+      body: JSON.stringify(proof, null, 2),
       contentType: "application/json",
     });
   } finally {

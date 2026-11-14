@@ -9,6 +9,7 @@ on:
       - "public/**"
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
+      - "scripts/test-product-image-storage.ts"
       - "scripts/test-local-endpoint-guard.mjs"
       - "scripts/lib/local-endpoint-guard.mjs"
       - "scripts/test-price-grid-atomicity.mjs"
@@ -515,16 +516,12 @@ jobs:
           grep -q "^port = ${db_port}$" "$local_project/supabase/config.toml"
           grep -q "^shadow_port = ${shadow_port}$" "$local_project/supabase/config.toml"
           echo "- Allocated local PostgreSQL ports dynamically for this run (database $db_port, shadow $shadow_port) to prevent runner port collisions." >> "$GITHUB_STEP_SUMMARY"
-          if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
-            echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
-            exit 1
-          fi
-          rm "$local_project/supabase/migrations/20261018100000_product_image_storage.sql"
+          test -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql"
           {
-            echo "## Local order/tenant E2E migration boundary"
-            echo '- Uses a temporary copy of repository migrations with only `20261018100000_product_image_storage.sql` omitted; this migration mutates Supabase-owned `storage.objects` and is unrelated to authentication, order creation, or tenant-read isolation.'
-            echo "- The repository migration itself is unchanged. Storage/RLS for product images is not covered by this browser job."
-            echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
+            echo "## Local order, tenant and product-image Storage migration boundary"
+            echo "- All repository migrations, including the product-images bucket, MIME and 8 MiB constraints, are applied to a disposable local PostgreSQL 17/Supabase stack."
+            echo "- The actual storage-api and imgproxy services are started for object upload/download acceptance; edge-runtime remains excluded and the shared handler is invoked in-process."
+            echo "- No hosted Supabase project, remote migration, production secret or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Authenticate read-only to GHCR for isolated Supabase images
         shell: bash
@@ -534,22 +531,22 @@ jobs:
           set -euo pipefail
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           echo "Read-only GHCR authentication succeeded for isolated test image pulls." >> "$GITHUB_STEP_SUMMARY"
-      - name: Start isolated local Supabase services
+      - name: Start isolated local Supabase services including Storage API and imgproxy
         timeout-minutes: 13
         shell: bash
         run: |
           # Use the deliberately isolated migration copy prepared in the previous step, not the repository root.
-          # The storage.objects migration is omitted only from this temporary local-only acceptance scope because
-          # the Storage service is excluded; the source migration remains untouched and its RLS is not claimed here.
+          # Storage API and imgproxy are required to prove object lifecycle. Edge Runtime remains excluded:
+          # the actual shared upload handler is executed in-process against these local services.
           set -euo pipefail
           cd "$RUNNER_TEMP/p2-local-supabase"
           test "$(sed -n '1p' supabase/config.toml)" = 'project_id = "p2-local-e2e"'
-          test ! -e supabase/migrations/20261018100000_product_image_storage.sql
+          test -f supabase/migrations/20261018100000_product_image_storage.sql
           registry=ghcr.io
           for attempt in 1 2 3; do
             log_file="$RUNNER_TEMP/p2-supabase-start-attempt-${attempt}.log"
             echo "Starting isolated Supabase services (attempt ${attempt}/3; registry=$registry)."
-            if SUPABASE_INTERNAL_IMAGE_REGISTRY="$registry" timeout 210s supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
+            if SUPABASE_INTERNAL_IMAGE_REGISTRY="$registry" timeout 210s supabase start --exclude realtime,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
               echo "Isolated Supabase services started on attempt ${attempt} using $registry." >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
@@ -591,6 +588,11 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test product-image upload handler against the actual local Supabase Storage API
+        env:
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          PRODUCT_IMAGE_STORAGE_PROOF_PATH: ${{ runner.temp }}/product-image-storage-proof.json
+        run: bun scripts/test-product-image-storage.ts
       - name: Test local endpoint guard allow and deny cases
         run: node scripts/test-local-endpoint-guard.mjs
       - name: Test customer receivable identity, same-name separation, tenant FK, accountant access and customer denial
@@ -694,6 +696,7 @@ jobs:
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          E2E_PROOF_PATH: ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-product-price-edit.spec.ts"
       - name: Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit
         run: node scripts/test-ai-prompt-governance.mjs
@@ -712,6 +715,7 @@ jobs:
             echo "- It proves finance invoice/statement/credit-memo and operational task printing by role only if finance-task-print.spec.ts completes; customer print UI must remain absent."
             echo "- It proves customer-manager directory privacy, audited tier/status changes, activation invitation, restricted direct routes, and negative RPC/table-read boundaries only if customer-manager-authorization.spec.ts completes."
             echo "- Server-backed multi-device inventory and individually revocable sessions are not covered by this UI/browser acceptance."
+            echo "- Product-image Storage is proven only if the isolated local Storage API integration script passes: bucket configuration, direct authenticated-write denial, WebP/8 MiB restrictions, service-role upload through the shared handler, public read, stale-link cleanup and unlink. Supabase Edge Runtime itself is not deployed or invoked."
             echo "- No hosted Supabase project, production secret, remote migration, or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Stop local application and Supabase
@@ -729,4 +733,6 @@ jobs:
             playwright-report/
             test-results/
             ${{ runner.temp }}/p2-local-e2e-preview.log
+            ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
+            ${{ runner.temp }}/product-image-storage-proof.json
           if-no-files-found: ignore
