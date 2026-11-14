@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import {
-  ADMIN_ACCESS_ROLES, ADMIN_NAV_GROUPS, ADMIN_OPERATION_RULES,
+  ADMIN_ACCESS_ROLES, ADMIN_NAV_GROUPS, ADMIN_NAV_ITEMS, ADMIN_OPERATION_RULES,
   pageAccessReason, operationAllowed, operationDenialReason,
   type AdminRoleId, type AdminViewId,
 } from "@/lib/admin-access-matrix";
@@ -58,17 +58,9 @@ function SpecificationRoleAlignment() {
     </section>
   );
 }
-const VIEW_LABELS: Record<string, string> = {
-  dashboard: "لوحة المعلومات", products: "المنتجات", customers: "العملاء",
-  "service-desk": "خدمة العملاء", orders: "الطلبات", pricing: "التسعير والمخزون",
-  "stock-count": "الجرد الفعلي", "inventory-transfers": "تحويلات المخزون",
-  offers: "العروض", suppliers: "الموردون", "purchase-orders": "أوامر الشراء",
-  devices: "الأجهزة والجلسات", reports: "التقارير",
-  intelligence: "ذكاء الأعمال والتحصيلات", ai: "مركز الذكاء", notifications: "التنبيهات",
-  data: "مركز البيانات", operations: "العمليات الذكية", settings: "الإعدادات",
-  quotes: "عروض الأسعار", finance: "الفواتير والتحصيل",
-  tasks: "المهام التشغيلية والطباعة", audit: "سجل التدقيق",
-};
+const VIEW_LABELS: Readonly<Record<AdminViewId, string>> = Object.freeze(
+  Object.fromEntries(ADMIN_NAV_ITEMS.map(({ id, label }) => [id, label])) as Record<AdminViewId, string>,
+);
 
 function StatusLabel({ allowed }: { allowed: boolean }) {
   return (
