@@ -7,20 +7,29 @@ describe('getVisibleAdminNavigationGroups', () => {
     expect(groups.map(({ id }) => id)).toEqual([
       'executive', 'sales', 'catalog', 'supply', 'operations', 'administration',
     ]);
-    expect(groups.find(({ id }) => id === 'catalog')?.views).toEqual(['products', 'categories', 'pricing', 'offers']);
+    expect(groups.find(({ id }) => id === 'catalog')?.views.map(({ id }) => id)).toEqual(['products', 'categories', 'pricing', 'offers']);
   });
 
   it('limits an accountant to finance and tasks inside their owning groups', () => {
     const groups = getVisibleAdminNavigationGroups(['accountant']);
-    expect(groups.map(({ id, views }) => [id, [...views]])).toEqual([
+    expect(groups.map(({ id, views }) => [id, views.map(({ id: viewId }) => viewId)])).toEqual([
       ['operations', ['tasks']],
       ['administration', ['finance']],
     ]);
   });
 
+  it('keeps destination labels and paths attached to the filtered catalog links', () => {
+    const catalog = getVisibleAdminNavigationGroups(['staff']).find(({ id }) => id === 'catalog');
+    expect(catalog?.views.find(({ id }) => id === 'categories')).toMatchObject({
+      id: 'categories',
+      label: 'التصنيفات الرئيسية والفرعية',
+      path: '/admin/categories',
+    });
+  });
+
   it('does not expose administration groups to customer identities', () => {
     expect(getVisibleAdminNavigationGroups(['customer'])).toEqual([]);
-    expect(getVisibleAdminNavigationGroups(['customer_manager']).map(({ id, views }) => [id, [...views]])).toEqual([
+    expect(getVisibleAdminNavigationGroups(['customer_manager']).map(({ id, views }) => [id, views.map(({ id: viewId }) => viewId)])).toEqual([
       ['sales', ['customers']],
     ]);
   });
