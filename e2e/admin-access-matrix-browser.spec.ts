@@ -51,6 +51,8 @@ test("admin access matrix is complete, responsive, keyboard reachable and admin-
   admin.on("pageerror", (error) => browserErrors.push("admin: " + error.message));
   let pageCount = 0;
   let operationCount = 0;
+  const pageViews = ADMIN_NAV_GROUPS.flatMap((group) => group.views);
+  const viewportChecks: Array<{ width: number; pageScrollWidth: number; viewportWidth: number; pageRegionClientWidth: number; pageRegionScrollWidth: number; operationsRegionClientWidth: number; operationsRegionScrollWidth: number }> = [];
 
   try {
     await signIn(admin, requiredEnv("E2E_DEVICE_ADMIN_EMAIL"), requiredEnv("E2E_DEVICE_ADMIN_PASSWORD"));
@@ -70,7 +72,6 @@ test("admin access matrix is complete, responsive, keyboard reachable and admin-
     expect(ADMIN_ACCESS_ROLES.map((role) => role.id)).toEqual([
       "admin", "manager", "staff", "accountant", "customer_manager", "customer",
     ]);
-    const pageViews = ADMIN_NAV_GROUPS.flatMap((group) => group.views);
     expect(new Set(pageViews).size).toBe(pageViews.length);
     const operationIds = ADMIN_OPERATION_RULES.map((operation) => operation.id);
     expect(new Set(operationIds).size).toBe(operationIds.length);
@@ -118,7 +119,6 @@ test("admin access matrix is complete, responsive, keyboard reachable and admin-
     await admin.keyboard.press("Shift+Tab");
     await expect(pagesRegion).toBeFocused();
 
-    const viewportChecks: Array<{ width: number; pageScrollWidth: number; viewportWidth: number; pageRegionClientWidth: number; pageRegionScrollWidth: number; operationsRegionClientWidth: number; operationsRegionScrollWidth: number }> = [];
     for (const width of [360, 1280]) {
       await admin.setViewportSize({ width, height: 900 });
       await expect(pageTable).toBeVisible();
