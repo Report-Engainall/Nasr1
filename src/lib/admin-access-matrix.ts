@@ -15,74 +15,68 @@ export type AdminNavigationItem = Readonly<{
 export type AdminNavigationGroup = Readonly<{
   id: string;
   label: string;
-  views: readonly AdminNavigationItem[];
+  /** Legacy ID-only projection retained for existing access/observability consumers. */
+  views: readonly AdminViewId[];
+  /** Canonical navigation metadata used to render labels and resolve destinations. */
+  items: readonly AdminNavigationItem[];
 }>;
+
+function defineAdminNavigationGroup(
+  id: string,
+  label: string,
+  items: readonly AdminNavigationItem[],
+): AdminNavigationGroup {
+  return { id, label, items, views: items.map(({ id: viewId }) => viewId) };
+}
 
 /**
  * Canonical administration navigation registry.
- * Group cards, sidebar, command links, breadcrumbs and route destinations
- * must derive from this definition; role access remains governed separately
- * by ROLE_PAGE_ACCESS and server-side authorization.
+ * Dashboard cards, sidebar, sub-links, labels, breadcrumbs and route destinations
+ * derive from each group's items. Views is a compatibility projection of the
+ * same items for existing access-matrix and observability consumers.
+ * Role access remains governed by ROLE_PAGE_ACCESS and server-side authorization.
  */
 export const ADMIN_NAV_GROUPS: readonly AdminNavigationGroup[] = [
-  {
-    id: "executive", label: "القيادة والمتابعة",
-    views: [
-      { id: "dashboard", label: "لوحة المعلومات", path: "/admin" },
-      { id: "intelligence", label: "ذكاء الأعمال والتحصيلات", path: "/admin/intelligence" },
-      { id: "reports", label: "التقارير الذكية", path: "/admin/reports" },
-    ],
-  },
-  {
-    id: "sales", label: "المبيعات والعملاء",
-    views: [
-      { id: "customers", label: "العملاء", path: "/admin/customers" },
-      { id: "service-desk", label: "خدمة العملاء", path: "/admin/service-desk" },
-      { id: "orders", label: "الطلبات", path: "/admin/orders" },
-      { id: "quotes", label: "عروض الأسعار", path: "/admin/quotes" },
-    ],
-  },
-  {
-    id: "catalog", label: "الكتالوج والتسعير",
-    views: [
-      { id: "products", label: "إدارة المنتجات", path: "/admin/products" },
-      { id: "categories", label: "التصنيفات الرئيسية والفرعية", path: "/admin/categories" },
-      { id: "pricing", label: "مركز التسعير", path: "/admin/pricing" },
-      { id: "offers", label: "العروض والحملات", path: "/admin/offers" },
-    ],
-  },
-  {
-    id: "supply", label: "المخزون والمشتريات",
-    views: [
-      { id: "stock-count", label: "الجرد الفعلي", path: "/admin/stock-count" },
-      { id: "inventory-transfers", label: "سجل تحويلات المخزون", path: "/admin/inventory-transfers" },
-      { id: "suppliers", label: "الموردون", path: "/admin/suppliers" },
-      { id: "purchase-orders", label: "أوامر الشراء والاستلام", path: "/admin/purchase-orders" },
-    ],
-  },
-  {
-    id: "operations", label: "البيانات والتشغيل",
-    views: [
-      { id: "data", label: "مركز البيانات", path: "/admin/data" },
-      { id: "operations", label: "العمليات الذكية", path: "/admin/operations" },
-      { id: "tasks", label: "المهام التشغيلية والطباعة", path: "/admin/tasks" },
-      { id: "ai", label: "مركز الذكاء", path: "/admin/ai" },
-      { id: "notifications", label: "التنبيهات", path: "/admin/notifications" },
-    ],
-  },
-  {
-    id: "administration", label: "الإدارة والنظام",
-    views: [
-      { id: "finance", label: "الفواتير والتحصيل", path: "/admin/finance" },
-      { id: "devices", label: "الأجهزة والجلسات", path: "/admin/devices" },
-      { id: "audit", label: "سجل التدقيق", path: "/admin/audit" },
-      { id: "settings", label: "الإعدادات", path: "/admin/settings" },
-    ],
-  },
+  defineAdminNavigationGroup("executive", "القيادة والمتابعة", [
+    { id: "dashboard", label: "لوحة المعلومات", path: "/admin" },
+    { id: "intelligence", label: "ذكاء الأعمال والتحصيلات", path: "/admin/intelligence" },
+    { id: "reports", label: "التقارير الذكية", path: "/admin/reports" },
+  ]),
+  defineAdminNavigationGroup("sales", "المبيعات والعملاء", [
+    { id: "customers", label: "العملاء", path: "/admin/customers" },
+    { id: "service-desk", label: "خدمة العملاء", path: "/admin/service-desk" },
+    { id: "orders", label: "الطلبات", path: "/admin/orders" },
+    { id: "quotes", label: "عروض الأسعار", path: "/admin/quotes" },
+  ]),
+  defineAdminNavigationGroup("catalog", "الكتالوج والتسعير", [
+    { id: "products", label: "إدارة المنتجات", path: "/admin/products" },
+    { id: "categories", label: "التصنيفات الرئيسية والفرعية", path: "/admin/categories" },
+    { id: "pricing", label: "مركز التسعير", path: "/admin/pricing" },
+    { id: "offers", label: "العروض والحملات", path: "/admin/offers" },
+  ]),
+  defineAdminNavigationGroup("supply", "المخزون والمشتريات", [
+    { id: "stock-count", label: "الجرد الفعلي", path: "/admin/stock-count" },
+    { id: "inventory-transfers", label: "سجل تحويلات المخزون", path: "/admin/inventory-transfers" },
+    { id: "suppliers", label: "الموردون", path: "/admin/suppliers" },
+    { id: "purchase-orders", label: "أوامر الشراء والاستلام", path: "/admin/purchase-orders" },
+  ]),
+  defineAdminNavigationGroup("operations", "البيانات والتشغيل", [
+    { id: "data", label: "مركز البيانات", path: "/admin/data" },
+    { id: "operations", label: "العمليات الذكية", path: "/admin/operations" },
+    { id: "tasks", label: "المهام التشغيلية والطباعة", path: "/admin/tasks" },
+    { id: "ai", label: "مركز الذكاء", path: "/admin/ai" },
+    { id: "notifications", label: "التنبيهات", path: "/admin/notifications" },
+  ]),
+  defineAdminNavigationGroup("administration", "الإدارة والنظام", [
+    { id: "finance", label: "الفواتير والتحصيل", path: "/admin/finance" },
+    { id: "devices", label: "الأجهزة والجلسات", path: "/admin/devices" },
+    { id: "audit", label: "سجل التدقيق", path: "/admin/audit" },
+    { id: "settings", label: "الإعدادات", path: "/admin/settings" },
+  ]),
 ];
 
 export const ADMIN_NAV_ITEMS: readonly AdminNavigationItem[] =
-  ADMIN_NAV_GROUPS.flatMap(({ views }) => views);
+  ADMIN_NAV_GROUPS.flatMap(({ items }) => items);
 
 export const ADMIN_NAV_PATHS: Readonly<Record<AdminViewId, string>> = Object.freeze(
   Object.fromEntries(ADMIN_NAV_ITEMS.map(({ id, path }) => [id, path])) as Record<AdminViewId, string>,
