@@ -81,6 +81,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   const [products, setProducts] = useState<AdminCategoryProductRow[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState('');
+  const [productsRetry, setProductsRetry] = useState(0);
   const [catalogPage, setCatalogPage] = useState(1);
   const [catalogItems, setCatalogItems] = useState<ProductWithInventory[]>([]);
   const [catalogHasNextPage, setCatalogHasNextPage] = useState(false);
@@ -102,7 +103,9 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       setLoading(false);
     }
   }, []);
-  useEffect(() => { void load().catch(() => undefined); }, [load]);
+  useEffect(() => {
+    if (canOpen) void load().catch(() => undefined);
+  }, [canOpen, load]);
 
   const tree = useMemo(() => buildAdminCategoryTree(categories), [categories]);
   const filteredTree = useMemo(() => filterAdminCategoryTree(tree, search), [tree, search]);
@@ -167,7 +170,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       .catch((cause) => { if (active) setProductsError(cause instanceof Error ? cause.message : 'تعذر تحميل المنتجات المرتبطة.'); })
       .finally(() => { if (active) setProductsLoading(false); });
     return () => { active = false; };
-  }, [tab, selected?.id]);
+  }, [tab, selected?.id, productsRetry]);
 
   useEffect(() => {
     if (tab !== 'catalog' || !selected) return;
@@ -304,7 +307,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
         <div className="admin-category-tree__header"><div><h2>شجرة الكتالوج</h2><p>{categories.length} تصنيفاً محملاً من المؤسسة</p></div><span><Tags size={18}/></span></div>
         <label className="admin-category-search"><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الرمز..." aria-label="البحث في التصنيفات"/>{search && <button type="button" onClick={() => setSearch('')} aria-label="مسح البحث"><X size={15}/></button>}</label>
         {loading && <div className="admin-category-state"><LoaderCircle size={18} className="spin"/> جارٍ تحميل التصنيفات</div>}
-        {!loading && error && <div className="admin-category-error" role="alert"><AlertTriangle size={17}/>{error}</div>}
+        {!loading && error && <div className="admin-category-error" role="alert"><AlertTriangle size={17}/><span>{error}</span><button type="button" className="btn outline" onClick={() => void load().catch(() => undefined)} disabled={loading}><RefreshCw size={14}/> إعادة المحاولة</button></div>}
         {!loading && !error && !filteredTree.length && <div className="admin-category-empty"><FolderTree size={25}/><strong>{search ? 'لا توجد نتائج' : 'لا توجد تصنيفات محفوظة'}</strong><span>{search ? 'جرّب كلمة أخرى.' : 'أنشئ تصنيفاً رئيسياً لبناء الشجرة.'}</span></div>}
         {!loading && !error && filteredTree.length > 0 && <CategoryBranch nodes={filteredTree} expanded={new Set([...expandedIds, ...(search ? categories.map((item) => item.id) : [])])} selectedId={selectedId} depth={0} onToggle={toggleExpanded} onSelect={selectCategory}/>}
         {!loading && !error && categories.some((item) => item.is_active === false) && <p className="admin-category-legend">السجلات المؤرشفة ظاهرة للمراجعة ولا تُحذف.</p>}
@@ -338,7 +341,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
           {tab === 'children' && <div className="admin-category-child-list">{children.length ? children.map((node) => <button type="button" key={node.category.id} onClick={() => selectCategory(node.category.id)}><FolderTree size={15}/><span>{node.category.name}</span><ChevronLeft size={14}/></button>) : <p>لا توجد فروع مباشرة.</p>}</div>}
           {tab === 'products' && <div className="admin-category-products">
             {productsLoading ? <div className="admin-category-state"><LoaderCircle size={17} className="spin"/> جارٍ تحميل المنتجات</div>
-              : productsError ? <div className="admin-category-error" role="alert"><AlertTriangle size={16}/>{productsError}</div>
+              : productsError ? <div className="admin-category-error" role="alert"><AlertTriangle size={16}/><span>{productsError}</span><button type="button" className="btn outline" onClick={() => setProductsRetry((value) => value + 1)} disabled={productsLoading}><RefreshCw size={14}/> إعادة المحاولة</button></div>
                 : products.length ? <>{products.map((product) => <button type="button" key={product.id} className="admin-category-product-row" aria-label={`فتح المنتج ${product.name}`} onClick={() => onOpenProduct(product)}><div><strong>{product.name}</strong><span>{product.item_code} · {product.unit}</span></div><span>{product.status ?? 'الحالة غير محددة'}</span><ChevronLeft size={15} /></button>)}{products.length === 100 && <p className="admin-category-legend">يعرض المصدر أول 100 منتج فقط، دون ادعاء عدد إجمالي.</p>}</>
                   : <div className="admin-category-empty"><strong>لا توجد منتجات مرتبطة</strong><span>هذه نتيجة المصدر الفعلي للتصنيف المختار.</span></div>}
           </div>}
