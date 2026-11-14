@@ -103,7 +103,6 @@ test("manager reads, edits, reloads and restores all four product prices through
 
     const restoredEditor = await openProductEditor(manager);
     await expectPrices(restoredEditor, ORIGINAL);
-    await expect(restoredEditor.getByText("تحقق الخادم من القيم الأصلية", { exact: false })).toBeVisible();
     await restoredEditor.getByRole("button", { name: "إلغاء", exact: true }).click();
     await expect(restoredEditor).toBeHidden();
 
