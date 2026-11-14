@@ -703,6 +703,78 @@ jobs:
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-product-price-edit.spec.ts"
       - name: Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit
         run: node scripts/test-ai-prompt-governance.mjs
+      - name: Verify exact-SHA Chromium and Storage acceptance proofs
+        env:
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          PRODUCT_IMAGE_STORAGE_PROOF_PATH: ${{ runner.temp }}/product-image-storage-proof.json
+          E2E_PRICE_PROOF_PATH: ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFile, writeFile } from "node:fs/promises";
+          import postgres from "postgres";
+
+          const expectedSha = process.env.E2E_SOURCE_SHA;
+          assert.ok(expectedSha && /^[0-9a-f]{40}$/.test(expectedSha), "Exact tested source SHA is required.");
+          const databaseUrl = process.env.TEST_DATABASE_URL;
+          assert.ok(databaseUrl, "Local TEST_DATABASE_URL is required for PostgreSQL-version proof.");
+          const parsedDatabaseUrl = new URL(databaseUrl);
+          assert.ok(["localhost", "127.0.0.1", "::1"].includes(parsedDatabaseUrl.hostname), "PostgreSQL proof must target loopback only.");
+          assert.ok(parsedDatabaseUrl.port && parsedDatabaseUrl.port !== "5432" && parsedDatabaseUrl.port !== "6543", "PostgreSQL proof must target the isolated Supabase port.");
+
+          const sql = postgres(databaseUrl, { max: 1, connect_timeout: 5, idle_timeout: 1, prepare: false });
+          let postgresVersion;
+          try {
+            const rows = await sql.unsafe("select current_setting('server_version_num')::integer as version_num, current_setting('server_version') as server_version");
+            const major = Math.floor(Number(rows[0]?.version_num) / 10000);
+            postgresVersion = { major, serverVersion: String(rows[0]?.server_version ?? "unknown") };
+            assert.equal(major, 17, "The isolated Storage acceptance stack must run PostgreSQL 17.");
+          } finally {
+            await sql.end({ timeout: 2 });
+          }
+
+          const readProof = async (path, label) => {
+            try { return JSON.parse(await readFile(path, "utf8")); }
+            catch (error) { throw new Error(label + " proof is missing or invalid: " + error.message); }
+          };
+          const storagePath = process.env.PRODUCT_IMAGE_STORAGE_PROOF_PATH;
+          const storage = await readProof(storagePath, "Product-image Storage");
+          const prices = await readProof(process.env.E2E_PRICE_PROOF_PATH, "Product tier-price Chromium");
+
+          assert.equal(storage.result, "PASS", "Storage proof must be PASS.");
+          assert.equal(storage.sourceSha, expectedSha, "Storage proof must match the exact tested SHA.");
+          assert.equal(storage.environment, "disposable-local-supabase-postgresql-17-only");
+          assert.equal(storage.noProductionWrites, true);
+          assert.equal(storage.hostedSupabaseUsed, false);
+          assert.equal(storage.edgeRuntimeDeployed, false);
+          assert.deepEqual(new Set(storage.assertions), new Set([
+            "bucket-is-public-and-restricted-to-webp-8mib",
+            "authenticated-manager-cannot-write-storage-directly",
+            "storage-api-rejects-non-webp-mime",
+            "storage-api-enforces-eight-mib-object-limit",
+            "edge-handler-uploads-through-service-role-and-links-via-manager-rpc",
+            "public-object-read-works-without-authentication",
+            "stale-image-link-rolls-back-object-upload",
+            "unlink-removes-database-reference-before-object-cleanup",
+          ]), "Storage proof must contain every required integration assertion.");
+
+          assert.equal(prices.result, "PASS", "Price-editor proof must be PASS.");
+          assert.equal(prices.browserResult, "BROWSER_PROVEN");
+          assert.equal(prices.sourceSha, expectedSha, "Price-editor proof must match the exact tested SHA.");
+          assert.equal(prices.environment, "isolated-local-supabase-postgresql-17");
+          assert.equal(prices.noProductionWrites, true);
+          assert.deepEqual(new Set(prices.tiers), new Set(["base", "vip", "wholesale", "retail"]));
+          assert.equal(prices.reopenedFromServerAndConfirmed, true);
+          assert.equal(prices.fixtureRestoredAndReopened, true);
+          assert.deepEqual(prices.browserRuntimeErrors, []);
+
+          storage.postgresVersion = postgresVersion;
+          await writeFile(storagePath, JSON.stringify(storage, null, 2) + "\n", "utf8");
+          console.log("EXACT_SHA_P2_PROOFS_PASS " + expectedSha + ": PostgreSQL 17, Storage lifecycle and Chromium four-tier price editor.");
+          NODE
+
       - name: Record proof boundary
         if: always()
         shell: bash
