@@ -13,6 +13,20 @@ function asJson(value) {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+async function waitForLockWait(db, queryMarker) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const rows = await db.unsafe(
+      "select pid,wait_event_type,wait_event from pg_catalog.pg_stat_activity " +
+      "where datid=(select oid from pg_catalog.pg_database where datname=pg_catalog.current_database()) " +
+      "and pid <> pg_catalog.pg_backend_pid() and wait_event_type='Lock' " +
+      "and query ilike '%' || $1::text || '%' limit 1",
+      [queryMarker],
+    );
+    if (rows.length === 1 && rows[0].wait_event_type === "Lock") return rows[0];
+    await delay(50);
+  }
+  throw new Error("Expected an independent PostgreSQL session to wait on a category row lock for " + queryMarker + ".");
+}
 function localOnly(apiUrl, connectionString) {
   const api = new URL(apiUrl);
   const db = new URL(connectionString);
@@ -327,8 +341,8 @@ async function main() {
           createSettled = true;
           return result;
         });
-      await delay(200);
-      assert.equal(createSettled, false, "child create must wait on the parent's row lock before checking activity");
+      await waitForLockWait(db, "create_admin_catalog_category");
+      assert.equal(createSettled, false, "child create must remain blocked on the parent's shared row lock");
       await setClaims(tx, managerClaims, false);
       const archived = await archiveCategory(tx, createRaceRoot);
       assert.equal(archived.is_active, false);
@@ -359,8 +373,8 @@ async function main() {
           productSettled = true;
           return result;
         });
-      await delay(200);
-      assert.equal(productSettled, false, "product save must wait on the category row lock before validating activity");
+      await waitForLockWait(db, "save_admin_product_with_metadata");
+      assert.equal(productSettled, false, "product save must remain blocked on the category's shared row lock");
       await setClaims(tx, managerClaims, false);
       const archived = await archiveCategory(tx, productRaceCategory);
       assert.equal(archived.is_active, false);
