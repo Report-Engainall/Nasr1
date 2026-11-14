@@ -42,20 +42,72 @@ import {
   resolveAdminThemePalette,
   type AdminThemePalette,
 } from '@/lib/admin-theme';
-const ArchitectureRegistryPanel = lazy(async () => ({
-  default: (await import('@/components/reference-model/observability/ArchitectureRegistryPanel')).ArchitectureRegistryPanel,
+const AdminArchitectureScreen = lazy(async () => ({
+  default: (await import('@/components/admin/operations/ArchitectureScreen')).ArchitectureScreen,
 }));
-const SystemHealthPanel = lazy(async () => ({
-  default: (await import('@/components/reference-model/observability/SystemHealthPanel')).SystemHealthPanel,
+const AdminEngineStatusScreen = lazy(async () => ({
+  default: (await import('@/components/admin/operations/EngineStatusScreen')).EngineStatusScreen,
 }));
-const SourceBoundaryStatusPanel = lazy(async () => ({
-  default: (await import('@/components/reference-model/observability/SourceBoundaryStatusPanel')).SourceBoundaryStatusPanel,
+const AdminErrorLogScreen = lazy(async () => ({
+  default: (await import('@/components/admin/operations/ErrorLogScreen')).ErrorLogScreen,
+}));
+const AdminSystemHealthScreen = lazy(async () => ({
+  default: (await import('@/components/admin/operations/SystemHealthScreen')).SystemHealthScreen,
 }));
 const SupplierFinancialWorkspaceHub = lazy(async () => ({
   default: (await import('@/components/SupplierFinancialWorkspaceHub')).SupplierFinancialWorkspaceHub,
 }));
 
 type IconType = LucideIcon;
+
+type AdminObservabilityPanel = "architecture" | "health" | "errors" | "engines";
+
+const ADMIN_OBSERVABILITY_TABS: ReadonlyArray<{ id: AdminObservabilityPanel; label: string }> = [
+  { id: "architecture", label: "معمارية النظام" },
+  { id: "health", label: "صحة النظام" },
+  { id: "errors", label: "سجل الأخطاء" },
+  { id: "engines", label: "حالة المحركات" },
+];
+
+function AdminObservabilityWorkspace() {
+  const [activePanel, setActivePanel] = useState<AdminObservabilityPanel>("architecture");
+
+  return (
+    <div dir="rtl" className="space-y-4">
+      <div role="tablist" aria-label="مراقبة النظام" className="flex flex-wrap gap-2">
+        {ADMIN_OBSERVABILITY_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            id={`admin-observability-tab-${tab.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activePanel === tab.id}
+            aria-controls="admin-observability-panel"
+            onClick={() => setActivePanel(tab.id)}
+            className={activePanel === tab.id
+              ? "rounded-lg border border-primary bg-primary/10 px-3 py-2 text-sm font-semibold"
+              : "rounded-lg border px-3 py-2 text-sm"}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <section
+        id="admin-observability-panel"
+        role="tabpanel"
+        aria-labelledby={`admin-observability-tab-${activePanel}`}
+        className="min-w-0"
+      >
+        <Suspense fallback={<div role="status" aria-live="polite" className="rounded-md border p-4 text-sm text-muted-foreground">جارٍ تحميل شاشة المراقبة...</div>}>
+          {activePanel === "architecture" ? <AdminArchitectureScreen />
+            : activePanel === "health" ? <AdminSystemHealthScreen />
+              : activePanel === "errors" ? <AdminErrorLogScreen />
+                : <AdminEngineStatusScreen />}
+        </Suspense>
+      </section>
+    </div>
+  );
+}
 
 function NotificationRow({
   notification,
@@ -1335,13 +1387,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
       </SettingsPanel>}
       {tab === 'architecture' && canManageStorefrontContent && (
         <section id="admin-architecture-panel" aria-label="معمارية النظام" className="space-y-3">
-          <Suspense fallback={<div role="status" aria-live="polite" className="rounded-md border p-4 text-sm text-muted-foreground">جارٍ تحميل المعمارية ومراقبة النظام...</div>}>
-            <div className="grid gap-3">
-              <ArchitectureRegistryPanel />
-              <SystemHealthPanel />
-              <SourceBoundaryStatusPanel />
-            </div>
-          </Suspense>
+          <AdminObservabilityWorkspace />
         </section>
       )}
       {tab === 'announcements' && canManageStorefrontContent && <StorefrontAnnouncementManager onNotice={onNotice} />}

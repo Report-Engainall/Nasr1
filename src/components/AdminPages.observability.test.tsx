@@ -10,19 +10,24 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth", () => ({ useAuth: mocks.useAuth }));
 vi.mock("@/lib/useFetch", () => ({ useFetch: mocks.useFetch }));
-vi.mock("@/components/reference-model/observability/ArchitectureRegistryPanel", () => ({
-  ArchitectureRegistryPanel: () => (
-    <section role="region" aria-label="سجل معمارية التطبيق">architecture-registry-mounted</section>
+vi.mock("@/components/admin/operations/ArchitectureScreen", () => ({
+  ArchitectureScreen: () => (
+    <section role="region" aria-label="شاشة معمارية النظام">architecture-screen-mounted</section>
   ),
 }));
-vi.mock("@/components/reference-model/observability/SystemHealthPanel", () => ({
-  SystemHealthPanel: () => (
-    <section role="region" aria-label="فحوص صحة النظام">system-health-panel-mounted</section>
+vi.mock("@/components/admin/operations/SystemHealthScreen", () => ({
+  SystemHealthScreen: () => (
+    <section role="region" aria-label="شاشة صحة النظام">system-health-screen-mounted</section>
   ),
 }));
-vi.mock("@/components/reference-model/observability/SourceBoundaryStatusPanel", () => ({
-  SourceBoundaryStatusPanel: () => (
-    <section role="region" aria-label="حالة عقود مصادر الوظائف المرجعية">source-boundary-panel-mounted</section>
+vi.mock("@/components/admin/operations/ErrorLogScreen", () => ({
+  ErrorLogScreen: () => (
+    <section role="region" aria-label="شاشة سجل الأخطاء">error-log-screen-mounted</section>
+  ),
+}));
+vi.mock("@/components/admin/operations/EngineStatusScreen", () => ({
+  EngineStatusScreen: () => (
+    <section role="region" aria-label="شاشة حالة المحركات">engine-status-screen-mounted</section>
   ),
 }));
 
@@ -49,9 +54,16 @@ describe("SettingsPage observability integration", () => {
     render(<SettingsPage onNotice={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "معمارية النظام" }));
 
-    expect(await screen.findByRole("region", { name: "سجل معمارية التطبيق" })).toBeInTheDocument();
-    expect(await screen.findByRole("region", { name: "فحوص صحة النظام" })).toBeInTheDocument();
-    expect(await screen.findByRole("region", { name: "حالة عقود مصادر الوظائف المرجعية" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "شاشة معمارية النظام" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "صحة النظام" }));
+    expect(await screen.findByRole("region", { name: "شاشة صحة النظام" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "سجل الأخطاء" }));
+    expect(await screen.findByRole("region", { name: "شاشة سجل الأخطاء" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "حالة المحركات" }));
+    expect(await screen.findByRole("region", { name: "شاشة حالة المحركات" })).toBeInTheDocument();
   });
 
   it("does not expose the observability tab or its panels to non-manager roles", () => {
@@ -62,7 +74,9 @@ describe("SettingsPage observability integration", () => {
     render(<SettingsPage onNotice={() => undefined} />);
 
     expect(screen.queryByRole("button", { name: "معمارية النظام" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "فحوص صحة النظام" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "حالة عقود مصادر الوظائف المرجعية" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "مراقبة النظام" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "شاشة صحة النظام" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "شاشة سجل الأخطاء" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "شاشة حالة المحركات" })).not.toBeInTheDocument();
   });
 });
