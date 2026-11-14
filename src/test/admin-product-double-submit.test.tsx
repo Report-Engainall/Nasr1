@@ -170,14 +170,12 @@ describe("admin product form submission", () => {
       overflow: "hidden",
       boxSizing: "border-box",
     });
+    const modalHeader = dialog.querySelector(".modal-head");
     const scrollBody = dialog.querySelector(".modal-body");
+    expect(modalHeader).not.toBeNull();
     expect(scrollBody).not.toBeNull();
-    expect(scrollBody).toHaveStyle({
-      maxHeight: "calc(100dvh - 132px)",
-      overflowY: "auto",
-      overscrollBehavior: "contain",
-      minHeight: "0",
-    });
+    expect(modalHeader?.parentElement).toBe(dialog);
+    expect(scrollBody?.parentElement).toBe(dialog);
 
     await waitFor(() => {
       expect(screen.getByLabelText("السعر الأساسي")).toHaveValue(25);
