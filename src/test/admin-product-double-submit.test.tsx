@@ -161,12 +161,24 @@ describe("admin product form submission", () => {
     const onSaved = vi.fn();
     render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
 
-    const dialog = screen.getByRole("dialog", { name: "تعديل المنتج" });
+    const dialog = await screen.findByRole("dialog", { name: "تعديل المنتج" });
     expect(dialog).toHaveStyle({
       maxHeight: "calc(100dvh - 36px)",
+      height: "fit-content",
+      minHeight: "0px",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      boxSizing: "border-box",
+    });
+    const scrollBody = dialog.querySelector<HTMLElement>(".modal-body");
+    expect(scrollBody).not.toBeNull();
+    if (!scrollBody) throw new Error("The product editor modal must expose an internal scroll body.");
+    expect(scrollBody).toHaveStyle({
+      minHeight: "0px",
+      maxHeight: "calc(100dvh - 132px)",
       overflowY: "auto",
       overscrollBehavior: "contain",
-      boxSizing: "border-box",
     });
 
     await waitFor(() => {
