@@ -219,8 +219,9 @@ async function main() {
 
     setPhase("insert source-backed local AI audit fixture");
     const aiAuditRequestId = "p2-ai-audit-" + suffix;
-    // postgres.js serializes values cast to jsonb itself. Passing JSON.stringify(array)
-    // here would serialize the string a second time and store a JSON scalar, not an array.
+    // unsafe() binds strings as text; the explicit ::jsonb cast parses this JSON text.
+    // Do not pass a raw JavaScript array of objects here: postgres.js infers it as a
+    // PostgreSQL array parameter instead of a JSON value.
     const providerAttemptFixture = [{
       provider: "openai_compatible",
       model: "example-model",
@@ -231,10 +232,11 @@ async function main() {
       observed_output_tokens: 48,
       estimated_cost: "0.0042",
     }];
+    const providerAttemptFixtureJson = JSON.stringify(providerAttemptFixture);
     const providerAttemptShape = await oneRow(
       db,
       "select jsonb_typeof($1::jsonb) as value_type, jsonb_array_length($1::jsonb)::integer as value_count",
-      [providerAttemptFixture],
+      [providerAttemptFixtureJson],
     );
     assert.equal(providerAttemptShape.value_type, "array", "postgres.js must bind the provider telemetry as a JSONB array");
     assert.equal(Number(providerAttemptShape.value_count), 1, "the provider telemetry fixture must contain exactly one attempt");
@@ -250,7 +252,7 @@ async function main() {
         admin.id,
         aiAuditRequestId,
         "openai_compatible/example-model",
-        providerAttemptFixture,
+        providerAttemptFixtureJson,
       ],
     );
 
@@ -272,7 +274,7 @@ async function main() {
           "alter table public.ai_usage_ledger drop constraint ai_usage_ledger_attempt_count_matches_check",
         );
         setPhase("insert legacy scalar JSONB fixture inside rollback-only transaction");
-        const legacyScalarPayload = "legacy_scalar_payload";
+        const legacyScalarPayload = JSON.stringify("legacy_scalar_payload");
         const legacyScalarType = await oneRow(
           tx,
           "select jsonb_typeof($1::jsonb) as value_type",
