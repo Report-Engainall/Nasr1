@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import * as ts from "typescript";
 import { resolve } from "node:path";
 
@@ -165,6 +165,26 @@ describe("P4 admin engine source observations", () => {
     expect(screen.getByText("محرك التصدير")).toBeInTheDocument();
     expect(screen.getByText(/لا يوجد اتصال حي بنظام Onyx/)).toBeInTheDocument();
     expect(screen.getByText(/لا يستدعي العامل ولا يثبت توافره/)).toBeInTheDocument();
+  });
+
+  it("clears the previous engine snapshot as soon as a fresh read starts", async () => {
+    setReadableSources();
+    render(<EngineStatusScreen />);
+    expect(await screen.findByText("محرك الاستيراد")).toBeInTheDocument();
+
+    vi.useFakeTimers();
+    mocks.fetchPricingRules.mockImplementation(() => new Promise(() => {}));
+    fireEvent.click(screen.getByRole("button", { name: "إعادة التحقق" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("جارٍ قراءة مصادر الحالة الفعلية…");
+    expect(screen.queryByText("محرك الاستيراد")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ADMIN_OBSERVABILITY_PROBE_TIMEOUT_MS);
+    });
+
+    expect(screen.getByText("محرك الاستيراد")).toBeInTheDocument();
+    expect(screen.getByText("انتهت مهلة الفحص")).toBeInTheDocument();
   });
 });
 

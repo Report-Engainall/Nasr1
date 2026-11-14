@@ -39,6 +39,7 @@ export function EngineStatusScreen() {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setSnapshot(null);
     setError(false);
     void readAdminEngineObservations()
       .then((value) => { if (active) setSnapshot(value); })
