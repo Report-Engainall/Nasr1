@@ -590,7 +590,7 @@ export async function fetchAdminProductsPage(input: {
     categoryIds.length
       ? readWithRetry(() => supabase
         .from('categories')
-        .select('id,name,name_en,code,description,parent_id,sort_order,is_active,created_at')
+        .select('id,name,code,description,parent_id,sort_order,is_active,created_at')
         .eq('organization_id', scope.organizationId)
         .in('id', categoryIds))
       : Promise.resolve([]),
@@ -661,7 +661,7 @@ export async function fetchAdminProductsPage(input: {
   const categoriesById = new Map<string, Category>();
   for (const row of categoryRows as Array<Record<string, unknown>>) {
     if (typeof row.id === 'string' && typeof row.name === 'string') {
-      categoriesById.set(row.id, { ...row, icon: null } as unknown as Category);
+      categoriesById.set(row.id, { ...row, name_en: null, icon: null } as unknown as Category);
     }
   }
 
