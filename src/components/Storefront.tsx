@@ -1102,6 +1102,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           <div className="sf-footer-info"><Phone size={15} /> {(settings?.store_phone as string) || 'رقم الهاتف غير مهيأ'}</div>
           <div className="sf-footer-info"><Mail size={15} /> {(settings?.store_email as string) || 'البريد الإلكتروني غير مهيأ'}</div>
           <div className="sf-footer-info"><MapPin size={15} /> {(settings?.store_address as string) || 'عنوان المتجر غير مهيأ'}</div>
+          <Link to="/help" className="sf-footer-info">مركز المساعدة</Link>
         </div>
       </footer>
     </div>

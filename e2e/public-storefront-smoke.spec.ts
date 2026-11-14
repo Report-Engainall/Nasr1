@@ -892,3 +892,100 @@ test("admin access matrix compares every role and keeps wide tables keyboard-scr
   expect(pageErrors, "The real access-matrix component must not throw browser errors in its isolated harness.").toEqual([]);
 });
 
+test("help center navigation, Arabic search and action destinations are browser-proven", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  // Read-only public browser proof: no hosted Supabase request or mutation is allowed.
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+  await page.setViewportSize({ width: 360, height: 820 });
+
+  // Direct deep link.
+  await page.goto("/help");
+  await expect(page).toHaveURL(/\/help$/);
+  await expect(page.getByRole("heading", { name: "مركز المساعدة", exact: true })).toBeVisible();
+  await expect(page.locator("main[dir='rtl']")).toHaveCount(1);
+  await expect(page).toHaveTitle(/مركز المساعدة/);
+
+  // Arabic search normalization, no-results and clear behavior.
+  const search = page.getByRole("searchbox");
+  await expect(search).toHaveAccessibleName("ابحث في الأسئلة الشائعة");
+  await expect(search).toBeVisible();
+  await expect(page.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "الحساب والتوصيل", exact: true })).toBeVisible();
+
+  await search.fill("كِيف أُرْسِل");
+  await expect(page.getByText("كيف أرسل طلب شراء؟", { exact: true })).toBeVisible();
+  await expect(page.getByText("كيف أتابع حالة طلبي؟", { exact: true })).toHaveCount(0);
+
+  const clearSearch = page.getByRole("button", { name: "مسح البحث", exact: true });
+  await search.focus();
+  await page.keyboard.press("Tab");
+  await expect(clearSearch).toBeFocused();
+  await clearSearch.click();
+  await expect(page.getByText("كيف أتابع حالة طلبي؟", { exact: true })).toBeVisible();
+
+  await search.fill("تذكرة حجز طيران");
+  await expect(page.getByRole("status").filter({ hasText: "لم نعثر على إجابة مطابقة." })).toBeVisible();
+  await clearSearch.click();
+  await expect(page.getByText("كيف أرسل طلب شراء؟", { exact: true })).toBeVisible();
+
+  // Each CTA must point to an existing route; authorization remains enforced by its route/RPC.
+  const expectedActionPaths = [
+    ["متابعة طلباتي", "/orders"],
+    ["مرتجعاتي", "/returns"],
+    ["دفعاتي", "/payments"],
+    ["ملفي الشخصي", "/profile"],
+    ["كلمة المرور", "/account/password"],
+    ["إعادة الطلب", "/reorder"],
+    ["عناوين التوصيل", "/addresses"],
+    ["الفواتير", "/invoices"],
+    ["عروض الأسعار", "/quotes"],
+    ["أعضاء الشركة", "/company/members"],
+  ] as const;
+  for (const [label, href] of expectedActionPaths) {
+    const action = page.getByRole("link", { name: label });
+    await expect(action, "Help action should lead to the existing " + href + " route").toHaveAttribute("href", href);
+  }
+  await expect(page.getByRole("link", { name: /فتح مركز خدمة العملاء/ }))
+    .toHaveAttribute("href", "/service-cases");
+
+  // Native FAQ disclosure must remain keyboard operable.
+  const firstQuestion = page.locator("details summary").first();
+  await firstQuestion.focus();
+  await expect(firstQuestion).toBeFocused();
+  await firstQuestion.press("Enter");
+  await expect(firstQuestion.locator("xpath=..")).toHaveAttribute("open", "");
+
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    "The help center must not overflow horizontally at 360px.",
+  ).toBe(true);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    "The help center must not overflow horizontally at 1280px.",
+  ).toBe(true);
+
+  // Global navigation entrypoint.
+  await page.goto("/");
+  const globalNavigation = page.getByRole("navigation", { name: "التنقل الرئيسي" });
+  await globalNavigation.getByRole("link", { name: "المساعدة", exact: true }).click();
+  await expect(page).toHaveURL(/\/help$/);
+
+  // Storefront footer entrypoint.
+  await page.getByRole("link", { name: "العودة إلى المتجر", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const storefrontFooter = page.locator(".sf-footer");
+  await expect(storefrontFooter).toBeVisible();
+  const footerHelp = storefrontFooter.getByRole("link", { name: "مركز المساعدة", exact: true });
+  await expect(footerHelp).toHaveAttribute("href", "/help");
+  await footerHelp.click();
+  await expect(page).toHaveURL(/\/help$/);
+
+  expect(pageErrors, "Help center navigation and search must not throw browser errors.").toEqual([]);
+});
+
