@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Category } from "@/lib/types";
 import { AdminCategoryTree } from "./AdminCategoryTree";
 
@@ -146,6 +146,47 @@ describe("AdminCategoryTree", () => {
     fireEvent.click(screen.getByRole("button", { name: /إعادة المحاولة/ }));
     await screen.findByRole("button", { name: /فتح المنتج منتج مرتبط/ });
     expect(mocks.fetchAdminCategoryProducts).toHaveBeenCalledTimes(2);
+  });
+
+
+  it("blocks archiving a root when an active deeper descendant sits below an archived direct child", async () => {
+    const archivedChild = { ...child, is_active: false };
+    const activeGrandchild = category(
+      "44444444-4444-4444-8444-444444444444",
+      "فرع متداخل نشط",
+      CHILD_ID,
+    );
+    mocks.fetchCategories.mockResolvedValueOnce([root, archivedChild, activeGrandchild]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderTree();
+    await screen.findByRole("heading", { name: root.name });
+    fireEvent.click(screen.getByRole("button", { name: "أرشفة التصنيف" }));
+
+    expect(mocks.archiveCategory).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(mocks.notice).toHaveBeenCalledWith(
+      expect.stringContaining("معالجة جميع فروعه النشطة"),
+    );
+  });
+
+  it("blocks child creation when any ancestor in the selected parent path is archived", async () => {
+    const archivedRoot = { ...root, is_active: false };
+    mocks.fetchCategories.mockResolvedValueOnce([archivedRoot, child]);
+    window.history.replaceState({}, "", "/admin/categories?category=" + CHILD_ID);
+
+    renderTree();
+    await screen.findByRole("heading", { name: child.name });
+    fireEvent.click(screen.getByRole("button", { name: /إضافة فرع تحت هذا الأب/ }));
+
+    const nameInput = screen.getByLabelText("اسم التصنيف");
+    fireEvent.change(nameInput, { target: { value: "فرع مرفوض" } });
+    fireEvent.submit(nameInput.closest("form")!);
+
+    expect(mocks.createCategory).not.toHaveBeenCalled();
+    expect(mocks.notice).toHaveBeenCalledWith(
+      "لا يمكن إضافة فرع تحت أب مفقود أو ضمن مسار يحتوي تصنيفاً مؤرشفاً.",
+    );
   });
 
   it("does not request category data for a role that cannot open the workspace", async () => {
