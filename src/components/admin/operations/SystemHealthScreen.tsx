@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
 import { fetchAiGatewayBudget, type AiGatewayBudgetResult } from "@/lib/intelligence/ai-gateway-operations-client";
 import { buildSystemHealthSnapshot, type SystemHealthProbe } from "@/lib/intelligence/system-health";
+import {
+  ADMIN_OBSERVABILITY_PROBE_TIMEOUT_MS,
+  AdminObservabilityTimeoutError,
+  withAdminObservabilityTimeout,
+} from "@/lib/admin-observability-deadline";
 
 type ProbeState = {
   result: AiGatewayBudgetResult;
   probe: SystemHealthProbe;
   attemptedAt: string;
   completedAt: string;
+  timedOut: boolean;
 };
 
 function healthLabel(status: ReturnType<typeof buildSystemHealthSnapshot>["status"]): string {
@@ -19,7 +25,8 @@ function healthLabel(status: ReturnType<typeof buildSystemHealthSnapshot>["statu
   }
 }
 
-function sourceLabel(result: AiGatewayBudgetResult | null): string {
+function sourceLabel(result: AiGatewayBudgetResult | null, timedOut: boolean): string {
+  if (timedOut) return "انتهت مهلة الفحص";
   if (!result) return "لم يكتمل الفحص";
   if (result.ok) return "استجابة المصدر مؤكدة";
   if (result.status === "DENIED") return "محجوب بالصلاحية";
@@ -27,7 +34,10 @@ function sourceLabel(result: AiGatewayBudgetResult | null): string {
   return "المصدر غير متاح";
 }
 
-function safeSourceFailureReason(result: AiGatewayBudgetResult): string {
+function safeSourceFailureReason(result: AiGatewayBudgetResult, timedOut: boolean): string {
+  if (timedOut) {
+    return "لم يستجب مصدر ميزانية بوابة الذكاء خلال المهلة المحددة؛ لم تُقبل القراءة كدليل.";
+  }
   if (result.ok) return "";
   if (result.status === "DENIED") {
     return "رفضت صلاحيات الجلسة الحالية قراءة ملخص ميزانية بوابة الذكاء.";
@@ -50,31 +60,33 @@ export function SystemHealthScreen() {
     setLoading(true);
     setProbeState(null);
 
-    const finish = (result: AiGatewayBudgetResult) => {
+    const finish = (result: AiGatewayBudgetResult, timedOut = false) => {
       if (!active) return;
       const completedAt = new Date().toISOString();
       const endedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
       const latencyMs = Math.max(0, Math.round(endedAt - startedAt));
       const probe: SystemHealthProbe = {
         component: "AI_GATEWAY_BUDGET_READ",
-        status: result.ok ? "HEALTHY" : result.status === "UNAVAILABLE" ? "UNAVAILABLE" : "UNKNOWN",
+        status: result.ok ? "HEALTHY" : timedOut || result.status === "UNAVAILABLE" ? "UNAVAILABLE" : "UNKNOWN",
         checkedAt: completedAt,
         latencyMs,
         sourceEvidenceId: null,
-        errorCode: result.ok ? null : result.status,
+        errorCode: result.ok ? null : timedOut ? "PROBE_TIMEOUT" : result.status,
         owner: null,
         freshForSeconds: 120,
       };
-      setProbeState({ result, probe, attemptedAt, completedAt });
+      setProbeState({ result, probe, attemptedAt, completedAt, timedOut });
     };
 
-    void fetchAiGatewayBudget()
-      .then(finish)
-      .catch(() => finish({
+    void withAdminObservabilityTimeout(() => fetchAiGatewayBudget())
+      .then((result) => finish(result))
+      .catch((error: unknown) => finish({
         ok: false,
         status: "UNAVAILABLE",
-        message: "تعذر قراءة ملخص ميزانية بوابة الذكاء من المصدر المعتمد.",
-      }))
+        message: error instanceof AdminObservabilityTimeoutError
+          ? "انتهت مهلة فحص صحة النظام."
+          : "تعذر قراءة ملخص ميزانية بوابة الذكاء من المصدر المعتمد.",
+      }, error instanceof AdminObservabilityTimeoutError))
       .finally(() => { if (active) setLoading(false); });
 
     return () => { active = false; };
@@ -90,7 +102,8 @@ export function SystemHealthScreen() {
   }), [probeState]);
 
   const result = probeState?.result ?? null;
-  const SourceIcon = result?.ok ? CheckCircle2
+  const timedOut = probeState?.timedOut ?? false;
+  const SourceIcon = timedOut ? Clock3 : result?.ok ? CheckCircle2
     : result?.status === "DENIED" ? ShieldAlert
       : result ? XCircle : Activity;
 
@@ -121,7 +134,9 @@ export function SystemHealthScreen() {
         <p className="mt-3 text-sm text-muted-foreground">
           {health.status === "UNKNOWN"
             ? "لا توجد سجلات Evidence موثقة ومكتملة مرتبطة بالفحص؛ لذلك لا تُرفع الحالة العامة إلى سليم، حتى عند نجاح قراءة RPC."
-            : "تعكس الحالة نتيجة الفحص المطلوب ضمن حدود المصدر المسجل."}
+            : health.status === "UNAVAILABLE"
+              ? "فشل المصدر المطلوب أو انتهت مهلة قراءته؛ لا توجد أدلة تسمح باعتبار النظام سليماً."
+              : "تعكس الحالة نتيجة الفحص المطلوب ضمن حدود المصدر المسجل."}
         </p>
         {health.warnings.length > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">رموز الإثبات: {health.warnings.join("، ")}</p>
@@ -134,12 +149,14 @@ export function SystemHealthScreen() {
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold">قراءة ملخص ميزانية بوابة الذكاء</h3>
             <code dir="ltr" className="mt-1 block break-all text-xs text-muted-foreground">public.get_ai_gateway_budget</code>
-            <p className="mt-2 text-sm font-semibold">{loading ? "جارٍ طلب المصدر الحالي…" : sourceLabel(result)}</p>
+            <p className="mt-2 text-sm font-semibold">
+              {loading ? "جارٍ طلب المصدر الحالي…" : sourceLabel(result, timedOut)}
+            </p>
             {!loading && result && (
               <p className="mt-1 text-sm text-muted-foreground">
                 {result.ok
                   ? "استجاب RPC الإداري. هذا يؤكد قراءة الملخص فقط، ولا يثبت اتصال مزود خارجي أو نجاح طلب نموذج."
-                  : safeSourceFailureReason(result)}
+                  : safeSourceFailureReason(result, timedOut)}
               </p>
             )}
             {probeState && (
@@ -147,6 +164,7 @@ export function SystemHealthScreen() {
                 <div><dt>بدء الفحص</dt><dd><time dateTime={probeState.attemptedAt}>{new Date(probeState.attemptedAt).toLocaleString("ar-YE")}</time></dd></div>
                 <div><dt>اكتمال الفحص</dt><dd><time dateTime={probeState.completedAt}>{new Date(probeState.completedAt).toLocaleString("ar-YE")}</time></dd></div>
                 <div><dt>زمن الطلب من المتصفح</dt><dd>{probeState.probe.latencyMs === null ? "غير متاح" : probeState.probe.latencyMs + " مللي ثانية"}</dd></div>
+                <div><dt>مهلة القراءة</dt><dd>{ADMIN_OBSERVABILITY_PROBE_TIMEOUT_MS / 1000} ثانية</dd></div>
                 <div><dt>دليل المصدر</dt><dd>{result?.ok ? "قراءة RPC ناجحة" : "لا يوجد إثبات نجاح"}</dd></div>
               </dl>
             )}
@@ -155,7 +173,7 @@ export function SystemHealthScreen() {
       </article>
 
       <p className="text-xs leading-6 text-muted-foreground">
-        النطاق الحالي: فحص واحد لقراءة ملخص الميزانية. لم تُجرَ probes مستقلة لـAuth أو Storage أو Edge Functions أو قاعدة البيانات العامة أو Onyx. قياس الكمون هو زمن دورة الطلب من المتصفح، وليس زمن تنفيذ الخادم وحده.
+        النطاق الحالي: فحص واحد لقراءة ملخص الميزانية. لم تُجرَ probes مستقلة لـAuth أو Storage أو Edge Functions أو قاعدة البيانات العامة أو Onyx. قياس الكمون هو زمن دورة الطلب من المتصفح، وليس زمن تنفيذ الخادم وحده. المهلة تمنع تعليق الواجهة، لكنها لا تلغي طلباً بدأه عميل لا يدعم الإلغاء.
       </p>
     </section>
   );

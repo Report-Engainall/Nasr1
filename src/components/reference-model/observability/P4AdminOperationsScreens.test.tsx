@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   fetchImportJobsPage: vi.fn(),
@@ -30,6 +30,7 @@ import {
   SystemHealthScreen,
 } from "@/components/admin/operations";
 import { readAdminEngineObservations } from "@/lib/admin-operation-engine-observations";
+import { ADMIN_OBSERVABILITY_PROBE_TIMEOUT_MS } from "@/lib/admin-observability-deadline";
 
 const READ_AT = "2026-11-14T00:00:00.000Z";
 
@@ -57,6 +58,7 @@ function setReadableSources() {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
@@ -116,7 +118,40 @@ describe("P4 admin engine source observations", () => {
     expect(snapshot.items.every((item) => item.runtimeStatus === "UNKNOWN")).toBe(true);
   });
 
-  it("renders the engine board with runtime status explicitly unknown", async () => {
+  it("rejects malformed source shapes instead of counting or labelling them as readable", async () => {
+    setReadableSources();
+    mocks.fetchPricingRules.mockResolvedValue({ rows: [], raw: "customer payload" });
+    mocks.fetchImportJobsPage.mockResolvedValue({ totalCount: -1, rows: [], page: 1, pageSize: 10, totalPages: 0 });
+
+    const snapshot = await readAdminEngineObservations();
+
+    expect(snapshot.items.find((item) => item.id === "pricing")?.sourceStatus).toBe("INVALID");
+    expect(snapshot.items.find((item) => item.id === "import")?.sourceStatus).toBe("INVALID");
+    expect(snapshot.items.find((item) => item.id === "onyx")?.sourceStatus).toBe("READABLE");
+    expect(JSON.stringify(snapshot)).not.toContain("customer payload");
+  });
+
+  it("times out a stalled source independently and still returns the other four observations", async () => {
+    setReadableSources();
+    vi.useFakeTimers();
+    mocks.fetchPricingRules.mockImplementation(() => new Promise(() => {}));
+
+    const pending = readAdminEngineObservations();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(ADMIN_OBSERVABILITY_PROBE_TIMEOUT_MS);
+    const snapshot = await pending;
+
+    const pricing = snapshot.items.find((item) => item.id === "pricing");
+    expect(pricing?.sourceStatus).toBe("TIMEOUT");
+    expect(pricing?.summary).toContain("انتهت مهلة قراءة المصدر");
+    expect(pricing?.recordCount).toBeNull();
+    expect(snapshot.items.filter((item) => item.id !== "pricing").every(
+      (item) => item.sourceStatus === "READABLE",
+    )).toBe(true);
+    expect(snapshot.items.every((item) => item.runtimeStatus === "UNKNOWN")).toBe(true);
+  });
+
+  it("renders all five engine observations while keeping runtime health unknown", async () => {
     setReadableSources();
     render(<EngineStatusScreen />);
 
@@ -187,6 +222,22 @@ describe("P4 monitoring screens", () => {
 
     expect(await screen.findByText("المصدر غير متاح")).toBeInTheDocument();
     expect(screen.getByText("غير متاح · UNAVAILABLE")).toBeInTheDocument();
+    expect(screen.queryByText("سليم · HEALTHY")).not.toBeInTheDocument();
+  });
+
+  it("converts a stalled health read into an explicit unavailable state", async () => {
+    vi.useFakeTimers();
+    mocks.fetchAiGatewayBudget.mockImplementation(() => new Promise(() => {}));
+    render(<SystemHealthScreen />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(ADMIN_OBSERVABILITY_PROBE_TIMEOUT_MS);
+    });
+
+    expect(screen.getByText("انتهت مهلة الفحص")).toBeInTheDocument();
+    expect(screen.getByText("غير متاح · UNAVAILABLE")).toBeInTheDocument();
+    expect(screen.getByText(/لم يستجب مصدر ميزانية بوابة الذكاء خلال المهلة المحددة/)).toBeInTheDocument();
     expect(screen.queryByText("سليم · HEALTHY")).not.toBeInTheDocument();
   });
 

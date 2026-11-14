@@ -1,8 +1,18 @@
 import { fetchImportJobsPage, fetchOnyxSnapshots, fetchPricingRules } from "@/lib/api";
 import { listMyAsyncExportJobs } from "@/lib/async-export-jobs";
 import { fetchAiGatewayBudget } from "@/lib/intelligence/ai-gateway-operations-client";
+import {
+  AdminObservabilityTimeoutError,
+  withAdminObservabilityTimeout,
+} from "@/lib/admin-observability-deadline";
 
-export type EngineSourceStatus = "READABLE" | "READABLE_EMPTY" | "DENIED" | "UNAVAILABLE" | "INVALID";
+export type EngineSourceStatus =
+  | "READABLE"
+  | "READABLE_EMPTY"
+  | "DENIED"
+  | "UNAVAILABLE"
+  | "INVALID"
+  | "TIMEOUT";
 
 export interface AdminEngineObservation {
   id: "import" | "pricing" | "ai" | "onyx" | "export";
@@ -29,8 +39,10 @@ type ReadSummary = {
   summary: string;
 };
 
+type ReadFailureStatus = Extract<EngineSourceStatus, "DENIED" | "UNAVAILABLE" | "INVALID" | "TIMEOUT">;
+
 class ProbeReadError extends Error {
-  constructor(readonly status: "DENIED" | "INVALID" | "UNAVAILABLE") {
+  constructor(readonly status: ReadFailureStatus) {
     super(status);
   }
 }
@@ -41,7 +53,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function failureStatus(error: unknown): "DENIED" | "INVALID" | "UNAVAILABLE" {
+function requireRows(value: unknown): unknown[] {
+  if (!Array.isArray(value)) throw new ProbeReadError("INVALID");
+  return value;
+}
+
+function requireNonNegativeCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new ProbeReadError("INVALID");
+  }
+  return value;
+}
+
+function failureStatus(error: unknown): ReadFailureStatus {
+  if (error instanceof AdminObservabilityTimeoutError) return "TIMEOUT";
   if (error instanceof ProbeReadError) return error.status;
   const code = asRecord(error)?.code;
   if (code === "42501" || code === "PGRST301") return "DENIED";
@@ -52,8 +77,10 @@ function failureStatus(error: unknown): "DENIED" | "INVALID" | "UNAVAILABLE" {
 function latestTimestamp(rows: readonly unknown[]): string | null {
   const timestamps = rows.flatMap((value) => {
     const row = asRecord(value);
-    const candidate = row?.updated_at ?? row?.created_at;
-    return typeof candidate === "string" && Number.isFinite(Date.parse(candidate)) ? [candidate] : [];
+    const candidate = [row?.updated_at, row?.created_at].find(
+      (item): item is string => typeof item === "string" && Number.isFinite(Date.parse(item)),
+    );
+    return candidate ? [candidate] : [];
   });
   return timestamps.sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
 }
@@ -76,7 +103,7 @@ async function readSource(
 ): Promise<AdminEngineObservation> {
   const startedAt = Date.now();
   try {
-    const result = await read();
+    const result = await withAdminObservabilityTimeout(read);
     const checkedAt = new Date().toISOString();
     return {
       ...definition,
@@ -103,14 +130,17 @@ async function readSource(
         ? "رفض المصدر القراءة وفق صلاحية الجلسة الحالية."
         : status === "INVALID"
           ? "استجابة المصدر لا تطابق عقد القراءة المتوقع؛ لم تُقبل كدليل."
-          : "تعذرت قراءة المصدر الحالي؛ لم تُستخدم بيانات بديلة أو مخزنة.",
+          : status === "TIMEOUT"
+            ? "انتهت مهلة قراءة المصدر؛ لم تُستخدم بيانات بديلة أو مخزنة."
+            : "تعذرت قراءة المصدر الحالي؛ لم تُستخدم بيانات بديلة أو مخزنة.",
     };
   }
 }
 
 /**
- * Read-only evidence from existing tenant-scoped sources. A successful read proves
- * only that source was readable; it never proves that an engine executed successfully.
+ * Read-only evidence from existing tenant-scoped sources. Each source has its
+ * own deadline and contract checks. A successful read proves only that source
+ * was readable; it never proves that an engine executed successfully.
  */
 export async function readAdminEngineObservations(): Promise<AdminEngineObservationSnapshot> {
   const definitions = {
@@ -148,16 +178,20 @@ export async function readAdminEngineObservations(): Promise<AdminEngineObservat
 
   const [importResult, pricingResult, aiResult, onyxResult, exportResult] = await Promise.all([
     readSource(definitions.import, async () => {
-      const page = await fetchImportJobsPage(1, 10);
+      const page = asRecord(await fetchImportJobsPage(1, 10));
+      if (!page) throw new ProbeReadError("INVALID");
+      const rows = requireRows(page.rows);
+      const totalCount = requireNonNegativeCount(page.totalCount);
+      if (rows.length > 10 || rows.length > totalCount) throw new ProbeReadError("INVALID");
       return {
-        recordCount: page.totalCount,
-        latestRecordAt: latestTimestamp(page.rows),
-        summary: "إجمالي دفعات المؤسسة المسموح بقراءتها: " + String(page.totalCount) +
-          ". الحالات في أحدث صفحة: " + statusCounts(page.rows),
+        recordCount: totalCount,
+        latestRecordAt: latestTimestamp(rows),
+        summary: "إجمالي دفعات المؤسسة المسموح بقراءتها: " + String(totalCount) +
+          ". الحالات في أحدث صفحة: " + statusCounts(rows),
       };
     }),
     readSource(definitions.pricing, async () => {
-      const rows = await fetchPricingRules();
+      const rows = requireRows(await fetchPricingRules());
       return {
         recordCount: rows.length,
         latestRecordAt: latestTimestamp(rows),
@@ -181,7 +215,7 @@ export async function readAdminEngineObservations(): Promise<AdminEngineObservat
       };
     }),
     readSource(definitions.onyx, async () => {
-      const rows = await fetchOnyxSnapshots();
+      const rows = requireRows(await fetchOnyxSnapshots());
       return {
         recordCount: rows.length,
         latestRecordAt: latestTimestamp(rows),
@@ -191,7 +225,7 @@ export async function readAdminEngineObservations(): Promise<AdminEngineObservat
       };
     }),
     readSource(definitions.export, async () => {
-      const rows = await listMyAsyncExportJobs(20);
+      const rows = requireRows(await listMyAsyncExportJobs(20));
       return {
         recordCount: rows.length,
         latestRecordAt: latestTimestamp(rows),

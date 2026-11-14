@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "types": [
+      "node",
+      "vite/client",
+      "vitest/globals"
+    ]
+  },
+  "include": [
+    "src/components/admin/operations/**/*.tsx",
+    "src/components/reference-model/observability/P4AdminOperationsScreens.test.tsx",
+    "src/lib/admin-operation-engine-observations.ts",
+    "src/lib/admin-observability-deadline.ts"
+  ]
+}

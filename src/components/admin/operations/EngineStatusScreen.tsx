@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
 import {
   readAdminEngineObservations,
   type AdminEngineObservation,
@@ -12,6 +12,7 @@ function sourceStatusLabel(status: AdminEngineObservation["sourceStatus"]): stri
     case "READABLE_EMPTY": return "المصدر مقروء بلا سجلات";
     case "DENIED": return "محجوب بالصلاحية";
     case "INVALID": return "استجابة غير صالحة";
+    case "TIMEOUT": return "انتهت مهلة الفحص";
     default: return "المصدر غير متاح";
   }
 }
@@ -21,6 +22,7 @@ function SourceStatusIcon({ status }: { status: AdminEngineObservation["sourceSt
   if (status === "READABLE_EMPTY") return <Activity size={18} aria-hidden="true" />;
   if (status === "DENIED") return <ShieldAlert size={18} aria-hidden="true" />;
   if (status === "INVALID") return <AlertTriangle size={18} aria-hidden="true" />;
+  if (status === "TIMEOUT") return <Clock3 size={18} aria-hidden="true" />;
   return <XCircle size={18} aria-hidden="true" />;
 }
 
@@ -51,7 +53,7 @@ export function EngineStatusScreen() {
         <div>
           <h2 className="text-lg font-semibold">لوحة حالة المحركات</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            قراءة مصادر التشغيل المحفوظة لكل محرك، مع إبقاء حالة تنفيذ المحرك مستقلة وغير مثبتة دون probe مخصص.
+            قراءة مصادر التشغيل المحفوظة لكل محرك، مع مهلة مستقلة لكل مصدر وإبقاء حالة التنفيذ غير مثبتة دون probe مخصص.
           </p>
         </div>
         <button type="button" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading}
@@ -101,7 +103,7 @@ export function EngineStatusScreen() {
       )}
 
       <p className="text-xs leading-6 text-muted-foreground">
-        هذه اللوحة لا تشغّل عمليات استيراد أو تسعير أو تصدير، ولا تتصل بنظام Onyx أو مزود الذكاء مباشرة. نجاح قراءة سجل أو إعداد لا يساوي نجاح تشغيل المحرك.
+        كل مصدر محدود بمهلة 12 ثانية وبحالة مستقلة. هذه اللوحة لا تشغّل عمليات استيراد أو تسعير أو تصدير، ولا تتصل بنظام Onyx أو مزود الذكاء مباشرة. نجاح قراءة سجل أو إعداد لا يساوي نجاح تشغيل المحرك.
       </p>
     </section>
   );
