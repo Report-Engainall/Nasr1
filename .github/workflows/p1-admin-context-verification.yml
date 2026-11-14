@@ -187,6 +187,9 @@ on:
       - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
       - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
       - ".github/workflows/inventory-replenishment-pg17.yml"
+      - "src/lib/admin-access-matrix.test.ts"
+      - "src/components/AdminAccessMatrix.tsx"
+      - "src/test/admin-access-matrix-ui.test.tsx"
   pull_request:
     branches:
       - main
@@ -369,6 +372,9 @@ on:
       - "supabase/migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql"
       - "supabase/tests/inventory_replenishment_shipment_sales_reconciliation.sql"
       - ".github/workflows/inventory-replenishment-pg17.yml"
+      - "src/lib/admin-access-matrix.test.ts"
+      - "src/components/AdminAccessMatrix.tsx"
+      - "src/test/admin-access-matrix-ui.test.tsx"
   workflow_dispatch:
 
 permissions:

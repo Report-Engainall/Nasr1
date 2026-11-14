@@ -19,7 +19,7 @@ import { StorefrontProductReviewModeration } from '@/components/StorefrontProduc
 import { StorefrontProductQuestionModeration } from '@/components/StorefrontProductQuestionModeration';
 import { archiveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
-import { ADMIN_NAV_GROUPS, rolesCanAccessView } from '@/lib/admin-access-matrix';
+import { ADMIN_NAV_GROUPS, ADMIN_NAV_PATHS, rolesCanAccessView } from '@/lib/admin-access-matrix';
 import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
 import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
@@ -85,44 +85,37 @@ type View = AdminView;
 // dashboard does not download finance, intelligence, import and inventory tools.
 type IconType = typeof LayoutDashboard;
 
-const nav: { id: View; label: string; icon: IconType }[] = [
-  { id: 'dashboard', label: 'لوحة المعلومات', icon: LayoutDashboard },
-  { id: 'products', label: 'إدارة المنتجات', icon: Box },
-  { id: 'categories', label: 'التصنيفات الرئيسية والفرعية', icon: Tags },
-  { id: 'customers', label: 'العملاء', icon: Users },
-  { id: 'service-desk', label: 'خدمة العملاء', icon: Headphones },
-  { id: 'orders', label: 'الطلبات', icon: ShoppingCart },
-  { id: 'pricing', label: 'مركز التسعير', icon: SlidersHorizontal },
-  { id: 'stock-count', label: 'الجرد الفعلي', icon: PackageCheck },
-  { id: 'inventory-transfers', label: 'سجل تحويلات المخزون', icon: PackageCheck },
-  { id: 'offers', label: 'العروض والحملات', icon: Tag },
-  { id: 'suppliers', label: 'الموردون', icon: Package },
-  { id: 'purchase-orders', label: 'أوامر الشراء والاستلام', icon: PackageCheck },
-  { id: 'devices', label: 'الأجهزة والجلسات', icon: Smartphone },
-  { id: 'reports', label: 'التقارير الذكية', icon: BarChart3 },
-  { id: 'intelligence', label: 'ذكاء الأعمال والتحصيلات', icon: BrainCircuit },
-  { id: 'ai', label: 'مركز الذكاء', icon: Bot },
-  { id: 'notifications', label: 'التنبيهات', icon: Bell },
-  { id: 'data', label: 'مركز البيانات', icon: Database },
-  { id: 'operations', label: 'العمليات الذكية', icon: Zap },
-  { id: 'settings', label: 'الإعدادات', icon: Settings },
-  { id: 'quotes', label: 'عروض الأسعار', icon: FileText },
-  { id: 'finance', label: 'الفواتير والتحصيل', icon: CircleDollarSign },
-  { id: 'tasks', label: 'المهام التشغيلية والطباعة', icon: ClipboardList },
-  { id: 'audit', label: 'سجل التدقيق', icon: ScrollText },
-];
-
-const adminPaths: Record<View, string> = {
-  dashboard: '/admin', products: '/admin/products', categories: '/admin/categories', customers: '/admin/customers', orders: '/admin/orders',
-  pricing: '/admin/pricing', offers: '/admin/offers', reports: '/admin/reports', data: '/admin/data',
-  operations: '/admin/operations', notifications: '/admin/notifications', ai: '/admin/ai',
-  suppliers: '/admin/suppliers', devices: '/admin/devices', settings: '/admin/settings',
-  quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks', audit: '/admin/audit',
-  'stock-count': '/admin/stock-count',
-  'inventory-transfers': '/admin/inventory-transfers',
-  'purchase-orders': '/admin/purchase-orders', intelligence: '/admin/intelligence', 'service-desk': '/admin/service-desk',
+const ADMIN_NAV_ICONS: Readonly<Record<View, IconType>> = {
+  dashboard: LayoutDashboard,
+  products: Box,
+  categories: Tags,
+  customers: Users,
+  orders: ShoppingCart,
+  pricing: SlidersHorizontal,
+  offers: Tag,
+  reports: BarChart3,
+  data: Database,
+  operations: Zap,
+  notifications: Bell,
+  ai: Bot,
+  suppliers: Package,
+  devices: Smartphone,
+  settings: Settings,
+  quotes: FileText,
+  finance: CircleDollarSign,
+  tasks: ClipboardList,
+  audit: ScrollText,
+  "stock-count": PackageCheck,
+  "inventory-transfers": PackageCheck,
+  "purchase-orders": PackageCheck,
+  intelligence: BrainCircuit,
+  "service-desk": Headphones,
 };
 
+const nav: { id: View; label: string; path: string; icon: IconType }[] =
+  ADMIN_NAV_GROUPS.flatMap(({ items }) =>
+    items.map(({ id, label, path }) => ({ id, label, path, icon: ADMIN_NAV_ICONS[id] })),
+  );
 
 
 /**
@@ -177,7 +170,7 @@ function AdminWorkspaceContent({
   const [notificationTaskId, setNotificationTaskId] = useState<string | null>(null);
   const keepSourceContext = (kind: string, id: string, title: string, subtitle: string, destination: View) => {
     onRecordContextChange({
-      kind, id, title, subtitle, route: adminPaths[destination], query: id,
+      kind, id, title, subtitle, route: ADMIN_NAV_PATHS[destination], query: id,
       returnToView: view, returnToOrderDetailId: orderDetailId,
     });
     onNavigate(destination);
@@ -269,7 +262,7 @@ function AdminWorkspaceContent({
             }
             onRecordContextChange({
               kind: "order", id: sourceRef, title: "طلب من سجل الوردية",
-              subtitle: "مرجع تشغيل محفوظ من مركز الوردية", route: adminPaths.orders, query: sourceRef,
+              subtitle: "مرجع تشغيل محفوظ من مركز الوردية", route: ADMIN_NAV_PATHS.orders, query: sourceRef,
               returnToView: view, returnToOrderDetailId: orderDetailId,
             });
             onOrderDetailChange(sourceRef);
@@ -488,21 +481,12 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
   const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&
     !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
-  const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const canManageIntelligence = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const visibleNav = nav.filter(({ id }) => isCustomerManagerOnly
-    ? id === 'customers'
-    : (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
-      (id !== 'intelligence' || canManageIntelligence) &&
-      (id !== 'audit' || canManageAudit) &&
-      (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
-  );
-  const visibleNavGroups = ADMIN_NAV_GROUPS.map((group) => ({
+  const visibleNavGroups = getVisibleAdminNavigationGroups(user?.roles ?? []).map((group) => ({
     ...group,
-    items: group.views
-      .map((id) => nav.find((item) => item.id === id))
-      .filter((item): item is (typeof nav)[number] => Boolean(item && visibleNav.some((visible) => visible.id === item.id))),
-  })).filter((group) => group.items.length > 0);
+    items: group.items.map(({ id }) => nav.find((item) => item.id === id))
+      .filter((item): item is (typeof nav)[number] => Boolean(item)),
+  }));
+  const visibleNav = visibleNavGroups.flatMap(({ items }) => items);
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
   const activeNavigationItem = nav.find((item) => item.id === view);
@@ -580,7 +564,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     return wasOpen;
   };
   const navigateAdmin = (id: View, restoreMobileFocus: boolean) => {
-    const navigation = navigate({ to: adminPaths[id] as never });
+    const navigation = navigate({ to: ADMIN_NAV_PATHS[id] as never });
     if (!restoreMobileFocus) return;
 
     // Admin pages are separate file routes and may remount AdminApp. Restore
@@ -864,10 +848,10 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {visibleNavGroups.map((group) => (
             <CommandGroup key={group.id} heading={group.label}>
               {group.items.map(({ id, label, icon: Icon }) => (
-                <CommandItem key={id} value={`${label} ${id} ${adminPaths[id]}`} onSelect={() => runAdminCommand(id)}>
+                <CommandItem key={id} value={`${label} ${id} ${ADMIN_NAV_PATHS[id]}`} onSelect={() => runAdminCommand(id)}>
                   <Icon size={17} aria-hidden="true" />
                   <span>{label}</span>
-                  <span className="ml-auto text-xs text-muted-foreground" dir="ltr">{adminPaths[id]}</span>
+                  <span className="ml-auto text-xs text-muted-foreground" dir="ltr">{ADMIN_NAV_PATHS[id]}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -938,8 +922,8 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   ] as const;
   const navigationGroups = getVisibleAdminNavigationGroups(user?.roles ?? []);
   const activeGroup = navigationGroups.find((group) => group.id === activeGroupId);
-  const activeGroupEntries = activeGroup?.views.flatMap((view) => {
-    const item = nav.find((candidate) => candidate.id === view);
+  const activeGroupEntries = activeGroup?.items.flatMap(({ id }) => {
+    const item = nav.find((candidate) => candidate.id === id);
     return item ? [item] : [];
   }) ?? [];
   if (activeGroup && activeGroupEntries.length > 0) {
@@ -977,8 +961,8 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     <div className="stats-grid">{cards.map(([label, value, note, Icon, color]) => <article className={`stat-card ${color}`} key={label}><div className="stat-top"><Icon size={22} /><span>{note}</span></div><small>{label}</small><strong>{value}</strong></article>)}</div>
     <section className="admin-group-cards" aria-label="مجموعات الإدارة">
       {navigationGroups.map((group) => {
-        const entries = group.views.flatMap((view) => {
-          const item = nav.find((candidate) => candidate.id === view);
+        const entries = group.items.flatMap(({ id }) => {
+          const item = nav.find((candidate) => candidate.id === id);
           return item ? [item] : [];
         });
         const GroupIcon = entries[0]?.icon ?? LayoutDashboard;
@@ -996,7 +980,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
       })}
     </section>
     <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.length ? alerts.map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{lowStockProductsLoading ? <Loading /> : lowStockProductsError ? <ErrorBox message={lowStockProductsError} /> : !stats?.hasActiveWarehouse ? <Empty text="لم يتم تحديد مستودع نشط؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : stats.lowStockCount === null || lowStockProducts === null ? <Empty text="بيانات المخزون غير مكتملة؛ تعذر تأكيد قائمة الأصناف منخفضة المخزون." /> : lowStockProducts.length ? lowStockProducts.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.quantity_available <= 0 ? 'critical' : ''}>{formatNumber(product.quantity_available)} {product.unit}</b></div>) : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
-    <section className="quick-panel"><div><Sparkline /><strong>تشغيل مترابط من لوحة واحدة</strong><p>افتح أي وحدة لإدارة التفاصيل وتحديث البيانات مباشرة.</p></div><div className="quick-links">{nav.slice(1, 7).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => onNavigate(id)}><Icon size={17} />{label}</button>)}</div></section>
+    <section className="quick-panel"><div><Sparkline /><strong>تشغيل مترابط من لوحة واحدة</strong><p>افتح أي وحدة لإدارة التفاصيل وتحديث البيانات مباشرة.</p></div></section>
   </>;
 }
 function Sparkline() { return <svg className="sparkline" viewBox="0 0 160 52" aria-hidden="true"><path d="M2 42 C25 43 25 28 43 31 S65 42 79 27 S104 25 114 17 S139 24 158 6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>; }
