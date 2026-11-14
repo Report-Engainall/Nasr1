@@ -2326,6 +2326,56 @@ export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[
   });
 }
 
+
+export interface AdminProductPriceDetail {
+  id: string;
+  base_price: number;
+  price_wholesale_of_wholesale: number;
+  price_wholesale: number;
+  price_retail: number;
+}
+
+/** Read exactly one saved price row for an active admin/manager editor. */
+export async function fetchAdminProductPriceDetail(productId: string): Promise<AdminProductPriceDetail> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
+    throw new Error('معرّف المنتج غير صالح لقراءة الأسعار.');
+  }
+
+  // The table-returning RPC applies the manager/admin role and tenant checks on the
+  // server. PostgREST filters the single requested product before returning data.
+  const { data, error } = await supabase
+    .rpc('get_admin_product_price_grid_with_inventory')
+    .eq('id', productId)
+    .maybeSingle();
+  if (error) throw new Error('تعذر تحميل أسعار المنتج الحالية: ' + error.message);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يُرجع الخادم أسعاراً مؤكدة لهذا المنتج.');
+  }
+
+  const row = data as Record<string, unknown>;
+  if (row.id !== productId) {
+    throw new Error('أعاد الخادم أسعار منتج مختلف؛ أُوقف التعديل لحماية بيانات الكتالوج.');
+  }
+  const readMoney = (key: string): number => {
+    const raw = row[key];
+    const value = typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : Number.NaN;
+    if (!isValidPriceAmount(value)) {
+      throw new Error('السعر المحفوظ ' + key + ' غير صالح أو غير متاح؛ لم يُستبدل بصفر.');
+    }
+    return value;
+  };
+
+  return {
+    id: productId,
+    base_price: readMoney('base_price'),
+    price_wholesale_of_wholesale: readMoney('price_wholesale_of_wholesale'),
+    price_wholesale: readMoney('price_wholesale'),
+    price_retail: readMoney('price_retail'),
+  };
+}
+
 // ─── Atomic, stale-safe price grid command ───
 export interface ProductPriceGridChange {
   id: string;
