@@ -339,7 +339,7 @@ async function main() {
     const productRaceCategory = await createCategory(managerA, "P2-PRODUCT-RACE-" + suffix);
     let productSettled = false;
     let productRacePromise;
-    const productRaceCode = "P2-RACE-PRODUCT-" + suffix;
+    const productRaceCode = "P2-CATEGORY-RACE-" + suffix;
     await lockDb.begin(async (tx) => {
       const locked = await tx.unsafe(
         "select id::text from public.categories where organization_id=$1::uuid and id=$2::uuid for update",
