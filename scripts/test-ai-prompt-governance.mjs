@@ -243,8 +243,8 @@ async function main() {
       "insert into public.ai_usage_ledger(" +
       "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
       "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
-      "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
-      ") values($1::uuid,$2::uuid,$3::text,$4::text,120,48,0.0042,840,false,'completed','measured',120,48,1,$5::jsonb,null) " +
+      "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason,created_at" +
+      ") values($1::uuid,$2::uuid,$3::text,$4::text,120,48,0.0042,840,false,'completed','measured',120,48,1,$5::jsonb,null,pg_catalog.clock_timestamp()) " +
       "on conflict(organization_id,request_id) do nothing",
       [
         organizationId,
@@ -284,17 +284,30 @@ async function main() {
           "insert into public.ai_usage_ledger(" +
           "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
           "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
-          "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
-          ") values($1::uuid,$2::uuid,$3::text,$4::text,0,0,0,320,false,'completed','unknown',null,null,1,$5::jsonb,null)",
+          "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason,created_at" +
+          ") values($1::uuid,$2::uuid,$3::text,$4::text,0,0,0,320,false,'completed','unknown',null,null,1,$5::jsonb,null,pg_catalog.clock_timestamp())",
           [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", tx.json(legacyScalarPayload)],
         );
         await setIdentity(tx, adminClaims);
         setPhase("read legacy scalar JSONB through the tenant-scoped AI audit RPC");
+        const directLegacyFixture = await oneRow(
+          tx,
+          "select count(*)::integer as count from public.ai_usage_ledger where organization_id=$1::uuid and request_id=$2::text",
+          [organizationId, malformedAiAuditRequestId],
+        );
+        assert.equal(Number(directLegacyFixture.count), 1, "legacy scalar audit fixture must be visible in its source transaction");
         const legacyAudit = asJson((await tx.unsafe(
-          "select public.list_ai_gateway_audit(null,50,0) as result",
+          "select public.list_ai_gateway_audit(null,100,0) as result",
         ))[0].result);
         const legacyRow = legacyAudit.items.find((item) => item.request_id === malformedAiAuditRequestId);
-        assert.ok(legacyRow, "AI audit RPC must not abort when an isolated legacy scalar provider_attempts row exists");
+        assert.ok(
+          legacyRow,
+          "AI audit RPC must return the newest isolated legacy scalar fixture (total=" +
+            String(legacyAudit.total) +
+            "; visible_request_ids=" +
+            legacyAudit.items.map((item) => item.request_id).join(",") +
+            ")",
+        );
         assert.equal(legacyRow.provider_attempts_integrity, false);
         assert.deepEqual(legacyRow.provider_attempts, []);
         assert.equal(
@@ -330,7 +343,7 @@ async function main() {
 
     setPhase("read AI audit as organization admin");
     const aiAudit = asJson((await adminDb.unsafe(
-      "select public.list_ai_gateway_audit(null,50,0) as result",
+      "select public.list_ai_gateway_audit(null,100,0) as result",
     ))[0].result);
     assert.ok(Array.isArray(aiAudit.items), "admin AI audit must return bounded ledger items");
     assert.ok(Number.isSafeInteger(Number(aiAudit.total)) && Number(aiAudit.total) >= aiAudit.items.length);
