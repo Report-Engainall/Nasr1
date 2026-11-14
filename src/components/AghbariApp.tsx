@@ -9,7 +9,7 @@ import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, fetchDashboardAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchAdminProductOptions, fetchAdminProductOptionById, fetchDashboardStats, fetchDashboardLowStockProducts, fetchAdminProductsPage, fetchAdminOrdersPage, fetchBusinessAnalyticsOrders, fetchBusinessInventoryValue, fetchPricingRules,
   fetchStoreProductActivityReport,
-  fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
+  fetchAdminProductPriceDetail, fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
   uploadProductGalleryImage, removeProductGalleryImage,
@@ -17,7 +17,7 @@ import {
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { StorefrontProductReviewModeration } from '@/components/StorefrontProductReviewModeration';
 import { StorefrontProductQuestionModeration } from '@/components/StorefrontProductQuestionModeration';
-import { archiveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
+import { archiveAdminCatalogProduct, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { ADMIN_NAV_GROUPS, ADMIN_NAV_PATHS, rolesCanAccessView } from '@/lib/admin-access-matrix';
 import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
@@ -1237,7 +1237,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
+    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
     <BulkProductImageUploader
       loadProducts={fetchProducts}
       catalogRevision={catalogRevision}
@@ -1257,7 +1257,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
             <td><span className={'badge ' + (stockStatus === 'unknown' ? 'info' : low ? 'warning' : 'success')}>{stockStatus === 'unknown' ? 'غير متاح' : low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions">
-              <button aria-label={'تعديل ' + p.name} title="تعديل المنتج" onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>
+              {canManageProductLifecycle && <button aria-label={'تعديل ' + p.name} title="تعديل المنتج والأسعار" onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>}
               {canManageProductLifecycle && p.status === 'active' && <button aria-label={'أرشفة ' + p.name} title="أرشفة المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void archive(p)}><Trash2 size={15} /></button>}
               {canManageProductLifecycle && p.status === 'inactive' && <button aria-label={'إعادة تفعيل ' + p.name} title="إعادة تفعيل المنتج" disabled={lifecycleBusyId === p.id} onClick={() => void restore(p)}><Check size={15} /></button>}
             </div></td>
@@ -1277,6 +1277,14 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     {renderThresholdModal()}
   </>;
 }
+type AdminProductPriceSnapshot = {
+  id: string;
+  base_price: number;
+  price_wholesale_of_wholesale: number;
+  price_wholesale: number;
+  price_retail: number;
+};
+
 export function ProductModal({
   product,
   onClose,
@@ -1314,6 +1322,10 @@ export function ProductModal({
   const [priceWholesaleOfWholesale, setPriceWholesaleOfWholesale] = useState('');
   const [priceWholesale, setPriceWholesale] = useState('');
   const [priceRetail, setPriceRetail] = useState('');
+  const [originalPrices, setOriginalPrices] = useState<AdminProductPriceSnapshot | null>(null);
+  const [priceDetailsLoading, setPriceDetailsLoading] = useState(Boolean(product && canManageLifecycle));
+  const [priceDetailsError, setPriceDetailsError] = useState('');
+  const [priceDetailsRetry, setPriceDetailsRetry] = useState(0);
   const [minOrderQuantity, setMinOrderQuantity] = useState(String(product?.min_order_quantity ?? 1));
   const [orderQuantityMultiple, setOrderQuantityMultiple] = useState(String(product?.order_quantity_multiple ?? 1));
   const [category, setCategory] = useState(product?.category_id ?? '');
@@ -1326,6 +1338,33 @@ export function ProductModal({
   const [error, setError] = useState('');
   // React state alone does not block two click events dispatched before a rerender.
   const saveInFlight = useRef(false);
+
+  useEffect(() => {
+    if (!product || !canManageLifecycle) {
+      setOriginalPrices(null);
+      setPriceDetailsError('');
+      setPriceDetailsLoading(false);
+      return;
+    }
+    let active = true;
+    setOriginalPrices(null);
+    setPriceDetailsError('');
+    setPriceDetailsLoading(true);
+    fetchAdminProductPriceDetail(product.id)
+      .then((snapshot) => {
+        if (!active) return;
+        setOriginalPrices(snapshot);
+        setPrice(String(snapshot.base_price));
+        setPriceWholesaleOfWholesale(String(snapshot.price_wholesale_of_wholesale));
+        setPriceWholesale(String(snapshot.price_wholesale));
+        setPriceRetail(String(snapshot.price_retail));
+      })
+      .catch((cause) => {
+        if (active) setPriceDetailsError(cause instanceof Error ? cause.message : 'تعذر تحميل أسعار الشرائح الحالية.');
+      })
+      .finally(() => { if (active) setPriceDetailsLoading(false); });
+    return () => { active = false; };
+  }, [product?.id, canManageLifecycle, priceDetailsRetry]);
 
   useEffect(() => {
     if (!imageFile) { setImagePreview(removeImageRequested ? null : product?.image_url ?? null); return; }
@@ -1422,6 +1461,10 @@ export function ProductModal({
 
   async function save() {
     if (saveInFlight.current || saving) return;
+    if (canManageLifecycle && product && (!originalPrices || priceDetailsLoading || priceDetailsError)) {
+      setError('لا يمكن حفظ المنتج قبل تحميل أسعار الشرائح الأصلية والتحقق منها. أعد تحميل الأسعار أولاً.');
+      return;
+    }
     if (!name.trim() || !code.trim() || !unit.trim() || price.trim() === '' || description.length > 2000) {
       setError('أكمل الحقول المطلوبة، بما فيها الوحدة الأساسية، وتأكد أن الوصف لا يتجاوز 2000 حرف.');
       return;
@@ -1442,7 +1485,7 @@ export function ProductModal({
     let retailPriceValue: number | null = null;
     try {
       priceValue = parsePriceValue(price, 'السعر الأساسي');
-      if (!product) {
+      if (!product || canManageLifecycle) {
         vipPriceValue = parsePriceValue(priceWholesaleOfWholesale, 'سعر جملة الجملة');
         wholesalePriceValue = parsePriceValue(priceWholesale, 'سعر الجملة');
         retailPriceValue = parsePriceValue(priceRetail, 'سعر التجزئة');
@@ -1479,8 +1522,25 @@ export function ProductModal({
       };
       let savedProductId: string;
       if (product) {
-        const saved = await updateProduct(product.id, payload);
-        savedProductId = saved.id;
+        if (canManageLifecycle) {
+          if (!originalPrices || vipPriceValue === null || wholesalePriceValue === null || retailPriceValue === null) {
+            throw new Error('تعذر التحقق من أسعار المنتج الأصلية؛ لم تُحفظ أي تعديلات.');
+          }
+          const saved = await saveAdminCatalogProduct(product.id, {
+            ...payload,
+            price_wholesale_of_wholesale: vipPriceValue,
+            price_wholesale: wholesalePriceValue,
+            price_retail: retailPriceValue,
+            expected_base_price: originalPrices.base_price,
+            expected_price_wholesale_of_wholesale: originalPrices.price_wholesale_of_wholesale,
+            expected_price_wholesale: originalPrices.price_wholesale,
+            expected_price_retail: originalPrices.price_retail,
+          });
+          savedProductId = saved.id;
+        } else {
+          const saved = await updateProduct(product.id, payload);
+          savedProductId = saved.id;
+        }
       } else {
         if (vipPriceValue === null || wholesalePriceValue === null || retailPriceValue === null) {
           throw new Error('أدخل أسعار الشرائح الثلاث قبل إنشاء المنتج.');
@@ -1530,6 +1590,15 @@ export function ProductModal({
           <input value={unit} onChange={(e) => setUnit(e.target.value)} maxLength={40} disabled={saving} placeholder="أدخل وحدة القياس الأساسية" />
         </Field>
       </div>
+      {product && canManageLifecycle && priceDetailsLoading && <p className="text-muted" role="status">جار تحميل الأسعار الحالية من الخادم…</p>}
+      {product && canManageLifecycle && priceDetailsError && (
+        <div className="form-error" role="alert">
+          <span>{priceDetailsError}</span>
+          <Button variant="outline" onClick={() => setPriceDetailsRetry((value) => value + 1)} disabled={saving || priceDetailsLoading}>
+            إعادة تحميل الأسعار
+          </Button>
+        </div>
+      )}
       <div className="form-grid">
         <Field label="السعر الأساسي">
           <input
@@ -1539,27 +1608,29 @@ export function ProductModal({
             step="0.01"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            disabled={saving}
+            disabled={saving || (Boolean(product) && canManageLifecycle && (priceDetailsLoading || Boolean(priceDetailsError)))}
           />
         </Field>
       </div>
-      {!product && (
+      {(!product || canManageLifecycle) && (
         <>
           <p className="text-muted" style={{ margin: '4px 0 8px', fontSize: 12, lineHeight: 1.7 }}>
-            يلزم تحديد أسعار الشرائح عند إنشاء المنتج. لا تُستنسخ أسعار التجزئة إلى الجملة تلقائيًا.
+            {product
+              ? 'عدّل شرائح السعر الأربع من شاشة واحدة. يتحقق الخادم من القيم الأصلية قبل الحفظ؛ وعند وجود تعديل متزامن يرفض الحفظ حتى تعيد تحميل الأسعار.'
+              : 'يلزم تحديد أسعار الشرائح عند إنشاء المنتج. لا تُستنسخ أسعار التجزئة إلى الجملة تلقائيًا.'}
           </p>
           <div className="form-grid">
             <Field label="سعر جملة الجملة">
               <input type="number" min="0" max="999999999999" step="0.01" value={priceWholesaleOfWholesale}
-                onChange={(event) => setPriceWholesaleOfWholesale(event.target.value)} disabled={saving} />
+                onChange={(event) => setPriceWholesaleOfWholesale(event.target.value)} disabled={saving || priceDetailsLoading || Boolean(priceDetailsError)} />
             </Field>
             <Field label="سعر الجملة">
               <input type="number" min="0" max="999999999999" step="0.01" value={priceWholesale}
-                onChange={(event) => setPriceWholesale(event.target.value)} disabled={saving} />
+                onChange={(event) => setPriceWholesale(event.target.value)} disabled={saving || priceDetailsLoading || Boolean(priceDetailsError)} />
             </Field>
             <Field label="سعر التجزئة">
               <input type="number" min="0" max="999999999999" step="0.01" value={priceRetail}
-                onChange={(event) => setPriceRetail(event.target.value)} disabled={saving} />
+                onChange={(event) => setPriceRetail(event.target.value)} disabled={saving || priceDetailsLoading || Boolean(priceDetailsError)} />
             </Field>
           </div>
         </>
@@ -1712,7 +1783,7 @@ export function ProductModal({
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="modal-actions">
         <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
-        <Button onClick={() => void save()} disabled={saving || categoriesLoading || Boolean(categoriesError)}>
+        <Button onClick={() => void save()} disabled={saving || categoriesLoading || Boolean(categoriesError) || priceDetailsLoading || Boolean(priceDetailsError) || Boolean(product && canManageLifecycle && !originalPrices)}>
           {saving ? 'جار الحفظ والرفع...' : 'حفظ المنتج'}
         </Button>
       </div>

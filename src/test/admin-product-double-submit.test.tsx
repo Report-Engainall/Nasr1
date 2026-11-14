@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   updateProduct: vi.fn(),
   fetchCategories: vi.fn(),
   uploadProductImage: vi.fn(),
+  fetchAdminProductPriceDetail: vi.fn(),
+  saveAdminCatalogProduct: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -23,8 +25,19 @@ vi.mock("@/lib/api", async (importOriginal) => {
     updateProduct: mocks.updateProduct,
     fetchCategories: mocks.fetchCategories,
     uploadProductImage: mocks.uploadProductImage,
+    fetchAdminProductPriceDetail: mocks.fetchAdminProductPriceDetail,
   };
 });
+
+vi.mock("@/lib/admin-catalog-commands", () => ({
+  archiveAdminCatalogProduct: vi.fn(),
+  saveAdminCatalogProduct: mocks.saveAdminCatalogProduct,
+}));
+
+// Unit-conversion management is a separate workflow; keep this price-editor test isolated.
+vi.mock("@/components/ProductUnitConversionsEditor", () => ({
+  ProductUnitConversionsEditor: () => null,
+}));
 
 import type { ProductWithInventory } from "@/lib/types";
 import { ProductModal } from "@/components/AghbariApp";
@@ -59,6 +72,11 @@ const existingProduct: ProductWithInventory = {
   display_price: 25,
 };
 
+const managerProduct: ProductWithInventory = {
+  ...existingProduct,
+  id: "10000000-0000-4000-8000-000000000002",
+};
+
 function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText("اسم المنتج"), { target: { value: "منتج الاختبار" } });
   fireEvent.change(screen.getByLabelText(/الوحدة الأساسية/), { target: { value: "كرتون" } });
@@ -75,6 +93,14 @@ describe("admin product form submission", () => {
     mocks.updateProduct.mockReset().mockResolvedValue(savedProduct);
     mocks.fetchCategories.mockReset().mockResolvedValue([]);
     mocks.uploadProductImage.mockReset().mockResolvedValue(undefined);
+    mocks.fetchAdminProductPriceDetail.mockReset().mockResolvedValue({
+      id: existingProduct.id,
+      base_price: 25,
+      price_wholesale_of_wholesale: 20,
+      price_wholesale: 22,
+      price_retail: 25,
+    });
+    mocks.saveAdminCatalogProduct.mockReset().mockResolvedValue({ id: existingProduct.id, status: "active", created: false });
   });
 
   afterEach(() => {
@@ -129,6 +155,52 @@ describe("admin product form submission", () => {
       unit: "كرتون",
       status: "active",
     });
+  });
+
+  it("loads and atomically saves all four prices when a manager edits a product", async () => {
+    const onSaved = vi.fn();
+    render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("السعر الأساسي")).toHaveValue(25);
+      expect(screen.getByLabelText("سعر جملة الجملة")).toHaveValue(20);
+      expect(screen.getByLabelText("سعر الجملة")).toHaveValue(22);
+      expect(screen.getByLabelText("سعر التجزئة")).toHaveValue(25);
+    });
+    expect(mocks.fetchAdminProductPriceDetail).toHaveBeenCalledWith(managerProduct.id);
+
+    fireEvent.change(screen.getByLabelText("السعر الأساسي"), { target: { value: "30.00" } });
+    fireEvent.change(screen.getByLabelText("سعر جملة الجملة"), { target: { value: "21.00" } });
+    fireEvent.change(screen.getByLabelText("سعر الجملة"), { target: { value: "23.00" } });
+    fireEvent.change(screen.getByLabelText("سعر التجزئة"), { target: { value: "31.00" } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mocks.saveAdminCatalogProduct).toHaveBeenCalledWith(managerProduct.id, expect.objectContaining({
+      base_price: 30,
+      price_wholesale_of_wholesale: 21,
+      price_wholesale: 23,
+      price_retail: 31,
+      expected_base_price: 25,
+      expected_price_wholesale_of_wholesale: 20,
+      expected_price_wholesale: 22,
+      expected_price_retail: 25,
+    }));
+    expect(mocks.updateProduct).not.toHaveBeenCalled();
+  });
+
+  it("blocks manager saves if the current tier-price snapshot cannot be verified", async () => {
+    mocks.fetchAdminProductPriceDetail.mockRejectedValueOnce(new Error("price snapshot unavailable"));
+    const onSaved = vi.fn();
+    render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
+
+    expect(await screen.findByText("price snapshot unavailable")).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    expect(submit).toBeDisabled();
+    expect(mocks.saveAdminCatalogProduct).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "إعادة تحميل الأسعار" }));
+    await waitFor(() => expect(screen.getByLabelText("سعر التجزئة")).toHaveValue(25));
+    expect(submit).toBeEnabled();
   });
 
   it("sends only one update request for rapid submits dispatched before rerender", async () => {
