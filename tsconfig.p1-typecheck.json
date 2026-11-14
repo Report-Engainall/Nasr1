@@ -84,6 +84,7 @@
     "src/lib/intelligence/customer-receivable-aging-ranking.ts",
     "src/lib/intelligence/customer-receivable-aging-ranking.test.ts",
     "src/components/intelligence/CashflowForecastCard.tsx",
-    "src/routeTree.gen.ts"
+    "src/routeTree.gen.ts",
+    "src/lib/product-image-upload-handler.test.ts"
   ]
 }

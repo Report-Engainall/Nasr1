@@ -5,6 +5,9 @@ on:
     branches:
       - main
     paths:
+      - "src/lib/product-image-upload-handler.test.ts"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/product-image-upload/index.ts"
       - "supabase/migrations/**"
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
@@ -196,6 +199,9 @@ on:
     branches:
       - main
     paths:
+      - "src/lib/product-image-upload-handler.test.ts"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/product-image-upload/index.ts"
       - "supabase/migrations/**"
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"

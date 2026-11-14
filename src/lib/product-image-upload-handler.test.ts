@@ -132,10 +132,13 @@ function imageRequest(options: {
     "x-product-id": PRODUCT_ID,
     ...options.headers,
   });
+  const payload = options.bytes ?? WEBP;
+  const blobBuffer = new ArrayBuffer(payload.byteLength);
+  new Uint8Array(blobBuffer).set(payload);
   return new Request("https://edge.example.test/product-image-upload", {
     method: "POST",
     headers,
-    body: new Blob([options.bytes ?? WEBP], { type: "image/webp" }),
+    body: new Blob([blobBuffer], { type: "image/webp" }),
   });
 }
 
