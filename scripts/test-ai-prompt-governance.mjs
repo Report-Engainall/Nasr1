@@ -348,11 +348,12 @@ async function main() {
     assert.ok(Array.isArray(aiAudit.items), "admin AI audit must return bounded ledger items");
     assert.ok(Number.isSafeInteger(Number(aiAudit.total)) && Number(aiAudit.total) >= aiAudit.items.length);
     assert.ok(aiAudit.items.some((item) => item.request_id === aiAuditRequestId), "audit RPC must return the source-backed local fixture");
-    const malformedAttemptRecord = aiAudit.items.find((item) => item.request_id === malformedAiAuditRequestId);
-    assert.ok(malformedAttemptRecord, "audit RPC must tolerate an isolated legacy scalar provider_attempts fixture");
-    assert.equal(malformedAttemptRecord.provider_attempts_integrity, false);
-    assert.deepEqual(malformedAttemptRecord.provider_attempts, []);
-    assert.equal(malformedAttemptRecord.provider_attempt_count, 1, "the original attempt count remains visible without claiming valid details");
+    // The legacy scalar was verified and sanitized while it existed inside the
+    // rollback-only transaction above. After rollback it must not be observable.
+    assert.ok(
+      !aiAudit.items.some((item) => item.request_id === malformedAiAuditRequestId),
+      "the rollback-only legacy scalar fixture must not remain visible after rollback",
+    );
     for (const item of aiAudit.items) {
       assert.ok(!("prompt" in item) && !("response" in item) && !("raw_payload" in item));
       assert.equal(typeof item.provider_attempts_integrity, "boolean");
