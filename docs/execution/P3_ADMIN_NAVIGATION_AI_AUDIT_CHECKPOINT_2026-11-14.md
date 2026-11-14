@@ -96,3 +96,30 @@ P2 must fail closed on posted credit-note invoice/customer/organization/currency
 - Next UI acceptance, using only approved local/non-production fixtures: admin/manager versus staff/customer access; desktop and mobile RTL; expand/collapse; nested search context; URL deep link/back navigation; root and child creation proving persisted `parent_id`; details and path; archived-row visibility and restore under an active parent; archive denials with active grandchildren/products; product preservation; price/inventory role visibility and unavailable-value handling. Capture before/after authorization evidence; no hosted production writes.
 - Independent financial blocker issue #477 remains OPEN (posted credit memo deduction from executive receivables). P4 observability PR #475 remains Draft/open. Overall release remains **NO-GO**; this category integration is not a product release declaration.
 - No production migration application, hosted DB write, deployment, paid provider, or paid service was used.
+
+
+# P3 AI GATEWAY OPERATIONS CONSOLE — MERGED AND EXACT-SHA ACCEPTANCE — 14 NOVEMBER 2026
+
+## Integration
+- PR [#478](https://github.com/Report-Engainall/Nasr1/pull/478) merged into canonical `main` at merge commit `5cb381b66c8e2aa5351757ac4d0ce777a642a70d`.
+- Its three-file change mounts the existing read-only `AiGatewayOperationsPanel` at the top of the existing `حوكمة الذكاء ومراجعة التشغيل` section in `IntelligenceWorkspace`, keeps the usage-audit and prompt-governance panels beside it, updates the section description, and adds the integration test to P1 workflow path filters.
+- The workspace's existing `canManage` guard permits only admin/manager access and returns the restricted state before data requests for other roles. The server's existing `get_ai_gateway_budget` RPC remains authoritative; prompt governance remains admin-only. No route, role or backend permission was broadened.
+- The PR #478 merge is an ancestor of category integration commit `e7028f576366c88d805e2dcb83fa7c1b190f046d`. The current `main` HEAD at this checkpoint is `798eafa4a2c7505b5263fab678ade2b4ac974d50`; the only commit after `e7028f5` changes `vercel.json`, not application source. The application code-bearing SHA remains `e7028f5`.
+
+## Exact-SHA acceptance
+- **P1 TESTED_EXACT_SHA:** run [#43544675111](https://github.com/Report-Engainall/Nasr1/actions/runs/43544675111) — SUCCESS on exact code SHA `e7028f576366c88d805e2dcb83fa7c1b190f046d`: 120/120 test files and 841/841 tests passed; strict TypeScript and production Vite/Nitro build passed. `IntelligenceWorkspace.test.tsx` passed 10/10, `AiGatewayOperationsPanel.test.tsx` passed 2/2, and `AdminCategoryTree.test.tsx` passed 7/7.
+- **P2 TESTED_EXACT_SHA:** run [#43544675327](https://github.com/Report-Engainall/Nasr1/actions/runs/43544675327) — SUCCESS on that same exact SHA. Public read-only Storefront smoke and authenticated infrastructure gate succeeded. The local PostgreSQL 17/Supabase + authenticated Chromium job passed all 43 steps, including migrations, tenant/role denial, pricing atomicity, cash/receipt/product flows, authenticated order isolation, XLSX exports, checkout replay, returns/credit memo, Onyx export, financial printing, customer-manager privacy/audit, device-session immediate revocation, AI prompt governance, cleanup and artifacts.
+- The local P2 AI step emitted `AI_PROMPT_GOVERNANCE_ACCEPTANCE_PASS` with maker-checker, third-party activation, append-only audit, immutable content, tenant isolation, idempotency and runtime session guard proved. Local authenticated artifact: `14093393395`; public read-only artifact: `14093631763`.
+- The separate hosted customer/order/tenant E2E job was **SKIPPED**, not PASS. These are isolated local CI results, not hosted or production proof.
+
+## Safety and remaining AI blockers
+- The operations panel is read-only and still reads only the approved budget aggregate. It does not activate providers or claim free-tier eligibility, quota remaining, cooldown or provider connectivity without a trusted evidence record. The provider/quota evidence registry remains empty; the Edge Function is source-only/not deployed and provider egress remains fail-closed. No provider call, payment method, billing, deployment, Vercel operation or production database write was used.
+- The in-app `NaturalLanguageAssistant` is a separate deterministic planner over authorized application RPCs. The Edge handler explicitly does not claim to execute that planner. Automatic Edge-to-local handoff remains **BLOCKED**; retain `MODEL_UNAVAILABLE` when no verified free provider exists and do not present a static Edge response as a business answer.
+- Main now includes `20261114140000_ai_prompt_disable_lifecycle.sql` and the `DISABLED` terminal status/RPC. The pure lifecycle and UI tests cover the disable action, but P2 runner `scripts/test-ai-prompt-governance.mjs` does not yet call `disable_ai_prompt_version`. A generic prompt-governance PASS is not evidence for this new RPC's PG17 runtime behavior. P2 acceptance is tracked in [#481](https://github.com/Report-Engainall/Nasr1/issues/481); require idempotency/replay, actor/tenant denial, no-side-effect snapshots, immutable content/audit and terminal-state assertions on isolated PostgreSQL 17.
+- Independent finance blocker [#477](https://github.com/Report-Engainall/Nasr1/issues/477) remains OPEN. Category-route authenticated browser UAT and category-detail price/inventory UAT remain separate open items. Overall product release remains **NO-GO**.
+
+## Next actions
+1. P2: close issue #481 with exact-SHA PostgreSQL 17 assertions for the disable RPC; do not weaken RLS, triggers, grants or constraints.
+2. P2: continue the verified free-quota/no-payment-method registry and reservation/cooldown contracts. No provider is eligible until exact evidence exists.
+3. P3: keep Edge-to-local deterministic handoff BLOCKED until an explicit, privacy-safe, tested request contract is agreed and implemented; no static or fabricated answers.
+4. Keep issue #477 and the separate category browser-acceptance items open. No production deployment or hosted DB writes.
