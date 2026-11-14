@@ -219,9 +219,9 @@ async function main() {
 
     setPhase("insert source-backed local AI audit fixture");
     const aiAuditRequestId = "p2-ai-audit-" + suffix;
-    // unsafe() binds strings as text; the explicit ::jsonb cast parses this JSON text.
-    // Do not pass a raw JavaScript array of objects here: postgres.js infers it as a
-    // PostgreSQL array parameter instead of a JSON value.
+    // postgres.js 3.4.9's db.json() assigns JSONB OID 3802 and serializes the
+    // JavaScript value exactly once. Passing JSON.stringify(value) to an inferred
+    // jsonb parameter causes JSON.stringify(string) and turns an array into a scalar.
     const providerAttemptFixture = [{
       provider: "openai_compatible",
       model: "example-model",
@@ -232,11 +232,10 @@ async function main() {
       observed_output_tokens: 48,
       estimated_cost: "0.0042",
     }];
-    const providerAttemptFixtureJson = JSON.stringify(providerAttemptFixture);
     const providerAttemptShape = await oneRow(
       db,
       "select jsonb_typeof($1::jsonb) as value_type, jsonb_array_length($1::jsonb)::integer as value_count",
-      [providerAttemptFixtureJson],
+      [db.json(providerAttemptFixture)],
     );
     assert.equal(providerAttemptShape.value_type, "array", "postgres.js must bind the provider telemetry as a JSONB array");
     assert.equal(Number(providerAttemptShape.value_count), 1, "the provider telemetry fixture must contain exactly one attempt");
@@ -252,7 +251,7 @@ async function main() {
         admin.id,
         aiAuditRequestId,
         "openai_compatible/example-model",
-        providerAttemptFixtureJson,
+        db.json(providerAttemptFixture),
       ],
     );
 
@@ -274,11 +273,11 @@ async function main() {
           "alter table public.ai_usage_ledger drop constraint ai_usage_ledger_attempt_count_matches_check",
         );
         setPhase("insert legacy scalar JSONB fixture inside rollback-only transaction");
-        const legacyScalarPayload = JSON.stringify("legacy_scalar_payload");
+        const legacyScalarPayload = "legacy_scalar_payload";
         const legacyScalarType = await oneRow(
           tx,
           "select jsonb_typeof($1::jsonb) as value_type",
-          [legacyScalarPayload],
+          [tx.json(legacyScalarPayload)],
         );
         assert.equal(legacyScalarType.value_type, "string", "the legacy fixture must deliberately encode a scalar JSONB value");
         await tx.unsafe(
@@ -287,7 +286,7 @@ async function main() {
           "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
           "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
           ") values($1::uuid,$2::uuid,$3::text,$4::text,0,0,0,320,false,'completed','unknown',null,null,1,$5::jsonb,null)",
-          [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", legacyScalarPayload],
+          [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", tx.json(legacyScalarPayload)],
         );
         await setIdentity(tx, adminClaims);
         setPhase("read legacy scalar JSONB through the tenant-scoped AI audit RPC");
