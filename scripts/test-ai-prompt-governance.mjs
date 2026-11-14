@@ -219,6 +219,25 @@ async function main() {
 
     setPhase("insert source-backed local AI audit fixture");
     const aiAuditRequestId = "p2-ai-audit-" + suffix;
+    // postgres.js serializes values cast to jsonb itself. Passing JSON.stringify(array)
+    // here would serialize the string a second time and store a JSON scalar, not an array.
+    const providerAttemptFixture = [{
+      provider: "openai_compatible",
+      model: "example-model",
+      fallback: false,
+      status: "succeeded",
+      elapsed_ms: 840,
+      observed_input_tokens: 120,
+      observed_output_tokens: 48,
+      estimated_cost: "0.0042",
+    }];
+    const providerAttemptShape = await oneRow(
+      db,
+      "select jsonb_typeof($1::jsonb) as value_type, jsonb_array_length($1::jsonb)::integer as value_count",
+      [providerAttemptFixture],
+    );
+    assert.equal(providerAttemptShape.value_type, "array", "postgres.js must bind the provider telemetry as a JSONB array");
+    assert.equal(Number(providerAttemptShape.value_count), 1, "the provider telemetry fixture must contain exactly one attempt");
     await db.unsafe(
       "insert into public.ai_usage_ledger(" +
       "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
@@ -231,16 +250,7 @@ async function main() {
         admin.id,
         aiAuditRequestId,
         "openai_compatible/example-model",
-        JSON.stringify([{
-          provider: "openai_compatible",
-          model: "example-model",
-          fallback: false,
-          status: "succeeded",
-          elapsed_ms: 840,
-          observed_input_tokens: 120,
-          observed_output_tokens: 48,
-          estimated_cost: "0.0042",
-        }]),
+        providerAttemptFixture,
       ],
     );
 
@@ -262,13 +272,20 @@ async function main() {
           "alter table public.ai_usage_ledger drop constraint ai_usage_ledger_attempt_count_matches_check",
         );
         setPhase("insert legacy scalar JSONB fixture inside rollback-only transaction");
+        const legacyScalarPayload = "legacy_scalar_payload";
+        const legacyScalarType = await oneRow(
+          tx,
+          "select jsonb_typeof($1::jsonb) as value_type",
+          [legacyScalarPayload],
+        );
+        assert.equal(legacyScalarType.value_type, "string", "the legacy fixture must deliberately encode a scalar JSONB value");
         await tx.unsafe(
           "insert into public.ai_usage_ledger(" +
           "organization_id,actor_profile_id,request_id,model_name,input_tokens,output_tokens,estimated_cost," +
           "execution_time_ms,fallback_used,result_status,usage_measurement_status,observed_input_tokens," +
           "observed_output_tokens,provider_attempt_count,provider_attempts,outcome_reason" +
           ") values($1::uuid,$2::uuid,$3::text,$4::text,0,0,0,320,false,'completed','unknown',null,null,1,$5::jsonb,null)",
-          [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", JSON.stringify("legacy_scalar_payload")],
+          [organizationId, admin.id, malformedAiAuditRequestId, "legacy/unknown-attempts", legacyScalarPayload],
         );
         await setIdentity(tx, adminClaims);
         setPhase("read legacy scalar JSONB through the tenant-scoped AI audit RPC");
