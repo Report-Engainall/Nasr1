@@ -67,6 +67,11 @@ const existingProduct: ProductWithInventory = {
   display_price: 25,
 };
 
+const managerProduct: ProductWithInventory = {
+  ...existingProduct,
+  id: "10000000-0000-4000-8000-000000000002",
+};
+
 function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText("اسم المنتج"), { target: { value: "منتج الاختبار" } });
   fireEvent.change(screen.getByLabelText(/الوحدة الأساسية/), { target: { value: "كرتون" } });
@@ -149,7 +154,7 @@ describe("admin product form submission", () => {
 
   it("loads and atomically saves all four prices when a manager edits a product", async () => {
     const onSaved = vi.fn();
-    render(<ProductModal product={existingProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
+    render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("السعر الأساسي")).toHaveValue(25);
@@ -157,7 +162,7 @@ describe("admin product form submission", () => {
       expect(screen.getByLabelText("سعر الجملة")).toHaveValue(22);
       expect(screen.getByLabelText("سعر التجزئة")).toHaveValue(25);
     });
-    expect(mocks.fetchAdminProductPriceDetail).toHaveBeenCalledWith(existingProduct.id);
+    expect(mocks.fetchAdminProductPriceDetail).toHaveBeenCalledWith(managerProduct.id);
 
     fireEvent.change(screen.getByLabelText("السعر الأساسي"), { target: { value: "30.00" } });
     fireEvent.change(screen.getByLabelText("سعر جملة الجملة"), { target: { value: "21.00" } });
@@ -166,7 +171,7 @@ describe("admin product form submission", () => {
     fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
-    expect(mocks.saveAdminCatalogProduct).toHaveBeenCalledWith(existingProduct.id, expect.objectContaining({
+    expect(mocks.saveAdminCatalogProduct).toHaveBeenCalledWith(managerProduct.id, expect.objectContaining({
       base_price: 30,
       price_wholesale_of_wholesale: 21,
       price_wholesale: 23,
@@ -182,7 +187,7 @@ describe("admin product form submission", () => {
   it("blocks manager saves if the current tier-price snapshot cannot be verified", async () => {
     mocks.fetchAdminProductPriceDetail.mockRejectedValueOnce(new Error("price snapshot unavailable"));
     const onSaved = vi.fn();
-    render(<ProductModal product={existingProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
+    render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("price snapshot unavailable");
     const submit = screen.getByRole("button", { name: "حفظ المنتج" });
