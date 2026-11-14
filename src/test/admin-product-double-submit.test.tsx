@@ -161,6 +161,14 @@ describe("admin product form submission", () => {
     const onSaved = vi.fn();
     render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
 
+    const dialog = screen.getByRole("dialog", { name: "تعديل المنتج" });
+    expect(dialog).toHaveStyle({
+      maxHeight: "calc(100dvh - 36px)",
+      overflowY: "auto",
+      overscrollBehavior: "contain",
+      boxSizing: "border-box",
+    });
+
     await waitFor(() => {
       expect(screen.getByLabelText("السعر الأساسي")).toHaveValue(25);
       expect(screen.getByLabelText("سعر جملة الجملة")).toHaveValue(20);
