@@ -1,81 +1,74 @@
 # ACTIVE EXECUTION CONTROL — SINGLE OWNER / NO BOLT — 2026-11-14
 
-> **This block is the current governing instruction.** Historical P1/P2/P3 assignments below are execution history only. They do not create separate programmers, owners or handoffs.
+> **Current governing instruction.** Historical P1/P2/P3 labels describe technical work only; ChatGPT is the single accountable programmer for all domains.
 
 ## القرار التنفيذي الملزم
 
-- المسؤول والمبرمج الوحيد: **ChatGPT** لجميع مجالات المشروع.
-- يتولى ChatGPT الواجهات، الخدمات، البيانات، PostgreSQL، Migrations، RPC، RLS، المالية، المخزون، المحركات الذكية، الاختبارات، إصلاح الأعطال، مراجعة الفروع والدمج.
-- **Bolt New ممنوع نهائياً**، وكذلك Lovable وLovable Cloud. لا مزود AI مدفوع ولا كتابة تجريبية إلى قاعدة الإنتاج.
-- `main` هو مصدر الحقيقة الوحيد. تُحفظ جميع فروع العمل حتى يثبت دمج محتواها؛ ممنوع الحذف أو force-push أو إعادة كتابة التاريخ أو إسقاط عمل.
-- Vercel ليس بيئة تطوير. النشر التلقائي من Git ومعاينات الفروع معطلان إلى حين اكتمال مرحلة كبيرة واعتمادها. لا Deployment أو Preview أو Build تجريبي.
+- المسؤول والمبرمج الوحيد: **ChatGPT** لجميع مجالات المشروع: واجهات العميل والإدارة، الخدمات، البيانات، PostgreSQL، Migrations، RPC، RLS، المالية، المخزون، الذكاء، الاختبارات، الأمن، مراجعة الفروع والدمج.
+- **Bolt New ممنوع نهائياً** وكذلك Lovable وLovable Cloud. لا مزود AI مدفوع، ولا كتابة تجريبية إلى قاعدة الإنتاج.
+- `main` هو مصدر الحقيقة الوحيد. لا force-push أو إعادة كتابة تاريخ أو إسقاط عمل. تُحفظ الفروع حتى تتضح حالة دمجها؛ لا حذف للفروع غير اللازمة للتنفيذ.
+- Vercel ليس بيئة تطوير. Git auto-deploy ومعاينات الفروع معطلة. لا Deployment أو Preview أو Build تجريبي.
 
 ## قاعدة التنفيذ
 
-1. افحص HEAD الحي لـ `main` مرة واحدة عند بداية دفعة العمل، ثم الملفات وPRs المرتبطة بالمهمة فقط.
-2. تحقق من وجود التنفيذ قبل أي تعديل؛ أكمل الموجود ولا تعِد بناءه.
-3. نفذ المسار الرأسي من الواجهة حتى الخدمة والبيانات والصلاحية عند الحاجة.
-4. اختبر على SHA محدد؛ افصل PASS وFAIL وSKIPPED وBLOCKED.
-5. ادمج الوظائف المستقلة المكتملة فقط، ولا تترك عملاً مكرراً أو متوازياً.
-6. حدّث هذا المؤشر ومصفوفة القبول الوحيدة بالأدلة الفعلية فقط.
+1. افحص آخر HEAD حي لـ`main` والملفات المرتبطة بالمهمة فقط؛ لا تعِد فحص المستودع كاملاً.
+2. تحقق من وجود التنفيذ قبل التعديل. لا تعِد بناء ميزة مدمجة.
+3. أكمل المسار الرأسي من الواجهة للخدمة والبيانات والصلاحيات عند الحاجة.
+4. اختبر على SHA/شجرة تطبيق معلومة، وافصل PASS/FAIL/SKIPPED/BLOCKED.
+5. ادمج الأعمال المقبولة فقط، واحفظ الأدلة في هذا المؤشر ومصفوفة القبول الوحيدة.
 
-## الحالة الحية — 14 نوفمبر 2026 (UPDATED AFTER PR #486)
+## الحالة الحية — 14 نوفمبر 2026
 
-- المستودع: `Report-Engainall/Nasr1`؛ الفرع المعتمد: `main`.
-- **MAIN_CODE_HEAD:** `025c6d1d5aa77775d535f3c75ba20f03a3f6bf6c` (الالتزام البرمجي؛ تليه تحديثات مؤشر docs-only لا تغيّر شجرة التطبيق).
-- آخر تحديث للكتالوج في قاعدة الإنتاج: المشروع `tfdwtuwkdddnzgyhcoyy`، المؤسسة `a0000000-0000-0000-0000-000000000001`. قراءة ما بعد الدمج أكدت: 19 تصنيفاً نشطاً، 114 منتجاً نشطاً، 342 سعر شريحة (114 لكل VIP/wholesale/retail)، 114 رصيداً، 114 حركة opening_balance، ومجموع افتتاحي 3,235 وحدة. لم تتغير أرصدة أو حركات الإنتاج بسبب PR #486.
-- صور المنتجات ما زالت **0/114**، وصور المعرض **0**. الأرصدة الافتتاحية تقديرية مصرّح بها بانتظار الجرد الفعلي، وليست جرداً ميدانياً. لا يوجد عميل أو مورد حقيقي موثق بحسب نقطة الفحص السابقة؛ لا تنشئ فاتورة قبل وجود المصدر التجاري المناسب.
-- **PR #486 — MERGED:** [P1: expose editable tier prices in product editor](https://github.com/Report-Engainall/Nasr1/pull/486). تم الدمج عبر Squash بالالتزام `025c6d1d5aa77775d535f3c75ba20f03a3f6bf6c`، وتطابق شجرة الدمج مع شجرة رأس فرع الاختبار `6bbfda2aa5f59c18e8d52ddbf002f2e39b3ad5bf`.
-- التنفيذ: نموذج المنتج الإداري يعرض السعر الأساسي وشرائح VIP والجملة والتجزئة للمدير/مدير النظام؛ يقرأ لقطة السعر من RPC قائم محمي بالـtenant/role، ثم يحفظ البيانات والأسعار الأربع عبر أمر الحفظ الذري القائم مع القيم الأصلية لمنع الكتابة فوق تعديل متزامن. أزرار إنشاء/تعديل المنتج لا تظهر لموظف التشغيل الذي لا يملك صلاحية المدير. المخزون ما زال يُعدّل عبر دورة الجرد المعتمدة، لا عبر كتابة مباشرة على الرصيد.
-- **P1 — PASS على رأس فرع PR exact SHA `6bbfda2...`:** [run 43613207541](https://github.com/Report-Engainall/Nasr1/actions/runs/43613207541). Vitest: **122/122 test files PASS**؛ Strict TypeScript: PASS؛ production client/SSR/Nitro build: PASS.
-- **P2 public UI smoke — PASS على SHA نفسه:** run [43613207546](https://github.com/Report-Engainall/Nasr1/actions/runs/43613207546)، job `132502643027`: read-only public Storefront browser assertions PASS، local build and source server started and stopped, evidence uploaded.
-- **P2 local PostgreSQL 17 / authenticated Chromium — PASS على الشيفرة المدمجة:** run [#43613207546](https://github.com/Report-Engainall/Nasr1/actions/runs/43613207546)، job `132503542457` انتهى `SUCCESS`: **48 خطوة SUCCESS، خطوة واحدة SKIPPED (تثبيت Chromium لأن النسخة كانت في cache)، صفر FAIL**. نجاحات القبول تشمل: PostgreSQL 17 وتطبيق كل migrations؛ tenant/role/endpoint guards؛ customer receivable identity؛ price-grid commit/rollback/audit/stale-writer race؛ category subtree locks؛ cash-expense idempotency/concurrency؛ source-linked purchase receipt؛ storefront reviews/questions isolation؛ build/launch؛ order persistence/cross-tenant denial؛ stock-count XLSX وpurchase-orders XLSX؛ checkout replay بعد فقد الاستجابة؛ customer return/review/receipt/credit memo؛ Onyx order XLSX؛ **5 اختبارات طباعة مالية/تشغيلية**؛ customer-manager financial privacy/audit؛ **اختبارا device-session** بما فيها الإلغاء الفوري؛ وAI prompt lifecycle/four-eyes/tenant isolation/append-only audit. ظهر `AI_PROMPT_GOVERNANCE_ACCEPTANCE_PASS` من PostgreSQL 17 المحلي، مع 5 prompt versions و17 audit events. تم إيقاف التطبيق وSupabase المحليين بنجاح ورفع التقرير والـtraces والسجلات. Artifacts (غير منتهية): public UI `14121531083`، local authenticated E2E `14121527599`.
-- **Hosted customer/order/tenant E2E — SKIPPED** وليس PASS. هذا لا يعني فشل القبول المحلي، لكنه لا يثبت اتصالاً أو كتابة على قاعدة الإنتاج ولا قبولها.
-- لم يُنفذ أي production DB write أو migration أو RLS/role change أو Edge deployment أو Vercel deployment/preview أو استهلاك لخدمة مدفوعة ضمن PR #486.
+- المستودع: `Report-Engainall/Nasr1`; الفرع: `main`.
+- **LATEST_MAIN_HEAD:** `79c58a666f7a38c71dbe4011e8cf9cd2fa25ff83`.
+- **LATEST_APPLICATION_CODE_SHA:** `5a21f70f420937aa215beef25fdcdd3a98799af2`. المقارنة من هذا الالتزام إلى آخر main تُظهر تغييرات توثيقية فقط في `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`؛ لا توجد تغييرات تطبيق أحدث.
+- **PR #486 — MERGED:** محرر أسعار شرائح VIP/الجملة/التجزئة داخل نموذج المنتج الإداري؛ الدمج `025c6d1d5aa77775d535f3c75ba20f03a3f6bf6c`.
+- **PR #485 — MERGED:** شاشات المراقبة الأربع داخل المسارات القانونية وسجل التنقل والصلاحيات؛ الدمج `5a21f70f420937aa215beef25fdcdd3a98799af2`. هذا هو SHA التطبيق الحالي الذي يحتوي عملي #485 و#486 معاً.
+- **P1 ACCEPTANCE:** [run 43613791288](https://github.com/Report-Engainall/Nasr1/actions/runs/43613791288) — SUCCESS على `5e1549834ac4111b071b39700101258bf0b5f479`: **124/124 test files، 876/876 tests، strict TypeScript، production client/SSR/Nitro build كلها PASS**. المقارنة من `5a21f70...` إلى `5e15498...` تُظهر أن المسار الوحيد المتغير هو مؤشر التنفيذ هذا؛ لم يتغير أي ملف تطبيق أو اختبار بين P2 وP1.
+- **P2 ACCEPTANCE:** [run 43613709733](https://github.com/Report-Engainall/Nasr1/actions/runs/43613709733) — SUCCESS على SHA التطبيق `5a21f70f420937aa215beef25fdcdd3a98799af2`. البوابة والبناء العام للمتجر والـChromium العام PASS؛ Job PostgreSQL 17/Chromium المصادق `132504834919` SUCCESS: ترحيلات محلية، endpoint/tenant/role guards، الذمم، ذرية شبكة الأسعار، التصنيفات، القيود المالية، الطلبات وعزل المستأجرين، XLSX للمخزون وأوامر الشراء، checkout replay، المرتجعات والإشعارات الدائنة، Onyx، الطباعة المالية/التشغيلية، خصوصية مدير العملاء، الجلسات والإلغاء الفوري، وحوكمة AI.
+- AI phase في Job `132504834919` سجّلت `AI_PROMPT_GOVERNANCE_ACCEPTANCE_PASS`: maker/checker، تفعيل الطرف الثالث، التدقيق append-only، المحتوى غير القابل للتعديل، عزل المؤسسة، idempotency وحارس الجلسة؛ 5 prompt versions و17 audit events. تم إيقاف التطبيق وSupabase المحليين ورفع الأثر.
+- **Hosted external customer/order/tenant E2E — SKIPPED** وليس PASS؛ لا يُدّعى تشغيل أو كتابة على قاعدة الإنتاج.
+- فرع/PR #484 مغلق كمسار مكرر. #475 مغلق كـsuperseded بعد التحقق من وجود ملفاته العشرة الفريدة في main عبر #485. #485 و#486 مدمجان. جميع الفروع السابقة محفوظة ولم تُحذف.
 
+## قضايا الذمم وAI
 
-## نتائج الأولويات المالية والذكاء
-
-### #477 — أعمار الذمم والإشعارات الدائنة
-
-- **CLOSED** بعد قبول P2 على SHA `06b49dc711fb9c5248329d1682ddc34de6a24537`.
-- الدليل: [P2 run 43606915041](https://github.com/Report-Engainall/Nasr1/actions/runs/43606915041)، local PG17 job `132483990924`، خطوة اختبار ذمم العملاء PASS.
-- اختبر مثال `111.11 - 10.00 - 21.11 = 80.00`، واستبعاد draft/reversed، وأدلة الدفع والإشعار الدائن، ورفض اختلاف العميل/العملة، وفصل UUID للعملاء المتشابهين، وصلاحية المحاسب ورفض عضو الشركة غير المالي.
-- تم توثيق الأدلة في تعليق القضية `6880101354`. الإغلاق يخص خلل الذمم هذا فقط، وليس إعلان جاهزية الإصدار.
+### #477 — طرح الإشعارات الدائنة المنشورة من أعمار الذمم
+- **CLOSED**. P2 run [43606915041](https://github.com/Report-Engainall/Nasr1/actions/runs/43606915041)، local PG17 job `132483990924` PASS.
+- أثبتت قاعدة `111.11 - 10.00 - 21.11 = 80.00`، استبعاد draft/reversed، أدلة الدفع والإشعار، fail-closed عند اختلاف العميل/العملة، وفصل UUID وصلاحيات المحاسب ومنع العضو غير المالي.
+- لا تُعد تنفيذ ageing RPC. تبقى **immutable decision snapshots** الخاصة بأولوية التحصيل عقداً منفصلاً غير مثبت.
 
 ### #455 — AI usage-ledger JSONB scalar
+- **CLOSED** بعد قبول P1/P2 للشجرة التطبيقية المدمجة.
+- السبب: اختبار postgres.js مرر `JSON.stringify(array)` إلى JSONB، فتحول إلى scalar؛ قيود `ai_usage_ledger_attempts_array_check` و`ai_usage_ledger_attempt_count_matches_check` صحيحة ولا تُضعف.
+- التصحيح يستخدم `db.json(providerAttemptFixture)` مع assert للنوع array والعدد. اختبار legacy scalar يعمل داخل معاملة محلية rollback-only، يختبر reader الذي يحجب البيانات المشوهة، ثم يثبت استعادة القيدين وعدم بقاء الصف.
+- P2 على SHA `5a21f70...` في Job `132504834919` سجّل الإدراج الطبيعي، legacy scalar reader، admin/manager access، tenant isolation والـallowlist كلها PASS. P1 على `5e15498...` اجتاز 124 ملف/876 اختباراً وTypeScript/build. الفرق بين P1/P2 في مؤشر التنفيذ فقط، لا في التطبيق أو الاختبارات. تعليق الإغلاق: [#455](https://github.com/Report-Engainall/Nasr1/issues/455#issuecomment-6880601574).
 
-- السبب الجذري محدد: قيود الجدول `ai_usage_ledger_attempts_array_check` و`ai_usage_ledger_attempt_count_matches_check` تستعمل `jsonb_array_length(provider_attempts)`. اختبار الإدراج التاريخي مرر `JSON.stringify(array)` إلى `$n::jsonb`، فحوّله postgres.js إلى JSONB string scalar بدلاً من array؛ لا تُضعف القيود.
-- التصحيح الحالي يستخدم `db.json(providerAttemptFixture)` ويثبت النوع `array` والعدد قبل الإدراج. اختبار legacy scalar يعطّل القيدين داخل معاملة محلية تراجعية فقط، يثبت أن reader يحجب البيانات المشوهة، ثم يثبت استعادة القيدين وعدم بقاء الصف.
-- **P2 PASS** على SHA `06b49dc711fb9c5248329d1682ddc34de6a24537` ضمن [run 43606915041](https://github.com/Report-Engainall/Nasr1/actions/runs/43606915041)، job `132483990924`: الإدراج العادي، legacy scalar reader، صلاحيات admin/manager، عزل المؤسسة وقائمة الحقول كلها نجحت.
-- **القضية ما زالت OPEN** حتى إثبات P1 على SHA نفسه؛ لا تنقل نجاح P1 من SHA سابق ولا تغلقها قبل الدليل.
+## المراقبة وتوزيع الأسعار
 
-## تسوية شاشات المراقبة — مسار تكامل واحد
+- #485 أضاف وأوصل `/admin/system-health`, `/admin/error-log`, `/admin/architecture`, `/admin/engine-status` عبر `ADMIN_NAV_GROUPS` و`ROLE_PAGE_ACCESS` وTanStack route registry وAghbariApp الحالي. الوصول محصور بـadmin/manager؛ لا تبويب إعدادات مكرر ولا routes موازية.
+- #486 يحرر السعر الأساسي وشرائح VIP/wholesale/retail عبر save command ذري وعقد السعر الحالي المحمي؛ المخزون ما زال عبر مسار الجرد، وليس كتابة مباشرة.
+- لا تعِد بناء هذه الوظائف. لا توجد بعد أدلة Hosted production E2E أو نشر.
 
-- **PR #485 هو مسار التكامل الوحيد:** [PR #485](https://github.com/Report-Engainall/Nasr1/pull/485)، الفرع `p1/integrate-admin-observability-routes-20261114`، HEAD `52631f781c880b6c4c89532793751e0879f7e75b`.
-- يربط الشاشات الأربع بالمسارات الإدارية القانونية `/admin/system-health`, `/admin/error-log`, `/admin/architecture`, `/admin/engine-status`، وبـ `ADMIN_NAV_GROUPS` و`ROLE_PAGE_ACCESS` ومبدل العرض الحالي. الوصول محصور بـ admin/manager، وحراسة المسار المباشر قائمة.
-- أُصلحت الاختبارات القديمة التي كانت تطلب تبويباً مكرراً داخل الإعدادات، وتوقع عدد ثابت قديماً لوجهات التنقل.
-- **P1 PASS على HEAD الفرع نفسه `52631f7...`**: [run 43612745129](https://github.com/Report-Engainall/Nasr1/actions/runs/43612745129)؛ Vitest وStrict TypeScript وProduction bundle كلها SUCCESS.
-- **P2 جزئي/قيد التنفيذ على HEAD نفسه:** [run 43612745211](https://github.com/Report-Engainall/Nasr1/actions/runs/43612745211). infrastructure gate وpublic read-only storefront smoke PASS. Local PG17 migration/setup والاختبارات الأساسية، order/tenant Chromium، stock-count XLSX، purchase-order XLSX، checkout replay، return/credit memo، وOnyx كلها PASS. كان اختبار طباعة المستندات المالية والمهام التشغيلية هو الخطوة النشطة عند آخر فحص؛ **لا تعتبر P2 أو PR #485 مكتملين بعد**. Hosted external tenant E2E = SKIPPED وليس PASS.
-- **PR #484 CLOSED كمسار مكرر** مع تعليق يوضح أن #485 هو المسار الوحيد. الفرع `feat/p1-observability-mounted-admin-20261114` محفوظ ولم يُحذف.
-- **PR #475 ما زال Draft/open**. الملفات العشرة الفريدة الخاصة بالشاشات/المحول/المهل/الاختبارات موجودة في #485؛ وبعد دمج #485 والتحقق من احتوائها في main أغلق #475 بوصفه superseded. لا تحذف فرعه.
+## كتالوج الأغبري والصور والمخزون
 
-## حماية Vercel — مطبقة ومتحقق منها
+- آخر قراءة معتمدة: 19 تصنيفاً، 114 منتجاً، 342 tier price، 114 رصيداً افتتاحياً و114 حركة opening_balance، إجمالي 3,235 وحدة.
+- 3,235 وحدة تقدير افتتاحي مصرح به، لا جرد فعلي؛ احفظ حالة `OWNER_AUTHORIZED_OPENING_ESTIMATE_PENDING_PHYSICAL_COUNT` حتى جرد واعتماد.
+- صور المنتجات المرتبطة: **0/114**. رافع الصور والـEdge handler موجودان ومصادق عليهما: يشتق المؤسسة من الحساب، يقيّد المنتج بالمؤسسة، يفرض WebP/حد 8MB، object path محدداً، atomic image-link RPC وتنظيف الملفات عند فشل الربط. أداة المطابقة تستخدم SKU دون تخمين وتمنع استبدال الصورة الأساسية تلقائياً وتفرض 8 صور معرض كحد أقصى.
+- مسار Storage لم يُثبت بعد على خدمة Storage محلية/مستضافة؛ لا ترفع صوراً مصطنعة أو hotlinks. ملفات صور العبوات الأصلية غير متاحة في الجلسة الحالية. لا يوجد عميل أو مورد حقيقي موثق عند آخر قراءة؛ لا فواتير أو طلبات أو استلامات وهمية.
 
-- المشروع: `aghbari-commerce`، ID `prj_EKaGnAcW1KoI9IPqjmBjKWAXFSEC`، الفريق Hobby `Injaz / team_7BSJnGvDzIC6bXMakIOeAYle`، ومربوط بالمستودع `Report-Engainall/Nasr1`.
-- Commit `8e116373143b7b5fc6cedc184e2f8eea22f1b16c` يجعل `vercel.json` يحتوي `git.deploymentEnabled: false`؛ وإعداد المشروع `previewDeploymentsDisabled=true`. ربط Git والمشروع محفوظان.
-- محاولة استخدام `deploymentPolicy` رُفضت من Vercel على خطة Hobby لأنها Pro-only؛ لم ينتج عنها أي تغيير. لم تُحذف النطاقات أو متغيرات البيئة. قراءات التحقق أعادت النطاق `aghbari-commerce-wine.vercel.app` موثقاً.
-- لا توجد Deployment لالتزام الحماية `8e11637` أو لتعديلات #485 اللاحقة. معاينة سابقة لفرع مختلف كانت قد بدأت قبل تطبيق تعطيل المعاينات واكتملت READY؛ لم تُلغَ ولم تُحسب وفوراتها على أنها مؤكدة.
-- أي نشر لاحق يحتاج مرحلة منتج كبيرة واختبارات exact-SHA وقبول صريح من المالك؛ لا تُعد تفعّل Git auto-deploy.
+## حماية Vercel
 
-## NEXT_ACTION — تابع مباشرة من رأس main الحالي
+- المشروع `aghbari-commerce`، ID `prj_EKaGnAcW1KoI9IPqjmBjKWAXFSEC`، فريق Hobby `Injaz / team_7BSJnGvDzIC6bXMakIOeAYle`، Git link إلى `Report-Engainall/Nasr1` محفوظ.
+- `vercel.json` على main يحتوي `git.deploymentEnabled: false`، وإعداد المشروع `previewDeploymentsDisabled=true`. لا تغير الربط أو النطاقات أو environment variables.
+- لم ينشأ Deployment لـ#485 أو #486 بعد تطبيق الحماية؛ لم يُنفذ نشر أو Preview خلال هذه الدفعة. لا تفعّل Git auto-deploy ولا تنشر قبل مرحلة منتج كبيرة وقبول المالك.
 
-1. PR #486 مدمج ومقبول برمجياً: لا تعِد تنفيذ محرر الأسعار أو شبكة الأسعار. كود الدمج `025c6d1d5aa77775d535f3c75ba20f03a3f6bf6c` اختُبر على شجرة مطابقة؛ P1 122/122 ملفات، TypeScript والبناء PASS؛ P2 العام والمحلي PostgreSQL 17/Chromium PASS.
-2. الفجوة التجارية المرئية التالية هي **صور الأصناف 0/114**. استخدم صور العبوات الأصلية فقط عبر رافع `product-image-upload` المصادق عليه وبصيغة same-tenant WebP. لا hotlinks أو صوراً اصطناعية. إذا لم تتوفر ملفات الصور أو جلسة المدير، استكمل تحسين الرفع/المطابقة في الكود دون اختراع ملفات أو تجاوز صلاحيات التخزين.
-3. أبقِ 3,235 وحدة تحت وصف `OWNER_AUTHORIZED_OPENING_ESTIMATE_PENDING_PHYSICAL_COUNT` حتى الجرد الفعلي. التصحيح عبر جلسة الجرد واعتماد المدير مع الحركات/audit، لا عبر تحديث مباشر للأرصدة.
-4. أدخل عميلاً/مورداً حقيقياً ومصدر المستند الصحيح عند توفر البيانات. لا تنشئ طلبات أو استلامات أو فواتير أو دفعات وهمية.
-5. استمر إلى فجوات DLV-001/002 ومصفوفة القبول، مع أدلة route/service/RPC/RLS/tenant/test لكل بند. لا إعلان جاهزية إصدار: صور المنتجات، الجرد الفعلي، الأطراف التجارية، وHosted E2E ما زالت حدود قبول مفتوحة.
-6. احتفظ بفروع العمل؛ لا force-push أو حذف فروع أو تفعيل Vercel أو نشر/Preview. لا تستخدم Bolt/Lovable أو مزود AI مدفوع.
+## NEXT_ACTION — تابع دون إعادة
+
+1. استكمل دليل Storage للصور فقط: أضف اختبار P1 للـEdge handler (auth/role/tenant/WebP/8MB/path/cleanup/ambiguous ack) ثم اختبر Storage على بيئة محلية معزولة إن أمكن. لا تكتب على الإنتاج.
+2. جهّز استيراد صور العبوات الأصلية بمطابقة SKU؛ اربط فقط الملفات الحقيقية المعتمدة، وابق 0/114 حتى تُرفع ملفات فعلية. لا تنشئ صوراً توضيحية على أنها المنتج الحقيقي.
+3. لا تُنشئ العميل أو المورد أو المستند التجاري دون بيانات حقيقية معتمدة. أكمل الجرد الميداني عبر مسار الجرد وتدقيقه، لا بتعديل الرصيد مباشرة.
+4. استكمل متطلبات DLV-001/002 ومصفوفة القبول عبر الفجوات الفعلية فقط؛ لا تعِد بناء المحركات أو تدفقات العميل التي اجتازت الاختبار.
+5. الإصدار النهائي ما زال **NO-GO** حتى قبول الصور الحقيقية، الجرد الفعلي، الأطراف التجارية، تغطية الشاشات/المتطلبات، وحدود Hosted/production المعتمدة.
 
 ---
 ---
