@@ -200,3 +200,15 @@ Read the terminal P1/P2 result for this exact SHA. Fix any test or migration reg
 - P1 [#43533795662](https://github.com/Report-Engainall/Nasr1/actions/runs/43533795662): **SUCCESS** on exact head `1fdd2edaa09c223dde7ff95cd59919e04f32c315`; 116 test files / 818 tests passed, strict TypeScript passed, production Vite/Nitro build passed.
 - P2 [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657): **IN_PROGRESS** on exact code SHA `e020947f76b2353615d44590fd268882ad734bb9`. Infrastructure gate and public read-only Storefront smoke are SUCCESS. Local isolated Supabase/PostgreSQL job #132258262810 is starting local Supabase services; repository migrations and authenticated DB acceptance are still pending. External customer/order/tenant E2E is SKIPPED.
 - The P1 result proves the repository test/type/build gates for the current source, but it does not test the `scripts/test-ai-prompt-governance.mjs` PostgreSQL JSONB parameter path. Only the dependent P2 local job can prove that path.
+
+### P2 local PG17 mid-run proof — 14 November 2026
+
+- Exact code SHA under test: `e020947f76b2353615d44590fd268882ad734bb9`; workflow [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657).
+- Repository migrations applied successfully to an isolated local PostgreSQL 17 instance.
+- Local database tests for endpoint guards, atomic pricing, cash-expense journal posting/idempotency, purchase receipt restrictions, storefront reviews/questions, and tenant isolation are **SUCCESS**.
+- Exact-source build and local Supabase launch are **SUCCESS**.
+- Chromium steps for order persistence/cross-tenant denial, both XLSX exports, checkout replay, end-to-end customer return/credit memo, and audited Onyx export are **SUCCESS**.
+- Current active step: finance/task print acceptance (step 34). No failure is reported.
+- Customer-manager finance privacy, device-session immediate revocation, and the AI prompt governance step (step 38) remain pending. In particular, the `db.json/tx.json` fix has not yet been exercised by the live PG17 prompt-governance test.
+- Public Storefront smoke and infrastructure gate are SUCCESS; external customer/order/tenant E2E is SKIPPED. P2 overall stays **IN_PROGRESS**.
+- Release remains **NO-GO** until the local run terminates successfully and proves the AI usage/prompt JSONB path, including rollback restoration.
