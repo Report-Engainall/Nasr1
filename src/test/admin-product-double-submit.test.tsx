@@ -161,7 +161,7 @@ describe("admin product form submission", () => {
     const onSaved = vi.fn();
     render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
 
-    const dialog = screen.getByRole("dialog", { name: "تعديل المنتج" });
+    const dialog = await screen.findByRole("dialog", { name: "تعديل المنتج" });
     expect(dialog).toHaveStyle({
       maxHeight: "calc(100dvh - 36px)",
       overflowY: "auto",
