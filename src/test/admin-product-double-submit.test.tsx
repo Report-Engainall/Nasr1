@@ -164,9 +164,19 @@ describe("admin product form submission", () => {
     const dialog = await screen.findByRole("dialog", { name: "تعديل المنتج" });
     expect(dialog).toHaveStyle({
       maxHeight: "calc(100dvh - 36px)",
+      height: "fit-content",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      boxSizing: "border-box",
+    });
+    const scrollBody = dialog.querySelector(".modal-body");
+    expect(scrollBody).not.toBeNull();
+    expect(scrollBody).toHaveStyle({
+      maxHeight: "calc(100dvh - 132px)",
       overflowY: "auto",
       overscrollBehavior: "contain",
-      boxSizing: "border-box",
+      minHeight: "0",
     });
 
     await waitFor(() => {
