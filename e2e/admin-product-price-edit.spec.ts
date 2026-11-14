@@ -65,7 +65,14 @@ async function fillPrices(dialog: Locator, prices: Prices): Promise<void> {
 }
 
 async function savePrices(dialog: Locator): Promise<void> {
-  await dialog.getByRole("button", { name: "حفظ المنتج", exact: true }).click();
+  const scrollBody = dialog.locator(".modal-body");
+  await expect(scrollBody).toBeVisible();
+  await scrollBody.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const saveButton = dialog.getByRole("button", { name: "حفظ المنتج", exact: true });
+  await expect(saveButton).toBeInViewport();
+  await saveButton.click();
   await expect(dialog).toBeHidden({ timeout: 30_000 });
 }
 
@@ -141,7 +148,7 @@ test("manager reads, edits, reloads and restores all four product prices through
         // The primary assertion remains the test result; the database is destroyed by P2 cleanup.
       }
     }
-    await managerContext.close();
+    await managerContext.close().catch(() => undefined);
   }
 });
 
