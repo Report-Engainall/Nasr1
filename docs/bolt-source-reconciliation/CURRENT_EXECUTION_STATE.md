@@ -17,10 +17,10 @@
 4. اختبر على SHA/شجرة تطبيق معلومة، وافصل PASS/FAIL/SKIPPED/BLOCKED.
 5. ادمج الأعمال المقبولة فقط، واحفظ الأدلة في هذا المؤشر ومصفوفة القبول الوحيدة.
 
-## الحالة الحية — 14 نوفمبر 2026 (آخر تحديث بعد قبول #487)
+## الحالة الحية — 14 نوفمبر 2026 (آخر تحديث بعد قبول #488 وDLV-002 Help Center)
 
 - المستودع الرسمي: `Report-Engainall/Nasr1`; الفرع: `main`.
-- **LATEST_ACCEPTED_APPLICATION_SHA:** `3f72c864b6ce4449879f43a362deb0f1eb5cf96b`.
+- **LATEST_ACCEPTED_APPLICATION_SHA:** `5dde9dde14a84dc43580a87aec23885023c261fc`.
 - **PR #487 — MERGED:** [P2: prove manager product tier-price editing in Chromium](https://github.com/Report-Engainall/Nasr1/pull/487). تم الدمج بتاريخ `2026-11-14T17:02:24Z` عبر commit `3f72c864b6ce4449879f43a362deb0f1eb5cf96b`. لا force-push ولا إعادة كتابة تاريخ.
 - **PR-head P1:** [43617695717 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43617695717) على `4dafb11bb4fd10d7d33a314e59707191511d9f01`: Vitest، 17 اختباراً لحدود رفع الصور، strict TypeScript والبناء الإنتاجي كلها PASS.
 - **PR-head P2:** [43617695718 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43617695718) على SHA نفسه: PostgreSQL 17 والقبول المحلي المصادق وChromium PASS؛ خطوة تعديل الأسعار الأربع وإعادة تحميلها واستعادة القيم الأصلية PASS.
@@ -29,7 +29,15 @@
 - **Hosted external customer/order/tenant E2E — SKIPPED** في Job `132519906011`، وليس PASS. لا يوجد ادعاء باختبار Hosted أو كتابة على قاعدة الإنتاج.
 - P1/P2 ما بعد الدمج مرتبطان مباشرةً بـSHA `3f72c864...`; لا تُنقل الأدلة إلى أي SHA لاحق دون إعادة قبول.
 - فرع #487 محفوظ ولم يُحذف. لا توجد حاجة لإعادة تنفيذ #455 أو #477 أو #485 أو #486؛ #487 أغلق فجوة إثبات محرر الأسعار وتصحيح schema categories واختبارات handler.
-- **Vercel:** لم يُنفّذ Deployment أو Preview أو Build أو تغيير إعدادات في هذه الدفعة. تبقى حماية النشر والربط والنطاقات كما هي.
+- **PR #488 — MERGED:** [معالجة تهيئة Storage المحلية وإثباتها](https://github.com/Report-Engainall/Nasr1/pull/488). Merge commit: `70b347250d1e94dd1f41099cd68bee89b003142c`. عالجت DDL على جدول `storage.objects` المملوك للمنصة عبر تعديل نسخة الترحيل المؤقتة فقط؛ لم تتغير سياسات الإنتاج أو ملفات الترحيل الأصلية.
+- **LATEST ACCEPTED APPLICATION SHA:** `5dde9dde14a84dc43580a87aec23885023c261fc`. هذا هو SHA التطبيق المختبر بعد #488 وإصلاح مدخل مركز المساعدة في تذييل المتجر واختبار Chromium.
+- **P1 — PASS:** [run 43635872229](https://github.com/Report-Engainall/Nasr1/actions/runs/43635872229) على SHA نفسه: 125/125 ملف اختبار، 894/894 اختباراً، Strict TypeScript، وبناء الإنتاج كلها PASS.
+- **P2 — PASS:** [run 43635872235](https://github.com/Report-Engainall/Nasr1/actions/runs/43635872235) على SHA نفسه. Public Chromium وSupabase المحلي/PostgreSQL 17.6 وStorage API الفعلية وChromium المصادق والقبول المالي/المخزني/المحاسبي وحوكمة Prompts وملفات الإثبات كلها PASS.
+- **CAT-IMAGE-001 — LOCAL STORAGE PASS:** ثمانية تأكيدات على Storage API المحلية: إعداد bucket وpublic read، منع كتابة المدير المباشرة، WebP و8 MiB، الرفع عبر service role مع manager-scoped RPC، فشل الربط وتنظيف الملف، وunlink. إثبات `product-image-storage-proof.json` يحمل SHA نفسه وPostgreSQL `17.6` و`noProductionWrites=true` و`hostedSupabaseUsed=false` و`edgeRuntimeDeployed=false`. الأثر المحلي: [artifact 14130144132](https://github.com/Report-Engainall/Nasr1/actions/runs/43635872235).
+- **PRICE EDITOR — PASS:** Chromium عدّل وأعاد قراءة أسعار `base/vip/wholesale/retail` من الخادم ثم أعاد قيم fixture الأصلية؛ إثبات SHA مطابق ولا أخطاء متصفح.
+- **DLV-002-HELP-CENTER-001 — BROWSER PASS:** اختبار Chromium أثبت `/help` مباشرةً ومن التنقل العام وتذييل المتجر؛ البحث العربي المشكّل، no-results/clear، روابط الإجراءات، keyboard/FAQ، وعدم overflow عند 360px و1280px.
+- **Hosted external customer/order/tenant E2E — SKIPPED** في job `132572455758` لغياب الأسرار؛ لا يُسجل PASS. تشخيص الأعطال SKIPPED لأن التشغيل لم يفشل.
+- لم تُكتب قاعدة الإنتاج، ولم يُنشر Edge Runtime، ولم يُنفّذ أي Vercel Deployment/Preview/Build. روابط Vercel والنطاقات والإعدادات لم تتغير.
 
 ## قضايا الذمم وAI
 
@@ -55,7 +63,7 @@
 - آخر قراءة معتمدة: 19 تصنيفاً، 114 منتجاً، 342 tier price، 114 رصيداً افتتاحياً و114 حركة opening_balance، إجمالي 3,235 وحدة.
 - 3,235 وحدة تقدير افتتاحي مصرح به، لا جرد فعلي؛ احفظ حالة `OWNER_AUTHORIZED_OPENING_ESTIMATE_PENDING_PHYSICAL_COUNT` حتى جرد واعتماد.
 - صور المنتجات المرتبطة: **0/114**. رافع الصور والـEdge handler موجودان ومصادق عليهما: يشتق المؤسسة من الحساب، يقيّد المنتج بالمؤسسة، يفرض WebP/حد 8MB، object path محدداً، atomic image-link RPC وتنظيف الملفات عند فشل الربط. أداة المطابقة تستخدم SKU دون تخمين وتمنع استبدال الصورة الأساسية تلقائياً وتفرض 8 صور معرض كحد أقصى.
-- مسار Storage لم يُثبت بعد على خدمة Storage محلية/مستضافة؛ لا ترفع صوراً مصطنعة أو hotlinks. ملفات صور العبوات الأصلية غير متاحة في الجلسة الحالية. لا يوجد عميل أو مورد حقيقي موثق عند آخر قراءة؛ لا فواتير أو طلبات أو استلامات وهمية.
+- **Storage المحلي مثبت PASS** على SHA `5dde9dde...` عبر Supabase Storage API وimgproxy وPostgreSQL 17.6؛ هذا لا يثبت نشر Edge Function على Hosted. عدد الصور المرتبطة لا يزال **0/114** لأن ملفات صور العبوات الأصلية ومطابقتها المعتمدة من المالك غير متاحة؛ لا ترفع صوراً مصطنعة أو hotlinks. لا يوجد عميل أو مورد حقيقي موثق عند آخر قراءة؛ لا فواتير أو طلبات أو استلامات وهمية.
 
 ## حماية Vercel
 
@@ -65,13 +73,13 @@
 
 ## NEXT_ACTION — تابع دون إعادة
 
-1. **CAT-IMAGE-001 — اختبار Storage محلي حقيقي:** وسّع P2 local Supabase لتشغيل `storage-api` و`imgproxy` وإدراج migrations الخاصة بالـbucket، مع إبقاء `edge-runtime` مستبعداً. نفّذ اختبار تكاملياً للـEdge handler المشترك عبر manager JWT وخدمة Storage الفعلية: رفض الرفع المباشر بدور authenticated، قبول WebP ضمن 8 MiB، public read، primary image RPC، التنظيف بعد stale-RPC failure، وunlink دون كسر مرجع الصورة. استخدم local-only HTTPS URL adapter مطابقاً لقيد RPC الإنتاجي؛ لا تضعف شرط HTTPS أو RLS. لا تستدعِ Production Edge أو Storage.
-2. **أثبت المخرجات في CI artifacts:** اجعل JSON الخاص بقبول تحرير الأسعار الأربع ونتيجة Storage محفوظين كملفات مستقلة داخل artifact، لا تعتمد على نجاح Step فقط. حافظ على exact source SHA ونتيجة PASS في كل ملف.
-3. صور المنتجات: لا تزال الصور المرتبطة **0/114**. جهّز مطابقة SKU، واربط فقط ملفات العبوات الأصلية التي يعتمدها المالك؛ لا صور توضيحية أو hotlinks على أنها الصور الحقيقية.
-4. استكمل DLV-001/002 ومصفوفة الشاشة والتنقل وحالات التحميل والقبول عبر فجوات مؤكدة فقط. لا تعِد بناء الوظائف التي اجتازت P1/P2 على SHA `3f72c864...`.
+1. **DLV-002-ADMIN-ROLE-ACCESS-COMPARISON-001 — قبول واجهة مصفوفة الصلاحيات في Chromium:** تحقق من صفحة إعدادات الوصول بمستخدم مدير محلي مصطنع ضمن Supabase المحلي فقط، عند 360px و1280px؛ اختبر الجداول الستة، الوصول الأفقي، أسماء الوصول، لوحة المفاتيح وأسباب المنع المقروءة. لا تغيّر مصدر السياسات أو RPC/RLS لتلبية اختبار عرض.
+2. **DLV-002 — متابعة قبول المسارات المتبقية:** اختبر أدوار /profile والانتقال customer A → sign-out → B/staff، وسياق سجلات الإدارة، وحالات loading/error/empty/unauthorized/retry، وروابط الإجراءات على SHA محدد. نجاح Help Center يغلق صفه فقط ولا يغلق DLV-002 roll-up.
+3. **صور المنتجات:** Storage API المحلي مقبول؛ الصور الفعلية ما زالت **0/114**. المطلوب ملفات عبوات أصلية ومطابقة SKU يعتمدها المالك؛ لا صور توضيحية ولا hotlinks.
+4. **DLV-001:** أكمل ربط المتطلبات بالشاشة والمكوّن والخدمة/RPC والصلاحية والترحيل واختبار القبول داخل المصفوفة الحالية فقط.
 5. لا تُنشئ عملاء أو موردين أو مستندات تجارية وهمية. 3,235 وحدة رصيد افتتاحي تقدير مصرح به لا جرد ميداني؛ لا تعتمد الكمية نهائياً حتى إكمال الجرد عبر مسار الجرد وتدقيقه.
-6. أبقِ محركات AI fail-closed ولا تفعّل مزوداً أو إنفاقاً قبل دليل مجاني موثق قابل للتحقق. اختبار حوكمة prompts لا يثبت اتصالاً بمزود أو تشغيل Edge على Hosted.
-7. الإصدار النهائي ما زال **NO-GO** حتى قبول الصور الحقيقية، الجرد الفعلي، الأطراف التجارية، اكتمال متطلبات/شاشات DLV، وتحديد قبول Hosted/production والمهاجرات والنسخ الاحتياطي/الاستعادة بموافقة المالك. لا نشر Vercel قبل مرحلة كبيرة موحدة وقبول المالك.
+6. أبقِ محركات AI fail-closed ولا تفعّل مزوداً أو إنفاقاً قبل دليل مجاني موثق قابل للتحقق. قبول حوكمة Prompts المحلي لا يثبت Hosted Edge أو اتصال مزود.
+7. الإصدار النهائي ما زال **NO-GO** حتى اعتماد صور المنتجات الأصلية، الجرد الفعلي، الأطراف التجارية، تغطية الشاشات والمسارات، وقبول Hosted/production والمهاجرات والنسخ الاحتياطي/الاستعادة بموافقة المالك. لا نشر Vercel قبل مرحلة كبيرة موحدة وموافقة المالك.
 
 
 ---
