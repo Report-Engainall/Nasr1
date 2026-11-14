@@ -5688,3 +5688,10 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - P2 runs for PRs #471/#472/#473 failed at the local AI audit scalar JSONB fixture assertion with `ERR_ASSERTION`; public smoke/infra pass, hosted external tenant E2E skipped.
 - PR #473 modifies `src/components/intelligence/ExecutiveLiquidityCommandCenter.tsx` within the P3-owned scope. Do not merge until owner and finance acceptance boundaries are explicitly reconciled.
 - **NOT RUN:** full Vitest, strict TypeScript, production build and P2 local PG17 acceptance on latest main. No P1/P2/P4 PR merge, no 41-screen acceptance, no production writes/deployment. Release remains **NO-GO**.
+
+# EXISTING DECISION / RECOMMENDATION / LIQUIDITY SOURCE CONTRACT — 14 NOVEMBER 2026
+
+- **IMPLEMENTED (source inspection):** DecisionCyclePanel in `IntelligenceWorkspace.tsx` displays outcome, rule/version, owner label, currency/period, updated-at and measured result/as-of when available. Measurement requires exact matching currency+period evidence; missing proof stays blocked.
+- **IMPLEMENTED (source inspection):** `NaturalLanguageAssistant.tsx` read-only recommendation/prediction responses display source RPC and as-of/query time, with coverage counts when returned; task-risk recommendations include reason, next step, due date and assignment presence.
+- **IMPLEMENTED (source inspection):** `ExecutiveLiquidityCommandCenter.tsx` retains per-currency groupings for cash counts, cash/bank accounts, posted movements, supplier payables and receivables; status, source/evidence references, warnings, formula/version, calculatedAt and asOf appear where supplied. Cash account balance remains unavailable until opening balance and bank reconciliation are evidenced.
+- Existing engines were retained without a duplicate or mixed-currency aggregate. Source inspection only; no live DB/runtime verification. PR #473's overlapping change to this P3-owned file remains unmerged pending owner/finance acceptance.
