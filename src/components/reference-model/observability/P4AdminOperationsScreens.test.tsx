@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import * as ts from "typescript";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 
 const mocks = vi.hoisted(() => ({
   fetchImportJobsPage: vi.fn(),
@@ -267,17 +267,22 @@ describe("P4 monitoring screens", () => {
 
   it("strictly typechecks P4-owned screens, adapter and tests with the focused config", () => {
     const configPath = resolve(process.cwd(), "tsconfig.p4-typecheck.json");
-    const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
-    if (configFile.error) {
-      throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, "\\n"));
+    const configDiagnostics: ts.Diagnostic[] = [];
+    const parsed = ts.getParsedCommandLineOfConfigFile(configPath, {}, {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: (diagnostic) => configDiagnostics.push(diagnostic),
+    });
+    if (!parsed) {
+      throw new Error(configDiagnostics.map((diagnostic) =>
+        ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n"),
+      ).join("\\n") || "Could not parse tsconfig.p4-typecheck.json.");
     }
 
-    const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(configPath));
     const program = ts.createProgram({
       rootNames: parsed.fileNames,
       options: parsed.options,
     });
-    const diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)];
+    const diagnostics = [...configDiagnostics, ...parsed.errors, ...ts.getPreEmitDiagnostics(program)];
     const messages = diagnostics.map((diagnostic) => {
       const location = diagnostic.file && diagnostic.start !== undefined
         ? (() => {
