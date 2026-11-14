@@ -5701,3 +5701,10 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - P2 run [#43537211430](https://github.com/Report-Engainall/Nasr1/actions/runs/43537211430) on exact P4 branch tree `bdf36a13588e605436ca3de1b3cd000a301787b0` completed **FAILURE** at job `132269906927`, `Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit`, phase `read AI audit as organization admin`, `ERR_ASSERTION`.
 - All preceding local PG17/Chromium phases passed: migrations, pricing atomicity/rollback, cash expenses, receipt/product flows, application build/launch, order persistence and tenant isolation, stock-count and purchase-order XLSX, checkout replay, returns, Onyx audit export, printing, customer-manager privacy and session revocation. Auth infrastructure and public UI smoke passed. Hosted E2E skipped.
 - Root acceptance blocker remains the P2-owned rollback-only scalar JSONB fixture assertion. Do not merge #475 until P2 corrects the test and reruns local PG17 on its updated exact head; also do not merge until P1 registers the P4 views/navigation/roles. P4 is Draft and has not been integrated.
+
+
+## P3 PANEL ASSERTION CORRECTION — 14 NOVEMBER 2026
+
+- P1 run [#43539360170](https://github.com/Report-Engainall/Nasr1/actions/runs/43539360170) tested exact main SHA `67153d567668bc176cb4f4d7c04acd3afccccacf`: **118/119 Vitest files and 826/827 tests passed**; it discovered `AiGatewayOperationsPanel.test.tsx` (2 tests, 1 failure). The single failure was a test query ambiguity: `getByText("gemini-example-model")` matched both the saved-provider summary and the active Models tab. This was a test assertion defect, not evidence of an application runtime failure.
+- P3 correction prepared on a branch: scope the two model assertions to the active tab via Testing Library `within(modelPanel)`. No production component, provider policy, quota behavior, RPC, migration or P1/P2/P4-owned file is changed.
+- Exact focused rerun, strict TypeScript, production build and post-fix PG17 acceptance: **NOT RUN** until a new exact SHA completes its workflows.
