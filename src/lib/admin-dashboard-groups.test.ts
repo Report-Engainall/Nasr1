@@ -20,11 +20,12 @@ describe('getVisibleAdminNavigationGroups', () => {
 
   it('keeps destination labels and paths attached to the filtered catalog links', () => {
     const catalog = getVisibleAdminNavigationGroups(['staff']).find(({ id }) => id === 'catalog');
-    expect(catalog?.views.find(({ id }) => id === 'categories')).toMatchObject({
+    expect(catalog?.items.find(({ id }) => id === 'categories')).toMatchObject({
       id: 'categories',
       label: 'التصنيفات الرئيسية والفرعية',
       path: '/admin/categories',
     });
+    expect(catalog?.views).toEqual(catalog?.items.map(({ id }) => id));
   });
 
   it('does not expose administration groups to customer identities', () => {
