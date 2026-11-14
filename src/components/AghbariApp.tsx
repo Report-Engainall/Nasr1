@@ -30,6 +30,7 @@ import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
 import { DashboardLoadError } from '@/components/DashboardLoadError';
+import { StorefrontPublicationReadiness } from '@/components/StorefrontPublicationReadiness';
 const AdminCategoryTree = lazy(async () => ({ default: (await import('@/components/AdminCategoryTree')).AdminCategoryTree }));
 
 import {
@@ -327,6 +328,9 @@ function AdminWorkspaceContent({
       return (
         <>
           <SettingsPage onNotice={onNotice} />
+          {user.roles.some((role) => role === "admin" || role === "manager") ? (
+            <StorefrontPublicationReadiness />
+          ) : null}
           {user.roles.includes("admin") && (
             <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={onNotice} />
           )}
