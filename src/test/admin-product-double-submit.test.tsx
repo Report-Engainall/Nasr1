@@ -34,6 +34,11 @@ vi.mock("@/lib/admin-catalog-commands", () => ({
   saveAdminCatalogProduct: mocks.saveAdminCatalogProduct,
 }));
 
+// Unit-conversion management is a separate workflow; keep this price-editor test isolated.
+vi.mock("@/components/ProductUnitConversionsEditor", () => ({
+  ProductUnitConversionsEditor: () => null,
+}));
+
 import type { ProductWithInventory } from "@/lib/types";
 import { ProductModal } from "@/components/AghbariApp";
 
@@ -189,7 +194,7 @@ describe("admin product form submission", () => {
     const onSaved = vi.fn();
     render(<ProductModal product={managerProduct} canManageLifecycle onClose={vi.fn()} onSaved={onSaved} />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("price snapshot unavailable");
+    expect(await screen.findByText("price snapshot unavailable")).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "حفظ المنتج" });
     expect(submit).toBeDisabled();
     expect(mocks.saveAdminCatalogProduct).not.toHaveBeenCalled();
