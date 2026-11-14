@@ -47,7 +47,7 @@ BEGIN
     WHERE parent.id = p_parent_id
       AND parent.organization_id = o
       AND parent.is_active = true
-    FOR KEY SHARE;
+    FOR SHARE;
 
     IF NOT FOUND THEN
       RAISE EXCEPTION USING ERRCODE = 'P0002',
@@ -259,7 +259,7 @@ BEGIN
     WHERE c.id = v_category_id
       AND c.organization_id = o
       AND c.is_active = true
-    FOR KEY SHARE;
+    FOR SHARE;
 
     IF NOT FOUND THEN
       RAISE EXCEPTION USING ERRCODE = 'P0002',
