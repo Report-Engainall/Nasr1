@@ -89,7 +89,7 @@ export function EngineStatusScreen() {
                 <dl className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                   <div><dt>حالة تنفيذ المحرك</dt><dd className="font-semibold text-foreground">UNKNOWN — غير مثبتة</dd></div>
                   <div><dt>زمن قراءة المصدر</dt><dd>{item.latencyMs === null ? "غير متاح" : item.latencyMs + " مللي ثانية"}</dd></div>
-                  <div><dt>عدد السجلات</dt><dd>{item.recordCount === null ? "غير منطبق" : String(item.recordCount)}</dd></div>
+                  <div><dt>عدد السجلات المقروءة</dt><dd>{item.recordCount === null ? "غير منطبق" : String(item.recordCount)}</dd></div>
                   <div><dt>آخر سجل محفوظ</dt><dd>{formatTimestamp(item.latestRecordAt)}</dd></div>
                   <div className="sm:col-span-2"><dt>آخر تحقق</dt><dd><time dateTime={item.checkedAt}>{new Date(item.checkedAt).toLocaleString("ar-YE")}</time></dd></div>
                 </dl>
