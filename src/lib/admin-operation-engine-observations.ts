@@ -186,8 +186,8 @@ export async function readAdminEngineObservations(): Promise<AdminEngineObservat
         recordCount: rows.length,
         latestRecordAt: latestTimestamp(rows),
         summary: rows.length
-          ? "اللقطات الجاهزة المخزنة والقابلة للقراءة: " + String(rows.length) + "."
-          : "مصدر اللقطات المخزنة قابل للقراءة، ولا توجد لقطات جاهزة.",
+          ? "اللقطات الجاهزة المخزنة ضمن أحدث 50 لقطة مقروءة: " + String(rows.length) + "."
+          : "مصدر اللقطات المخزنة قابل للقراءة، ولا توجد لقطات جاهزة ضمن آخر 50 سجلاً.",
       };
     }),
     readSource(definitions.export, async () => {
@@ -195,7 +195,7 @@ export async function readAdminEngineObservations(): Promise<AdminEngineObservat
       return {
         recordCount: rows.length,
         latestRecordAt: latestTimestamp(rows),
-        summary: "طلبات التصدير المرئية للحساب الحالي: " + String(rows.length) +
+        summary: "طلبات التصدير المقروءة للحساب الحالي ضمن أحدث 20 طلباً: " + String(rows.length) +
           ". الحالات: " + statusCounts(rows),
       };
     }),
