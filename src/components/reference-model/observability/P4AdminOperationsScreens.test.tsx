@@ -2,6 +2,8 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import * as ts from "typescript";
+import { dirname, resolve } from "node:path";
 
 const mocks = vi.hoisted(() => ({
   fetchImportJobsPage: vi.fn(),
@@ -262,4 +264,33 @@ describe("P4 monitoring screens", () => {
     expect(screen.getByText(/list_ai_gateway_audit/)).toBeInTheDocument();
     expect(screen.getByText(/لا تمثل إثباتاً لتفويض الخادم أو RLS/)).toBeInTheDocument();
   });
+
+  it("strictly typechecks P4-owned screens, adapter and tests with the focused config", () => {
+    const configPath = resolve(process.cwd(), "tsconfig.p4-typecheck.json");
+    const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+    if (configFile.error) {
+      throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, "\\n"));
+    }
+
+    const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(configPath));
+    const program = ts.createProgram({
+      rootNames: parsed.fileNames,
+      options: parsed.options,
+    });
+    const diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)];
+    const messages = diagnostics.map((diagnostic) => {
+      const location = diagnostic.file && diagnostic.start !== undefined
+        ? (() => {
+            const point = diagnostic.file!.getLineAndCharacterOfPosition(diagnostic.start!);
+            return diagnostic.file!.fileName + ":" + String(point.line + 1) + ":" + String(point.character + 1);
+          })()
+        : "tsconfig.p4-typecheck.json";
+      return location + " TS" + String(diagnostic.code) + ": " +
+        ts.flattenDiagnosticMessageText(diagnostic.messageText, "\\n");
+    });
+
+    expect(parsed.fileNames.length).toBeGreaterThan(0);
+    expect(messages).toEqual([]);
+  }, 30_000);
+
 });
