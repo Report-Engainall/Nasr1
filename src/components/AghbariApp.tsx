@@ -262,7 +262,7 @@ function AdminWorkspaceContent({
             }
             onRecordContextChange({
               kind: "order", id: sourceRef, title: "طلب من سجل الوردية",
-              subtitle: "مرجع تشغيل محفوظ من مركز الوردية", route: adminPaths.orders, query: sourceRef,
+              subtitle: "مرجع تشغيل محفوظ من مركز الوردية", route: ADMIN_NAV_PATHS.orders, query: sourceRef,
               returnToView: view, returnToOrderDetailId: orderDetailId,
             });
             onOrderDetailChange(sourceRef);
