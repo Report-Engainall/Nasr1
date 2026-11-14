@@ -166,7 +166,7 @@ describe("AdminCategoryTree", () => {
     expect(mocks.archiveCategory).not.toHaveBeenCalled();
     expect(confirm).not.toHaveBeenCalled();
     expect(mocks.notice).toHaveBeenCalledWith(
-      expect.stringContaining("معالجة جميع فروعه النشطة"),
+      expect.stringContaining("معالجة فروعه النشطة جميعها"),
     );
   });
 
