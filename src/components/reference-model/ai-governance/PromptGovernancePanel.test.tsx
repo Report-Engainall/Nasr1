@@ -153,8 +153,14 @@ describe("PromptGovernancePanel", () => {
     });
     render(<PromptGovernancePanel />);
     expect(await screen.findByText("مقارنة الإصدارات")).toBeInTheDocument();
-    expect(screen.getByText("النص السابق للإصدار الأول بغرض المقارنة الفعلية.")).toBeInTheDocument();
-    expect(screen.getAllByText("النص الحالي للإصدار الثاني المعتمد والفعال.")).toHaveLength(2);
+    expect(screen.getByText("محتوى الإصدار محمي")).toBeInTheDocument();
+    expect(screen.getAllByText("المحتوى محفوظ ومحجوب من العرض.")).toHaveLength(2);
+    expect(screen.queryByText("النص السابق للإصدار الأول بغرض المقارنة الفعلية.")).not.toBeInTheDocument();
+    expect(screen.queryByText("النص الحالي للإصدار الثاني المعتمد والفعال.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("مسؤول موثق في سجل الخادم").length).toBeGreaterThan(0);
+    expect(screen.queryByText("00000000-0000-4000-8000-000000000020")).not.toBeInTheDocument();
+    expect(screen.queryByText("00000000-0000-4000-8000-000000000040")).not.toBeInTheDocument();
+    expect(await screen.findByText("لا يوفر عقد الحفظ تعطيلًا مستقلاً للنسخة النشطة؛ عند تفعيل نسخة بديلة معتمدة يسجل الخادم DEACTIVATED للنسخة الحالية ويعيدها إلى APPROVED. تعطيل مباشر بلا بديل غير متاح.")).toBeInTheDocument();
     expect(await screen.findByText("سجل التدقيق append-only")).toBeInTheDocument();
     expect(screen.getByText("تم التفعيل بعد المراجعة")).toBeInTheDocument();
   });

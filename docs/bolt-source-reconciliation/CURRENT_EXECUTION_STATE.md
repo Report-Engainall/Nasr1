@@ -5670,3 +5670,34 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - Previous non-AI evidence (orders/tenant denial, financial posting/idempotency, returns/credit memo, exports/prints, privacy, device-session revocation) belongs to SHA `e020947...` only. External customer/order/tenant E2E remained `SKIPPED`.
 - Next: inspect terminal logs from run #43534854634; require the scalar fixture to be returned with `provider_attempts_integrity=false`, `provider_attempts=[]`, original attempt count retained, then complete Maker/Checker, tenant isolation, append-only audit, rollback and constraint restoration.
 - Production readiness remains **NO-GO**. No production DB, live Edge Function, external provider, billing/payment, Vercel or paid service used.
+
+# P3 AI GOVERNANCE IMPLEMENTATION CHECKPOINT — 14 NOVEMBER 2026
+
+- Inspected canonical `main` source base: `43c01bd3408ffbb6579e4d6bdd3ca9a80101b877`.
+- **IMPLEMENTED:** provider/model/quota tabs reuse the existing budget RPC only, separate stored provider/model configuration from free eligibility, and display free-plan proof, remaining quota/reset/cooldown and verification time as UNKNOWN if no verified registry exists. The UI states why candidates are ineligible and performs no provider test call.
+- **IMPLEMENTED:** persistent prompt lifecycle remains on current RPCs; sensitive prompt bodies/comparison previews are redacted in the rendered UI, and creator/reviewer/audit actor UUIDs are masked. AI audit rows remain sourced from the existing bounded tenant-scoped RPC.
+- **BLOCKED:** server provider evidence registry is empty and Edge returns `MODEL_UNAVAILABLE` before reservation/external provider calls. Existing deterministic in-app assistant routes are separate; automatic Edge-to-local fallback is unproven. No standalone ACTIVE prompt disable operation or DISABLED state exists.
+- P2 [#43534854634](https://github.com/Report-Engainall/Nasr1/actions/runs/43534854634), code SHA `126727f4aaf8d487ded39bc9991b01ecdd2d28fc`: PG17/Chromium job `132262332533` FAILURE at post-rollback admin audit query. Scalar fixture passed the in-transaction audit RPC sanitization checks, then rolled back; the subsequent query incorrectly expected the deleted row. Public smoke and infrastructure gate succeeded; external hosted tenant E2E skipped.
+- P3 did not modify P2 scripts, SQL/RPC/migrations, roles, finance logic or shared app routing. Focused P3 tests, exact-SHA P1 suite/type/build and post-P3 P2: **NOT RUN** at checkpoint creation. Release and 41-screen acceptance remain OPEN / NO-GO.
+
+# P3/P4 EXACT-SHA ACCEPTANCE UPDATE — 14 NOVEMBER 2026
+
+- Current main immediately before this documentation checkpoint: `a463f9958bb9b5724acc7070d907169832268194`. P3 implementation `becce7c64fe993eb0dcea9e4297aff3271356f14` is integrated on main.
+- **TESTED_EXACT_SHA:** P1 run [#43537211429](https://github.com/Report-Engainall/Nasr1/actions/runs/43537211429) on exact P4 branch tree `bdf36a13588e605436ca3de1b3cd000a301787b0`, which includes P3 source: 117 Vitest files / 827 tests passed; Prompt Governance 6/6, AI Usage Audit 5/5, P4 admin screens 9/9; strict TypeScript passed; Vite/Nitro production build passed. This is not latest-main acceptance. The new P3 `AiGatewayOperationsPanel.test.tsx` is not listed in that run's test output and remains **NOT RUN**.
+- P2 run [#43537211430](https://github.com/Report-Engainall/Nasr1/actions/runs/43537211430) on the same P4 tree: authenticated infrastructure PASS, public UI smoke PASS, hosted customer/order/tenant test SKIPPED; local PostgreSQL 17 persistence/tenant-isolation job `132269906927` remained IN_PROGRESS at last check. P4 PR #475 remains Draft and has not been wired to existing admin views/navigation/role access.
+- P2 runs for PRs #471/#472/#473 failed at the local AI audit scalar JSONB fixture assertion with `ERR_ASSERTION`; public smoke/infra pass, hosted external tenant E2E skipped.
+- PR #473 modifies `src/components/intelligence/ExecutiveLiquidityCommandCenter.tsx` within the P3-owned scope. Do not merge until owner and finance acceptance boundaries are explicitly reconciled.
+- **NOT RUN:** full Vitest, strict TypeScript, production build and P2 local PG17 acceptance on latest main. No P1/P2/P4 PR merge, no 41-screen acceptance, no production writes/deployment. Release remains **NO-GO**.
+
+# EXISTING DECISION / RECOMMENDATION / LIQUIDITY SOURCE CONTRACT — 14 NOVEMBER 2026
+
+- **IMPLEMENTED (source inspection):** DecisionCyclePanel in `IntelligenceWorkspace.tsx` displays outcome, rule/version, owner label, currency/period, updated-at and measured result/as-of when available. Measurement requires exact matching currency+period evidence; missing proof stays blocked.
+- **IMPLEMENTED (source inspection):** `NaturalLanguageAssistant.tsx` read-only recommendation/prediction responses display source RPC and as-of/query time, with coverage counts when returned; task-risk recommendations include reason, next step, due date and assignment presence.
+- **IMPLEMENTED (source inspection):** `ExecutiveLiquidityCommandCenter.tsx` retains per-currency groupings for cash counts, cash/bank accounts, posted movements, supplier payables and receivables; status, source/evidence references, warnings, formula/version, calculatedAt and asOf appear where supplied. Cash account balance remains unavailable until opening balance and bank reconciliation are evidenced.
+- Existing engines were retained without a duplicate or mixed-currency aggregate. Source inspection only; no live DB/runtime verification. PR #473's overlapping change to this P3-owned file remains unmerged pending owner/finance acceptance.
+
+# P4 P2 EXACT-HEAD COMPLETION — 14 NOVEMBER 2026
+
+- P2 run [#43537211430](https://github.com/Report-Engainall/Nasr1/actions/runs/43537211430) on exact P4 branch tree `bdf36a13588e605436ca3de1b3cd000a301787b0` completed **FAILURE** at job `132269906927`, `Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit`, phase `read AI audit as organization admin`, `ERR_ASSERTION`.
+- All preceding local PG17/Chromium phases passed: migrations, pricing atomicity/rollback, cash expenses, receipt/product flows, application build/launch, order persistence and tenant isolation, stock-count and purchase-order XLSX, checkout replay, returns, Onyx audit export, printing, customer-manager privacy and session revocation. Auth infrastructure and public UI smoke passed. Hosted E2E skipped.
+- Root acceptance blocker remains the P2-owned rollback-only scalar JSONB fixture assertion. Do not merge #475 until P2 corrects the test and reruns local PG17 on its updated exact head; also do not merge until P1 registers the P4 views/navigation/roles. P4 is Draft and has not been integrated.

@@ -17,6 +17,7 @@ on:
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
       - "scripts/test-ai-prompt-governance.mjs"
+      - "scripts/test-customer-receivable-aging-identity.mjs"
       - "e2e/**"
       - "playwright.config.ts"
       - "tsconfig.p2-e2e-typecheck.json"
@@ -591,6 +592,8 @@ jobs:
         run: node scripts/seed-p2-local-playwright.mjs
       - name: Test local endpoint guard allow and deny cases
         run: node scripts/test-local-endpoint-guard.mjs
+      - name: Test customer receivable identity, same-name separation, tenant FK, accountant access and customer denial
+        run: node scripts/test-customer-receivable-aging-identity.mjs
       - name: Test atomic price grid writes, rollback, audit and stale-writer race
         run: node scripts/test-price-grid-atomicity.mjs
       - name: Test cash-expense source posting, idempotency and void/post concurrency

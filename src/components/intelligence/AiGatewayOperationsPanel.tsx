@@ -93,6 +93,7 @@ export function AiGatewayOperationsPanel() {
   const [result, setResult] = useState<AiGatewayBudgetResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<"providers" | "models" | "quotas">("providers");
 
   useEffect(() => {
     let active = true;
@@ -134,6 +135,10 @@ export function AiGatewayOperationsPanel() {
     snapshot.limits.monthlyCost > 0 || snapshot.limits.perRequestCost > 0;
   const hasRecordedCost = snapshot.usage.todayCost > 0 || snapshot.usage.monthCost > 0 ||
     snapshot.usage.activeReservedCost > 0;
+  const configuredCandidates = [
+    { key: "primary", label: "المزود الأساسي", provider: snapshot.primaryProvider, model: snapshot.primaryModel, enabled: snapshot.enabled },
+    { key: "fallback", label: "المزود الاحتياطي", provider: snapshot.fallbackProvider, model: snapshot.fallbackModel, enabled: snapshot.fallbackEnabled },
+  ] as const;
 
   return (
     <section dir="rtl" aria-label="مركز تشغيل بوابة الذكاء" className="space-y-4 rounded-xl border p-4">
@@ -178,6 +183,73 @@ export function AiGatewayOperationsPanel() {
         </article>
       </div>
 
+      <div role="tablist" aria-label="المزودون والنماذج والحصص" className="flex flex-wrap gap-2 border-b pb-2">
+        {([
+          ["providers", "المزودون"],
+          ["models", "النماذج"],
+          ["quotas", "الحصص"],
+        ] as const).map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={activeTab === key}
+            onClick={() => setActiveTab(key)}
+            className={["rounded-lg border px-3 py-2 text-sm", activeTab === key ? "border-primary bg-primary/5 font-semibold" : "text-muted-foreground"].join(" ")}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {activeTab === "providers" ? (
+        <section role="tabpanel" className="space-y-3">
+          <h3 className="font-semibold">حالة أهلية المزودين للاستخدام المجاني</h3>
+          {!snapshot.configured ? (
+            <p className="rounded-lg border p-3 text-sm text-muted-foreground">لا يوجد إعداد مزود محفوظ للمؤسسة.</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {configuredCandidates.map((candidate) => (
+                <article key={candidate.key} className="rounded-lg border p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <strong>{candidate.label}</strong>
+                    <span className="rounded-full border px-2 py-1 text-xs">{candidate.enabled ? "مرشح إعداد فقط" : "معطل بالإعداد"}</span>
+                  </div>
+                  <p className="mt-2">{providerLabel(candidate.provider)}</p>
+                  <p className="mt-1 break-all text-xs text-muted-foreground" dir="ltr">{candidate.model}</p>
+                  <p className="mt-2 font-semibold">الأهلية المجانية: غير متحققة — BLOCKED</p>
+                  <p className="mt-1 text-xs text-muted-foreground">سبب عدم الأهلية: لا يوجد إثبات خادمي للخطة المجانية والسعر الصفري وعدم طلب بطاقة أو تفعيل دفع تلقائي ومراجعة الخصوصية.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">آخر تحقق: لم يسجل المصدر وقت تحقق مجاني.</p>
+                </article>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">الإعداد المحفوظ لا يثبت اتصال المزود أو أهليته؛ لا تُجرى محاولة اختبار أو اتصال من هذه اللوحة.</p>
+        </section>
+      ) : null}
+      {activeTab === "models" ? (
+        <section role="tabpanel" className="space-y-3">
+          <h3 className="font-semibold">النماذج المحفوظة</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <article className="rounded-lg border p-3 text-sm">
+              <p className="text-xs text-muted-foreground">النموذج الأساسي</p>
+              <p className="mt-1 break-all font-medium" dir="ltr">{snapshot.configured ? snapshot.primaryModel : "غير مهيأ"}</p>
+              <p className="mt-2 text-xs text-muted-foreground">اسم إعداد فقط؛ لا يوجد إثبات مجاني أو أهلية تشغيل لهذا النموذج.</p>
+            </article>
+            <article className="rounded-lg border p-3 text-sm">
+              <p className="text-xs text-muted-foreground">النموذج الاحتياطي</p>
+              <p className="mt-1 break-all font-medium" dir="ltr">{snapshot.configured && snapshot.fallbackEnabled ? snapshot.fallbackModel : "غير مهيأ أو معطل"}</p>
+              <p className="mt-2 text-xs text-muted-foreground">لا يُعامل كبديل مجاني إلا بعد تحقق مستقل من مزوده وحصته وبيانات الخصوصية.</p>
+            </article>
+          </div>
+        </section>
+      ) : null}
+      {activeTab === "quotas" ? (
+        <section role="tabpanel" className="space-y-2 rounded-lg border p-3 text-sm">
+          <h3 className="font-semibold">حصة المزود المجانية</h3>
+          <dl className="grid gap-2 sm:grid-cols-2">
+            <div><dt className="text-xs text-muted-foreground">المتبقي</dt><dd className="mt-1 font-semibold">غير متاح — لم يرده المصدر</dd></div>
+            <div><dt className="text-xs text-muted-foreground">إعادة التعيين / التبريد</dt><dd className="mt-1 font-semibold">غير متاح — لم يرده المصدر</dd></div>
+            <div><dt className="text-xs text-muted-foreground">آخر تحقق من المجانية</dt><dd className="mt-1 font-semibold">لم يسجل</dd></div>
+            <div><dt className="text-xs text-muted-foreground">حالة الإثبات</dt><dd className="mt-1 font-semibold">غير متحققة؛ لا يمكن اختيار المزود</dd></div>
+          </dl>
+          <p className="text-xs text-muted-foreground">حدود التكلفة والرموز أدناه هي ميزانية مجمعة للبوابة، وليست رصيد الحصة المجانية لدى شركة المزود. لا يُعرض المجهول كصفر.</p>
+        </section>
+      ) : null}
       <section className="space-y-3">
         <h3 className="font-semibold">الاستهلاك والحجوزات النشطة</h3>
         <div className="grid gap-3 lg:grid-cols-2">
@@ -198,6 +270,14 @@ export function AiGatewayOperationsPanel() {
           <p className="mt-1">توجد حدود تكلفة موجبة في إعداد البوابة. هذا لا يثبت وقوع إنفاق مدفوع، لكنه لا يثبت أيضاً أن حد الإنفاق المدفوع صفر؛ راجع حدود التكلفة قبل تمكين الاستخدام.</p>
         </div>
       ) : null}
+      <div className="rounded-lg border p-3 text-sm">
+        <h3 className="font-semibold">سياسة الانتقال وحدود الإثبات</h3>
+        <ol className="mt-2 list-decimal space-y-1 pr-5 text-xs text-muted-foreground">
+          <li>لا يختار التوجيه إلا مزوداً مجانياً موثقاً بسعر صفري، دون بطاقة أو دفع تلقائي، مع حصة موجبة وإثبات خصوصية حديث.</li>
+          <li>عند نفاد حصة المزود المؤهل، ينتقل التوجيه إلى المزود المجاني المؤهل التالي بحسب ترتيب الخادم.</li>
+          <li>عند غياب جميع الحصص المجانية، لا يسمح هذا المسار بالترقية أو الدفع أو مزود مدفوع. تبقى مسارات المساعد الحتمية الموجودة متاحة للعمليات التي تدعمها؛ لكن التحويل التلقائي من Edge Gateway إليها لم يثبت في المصدر الحالي، وتبقى هذه الفجوة BLOCKED بدلاً من ادعاء تشغيلها.</li>
+        </ol>
+      </div>
       <div className="rounded-lg border p-3 text-sm">
         <h3 className="font-semibold">حدود ما تثبته هذه اللوحة</h3>
         <ul className="mt-2 list-disc space-y-1 pr-5 text-xs text-muted-foreground">

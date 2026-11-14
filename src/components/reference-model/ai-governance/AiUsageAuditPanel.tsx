@@ -207,7 +207,7 @@ export function AiUsageAuditPanel() {
                 </div>
                 <div className="rounded-md bg-muted/30 p-2">
                   <p className="text-xs text-muted-foreground">الفاعل</p>
-                  <p className="mt-1 break-all text-xs" dir="ltr">{record.actorProfileId ?? "غير متاح"}</p>
+                  <p className="mt-1 text-xs">{record.actorProfileId ? "مسؤول موثق لدى سجل الخادم" : "غير متاح"}</p>
                 </div>
               </div>
 
