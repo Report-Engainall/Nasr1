@@ -1590,30 +1590,30 @@ export function ProductModal({
           <input value={unit} onChange={(e) => setUnit(e.target.value)} maxLength={40} disabled={saving} placeholder="أدخل وحدة القياس الأساسية" />
         </Field>
       </div>
+      {product && canManageLifecycle && priceDetailsLoading && <p className="text-muted" role="status">جار تحميل الأسعار الحالية من الخادم…</p>}
+      {product && canManageLifecycle && priceDetailsError && (
+        <div className="form-error" role="alert">
+          <span>{priceDetailsError}</span>
+          <Button variant="outline" onClick={() => setPriceDetailsRetry((value) => value + 1)} disabled={saving || priceDetailsLoading}>
+            إعادة تحميل الأسعار
+          </Button>
+        </div>
+      )}
+      <div className="form-grid">
+        <Field label="السعر الأساسي">
+          <input
+            type="number"
+            min="0"
+            max="999999999999"
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            disabled={saving || (Boolean(product) && canManageLifecycle && (priceDetailsLoading || Boolean(priceDetailsError)))}
+          />
+        </Field>
+      </div>
       {(!product || canManageLifecycle) && (
         <>
-          {product && priceDetailsLoading && <p className="text-muted" role="status">جار تحميل الأسعار الحالية من الخادم…</p>}
-          {product && priceDetailsError && (
-            <div className="form-error" role="alert">
-              <span>{priceDetailsError}</span>
-              <Button variant="outline" onClick={() => setPriceDetailsRetry((value) => value + 1)} disabled={saving || priceDetailsLoading}>
-                إعادة تحميل الأسعار
-              </Button>
-            </div>
-          )}
-          <div className="form-grid">
-            <Field label="السعر الأساسي">
-              <input
-                type="number"
-                min="0"
-                max="999999999999"
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                disabled={saving || priceDetailsLoading || Boolean(priceDetailsError)}
-              />
-            </Field>
-          </div>
           <p className="text-muted" style={{ margin: '4px 0 8px', fontSize: 12, lineHeight: 1.7 }}>
             {product
               ? 'عدّل شرائح السعر الأربع من شاشة واحدة. يتحقق الخادم من القيم الأصلية قبل الحفظ؛ وعند وجود تعديل متزامن يرفض الحفظ حتى تعيد تحميل الأسعار.'
