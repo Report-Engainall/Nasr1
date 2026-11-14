@@ -8,6 +8,18 @@ describe('getVisibleAdminNavigationGroups', () => {
       'executive', 'sales', 'catalog', 'supply', 'operations', 'administration',
     ]);
     expect(groups.find(({ id }) => id === 'catalog')?.views).toEqual(['products', 'categories', 'pricing', 'offers']);
+    expect(groups.find(({ id }) => id === 'executive')?.views).toContain('system-health');
+    expect(groups.find(({ id }) => id === 'executive')?.views).toContain('error-log');
+    expect(groups.find(({ id }) => id === 'executive')?.views).toContain('architecture');
+    expect(groups.find(({ id }) => id === 'operations')?.views).toContain('engine-status');
+  });
+
+  it('does not expose observability pages in staff navigation', () => {
+    const views = getVisibleAdminNavigationGroups(['staff']).flatMap(({ views }) => [...views]);
+    expect(views).not.toContain('system-health');
+    expect(views).not.toContain('error-log');
+    expect(views).not.toContain('architecture');
+    expect(views).not.toContain('engine-status');
   });
 
   it('limits an accountant to finance and tasks inside their owning groups', () => {

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./AdminPages";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
+import { ADMIN_NAV_PATHS, roleCanAccessView } from "@/lib/admin-access-matrix";
 
 vi.mock("@/lib/auth", () => ({ useAuth: vi.fn() }));
 vi.mock("@/lib/useFetch", () => ({ useFetch: vi.fn() }));
@@ -33,23 +34,25 @@ function renderForRoles(roles: string[]) {
   return render(<SettingsPage onNotice={vi.fn()} />);
 }
 
-describe("protected architecture registry settings tab", () => {
+describe("observability architecture route is not duplicated in general settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it.each(["admin", "manager"])("%s can open the existing settings tab", async (role) => {
+  it.each(["admin", "manager"])("%s retains the canonical architecture route", (role) => {
+    expect(ADMIN_NAV_PATHS.architecture).toBe("/admin/architecture");
+    expect(roleCanAccessView(role, "architecture")).toBe(true);
+
     renderForRoles([role]);
-
-    fireEvent.click(screen.getByRole("button", { name: "معمارية النظام" }));
-
-    expect(await screen.findByRole("region", { name: "معمارية النظام" })).toBeInTheDocument();
-    expect(await screen.findByRole("table", { name: "المسارات المسجلة في TanStack Router" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "معمارية النظام" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "معمارية النظام" })).not.toBeInTheDocument();
   });
 
   it.each(["customer", "customer_manager", "staff", "accountant"])(
-    "%s cannot see the internal architecture registry",
+    "%s cannot access the architecture route or see an observability settings panel",
     (role) => {
+      expect(roleCanAccessView(role, "architecture")).toBe(false);
+
       renderForRoles([role]);
       expect(screen.queryByRole("button", { name: "معمارية النظام" })).not.toBeInTheDocument();
       expect(screen.queryByRole("region", { name: "معمارية النظام" })).not.toBeInTheDocument();

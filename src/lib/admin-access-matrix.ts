@@ -2,7 +2,7 @@ export type AdminViewId =
   | "dashboard" | "products" | "customers" | "orders" | "pricing" | "offers" | "reports" | "data"
   | "operations" | "notifications" | "ai" | "suppliers" | "devices" | "settings" | "quotes"
   | "finance" | "tasks" | "audit" | "stock-count" | "inventory-transfers" | "purchase-orders"
-  | "intelligence" | "service-desk" | "categories";
+  | "intelligence" | "service-desk" | "categories" | "system-health" | "error-log" | "architecture" | "engine-status";
 
 export type AdminRoleId = "admin" | "manager" | "staff" | "accountant" | "customer_manager" | "customer";
 
@@ -41,6 +41,9 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavigationGroup[] = [
     { id: "dashboard", label: "لوحة المعلومات", path: "/admin" },
     { id: "intelligence", label: "ذكاء الأعمال والتحصيلات", path: "/admin/intelligence" },
     { id: "reports", label: "التقارير الذكية", path: "/admin/reports" },
+    { id: "system-health", label: "صحة النظام", path: "/admin/system-health" },
+    { id: "error-log", label: "سجل الأخطاء", path: "/admin/error-log" },
+    { id: "architecture", label: "معمارية النظام", path: "/admin/architecture" },
   ]),
   defineAdminNavigationGroup("sales", "المبيعات والعملاء", [
     { id: "customers", label: "العملاء", path: "/admin/customers" },
@@ -66,6 +69,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavigationGroup[] = [
     { id: "tasks", label: "المهام التشغيلية والطباعة", path: "/admin/tasks" },
     { id: "ai", label: "مركز الذكاء", path: "/admin/ai" },
     { id: "notifications", label: "التنبيهات", path: "/admin/notifications" },
+    { id: "engine-status", label: "حالة المحركات", path: "/admin/engine-status" },
   ]),
   defineAdminNavigationGroup("administration", "الإدارة والنظام", [
     { id: "finance", label: "الفواتير والتحصيل", path: "/admin/finance" },
@@ -103,8 +107,8 @@ const GENERAL_OPERATIONS: readonly AdminViewId[] = [
 ];
 
 export const ROLE_PAGE_ACCESS: Readonly<Record<AdminRoleId, readonly AdminViewId[]>> = {
-  admin: [...GENERAL_OPERATIONS, "finance", "audit", "purchase-orders", "intelligence"],
-  manager: [...GENERAL_OPERATIONS, "finance", "audit", "purchase-orders", "intelligence"],
+  admin: [...GENERAL_OPERATIONS, "finance", "audit", "purchase-orders", "intelligence", "system-health", "error-log", "architecture", "engine-status"],
+  manager: [...GENERAL_OPERATIONS, "finance", "audit", "purchase-orders", "intelligence", "system-health", "error-log", "architecture", "engine-status"],
   staff: GENERAL_OPERATIONS,
   accountant: ["finance", "tasks"],
   customer_manager: ["customers"],
@@ -126,7 +130,7 @@ export function pageAccessReason(role: string, view: AdminViewId): string {
   if (role === "customer_manager") return "دور مسؤول العملاء محصور في دليل العملاء ودورة العميل.";
   if (role === "accountant") return "دور المحاسب مستقل عن التشغيل؛ يسمح بالفواتير والتحصيل والمهام فقط.";
   if (view === "finance") return "تتطلب مساحة المالية دور مدير النظام أو المدير أو المحاسب.";
-  if (view === "audit" || view === "intelligence") return "هذه المساحة محصورة بمدير النظام أو المدير.";
+  if (view === "audit" || view === "intelligence" || view === "system-health" || view === "error-log" || view === "architecture" || view === "engine-status") return "هذه المساحة محصورة بمدير النظام أو المدير.";
   if (view === "purchase-orders") return "إدارة أوامر الشراء محصورة بمدير النظام أو المدير.";
   return "لا توجد صلاحية لهذا المسار ضمن الدور المحدد؛ الخادم وسياسات RLS هي المرجع النهائي.";
 }

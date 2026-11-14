@@ -42,15 +42,6 @@ import {
   resolveAdminThemePalette,
   type AdminThemePalette,
 } from '@/lib/admin-theme';
-const ArchitectureRegistryPanel = lazy(async () => ({
-  default: (await import('@/components/reference-model/observability/ArchitectureRegistryPanel')).ArchitectureRegistryPanel,
-}));
-const SystemHealthPanel = lazy(async () => ({
-  default: (await import('@/components/reference-model/observability/SystemHealthPanel')).SystemHealthPanel,
-}));
-const SourceBoundaryStatusPanel = lazy(async () => ({
-  default: (await import('@/components/reference-model/observability/SourceBoundaryStatusPanel')).SourceBoundaryStatusPanel,
-}));
 const SupplierFinancialWorkspaceHub = lazy(async () => ({
   default: (await import('@/components/SupplierFinancialWorkspaceHub')).SupplierFinancialWorkspaceHub,
 }));
@@ -1223,7 +1214,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
   const canManageRoles = Boolean(user?.roles.includes('admin'));
   const canManageStorefrontContent = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const { data: settings, loading, error, refetch } = useFetch(fetchSettings);
-  const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access' | 'announcements' | 'architecture'>('general');
+  const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access' | 'announcements'>('general');
   const [saving, setSaving] = useState(false);
   const map = useMemo(() => { const m: Record<string, unknown> = {}; settings?.forEach((s: AdminSetting) => m[s.key] = s.value); return m; }, [settings]);
   const savedTheme = useMemo(
@@ -1259,7 +1250,6 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
         <button type="button" className={tab === 'appearance' ? 'active' : ''} aria-pressed={tab === 'appearance'} onClick={() => setTab('appearance')}>المظهر</button>
         {canManageStorefrontContent && <>
           <button type="button" className={tab === 'announcements' ? 'active' : ''} aria-pressed={tab === 'announcements'} onClick={() => setTab('announcements')}>إعلانات المتجر</button>
-          <button type="button" className={tab === 'architecture' ? 'active' : ''} aria-pressed={tab === 'architecture'} aria-controls="admin-architecture-panel" onClick={() => setTab('architecture')}>معمارية النظام</button>
         </>}
         {canManageRoles && <button type="button" className={tab === 'access' ? 'active' : ''} aria-pressed={tab === 'access'} onClick={() => setTab('access')}>المستخدمون والصلاحيات</button>}
       </div>
@@ -1333,17 +1323,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
           </div>
         </section>
       </SettingsPanel>}
-      {tab === 'architecture' && canManageStorefrontContent && (
-        <section id="admin-architecture-panel" aria-label="معمارية النظام" className="space-y-3">
-          <Suspense fallback={<div role="status" aria-live="polite" className="rounded-md border p-4 text-sm text-muted-foreground">جارٍ تحميل المعمارية ومراقبة النظام...</div>}>
-            <div className="grid gap-3">
-              <ArchitectureRegistryPanel />
-              <SystemHealthPanel />
-              <SourceBoundaryStatusPanel />
-            </div>
-          </Suspense>
-        </section>
-      )}
+
       {tab === 'announcements' && canManageStorefrontContent && <StorefrontAnnouncementManager onNotice={onNotice} />}
       {tab === 'access' && canManageRoles && user && <>
         <AdminAccessMatrix />

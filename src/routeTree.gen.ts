@@ -45,6 +45,10 @@ import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as AccountPasswordRouteImport } from './routes/account.password'
 import { Route as AdminAiRouteImport } from './routes/admin_.ai'
 import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
+import { Route as AdminArchitectureRouteImport } from './routes/admin_.architecture'
+import { Route as AdminEngineStatusRouteImport } from './routes/admin_.engine-status'
+import { Route as AdminErrorLogRouteImport } from './routes/admin_.error-log'
+import { Route as AdminSystemHealthRouteImport } from './routes/admin_.system-health'
 import { Route as AdminCustomersRouteImport } from './routes/admin_.customers'
 import { Route as AdminCategoriesRouteImport } from './routes/admin_.categories'
 import { Route as AdminDataRouteImport } from './routes/admin_.data'
@@ -261,6 +265,26 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminArchitectureRoute = AdminArchitectureRouteImport.update({
+  id: '/admin_/architecture',
+  path: '/admin/architecture',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminEngineStatusRoute = AdminEngineStatusRouteImport.update({
+  id: '/admin_/engine-status',
+  path: '/admin/engine-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminErrorLogRoute = AdminErrorLogRouteImport.update({
+  id: '/admin_/error-log',
+  path: '/admin/error-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSystemHealthRoute = AdminSystemHealthRouteImport.update({
+  id: '/admin_/system-health',
+  path: '/admin/system-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
   id: '/admin_/customers',
   path: '/admin/customers',
@@ -475,6 +499,10 @@ export interface FileRoutesByFullPath {
   '/account/password': typeof AccountPasswordRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/architecture': typeof AdminArchitectureRoute
+  '/admin/engine-status': typeof AdminEngineStatusRoute
+  '/admin/error-log': typeof AdminErrorLogRoute
+  '/admin/system-health': typeof AdminSystemHealthRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/data': typeof AdminDataRoute
@@ -547,6 +575,10 @@ export interface FileRoutesByTo {
   '/account/password': typeof AccountPasswordRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/architecture': typeof AdminArchitectureRoute
+  '/admin/engine-status': typeof AdminEngineStatusRoute
+  '/admin/error-log': typeof AdminErrorLogRoute
+  '/admin/system-health': typeof AdminSystemHealthRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/data': typeof AdminDataRoute
@@ -621,6 +653,10 @@ export interface FileRoutesById {
   '/account/password': typeof AccountPasswordRoute
   '/admin_/ai': typeof AdminAiRoute
   '/admin_/audit': typeof AdminAuditRoute
+  '/admin_/architecture': typeof AdminArchitectureRoute
+  '/admin_/engine-status': typeof AdminEngineStatusRoute
+  '/admin_/error-log': typeof AdminErrorLogRoute
+  '/admin_/system-health': typeof AdminSystemHealthRoute
   '/admin_/customers': typeof AdminCustomersRoute
   '/admin_/categories': typeof AdminCategoriesRoute
   '/admin_/data': typeof AdminDataRoute
@@ -696,6 +732,10 @@ export interface FileRouteTypes {
     | '/account/password'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/architecture'
+    | '/admin/engine-status'
+    | '/admin/error-log'
+    | '/admin/system-health'
     | '/admin/customers'
     | '/admin/categories'
     | '/admin/data'
@@ -768,6 +808,10 @@ export interface FileRouteTypes {
     | '/account/password'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/architecture'
+    | '/admin/engine-status'
+    | '/admin/error-log'
+    | '/admin/system-health'
     | '/admin/customers'
     | '/admin/categories'
     | '/admin/data'
@@ -1524,6 +1568,10 @@ const rootRouteChildren: RootRouteChildren = {
   AccountPasswordRoute: AccountPasswordRoute,
   AdminAiRoute: AdminAiRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminArchitectureRoute: AdminArchitectureRoute,
+  AdminEngineStatusRoute: AdminEngineStatusRoute,
+  AdminErrorLogRoute: AdminErrorLogRoute,
+  AdminSystemHealthRoute: AdminSystemHealthRoute,
   AdminCustomersRoute: AdminCustomersRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminDataRoute: AdminDataRoute,
