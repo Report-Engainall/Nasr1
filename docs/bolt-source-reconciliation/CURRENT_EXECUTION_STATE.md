@@ -5657,3 +5657,16 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - Public Storefront read-only smoke and authenticated infrastructure gate: **SUCCESS**. Separate external customer/order/tenant E2E: **SKIPPED**, not PASS.
 - The exact JSONB test harness fix uses `db.json(value)` / `tx.json(value)`; the AI-specific step has **NOT RUN YET**, so SQLSTATE 22023 is **NOT YET RETESTED** on this exact code SHA.
 - Overall P2 remains **IN_PROGRESS**; keep release **NO-GO** until all non-skipped required local steps finish successfully.
+
+
+## P2 AI AUDIT LEGACY-ROW VISIBILITY RETEST — 14 NOVEMBER 2026
+
+- Prior exact P2 run [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657) on code SHA `e020947f76b2353615d44590fd268882ad734bb9`: **FAILURE** at step 38, AI prompt lifecycle/audit acceptance. The previous 37 steps succeeded, and all cleanup/artifact-upload steps completed.
+- The AI test log proves normal JSONB ledger fixture insertion succeeded, then the rollback-only scalar JSONB fixture insertion succeeded via `tx.json`, and the tenant-scoped audit RPC returned without SQLSTATE `22023`. The failing assertion was that the legacy request id was not found in the RPC's first 50 returned rows. The run therefore did not prove legacy sanitization, maker/checker, audit immutability or subsequent tenant checks.
+- Corrective P3 test-only commit: `126727f4aaf8d487ded39bc9991b01ecdd2d28fc`; path `scripts/test-ai-prompt-governance.mjs`; blob `0e493fd4c9af49435ccb768df79d45faee36bb40`.
+- The updated harness explicitly stamps normal and legacy rollback-only fixture rows with `pg_catalog.clock_timestamp()`, checks direct source-row presence inside the transaction, queries the audit RPC at the allowed maximum page size 100, and reports total + visible request IDs if the row is still absent.
+- No SQL function/RPC, role/grant, tenant scope, CHECK constraint or migration changed. The legacy insert still occurs only after temporary transaction-scoped constraint removal and always rolls back; both constraints and absence of the row are asserted afterwards.
+- New exact P2 run [#43534854634](https://github.com/Report-Engainall/Nasr1/actions/runs/43534854634) is **QUEUED** for code SHA `126727f4aaf8d487ded39bc9991b01ecdd2d28fc`. No acceptance result exists yet.
+- Previous non-AI evidence (orders/tenant denial, financial posting/idempotency, returns/credit memo, exports/prints, privacy, device-session revocation) belongs to SHA `e020947...` only. External customer/order/tenant E2E remained `SKIPPED`.
+- Next: inspect terminal logs from run #43534854634; require the scalar fixture to be returned with `provider_attempts_integrity=false`, `provider_attempts=[]`, original attempt count retained, then complete Maker/Checker, tenant isolation, append-only audit, rollback and constraint restoration.
+- Production readiness remains **NO-GO**. No production DB, live Edge Function, external provider, billing/payment, Vercel or paid service used.
