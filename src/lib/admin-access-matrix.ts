@@ -6,18 +6,87 @@ export type AdminViewId =
 
 export type AdminRoleId = "admin" | "manager" | "staff" | "accountant" | "customer_manager" | "customer";
 
-export const ADMIN_NAV_GROUPS: ReadonlyArray<{
+export type AdminNavigationItem = Readonly<{
+  id: AdminViewId;
+  label: string;
+  path: string;
+}>;
+
+export type AdminNavigationGroup = Readonly<{
   id: string;
   label: string;
-  views: readonly AdminViewId[];
-}> = [
-  { id: "executive", label: "القيادة والمتابعة", views: ["dashboard", "intelligence", "reports"] },
-  { id: "sales", label: "المبيعات والعملاء", views: ["customers", "service-desk", "orders", "quotes"] },
-  { id: "catalog", label: "الكتالوج والتسعير", views: ["products", "categories", "pricing", "offers"] },
-  { id: "supply", label: "المخزون والمشتريات", views: ["stock-count", "inventory-transfers", "suppliers", "purchase-orders"] },
-  { id: "operations", label: "البيانات والتشغيل", views: ["data", "operations", "tasks", "ai", "notifications"] },
-  { id: "administration", label: "الإدارة والنظام", views: ["finance", "devices", "audit", "settings"] },
+  views: readonly AdminNavigationItem[];
+}>;
+
+/**
+ * Canonical administration navigation registry.
+ * Group cards, sidebar, command links, breadcrumbs and route destinations
+ * must derive from this definition; role access remains governed separately
+ * by ROLE_PAGE_ACCESS and server-side authorization.
+ */
+export const ADMIN_NAV_GROUPS: readonly AdminNavigationGroup[] = [
+  {
+    id: "executive", label: "القيادة والمتابعة",
+    views: [
+      { id: "dashboard", label: "لوحة المعلومات", path: "/admin" },
+      { id: "intelligence", label: "ذكاء الأعمال والتحصيلات", path: "/admin/intelligence" },
+      { id: "reports", label: "التقارير الذكية", path: "/admin/reports" },
+    ],
+  },
+  {
+    id: "sales", label: "المبيعات والعملاء",
+    views: [
+      { id: "customers", label: "العملاء", path: "/admin/customers" },
+      { id: "service-desk", label: "خدمة العملاء", path: "/admin/service-desk" },
+      { id: "orders", label: "الطلبات", path: "/admin/orders" },
+      { id: "quotes", label: "عروض الأسعار", path: "/admin/quotes" },
+    ],
+  },
+  {
+    id: "catalog", label: "الكتالوج والتسعير",
+    views: [
+      { id: "products", label: "إدارة المنتجات", path: "/admin/products" },
+      { id: "categories", label: "التصنيفات الرئيسية والفرعية", path: "/admin/categories" },
+      { id: "pricing", label: "مركز التسعير", path: "/admin/pricing" },
+      { id: "offers", label: "العروض والحملات", path: "/admin/offers" },
+    ],
+  },
+  {
+    id: "supply", label: "المخزون والمشتريات",
+    views: [
+      { id: "stock-count", label: "الجرد الفعلي", path: "/admin/stock-count" },
+      { id: "inventory-transfers", label: "سجل تحويلات المخزون", path: "/admin/inventory-transfers" },
+      { id: "suppliers", label: "الموردون", path: "/admin/suppliers" },
+      { id: "purchase-orders", label: "أوامر الشراء والاستلام", path: "/admin/purchase-orders" },
+    ],
+  },
+  {
+    id: "operations", label: "البيانات والتشغيل",
+    views: [
+      { id: "data", label: "مركز البيانات", path: "/admin/data" },
+      { id: "operations", label: "العمليات الذكية", path: "/admin/operations" },
+      { id: "tasks", label: "المهام التشغيلية والطباعة", path: "/admin/tasks" },
+      { id: "ai", label: "مركز الذكاء", path: "/admin/ai" },
+      { id: "notifications", label: "التنبيهات", path: "/admin/notifications" },
+    ],
+  },
+  {
+    id: "administration", label: "الإدارة والنظام",
+    views: [
+      { id: "finance", label: "الفواتير والتحصيل", path: "/admin/finance" },
+      { id: "devices", label: "الأجهزة والجلسات", path: "/admin/devices" },
+      { id: "audit", label: "سجل التدقيق", path: "/admin/audit" },
+      { id: "settings", label: "الإعدادات", path: "/admin/settings" },
+    ],
+  },
 ];
+
+export const ADMIN_NAV_ITEMS: readonly AdminNavigationItem[] =
+  ADMIN_NAV_GROUPS.flatMap(({ views }) => views);
+
+export const ADMIN_NAV_PATHS: Readonly<Record<AdminViewId, string>> = Object.freeze(
+  Object.fromEntries(ADMIN_NAV_ITEMS.map(({ id, path }) => [id, path])) as Record<AdminViewId, string>,
+);
 
 export const ADMIN_ACCESS_ROLES: ReadonlyArray<{
   id: AdminRoleId;
