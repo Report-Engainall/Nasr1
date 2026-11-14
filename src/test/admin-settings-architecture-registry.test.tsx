@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({
   useAuth: vi.fn(),
@@ -10,11 +10,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth', () => ({ useAuth: mocks.useAuth }));
 vi.mock('@/lib/useFetch', () => ({ useFetch: mocks.useFetch }));
-vi.mock('@/components/reference-model/observability/ArchitectureRegistryPanel', () => ({
-  ArchitectureRegistryPanel: () => <div data-testid="architecture-registry-panel">سجل معمارية التطبيق</div>,
-}));
 
 import { SettingsPage } from '@/components/AdminPages';
+import { ADMIN_NAV_PATHS, roleCanAccessView } from '@/lib/admin-access-matrix';
 
 function renderSettingsFor(roles: string[]) {
   mocks.useAuth.mockReturnValue({
@@ -29,7 +27,7 @@ function renderSettingsFor(roles: string[]) {
   return render(<SettingsPage onNotice={vi.fn()} />);
 }
 
-describe('admin architecture registry settings access', () => {
+describe('admin architecture is registered in canonical navigation, not general settings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -42,16 +40,13 @@ describe('admin architecture registry settings access', () => {
   it.each([
     ['admin', ['admin']],
     ['manager', ['manager']],
-  ])('exposes the read-only architecture tab to %s', async (_label, roles) => {
-    renderSettingsFor(roles);
-    const tab = screen.getByRole('button', { name: 'معمارية النظام' });
-    expect(tab).toHaveAttribute('aria-pressed', 'false');
+  ])('keeps the architecture destination available to %s through the canonical admin route', (_label, roles) => {
+    expect(ADMIN_NAV_PATHS.architecture).toBe('/admin/architecture');
+    expect(roleCanAccessView(roles[0], 'architecture')).toBe(true);
 
-    fireEvent.click(tab);
-    await waitFor(() => {
-      expect(screen.getByTestId('architecture-registry-panel')).toBeInTheDocument();
-    });
-    expect(screen.getByRole('region', { name: 'معمارية النظام' })).toBeInTheDocument();
+    renderSettingsFor(roles);
+    expect(screen.queryByRole('button', { name: 'معمارية النظام' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('architecture-registry-panel')).not.toBeInTheDocument();
   });
 
   it.each([
@@ -59,7 +54,9 @@ describe('admin architecture registry settings access', () => {
     ['accountant', ['accountant']],
     ['customer manager', ['customer_manager']],
     ['customer', ['customer']],
-  ])('does not expose or mount the architecture registry for %s', (_label, roles) => {
+  ])('does not grant the architecture route or duplicate settings panel to %s', (_label, roles) => {
+    expect(roleCanAccessView(roles[0], 'architecture')).toBe(false);
+
     renderSettingsFor(roles);
     expect(screen.queryByRole('button', { name: 'معمارية النظام' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('architecture-registry-panel')).not.toBeInTheDocument();
