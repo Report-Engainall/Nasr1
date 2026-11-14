@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
-import { cleanup,fireEvent,render,screen } from "@testing-library/react";
+import { cleanup,fireEvent,render,screen,within } from "@testing-library/react";
 const mocks=vi.hoisted(()=>({fetchAiGatewayBudget:vi.fn()}));
 vi.mock("@/lib/intelligence/ai-gateway-operations-client",()=>({fetchAiGatewayBudget:mocks.fetchAiGatewayBudget}));
 import {AiGatewayOperationsPanel} from "./AiGatewayOperationsPanel";
@@ -18,8 +18,9 @@ describe("AiGatewayOperationsPanel",()=>{
   expect(screen.getAllByText("الأهلية المجانية: غير متحققة — BLOCKED")).toHaveLength(2);
   expect(screen.getAllByText("آخر تحقق: لم يسجل المصدر وقت تحقق مجاني.")).toHaveLength(2);
   fireEvent.click(screen.getByRole("tab",{name:"النماذج"}));
-  expect(screen.getByText("gemini-example-model")).toBeInTheDocument();
-  expect(screen.getByText("openai-example-model")).toBeInTheDocument();
+  const modelPanel=screen.getByRole("tabpanel");
+  expect(within(modelPanel).getByText("gemini-example-model")).toBeInTheDocument();
+  expect(within(modelPanel).getByText("openai-example-model")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("tab",{name:"الحصص"}));
   expect(screen.getAllByText("غير متاح — لم يرده المصدر")).toHaveLength(2);
   expect(screen.getByText("غير متحققة؛ لا يمكن اختيار المزود")).toBeInTheDocument();
