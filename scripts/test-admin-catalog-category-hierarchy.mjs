@@ -254,8 +254,12 @@ async function main() {
     // Successful archive of a subtree with only an inactive product must preserve the product.
     const safeRoot = await createCategory(managerA, "P2-SAFE-ROOT-" + suffix);
     const safeChild = await createCategory(managerA, "P2-SAFE-CHILD-" + suffix, safeRoot);
-    const inactiveProduct = await createProduct(managerA, safeChild, "inactive", "INACT-" + suffix);
+    const inactiveProduct = await createProduct(managerA, safeChild, "active", "INACT-" + suffix);
     createdProducts.push(inactiveProduct);
+    await db.unsafe(
+      "update public.products set status='inactive' where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId, inactiveProduct],
+    );
     const beforeProduct = await db.unsafe(
       "select id::text,organization_id::text,category_id::text,status,item_code from public.products " +
       "where organization_id=$1::uuid and id=$2::uuid",
