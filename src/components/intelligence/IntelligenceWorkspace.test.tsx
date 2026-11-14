@@ -85,6 +85,9 @@ vi.mock("@/components/reference-model/ai-governance/AiUsageAuditPanel", () => ({
 vi.mock("@/components/intelligence/AiGatewayOperationsPanel", () => ({
   AiGatewayOperationsPanel: () => <section role="region" aria-label="مركز تشغيل بوابة الذكاء">ai-gateway-operations-mounted</section>,
 }));
+vi.mock("@/components/admin/operations/EngineStatusScreen", () => ({
+  EngineStatusScreen: () => <section role="region" aria-label="حالة المحركات">engine-status-mounted</section>,
+}));
 
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace";
 
@@ -452,6 +455,7 @@ describe("production intelligence workspace inventory screens", () => {
     mocks.user = { profileId: "staff-profile", name: "موظف", roles: ["staff"] };
     render(<IntelligenceWorkspace />);
     expect(await screen.findByRole("alert")).toHaveTextContent("صلاحية غير متاحة");
+    expect(screen.queryByRole("region", { name: "حالة المحركات" })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.fetchInventory).not.toHaveBeenCalled());
   });
 
@@ -473,6 +477,7 @@ describe("production intelligence workspace inventory screens", () => {
 
   it("mounts gateway operations, protected AI audit and prompt governance in the existing intelligence workspace", async () => {
     render(<IntelligenceWorkspace />);
+    expect(await screen.findByRole("region", { name: "حالة المحركات" })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "مركز تشغيل بوابة الذكاء" })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "تدقيق محاولات الذكاء" })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "حوكمة مكتبة أوامر الذكاء" })).toBeInTheDocument();
