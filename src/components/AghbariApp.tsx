@@ -1620,7 +1620,7 @@ export function ProductModal({
               : 'يلزم تحديد أسعار الشرائح عند إنشاء المنتج. لا تُستنسخ أسعار التجزئة إلى الجملة تلقائيًا.'}
           </p>
           <div className="form-grid">
-            <Field label="سعر جملة الجملة (VIP)">
+            <Field label="سعر جملة الجملة">
               <input type="number" min="0" max="999999999999" step="0.01" value={priceWholesaleOfWholesale}
                 onChange={(event) => setPriceWholesaleOfWholesale(event.target.value)} disabled={saving || priceDetailsLoading || Boolean(priceDetailsError)} />
             </Field>
