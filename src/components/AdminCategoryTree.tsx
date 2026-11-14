@@ -208,6 +208,13 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
     const name = newName.trim();
     const code = newCode.trim();
     if (!canManage || !name || name.length > 100 || code.length > 64 || creating) return;
+    if (createParent) {
+      const parentPath = getAdminCategoryPath(categories, createParent);
+      if (!parentPath.length || parentPath.some((item) => item.is_active === false)) {
+        onNotice('لا يمكن إضافة فرع تحت أب مفقود أو ضمن مسار يحتوي تصنيفاً مؤرشفاً.');
+        return;
+      }
+    }
     setCreating(true);
     try {
       const result = await createAdminCatalogCategory(name, createParent ?? null, code || null);
@@ -247,8 +254,12 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
 
   async function archiveCategory(category: Category) {
     if (!canManage || category.is_active === false || busyId) return;
-    if (categories.some((item) => item.parent_id === category.id && item.is_active !== false)) {
-      onNotice('لا يمكن أرشفة تصنيف أب قبل معالجة فروعه النشطة؛ حتى لا تبقى فروع تشغيلية تحت أب مؤرشف.');
+    const hasActiveChild = categories.some((item) => item.parent_id === category.id && item.is_active !== false);
+    const hasActiveDeeperDescendant = categories.some((item) => item.is_active !== false
+      && item.parent_id !== category.id
+      && getAdminCategoryAncestorIds(categories, item.id).includes(category.id));
+    if (hasActiveChild || hasActiveDeeperDescendant) {
+      onNotice('لا يمكن أرشفة تصنيف أب قبل معالجة جميع فروعه النشطة؛ حتى لا تبقى فروع تشغيلية تحت أب مؤرشف.');
       return;
     }
     if (!window.confirm(`أرشفة «${category.name}»؟ سيبقى السجل والمنتجات دون حذف.`)) return;
@@ -340,6 +351,9 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
           </div>}
           {tab === 'children' && <div className="admin-category-child-list">{children.length ? children.map((node) => <button type="button" key={node.category.id} onClick={() => selectCategory(node.category.id)}><FolderTree size={15}/><span>{node.category.name}</span><ChevronLeft size={14}/></button>) : <p>لا توجد فروع مباشرة.</p>}</div>}
           {tab === 'products' && <div className="admin-category-products">
+            {!productsLoading && !productsError && <p className="admin-category-legend">{products.length === 100
+              ? 'أظهرت القراءة 100 منتج على الأقل؛ العدد الإجمالي غير متاح من المصدر الحالي.'
+              : `عدد المنتجات المرتبطة مباشرة: ${formatNumber(products.length)}`}</p>}
             {productsLoading ? <div className="admin-category-state"><LoaderCircle size={17} className="spin"/> جارٍ تحميل المنتجات</div>
               : productsError ? <div className="admin-category-error" role="alert"><AlertTriangle size={16}/><span>{productsError}</span><button type="button" className="btn outline" onClick={() => setProductsRetry((value) => value + 1)} disabled={productsLoading}><RefreshCw size={14}/> إعادة المحاولة</button></div>
                 : products.length ? <>{products.map((product) => <button type="button" key={product.id} className="admin-category-product-row" aria-label={`فتح المنتج ${product.name}`} onClick={() => onOpenProduct(product)}><div><strong>{product.name}</strong><span>{product.item_code} · {product.unit}</span></div><span>{product.status ?? 'الحالة غير محددة'}</span><ChevronLeft size={15} /></button>)}{products.length === 100 && <p className="admin-category-legend">يعرض المصدر أول 100 منتج فقط، دون ادعاء عدد إجمالي.</p>}</>
