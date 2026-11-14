@@ -690,6 +690,11 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/device-session-management.spec.ts"
+      - name: Prove manager edits and reloads all four product prices in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-product-price-edit.spec.ts"
       - name: Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit
         run: node scripts/test-ai-prompt-governance.mjs
       - name: Record proof boundary
