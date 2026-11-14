@@ -12,6 +12,7 @@ on:
       - "scripts/test-local-endpoint-guard.mjs"
       - "scripts/lib/local-endpoint-guard.mjs"
       - "scripts/test-price-grid-atomicity.mjs"
+      - "scripts/test-admin-catalog-category-hierarchy.mjs"
       - "scripts/test-cash-expense-journal-posting.mjs"
       - "scripts/test-purchase-receipt-accounting.mjs"
       - "scripts/test-storefront-product-reviews.mjs"
@@ -593,6 +594,8 @@ jobs:
         run: node scripts/test-local-endpoint-guard.mjs
       - name: Test atomic price grid writes, rollback, audit and stale-writer race
         run: node scripts/test-price-grid-atomicity.mjs
+      - name: Test tenant-safe category subtree archival and create/product race locks on local PostgreSQL 17
+        run: node scripts/test-admin-catalog-category-hierarchy.mjs
       - name: Test cash-expense source posting, idempotency and void/post concurrency
         run: node scripts/test-cash-expense-journal-posting.mjs
       - name: Test purchase receipt source-linked accounting draft and restrictions
