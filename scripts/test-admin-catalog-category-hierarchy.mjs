@@ -278,8 +278,7 @@ async function main() {
     const safeChild = await createCategory(managerA, "P2-SAFE-CHILD-" + suffix, safeRoot);
     const inactiveProduct = await insertProductFixture(db, organizationId, safeChild, "inactive", "INACT-" + suffix);
     const beforeProduct = await db.unsafe(
-      "select id::text,organization_id::text,category_id::text,status,item_code from public.products " +
-      "where organization_id=$1::uuid and id=$2::uuid",
+      "select * from public.products where organization_id=$1::uuid and id=$2::uuid",
       [organizationId, inactiveProduct],
     );
     assert.equal(beforeProduct.length, 1);
@@ -290,8 +289,7 @@ async function main() {
     assert.equal(rootArchive.id, safeRoot);
     assert.equal(rootArchive.is_active, false);
     const afterProduct = await db.unsafe(
-      "select id::text,organization_id::text,category_id::text,status,item_code from public.products " +
-      "where organization_id=$1::uuid and id=$2::uuid",
+      "select * from public.products where organization_id=$1::uuid and id=$2::uuid",
       [organizationId, inactiveProduct],
     );
     assert.deepEqual(
@@ -360,7 +358,7 @@ async function main() {
     );
     assert.equal(racedChildren[0].count, 0, "no child may commit beneath the archived parent");
 
-    // PRODUCT-SAVE-vs-ARCHIVE race: product assignment holds KEY SHARE on category.
+    // PRODUCT-SAVE-vs-ARCHIVE race: product assignment holds FOR SHARE on category.
     const productRaceCategory = await createCategory(managerA, "P2-PRODUCT-RACE-" + suffix);
     let productSettled = false;
     let productRacePromise;
