@@ -17,18 +17,19 @@
 4. اختبر على SHA/شجرة تطبيق معلومة، وافصل PASS/FAIL/SKIPPED/BLOCKED.
 5. ادمج الأعمال المقبولة فقط، واحفظ الأدلة في هذا المؤشر ومصفوفة القبول الوحيدة.
 
-## الحالة الحية — 14 نوفمبر 2026
+## الحالة الحية — 14 نوفمبر 2026 (آخر تحديث بعد قبول #487)
 
-- المستودع: `Report-Engainall/Nasr1`; الفرع: `main`.
-- **LATEST_MAIN_HEAD:** `79c58a666f7a38c71dbe4011e8cf9cd2fa25ff83`.
-- **LATEST_APPLICATION_CODE_SHA:** `5a21f70f420937aa215beef25fdcdd3a98799af2`. المقارنة من هذا الالتزام إلى آخر main تُظهر تغييرات توثيقية فقط في `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`؛ لا توجد تغييرات تطبيق أحدث.
-- **PR #486 — MERGED:** محرر أسعار شرائح VIP/الجملة/التجزئة داخل نموذج المنتج الإداري؛ الدمج `025c6d1d5aa77775d535f3c75ba20f03a3f6bf6c`.
-- **PR #485 — MERGED:** شاشات المراقبة الأربع داخل المسارات القانونية وسجل التنقل والصلاحيات؛ الدمج `5a21f70f420937aa215beef25fdcdd3a98799af2`. هذا هو SHA التطبيق الحالي الذي يحتوي عملي #485 و#486 معاً.
-- **P1 ACCEPTANCE:** [run 43613791288](https://github.com/Report-Engainall/Nasr1/actions/runs/43613791288) — SUCCESS على `5e1549834ac4111b071b39700101258bf0b5f479`: **124/124 test files، 876/876 tests، strict TypeScript، production client/SSR/Nitro build كلها PASS**. المقارنة من `5a21f70...` إلى `5e15498...` تُظهر أن المسار الوحيد المتغير هو مؤشر التنفيذ هذا؛ لم يتغير أي ملف تطبيق أو اختبار بين P2 وP1.
-- **P2 ACCEPTANCE:** [run 43613709733](https://github.com/Report-Engainall/Nasr1/actions/runs/43613709733) — SUCCESS على SHA التطبيق `5a21f70f420937aa215beef25fdcdd3a98799af2`. البوابة والبناء العام للمتجر والـChromium العام PASS؛ Job PostgreSQL 17/Chromium المصادق `132504834919` SUCCESS: ترحيلات محلية، endpoint/tenant/role guards، الذمم، ذرية شبكة الأسعار، التصنيفات، القيود المالية، الطلبات وعزل المستأجرين، XLSX للمخزون وأوامر الشراء، checkout replay، المرتجعات والإشعارات الدائنة، Onyx، الطباعة المالية/التشغيلية، خصوصية مدير العملاء، الجلسات والإلغاء الفوري، وحوكمة AI.
-- AI phase في Job `132504834919` سجّلت `AI_PROMPT_GOVERNANCE_ACCEPTANCE_PASS`: maker/checker، تفعيل الطرف الثالث، التدقيق append-only، المحتوى غير القابل للتعديل، عزل المؤسسة، idempotency وحارس الجلسة؛ 5 prompt versions و17 audit events. تم إيقاف التطبيق وSupabase المحليين ورفع الأثر.
-- **Hosted external customer/order/tenant E2E — SKIPPED** وليس PASS؛ لا يُدّعى تشغيل أو كتابة على قاعدة الإنتاج.
-- فرع/PR #484 مغلق كمسار مكرر. #475 مغلق كـsuperseded بعد التحقق من وجود ملفاته العشرة الفريدة في main عبر #485. #485 و#486 مدمجان. جميع الفروع السابقة محفوظة ولم تُحذف.
+- المستودع الرسمي: `Report-Engainall/Nasr1`; الفرع: `main`.
+- **LATEST_ACCEPTED_APPLICATION_SHA:** `3f72c864b6ce4449879f43a362deb0f1eb5cf96b`.
+- **PR #487 — MERGED:** [P2: prove manager product tier-price editing in Chromium](https://github.com/Report-Engainall/Nasr1/pull/487). تم الدمج بتاريخ `2026-11-14T17:02:24Z` عبر commit `3f72c864b6ce4449879f43a362deb0f1eb5cf96b`. لا force-push ولا إعادة كتابة تاريخ.
+- **PR-head P1:** [43617695717 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43617695717) على `4dafb11bb4fd10d7d33a314e59707191511d9f01`: Vitest، 17 اختباراً لحدود رفع الصور، strict TypeScript والبناء الإنتاجي كلها PASS.
+- **PR-head P2:** [43617695718 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43617695718) على SHA نفسه: PostgreSQL 17 والقبول المحلي المصادق وChromium PASS؛ خطوة تعديل الأسعار الأربع وإعادة تحميلها واستعادة القيم الأصلية PASS.
+- **POST-MERGE P1:** [43618892561 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43618892561) على SHA الدمج `3f72c864b6ce4449879f43a362deb0f1eb5cf96b`: Vitest، strict TypeScript والبناء PASS.
+- **POST-MERGE P2:** [43618892449 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43618892449) على SHA الدمج نفسه. البوابة والبناء/Chromium العام وJob المحلي Supabase/PostgreSQL 17/Chromium كلها SUCCESS؛ Job المحلي `132520603491` PASS، بما في ذلك الطلبات وعزل المؤسسة وXLSX والمرتجعات وOnyx والطباعة وخصوصية مدير العملاء والجلسات وإلغاء الجلسات وتحرير أسعار الشرائح الأربع وحوكمة AI وسجل التدقيق.
+- **Hosted external customer/order/tenant E2E — SKIPPED** في Job `132519906011`، وليس PASS. لا يوجد ادعاء باختبار Hosted أو كتابة على قاعدة الإنتاج.
+- P1/P2 ما بعد الدمج مرتبطان مباشرةً بـSHA `3f72c864...`; لا تُنقل الأدلة إلى أي SHA لاحق دون إعادة قبول.
+- فرع #487 محفوظ ولم يُحذف. لا توجد حاجة لإعادة تنفيذ #455 أو #477 أو #485 أو #486؛ #487 أغلق فجوة إثبات محرر الأسعار وتصحيح schema categories واختبارات handler.
+- **Vercel:** لم يُنفّذ Deployment أو Preview أو Build أو تغيير إعدادات في هذه الدفعة. تبقى حماية النشر والربط والنطاقات كما هي.
 
 ## قضايا الذمم وAI
 
@@ -64,11 +65,14 @@
 
 ## NEXT_ACTION — تابع دون إعادة
 
-1. استكمل دليل Storage للصور فقط: أضف اختبار P1 للـEdge handler (auth/role/tenant/WebP/8MB/path/cleanup/ambiguous ack) ثم اختبر Storage على بيئة محلية معزولة إن أمكن. لا تكتب على الإنتاج.
-2. جهّز استيراد صور العبوات الأصلية بمطابقة SKU؛ اربط فقط الملفات الحقيقية المعتمدة، وابق 0/114 حتى تُرفع ملفات فعلية. لا تنشئ صوراً توضيحية على أنها المنتج الحقيقي.
-3. لا تُنشئ العميل أو المورد أو المستند التجاري دون بيانات حقيقية معتمدة. أكمل الجرد الميداني عبر مسار الجرد وتدقيقه، لا بتعديل الرصيد مباشرة.
-4. استكمل متطلبات DLV-001/002 ومصفوفة القبول عبر الفجوات الفعلية فقط؛ لا تعِد بناء المحركات أو تدفقات العميل التي اجتازت الاختبار.
-5. الإصدار النهائي ما زال **NO-GO** حتى قبول الصور الحقيقية، الجرد الفعلي، الأطراف التجارية، تغطية الشاشات/المتطلبات، وحدود Hosted/production المعتمدة.
+1. **CAT-IMAGE-001 — اختبار Storage محلي حقيقي:** وسّع P2 local Supabase لتشغيل `storage-api` و`imgproxy` وإدراج migrations الخاصة بالـbucket، مع إبقاء `edge-runtime` مستبعداً. نفّذ اختبار تكاملياً للـEdge handler المشترك عبر manager JWT وخدمة Storage الفعلية: رفض الرفع المباشر بدور authenticated، قبول WebP ضمن 8 MiB، public read، primary image RPC، التنظيف بعد stale-RPC failure، وunlink دون كسر مرجع الصورة. استخدم local-only HTTPS URL adapter مطابقاً لقيد RPC الإنتاجي؛ لا تضعف شرط HTTPS أو RLS. لا تستدعِ Production Edge أو Storage.
+2. **أثبت المخرجات في CI artifacts:** اجعل JSON الخاص بقبول تحرير الأسعار الأربع ونتيجة Storage محفوظين كملفات مستقلة داخل artifact، لا تعتمد على نجاح Step فقط. حافظ على exact source SHA ونتيجة PASS في كل ملف.
+3. صور المنتجات: لا تزال الصور المرتبطة **0/114**. جهّز مطابقة SKU، واربط فقط ملفات العبوات الأصلية التي يعتمدها المالك؛ لا صور توضيحية أو hotlinks على أنها الصور الحقيقية.
+4. استكمل DLV-001/002 ومصفوفة الشاشة والتنقل وحالات التحميل والقبول عبر فجوات مؤكدة فقط. لا تعِد بناء الوظائف التي اجتازت P1/P2 على SHA `3f72c864...`.
+5. لا تُنشئ عملاء أو موردين أو مستندات تجارية وهمية. 3,235 وحدة رصيد افتتاحي تقدير مصرح به لا جرد ميداني؛ لا تعتمد الكمية نهائياً حتى إكمال الجرد عبر مسار الجرد وتدقيقه.
+6. أبقِ محركات AI fail-closed ولا تفعّل مزوداً أو إنفاقاً قبل دليل مجاني موثق قابل للتحقق. اختبار حوكمة prompts لا يثبت اتصالاً بمزود أو تشغيل Edge على Hosted.
+7. الإصدار النهائي ما زال **NO-GO** حتى قبول الصور الحقيقية، الجرد الفعلي، الأطراف التجارية، اكتمال متطلبات/شاشات DLV، وتحديد قبول Hosted/production والمهاجرات والنسخ الاحتياطي/الاستعادة بموافقة المالك. لا نشر Vercel قبل مرحلة كبيرة موحدة وقبول المالك.
+
 
 ---
 ---
