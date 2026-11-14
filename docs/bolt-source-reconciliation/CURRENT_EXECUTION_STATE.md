@@ -5634,3 +5634,13 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - No production/hosted DB change, migration apply, Edge deployment, live AI provider call, payment/billing setup, secret, Vercel operation or paid service.
 - Next: collect terminal logs from run #43533714657, verify normal `provider_attempts` insert and subsequent prompt lifecycle/four-eyes/tenant/append-only audit, then verify rollback restores both CHECK constraints and leaves no legacy scalar row. Fix only confirmed defects and bind every retry to its exact SHA.
 - Product-wide production readiness remains **NO-GO**. The 41-screen reference acceptance, admin browser acceptance, hosted tenant E2E, free-quota evidence source/rotation contract, durable error event source and trusted Developer AI source remain separate open items.
+
+
+## P1/P2 EXACT-SHA STATUS REFRESH — 14 NOVEMBER 2026
+
+- P1 [#43533795662](https://github.com/Report-Engainall/Nasr1/actions/runs/43533795662): **SUCCESS** on exact main/documentation SHA `1fdd2edaa09c223dde7ff95cd59919e04f32c315` — 116 test files / 818 tests passed; strict TypeScript and production Vite/Nitro build passed.
+- The P1 run's source code equals the code-bearing SHA `e020947f76b2353615d44590fd268882ad734bb9`; later changes on `1fdd2ed...` and subsequent checkpoint updates are documentation-only.
+- P2 [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657): **IN_PROGRESS** on exact code SHA `e020947f76b2353615d44590fd268882ad734bb9`. Infrastructure gate **SUCCESS**; public read-only Storefront Playwright **SUCCESS**; external customer/order/tenant E2E **SKIPPED**. Local Supabase/PostgreSQL 17 + authenticated Chromium job #132258262810 has successfully prepared the migration copy and local-only runtime, and is currently starting isolated Supabase services. Migration application, tenant fixtures, transaction checks and AI prompt governance acceptance have not yet run.
+- This P2 run is the only current evidence for `db.json(value)` / `tx.json(value)` parameter binding in the AI usage ledger test. No SQLSTATE 22023 retest outcome is available yet.
+- Current checkpoint doc commit: `deea63d3e02c8e7b56e38e779bb4a0f0d592a118`; code remains `e020947...`.
+- Do not translate IN_PROGRESS or SKIPPED into PASS. Release remains **NO-GO** pending the local PG17 authenticated gate and the wider reference acceptance.
