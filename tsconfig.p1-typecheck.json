@@ -78,6 +78,11 @@
     "src/lib/intelligence/free-ai-provider-failover.test.ts",
     "src/lib/intelligence/cashflow-forecast.ts",
     "src/components/intelligence/IntelligenceWorkspace.tsx",
+    "src/components/intelligence/ExecutiveLiquidityCommandCenter.tsx",
+    "src/lib/intelligence/customer-receivable-aging-client.ts",
+    "src/lib/intelligence/customer-receivable-aging-client.test.ts",
+    "src/lib/intelligence/customer-receivable-aging-ranking.ts",
+    "src/lib/intelligence/customer-receivable-aging-ranking.test.ts",
     "src/components/intelligence/CashflowForecastCard.tsx",
     "src/routeTree.gen.ts"
   ]
