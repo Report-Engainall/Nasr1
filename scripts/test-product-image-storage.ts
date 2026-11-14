@@ -185,6 +185,8 @@ async function main(): Promise<void> {
   );
   assertions.push("bucket-is-public-and-restricted-to-webp-8mib");
 
+  let lastProductImageRpcError: { code: string | null; message: string | null; details: string | null; hint: string | null } | null = null;
+
   const dependencies: ProductImageUploadDependencies = {
     getEnv(name) {
       const values: Record<string, string> = {
@@ -209,11 +211,21 @@ async function main(): Promise<void> {
           },
         },
         async setProductImageUrl(token, productId, expectedImageUrl, nextImageUrl) {
-          return await clientForToken(token).rpc("set_staff_product_image", {
+          const result = await clientForToken(token).rpc("set_staff_product_image", {
             p_product_id: productId,
             p_expected_image_url: expectedImageUrl,
             p_image_url: nextImageUrl,
           });
+          if (result.error) {
+            const error = result.error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+            lastProductImageRpcError = {
+              code: typeof error.code === "string" ? error.code : null,
+              message: typeof error.message === "string" ? error.message : null,
+              details: typeof error.details === "string" ? error.details : null,
+              hint: typeof error.hint === "string" ? error.hint : null,
+            };
+          }
+          return result;
         },
         async addProductGalleryImage(token, productId, imageUrl) {
           return await clientForToken(token).rpc("mutate_staff_product_gallery_image", {
@@ -379,7 +391,8 @@ async function main(): Promise<void> {
     const staleBody = await readJson(staleResponse);
     assert(staleResponse.status === 409 && staleBody.error === "image_link_changed",
       "A stale primary image version must return HTTP 409 image_link_changed; received HTTP " +
-        staleResponse.status + " body=" + JSON.stringify(staleBody));
+        staleResponse.status + " body=" + JSON.stringify(staleBody) +
+        " rpcError=" + JSON.stringify(lastProductImageRpcError));
     const stalePath = profile.organization_id + "/" + PRODUCT_ID + "/" + staleUuid + ".webp";
     const staleDownload = await adminStorage.download(stalePath);
     assert(staleDownload.error, "The stale upload object remained in Storage after the atomic link conflict.");
