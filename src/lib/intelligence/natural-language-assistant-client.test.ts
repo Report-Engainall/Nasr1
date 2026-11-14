@@ -5,17 +5,12 @@ const { rpc, invoke } = vi.hoisted(() => ({
   invoke: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/supabase")>();
-  return {
-    ...actual,
-    supabase: {
-      ...actual.supabase,
-      rpc,
-      functions: { ...actual.supabase.functions, invoke },
-    },
-  };
-});
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    rpc,
+    functions: { invoke },
+  },
+}));
 
 import { runNaturalLanguageAssistantQuery } from "./natural-language-assistant-client";
 
