@@ -151,7 +151,7 @@ describe("P4 monitoring screens", () => {
     mocks.fetchAiGatewayBudget.mockResolvedValue({
       ok: false,
       status: "DENIED",
-      message: "محجوب بالصلاحية",
+      message: "تم رفض طلب ملخص الميزانية وفق صلاحيات الجلسة.",
     });
     render(<SystemHealthScreen />);
 
@@ -190,7 +190,7 @@ describe("P4 monitoring screens", () => {
     expect(screen.getByRole("table", { name: "المسارات المسجلة في TanStack Router" })).toBeInTheDocument();
     expect(screen.getByText("/admin/ai")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "حالة عقود مصادر الوظائف المرجعية" })).toBeInTheDocument();
-    expect(screen.getByText("public.list_ai_gateway_audit()")).toBeInTheDocument();
+    expect(screen.getByText(/public\\.list_ai_gateway_audit/)).toBeInTheDocument();
     expect(screen.getByText(/لا تمثل إثباتاً لتفويض الخادم أو RLS/)).toBeInTheDocument();
   });
 });
