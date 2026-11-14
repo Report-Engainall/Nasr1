@@ -11,27 +11,44 @@ describe("admin access matrix UI", () => {
   afterEach(() => cleanup());
 
   it("shows every registered page and operation side by side for all roles by default", () => {
-    render(<AdminAccessMatrix />);
+    const { container } = render(<AdminAccessMatrix />);
 
     expect(screen.getByRole("table", { name: "مصفوفة وصول الصفحات حسب الدور" })).toBeTruthy();
     expect(screen.getByRole("table", { name: "مصفوفة العمليات وحدودها حسب الدور" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "جدول مقارنة الوصول إلى الصفحات حسب الدور" })).toHaveAttribute("tabindex", "0");
     expect(screen.getByRole("region", { name: "جدول مقارنة العمليات وحدودها حسب الدور" })).toHaveAttribute("tabindex", "0");
 
+    // Index the large comparison DOM once. Re-running hundreds of global
+    // getByRole/getByTestId queries makes this full-matrix contract test time out
+    // under CI without adding coverage.
+    const rowHeaderNames = new Set(
+      screen.getAllByRole("rowheader").map((element) => element.textContent?.trim() ?? ""),
+    );
     for (const item of ADMIN_NAV_ITEMS) {
-      expect(screen.getByRole("rowheader", { name: item.label })).toBeInTheDocument();
+      expect(rowHeaderNames.has(item.label)).toBe(true);
     }
-    expect(screen.getByRole("rowheader", { name: "التصنيفات الرئيسية والفرعية" })).toBeInTheDocument();
+    expect(rowHeaderNames.has("التصنيفات الرئيسية والفرعية")).toBe(true);
+
+    const columnHeaderCounts = new Map<string, number>();
+    for (const element of screen.getAllByRole("columnheader")) {
+      const name = element.textContent?.trim() ?? "";
+      columnHeaderCounts.set(name, (columnHeaderCounts.get(name) ?? 0) + 1);
+    }
+    const renderedTestIds = new Set(
+      Array.from(container.querySelectorAll<HTMLElement>("[data-testid]"))
+        .map((element) => element.dataset.testid)
+        .filter((value): value is string => Boolean(value)),
+    );
 
     for (const role of ADMIN_ACCESS_ROLES) {
-      expect(screen.getAllByRole("columnheader", { name: role.label })).toHaveLength(2);
+      expect(columnHeaderCounts.get(role.label)).toBe(2);
       for (const group of ADMIN_NAV_GROUPS) {
         for (const view of group.views) {
-          expect(screen.getByTestId(`page-${view}-${role.id}`)).toBeTruthy();
+          expect(renderedTestIds.has(`page-${view}-${role.id}`)).toBe(true);
         }
       }
       for (const operation of ADMIN_OPERATION_RULES) {
-        expect(screen.getByTestId(`operation-${operation.id}-${role.id}`)).toBeTruthy();
+        expect(renderedTestIds.has(`operation-${operation.id}-${role.id}`)).toBe(true);
       }
     }
 
@@ -49,7 +66,7 @@ describe("admin access matrix UI", () => {
     const accountantFinanceOperation = screen.getByTestId("operation-finance_manage-accountant");
     expect(within(accountantFinanceOperation).getByText("مسموح")).toBeTruthy();
     expect(within(accountantFinanceOperation).getByText(/المحاسب يصل إلى المالية/)).toBeTruthy();
-  });
+  }, 10000);
 
   it("switches to the selected role detail without changing any permission policy", () => {
     render(<AdminAccessMatrix />);
