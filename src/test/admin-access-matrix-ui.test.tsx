@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { AdminAccessMatrix } from "@/components/AdminAccessMatrix";
-import { ADMIN_ACCESS_ROLES, ADMIN_NAV_GROUPS, ADMIN_OPERATION_RULES } from "@/lib/admin-access-matrix";
+import { ADMIN_ACCESS_ROLES, ADMIN_NAV_GROUPS, ADMIN_NAV_ITEMS, ADMIN_OPERATION_RULES } from "@/lib/admin-access-matrix";
 
 describe("admin access matrix UI", () => {
   afterEach(() => cleanup());
@@ -15,6 +16,11 @@ describe("admin access matrix UI", () => {
     expect(screen.getByRole("table", { name: "مصفوفة العمليات وحدودها حسب الدور" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "جدول مقارنة الوصول إلى الصفحات حسب الدور" })).toHaveAttribute("tabindex", "0");
     expect(screen.getByRole("region", { name: "جدول مقارنة العمليات وحدودها حسب الدور" })).toHaveAttribute("tabindex", "0");
+
+    for (const item of ADMIN_NAV_ITEMS) {
+      expect(screen.getByRole("rowheader", { name: item.label })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("rowheader", { name: "التصنيفات الرئيسية والفرعية" })).toBeInTheDocument();
 
     for (const role of ADMIN_ACCESS_ROLES) {
       expect(screen.getAllByRole("columnheader", { name: role.label })).toHaveLength(2);
@@ -54,4 +60,20 @@ describe("admin access matrix UI", () => {
     expect(screen.getByText("العمليات المتاحة")).toBeTruthy();
     expect((screen.getByRole("combobox", { name: "الدور محل المراجعة" }) as HTMLSelectElement).value).toBe("staff");
   });
+  it("keeps six-group navigation RTL layouts responsive and keyboard reachable", () => {
+    const styles = readFileSync(new URL("../aghbari.css", import.meta.url), "utf8");
+    const appSource = readFileSync(new URL("../components/AghbariApp.tsx", import.meta.url), "utf8");
+
+    expect(styles).toContain("@media (max-width: 1200px) { .admin-group-cards { grid-template-columns: repeat(2");
+    expect(styles).toContain("@media (max-width: 800px) { .admin-group-cards { grid-template-columns: 1fr");
+    expect(styles).toContain("@media (max-width: 380px) { .admin-group-card__links { grid-template-columns: 1fr; } }");
+    expect(styles).toContain("@media (max-width: 1000px) { .admin-group-landing__grid { grid-template-columns: repeat(2");
+    expect(styles).toContain("@media (max-width: 520px) { .admin-group-landing__grid { grid-template-columns: 1fr");
+    expect(styles).toContain(".admin-group-card__links button:focus-visible");
+    expect(styles).toContain(".admin-group-landing__item:focus-visible");
+    expect(appSource).toContain("aria-current={view === id ? 'page' : undefined}");
+    expect(appSource).toContain('aria-label="مسار التنقل"');
+    expect(appSource).toContain("activeNavigationGroup.label");
+  });
+
 });
