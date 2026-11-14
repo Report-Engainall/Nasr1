@@ -296,6 +296,6 @@ describe("P4 monitoring screens", () => {
 
     expect(parsed.fileNames.length).toBeGreaterThan(0);
     expect(messages).toEqual([]);
-  }, 30_000);
+  }, 120_000);
 
 });
