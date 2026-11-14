@@ -23,12 +23,36 @@ BEGIN
   END IF;
   v_today := (v_now AT TIME ZONE 'UTC')::date;
 
+  -- Posted credits reduce receivables only when the full source identity and currency reconcile.
+  -- A malformed posted source must fail closed rather than disappear from the report.
+  IF EXISTS (
+    SELECT 1
+      FROM public.customer_return_credit_memos cm
+      LEFT JOIN public.customer_invoices ci
+        ON ci.id=cm.invoice_id
+       AND ci.organization_id=cm.organization_id
+     WHERE cm.organization_id=v_org
+       AND cm.status='posted'
+       AND (
+         ci.id IS NULL
+         OR ci.customer_id IS DISTINCT FROM cm.customer_id
+         OR ci.currency IS DISTINCT FROM cm.currency
+       )
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='posted credit memo source, customer or currency does not reconcile to the receivables invoice';
+  END IF;
+
   SELECT pg_catalog.count(*)::integer INTO v_unresolved
     FROM public.customer_invoices i
    WHERE i.organization_id=v_org AND i.status IN ('issued','partially_paid') AND i.issued_at<=v_now
      AND i.total_amount>coalesce((
        SELECT pg_catalog.sum(p.amount) FROM public.customer_payments p
         WHERE p.organization_id=v_org AND p.invoice_id=i.id AND p.paid_at<=v_now
+     ),0)+coalesce((
+       SELECT pg_catalog.sum(cm.total_amount) FROM public.customer_return_credit_memos cm
+        WHERE cm.organization_id=v_org AND cm.invoice_id=i.id AND cm.customer_id=i.customer_id
+          AND cm.status='posted' AND cm.posted_at<=v_now AND cm.currency=i.currency
      ),0)
      AND (pg_catalog.upper(coalesce(i.currency,'')) !~ '^[A-Z]{3}$'
        OR NOT EXISTS (SELECT 1 FROM public.customers owner_customer
@@ -42,12 +66,28 @@ BEGIN
      WHERE p.organization_id=v_org AND p.paid_at<=v_now
      GROUP BY p.invoice_id
   ),
+  credits AS (
+    SELECT cm.invoice_id,
+           pg_catalog.sum(cm.total_amount)::numeric(18,2) AS credited_amount,
+           pg_catalog.array_agg('customer-return-credit-memo:'||cm.id::text ORDER BY cm.id) AS credit_evidence
+      FROM public.customer_return_credit_memos cm
+      JOIN public.customer_invoices ci
+        ON ci.id=cm.invoice_id
+       AND ci.organization_id=cm.organization_id
+       AND ci.customer_id=cm.customer_id
+     WHERE cm.organization_id=v_org
+       AND cm.status='posted'
+       AND cm.posted_at<=v_now
+       AND cm.currency=ci.currency
+     GROUP BY cm.invoice_id
+  ),
   balances AS (
     SELECT i.id,i.customer_id,coalesce(nullif(pg_catalog.btrim(owner_customer.business_name),''),nullif(pg_catalog.btrim(owner_customer.contact_name),'')) AS customer_name,
            pg_catalog.upper(coalesce(i.currency,'')) AS currency,i.due_at,
-           greatest(i.total_amount-coalesce(p.paid_amount,0),0)::numeric(18,2) AS outstanding,
+           greatest(i.total_amount-coalesce(p.paid_amount,0)-coalesce(c.credited_amount,0),0)::numeric(18,2) AS outstanding,
            coalesce(p.paid_amount,0)::numeric(18,2) AS paid_amount,
            coalesce(p.payment_evidence,ARRAY[]::text[]) AS payment_evidence,
+           coalesce(c.credit_evidence,ARRAY[]::text[]) AS credit_evidence,
            CASE
              WHEN i.due_at IS NULL THEN 'UNKNOWN_DUE_DATE'
              WHEN (i.due_at AT TIME ZONE 'UTC')::date>=v_today THEN 'NOT_DUE'
@@ -60,8 +100,9 @@ BEGIN
       FROM public.customer_invoices i
       JOIN public.customers owner_customer ON owner_customer.id=i.customer_id AND owner_customer.organization_id=i.organization_id
       LEFT JOIN paid p ON p.invoice_id=i.id
+      LEFT JOIN credits c ON c.invoice_id=i.id
      WHERE i.organization_id=v_org AND i.status IN ('issued','partially_paid')
-       AND i.issued_at<=v_now AND i.total_amount>coalesce(p.paid_amount,0)
+       AND i.issued_at<=v_now AND i.total_amount>coalesce(p.paid_amount,0)+coalesce(c.credited_amount,0)
   ),
   valid_balances AS (SELECT * FROM balances WHERE currency ~ '^[A-Z]{3}$'),
   bucket_totals AS (
@@ -77,7 +118,14 @@ BEGIN
                CROSS JOIN LATERAL pg_catalog.unnest(vb.payment_evidence) AS x(evidence_id)
               WHERE vb.customer_id=b.customer_id
                 AND vb.currency=b.currency AND vb.aging_bucket=b.aging_bucket
-           ),ARRAY[]::text[]) AS payment_evidence
+           ),ARRAY[]::text[]) AS payment_evidence,
+           coalesce((
+             SELECT (pg_catalog.array_agg(DISTINCT x.evidence_id ORDER BY x.evidence_id))[1:25]
+               FROM valid_balances vb
+               CROSS JOIN LATERAL pg_catalog.unnest(vb.credit_evidence) AS x(evidence_id)
+              WHERE vb.customer_id=b.customer_id
+                AND vb.currency=b.currency AND vb.aging_bucket=b.aging_bucket
+           ),ARRAY[]::text[]) AS credit_evidence
       FROM valid_balances b GROUP BY b.customer_id,b.currency,b.aging_bucket
   ),
   customer_totals AS (
@@ -97,12 +145,28 @@ BEGIN
       FROM public.customer_payments p
      WHERE p.organization_id=v_org AND p.paid_at<=v_now GROUP BY p.invoice_id
   ),
+  credits AS (
+    SELECT cm.invoice_id,
+           pg_catalog.sum(cm.total_amount)::numeric(18,2) AS credited_amount,
+           pg_catalog.array_agg('customer-return-credit-memo:'||cm.id::text ORDER BY cm.id) AS credit_evidence
+      FROM public.customer_return_credit_memos cm
+      JOIN public.customer_invoices ci
+        ON ci.id=cm.invoice_id
+       AND ci.organization_id=cm.organization_id
+       AND ci.customer_id=cm.customer_id
+     WHERE cm.organization_id=v_org
+       AND cm.status='posted'
+       AND cm.posted_at<=v_now
+       AND cm.currency=ci.currency
+     GROUP BY cm.invoice_id
+  ),
   balances AS (
     SELECT i.id,i.customer_id,coalesce(nullif(pg_catalog.btrim(owner_customer.business_name),''),nullif(pg_catalog.btrim(owner_customer.contact_name),'')) AS customer_name,
            pg_catalog.upper(coalesce(i.currency,'')) AS currency,i.due_at,
-           greatest(i.total_amount-coalesce(p.paid_amount,0),0)::numeric(18,2) AS outstanding,
+           greatest(i.total_amount-coalesce(p.paid_amount,0)-coalesce(c.credited_amount,0),0)::numeric(18,2) AS outstanding,
            coalesce(p.paid_amount,0)::numeric(18,2) AS paid_amount,
            coalesce(p.payment_evidence,ARRAY[]::text[]) AS payment_evidence,
+           coalesce(c.credit_evidence,ARRAY[]::text[]) AS credit_evidence,
            CASE
              WHEN i.due_at IS NULL THEN 'UNKNOWN_DUE_DATE'
              WHEN (i.due_at AT TIME ZONE 'UTC')::date>=v_today THEN 'NOT_DUE'
@@ -115,8 +179,9 @@ BEGIN
       FROM public.customer_invoices i
       JOIN public.customers owner_customer ON owner_customer.id=i.customer_id AND owner_customer.organization_id=i.organization_id
       LEFT JOIN paid p ON p.invoice_id=i.id
+      LEFT JOIN credits c ON c.invoice_id=i.id
      WHERE i.organization_id=v_org AND i.status IN ('issued','partially_paid')
-       AND i.issued_at<=v_now AND i.total_amount>coalesce(p.paid_amount,0)
+       AND i.issued_at<=v_now AND i.total_amount>coalesce(p.paid_amount,0)+coalesce(c.credited_amount,0)
   ),
   valid_balances AS (SELECT * FROM balances WHERE currency ~ '^[A-Z]{3}$'),
   bucket_totals AS (
@@ -131,7 +196,14 @@ BEGIN
                CROSS JOIN LATERAL pg_catalog.unnest(vb.payment_evidence) AS x(evidence_id)
               WHERE vb.customer_id=b.customer_id
                 AND vb.currency=b.currency AND vb.aging_bucket=b.aging_bucket
-           ),ARRAY[]::text[]) AS payment_evidence
+           ),ARRAY[]::text[]) AS payment_evidence,
+           coalesce((
+             SELECT (pg_catalog.array_agg(DISTINCT x.evidence_id ORDER BY x.evidence_id))[1:25]
+               FROM valid_balances vb
+               CROSS JOIN LATERAL pg_catalog.unnest(vb.credit_evidence) AS x(evidence_id)
+              WHERE vb.customer_id=b.customer_id
+                AND vb.currency=b.currency AND vb.aging_bucket=b.aging_bucket
+           ),ARRAY[]::text[]) AS credit_evidence
       FROM valid_balances b GROUP BY b.customer_id,b.currency,b.aging_bucket
   ),
   customer_totals AS (
@@ -156,7 +228,7 @@ BEGIN
         SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
           'bucket',b.aging_bucket,'amount',b.amount::text,'invoiceCount',b.invoice_count,
           'partiallyPaidCount',b.partially_paid_count,'oldestAgeDays',b.oldest_age_days,
-          'evidenceIds',to_jsonb(b.invoice_evidence||b.payment_evidence)
+          'evidenceIds',to_jsonb(b.invoice_evidence||b.payment_evidence||b.credit_evidence)
         ) ORDER BY CASE b.aging_bucket
           WHEN 'NOT_DUE' THEN 0 WHEN 'OVERDUE_1_30' THEN 1 WHEN 'OVERDUE_31_60' THEN 2
           WHEN 'OVERDUE_61_90' THEN 3 WHEN 'OVERDUE_90_PLUS' THEN 4 ELSE 5 END),'[]'::jsonb)

@@ -8,7 +8,7 @@ const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL").toLowerCase();
 const companyMemberEmail = requiredEnv("E2E_COMPANY_MEMBER_EMAIL").toLowerCase();
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const foreignOrganizationId = "a1111111-1111-4111-8111-111111111111";
-const ids = { customers:[randomUUID(),randomUUID()], foreignCustomer:randomUUID(), orders:[randomUUID(),randomUUID(),randomUUID()], invoices:[randomUUID(),randomUUID(),randomUUID()] };
+const ids = { customers:[randomUUID(),randomUUID()], foreignCustomer:randomUUID(), orders:[randomUUID(),randomUUID(),randomUUID()], invoices:[randomUUID(),randomUUID(),randomUUID()], returnRequests:Array.from({length:5},()=>randomUUID()), creditMemos:Array.from({length:5},()=>randomUUID()), reversalJournal:randomUUID(), payments:[] };
 const db = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
 const managerDb = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
 const suffix = randomUUID().replaceAll("-","").slice(-12).toUpperCase();
@@ -60,6 +60,41 @@ async function main(){
  ];
  await db.unsafe(invoiceSql,invoiceParams);
 
+ // Source-linked fixtures: one posted credit, one draft, one reversed.
+ const requestFixtures=[
+  [0,ids.customers[0],ids.orders[0],"POSTED"],
+  [1,ids.customers[1],ids.orders[1],"DRAFT"],
+  [2,ids.customers[1],ids.orders[1],"REVERSED"],
+  [3,ids.customers[1],ids.orders[1],"CUSTOMER-MISMATCH"],
+  [4,ids.customers[0],ids.orders[0],"CURRENCY-MISMATCH"]
+ ];
+ for(const [index,customerId,orderId,label] of requestFixtures){
+  await db.unsafe(
+   "insert into public.customer_return_requests(id,organization_id,customer_id,order_id,request_number,status,reason,requested_by,idempotency_key,payload_fingerprint) values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'received','other',$6,$7,$8)",
+   [ids.returnRequests[index],organizationId,customerId,orderId,"P2-AGING-RETURN-"+label+"-"+suffix,manager.id,randomUUID(),"a".repeat(32)]
+  );
+ }
+ await db.unsafe(
+  "insert into public.accounting_journal_entries(id,organization_id,entry_date,description,source_type,status,idempotency_key,payload_fingerprint,created_by_profile_id) values($1::uuid,$2::uuid,current_date,'P2 reversed memo test fixture','adjustment','draft',$3::uuid,$4,$5::uuid)",
+  [ids.reversalJournal,organizationId,randomUUID(),"b".repeat(32),manager.id]
+ );
+ const memoFixtures=[
+  {i:0,invoice:ids.invoices[0],customer:ids.customers[0],status:"posted",currency:"YER",amount:"21.11"},
+  {i:1,invoice:ids.invoices[1],customer:ids.customers[1],status:"draft",currency:"YER",amount:"5.00"},
+  {i:2,invoice:ids.invoices[1],customer:ids.customers[1],status:"reversed",currency:"YER",amount:"7.00"}
+ ];
+ for(const memo of memoFixtures){
+  const reversed=memo.status==="reversed", posted=memo.status==="posted"||reversed;
+  await db.unsafe(
+   "insert into public.customer_return_credit_memos(id,organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency,subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id,posted_by_profile_id,posted_at,reversed_by_profile_id,reversed_at,reversal_reason,reversal_journal_entry_id) "+
+   "values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8,$9::numeric,0,$9::numeric,$10::uuid,$11,$12::uuid,$13::uuid,$14,$15::uuid,$16,$17,$18::uuid)",
+   [ids.creditMemos[memo.i],organizationId,ids.returnRequests[memo.i],memo.invoice,memo.customer,"P2-AGING-CREDIT-"+memo.i+"-"+suffix,memo.status,memo.currency,memo.amount,randomUUID(),"c".repeat(32),manager.id,posted?manager.id:null,posted?new Date().toISOString():null,reversed?manager.id:null,reversed?new Date().toISOString():null,reversed?"test reversal fixture":null,reversed?ids.reversalJournal:null]
+  );
+ }
+ await setIdentity(managerDb,manager.auth_user_id,manager.email);
+ const payment=await managerDb.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,'cash')::text as id",[ids.invoices[0],"10.00"]);
+ ids.payments.push(payment[0].id);
+
  // The canonical composite tenant FK must reject an invoice whose customer belongs
  // to another organization. This proves the boundary at write time; the bad row
  // must never be persisted and therefore cannot pollute the finance RPC.
@@ -88,12 +123,20 @@ async function main(){
  for(let index=0;index<2;index++){
   const row=byCustomer.get(ids.customers[index]);
   assert.ok(row,"invoice owner must have a separate aging row");
-  assert.equal(Number(row.totalOutstanding),Number(amounts[index]));
-  assert.equal(Number(row.overdueAmount),Number(amounts[index]));
+  const expectedOutstanding=index===0?80:Number(amounts[index]);
+  assert.equal(Number(row.totalOutstanding),expectedOutstanding,"posted credits and payments must reduce the matching invoice balance");
+  assert.equal(Number(row.overdueAmount),expectedOutstanding);
   assert.equal(row.invoiceCount,1,"one customer's invoice must not be included in the other's total");
   const evidence=row.agingBuckets.flatMap(bucket=>bucket.evidenceIds);
   assert.ok(evidence.includes("customer-invoice:"+ids.invoices[index]));
   assert.ok(!evidence.includes("customer-invoice:"+ids.invoices[1-index]));
+  if(index===0){
+   assert.ok(evidence.includes("customer-payment:"+ids.payments[0]),"payment evidence must remain visible");
+   assert.ok(evidence.includes("customer-return-credit-memo:"+ids.creditMemos[0]),"posted credit memo evidence must be visible");
+  }else{
+   assert.ok(!evidence.includes("customer-return-credit-memo:"+ids.creditMemos[1]),"draft memo must not appear as posted evidence");
+   assert.ok(!evidence.includes("customer-return-credit-memo:"+ids.creditMemos[2]),"reversed memo must not appear as posted evidence");
+  }
  }
  assert.ok(!result.items.some(item=>item.customerId===ids.foreignCustomer),"foreign customer UUID must never appear in results");
  await setIdentity(managerDb,accountant.auth_user_id,accountant.email);
@@ -101,6 +144,27 @@ async function main(){
  assert.equal(accountantResponse.length,1,"finance-capable accountant must read executive receivable aging");
  const accountantResult=asJson(accountantResponse[0].result);
  assert.ok(accountantResult&&Array.isArray(accountantResult.items),"accountant response must preserve the validated finance payload");
+
+ await setIdentity(managerDb,manager.auth_user_id,manager.email);
+ await db.unsafe(
+  "insert into public.customer_return_credit_memos(id,organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency,subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id,posted_by_profile_id,posted_at) values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,'posted','YER',3,0,3,$7::uuid,$8,$9::uuid,$9::uuid,now())",
+  [ids.creditMemos[3],organizationId,ids.returnRequests[3],ids.invoices[0],ids.customers[1],"P2-CUSTOMER-MISMATCH-"+suffix,randomUUID(),"d".repeat(32),manager.id]
+ );
+ let customerMismatchError=null;
+ try{await managerDb.unsafe("select public.fetch_executive_receivable_customer_aging() as result");}catch(error){customerMismatchError=error;}
+ assert.ok(customerMismatchError,"posted credit with mismatched invoice customer must fail closed");
+ assert.equal(customerMismatchError.code,"22023");
+ await db.unsafe("delete from public.customer_return_credit_memos where id=$1::uuid",[ids.creditMemos[3]]);
+ await db.unsafe(
+  "insert into public.customer_return_credit_memos(id,organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency,subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id,posted_by_profile_id,posted_at) values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,'posted','USD',4,0,4,$7::uuid,$8,$9::uuid,$9::uuid,now())",
+  [ids.creditMemos[4],organizationId,ids.returnRequests[4],ids.invoices[0],ids.customers[0],"P2-CURRENCY-MISMATCH-"+suffix,randomUUID(),"e".repeat(32),manager.id]
+ );
+ let currencyMismatchError=null;
+ try{await managerDb.unsafe("select public.fetch_executive_receivable_customer_aging() as result");}catch(error){currencyMismatchError=error;}
+ assert.ok(currencyMismatchError,"posted credit with mismatched currency must fail closed");
+ assert.equal(currencyMismatchError.code,"22023");
+ await db.unsafe("delete from public.customer_return_credit_memos where id=$1::uuid",[ids.creditMemos[4]]);
+
  await setIdentity(managerDb,companyMember.auth_user_id,companyMember.email);
  let customerDenied=null;
  try {
@@ -110,12 +174,16 @@ async function main(){
  }
  assert.ok(customerDenied,"non-finance company member must not read executive customer receivable aging");
  assert.equal(customerDenied.code,"42501","customer role must be rejected by the server authorization boundary");
- process.stdout.write("P2 customer receivable identity PASS: same-name UUID separation, cross-tenant FK rejection, accountant finance access, and non-finance customer denial.\\n");
+ process.stdout.write("P2 customer receivable identity PASS: UUID separation, posted credit net balance, draft/reversed exclusion, evidence linkage, fail-closed source mismatch, tenant FK and role access.\\n");
 }
 try{
  try{await main();}
  finally{
   if(fixturesStarted){
+   await db.unsafe("delete from public.customer_return_credit_memos where id=any($1::uuid[])",[ids.creditMemos]).catch(()=>{});
+   await db.unsafe("delete from public.accounting_journal_entries where id=$1::uuid",[ids.reversalJournal]).catch(()=>{});
+   await db.unsafe("delete from public.customer_return_requests where id=any($1::uuid[])",[ids.returnRequests]).catch(()=>{});
+   await db.unsafe("delete from public.customer_payments where id=any($1::uuid[])",[ids.payments]).catch(()=>{});
    await db.unsafe("delete from public.customer_invoices where id=any($1::uuid[])",[ids.invoices]).catch(()=>{});
    await db.unsafe("delete from public.orders where id=any($1::uuid[])",[ids.orders]).catch(()=>{});
    await db.unsafe("delete from public.customers where id=any($1::uuid[])",[[...ids.customers,ids.foreignCustomer]]).catch(()=>{});
