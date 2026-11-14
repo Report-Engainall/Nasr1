@@ -82,6 +82,9 @@ vi.mock("@/components/reference-model/ai-governance/PromptGovernancePanel", () =
 vi.mock("@/components/reference-model/ai-governance/AiUsageAuditPanel", () => ({
   AiUsageAuditPanel: () => <section role="region" aria-label="تدقيق محاولات الذكاء">ai-usage-audit-mounted</section>,
 }));
+vi.mock("@/components/intelligence/AiGatewayOperationsPanel", () => ({
+  AiGatewayOperationsPanel: () => <section role="region" aria-label="مركز تشغيل بوابة الذكاء">ai-gateway-operations-mounted</section>,
+}));
 
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace";
 
@@ -468,10 +471,11 @@ describe("production intelligence workspace inventory screens", () => {
     expect(mocks.fetchExecutiveLiquidity).toHaveBeenCalledTimes(1);
   });
 
-  it("mounts the protected prompt governance and AI audit surfaces in the existing intelligence workspace", async () => {
+  it("mounts gateway operations, protected AI audit and prompt governance in the existing intelligence workspace", async () => {
     render(<IntelligenceWorkspace />);
-    expect(await screen.findByRole("region", { name: "حوكمة مكتبة أوامر الذكاء" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "مركز تشغيل بوابة الذكاء" })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "تدقيق محاولات الذكاء" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "حوكمة مكتبة أوامر الذكاء" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "حوكمة الذكاء ومراجعة التشغيل" })).toBeInTheDocument();
   });
 

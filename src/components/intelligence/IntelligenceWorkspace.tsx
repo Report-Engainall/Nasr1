@@ -68,6 +68,9 @@ const PromptGovernancePanel = lazy(async () => ({
 const AiUsageAuditPanel = lazy(async () => ({
   default: (await import("@/components/reference-model/ai-governance/AiUsageAuditPanel")).AiUsageAuditPanel,
 }));
+const AiGatewayOperationsPanel = lazy(async () => ({
+  default: (await import("@/components/intelligence/AiGatewayOperationsPanel")).AiGatewayOperationsPanel,
+}));
 
 const DECISION_PAGE_SIZE = 50;
 const formatDay = (value: string) => new Date(value + "T00:00:00.000Z").toLocaleDateString("ar-YE", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
@@ -1804,11 +1807,12 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
                 <h2>حوكمة الذكاء ومراجعة التشغيل</h2>
               </div>
               <p className="report-note">
-                مصادر مفوضة من الخادم: تدقيق المحاولات للمدير ومدير المؤسسة، وحوكمة نسخ الأوامر للمدير فقط.
+                مصادر مفوضة من الخادم: ملخص تشغيل البوابة وتدقيق المحاولات للمدير ومدير المؤسسة، وحوكمة نسخ الأوامر للمدير فقط.
               </p>
             </header>
             <Suspense fallback={<div role="status" aria-live="polite" className="rounded-lg border p-4 text-sm text-muted-foreground">جارٍ تحميل وحدات حوكمة الذكاء…</div>}>
               <div className="space-y-4">
+                <AiGatewayOperationsPanel />
                 <AiUsageAuditPanel />
                 <PromptGovernancePanel />
               </div>
