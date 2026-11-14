@@ -5762,3 +5762,17 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - PR #475 remains Draft/open and P4-owned. No P4 navigation, access matrix, or screen files were changed. No branch was deleted.
 - No paid provider calls, payment setup, hosted/production DB writes, Edge deployment, Vercel deployment, or production release were performed. Product release remains **NO-GO** while provider/free-quota evidence and separate hosted/browser acceptance boundaries remain unresolved.
 
+
+
+# P3 FINAL ACCEPTANCE — SAME-SHA P1/P2 COMPLETION — 2026-11-14
+
+- **CODE ACCEPTANCE SHA:** `0f883a80c1d5e566133938c11e1beabcb2e76828` (PR #482 squash merge).
+- **P1 — SUCCESS on this exact SHA:** run [#43548555268](https://github.com/Report-Engainall/Nasr1/actions/runs/43548555268); 121/121 test files and 843/843 tests passed, strict TypeScript passed, and the production build succeeded.
+- **P2 — SUCCESS on the same exact SHA:** run [#43548555286](https://github.com/Report-Engainall/Nasr1/actions/runs/43548555286). Infrastructure gate, public read-only UI smoke, and local Supabase/PostgreSQL 17 + authenticated Chromium job all completed successfully. The external hosted customer/order/tenant E2E job remains **SKIPPED**, not PASS.
+- **P2 AI prompt-disable evidence:** local job `132306183538`, phase `disable active prompt with reason, idempotency and immutable audit`, emitted `AI_PROMPT_GOVERNANCE_ACCEPTANCE_PASS` on the exact code SHA. Output: maker/checker, append-only audit, immutable content, tenant isolation, idempotency, runtime session guard proved; 5 versions and 17 audit events.
+- **Artifacts:** authenticated local E2E `14095413277`; public UI smoke `14095206718` (both unexpired at verification).
+- **P1/P2 same-SHA acceptance is now complete for code SHA `0f883a80...`.** Issue #481 was updated with the run evidence and closed as completed for its local PostgreSQL 17 prompt-disable acceptance. Hosted/production acceptance remains a separate scope and is not closed by that issue.
+- The post-acceptance execution-cursor documentation update is docs-only; it does not alter the tested application code. No new app, SQL, RLS, role, provider, or deployment change followed the accepted code SHA.
+- P3 outcome: local assistant acceptance and Prompt DISABLED lifecycle are integrated and tested. Keep external providers fail-closed until server-verifiable free-quota, no-payment-method, reset/cooldown, and question-only privacy evidence exists. No generic Edge-to-local fallback is claimed.
+- P4 PR #475 remains Draft/open and untouched. No branches were deleted. Production release remains **NO-GO** because hosted E2E and verified provider eligibility/deployment boundaries remain unresolved.
+
