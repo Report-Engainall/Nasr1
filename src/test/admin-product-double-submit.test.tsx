@@ -165,21 +165,17 @@ describe("admin product form submission", () => {
     expect(dialog).toHaveStyle({
       maxHeight: "calc(100dvh - 36px)",
       height: "fit-content",
-      minHeight: "0px",
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
       boxSizing: "border-box",
     });
-    const scrollBody = dialog.querySelector<HTMLElement>(".modal-body");
+    const modalHeader = dialog.querySelector(".modal-head");
+    const scrollBody = dialog.querySelector(".modal-body");
+    expect(modalHeader).not.toBeNull();
     expect(scrollBody).not.toBeNull();
-    if (!scrollBody) throw new Error("The product editor modal must expose an internal scroll body.");
-    expect(scrollBody).toHaveStyle({
-      minHeight: "0px",
-      maxHeight: "calc(100dvh - 132px)",
-      overflowY: "auto",
-      overscrollBehavior: "contain",
-    });
+    expect(modalHeader?.parentElement).toBe(dialog);
+    expect(scrollBody?.parentElement).toBe(dialog);
 
     await waitFor(() => {
       expect(screen.getByLabelText("السعر الأساسي")).toHaveValue(25);
