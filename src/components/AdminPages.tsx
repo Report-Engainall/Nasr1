@@ -1632,4 +1632,42 @@ export function Button({
 }
 export function TableWrap({ children }: { children: React.ReactNode }) { return <div className="table-wrap">{children}</div>; }
 export function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
-export function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) { return <div className="modal-backdrop" onClick={onClose}><div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} style={{ maxHeight: 'calc(100dvh - 36px)', overflowY: 'auto', overscrollBehavior: 'contain', boxSizing: 'border-box' }}><div className="modal-head"><h2>{title}</h2><button type="button" aria-label="إغلاق النافذة" onClick={onClose}><X size={19} /></button></div>{children}</div></div>; }
+export function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          maxHeight: 'calc(100dvh - 36px)',
+          height: 'fit-content',
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div className="modal-head" style={{ flex: '0 0 auto' }}>
+          <h2>{title}</h2>
+          <button type="button" aria-label="إغلاق النافذة" onClick={onClose}><X size={19} /></button>
+        </div>
+        <div
+          className="modal-body"
+          style={{
+            minHeight: 0,
+            flex: '0 1 auto',
+            maxHeight: 'calc(100dvh - 132px)',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
