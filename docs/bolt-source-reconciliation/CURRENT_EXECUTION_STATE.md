@@ -5644,3 +5644,16 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - This P2 run is the only current evidence for `db.json(value)` / `tx.json(value)` parameter binding in the AI usage ledger test. No SQLSTATE 22023 retest outcome is available yet.
 - Current checkpoint doc commit: `deea63d3e02c8e7b56e38e779bb4a0f0d592a118`; code remains `e020947...`.
 - Do not translate IN_PROGRESS or SKIPPED into PASS. Release remains **NO-GO** pending the local PG17 authenticated gate and the wider reference acceptance.
+
+## P2 LOCAL PG17 MID-RUN PROOF — 14 NOVEMBER 2026
+
+- Code-bearing SHA: `e020947f76b2353615d44590fd268882ad734bb9`; P2 run [#43533714657](https://github.com/Report-Engainall/Nasr1/actions/runs/43533714657).
+- Local PostgreSQL 17 repository migration application: **SUCCESS**.
+- Local SQL acceptance: endpoint guard allow/deny, atomic price-grid/rollback/audit/stale-writer race, cash-expense journal posting/idempotency/concurrency, source-linked purchase receipt restrictions, storefront product review lifecycle and product questions/moderation/tenant isolation: **SUCCESS**.
+- Local exact-source build and launch against Supabase: **SUCCESS**.
+- Chromium acceptance: authenticated order persistence/cross-tenant denial, warehouse XLSX, purchase-orders XLSX, checkout lost-response replay, customer-return/review/receipt/credit-memo, audited Onyx XLSX export: **SUCCESS**.
+- Current active step at this update: **Run finance document and operational-task print acceptance in Chromium** (step 34). No failed step reported.
+- Still pending after the active step: customer-manager financial privacy/authorization; conditional device-session fixture and immediate revocation; AI prompt lifecycle/four-eyes/tenant isolation/append-only audit (step 38); proof-boundary recording and cleanup.
+- Public Storefront read-only smoke and authenticated infrastructure gate: **SUCCESS**. Separate external customer/order/tenant E2E: **SKIPPED**, not PASS.
+- The exact JSONB test harness fix uses `db.json(value)` / `tx.json(value)`; the AI-specific step has **NOT RUN YET**, so SQLSTATE 22023 is **NOT YET RETESTED** on this exact code SHA.
+- Overall P2 remains **IN_PROGRESS**; keep release **NO-GO** until all non-skipped required local steps finish successfully.
