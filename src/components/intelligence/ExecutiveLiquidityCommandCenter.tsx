@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { createDecisionOutcomeProposal } from "@/lib/intelligence/decision-outcome-client";
 import { fetchExecutiveCustomerReceivableAging, type CustomerReceivableAgingItem, type CustomerReceivableAgingResult } from "@/lib/intelligence/customer-receivable-aging-client";
+import { buildCustomerReceivableCollectionCandidateId, compareCustomerReceivableAgingRows } from "@/lib/intelligence/customer-receivable-aging-ranking";
 import { RefreshCw } from "lucide-react";
 import {
   fetchExecutiveLiquidityWorkspace,
@@ -245,16 +246,21 @@ function CustomerAgingDecisionSection({
   const [message,setMessage] = useState<string|null>(null);
   const rows = result?.ok ? result.data.items
     .filter(item=>item.overdueAmount>0)
-    .sort((a,b)=>(b.oldestAgeDays??-1)-(a.oldestAgeDays??-1) || b.overdueAmount-a.overdueAmount)
+    .sort(compareCustomerReceivableAgingRows)
     .slice(0,10) : [];
+  const hasCompleteAgingCoverage = result?.ok === true && result.data.status === "VERIFIED" && result.data.complete;
   const saveDecision = async (item: CustomerReceivableAgingItem) => {
     if (!userProfileId || busyKey) return;
+    if (!hasCompleteAgingCoverage || item.status !== "VERIFIED" || item.customerNameStatus !== "VERIFIED") {
+      setMessage("لا يمكن إنشاء قرار تحصيل قبل اكتمال تغطية جميع الذمم والتحقق من هوية العميل ومراجعها.");
+      return;
+    }
     const evidenceIds=[...new Set(item.agingBuckets.filter(bucket=>bucket.bucket.startsWith("OVERDUE_")).flatMap(bucket=>bucket.evidenceIds))].slice(0,500);
     if (!evidenceIds.length) { setMessage("لا يمكن حفظ قرار تحصيل دون مراجع فواتير/دفعات مثبتة."); return; }
     const priority: "P0" | "P1" | "P2" | "P3" =
       (item.oldestAgeDays??0)>=90 ? "P0" : (item.oldestAgeDays??0)>=60 ? "P1" : (item.oldestAgeDays??0)>=30 ? "P2" : "P3";
     const priorityScore = priority==="P0"?400:priority==="P1"?300:priority==="P2"?200:100;
-    const candidateId = ("receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)).slice(0,150);
+    const candidateId = buildCustomerReceivableCollectionCandidateId(item);
     const expectedOutcome="خفض الرصيد المتأخر للعميل وتسجيل نتيجة التحصيل في مستندات المؤسسة.";
     const impactVerified=item.status==="VERIFIED" && item.overdueAmount>=0;
     const candidateSnapshot={
@@ -271,12 +277,20 @@ function CustomerAgingDecisionSection({
       proof:{evidenceIds,metricKeys:["receivables.customer_overdue"],asOf:item.asOf,formulaVersions:[item.formulaId+"@"+item.formulaVersion]},
       createdAt:item.calculatedAt,expiresAt:null,
     };
-    setBusyKey(candidateId);setMessage(null);
-    const saved=await createDecisionOutcomeProposal({
-      candidateId,ruleId:candidateSnapshot.ruleId,ruleVersion:candidateSnapshot.ruleVersion,
-      ownerProfileId:userProfileId,expectedOutcome,reason:candidateSnapshot.why,candidateSnapshot,
-    });
-    setBusyKey(null);
+    setBusyKey(candidateId);
+    setMessage(null);
+    let saved: Awaited<ReturnType<typeof createDecisionOutcomeProposal>>;
+    try {
+      saved = await createDecisionOutcomeProposal({
+        candidateId,ruleId:candidateSnapshot.ruleId,ruleVersion:candidateSnapshot.ruleVersion,
+        ownerProfileId:userProfileId,expectedOutcome,reason:candidateSnapshot.why,candidateSnapshot,
+      });
+    } catch {
+      setMessage("تعذر حفظ قرار التحصيل بسبب انقطاع الاتصال بالخادم. أعد المحاولة للتحقق من الحالة.");
+      return;
+    } finally {
+      setBusyKey(null);
+    }
     setMessage(saved.ok?(saved.duplicate?"قرار التحصيل محفوظ بالفعل؛ تم استرجاع حالته.":"تم حفظ قرار التحصيل في دورة القرارات."):saved.message);
     if(saved.ok)onDecisionSaved?.();
   };
@@ -290,7 +304,7 @@ function CustomerAgingDecisionSection({
       </div>
       <p className="text-xs text-muted-foreground">الأرصدة بعد خصم الدفعات المسجلة على الفاتورة نفسها. لا تدمج العملات، ولا يظهر العميل كقرار تحصيل دون مراجع مصدرية.</p>
       {rows.length?rows.map(item=>(
-        <article key={item.customerName+":"+item.currency} className="rounded-lg border p-3 space-y-2">
+        <article key={item.customerId+":"+item.currency} className="rounded-lg border p-3 space-y-2">
           <div className="flex flex-wrap justify-between gap-2">
             <strong>{item.customerName} · {item.currency}</strong>
             <span className="text-sm font-semibold">{amount(item.overdueAmount,item.currency)} متأخر</span>
@@ -305,8 +319,8 @@ function CustomerAgingDecisionSection({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground"><EvidenceStatusLabel status={item.status}/>: <EvidenceReferences ids={item.agingBuckets.flatMap(bucket=>bucket.evidenceIds).slice(0,12)}/></span>
-            <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
-              {busyKey==="receivables.collection:"+item.currency+":"+item.customerName.slice(0,70)+":"+item.asOf.slice(0,10)?"جارٍ الحفظ...":"حفظ قرار متابعة التحصيل"}
+            <button type="button" className="btn secondary" disabled={!userProfileId||busyKey!==null||!hasCompleteAgingCoverage||item.status!=="VERIFIED"||item.customerNameStatus!=="VERIFIED"||!item.agingBuckets.some(bucket=>bucket.bucket.startsWith("OVERDUE_")&&bucket.evidenceIds.length>0)} onClick={()=>void saveDecision(item)}>
+              {busyKey===buildCustomerReceivableCollectionCandidateId(item)?"جارٍ الحفظ...":"حفظ قرار متابعة التحصيل"}
             </button>
           </div>
         </article>
