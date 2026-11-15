@@ -44,7 +44,7 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
   const manager = await managerContext.newPage();
   const browserErrors: string[] = [];
   manager.on("pageerror", (error) => browserErrors.push(error.message));
-  const suffix = randomUUID().replaceAll("-", "").slice(-10).toUpperCase();
+  const suffix = randomUUID().replace(/-/g, "").slice(-10).toUpperCase();
   const rootName = "P2 UI ROOT " + suffix;
   const childName = "P2 UI CHILD " + suffix;
   let rootId = "";
