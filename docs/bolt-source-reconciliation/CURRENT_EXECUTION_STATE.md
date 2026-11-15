@@ -5944,3 +5944,49 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - **Separate category browser status:** current P2 run [#43775261577](https://github.com/Report-Engainall/Nasr1/actions/runs/43775261577) is testing the same source SHA through isolated local Supabase/PostgreSQL 17. Local job `133000694761` was still starting the disposable Supabase services when this checkpoint was written; it has not yet produced category-browser PASS. Existing `e2e/admin-category-tree.spec.ts` already includes admin/manager, staff and customer price/stock, history, search and archive/restore checks. Keep the category browser result OPEN until the actual job and step finish SUCCESS.
 - **Unchanged security boundary:** current `fetch_staff_products(uuid)` RPC returns `SETOF public.products` to active admin/manager/staff roles. The category UI omits the base-price column for staff, but no server response-field redaction proof is present. Do not describe UI hiding as API-level price privacy.
 - **Safety:** no production writes, migrations, RLS/Auth changes, new roles, Vercel deployment, Bolt/Lovable usage, paid service, or external provider calls.
+
+
+---
+
+## AUTHORIZATION ARCHITECTURE DECISION — 2026-11-16
+
+- **Decision record:** \`docs/execution/AGHBARI_AUTHORIZATION_ARCHITECTURE_V2_2026-11-16.md\`.
+- **Repository:** \`Report-Engainall/Nasr1\`; branch: \`main\`.
+- **Main immediately before decision record:** \`d2b6e68cdbad66d68adc85f112741e7215dc2707\`.
+- **Architecture decision documentation commit:** \`141e307c165d6fd5847cb2e30f2e197d52659af0\`.
+- **Current main at this checkpoint update:** to be confirmed by the resulting checkpoint commit.
+- **Change class:** documentation-only. No application source, SQL, migration, RLS, Auth, role, grant, customer tier, live data, secret, deployment or production setting was changed.
+- **Tests:** NOT RUN for this documentation-only decision. No application or database acceptance is claimed.
+
+### Decision
+
+Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supabase-first, default-deny, with server-side resource/action decisions, tenant/branch/warehouse/relationship scopes, workflow-state and separation-of-duties conditions, and field-level data projections. Do not introduce an external policy service or paid dependency at this stage.
+
+### Current-main source observations
+
+- Existing supported role contract remains six IDs: \`admin\`, \`manager\`, \`staff\`, \`accountant\`, \`customer_manager\`, \`customer\`. The extra specification role cards are explanatory, not assignable server roles.
+- \`manager\` is broader than sales management; \`staff\` remains a generic operational role and must not be auto-mapped to sales or warehouse.
+- The TypeScript page/operation matrix is explanatory and does not constitute a canonical server capability registry.
+- Settings mounts both \`OrganizationRoleManagement\` and \`CustomerManagerRoleAssignment\`; the editors call the same organization-role RPC, while the generic editor omits \`customer_manager\`. Consolidate to one role editor and protect saves against stale role snapshots/revisions before expanding role assignment.
+- Existing role RPC protections (tenant scope, self-change denial, last-admin protection, serialized mutation, audit) must be preserved.
+- Current customer business tiers and price tiers include \`retail\`, \`wholesale\`, \`vip\`, \`base\`; do not equate \`vip\` with “جملة الجملة” without a separately approved mapping.
+- Existing execution evidence identifies a staff price projection gap: \`fetch_staff_products(uuid)\` returns \`SETOF public.products\` to staff as well as admin/manager although the category UI hides the price column. Field-level API redaction is not proven; close this with a restricted server projection and response-key tests.
+- The customer-manager directory's non-financial projection is an existing pattern to preserve and extend.
+
+### Implementation boundaries
+
+1. Preserve legacy role semantics until parity is documented and tested. No automatic reassignment to new roles.
+2. Do not create new roles, policy tables, migrations, grants or RLS rules as part of this decision-only commit.
+3. Reconcile logical entities with the actual schema before authoring additive migrations; avoid duplicate permission catalogs or membership models.
+4. Keep the existing security queue in order. This architecture decision does not supersede the current P2/API-OPS authorization work or the recorded next task \`AUTHZ-GL-DRAFT-STAFF-DENIAL-001\`.
+5. The next architecture implementation slice, after the currently active security acceptance is resolved, is \`AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001\`: capability dictionary, legacy-role mapping, parity tests and no-access-change baseline.
+6. Require exact-SHA unit/type/build and PostgreSQL 17/RPC/RLS/Chromium evidence for each implementation slice. Denial acceptance must compare before/after business, audit, idempotency, finance and inventory snapshots.
+
+### Delivery status
+
+- Architecture: **DOCUMENTED**.
+- Runtime RBAC/ABAC/ReBAC engine: **NOT IMPLEMENTED**.
+- New sales/warehouse role grants: **NOT IMPLEMENTED**.
+- Unified user/role editor: **NOT IMPLEMENTED**.
+- Server field-level price redaction for staff: **OPEN / NOT PROVEN**.
+- Production/hosted changes: **NONE**.
