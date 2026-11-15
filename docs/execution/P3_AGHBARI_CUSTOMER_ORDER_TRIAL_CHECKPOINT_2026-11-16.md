@@ -137,3 +137,33 @@ Official remediation references:
 - RLS auth initplan: https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan
 - Multiple permissive policies: https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies
 - Duplicate indexes: https://supabase.com/docs/guides/database/database-linter?lint=0009_duplicate_index
+
+
+## Final exact-SHA acceptance — 2026-11-16
+
+<badge>Would be DIL here</badge>
+
+**Application/test source SHA:** `0b06422120435d6bfb0b6f2b71e7133e4bbf0760`  
+**P2 workflow:** [#43769300232 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43769300232)
+
+All jobs and results:
+- Public Storefront read-only Chromium smoke: **SUCCESS** on the exact SHA (build, preview, public route assertions, price-visibility harness).
+- Authenticated E2E infrastructure gate: **SUCCESS**.
+- Local Supabase/PostgreSQL 17 authenticated Chromium suite: **SUCCESS** (53 successful steps; no failed steps; cached Chromium install and failure-only diagnostics were correctly skipped).
+- Hosted external customer/order/tenant E2E: **SKIPPED**, not PASS. It is not counted as an acceptance pass.
+
+The local authenticated job proved on the exact source SHA:
+- Real local product-image upload handler integration against the Supabase Storage API (WebP/object size, direct-write denial, service-role upload and product linking, public read, cleanup).
+- Endpoint allow/deny; customer receivable identity separation and tenant boundary; atomic tier price edits with rollback/audit/stale-writer protection.
+- Tenant-safe category subtree archive/create/product races; cash-journal source posting/idempotency/concurrency; purchase receipt accounting draft restrictions; product review and question moderation with tenant isolation.
+- Authenticated order persistence and cross-tenant denial; warehouse stock-count XLSX; purchase-order XLSX; checkout replay after lost commit response; customer returns, receipts and credit memo; audited Onyx order export; finance document and task printing.
+- Customer-manager privacy/authorization/audit; immediate device-session revocation; manager edits and reloads all four price tiers; responsive admin access matrix; mounted category tree parent/child persistence and deep-link/reload/360px+1280px acceptance; AI prompt lifecycle, maker/checker, tenant isolation and append-only audit.
+- The exact-SHA proof verifier completed successfully for the generated Chromium, Storage, product-price and category-tree evidence.
+
+**Artifacts (unexpired at verification):**
+- Authenticated local Supabase/PostgreSQL 17 + Chromium evidence: [artifact 14184116943](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/14184116943) — `p2-local-authenticated-e2e-43769300232-0b06422120435d6bfb0b6f2b71e7133e4bbf0760`, SHA-256 `c3e9ba8be9e3c9a2d9bdd8ac711f46c5163a66af0dcb84413f7febbbd3ecee28`.
+- Public UI browser smoke: [artifact 14183556830](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/14183556830) — `p2-public-ui-smoke-43769300232-0b06422120435d6bfb0b6f2b71e7133e4bbf0760`, SHA-256 `4f309174f480ea5fef6d3c1c08e125a7259927c1db369a9fbf43db7e5892ac93`.
+
+The current `main` after this acceptance is `038d9bd7d9419604e2d9d5fa59ae0e2a3e1c4ada`. The three commits after tested code SHA `0b064221...` modify only this P3 checkpoint document; the GitHub compare confirms no application source, migration, RLS, policy, or database code changed after the tested SHA.
+
+**Hosted/production boundary remains unchanged:** live database customer/supplier/order/purchase-order counts remain zero; no hosted customer, order, invoice, payment, image, inventory change, migration, Auth setting change, deployment, or paid service was created. The exact-SHA local acceptance is strong proof of the implemented workflow but does not substitute for a real hosted customer session and hosted order.
