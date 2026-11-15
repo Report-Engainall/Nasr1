@@ -221,19 +221,19 @@ async function main() {
         for (const httpStatus of httpStatuses) {
           if (kind === "type_error" && boundary === "tanstack_root_error_component" && httpStatus === 503) continue;
           if (kind === "unknown_error" && boundary === "unhandled_rejection" && httpStatus === null) continue;
-          const outcome = await callJson(managerDb,
+          const outcome = await callJson(accountantDb,
             "select public.record_runtime_error_event($1,$2,$3) as result",
             [kind, httpStatus, boundary]);
-          if (outcome.recorded) {
-            if (!outcome.deduplicated) createdIds.add(outcome.event_id);
+          if (outcome.recorded && !outcome.deduplicated) {
+            createdIds.add(outcome.event_id);
             newRecords += 1;
           }
-          if (newRecords === 28) break outer;
+          if (newRecords === 30) break outer;
         }
       }
     }
-    assert.equal(newRecords, 28, "a fresh actor must be able to create 28 additional unique records before hitting the quota");
-    const limited = await callJson(managerDb,
+    assert.equal(newRecords, 30, "the isolated accountant actor must be able to create exactly 30 unique records");
+    const limited = await callJson(accountantDb,
       "select public.record_runtime_error_event($1,$2,$3) as result",
       ["error", 599, "unknown"]);
     assert.equal(limited.recorded, false);
