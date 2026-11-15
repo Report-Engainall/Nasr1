@@ -5891,3 +5891,25 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - **Still open:** authenticated browser performance waterfalls, P50/P75/P95, populated-order RPC cost/materialization, multi-warehouse workload, and end-to-end dashboard data-ready time. No production-readiness implication is made.
 - **No live side effects:** no database writes, no Auth changes, no deployment/Preview, no external AI/provider calls, no Vercel use, no expenditure.
 
+
+
+---
+
+## P2 EXACT-SHA CATEGORY TREE AND STORAGE ACCEPTANCE — 2026-11-16
+
+- **Repository/branch:** `Report-Engainall/Nasr1` / `main`.
+- **Accepted application/test SHA:** `1663879740421c1f01d03ccf295a609c6f8e9566`.
+- **Main when recording:** `82358021d5a00666cfa7d6ad26156596b00edcae`; intervening commits after the tested SHA are documentation-only. No source changes were introduced by them.
+- **P2 run:** [#43770638799](https://github.com/Report-Engainall/Nasr1/actions/runs/43770638799) — SUCCESS on the exact tested SHA.
+- **Strict Playwright TypeScript:** PASS; `e2e/admin-category-tree.spec.ts` explicitly included in `tsconfig.p2-e2e-typecheck.json`. UUID suffix uses ES-compatible `replace(/-/g, "")`; no project lib widening.
+- **PostgreSQL 17/Supabase local:** migrations applied to an isolated local stack. Storage upload handler, endpoint guard, receivable identity/tenant FK, atomic prices/rollback/audit/race, category subtree archive and create/product race locks, finance source posting/idempotency, purchase receipt restrictions, reviews and questions all PASS.
+- **Authenticated Chromium:** order persistence/cross-tenant denial; stock-count and purchase-order XLSX; lost-response checkout replay; customer return/review/receipt/credit memo; audited Onyx export; financial/task printing; customer-manager privacy/audit; session immediate revocation; four-tier prices; admin access matrix; category manager route; AI prompt four-eyes/tenant isolation/audit all PASS.
+- **Category route evidence:** manager creates root and child in `/admin/categories`; child `parent_id` equals root; detail path survives reload; scoped expand/collapse and child tab pass; no page overflow at 360px/1280px; zero browser errors. Exact-SHA verifier PASS.
+- **Storage boundary:** handler-to-local-Storage integration PASS; authenticated end-user image gallery UI and hosted Storage receipt are not proven.
+- **P1 run:** #43770340762 SUCCESS on preceding SHA `e0a2dc20296b342994e9a8c8c75bdc27f3d3ea87` (Vitest, strict TypeScript, production build). The only later source difference was the E2E UUID hyphen replacement; final test passed P2 strict TypeScript and Chromium on `166387...`.
+- **Hosted authenticated customer/order/tenant E2E:** SKIPPED because external infrastructure is not configured; never mark PASS.
+- **Production safety:** no production Supabase or Storage writes; no Bolt/Lovable usage and no Vercel deployment.
+- **Artifacts:** public smoke `14183907377`; local authenticated P2 `14183604586`.
+- **Remaining category acceptance:** admin/staff/customer roles, nested search, back/forward and deep links, archive/restore UI, linked product detail and role-specific price/inventory display.
+- **Next:** continue those category-route gaps, then authenticated product media gallery receipt/role/tenant UAT. Keep updating only this cursor and the existing acceptance matrix; no parallel register.
+
