@@ -72,6 +72,7 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await signIn(manager, requiredEnv("E2E_MANAGER_EMAIL"), requiredEnv("E2E_MANAGER_PASSWORD"));
     await manager.goto("/admin/categories");
     await expect(manager.getByRole("heading", { name: "التصنيفات الرئيسية والفرعية", exact: true })).toBeVisible({ timeout: 30_000 });
+    const categoryTree = manager.locator(".admin-category-tree");
 
     await manager.getByRole("button", { name: "تصنيف رئيسي", exact: true }).click();
     let nameInput = manager.getByLabel("اسم التصنيف");
@@ -117,16 +118,16 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await expect(manager.getByRole("heading", { name: childName, exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(manager.locator(".admin-category-details__header p")).toHaveText(rootName + " / " + childName);
     await expect(manager.locator(".admin-category-meta > div").nth(1).locator("strong")).toHaveText(rootName);
-    await expect(manager.getByRole("button", { name: childName, exact: true })).toBeVisible();
+    await expect(categoryTree.getByRole("button", { name: childName, exact: true })).toBeVisible();
     expect(new URL(manager.url()).searchParams.get("category")).toBe(childId);
 
     // Prove the parent controls only presentation and the child remains nested under it.
     const collapse = manager.getByRole("button", { name: "طي الفروع", exact: true });
     await expect(collapse).toBeVisible();
     await collapse.click();
-    await expect(manager.getByRole("button", { name: childName, exact: true })).toHaveCount(0);
+    await expect(categoryTree.getByRole("button", { name: childName, exact: true })).toHaveCount(0);
     await manager.getByRole("listitem").filter({ hasText: rootName }).getByRole("button", { name: "فتح الفروع", exact: true }).click();
-    await expect(manager.getByRole("button", { name: childName, exact: true })).toBeVisible();
+    await expect(categoryTree.getByRole("button", { name: childName, exact: true })).toBeVisible();
 
     await manager.getByRole("button", { name: rootName, exact: true }).click();
     await expect(manager.getByRole("heading", { name: rootName, exact: true })).toBeVisible();
@@ -138,11 +139,11 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     const categorySearch = manager.getByRole("textbox", { name: "البحث في التصنيفات" });
     await categorySearch.fill(childName);
     await expect(manager.getByRole("button", { name: rootName, exact: true })).toBeVisible();
-    await expect(manager.getByRole("button", { name: childName, exact: true })).toBeVisible();
+    await expect(categoryTree.getByRole("button", { name: childName, exact: true })).toBeVisible();
     await manager.getByRole("button", { name: "مسح البحث", exact: true }).click();
 
     // Browser history restores the selection from the previous deep-link entry.
-    await manager.getByRole("button", { name: childName, exact: true }).click();
+    await categoryTree.getByRole("button", { name: childName, exact: true }).click();
     await expect.poll(() => new URL(manager.url()).searchParams.get("category")).toBe(childId);
     await manager.getByRole("button", { name: rootName, exact: true }).click();
     await expect.poll(() => new URL(manager.url()).searchParams.get("category")).toBe(rootId);
