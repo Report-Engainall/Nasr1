@@ -13317,6 +13317,18 @@ export type Database = {
         Returns: Json
       }
     }
+      list_runtime_error_events: {
+        Args: { p_limit?: number; p_offset?: number; p_status?: string | null }
+        Returns: Json
+      }
+      record_runtime_error_event: {
+        Args: { p_boundary?: string; p_error_kind: string; p_http_status?: number | null }
+        Returns: Json
+      }
+      transition_runtime_error_event: {
+        Args: { p_event_id: string; p_status: string }
+        Returns: Json
+      }
     Enums: {
       [_ in never]: never
     }
