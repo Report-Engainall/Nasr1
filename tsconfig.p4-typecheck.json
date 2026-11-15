@@ -14,6 +14,10 @@
     "src/components/reference-model/observability/P4AdminOperationsScreens.test.tsx",
     "src/lib/admin-observability-deadline.test.ts",
     "src/lib/admin-operation-engine-observations.ts",
-    "src/lib/admin-observability-deadline.ts"
+    "src/lib/admin-observability-deadline.ts",
+    "src/lib/runtime-error-events.ts",
+    "src/lib/runtime-error-events.test.ts",
+    "src/lib/runtime-error-reporting.ts",
+    "src/lib/runtime-error-reporting.test.ts"
   ]
 }
