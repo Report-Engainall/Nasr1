@@ -108,3 +108,21 @@ The live database remains unchanged. A read-only quality query of all 114 active
 Barcodes must come from supplier/manufacturer packaging; do not synthesize EANs or scannable identifiers. English names may be curated translations but should not be presented as brand/model truth without product-label evidence. Images must be genuine pack/product images supplied or verified by the owner/supplier and uploaded by an authenticated admin/manager/staff user through the existing `product-image-upload` flow. The current admin product editor already supports primary and up-to-eight gallery uploads, conversion to WebP, preview, server linking and cleanup.
 
 **No live customer/account, order, supplier, purchase order, invoice, receipt, inventory adjustment, image object, migration, role/RLS change or deployment was created by this follow-up.**
+
+
+## Additional production-boundary review — Supabase advisors and storefront configuration
+
+Read-only Supabase advisor snapshot observed 2026-11-15:
+
+| Advisor | Count | Level |
+|---|---:|---|
+| RLS enabled with no direct policies | 56 | INFO |
+| Anonymous SECURITY DEFINER functions | 7 | WARN |
+| Authenticated SECURITY DEFINER functions | 299 | WARN |
+| Leaked-password protection disabled | 1 | WARN |
+
+The seven anonymous functions observed were the six intended public storefront read contracts plus `get_product_unit_conversions(p_product_id)`. That function derives the public storefront organization, verifies the product belongs to that organization and is active for non-staff callers, and returns only the product's unit conversion rows; it is tenant-scoped, but its public exposure should remain explicitly documented. The 56 RLS-without-policy findings are not automatically public-table leaks: direct PostgREST access is denied in the absence of policies and some tables are accessed only through role-checked SECURITY DEFINER RPCs. The 299 authenticated SECURITY DEFINER functions must be audited by contract/role/tenant before broad changes; do not remove grants wholesale.
+
+**Outstanding security fix:** Supabase Auth leaked-password protection is disabled. Remediate it through the supported Auth project configuration after documenting its user-facing password rejection behavior and validating signup/reset flows. It was not changed in this task.
+
+**Storefront text mismatch found:** the public settings RPC currently returns `hero_title = "الأغبري لتجارة الحبحب"`, while the active catalogue contains wheat, rice, flour, oils, sugar, legumes, dairy, tuna, biscuits and other groceries. This is a visible configuration mismatch, not a missing product or data-query issue. Change it through the authenticated admin Settings interface after confirming the intended neutral business name; do not update `admin_settings` directly through a privileged database connection without the expected actor/audit path.
