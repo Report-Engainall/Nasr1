@@ -5874,3 +5874,20 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - No migration, RLS/role change, Edge deployment, application deployment, Vercel, paid service, invoice, payment, or accounting journal was created. Public RPC verification is not browser proof. Existing Supabase advisor findings remain open.
 - Code-bearing SHA previously tested by P1/P2 remains `0f883a80c1d5e566133938c11e1beabcb2e76828`; the branch HEAD immediately before this P3 documentation checkpoint was `ba36f18d2ce80fc969ee43f6f8c7a6cda60da05c`. This task changes no application source or migration.
 - Next: complete image linking through the existing authenticated uploader; register the real customer or supplier according to invoice type; then capture authenticated browser and source-linked invoice acceptance. Do not tell the owner to issue an invoice until the required customer/order or supplier/PO/receipt source is present.
+
+
+---
+
+## P3 — PERFORMANCE FRONT — POPULATED DASHBOARD SQL BASELINE — 2026-11-16
+
+- **Main code snapshot at measurement:** `1663879740421c1f01d03ccf295a609c6f8e9566`; dashboard source blob `src/lib/api.ts` = `b165dc88926a7dcd90368d94422765dd0c7d46c0`.
+- **P3-owned checkpoint:** `docs/performance/RESPONSE_TIME_OPTIMIZATION_CHECKPOINT_2026-11-12.md` (latest addendum dated 2026-11-16).
+- **Live canonical DB, SELECT-only:** 114 active products; one active main warehouse; 114 warehouse balances; 3,235 available opening units still marked pending physical count; zero rows at/below reorder point; one pending customer; zero orders; zero unresolved AI alerts.
+- **Measured PostgreSQL 17 execution:** inventory 114-row warehouse scan 0.208 ms (2 buffer hits); active-product count index-only 0.217 ms (5 hits, zero heap fetch); customer count 0.143 ms; unresolved-alert count 0.124 ms; empty tenant order projection 0.127 ms. These are single-run query timings, not browser percentiles.
+- **No speculative schema tuning:** a warehouse-leading index is not justified at 114 balance rows. No index, RPC, SQL, migration, RLS, role, or configuration was changed.
+- **Auth boundary:** `fetch_staff_orders()` requires a real staff session and derives the tenant from the active profile. Invocation from the database tooling context correctly failed with SQLSTATE `42501`; no bypass was attempted.
+- **P1:** run `43770340762` SUCCESS on exact parent `e0a2dc20296b342994e9a8c8c75bdc27f3d3ea87` (Vitest, strict TypeScript, build). The next `1663879...` commit only adjusts a category E2E test expression, not dashboard source.
+- **P2:** run `43770638799` remains IN_PROGRESS on exact code/test SHA `1663879740421c1f01d03ccf295a609c6f8e9566` at this checkpoint; public no-write UI smoke and auth infrastructure gate passed. Local PG17/Chromium has not reached terminal status. Hosted external E2E is SKIPPED.
+- **Still open:** authenticated browser performance waterfalls, P50/P75/P95, populated-order RPC cost/materialization, multi-warehouse workload, and end-to-end dashboard data-ready time. No production-readiness implication is made.
+- **No live side effects:** no database writes, no Auth changes, no deployment/Preview, no external AI/provider calls, no Vercel use, no expenditure.
+

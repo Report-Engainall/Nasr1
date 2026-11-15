@@ -240,3 +240,71 @@ No database indexes/migrations, live Supabase state, production config, deployme
 - **EXACT-SHA GitHub Actions Vitest / strict TypeScript / build — NOT VERIFIED.** The available GitHub workflow-run wrapper only returns PR-triggered runs and returned no push-run record. The combined commit status surface only returned a Vercel build-rate-limit failure. No Vercel build/deployment was launched or used.
 - **BROWSER P50/P75/P95 — NOT MEASURED.**
 - Do not transfer the earlier `9193f88` PASS to this SHA.
+
+
+## P3 continuation — first populated dashboard SQL baseline — 2026-11-16
+
+**Scope:** read-only measurement of the existing management dashboard read path, deliberately separated from the active category-tree/P2 browser acceptance. No application, schema, policy, index, role, provider, or production setting was changed.
+
+### Exact source and workflow context
+
+- Canonical repository: `Report-Engainall/Nasr1`; branch snapshot: `main`; code-bearing HEAD at measurement: `1663879740421c1f01d03ccf295a609c6f8e9566`.
+- Dashboard API source blob: `src/lib/api.ts` — `b165dc88926a7dcd90368d94422765dd0c7d46c0`.
+- Low-stock shortlist engine/test: `src/lib/dashboard-low-stock.ts` — `57e3d2a4c436400863560837c38ef741164d6dff`; `src/lib/dashboard-low-stock.test.ts` — `cf3db0f436694783680a19916a891ac0649bf9e6`.
+- The current low-stock implementation still validates the complete selected-warehouse result, fails closed on malformed/duplicate identities, filters before ranking/capping, and reads at most four narrow product projections through the existing staff-scoped reader.
+- P1 run [`43770340762`](https://github.com/Report-Engainall/Nasr1/actions/runs/43770340762) completed SUCCESS on parent SHA `e0a2dc20296b342994e9a8c8c75bdc27f3d3ea87`: Vitest, strict TypeScript, and production build all succeeded. The only subsequent code commit to the measured main snapshot, `1663879...`, changes the category E2E test's TypeScript-compatible UUID suffix expression; it does not change dashboard application source.
+- P2 run [`43770638799`](https://github.com/Report-Engainall/Nasr1/actions/runs/43770638799) targets exact SHA `1663879740421c1f01d03ccf295a609c6f8e9566`. Public read-only UI smoke and the authenticated infrastructure gate passed; the local PostgreSQL 17/Chromium job was still IN_PROGRESS at this checkpoint. The hosted external tenant job was SKIPPED. This run is not represented as complete acceptance.
+
+### Current live data shape (SELECT-only, canonical active project)
+
+Project: `tfdwtuwkdddnzgyhcoyy` (`aghbari-commerce-nasr1`), PostgreSQL 17.11, ACTIVE_HEALTHY.
+
+| Dashboard source | Current result |
+|---|---:|
+| Active products | 114 |
+| Active warehouses | 1 |
+| Inventory balance rows in main warehouse | 114 |
+| Available opening units | 3,235 (owner-authorized estimate; physical count still pending) |
+| Rows at/below reorder point in that warehouse | 0 |
+| Customers | 1 (status: pending) |
+| Customer orders | 0 |
+| Unresolved AI alerts | 0 |
+
+The customer count changed from the older empty-database checkpoint. Only the aggregate/status was queried; no customer identity or contact data was read or copied. A pending customer is not an approved ordering account. No customer approval or order was performed.
+
+### PostgreSQL 17 query-plan observations
+
+All statements below were `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` over SELECTs in the canonical project. Times are single-run observations, not P50/P95 latency claims.
+
+| Read path | Plan / actual rows | Execution | Buffer observation |
+|---|---|---:|---|
+| Inventory balances filtered by active warehouse | Seq Scan; 114 rows | 0.208 ms | 2 shared hits, 0 reads |
+| Active product count by tenant/status | Index Only Scan via `products_storefront_featured_order_idx` + Aggregate; 114 rows | 0.217 ms | 5 shared hits, 0 reads, 0 heap fetches |
+| Customer count by tenant | Seq Scan; 1 row | 0.143 ms | 1 shared hit, 0 reads |
+| Unresolved alert count by tenant | Seq Scan; 0 rows | 0.124 ms | 1 shared hit, 0 reads |
+| Tenant order projection/order sort | Seq Scan + in-memory Sort; 0 rows | 0.127 ms | 7 shared hits, 0 reads |
+
+The inventory table is currently 88 kB and contains 114 balances. PostgreSQL's sequential scan is the measured plan at this cardinality; the observed execution is below a quarter millisecond. **No warehouse-leading inventory index is justified by this live sample.** Likewise, the zero-row order and alert tables do not support an index or throughput conclusion.
+
+### Authorization boundary verified
+
+- Inspected the live `fetch_staff_orders()` definition. It is `SECURITY DEFINER`, but requires `auth.uid()`, a matching active profile, and `public.is_staff()`; it derives the organization from that profile and raises SQLSTATE `42501` otherwise.
+- An attempt to EXPLAIN the RPC from the database tooling context (which has no staff session) was rejected with `42501: staff role required for order access`. This is the expected fail-closed behavior; it was not bypassed and is not a product defect.
+- The function returns `SETOF orders` with `SELECT o.*`; the browser's `.select('status,total_amount')` narrows the requested projection, but does not by itself prove database-side aggregation or avoid the PL/pgSQL set-returning function's full-row materialization. A future aggregate contract would need a separately reviewed P2 SQL/RLS/tenant acceptance and realistic order population.
+- The existing exact low-stock total still depends on checking all balances for the selected warehouse before the four-item preview cap. No early LIMIT or client-side approximation was added.
+
+### Performance-advisor context and decision
+
+The current advisor snapshot (observed 2026-11-15 22:45:10Z) reported 520 performance findings across the project: 361 unindexed foreign keys, 43 RLS auth-function initplan warnings, 85 unused indexes, 27 multiple permissive policy warnings, 3 duplicate-index warnings, and 1 table without a primary key. These are portfolio-level findings, not proof that the measured dashboard path is slow. In particular, policy consolidation can change anonymous storefront visibility, and unused/duplicate indexes require workload and dependency review before removal. No policy or index was changed.
+
+**Decision:** retain the current implementation; do not add speculative indexes, cache volatile inventory/financial data, replace the staff RPC, or modify RLS. The measured populated warehouse query is already sub-millisecond at current scale. A meaningful next benchmark requires a controlled non-production workload with representative order history, alerts, and more than one warehouse, followed by authenticated browser cold/warm waterfalls. Browser P50/P75/P95, request payload bytes under a populated order history, and populated-order RPC materialization remain **NOT MEASURED**.
+
+### Proof boundary
+
+- **READ_ONLY_LIVE_QUERY_PLANS:** COMPLETED for the five dashboard source queries listed above.
+- **EXPECTED_AUTHORIZATION_DENIAL:** observed for unauthenticated/non-staff invocation of `fetch_staff_orders()`; do not downgrade it to a pass for authenticated staff workflow.
+- **P1 Vitest / strict TypeScript / build:** SUCCESS on exact parent SHA `e0a2dc...`; not relabelled as P1 on `1663879...`.
+- **P2 authenticated local PG17/Chromium:** IN_PROGRESS on exact `1663879...` at checkpoint; no PASS claim.
+- **HOSTED CUSTOMER/ORDER E2E:** SKIPPED, not PASS.
+- **BROWSER P50/P75/P95 and populated order workload:** NOT MEASURED.
+- No inserts, updates, deletes, DDL, migration, RLS/role change, production Auth configuration, provider call, Vercel operation, preview, deployment, or paid service was used.
