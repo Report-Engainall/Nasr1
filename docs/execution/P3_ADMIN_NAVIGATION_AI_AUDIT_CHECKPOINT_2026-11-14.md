@@ -123,3 +123,46 @@ P2 must fail closed on posted credit-note invoice/customer/organization/currency
 2. P2: continue the verified free-quota/no-payment-method registry and reservation/cooldown contracts. No provider is eligible until exact evidence exists.
 3. P3: keep Edge-to-local deterministic handoff BLOCKED until an explicit, privacy-safe, tested request contract is agreed and implemented; no static or fabricated answers.
 4. Keep issue #477 and the separate category browser-acceptance items open. No production deployment or hosted DB writes.
+
+
+---
+
+# P3 ADMIN ACCESS MATRIX — SEARCH / FILTER DELIVERY — 16 NOVEMBER 2026
+
+## Integration and scope
+
+- Repository: `Report-Engainall/Nasr1`; canonical branch: `main`.
+- Reviewed base before the UI work: `2462d2c90214e053f818103b1c4354fa6c9e0314`.
+- Exact implementation/test SHA: `80a55e576f46d658853da9c5d6e9a8207483718f`.
+- UI commit: `efddbf039bb1afa7185b6d3a7f1e96b6a24b2733` — `feat(admin): add searchable role access matrix`.
+- Regression commit: `80a55e576f46d658853da9c5d6e9a8207483718f` — `test(admin): cover role access matrix search and filters`.
+- Changed application paths only:
+  - `src/components/AdminAccessMatrix.tsx`
+  - `src/test/admin-access-matrix-ui.test.tsx`
+- Added normalized Arabic/English multi-token search across navigation group, view label/path/id, operation label/area/id/limit and denial reason; Arabic diacritics and tatweel are normalized.
+- Added all-role filters derived from existing page/operation evaluators, single-role allowed/denied filtering, live result counts, no-results state and keyboard-accessible labeled controls.
+- Existing six server role IDs and the existing policy evaluators remain unchanged. The specification-role cards remain explanatory and cannot assign roles. `src/lib/admin-access-matrix.ts`, RPCs, RLS, SQL/migrations, data models and server grants were not changed.
+
+## Exact-SHA P1 evidence
+
+- P1 workflow [#43776555769](https://github.com/Report-Engainall/Nasr1/actions/runs/43776555769) completed **SUCCESS** on exact SHA `80a55e576f46d658853da9c5d6e9a8207483718f`.
+- Vitest: **127/127 test files, 908/908 tests passed**.
+- P1 strict TypeScript: **SUCCESS**.
+- Production Vite/Nitro build: **SUCCESS**.
+- Vitest printed a hanging-process diagnostic after its successful summary; the Vitest step, strict TypeScript step, build step and complete job all terminated SUCCESS. Keep an eye on test-process teardown in later runs; this diagnostic was not a failing assertion.
+
+## Exact-SHA browser result and proof boundary
+
+- P2 public read-only Playwright run [#43776555758](https://github.com/Report-Engainall/Nasr1/actions/runs/43776555758) ran on the same exact SHA and completed **FAILURE: 19 passed, 1 failed**.
+- The single failing assertion is the pre-existing `admin access matrix compares every role and keeps wide tables keyboard-scrollable` test in `e2e/public-storefront-smoke.spec.ts`. It expected the page-table scroll region to receive focus after three Tab presses. With the new visible search input and role filter added before the tables, the third Tab correctly lands on the search field, so the old hard-coded Tab count is stale. The failure is a changed focus-order expectation, not a permission-policy or data assertion failure.
+- The UI controls must remain keyboard reachable; do not set `tabIndex=-1`, hide them from keyboard users, move them behind the tables solely to satisfy the old sequence, or weaken/skip the assertion.
+- P2 ownership: `e2e/**`. P2 must update only the matrix keyboard-order assertions in `e2e/public-storefront-smoke.spec.ts`: verify the expected order (two mode buttons → search input → filter select → page-table region → operations region), test Arabic search/filter/clear at 360px and 1280px, retain horizontal table scrolling, accessible names and visible focus. Then rerun the same public smoke on the exact new source SHA.
+- Authenticated E2E infrastructure gate: **SUCCESS** (infrastructure gate only). Customer/order/tenant authenticated job: **SKIPPED**, not PASS. No PostgreSQL 17 or authenticated admin-session acceptance was run by this delivery. Keep authenticated admin-browser acceptance pending.
+- No production DB writes, migration, deployment, Vercel usage, external integration call, paid service or secret change occurred. No production/hosted proof is claimed.
+
+## Handoff / next action
+
+- P3 integrated the two UI/test commits directly onto `main`; do not recreate or duplicate the implementation.
+- P2 owns the browser-test expectation update above. Do not modify `e2e/**` from the P3 side.
+- Keep the DLV-002 matrix row **open for P2 browser acceptance** until the exact-SHA browser run passes at both widths and an authenticated non-production admin session is separately proven. This is not an authorization-engine acceptance and does not establish server-side field projection or RLS proof.
+- The product release remains **NO-GO**; unrelated P2 security, financial, inventory and production gates remain independent.
