@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { Category } from "@/lib/types";
+import type { Category, ProductWithInventory } from "@/lib/types";
 import { AdminCategoryTree } from "./AdminCategoryTree";
 
 const mocks = vi.hoisted(() => ({
@@ -38,9 +38,6 @@ vi.mock("@/lib/admin-catalog-commands", () => ({
 vi.mock("@/lib/admin-category-products", () => ({
   fetchAdminCategoryProducts: mocks.fetchAdminCategoryProducts,
 }));
-vi.mock("@/lib/admin-category-catalog", () => ({
-  projectAdminCategoryCatalogMetrics: vi.fn(),
-}));
 
 const ROOT_ID = "11111111-1111-4111-8111-111111111111";
 const CHILD_ID = "22222222-2222-4222-8222-222222222222";
@@ -54,6 +51,38 @@ function category(id: string, name: string, parent_id: string | null): Category 
 }
 const root = category(ROOT_ID, "التصنيف الرئيسي", null);
 const child = category(CHILD_ID, "التصنيف الفرعي", ROOT_ID);
+
+function catalogProduct(overrides: Record<string, unknown> = {}): ProductWithInventory {
+  return {
+    id: PRODUCT_ID,
+    name: "منتج التصنيف",
+    name_en: null,
+    item_code: "CAT-42",
+    sku: null,
+    barcode: null,
+    category_id: ROOT_ID,
+    brand_id: null,
+    description: null,
+    unit: "كرتون",
+    status: "active",
+    image_url: null,
+    image_gallery_urls: [],
+    is_active: true,
+    is_featured: false,
+    sort_order: 0,
+    base_price: 125,
+    min_stock_level: 5,
+    inventory: {
+      product_id: PRODUCT_ID,
+      warehouse_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      quantity_on_hand: 8,
+      quantity_reserved: 2,
+      quantity_available: 6,
+      reorder_point: 5,
+    },
+    ...overrides,
+  } as unknown as ProductWithInventory;
+}
 
 function renderTree() {
   return render(
@@ -187,6 +216,137 @@ describe("AdminCategoryTree", () => {
     expect(mocks.notice).toHaveBeenCalledWith(
       "لا يمكن إضافة فرع تحت أب مفقود أو ضمن مسار يحتوي تصنيفاً مؤرشفاً.",
     );
+  });
+
+
+  it("renders the category catalogue from the selected category with administrative prices and warehouse evidence", async () => {
+    const item = catalogProduct();
+    mocks.fetchAdminProductsPage.mockResolvedValueOnce({
+      items: [item], page: 1, pageSize: 40, hasNextPage: false,
+    });
+
+    renderTree();
+    await screen.findByRole("heading", { name: root.name });
+    fireEvent.click(screen.getByRole("tab", { name: "الأسعار والمخزون" }));
+
+    const table = await screen.findByRole("table", {
+      name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف",
+    });
+    expect(mocks.fetchAdminProductsPage).toHaveBeenCalledWith({
+      page: 1,
+      categoryId: ROOT_ID,
+    });
+    expect(within(table).getByRole("columnheader", { name: "السعر الأساسي" })).toBeInTheDocument();
+    expect(within(table).getByText("125")).toBeInTheDocument();
+    expect(within(table).getByText("8")).toBeInTheDocument();
+    expect(within(table).getByText("6")).toBeInTheDocument();
+    expect(within(table).getByText("5")).toBeInTheDocument();
+    expect(within(table).getByText("ضمن الحد")).toBeInTheDocument();
+  });
+
+  it("keeps staff warehouse visibility while removing the administrative price column and value", async () => {
+    mocks.roles = ["staff"];
+    mocks.fetchAdminProductsPage.mockResolvedValueOnce({
+      items: [catalogProduct({ base_price: 987654 })],
+      page: 1,
+      pageSize: 40,
+      hasNextPage: false,
+    });
+
+    renderTree();
+    await screen.findByRole("heading", { name: root.name });
+    fireEvent.click(screen.getByRole("tab", { name: "الأسعار والمخزون" }));
+
+    const table = await screen.findByRole("table", {
+      name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف",
+    });
+    expect(within(table).queryByRole("columnheader", { name: "السعر الأساسي" })).not.toBeInTheDocument();
+    expect(within(table).queryByText("987654")).not.toBeInTheDocument();
+    expect(within(table).getByText("8")).toBeInTheDocument();
+    expect(within(table).getByText("6")).toBeInTheDocument();
+    expect(within(table).getByText("ضمن الحد")).toBeInTheDocument();
+  });
+
+  it("shows missing or malformed warehouse evidence as unavailable instead of fabricating zero or adequate stock", async () => {
+    mocks.fetchAdminProductsPage.mockResolvedValueOnce({
+      items: [catalogProduct({
+        inventory: {
+          product_id: PRODUCT_ID,
+          warehouse_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          quantity_on_hand: Number.NaN,
+          quantity_reserved: 1,
+          quantity_available: -1,
+          reorder_point: -5,
+        },
+      })],
+      page: 1,
+      pageSize: 40,
+      hasNextPage: false,
+    });
+
+    renderTree();
+    await screen.findByRole("heading", { name: root.name });
+    fireEvent.click(screen.getByRole("tab", { name: "الأسعار والمخزون" }));
+
+    const table = await screen.findByRole("table", {
+      name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف",
+    });
+    expect(within(table).getAllByText("غير متاح")).toHaveLength(3);
+    expect(within(table).queryByText("0")).not.toBeInTheDocument();
+    expect(within(table).queryByText("ضمن الحد")).not.toBeInTheDocument();
+    expect(within(table).queryByText("منخفض")).not.toBeInTheDocument();
+  });
+
+  it("retries a failed category catalogue read without retaining a false empty state", async () => {
+    mocks.fetchAdminProductsPage
+      .mockRejectedValueOnce(new Error("فشل قراءة كتالوج التصنيف"))
+      .mockResolvedValueOnce({
+        items: [catalogProduct()],
+        page: 1,
+        pageSize: 40,
+        hasNextPage: false,
+      });
+
+    renderTree();
+    await screen.findByRole("heading", { name: root.name });
+    fireEvent.click(screen.getByRole("tab", { name: "الأسعار والمخزون" }));
+    expect(await screen.findByText("فشل قراءة كتالوج التصنيف")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /إعادة المحاولة/ }));
+    const table = await screen.findByRole("table", {
+      name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف",
+    });
+    expect(within(table).getByText("منتج التصنيف")).toBeInTheDocument();
+    expect(mocks.fetchAdminProductsPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("paginates category products through the existing reader and opens a product in the existing workspace", async () => {
+    const first = catalogProduct();
+    const secondId = "44444444-4444-4444-8444-444444444444";
+    const second = catalogProduct({ id: secondId, name: "منتج الصفحة الثانية", item_code: "CAT-43" });
+    mocks.fetchAdminProductsPage
+      .mockResolvedValueOnce({ items: [first], page: 1, pageSize: 40, hasNextPage: true })
+      .mockResolvedValueOnce({ items: [second], page: 2, pageSize: 40, hasNextPage: false });
+
+    renderTree();
+    await screen.findByRole("heading", { name: root.name });
+    fireEvent.click(screen.getByRole("tab", { name: "الأسعار والمخزون" }));
+
+    await screen.findByRole("button", { name: "فتح المنتج منتج التصنيف" });
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
+    const pageTwoButton = await screen.findByRole("button", { name: "فتح المنتج منتج الصفحة الثانية" });
+    expect(mocks.fetchAdminProductsPage).toHaveBeenNthCalledWith(2, {
+      page: 2,
+      categoryId: ROOT_ID,
+    });
+    fireEvent.click(pageTwoButton);
+    expect(mocks.openProduct).toHaveBeenCalledWith({
+      id: secondId,
+      name: "منتج الصفحة الثانية",
+      item_code: "CAT-43",
+      unit: "كرتون",
+      status: "active",
+    });
   });
 
   it("does not request category data for a role that cannot open the workspace", async () => {
