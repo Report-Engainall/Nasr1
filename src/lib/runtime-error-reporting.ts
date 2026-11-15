@@ -45,11 +45,11 @@ export function reportRuntimeError(error: unknown, context: RuntimeErrorContext 
     const oldest = recentReports.keys().next().value;
     if (oldest) recentReports.delete(oldest);
   }
-  void supabase.rpc("record_runtime_error_event", {
+  void Promise.resolve(supabase.rpc("record_runtime_error_event", {
     p_error_kind: kind,
     p_http_status: status,
     p_boundary: boundary,
-  }).then(() => undefined).catch(() => undefined);
+  })).catch(() => undefined);
 }
 
 if (typeof window !== "undefined") {
