@@ -708,6 +708,13 @@ jobs:
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
           E2E_PROOF_PATH: ${{ runner.temp }}/admin-access-matrix-browser-proof.json
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-access-matrix-browser.spec.ts"
+      - name: Test mounted category tree creation, parent relationship and responsive deep links in Chromium
+        timeout-minutes: 8
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          E2E_PROOF_PATH: ${{ runner.temp }}/admin-category-tree-browser-proof.json
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-category-tree.spec.ts"
       - name: Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit
         run: node scripts/test-ai-prompt-governance.mjs
       - name: Verify exact-SHA Chromium and Storage acceptance proofs
@@ -716,6 +723,7 @@ jobs:
           TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
           PRODUCT_IMAGE_STORAGE_PROOF_PATH: ${{ runner.temp }}/product-image-storage-proof.json
           E2E_PRICE_PROOF_PATH: ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
+          E2E_CATEGORY_PROOF_PATH: ${{ runner.temp }}/admin-category-tree-browser-proof.json
         shell: bash
         run: |
           node --input-type=module <<'NODE'
@@ -777,6 +785,28 @@ jobs:
           assert.equal(prices.fixtureRestoredAndReopened, true);
           assert.deepEqual(prices.browserRuntimeErrors, []);
 
+          const category = await readProof(process.env.E2E_CATEGORY_PROOF_PATH, "Admin category-tree Chromium");
+          assert.equal(category.result, "PASS");
+          assert.equal(category.browserResult, "BROWSER_PROVEN");
+          assert.equal(category.sourceSha, expectedSha, "Category-tree proof must match the exact tested SHA.");
+          assert.equal(category.environment, "disposable-local-supabase-postgresql-17-only");
+          assert.equal(category.route, "/admin/categories");
+          assert.equal(category.role, "manager");
+          assert.equal(category.rootCategory?.persistedAndReloaded, true);
+          assert.equal(category.childCategory?.parentContextCreation, true);
+          assert.equal(category.childCategory?.persistedParentId, category.rootCategory?.id);
+          assert.equal(category.serverBackedParentAndPathAfterReload, true);
+          assert.equal(category.deepLinkRestoredAfterReload, true);
+          assert.equal(category.expandCollapseWithoutChangingRelationship, true);
+          assert.equal(category.directChildrenTabVerified, true);
+          assert.equal(category.noProductionWrites, true);
+          assert.deepEqual(category.browserRuntimeErrors, []);
+          assert.deepEqual(
+            category.viewportChecks.map(({ width, documentScrollWidth, viewportWidth }) => ({ width, fits: documentScrollWidth <= viewportWidth })),
+            [{ width: 360, fits: true }, { width: 1280, fits: true }],
+            "Category tree must not introduce page-level horizontal overflow at mobile or desktop widths.",
+          );
+
           storage.postgresVersion = postgresVersion;
           await writeFile(storagePath, JSON.stringify(storage, null, 2) + "\n", "utf8");
           console.log("EXACT_SHA_P2_PROOFS_PASS " + expectedSha + ": PostgreSQL 17, Storage lifecycle and Chromium four-tier price editor.");
@@ -792,6 +822,7 @@ jobs:
             echo "- This job uses a fresh local Supabase stack, local PostgreSQL 17, two transient confirmed users in distinct organizations, and synthetic catalogue/stock fixtures only."
             echo "- It proves the exact checked-out SHA's browser order path and cross-tenant denial only if the Playwright test step passes."
             echo "- It proves manager stock-count XLSX download/parse, saved-line parity, internal-ID/cost exclusion, and ordinary-customer route denial only if stock-count-xlsx.spec.ts passes."
+            echo "- It proves authenticated category parent/child creation through the mounted /admin/categories route, server-refetched parent_id, deep-link reload, expand/collapse, child listing, and 360px/1280px overflow checks only if the category-tree Chromium step and its exact-SHA proof verifier pass."
             echo "- It proves manager purchase-order create via tenant-scoped RPC and three-sheet XLSX download/parse, unknown-cost blank parity, formula-text escaping, internal-ID exclusion, and ordinary-customer denial only if purchase-orders-xlsx.spec.ts passes."
             echo "- It also proves the manager order-detail -> server audit RPC -> 27-column XLSX download only if the dedicated Onyx export browser step passes."
             echo "- It proves finance invoice/statement/credit-memo and operational task printing by role only if finance-task-print.spec.ts completes; customer print UI must remain absent."
@@ -834,6 +865,7 @@ jobs:
             test-results/
             ${{ runner.temp }}/p2-local-e2e-preview.log
             ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
+            ${{ runner.temp }}/admin-category-tree-browser-proof.json
             ${{ runner.temp }}/product-image-storage-proof.json
             ${{ runner.temp }}/p2-local-supabase-diagnostics.log
           if-no-files-found: ignore
