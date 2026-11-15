@@ -875,9 +875,9 @@ test("admin access matrix compares every role and keeps wide tables keyboard-scr
       expect(layout.pageScrollWidth).toBeGreaterThan(layout.pageClientWidth);
     }
 
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
+    await pages.focus();
+    await expect(pages).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
     await expect(pages).toBeFocused();
     const focus = await pages.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -887,6 +887,8 @@ test("admin access matrix compares every role and keeps wide tables keyboard-scr
     expect(focus.outlineWidth).toBeGreaterThan(0);
     await page.keyboard.press("Tab");
     await expect(operations).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(pages).toBeFocused();
   }
 
   expect(pageErrors, "The real access-matrix component must not throw browser errors in its isolated harness.").toEqual([]);
