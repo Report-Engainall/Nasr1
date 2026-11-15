@@ -715,6 +715,7 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
           E2E_PROOF_PATH: ${{ runner.temp }}/admin-category-tree-browser-proof.json
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-category-tree.spec.ts"
       - name: Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit
         run: node scripts/test-ai-prompt-governance.mjs
@@ -802,6 +803,18 @@ jobs:
           assert.equal(category.deepLinkRestoredAfterReload, true);
           assert.equal(category.expandCollapseWithoutChangingRelationship, true);
           assert.equal(category.directChildrenTabVerified, true);
+          assert.equal(category.roleChecks?.staffCanOpenCategories, true);
+          assert.equal(category.roleChecks?.staffCannotCreateOrRenameOrArchive, true);
+          assert.equal(category.roleChecks?.staffBasePriceHidden, true);
+          assert.equal(category.roleChecks?.staffInventoryVisible, true);
+          assert.equal(category.roleChecks?.customerDirectRouteDenied, true);
+          assert.equal(category.categoryNavigation?.searchPreservesParentContext, true);
+          assert.equal(category.categoryNavigation?.browserBackRestoresSelection, true);
+          assert.equal(category.categoryNavigation?.archiveRestoreRoundTrip, true);
+          assert.equal(category.priceInventoryProjection?.managerBasePriceVisible, true);
+          assert.equal(category.priceInventoryProjection?.staffBasePriceHidden, true);
+          assert.equal(category.priceInventoryProjection?.staffQuantityOnHandVisible, true);
+          assert.equal(category.priceInventoryProjection?.fixtureProductRestored, true);
           assert.equal(category.noProductionWrites, true);
           assert.deepEqual(category.browserRuntimeErrors, []);
           assert.deepEqual(

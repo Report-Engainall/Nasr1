@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import postgres from "postgres";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 test.describe.configure({ retries: 0 });
 
@@ -29,7 +30,7 @@ async function signIn(page: Page, email: string, password: string): Promise<void
 }
 
 test("mounted category tree creates a parent and child, persists parent_id, and restores deep links", async ({ browser }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(210_000);
   const sourceSha = requiredEnv("E2E_SOURCE_SHA");
   const localSupabase = new URL(requiredEnv("SUPABASE_URL"));
   if (
@@ -39,6 +40,22 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
   ) {
     throw new Error("Category-tree browser acceptance is restricted to the disposable local Supabase API.");
   }
+
+  const databaseUrl = new URL(requiredEnv("TEST_DATABASE_URL"));
+  if (
+    !["localhost", "127.0.0.1", "::1"].includes(databaseUrl.hostname) ||
+    !databaseUrl.port ||
+    ["5432", "6543"].includes(databaseUrl.port)
+  ) {
+    throw new Error("Category product-projection fixtures are restricted to the disposable loopback PostgreSQL port.");
+  }
+  const sql = postgres(databaseUrl.toString(), { max: 1, prepare: false, idle_timeout: 2 });
+  const fixtureProductId = requiredEnv("E2E_PRODUCT_ID");
+  const fixtureOrganizationId = "a0000000-0000-0000-0000-000000000001";
+  let originalProductCategoryId: string | null = null;
+  let fixtureProductCategoryChanged = false;
+  let staffContext: BrowserContext | null = null;
+  let customerContext: BrowserContext | null = null;
 
   const managerContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const manager = await managerContext.newPage();
@@ -78,6 +95,20 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     childId = selectedId!;
     expect(childId).not.toBe(rootId);
 
+    // Attach the disposable seeded product to the UI-created child for role projection checks.
+    const originalProductRows = await sql.unsafe(
+      "select category_id from public.products where id=$1::uuid and organization_id=$2::uuid and status='active'",
+      [fixtureProductId, fixtureOrganizationId],
+    );
+    expect(originalProductRows, "The isolated product fixture must belong to the P2 organization.").toHaveLength(1);
+    originalProductCategoryId = originalProductRows[0].category_id as string | null;
+    const assignedProductRows = await sql.unsafe(
+      "update public.products set category_id=$1::uuid where id=$2::uuid and organization_id=$3::uuid returning id",
+      [childId, fixtureProductId, fixtureOrganizationId],
+    );
+    expect(assignedProductRows, "The local fixture product must be attached to the UI-created child.").toHaveLength(1);
+    fixtureProductCategoryChanged = true;
+
     await expect(manager.locator(".admin-category-details__header p")).toHaveText(rootName + " / " + childName);
     await expect(manager.locator(".admin-category-meta > div").nth(1).locator("strong")).toHaveText(rootName);
 
@@ -103,6 +134,79 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     const childrenPanel = manager.locator(".admin-category-child-list");
     await expect(childrenPanel.getByRole("button", { name: childName, exact: true })).toBeVisible();
 
+    // Search preserves the parent context when only a nested child matches.
+    const categorySearch = manager.getByRole("textbox", { name: "البحث في التصنيفات" });
+    await categorySearch.fill(childName);
+    await expect(manager.getByRole("button", { name: rootName, exact: true })).toBeVisible();
+    await expect(manager.getByRole("button", { name: childName, exact: true })).toBeVisible();
+    await manager.getByRole("button", { name: "مسح البحث", exact: true }).click();
+
+    // Browser history restores the selection from the previous deep-link entry.
+    await manager.getByRole("button", { name: rootName, exact: true }).click();
+    await expect.poll(() => new URL(manager.url()).searchParams.get("category")).toBe(rootId);
+    await manager.goBack();
+    await expect.poll(() => new URL(manager.url()).searchParams.get("category")).toBe(childId);
+    await expect(manager.getByRole("heading", { name: childName, exact: true })).toBeVisible();
+
+    // Manager sees the real base-price and stock projection for the seeded local product.
+    await manager.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
+    const managerCatalog = manager.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });
+    await expect(managerCatalog).toBeVisible({ timeout: 30_000 });
+    const managerProductRow = managerCatalog.getByRole("row", { name: /P2 Local E2E Product/ });
+    await expect(managerProductRow).toBeVisible();
+    await expect(managerCatalog.getByRole("columnheader", { name: "السعر الأساسي", exact: true })).toBeVisible();
+    const managerProductCells = await managerProductRow.locator("td").allInnerTexts();
+    expect(managerProductCells).toHaveLength(7);
+    const managerPriceText = managerProductCells[2].trim();
+    expect(managerPriceText).not.toBe("");
+    expect(managerPriceText).not.toBe("غير متاح");
+
+    // Archive/restore an independent empty root; the active parent-child product tree remains intact.
+    const archiveRootName = "P2 UI ARCHIVE " + suffix;
+    await manager.getByRole("button", { name: "تصنيف رئيسي", exact: true }).click();
+    const archiveNameInput = manager.getByLabel("اسم التصنيف");
+    await archiveNameInput.fill(archiveRootName);
+    await archiveNameInput.locator("xpath=ancestor::form").getByRole("button", { name: "حفظ", exact: true }).click();
+    await expect(manager.getByRole("heading", { name: archiveRootName, exact: true })).toBeVisible({ timeout: 30_000 });
+    manager.once("dialog", (dialog) => { void dialog.accept(); });
+    await manager.getByRole("button", { name: "أرشفة التصنيف", exact: true }).click();
+    await expect(manager.locator(".admin-category-status")).toHaveText("مؤرشف", { timeout: 30_000 });
+    await expect(manager.getByRole("button", { name: "استعادة التصنيف", exact: true })).toBeVisible();
+    await manager.getByRole("button", { name: "استعادة التصنيف", exact: true }).click();
+    await expect(manager.locator(".admin-category-status")).toHaveText("نشط", { timeout: 30_000 });
+
+    // Staff may read the tree and stock projection but cannot edit categories or see prices.
+    staffContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const staff = await staffContext.newPage();
+    const staffErrors: string[] = [];
+    staff.on("pageerror", (error) => staffErrors.push(error.message));
+    await signIn(staff, requiredEnv("E2E_STAFF_EMAIL"), requiredEnv("E2E_STAFF_PASSWORD"));
+    await staff.goto("/admin/categories?category=" + encodeURIComponent(childId));
+    await expect(staff.getByRole("heading", { name: "التصنيفات الرئيسية والفرعية", exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(staff.getByRole("heading", { name: childName, exact: true })).toBeVisible();
+    await expect(staff.getByRole("button", { name: "تصنيف رئيسي", exact: true })).toHaveCount(0);
+    await expect(staff.getByRole("button", { name: /إضافة فرع تحت هذا الأب/ })).toHaveCount(0);
+    await staff.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
+    const staffCatalog = staff.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });
+    await expect(staffCatalog).toBeVisible({ timeout: 30_000 });
+    await expect(staffCatalog.getByRole("columnheader", { name: "السعر الأساسي", exact: true })).toHaveCount(0);
+    await expect(staff.getByText("السعر الأساسي غير معروض وفق صلاحية الدور.", { exact: false })).toBeVisible();
+    await expect(staffCatalog.getByRole("columnheader", { name: "على اليد", exact: true })).toBeVisible();
+    const staffProductRow = staffCatalog.getByRole("row", { name: /P2 Local E2E Product/ });
+    await expect(staffProductRow).toBeVisible();
+    await expect(staffProductRow).not.toContainText(managerPriceText);
+    await expect(staffProductRow).toContainText(/100/);
+
+    // Customer direct navigation is blocked before the administrative category screen renders.
+    customerContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const customer = await customerContext.newPage();
+    const customerErrors: string[] = [];
+    customer.on("pageerror", (error) => customerErrors.push(error.message));
+    await signIn(customer, requiredEnv("E2E_EMAIL"), requiredEnv("E2E_PASSWORD"));
+    await customer.goto("/admin/categories");
+    await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة", exact: true })).toBeVisible();
+    await expect(customer.getByRole("heading", { name: "التصنيفات الرئيسية والفرعية", exact: true })).toHaveCount(0);
+
     for (const width of [360, 1280]) {
       await manager.setViewportSize({ width, height: 900 });
       const dimensions = await manager.evaluate(() => ({
@@ -117,6 +221,8 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     }
 
     expect(browserErrors, "The mounted category workspace must not throw browser runtime errors.").toEqual([]);
+    expect(staffErrors, "The staff category projection must not throw browser runtime errors.").toEqual([]);
+    expect(customerErrors, "The customer denial route must not throw browser runtime errors.").toEqual([]);
     const proof = {
       result: "PASS",
       browserResult: "BROWSER_PROVEN",
@@ -124,6 +230,24 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
       environment: "disposable-local-supabase-postgresql-17-only",
       route: "/admin/categories",
       role: "manager",
+      roleChecks: {
+        staffCanOpenCategories: true,
+        staffCannotCreateOrRenameOrArchive: true,
+        staffBasePriceHidden: true,
+        staffInventoryVisible: true,
+        customerDirectRouteDenied: true,
+      },
+      categoryNavigation: {
+        searchPreservesParentContext: true,
+        browserBackRestoresSelection: true,
+        archiveRestoreRoundTrip: true,
+      },
+      priceInventoryProjection: {
+        managerBasePriceVisible: true,
+        staffBasePriceHidden: true,
+        staffQuantityOnHandVisible: true,
+        fixtureProductRestored: true,
+      },
       rootCategory: { name: rootName, id: rootId, persistedAndReloaded: true },
       childCategory: { name: childName, id: childId, persistedParentId: rootId, parentContextCreation: true },
       serverBackedParentAndPathAfterReload: true,
@@ -140,6 +264,20 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
       contentType: "application/json",
     });
   } finally {
+    if (fixtureProductCategoryChanged && originalProductCategoryId !== null) {
+      await sql.unsafe(
+        "update public.products set category_id=$1::uuid where id=$2::uuid and organization_id=$3::uuid",
+        [originalProductCategoryId, fixtureProductId, fixtureOrganizationId],
+      ).catch(() => undefined);
+    } else if (fixtureProductCategoryChanged) {
+      await sql.unsafe(
+        "update public.products set category_id=null where id=$1::uuid and organization_id=$2::uuid",
+        [fixtureProductId, fixtureOrganizationId],
+      ).catch(() => undefined);
+    }
+    await sql.end({ timeout: 2 }).catch(() => undefined);
     await managerContext.close().catch(() => undefined);
+    await staffContext?.close().catch(() => undefined);
+    await customerContext?.close().catch(() => undefined);
   }
 });
