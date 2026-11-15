@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Category, ProductWithInventory } from "@/lib/types";
 import { AdminCategoryTree } from "./AdminCategoryTree";
 
@@ -323,7 +323,7 @@ describe("AdminCategoryTree", () => {
   it("paginates category products through the existing reader and opens a product in the existing workspace", async () => {
     const first = catalogProduct();
     const secondId = "44444444-4444-4444-8444-444444444444";
-    const second = catalogProduct({ id: secondId, name: "منتج الصفحة الثانية", item_code: "CAT-43" });
+    const second = catalogProduct({ id: secondId, name: "منتج الصفحة الثانية", item_code: "CAT-43", inventory: { product_id: secondId, warehouse_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", quantity_on_hand: 8, quantity_reserved: 2, quantity_available: 6, reorder_point: 5 } });
     mocks.fetchAdminProductsPage
       .mockResolvedValueOnce({ items: [first], page: 1, pageSize: 40, hasNextPage: true })
       .mockResolvedValueOnce({ items: [second], page: 2, pageSize: 40, hasNextPage: false });
