@@ -142,6 +142,8 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await manager.getByRole("button", { name: "مسح البحث", exact: true }).click();
 
     // Browser history restores the selection from the previous deep-link entry.
+    await manager.getByRole("button", { name: childName, exact: true }).click();
+    await expect.poll(() => new URL(manager.url()).searchParams.get("category")).toBe(childId);
     await manager.getByRole("button", { name: rootName, exact: true }).click();
     await expect.poll(() => new URL(manager.url()).searchParams.get("category")).toBe(rootId);
     await manager.goBack();
@@ -168,6 +170,7 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await archiveNameInput.fill(archiveRootName);
     await archiveNameInput.locator("xpath=ancestor::form").getByRole("button", { name: "حفظ", exact: true }).click();
     await expect(manager.getByRole("heading", { name: archiveRootName, exact: true })).toBeVisible({ timeout: 30_000 });
+    await manager.getByRole("tab", { name: "نظرة عامة", exact: true }).click();
     manager.once("dialog", (dialog) => { void dialog.accept(); });
     await manager.getByRole("button", { name: "أرشفة التصنيف", exact: true }).click();
     await expect(manager.locator(".admin-category-status")).toHaveText("مؤرشف", { timeout: 30_000 });
@@ -186,6 +189,8 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await expect(staff.getByRole("heading", { name: childName, exact: true })).toBeVisible();
     await expect(staff.getByRole("button", { name: "تصنيف رئيسي", exact: true })).toHaveCount(0);
     await expect(staff.getByRole("button", { name: /إضافة فرع تحت هذا الأب/ })).toHaveCount(0);
+    await expect(staff.getByRole("button", { name: "حفظ الاسم", exact: true })).toHaveCount(0);
+    await expect(staff.getByRole("button", { name: "أرشفة التصنيف", exact: true })).toHaveCount(0);
     await staff.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
     const staffCatalog = staff.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });
     await expect(staffCatalog).toBeVisible({ timeout: 30_000 });
@@ -206,6 +211,20 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await customer.goto("/admin/categories");
     await expect(customer.getByRole("heading", { name: "لا تملك صلاحية الإدارة", exact: true })).toBeVisible();
     await expect(customer.getByRole("heading", { name: "التصنيفات الرئيسية والفرعية", exact: true })).toHaveCount(0);
+
+    // Restore and read back the original product/category relationship before evidence is written.
+    const restoredProductRows = await sql.unsafe(
+      "update public.products set category_id=$1::uuid where id=$2::uuid and organization_id=$3::uuid returning id",
+      [originalProductCategoryId, fixtureProductId, fixtureOrganizationId],
+    );
+    expect(restoredProductRows, "The disposable product fixture must be restored before proof generation.").toHaveLength(1);
+    const restoredProductState = await sql.unsafe(
+      "select category_id from public.products where id=$1::uuid and organization_id=$2::uuid",
+      [fixtureProductId, fixtureOrganizationId],
+    );
+    expect(restoredProductState).toHaveLength(1);
+    expect((restoredProductState[0].category_id ?? null) as string | null).toBe(originalProductCategoryId);
+    fixtureProductCategoryChanged = false;
 
     for (const width of [360, 1280]) {
       await manager.setViewportSize({ width, height: 900 });
