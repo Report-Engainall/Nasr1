@@ -23,6 +23,7 @@ The active Supabase project was queried using SELECT statements only. No rows we
 | Check | Live result |
 |---|---:|
 | Public storefront publication | Enabled; main warehouse linked |
+| Price visibility on cards / cart / orders | Enabled / enabled / enabled |
 | Active categories | 19 |
 | Active products | 114 |
 | Products per active category | 6 |
@@ -42,7 +43,7 @@ The active Supabase project was queried using SELECT statements only. No rows we
 
 The 3,235 units are still the owner-authorized editable opening estimate marked pending physical count; they are not independently verified physical stock. Product prices are market-reference selling prices, not supplier acquisition costs or invoice-backed landed cost.
 
-The public catalog RPC returned all 114 products in two pages and the 19-category RPC returned all active categories. All 100 products in the first read page had a positive server display price and positive available quantity. Page 2 contains the remaining 14 products. The storefront therefore has real published catalog, server-derived price and availability data; it is not a local mock catalog.
+The public catalog RPC returned all 114 products in two pages and the 19-category RPC returned all active categories. All 100 products in the first read page had a positive server display price and positive available quantity. Page 2 contains the remaining 14 products. The live public settings RPC also returns `show_price_on_cards=true`, `show_price_in_cart=true`, and `show_price_in_orders=true`; the user-facing card, cart and order pricing policies therefore permit display. The storefront therefore has real published catalog, server-derived price and availability data; it is not a local mock catalog.
 
 A repository asset-tree check found no product image files suitable for linking. The current storefront uses its existing package-icon fallback when `image_url` is null. Do not assign generated/stock imagery as if it were the actual manufacturer pack, and do not insert hotlinks or guessed Storage URLs. Complete image linking only with genuine product images through the existing authenticated same-tenant uploader.
 
@@ -53,7 +54,8 @@ A repository asset-tree check found no product image files suitable for linking.
 - The profile page exposes customer approval state. Newly self-registered customer accounts are `pending`; this is intentional.
 - The database `current_customer_can('orders.create')` gate denies pending, frozen, rejected and blocked direct customers. Do not remove or bypass this guard to make a test order pass.
 - The modern storefront checkout calls `validate_checkout_cart`, verifies server-side cart persistence through `sync_customer_cart`, then submits only product IDs/quantities and non-financial request fields to `submit_customer_order`. Server pricing, stock policy, authorization and idempotency remain authoritative. The persistent cart converts atomically with a matching committed order.
-- Read-only privilege checks confirmed `anon` cannot execute either `ensure_my_customer_account()` or `submit_customer_order(...)`; authenticated users can execute them subject to the functions' internal tenant, role, approval and request guards.
+- Read-only privilege checks confirmed `anon` cannot execute `ensure_my_customer_account()`, `submit_customer_order(...)`, or `set_admin_customer_status(...)`; authenticated users can execute them subject to the functions' internal tenant, role, approval and request guards.
+- The active `set_admin_customer_status(uuid,text,text,text)` definition permits `admin`, `manager`, and `customer_manager`; it enforces a tenant-scoped row lock, expected-current-status check, a 3–500-character reason, and a before/after audit event. The active `/admin/customers` UI exposes `إدارة دورة الحياة` and the pending-to-approved command `اعتماد العميل`.
 - The older `src/pages/store/CartPage.tsx` is not the active TanStack `/cart` route. Do not send buyers through that legacy page; active `src/routes/cart.tsx` and `src/routes/checkout.tsx` mount `Storefront`.
 
 ## What is and is not ready for the owner's trial
