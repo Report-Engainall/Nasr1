@@ -5913,3 +5913,18 @@ Implement the trusted free-provider balance and rotation contract only after ins
 - **Remaining category acceptance:** admin/staff/customer roles, nested search, back/forward and deep links, archive/restore UI, linked product detail and role-specific price/inventory display.
 - **Next:** continue those category-route gaps, then authenticated product media gallery receipt/role/tenant UAT. Keep updating only this cursor and the existing acceptance matrix; no parallel register.
 
+
+
+
+## P1 CATEGORY DETAIL PRICE / STOCK COMPONENT ACCEPTANCE — 2026-11-16
+
+- **Repository/branch:** `Report-Engainall/Nasr1` / `main`.
+- **Final tested code SHA:** `d88589e146a56f29ee3d8661a753b2975e146653`.
+- **Implementation scope:** added five component-integration tests to the existing `src/components/AdminCategoryTree.test.tsx` suite and added that test path to the existing P1 workflow push/PR path filters. No production component, API, RPC, SQL, migration, role, RLS, data, or deployment file was changed.
+- **Covered UI behavior:** admin/manager sees the base-price column and real projected price/stock values; staff sees warehouse stock fields without a price column or price value in the table DOM; malformed/negative warehouse evidence remains unavailable and is not rendered as zero/low/adequate; catalog read failure can be retried; pagination uses the existing category-scoped product reader; opening a product uses the existing product workspace callback.
+- **P1 exact-SHA evidence:** run [#43774365927](https://github.com/Report-Engainall/Nasr1/actions/runs/43774365927) — **SUCCESS on exact SHA `d88589e146a56f29ee3d8661a753b2975e146653`**. Vitest: 125/125 test files passed (including 12/12 tests in `AdminCategoryTree.test.tsx`); P1 strict TypeScript passed; production application build passed.
+- **Correction history:** the first run #43774143690 on ancestor SHA `c0a1fb153d5b120e279a14a60c0986a8eb76df38` exposed a test-harness-only missing import (`within`). The import was corrected in `d88589e146a56f29ee3d8661a753b2975e146653`; the corrected exact-SHA P1 run above passed all gates. No application runtime defect was identified by that failure.
+- **Explicit acceptance boundary:** these are React/jsdom component-integration proofs, not authenticated Chromium acceptance of the mounted category detail route. The dedicated category-detail browser check for authenticated admin/staff sessions, real isolated product fixtures, route transitions, and network receipts remains OPEN. The separate P2 run does not convert this component test into browser UAT.
+- **Price privacy boundary:** the component hides its base-price column from `staff` in the rendered table. However, existing migration `20261015210000_product_price_column_boundary.sql` authorizes `fetch_staff_products(uuid)` to active `admin/manager/staff` identities and returns `SETOF public.products`. This task does not assert that base-price fields are omitted from a staff RPC response or network payload. If staff must not receive that field, a separately reviewed server projection/grant contract and PG17 tenant/role denial tests are still required; a UI-only gate is not API security.
+- **Safety:** no production writes, migrations, Supabase configuration, Auth/RLS changes, live Storage, Vercel, Bolt, Lovable, paid service, or deployment actions occurred.
+- **Next acceptance boundary:** dedicated authenticated local-PG17 Chromium coverage for the category detail price/stock tab and an explicit decision/test for whether staff may receive base-price fields from `fetch_staff_products`. Keep these as OPEN until their exact-SHA evidence exists.
