@@ -1516,37 +1516,37 @@ P2 next action: define `view/create/edit/approve/reject/export/delete/manage` se
 
 ## Exact baseline
 
-- Repository: \`Report-Engainall/Nasr1\`, branch \`main\`.
-- Parent \`main\` SHA: \`e08f1d34a09ac21ab7d1b9a8a733c86bf564a91c\`.
-- Existing asset UI: \`src/components/CustomerAssetsPanel.tsx\`.
-- Existing migrations: \`20261109031735_customer_asset_registry_and_lifecycle.sql\` and \`20261109031915_customer_asset_history_tenant_visibility_and_status_guard.sql\`.
+- Repository: `Report-Engainall/Nasr1`, branch `main`.
+- Parent `main` SHA: `e08f1d34a09ac21ab7d1b9a8a733c86bf564a91c`.
+- Existing asset UI: `src/components/CustomerAssetsPanel.tsx`.
+- Existing migrations: `20261109031735_customer_asset_registry_and_lifecycle.sql` and `20261109031915_customer_asset_history_tenant_visibility_and_status_guard.sql`.
 - No additional database migration, RPC, table, policy, or project was created.
 
 ## Implemented in this source batch
 
-- Added \`src/components/CustomerMyDevicesPage.tsx\` as a customer-only, read-only page with Auth readiness, Login fallback and workspace key \`user.id + profileId + sessionRevision\`.
-- Added \`src/routes/my-devices.tsx\` for \`/my-devices\` and a customer service link labelled **أجهزتي وأصولي** from \`/profile\`.
-- Reads the RLS-filtered \`customer_assets\` list without sending \`customer_id\` or \`organization_id\`; related product/order/invoice lookups use only source IDs already returned by the RLS-filtered asset list.
-- Reads \`customer_asset_events\` without client tenant/customer filters and relies on the existing event RLS policy, including historical-owner visibility. The UI never renders the other owner's identity.
+- Added `src/components/CustomerMyDevicesPage.tsx` as a customer-only, read-only page with Auth readiness, Login fallback and workspace key `user.id + profileId + sessionRevision`.
+- Added `src/routes/my-devices.tsx` for `/my-devices` and a customer service link labelled **أجهزتي وأصولي** from `/profile`.
+- Reads the RLS-filtered `customer_assets` list without sending `customer_id` or `organization_id`; related product/order/invoice lookups use only source IDs already returned by the RLS-filtered asset list.
+- Reads `customer_asset_events` without client tenant/customer filters and relies on the existing event RLS policy, including historical-owner visibility. The UI never renders the other owner's identity.
 - Displays equipment name/manufacturer/model/serial, linked product/order/invoice references when readable, purchase/warranty/coverage dates, status, lifecycle and maintenance events, search, status filtering, loading/empty/error/warning states and refresh.
 - No create/edit/delete, maintenance mutation or ownership-transfer action is available to the customer. Internal asset notes, prices, costs and margins are not selected.
-- Updated the existing \`REF-CUSTOMER-ASSET-001\` row in the canonical acceptance matrix; no parallel task register was created.
+- Updated the existing `REF-CUSTOMER-ASSET-001` row in the canonical acceptance matrix; no parallel task register was created.
 
 ## Route generation boundary
 
-TanStack Start's existing Vite file-based router remains authoritative. The route file follows the existing conventions and the tracked \`routeTree.gen.ts\` was synchronized to the generator's current route/type shape so \`/my-devices\` is registered and type-addressable. The actual TanStack generator was **NOT_RUN** in this tool-only session (no online local execution device or repository shell was available); the first local Vite build must confirm the generator reproduces the same output.
+TanStack Start's existing Vite file-based router remains authoritative. The route file follows the existing conventions and the tracked `routeTree.gen.ts` was synchronized to the generator's current route/type shape so `/my-devices` is registered and type-addressable. The actual TanStack generator was **NOT_RUN** in this tool-only session (no online local execution device or repository shell was available); the first local Vite build must confirm the generator reproduces the same output.
 
 ## Verification boundary
 
 - Source-anchor checks, route registration checks, forbidden-field/mutation checks and canonical CSV integrity passed during preparation.
 - TypeScript, lint, production build, unit tests, Playwright/browser, real customer Auth, database/RLS negative tests and hosted acceptance: **NOT_RUN** on this SHA.
 - No database operation or external deployment was performed.
-- Acceptance matrix: \`253\` data rows; \`253\` unique task IDs; \`0\` malformed rows.
+- Acceptance matrix: `253` data rows; `253` unique task IDs; `0` malformed rows.
 
 ## NEXT ACTION
 
-1. On the approved local source environment, run \`npm run typecheck\`, \`npm run lint\` and \`npm run build\`; confirm the TanStack generator preserves the new route tree.
-2. Exercise \`/my-devices\` using an approved non-production customer identity: empty list, populated asset with/without source references, status/search/filter/refresh, event history, historical ownership events, and account A → sign-out → B reset.
+1. On the approved local source environment, run `npm run typecheck`, `npm run lint` and `npm run build`; confirm the TanStack generator preserves the new route tree.
+2. Exercise `/my-devices` using an approved non-production customer identity: empty list, populated asset with/without source references, status/search/filter/refresh, event history, historical ownership events, and account A → sign-out → B reset.
 3. P2 must independently accept current/historical owner visibility, cross-customer/cross-tenant denial, immutable event writes and grants on the approved Supabase project. DLV-001 and DLV-002 remain OPEN; no browser or server authorization PASS is claimed here.
 
 ---
@@ -3258,100 +3258,100 @@ Continue with the next P3-owned Section 52/remaining Section 53–56 and 59–63
 
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — ORGANIZATION-WIDE CUSTOMER SERVICE DESK
 
-- Repository: \`Report-Engainall/Nasr1\`; branch: \`main\` only.
-- Main head before this checkpoint/documentation update: \`0f45e6d5c62c5ba7cee907160a7f7c08033aa637\`.
-- Latest product-code commit: \`1a49cf47446c85ae33dce93b456026b723af1707\`.
-- Acceptance-matrix commit for this slice: \`0f45e6d5c62c5ba7cee907160a7f7c08033aa637\`.
-- Completed action: \`BODY-COMPLETION-ON-MAIN-010\`. The preceding \`BODY-COMPLETION-ON-MAIN-009\` SLA/assignment/escalation slice is preserved. All source commits are sequential on official \`main\`; no parallel branch, PR or secondary repo was created.
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Main head before this checkpoint/documentation update: `0f45e6d5c62c5ba7cee907160a7f7c08033aa637`.
+- Latest product-code commit: `1a49cf47446c85ae33dce93b456026b723af1707`.
+- Acceptance-matrix commit for this slice: `0f45e6d5c62c5ba7cee907160a7f7c08033aa637`.
+- Completed action: `BODY-COMPLETION-ON-MAIN-010`. The preceding `BODY-COMPLETION-ON-MAIN-009` SLA/assignment/escalation slice is preserved. All source commits are sequential on official `main`; no parallel branch, PR or secondary repo was created.
 
 ## Product functionality delivered
 
 ### Organization-wide customer service work queue
-- Added \`supabase/migrations/20261105210000_customer_service_desk.sql\` with \`get_customer_service_work_queue\`, an active same-organization staff RPC returning the canonical case and linked-task records without cost, margin, invoice or pricing fields.
-- The queue uses keyset pagination ordered by \`created_at,id\`, with a bounded page size and explicit continuation cursor. It supports active/all/status, priority, assigned/unassigned, overdue-only and bounded search across case code, subject, customer business name and customer code.
+- Added `supabase/migrations/20261105210000_customer_service_desk.sql` with `get_customer_service_work_queue`, an active same-organization staff RPC returning the canonical case and linked-task records without cost, margin, invoice or pricing fields.
+- The queue uses keyset pagination ordered by `created_at,id`, with a bounded page size and explicit continuation cursor. It supports active/all/status, priority, assigned/unassigned, overdue-only and bounded search across case code, subject, customer business name and customer code.
 - The server returns organization-wide workload counts for active cases, overdue first responses, overdue resolutions, unassigned cases, urgent cases and high-priority cases. These summary counts are independent of the current page and filters; the visible queue rows remain filter-scoped.
 - Each row carries customer identity, case classification and content, status/priority, creator, first-response and SLA deadlines, escalation level, linked task, task due date and current assignee. It exposes no finance values.
-- Added \`src/lib/customer-service-desk.ts\` with strict envelope, UUID, date, status, priority, pagination and summary validation.
-- Added \`src/components/CustomerServiceDesk.tsx\`: organization-wide Arabic RTL queue, search, status/priority/assignment/overdue filters, workload metrics, paginated load-more, case status workflow, manager assignment/deadline/escalation controls and Task Center navigation for the canonical linked task.
-- Registered the new \`/admin/service-desk\` workspace in \`src/components/AghbariApp.tsx\`, \`src/routes/admin_.service-desk.tsx\` and \`src/routeTree.gen.ts\`; added responsive styles in \`src/styles.css\`.
+- Added `src/lib/customer-service-desk.ts` with strict envelope, UUID, date, status, priority, pagination and summary validation.
+- Added `src/components/CustomerServiceDesk.tsx`: organization-wide Arabic RTL queue, search, status/priority/assignment/overdue filters, workload metrics, paginated load-more, case status workflow, manager assignment/deadline/escalation controls and Task Center navigation for the canonical linked task.
+- Registered the new `/admin/service-desk` workspace in `src/components/AghbariApp.tsx`, `src/routes/admin_.service-desk.tsx` and `src/routeTree.gen.ts`; added responsive styles in `src/styles.css`.
 - The queue reuses existing case/task rows and existing manager/notification commands; it does not create duplicate case or task records.
 
 ### Source commits
-- Tenant queue migration: \`90718728ebe372f1b68aa7bc26e41a5eb06b37ab\`.
-- Typed queue client: \`35ea4a5cba587c913bd841f8c33966ac9247efc6\`.
-- Queue UI: \`1969a3017ddf0f277ff34f736d700205e30eadb8\`.
-- Button/navigation interaction correction: \`8cfef88ee82cfbf3f0aae80c02bf4723bbca6601\`.
-- Admin navigation and workspace dispatch: \`27f39a6d0e44fcfa3ada99916d11b0bd39dccd90\`.
-- Route file: \`fd028361f2d2473d55f35b0413c3298618dbfbee\`.
-- Responsive queue layout: \`1a44302b3e19ad4d2ed77df86b39775456db6bd6\`.
-- Generated route registry: \`1a49cf47446c85ae33dce93b456026b723af1707\`.
-- Acceptance leaf: \`DLV-010-CUSTOMER-SERVICE-DESK-001\`, matrix commit \`0f45e6d5c62c5ba7cee907160a7f7c08033aa637\`.
+- Tenant queue migration: `90718728ebe372f1b68aa7bc26e41a5eb06b37ab`.
+- Typed queue client: `35ea4a5cba587c913bd841f8c33966ac9247efc6`.
+- Queue UI: `1969a3017ddf0f277ff34f736d700205e30eadb8`.
+- Button/navigation interaction correction: `8cfef88ee82cfbf3f0aae80c02bf4723bbca6601`.
+- Admin navigation and workspace dispatch: `27f39a6d0e44fcfa3ada99916d11b0bd39dccd90`.
+- Route file: `fd028361f2d2473d55f35b0413c3298618dbfbee`.
+- Responsive queue layout: `1a44302b3e19ad4d2ed77df86b39775456db6bd6`.
+- Generated route registry: `1a49cf47446c85ae33dce93b456026b723af1707`.
+- Acceptance leaf: `DLV-010-CUSTOMER-SERVICE-DESK-001`, matrix commit `0f45e6d5c62c5ba7cee907160a7f7c08033aa637`.
 
 ## Explicit delivery and acceptance boundary
 
-- Source implementation and documentation are committed to GitHub \`main\`.
+- Source implementation and documentation are committed to GitHub `main`.
 - The new service desk migration has not been applied to any database. No Supabase, local, hosted, production or Bolt database was connected or modified.
 - No build, tests, lint, code scan, CI, browser acceptance or Bolt Preview was run. This follows the owner's instruction to prioritize product-body implementation and reserve integration/runtime acceptance for Bolt New. No PASS is claimed.
-- The new matrix leaf remains \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\`.
+- The new matrix leaf remains `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING`.
 - No Vercel build, deployment, preview or credit consumption occurred. No paid provider, subscription or new paid dependency was added.
 - GitHub commit history is the delivery record. Separate push-notification delivery depends on repository watch/notification preferences; do not claim a notification was delivered unless GitHub reports it.
 
 ## Next product action
 
-- \`NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-011\`.
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-011`.
 - Add secure customer-side service case visibility and response workflow: authenticated customer contacts can view only their own organization's cases, provide a bounded reply/update, receive case status/deadline notifications, and see public case history without exposing internal escalation notes, employee-only comments or management metadata. Preserve the staff case timeline, tenant boundaries, data-minimization rules and single canonical task. Implement with the existing authentication/notification/customer portal patterns; no paid service and no broad test loop during this phase.
 
 ---
 
 # LIVE EXECUTION CHECKPOINT — 2026-11-05 — CUSTOMER SERVICE SLA, ASSIGNMENT AND ESCALATION
 
-- Repository: \`Report-Engainall/Nasr1\`; branch: \`main\` only.
-- Main head before this checkpoint/documentation update: \`c57bf623cab0c99223c84393b4b36562ead19695\`.
-- Latest product-code commit: \`fe1d3961e6ab5db8073d3d578deba4617c5ae0b4\`.
-- Acceptance-matrix commit for this slice: \`c57bf623cab0c99223c84393b4b36562ead19695\`.
-- Completed action: \`BODY-COMPLETION-ON-MAIN-009\`. All source changes were committed sequentially to official \`main\`; no feature branch, pull request, parallel repository or Vercel operation was used.
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only.
+- Main head before this checkpoint/documentation update: `c57bf623cab0c99223c84393b4b36562ead19695`.
+- Latest product-code commit: `fe1d3961e6ab5db8073d3d578deba4617c5ae0b4`.
+- Acceptance-matrix commit for this slice: `c57bf623cab0c99223c84393b4b36562ead19695`.
+- Completed action: `BODY-COMPLETION-ON-MAIN-009`. All source changes were committed sequentially to official `main`; no feature branch, pull request, parallel repository or Vercel operation was used.
 
 ## Product functionality delivered
 
 ### Customer service SLA policy and deadlines
-- Added \`supabase/migrations/20261105200000_customer_service_case_sla.sql\`.
+- Added `supabase/migrations/20261105200000_customer_service_case_sla.sql`.
 - Added organization-scoped priority policies for first response and resolution targets. Manager/admin configuration is persisted and audited; policy changes affect new cases, while existing cases retain their recorded deadline snapshots unless a manager explicitly reschedules them.
 - Default targets for organizations without overrides: urgent 15/240 minutes, high 60/1,440 minutes, medium 240/4,320 minutes, and low 480/10,080 minutes (first response / resolution).
-- New cases receive server-generated \`response_due_at\` and \`resolution_due_at\`. Existing cases receive a one-time deadline backfill based on their creation time and the applicable policy/default.
-- The linked operational sales task receives the resolution deadline as \`due_at\`; the corresponding manager override is stored in task payload so source reconciliation does not silently reset it. Existing linked case tasks with no due date are backfilled.
+- New cases receive server-generated `response_due_at` and `resolution_due_at`. Existing cases receive a one-time deadline backfill based on their creation time and the applicable policy/default.
+- The linked operational sales task receives the resolution deadline as `due_at`; the corresponding manager override is stored in task payload so source reconciliation does not silently reset it. Existing linked case tasks with no due date are backfilled.
 - First-response timestamp is recorded by the database when staff move a case into active handling, waiting-for-customer, resolved or closed.
 
 ### Manager assignment and escalation
 - Added tenant-scoped case-operations read RPC and manager-only SLA policy/read/write RPCs.
 - Added one manager command to reassign/unassign the case's existing linked task, reschedule response and resolution deadlines, and optionally escalate with a mandatory reason.
-- Assignee validation reuses the existing canonical \`assign_operational_task\` command. This preserves active same-tenant/role checks, audit behavior and the existing assignment-notification trigger; no second assignment queue was introduced.
+- Assignee validation reuses the existing canonical `assign_operational_task` command. This preserves active same-tenant/role checks, audit behavior and the existing assignment-notification trigger; no second assignment queue was introduced.
 - Resolution deadline updates synchronize with the linked task and persist the same manager override.
 - Assignment changes and SLA changes are recorded in append-only case events and audit logs. Assignment notifications use the current in-app task notification flow; deadline updates notify the assigned employee; escalation sends in-app notifications to active same-organization administrators/managers, excluding the actor.
 - Escalation level and timestamp are preserved on the case. The source command requires an escalation reason.
 - The Customer 360 case card displays response/resolution deadlines, first-response evidence, overdue state and escalation state. Managers receive assignment and deadline controls, a reasoned escalation action and a per-priority SLA policy editor. The controls preserve second-level precision when submitting deadlines.
 
 ### Source commits
-- SLA migration: \`e22c97d46d32a4ec258680826f45304cbfd1d3e7\`.
-- Typed case API/client: \`e61bc5d02746f02dcbeb0d6e9d84820ee991e086\`.
-- Case SLA manager UI: \`6617b74342824431e0e8ba5bdca9095d70c62cce\`.
-- Responsive SLA and manager styles: \`0c3a518f66ed7a4ad5c052a78f9da3d22b0e448e\`.
-- Existing-case/task deadline backfill and overdue-escalation correction: \`79ab62f47bd41fe3ceecf641a790e4a11e0cccc1\`.
-- Datetime precision correction: \`fe1d3961e6ab5db8073d3d578deba4617c5ae0b4\`.
-- Acceptance leaf appended to the existing matrix: \`DLV-010-CUSTOMER-SERVICE-CASE-SLA-001\`, committed in \`c57bf623cab0c99223c84393b4b36562ead19695\`.
+- SLA migration: `e22c97d46d32a4ec258680826f45304cbfd1d3e7`.
+- Typed case API/client: `e61bc5d02746f02dcbeb0d6e9d84820ee991e086`.
+- Case SLA manager UI: `6617b74342824431e0e8ba5bdca9095d70c62cce`.
+- Responsive SLA and manager styles: `0c3a518f66ed7a4ad5c052a78f9da3d22b0e448e`.
+- Existing-case/task deadline backfill and overdue-escalation correction: `79ab62f47bd41fe3ceecf641a790e4a11e0cccc1`.
+- Datetime precision correction: `fe1d3961e6ab5db8073d3d578deba4617c5ae0b4`.
+- Acceptance leaf appended to the existing matrix: `DLV-010-CUSTOMER-SERVICE-CASE-SLA-001`, committed in `c57bf623cab0c99223c84393b4b36562ead19695`.
 
 ## Explicit delivery and acceptance boundary
 
-- Application code, SQL migration and acceptance mapping are committed on GitHub \`main\`.
+- Application code, SQL migration and acceptance mapping are committed on GitHub `main`.
 - The new migration has **not** been applied to any local, hosted, production or Bolt database. No database was connected or altered in this session.
 - No build, test suite, lint, code scan, CI run, browser acceptance or Bolt Preview was executed in this implementation batch, by the owner's explicit instruction to prioritize product-body completion and leave synchronization/runtime verification for Bolt New. No PASS or runtime acceptance is claimed.
-- The new acceptance leaf is \`IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING\` until Bolt New applies migrations and performs the connected runtime acceptance.
+- The new acceptance leaf is `IMPLEMENTED_ON_MAIN / ACCEPTANCE_PENDING` until Bolt New applies migrations and performs the connected runtime acceptance.
 - No Vercel build, deployment, preview, API operation or free-credit usage occurred. No paid provider, paid AI service or additional subscription was introduced.
 - GitHub commit history is the code-delivery record. Delivery of separate GitHub push notifications depends on the account's repository watch/notification settings; no unsupported notification-delivery claim is made.
 
 ## Next product action
 
-- \`NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-010\`.
-- Build the organization-wide customer service desk from the existing case/task records: manager and permitted staff queue; filters for status, priority, assignee and SLA overdue; due-soon/overdue workload summaries; case-to-task navigation; and case ownership/next-action visibility. Keep the Customer 360 case view as the customer-specific detail, reuse the same RPC and task assignment contracts, and avoid duplicate case/task records. Continue source implementation on \`main\`; do not begin broad verification or consume Vercel credits.
+- `NEXT_ACTION_ID: BODY-COMPLETION-ON-MAIN-010`.
+- Build the organization-wide customer service desk from the existing case/task records: manager and permitted staff queue; filters for status, priority, assignee and SLA overdue; due-soon/overdue workload summaries; case-to-task navigation; and case ownership/next-action visibility. Keep the Customer 360 case view as the customer-specific detail, reuse the same RPC and task assignment contracts, and avoid duplicate case/task records. Continue source implementation on `main`; do not begin broad verification or consume Vercel credits.
 
 ---
 
@@ -5950,10 +5950,10 @@ Implement the trusted free-provider balance and rotation contract only after ins
 
 ## AUTHORIZATION ARCHITECTURE DECISION — 2026-11-16
 
-- **Decision record:** \`docs/execution/AGHBARI_AUTHORIZATION_ARCHITECTURE_V2_2026-11-16.md\`.
-- **Repository:** \`Report-Engainall/Nasr1\`; branch: \`main\`.
-- **Main immediately before decision record:** \`d2b6e68cdbad66d68adc85f112741e7215dc2707\`.
-- **Architecture decision documentation commit:** \`141e307c165d6fd5847cb2e30f2e197d52659af0\`.
+- **Decision record:** `docs/execution/AGHBARI_AUTHORIZATION_ARCHITECTURE_V2_2026-11-16.md`.
+- **Repository:** `Report-Engainall/Nasr1`; branch: `main`.
+- **Main immediately before decision record:** `d2b6e68cdbad66d68adc85f112741e7215dc2707`.
+- **Architecture decision documentation commit:** `141e307c165d6fd5847cb2e30f2e197d52659af0`.
 - **Current main at this checkpoint update:** to be confirmed by the resulting checkpoint commit.
 - **Change class:** documentation-only. No application source, SQL, migration, RLS, Auth, role, grant, customer tier, live data, secret, deployment or production setting was changed.
 - **Tests:** NOT RUN for this documentation-only decision. No application or database acceptance is claimed.
@@ -5964,13 +5964,13 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 
 ### Current-main source observations
 
-- Existing supported role contract remains six IDs: \`admin\`, \`manager\`, \`staff\`, \`accountant\`, \`customer_manager\`, \`customer\`. The extra specification role cards are explanatory, not assignable server roles.
-- \`manager\` is broader than sales management; \`staff\` remains a generic operational role and must not be auto-mapped to sales or warehouse.
+- Existing supported role contract remains six IDs: `admin`, `manager`, `staff`, `accountant`, `customer_manager`, `customer`. The extra specification role cards are explanatory, not assignable server roles.
+- `manager` is broader than sales management; `staff` remains a generic operational role and must not be auto-mapped to sales or warehouse.
 - The TypeScript page/operation matrix is explanatory and does not constitute a canonical server capability registry.
-- Settings mounts both \`OrganizationRoleManagement\` and \`CustomerManagerRoleAssignment\`; the editors call the same organization-role RPC, while the generic editor omits \`customer_manager\`. Consolidate to one role editor and protect saves against stale role snapshots/revisions before expanding role assignment.
+- Settings mounts both `OrganizationRoleManagement` and `CustomerManagerRoleAssignment`; the editors call the same organization-role RPC, while the generic editor omits `customer_manager`. Consolidate to one role editor and protect saves against stale role snapshots/revisions before expanding role assignment.
 - Existing role RPC protections (tenant scope, self-change denial, last-admin protection, serialized mutation, audit) must be preserved.
-- Current customer business tiers and price tiers include \`retail\`, \`wholesale\`, \`vip\`, \`base\`; do not equate \`vip\` with “جملة الجملة” without a separately approved mapping.
-- Existing execution evidence identifies a staff price projection gap: \`fetch_staff_products(uuid)\` returns \`SETOF public.products\` to staff as well as admin/manager although the category UI hides the price column. Field-level API redaction is not proven; close this with a restricted server projection and response-key tests.
+- Current customer business tiers and price tiers include `retail`, `wholesale`, `vip`, `base`; do not equate `vip` with “جملة الجملة” without a separately approved mapping.
+- Existing execution evidence identifies a staff price projection gap: `fetch_staff_products(uuid)` returns `SETOF public.products` to staff as well as admin/manager although the category UI hides the price column. Field-level API redaction is not proven; close this with a restricted server projection and response-key tests.
 - The customer-manager directory's non-financial projection is an existing pattern to preserve and extend.
 
 ### Implementation boundaries
@@ -5978,8 +5978,8 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 1. Preserve legacy role semantics until parity is documented and tested. No automatic reassignment to new roles.
 2. Do not create new roles, policy tables, migrations, grants or RLS rules as part of this decision-only commit.
 3. Reconcile logical entities with the actual schema before authoring additive migrations; avoid duplicate permission catalogs or membership models.
-4. Keep the existing security queue in order. This architecture decision does not supersede the current P2/API-OPS authorization work or the recorded next task \`AUTHZ-GL-DRAFT-STAFF-DENIAL-001\`.
-5. The next architecture implementation slice, after the currently active security acceptance is resolved, is \`AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001\`: capability dictionary, legacy-role mapping, parity tests and no-access-change baseline.
+4. Keep the newest tail-most execution checkpoint and its current NEXT_ACTION_ID in force; this decision does not reorder the active queue. Re-resolve the live next action and tested code SHA before implementation.
+5. The next architecture implementation slice, after the currently active security acceptance is resolved, is `AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001`: capability dictionary, legacy-role mapping, parity tests and no-access-change baseline.
 6. Require exact-SHA unit/type/build and PostgreSQL 17/RPC/RLS/Chromium evidence for each implementation slice. Denial acceptance must compare before/after business, audit, idempotency, finance and inventory snapshots.
 
 ### Delivery status
