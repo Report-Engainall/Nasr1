@@ -20,6 +20,7 @@ on:
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
       - "scripts/test-ai-prompt-governance.mjs"
+      - "scripts/test-runtime-error-log.mjs"
       - "scripts/test-customer-receivable-aging-identity.mjs"
       - "e2e/**"
       - "playwright.config.ts"
@@ -717,6 +718,8 @@ jobs:
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-category-tree.spec.ts"
       - name: Test AI prompt lifecycle, four-eyes, tenant isolation and append-only audit
         run: node scripts/test-ai-prompt-governance.mjs
+      - name: Test durable runtime error log, tenant isolation and audited triage on local PostgreSQL 17
+        run: node scripts/test-runtime-error-log.mjs
       - name: Verify exact-SHA Chromium and Storage acceptance proofs
         env:
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
