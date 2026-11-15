@@ -95,4 +95,29 @@ describe("admin access matrix UI", () => {
     expect(appSource).toContain("activeNavigationGroup.label");
   });
 
+
+  it("searches Arabic labels with diacritics and filters the all-role matrix by permitted scope", () => {
+    render(<AdminAccessMatrix />);
+    fireEvent.change(screen.getByRole("searchbox", { name: "بحث في الصفحات والعمليات" }), { target: { value: "الفَوَاتِير" } });
+    expect(screen.getByTestId("page-finance-staff")).toBeInTheDocument();
+    expect(screen.getByTestId("operation-finance_manage-accountant")).toBeInTheDocument();
+    expect(screen.queryByTestId("page-products-admin")).toBeNull();
+    fireEvent.change(screen.getByRole("combobox", { name: "تصفية الصلاحيات" }), { target: { value: "accountant" } });
+    expect(screen.getByTestId("page-finance-accountant")).toBeInTheDocument();
+    expect(screen.getByTestId("operation-finance_manage-accountant")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "بحث في الصفحات والعمليات" }), { target: { value: "لا يوجد تطابق بهذه العبارة" } });
+    expect(screen.getByText("لا توجد صلاحيات مطابقة للبحث والتصفية الحالية.")).toBeInTheDocument();
+  });
+
+  it("filters a selected role to denied pages and operations without changing policy", () => {
+    render(<AdminAccessMatrix />);
+    fireEvent.click(screen.getByRole("button", { name: "تفاصيل دور واحد" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "الدور محل المراجعة" }), { target: { value: "staff" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "بحث في الصفحات والعمليات" }), { target: { value: "الفَوَاتِير" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "تصفية الصلاحيات" }), { target: { value: "denied" } });
+    expect(screen.getByTestId("single-page-finance")).toHaveTextContent("ممنوع");
+    expect(screen.queryByTestId("single-page-products")).toBeNull();
+    expect(screen.getByText("إدارة الفواتير والتحصيل").closest("tr")).toHaveTextContent("ممنوع");
+  });
+
 });
