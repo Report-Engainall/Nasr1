@@ -284,7 +284,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'runtime error triage requires an active organization administrator or manager';
   END IF;
 
-  IF p_event_id IS NULL OR p_status NOT IN ('acknowledged', 'resolved') THEN
+  IF p_event_id IS NULL OR p_status IS NULL OR p_status NOT IN ('acknowledged', 'resolved') THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'runtime error transition is invalid';
   END IF;
 
