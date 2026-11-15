@@ -141,7 +141,6 @@ Official remediation references:
 
 ## Final exact-SHA acceptance — 2026-11-16
 
-<badge>Would be DIL here</badge>
 
 **Application/test source SHA:** `0b06422120435d6bfb0b6f2b71e7133e4bbf0760`  
 **P2 workflow:** [#43769300232 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/43769300232)
