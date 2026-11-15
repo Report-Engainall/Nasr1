@@ -5990,3 +5990,21 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Unified user/role editor: **NOT IMPLEMENTED**.
 - Server field-level price redaction for staff: **OPEN / NOT PROVEN**.
 - Production/hosted changes: **NONE**.
+
+
+---
+
+## P3 DELIVERY — ADMIN ACCESS MATRIX SEARCH AND FILTERS — 2026-11-16
+
+- **Repository / branch:** `Report-Engainall/Nasr1` / `main`.
+- **Code-bearing exact SHA:** `80a55e576f46d658853da9c5d6e9a8207483718f`. The main commits after that tested code SHA were documentation-only before this state update, apart from one unrelated P2-owned edit to `e2e/admin-category-tree.spec.ts`; no later application code change touched this delivery.
+- **Implementation commits:** UI `efddbf039bb1afa7185b6d3a7f1e96b6a24b2733`; regression tests `80a55e576f46d658853da9c5d6e9a8207483718f`.
+- **Changed source paths:** `src/components/AdminAccessMatrix.tsx` and `src/test/admin-access-matrix-ui.test.tsx` only. Search is multi-token Arabic/English with diacritic normalization; all-role filters derive from the existing page/operation evaluators; one-role mode filters allowed/denied pages and operations; empty state and live counts are provided. The permission rules, six server role IDs, RPC/RLS, database and other server contracts are unchanged.
+- **P1 exact-SHA result:** run [#43776555769](https://github.com/Report-Engainall/Nasr1/actions/runs/43776555769) on `80a55e576f46d658853da9c5d6e9a8207483718f` completed SUCCESS: **127/127 Vitest files, 908/908 tests, strict TypeScript SUCCESS, production Vite/Nitro build SUCCESS**. Vitest emitted a post-summary hanging-process diagnostic, but the Vitest step and complete workflow ended SUCCESS.
+- **P2 public Chromium result:** run [#43776555758](https://github.com/Report-Engainall/Nasr1/actions/runs/43776555758) on the same exact SHA completed FAILURE (**19 passed, 1 failed**). Only failure: `admin access matrix compares every role and keeps wide tables keyboard-scrollable` expected the page-table region after three Tab presses. The accessible search input and role filter are now placed before the tables, so the third Tab correctly targets the search input. This is an outdated browser-test tab-count expectation introduced by the new controls; it is not evidence of a permission-policy, data or server denial failure. It still blocks the complete P2 browser acceptance.
+- **P2 handoff:** P2 owns `e2e/**`; update only the keyboard-order assertions in `e2e/public-storefront-smoke.spec.ts` to cover two mode buttons → search box → filter → page-table scroll region → operations scroll region. Add browser proof for Arabic search normalization, role filtering, clear/reset, visible focus and both 360px / 1280px layouts. Rerun the public smoke on the exact resulting SHA. Do not hide the new controls, remove keyboard access, weaken/skip the assertion, or modify the UI policy source to satisfy the old tab count.
+- **Other P2 proof:** authenticated-E2E infrastructure gate SUCCESS is infrastructure readiness only; customer/order/tenant authenticated job SKIPPED. No local PostgreSQL 17 or authenticated admin-session acceptance was performed in this increment. Keep DLV-002 authenticated admin-browser acceptance pending.
+- **Official acceptance state:** `DLV-002-ADMIN-ROLE-ACCESS-COMPARISON-001` is updated in the single authoritative acceptance CSV. P1 source/test acceptance is SUCCESS; P2 browser acceptance is FAILED/BLOCKED pending the P2-owned test update; authenticated admin proof remains PENDING. Do not roll up DLV-002 or the 41-screen acceptance.
+- **No side effects:** no migrations, DB writes, RPC/RLS/grant/role changes, production writes, hosted integration calls, deployment, Vercel activity, paid service or secrets were used.
+- **Next action / precedence:** this P3 UI delivery does not reorder the latest active P2 security queue or alter its current owner. P2's browser-fixture follow-up is independent and remains with P2; P3 continues from the current tail-most execution cursor after rechecking live `main`. Overall release remains **NO-GO**.
+
