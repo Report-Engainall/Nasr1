@@ -76,3 +76,35 @@ A repository asset-tree check found no product image files suitable for linking.
 No hosted database write, customer/account creation, order, invoice, supplier, purchase order, inventory adjustment, migration, RLS/role change, Edge deployment, app deployment, Vercel action, paid service, or secret/configuration change was performed. This checkpoint records evidence and the exact next action; it does not convert local E2E success into hosted production proof.
 
 **Current result:** storefront and order implementation have successful local PostgreSQL 17/Chromium acceptance and live read-only catalog verification. The first live purchase is gated on a real verified customer and explicit managerial approval. Product image linking and physical stock reconciliation remain open. Product release remains **NO-GO** for production claims.
+
+
+## Follow-up execution — 2026-11-16, after the checkpoint
+
+**Current main code/test SHA:** `0b06422120435d6bfb0b6f2b71e7133e4bbf0760`.
+
+- A subsequent P2 run on `d501303ee23a77c46c1af005fea206f94b316dfa` passed the public UI smoke but failed its newly added category-tree browser test because the test selected the generic accessible label `فتح الفروع` while five tree nodes exposed that same label. The failure was a Playwright strict-locator ambiguity, not an application/database error.
+- Corrected only `e2e/admin-category-tree.spec.ts`: the test now scopes the expand action to the list item containing its own generated `rootName`. No product, category, stock, price, authorization or runtime application code was changed by this fix.
+- New exact-SHA P2 run: [#43769300232](https://github.com/Report-Engainall/Nasr1/actions/runs/43769300232), source SHA `0b06422120435d6bfb0b6f2b71e7133e4bbf0760`.
+- On that exact SHA, the public UI smoke job completed **SUCCESS**: isolated production build, Vite preview, public storefront browser smoke, price-visibility harness and proof-boundary recording.
+- The isolated authenticated PostgreSQL 17/Chromium job `132981966020` is **IN_PROGRESS** at the point this checkpoint was updated. It has passed runner setup, exact-SHA checkout, TypeScript/E2E preparation, local-only Docker check, isolated Supabase startup and Storage preparation; migration application/local acceptance is running. Do not label its order, Storage or category-tree phases PASS until the complete job and exact-SHA proof verifier finish.
+- Hosted external customer/order/tenant browser E2E remains **SKIPPED**, not PASS, because the dedicated hosted non-production E2E credentials/permission are not configured. The hosted Aghbari database was not written by this follow-up.
+
+### Additional live catalog quality read
+
+The live database remains unchanged. A read-only quality query of all 114 active products found:
+
+| Field / check | Result |
+|---|---:|
+| Active products | 114 |
+| Missing primary image | 114 |
+| Missing barcode | 114 |
+| Missing English name | 114 |
+| Missing Arabic description | 0 |
+| Missing active price | 0 |
+| Missing/duplicate SKU | 0 / 0 |
+| Products with no available stock | 0 |
+| Invalid minimum/multiple order policy | 0 |
+
+Barcodes must come from supplier/manufacturer packaging; do not synthesize EANs or scannable identifiers. English names may be curated translations but should not be presented as brand/model truth without product-label evidence. Images must be genuine pack/product images supplied or verified by the owner/supplier and uploaded by an authenticated admin/manager/staff user through the existing `product-image-upload` flow. The current admin product editor already supports primary and up-to-eight gallery uploads, conversion to WebP, preview, server linking and cleanup.
+
+**No live customer/account, order, supplier, purchase order, invoice, receipt, inventory adjustment, image object, migration, role/RLS change or deployment was created by this follow-up.**
