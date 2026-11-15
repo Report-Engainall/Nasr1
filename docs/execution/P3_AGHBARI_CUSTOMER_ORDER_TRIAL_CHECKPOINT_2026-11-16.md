@@ -126,3 +126,14 @@ The seven anonymous functions observed were the six intended public storefront r
 **Outstanding security fix:** Supabase Auth leaked-password protection is disabled. Remediate it through the supported Auth project configuration after documenting its user-facing password rejection behavior and validating signup/reset flows. It was not changed in this task.
 
 **Storefront text mismatch found:** the public settings RPC currently returns `hero_title = "الأغبري لتجارة الحبحب"`, while the active catalogue contains wheat, rice, flour, oils, sugar, legumes, dairy, tuna, biscuits and other groceries. This is a visible configuration mismatch, not a missing product or data-query issue. Change it through the authenticated admin Settings interface after confirming the intended neutral business name; do not update `admin_settings` directly through a privileged database connection without the expected actor/audit path.
+
+
+### Performance advisor snapshot
+
+The read-only performance advisor on the same hosted project reported 520 findings: 361 unindexed foreign keys (INFO), 43 RLS auth-function initplan warnings (WARN), 85 unused indexes (INFO), 27 multiple permissive policy warnings (WARN), 3 duplicate-index warnings (WARN), and 1 table without a primary key (INFO). Health advisor returned zero lints. These are project-wide findings, not all proven storefront blockers; do not drop indexes or merge permissive policies blindly. Prioritize the customer/order/inventory/price FK paths and validate each index/policy change with representative query plans, role-denial tests and exact-SHA PostgreSQL 17 acceptance.
+
+Official remediation references:
+- Unindexed foreign keys: https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys
+- RLS auth initplan: https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan
+- Multiple permissive policies: https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies
+- Duplicate indexes: https://supabase.com/docs/guides/database/database-linter?lint=0009_duplicate_index
