@@ -94,7 +94,7 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await expect(collapse).toBeVisible();
     await collapse.click();
     await expect(manager.getByRole("button", { name: childName, exact: true })).toHaveCount(0);
-    await manager.getByRole("button", { name: "فتح الفروع", exact: true }).click();
+    await manager.getByRole("listitem").filter({ hasText: rootName }).getByRole("button", { name: "فتح الفروع", exact: true }).click();
     await expect(manager.getByRole("button", { name: childName, exact: true })).toBeVisible();
 
     await manager.getByRole("button", { name: rootName, exact: true }).click();
