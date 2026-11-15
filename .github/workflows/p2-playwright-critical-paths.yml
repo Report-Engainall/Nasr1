@@ -809,7 +809,7 @@ jobs:
 
           storage.postgresVersion = postgresVersion;
           await writeFile(storagePath, JSON.stringify(storage, null, 2) + "\n", "utf8");
-          console.log("EXACT_SHA_P2_PROOFS_PASS " + expectedSha + ": PostgreSQL 17, Storage lifecycle and Chromium four-tier price editor.");
+          console.log("EXACT_SHA_P2_PROOFS_PASS " + expectedSha + ": PostgreSQL 17, Storage, four-tier price editor and authenticated category-tree Chromium acceptance.");
           NODE
 
       - name: Record proof boundary
