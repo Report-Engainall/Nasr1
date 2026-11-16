@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: product-gallery-lifecycle-pg17-${{ github.ref }}
+  group: product-gallery-lifecycle-pg17-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
