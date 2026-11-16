@@ -178,6 +178,23 @@ async function main() {
    [manager.profile_id,"Temporary authorization acceptance denial"]));
   assert.equal(deny[0].result.changed,true);
   assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"DENY");
+  const denialList=await withActor(db,admin,tx=>tx.unsafe(
+   "select public.list_authorization_profile_denials($1::uuid) as denials",
+   [manager.profile_id]));
+  const listedDenials=typeof denialList[0].denials==="string"?JSON.parse(denialList[0].denials):denialList[0].denials;
+  assert.ok(Array.isArray(listedDenials));
+  assert.equal(listedDenials.length,1);
+  assert.equal(listedDenials[0].denial_id,deny[0].result.denial_id);
+  assert.equal(listedDenials[0].capability_key,"pricing.edit_draft");
+  assert.equal(listedDenials[0].is_active,true);
+  assert.equal(listedDenials[0].reason,"Temporary authorization acceptance denial");
+  await assert.rejects(
+   ()=>withActor(db,manager,tx=>tx.unsafe(
+    "select public.list_authorization_profile_denials($1::uuid)",
+    [manager.profile_id])),
+   error=>error&&String(error.code)==="42501",
+   "non-admin members cannot inspect private explicit denial history"
+  );
   const before=await db.unsafe("select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='authorization.capability.explicit_deny.changed' and entity_id=$2::uuid",[org,deny[0].result.denial_id]);
   const replay=await withActor(db,admin,tx=>tx.unsafe(
    "select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',$2::text,NULL::timestamptz,true) as result",
@@ -187,6 +204,11 @@ async function main() {
   assert.equal(after[0].count,before[0].count,"idempotent replay must not duplicate audit");
   await withActor(db,admin,tx=>tx.unsafe("select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',NULL,NULL::timestamptz,false)",[manager.profile_id]));
   assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"PERMIT");
+  const revokedList=await withActor(db,admin,tx=>tx.unsafe(
+   "select public.list_authorization_profile_denials($1::uuid) as denials",
+   [manager.profile_id]));
+  const revokedDenials=typeof revokedList[0].denials==="string"?JSON.parse(revokedList[0].denials):revokedList[0].denials;
+  assert.equal(revokedDenials[0].is_active,false,"revocation must remain visible in denial history");
 
   await assert.rejects(
    ()=>withActor(db,admin,tx=>tx.unsafe(
@@ -206,7 +228,7 @@ async function main() {
   await db.unsafe("delete from auth.sessions where id=$1::uuid and user_id=$2::uuid",[manager.jwtClaims.session_id,manager.auth_user_id]);
   assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"DENY",
    "revoking auth.sessions must deny the next decision even when the same signed JWT is presented");
-  process.stdout.write("PASS authorization capability registry: exact six-role parity, real JWT sessions, immediate session revocation, deny-by-default, scope fail-closed, explicit-deny precedence, idempotent audit, last-admin protection, and product financial RPC boundaries\n");
+  process.stdout.write("PASS authorization capability registry: exact six-role parity, real JWT sessions, immediate session revocation, deny-by-default, scope fail-closed, explicit-deny precedence, private denial history, idempotent audit, last-admin protection, and product financial RPC boundaries\n");
  } finally { await db.end({timeout:5}).catch(()=>{}); }
 }
 main().catch(error=>{process.stderr.write("FAIL authorization capability registry acceptance: "+String(error?.stack??error)+"\n");process.exitCode=1;});
