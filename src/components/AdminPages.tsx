@@ -30,7 +30,7 @@ import { downloadAdminSalesOrderWorkbookXlsx } from '@/lib/admin-sales-order-xls
 import type { LucideIcon } from 'lucide-react';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
+import { MemberAuthorizationAccessControls } from '@/components/CustomerManagerRoleAssignment';
 import { AdminAccessMatrix } from '@/components/AdminAccessMatrix';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 import { AiGatewayOperationsPanel } from '@/components/intelligence';
@@ -1328,7 +1328,6 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
       {tab === 'access' && canManageRoles && user && <>
         <AdminAccessMatrix />
         <OrganizationRoleManagement currentProfileId={user.profileId} onNotice={onNotice} />
-        <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={onNotice} />
       </>}
     </>}
   </AdminPage>;
@@ -1469,7 +1468,8 @@ const ROLE_OPTIONS = [
   { value: 'manager', label: 'مدير', detail: 'تشغيل الأقسام وصلاحيات المالية المعتمدة.' },
   { value: 'staff', label: 'موظف تشغيل', detail: 'الطلبات والمهام التشغيلية دون صلاحيات المحاسبة.' },
   { value: 'accountant', label: 'محاسب', detail: 'الفواتير والتحصيل فقط، دون أقسام التشغيل.' },
-  { value: 'customer', label: 'عميل', detail: 'واجهة المتجر والحساب التجاري.' },
+  { value: 'customer_manager', label: 'مسؤول العملاء', detail: 'إدارة ملفات العملاء المعينين دون كشف البيانات المالية الحساسة.' },
+  { value: 'customer', label: 'عميل', detail: 'واجهة المتجر والحساب التجاري — حساب مستقل عن الموظفين.' },
 ] as const;
 
 function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentProfileId: string; onNotice: (m: string) => void }) {
@@ -1506,6 +1506,11 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
   );
 
   function toggleRole(profileId: string, role: string, checked: boolean) {
+    const profile = rows.find((entry) => entry.profile_id === profileId);
+    if (profile?.roles.includes('customer')) {
+      setError('حساب العميل منفصل عن الموظف؛ لا يمكن تحويله أو دمجه مع دور داخلي من شاشة الصلاحيات.');
+      return;
+    }
     setDrafts((previous) => {
       const current = previous[profileId] ?? [];
       // Customer is a standalone identity; it cannot be combined with staff/admin roles.
@@ -1547,7 +1552,21 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
               : 'تعذر حفظ الأدوار. تحقق من صلاحيتك وأن الحساب ما زال نشطًا.');
         return;
       }
-      onNotice('تم حفظ أدوار ' + profile.full_name + ' وتسجيل التغيير في سجل التدقيق.');
+      const confirmed = result.data as { profile_id?: unknown; roles?: unknown } | null;
+      const confirmedRoles = Array.isArray(confirmed?.roles)
+        ? [...new Set(confirmed.roles.filter((role): role is string => typeof role === 'string'))].sort()
+        : null;
+      if (
+        !confirmed ||
+        confirmed.profile_id !== profile.profile_id ||
+        !confirmedRoles ||
+        JSON.stringify(confirmedRoles) !== JSON.stringify(selected)
+      ) {
+        setError('لم يؤكد الخادم الأدوار المحفوظة؛ لم تُعرض رسالة نجاح. أعد تحميل الحساب للتحقق من الحالة.');
+        await load();
+        return;
+      }
+      onNotice('تم حفظ أدوار ' + profile.full_name + ' وتأكيدها من الخادم مع تسجيل التغيير في سجل التدقيق.');
       await load();
     } catch {
       setError('تعذر الاتصال بالخادم لحفظ الأدوار. أعد التحميل للتحقق من الحالة الحالية.');
@@ -1581,19 +1600,21 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
               <div><strong style={{ display: 'block', color: '#234b55' }}>{profile.full_name}</strong><span style={{ color: '#789297', fontSize: 12 }}>{profile.email ?? 'بريد غير مسجل'}</span></div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{profile.roles.map((role) => <span key={role} className="badge info">{roleLabel(role)}</span>)}</div>
             </div>
-            <fieldset disabled={isSelf || busy} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, border: 0, padding: '12px 0 4px', margin: 0 }}>
+            <fieldset disabled={isSelf || busy || profile.roles.includes('customer')} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, border: 0, padding: '12px 0 4px', margin: 0 }}>
               {ROLE_OPTIONS.map((option) => <label key={option.value} title={option.detail} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#385d65', fontSize: 12 }}>
                 <input type="checkbox" checked={selected.includes(option.value)} onChange={(event) => toggleRole(profile.profile_id, option.value, event.target.checked)} />
                 {option.label}
               </label>)}
             </fieldset>
             {isSelf && <small style={{ display: 'block', color: '#9a6a1c', marginBottom: 8 }}>حسابك الحالي محمي من التعديل المباشر.</small>}
-            {!isSelf && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            {profile.roles.includes('customer') && <small role="note" style={{ display: 'block', color: '#9a6a1c', marginBottom: 8 }}>حساب العميل مستقل؛ لا تُعرض له أدوار الموظفين أو نطاقاتهم الداخلية.</small>}
+            {!isSelf && !profile.roles.includes('customer') && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
               <small style={{ color: '#71868a' }}>{selected.length} دور محدد</small>
               <Button onClick={() => void save(profile)} disabled={busy || savingProfileId !== null || !changed(profile)}>
                 <Save size={14} /> {busy ? 'جارٍ الحفظ...' : 'حفظ الأدوار'}
               </Button>
             </div>}
+            <MemberAuthorizationAccessControls profile={profile} currentProfileId={currentProfileId} />
           </article>;
         })}
       </div>}
