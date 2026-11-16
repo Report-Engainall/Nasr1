@@ -332,6 +332,35 @@ describe("product image coverage and direct completion", () => {
     expect(onOpenProduct).not.toHaveBeenCalled();
   });
 
+  it("replaces a legacy non-HTTPS primary URL using its exact current value", async () => {
+    const converted = new Blob(["webp"], { type: "image/webp" });
+    vi.mocked(toWebp).mockResolvedValue(converted);
+    vi.mocked(uploadProductImage).mockResolvedValue("https://cdn.example.test/repaired-primary.webp");
+    const legacyUrl = "http://legacy.example.test/product.jpg";
+    const legacyProduct = { ...missingProduct, image_url: legacyUrl } as ProductWithInventory;
+    const loadProducts = vi.fn().mockResolvedValue([legacyProduct]);
+    const { container } = renderUploader(loadProducts);
+
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByText(/أصناف تحتاج صورة رئيسية/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("اختيار صورة رئيسية للصنف أرز ناقص"), {
+      target: { files: [new File(["source"], "rice.webp", { type: "image/webp" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "رفع كصورة رئيسية للصنف أرز ناقص" }));
+
+    await waitFor(() => expect(uploadProductImage).toHaveBeenCalledWith(
+      "product-missing",
+      converted,
+      legacyUrl,
+    ));
+    await waitFor(() => expect(screen.getByText("كل الأصناف المحمّلة لديها صورة رئيسية صالحة.")).toBeInTheDocument());
+  });
+
   it("blocks duplicate direct image upload clicks before React commits the busy state", async () => {
     let resolveConversion: ((image: Blob) => void) | undefined;
     vi.mocked(toWebp).mockReturnValue(
