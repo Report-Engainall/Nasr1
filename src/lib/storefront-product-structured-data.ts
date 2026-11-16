@@ -118,3 +118,134 @@ export function serializeStorefrontProductStructuredData(
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
 }
+
+
+export type StorefrontProductHeadMetadata = Readonly<{
+  title: string;
+  description: string;
+  canonicalUrl: string | null;
+  imageUrl: string | null;
+}>;
+
+/** Build product head metadata from the same safe public projection as JSON-LD. */
+export function buildStorefrontProductHeadMetadata(
+  structuredData: StorefrontProductStructuredData | null,
+): StorefrontProductHeadMetadata | null {
+  if (!structuredData) return null;
+  const name = textValue(structuredData.name, 180);
+  if (!name) return null;
+
+  let canonicalUrl: string | null = null;
+  if (typeof structuredData.url === "string" && structuredData.url.length <= 2_048) {
+    try {
+      const candidate = new URL(structuredData.url);
+      if (
+        candidate.protocol === "https:" &&
+        !candidate.username &&
+        !candidate.password &&
+        !candidate.search &&
+        !candidate.hash &&
+        candidate.pathname.startsWith("/product/") &&
+        candidate.pathname.length > "/product/".length
+      ) canonicalUrl = candidate.toString();
+    } catch {
+      // Never emit an unverified canonical URL.
+    }
+  }
+
+  const description = textValue(structuredData.description, 300)
+    ?? "تفاصيل المنتج وبيانات العبوة والوحدات المتاحة في متجر الأغبري.";
+  const images = Array.isArray(structuredData.image)
+    ? structuredData.image
+        .map((value) => safePublicImageUrl(value, null))
+        .filter((value): value is string => Boolean(value))
+    : [];
+
+  return {
+    title: name + " | متجر الأغبري",
+    description,
+    canonicalUrl,
+    imageUrl: images[0] ?? null,
+  };
+}
+
+type StorefrontHeadMetaEntry = Readonly<{
+  attribute: "name" | "property";
+  key: string;
+  value: string | null;
+}>;
+
+/** Apply dynamic product metadata and restore it without overwriting newer route metadata. */
+export function applyStorefrontProductHeadMetadata(
+  metadata: StorefrontProductHeadMetadata,
+  documentRef: Document,
+): () => void {
+  const previousTitle = documentRef.title;
+  documentRef.title = metadata.title;
+
+  const entries: StorefrontHeadMetaEntry[] = [
+    { attribute: "name", key: "description", value: metadata.description },
+    { attribute: "property", key: "og:type", value: "product" },
+    { attribute: "property", key: "og:site_name", value: "متجر الأغبري" },
+    { attribute: "property", key: "og:title", value: metadata.title },
+    { attribute: "property", key: "og:description", value: metadata.description },
+    { attribute: "property", key: "og:url", value: metadata.canonicalUrl },
+    { attribute: "property", key: "og:image", value: metadata.imageUrl },
+    { attribute: "name", key: "twitter:card", value: metadata.imageUrl ? "summary_large_image" : "summary" },
+    { attribute: "name", key: "twitter:title", value: metadata.title },
+    { attribute: "name", key: "twitter:description", value: metadata.description },
+    { attribute: "name", key: "twitter:image", value: metadata.imageUrl },
+  ];
+
+  const metaSnapshots = entries.flatMap((entry) => {
+    const selector = 'meta[' + entry.attribute + '="' + entry.key + '"]';
+    let element = documentRef.head.querySelector<HTMLMetaElement>(selector);
+    const existed = element !== null;
+    if (!element && entry.value !== null) {
+      element = documentRef.createElement("meta");
+      element.setAttribute(entry.attribute, entry.key);
+      documentRef.head.append(element);
+    }
+    if (!element) return [];
+
+    const previousContent = element.getAttribute("content");
+    if (entry.value === null) element.removeAttribute("content");
+    else element.setAttribute("content", entry.value);
+    return [{ element, existed, previousContent, appliedContent: entry.value }];
+  });
+
+  const existingCanonical = documentRef.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  const canonicalExisted = existingCanonical !== null;
+  const canonicalElement = existingCanonical
+    ?? (metadata.canonicalUrl ? documentRef.createElement("link") : null);
+  const previousCanonicalHref = canonicalElement?.getAttribute("href") ?? null;
+  if (canonicalElement) {
+    canonicalElement.setAttribute("rel", "canonical");
+    if (metadata.canonicalUrl) canonicalElement.setAttribute("href", metadata.canonicalUrl);
+    else canonicalElement.removeAttribute("href");
+    if (!canonicalExisted) documentRef.head.append(canonicalElement);
+  }
+
+  return () => {
+    if (documentRef.title === metadata.title) documentRef.title = previousTitle;
+    for (const snapshot of metaSnapshots) {
+      if (snapshot.element.parentNode !== documentRef.head) continue;
+      if (snapshot.element.getAttribute("content") !== snapshot.appliedContent) continue;
+      if (snapshot.existed) {
+        if (snapshot.previousContent === null) snapshot.element.removeAttribute("content");
+        else snapshot.element.setAttribute("content", snapshot.previousContent);
+      } else {
+        snapshot.element.remove();
+      }
+    }
+    if (canonicalElement?.parentNode === documentRef.head &&
+        canonicalElement.getAttribute("href") === metadata.canonicalUrl) {
+      if (canonicalExisted) {
+        if (previousCanonicalHref === null) canonicalElement.removeAttribute("href");
+        else canonicalElement.setAttribute("href", previousCanonicalHref);
+      } else {
+        canonicalElement.remove();
+      }
+    }
+  };
+}
