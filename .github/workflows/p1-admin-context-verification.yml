@@ -84,6 +84,7 @@ on:
       - "src/test/executive-liquidity-command-center-migration.test.ts"
       - "src/components/BulkProductImageUploader.tsx"
       - "src/components/BulkProductImageUploader.test.tsx"
+      - "scripts/test-inventory-adjustment-v2-authorization.mjs"
       - "src/test/customer-workflow-tenant.test.tsx"
       - "src/test/admin-product-double-submit.test.tsx"
       - "src/test/customer-360-print-sheet.test.tsx"
