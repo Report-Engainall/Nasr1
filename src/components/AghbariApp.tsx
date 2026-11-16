@@ -1,3 +1,4 @@
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, Headphones, PackageCheck, Tags,
@@ -473,10 +474,8 @@ function AdminSidebarNavigation({ groups, view, firstMobileNavItemRef, navigatio
   return (
     <nav aria-label="التنقل الإداري">
       {groups.map((group) => (
-        <div key={group.id} className="admin-nav-group" style={{ display: "contents" }}>
-          <div className="admin-nav-group-title" style={{ padding: "14px 18px 5px", color: "var(--muted-foreground, #64748b)", fontSize: 11, fontWeight: 700 }}>
-            {group.label}
-          </div>
+        <div key={group.id} className="admin-nav-group" role="group" aria-label={group.label}>
+          <div className="admin-nav-group-title">{group.label}</div>
           {group.items.map(({ id, label, icon: Icon }) => {
             const isFirst = firstButton;
             firstButton = false;
@@ -986,17 +985,22 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
           return item ? [item] : [];
         });
         const GroupIcon = entries[0]?.icon ?? LayoutDashboard;
-        return <article className={`admin-group-card admin-group-card--${group.id}`} key={group.id}>
-          <button type="button" className="admin-group-card__heading" onClick={() => setActiveGroupId(group.id)} aria-label={`فتح مجموعة ${group.label}`}>
-            <span className="admin-group-card__icon"><GroupIcon size={20} /></span>
-            <span><strong>{group.label}</strong><small>{entries.length} وجهات متاحة وفق صلاحية الحساب</small></span>
-          </button>
-          <div className="admin-group-card__links">
-            {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
-              <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
-            </button>)}
-          </div>
-        </article>;
+        return <WorkspaceSectionGroup
+          key={group.id}
+          icon={GroupIcon}
+          title={group.label}
+          description={`${entries.length} وجهات متاحة وفق صلاحية الحساب`}
+          className={`admin-group-card admin-group-card--${group.id}`}
+          headingClassName="admin-group-card__heading"
+          iconClassName="admin-group-card__icon"
+          contentClassName="admin-group-card__links"
+          onActivate={() => setActiveGroupId(group.id)}
+          activateLabel={`فتح مجموعة ${group.label}`}
+        >
+          {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
+            <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
+          </button>)}
+        </WorkspaceSectionGroup>;
       })}
     </section>
     <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.length ? alerts.map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{lowStockProductsLoading ? <Loading /> : lowStockProductsError ? <ErrorBox message={lowStockProductsError} /> : !stats?.hasActiveWarehouse ? <Empty text="لم يتم تحديد مستودع نشط؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : stats.lowStockCount === null || lowStockProducts === null ? <Empty text="بيانات المخزون غير مكتملة؛ تعذر تأكيد قائمة الأصناف منخفضة المخزون." /> : lowStockProducts.length ? lowStockProducts.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.quantity_available <= 0 ? 'critical' : ''}>{formatNumber(product.quantity_available)} {product.unit}</b></div>) : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
@@ -1006,7 +1010,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
 function Sparkline() { return <svg className="sparkline" viewBox="0 0 160 52" aria-hidden="true"><path d="M2 42 C25 43 25 28 43 31 S65 42 79 27 S104 25 114 17 S139 24 158 6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>; }
 
 function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string; title: string; description: string; icon: IconType }) {
-  return <div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>;
+  return <WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />;
 }
 
 function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
