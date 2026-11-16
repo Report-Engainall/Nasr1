@@ -1,28 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, ClipboardCheck, FileSpreadsheet, RefreshCw, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { downloadCustomerReturnReviewWorkbookXlsx } from "@/lib/customer-return-review-xlsx";
+import {
+  CUSTOMER_RETURN_REVIEW_PAGE_SIZE,
+  fetchAllCustomerReturnReviewRows,
+  fetchCustomerReturnReviewPage,
+  type CustomerReturnReviewCursor,
+  type CustomerReturnReviewFilters,
+  type CustomerReturnReviewPage,
+  type CustomerReturnReviewReason,
+  type CustomerReturnReviewRow,
+  type CustomerReturnReviewStatus,
+} from "@/lib/customer-return-review-queue";
 import { supabase } from "@/lib/supabase";
 
 type ReviewDecision = "approved" | "rejected";
-type ReturnReason = "damaged" | "wrong_item" | "missing_item" | "quality" | "other";
-type ReturnLine = { item_code: string | null; product_name: string; unit: string | null; requested_quantity: number };
-type ReturnReviewRow = {
-  id: string; request_number: string; status: "submitted" | "under_review";
-  reason: ReturnReason; notes: string | null; created_at: string; order_id: string;
-  order_number: string; customer_name: string; customer_code: string; items: ReturnLine[];
-};
 
-const reasonLabels: Record<string, string> = {
-  damaged: "الصنف تالف", wrong_item: "صنف غير صحيح", missing_item: "كمية ناقصة",
-  quality: "مشكلة جودة", other: "سبب آخر",
+const reasonLabels: Record<CustomerReturnReviewReason, string> = {
+  damaged: "الصنف تالف",
+  wrong_item: "صنف غير صحيح",
+  missing_item: "كمية ناقصة",
+  quality: "مشكلة جودة",
+  other: "سبب آخر",
 };
 const panel: React.CSSProperties = {
   marginTop: 22, border: "1px solid #dce7e8", borderRadius: 14, padding: 16,
   background: "var(--card, #fff)", display: "grid", gap: 13,
 };
 const field: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box", padding: "9px 11px",
+  width: "100%", minWidth: 0, boxSizing: "border-box", padding: "9px 11px",
   border: "1px solid #ccdadd", borderRadius: 8, color: "#21383d",
   background: "#fff", font: "inherit",
 };
@@ -38,44 +45,6 @@ const muted: React.CSSProperties = { margin: 0, color: "#64787c", fontSize: 13, 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function requiredString(value: unknown, fieldName: string): string {
-  if (typeof value !== "string" || !value.trim()) throw new Error("بيانات المراجعة غير مكتملة: " + fieldName);
-  return value;
-}
-function readReviewRows(value: unknown): ReturnReviewRow[] {
-  if (!Array.isArray(value)) throw new Error("أعاد الخادم قائمة مرتجعات غير صالحة.");
-  return value.map((entry) => {
-    if (!isRecord(entry) || !Array.isArray(entry.items)) throw new Error("سجل مراجعة مرتجع غير صالح.");
-    const status = requiredString(entry.status, "status");
-    if (status !== "submitted" && status !== "under_review") throw new Error("تتضمن قائمة المراجعة حالة غير متوقعة.");
-    const reason = requiredString(entry.reason, "reason");
-    if (!Object.prototype.hasOwnProperty.call(reasonLabels, reason)) throw new Error("تتضمن قائمة المراجعة سبب مرتجع غير معتمد.");
-    const items = entry.items.map((line): ReturnLine => {
-      if (!isRecord(line)) throw new Error("تفاصيل صنف المرتجع غير صالحة.");
-      const quantity = Number(line.requested_quantity);
-      if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("كمية صنف المرتجع غير صالحة.");
-      return {
-        item_code: typeof line.item_code === "string" ? line.item_code : null,
-        product_name: requiredString(line.product_name, "product_name"),
-        unit: typeof line.unit === "string" ? line.unit : null,
-        requested_quantity: quantity,
-      };
-    });
-    return {
-      id: requiredString(entry.id, "id"),
-      request_number: requiredString(entry.request_number, "request_number"),
-      status,
-      reason: reason as ReturnReason,
-      notes: typeof entry.notes === "string" ? entry.notes : null,
-      created_at: requiredString(entry.created_at, "created_at"),
-      order_id: requiredString(entry.order_id, "order_id"),
-      order_number: requiredString(entry.order_number, "order_number"),
-      customer_name: requiredString(entry.customer_name, "customer_name"),
-      customer_code: requiredString(entry.customer_code, "customer_code"),
-      items,
-    };
-  });
-}
 
 function ReturnReviewCard({
   row,
@@ -84,11 +53,11 @@ function ReturnReviewCard({
   onNoteChange,
   onDecide,
 }: {
-  row: ReturnReviewRow;
+  row: CustomerReturnReviewRow;
   note: string;
   busy: boolean;
   onNoteChange: (id: string, value: string) => void;
-  onDecide: (row: ReturnReviewRow, decision: ReviewDecision) => void;
+  onDecide: (row: CustomerReturnReviewRow, decision: ReviewDecision) => void;
 }) {
   const reasonIsValid = note.trim().length >= 5;
   return (
@@ -102,8 +71,14 @@ function ReturnReviewCard({
           {row.status === "submitted" ? "مرسل للمراجعة" : "قيد المراجعة"}
         </span>
       </div>
-      <p style={{ ...muted, marginTop: -3 }}>السبب: {reasonLabels[row.reason] ?? row.reason} · {new Date(row.created_at).toLocaleString("ar-YE")}</p>
-      <ReturnReviewItems items={row.items} />
+      <p style={{ ...muted, marginTop: -3 }}>السبب: {reasonLabels[row.reason]} · {new Date(row.created_at).toLocaleString("ar-YE")}</p>
+      <ul style={{ margin: 0, paddingInlineStart: 24 }}>
+        {row.items.map((item, index) => (
+          <li key={(item.item_code ?? item.product_name) + "-" + index} style={{ fontSize: 13 }}>
+            {item.product_name} — الرمز {item.item_code ?? "غير مسجل"} — {item.requested_quantity.toLocaleString("ar-YE")} {item.unit ?? ""}
+          </li>
+        ))}
+      </ul>
       {row.notes && <p style={{ ...muted, borderInlineStart: "3px solid #cbdadd", paddingInlineStart: 10 }}>ملاحظة العميل: {row.notes}</p>}
       <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 750 }}>
         مبرر القرار (مطلوب)
@@ -130,58 +105,92 @@ function ReturnReviewCard({
   );
 }
 
-function ReturnReviewItems({ items }: { items: ReturnLine[] }) {
-  return (
-    <ul style={{ margin: 0, paddingInlineStart: 24 }}>
-      {items.map((item, index) => (
-        <li key={(item.item_code ?? item.product_name) + "-" + index} style={{ fontSize: 13 }}>
-          {item.product_name} — الرمز {item.item_code ?? "غير مسجل"} — {item.requested_quantity.toLocaleString("ar-YE")} {item.unit ?? ""}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: string) => void }) {
-  const [rows, setRows] = useState<ReturnReviewRow[]>([]);
+  const [page, setPage] = useState<CustomerReturnReviewPage | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [queryDraft, setQueryDraft] = useState("");
+  const [statusDraft, setStatusDraft] = useState<CustomerReturnReviewStatus | "">("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+  const [appliedStatus, setAppliedStatus] = useState<CustomerReturnReviewStatus | "">("");
+  const cursorStack = useRef<Array<CustomerReturnReviewCursor | null>>([null]);
+  const requestGeneration = useRef(0);
   const { user } = useAuth();
   const canExport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
+  const rows = page?.items ?? [];
+  const totalCount = page?.totalCount ?? 0;
+  const filters: CustomerReturnReviewFilters = { search: appliedQuery, status: appliedStatus };
 
-  function exportCurrentQueue() {
-    if (!canExport || rows.length === 0) return;
+  const load = useCallback(async () => {
+    const generation = ++requestGeneration.current;
+    const cursor = cursorStack.current[pageIndex] ?? null;
+    setLoading(true);
+    setError("");
     try {
-      const downloaded = downloadCustomerReturnReviewWorkbookXlsx({ rows, roles: user?.roles ?? [] });
+      const result = await fetchCustomerReturnReviewPage(filters, cursor);
+      if (generation !== requestGeneration.current) return;
+      if (pageIndex > 0 && result.items.length === 0 && result.totalCount > 0) {
+        cursorStack.current = cursorStack.current.slice(0, pageIndex);
+        setPageIndex((current) => Math.max(0, current - 1));
+        return;
+      }
+      setPage(result);
+    } catch (cause) {
+      if (generation !== requestGeneration.current) return;
+      setPage(null);
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل قائمة مراجعة المرتجعات.");
+    } finally {
+      if (generation === requestGeneration.current) setLoading(false);
+    }
+  }, [appliedQuery, appliedStatus, pageIndex]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestGeneration.current += 1; };
+  }, [load]);
+
+  function applyFilters(nextSearch = queryDraft, nextStatus = statusDraft) {
+    cursorStack.current = [null];
+    setPage(null);
+    setPageIndex(0);
+    setQueryDraft(nextSearch);
+    setStatusDraft(nextStatus);
+    setAppliedQuery(nextSearch.trim());
+    setAppliedStatus(nextStatus);
+  }
+
+  async function exportCurrentQueue() {
+    if (!canExport || exporting || busyId !== null || totalCount === 0) return;
+    setExporting(true);
+    setError("");
+    try {
+      const allRows = await fetchAllCustomerReturnReviewRows(filters);
+      const downloaded = downloadCustomerReturnReviewWorkbookXlsx({
+        rows: allRows,
+        roles: user?.roles ?? [],
+        search: appliedQuery,
+        status: appliedStatus,
+      });
       if (!downloaded) throw new Error("هذا المتصفح لا يدعم تنزيل ملفات Excel.");
-      setError("");
-      onNotice("تم تصدير " + rows.length + " طلب مراجعة من القائمة الحالية (حتى 50 طلباً أعادها الخادم). الملف يتضمن تفاصيل الأصناف، ولا يمثل السجل التاريخي الكامل.");
+      onNotice(
+        "تم تصدير كامل قائمة مراجعة المرتجعات المطابقة: " + allRows.length.toLocaleString("ar-YE") +
+        " طلب و" + allRows.reduce((sum, row) => sum + row.items.length, 0).toLocaleString("ar-YE") +
+        " سطر صنف. شمل الملف جميع الصفحات المطابقة، لا الصفحة الظاهرة فقط.",
+      );
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "تعذر إنشاء ملف مراجعة المرتجعات.";
       setError(message);
       onNotice(message);
+    } finally {
+      setExporting(false);
     }
   }
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { data, error: rpcError } = await supabase.rpc("list_customer_return_review_queue", { p_limit: 50 });
-      if (rpcError) throw new Error(rpcError.message || "تعذر تحميل قائمة مراجعة المرتجعات.");
-      setRows(readReviewRows(data));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل قائمة مراجعة المرتجعات.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  async function decide(row: ReturnReviewRow, decision: ReviewDecision) {
+  async function decide(row: CustomerReturnReviewRow, decision: ReviewDecision) {
     const note = (notes[row.id] ?? "").trim();
     if (note.length < 5 || note.length > 1000) {
       setError("اكتب مبررًا واضحًا للقبول أو الرفض من 5 إلى 1000 حرف.");
@@ -215,6 +224,8 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
     }
   }
 
+  const pageCount = Math.max(1, Math.ceil(totalCount / CUSTOMER_RETURN_REVIEW_PAGE_SIZE));
+
   return (
     <section style={panel} dir="rtl" aria-labelledby="return-review-heading">
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -223,34 +234,125 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
             <ClipboardCheck size={19} /> مراجعة طلبات المرتجعات
           </h2>
           <p style={{ ...muted, marginTop: 5 }}>
-            القرار يتطلب مبررًا مدققًا. الموافقة تنشئ مهمة استلام وفحص؛ لا تسجل ردًا ماليًا أو حركة مخزون قبل الاستلام الفعلي.
+            مراجعة كل الطلبات المفتوحة مع البحث في رقم المرتجع والطلب والعميل والصنف، وتصفية الحالة على مستوى الخادم.
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {canExport && <button type="button" style={button} onClick={exportCurrentQueue} disabled={loading || busyId !== null || rows.length === 0}>
-            <FileSpreadsheet size={15} /> تصدير قائمة المراجعة الحالية
-          </button>}
-          <button type="button" style={button} onClick={() => void load()} disabled={loading || busyId !== null}>
+          {canExport && (
+            <button type="button" style={button} onClick={() => void exportCurrentQueue()} disabled={loading || exporting || busyId !== null || totalCount === 0}>
+              <FileSpreadsheet size={15} /> {exporting ? "جارٍ جمع كل الصفحات..." : "تصدير كل النتائج المطابقة"}
+            </button>
+          )}
+          <button type="button" style={button} onClick={() => void load()} disabled={loading || exporting || busyId !== null}>
             <RefreshCw size={15} /> تحديث
           </button>
         </div>
       </header>
 
-      {loading && <p role="status" style={muted}>جارٍ تحميل الطلبات المفتوحة...</p>}
-      {error && <p role="alert" style={{ ...muted, color: "#a32929", padding: 10, borderRadius: 8, background: "#fff1f1" }}>{error}</p>}
-      {!loading && !error && rows.length === 0 && <p style={muted}>لا توجد طلبات مرتجع بانتظار القرار.</p>}
+      <form
+        onSubmit={(event) => { event.preventDefault(); applyFilters(); }}
+        style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) minmax(150px,220px) auto", gap: 8, alignItems: "end" }}
+        aria-label="البحث وتصفية طلبات المرتجعات"
+      >
+        <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
+          البحث في المرتجعات
+          <input
+            value={queryDraft}
+            onChange={(event) => setQueryDraft(event.target.value)}
+            placeholder="رقم المرتجع أو الطلب أو اسم العميل أو رمز/اسم الصنف"
+            maxLength={120}
+            style={field}
+            disabled={loading || exporting || busyId !== null}
+            aria-label="ابحث في طلبات المرتجعات"
+          />
+        </label>
+        <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
+          حالة الطلب
+          <select
+            value={statusDraft}
+            onChange={(event) => setStatusDraft(event.target.value as CustomerReturnReviewStatus | "")}
+            style={field}
+            disabled={loading || exporting || busyId !== null}
+            aria-label="تصفية مرتجعات العملاء حسب الحالة"
+          >
+            <option value="">كل الحالات المفتوحة</option>
+            <option value="submitted">مرسل للمراجعة</option>
+            <option value="under_review">قيد المراجعة</option>
+          </select>
+        </label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="submit" style={good} disabled={loading || exporting || busyId !== null}>تطبيق</button>
+          {(queryDraft || appliedQuery || statusDraft || appliedStatus) && (
+            <button type="button" style={button} disabled={loading || exporting || busyId !== null} onClick={() => applyFilters("", "")}>مسح</button>
+          )}
+        </div>
+      </form>
 
-      {rows.map((row) => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 8 }}>
+        <article style={{ borderRadius: 9, background: "#f0f7f7", padding: 11 }}>
+          <p style={muted}>كل النتائج المطابقة</p>
+          <strong style={{ display: "block", marginTop: 3, fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{totalCount.toLocaleString("ar-YE")}</strong>
+        </article>
+        <article style={{ borderRadius: 9, background: "#f0f7f7", padding: 11 }}>
+          <p style={muted}>في الصفحة الحالية</p>
+          <strong style={{ display: "block", marginTop: 3, fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{rows.length.toLocaleString("ar-YE")}</strong>
+        </article>
+        <article style={{ borderRadius: 9, background: "#f0f7f7", padding: 11 }}>
+          <p style={muted}>حجم الصفحة</p>
+          <strong style={{ display: "block", marginTop: 3, fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{CUSTOMER_RETURN_REVIEW_PAGE_SIZE.toLocaleString("ar-YE")}</strong>
+        </article>
+      </div>
+
+      {loading && <p role="status" style={muted}>جارٍ تحميل صفحة المرتجعات من الخادم...</p>}
+      {error && <p role="alert" style={{ ...muted, color: "#a32929", padding: 10, borderRadius: 8, background: "#fff1f1" }}>{error}</p>}
+      {!loading && !error && rows.length === 0 && (
+        <p style={muted}>{appliedQuery || appliedStatus ? "لا توجد طلبات مفتوحة تطابق البحث والحالة المحددين." : "لا توجد طلبات مرتجع بانتظار القرار."}</p>
+      )}
+
+      {!loading && rows.map((row) => (
         <ReturnReviewCard
           key={row.id}
           row={row}
           note={notes[row.id] ?? ""}
-          busy={busyId === row.id}
+          busy={busyId === row.id || exporting}
           onNoteChange={(id, value) => setNotes((current) => ({ ...current, [id]: value }))}
           onDecide={decide}
         />
       ))}
+
+      {(pageIndex > 0 || page?.hasMore || totalCount > CUSTOMER_RETURN_REVIEW_PAGE_SIZE) && (
+        <footer style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", borderTop: "1px solid #e1e9ea", paddingTop: 12 }}>
+          <span style={muted}>
+            الصفحة { (pageIndex + 1).toLocaleString("ar-YE") } من {pageCount.toLocaleString("ar-YE")} · ترتيب ثابت بتاريخ الإنشاء ومعرّف الطلب
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              style={button}
+              disabled={loading || exporting || busyId !== null || pageIndex === 0}
+              onClick={() => { setPage(null); setPageIndex((current) => Math.max(0, current - 1)); }}
+            >
+              السابق
+            </button>
+            <button
+              type="button"
+              style={button}
+              disabled={loading || exporting || busyId !== null || !page?.hasMore || !page.nextCursor}
+              onClick={() => {
+                if (!page?.nextCursor) return;
+                cursorStack.current[pageIndex + 1] = page.nextCursor;
+                setPage(null);
+                setPageIndex((current) => current + 1);
+              }}
+            >
+              التالي
+            </button>
+          </div>
+        </footer>
+      )}
+      <p style={muted}>
+        البحث والتصفية يشملان كامل طابور المراجعة على الخادم. التصدير يجمع كل الصفحات المطابقة ويتوقف دون إنشاء ملف جزئي عند تجاوز 1000 طلب أو 25000 سطر صنف أو تغيّر عدد النتائج أثناء القراءة.
+      </p>
     </section>
   );
 }
-
