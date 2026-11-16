@@ -886,6 +886,23 @@ function CustomerManagerProfileList({
   );
 }
 
+export type AuthorizationMemberProfile = Profile;
+
+export function MemberAuthorizationAccessControls({
+  profile,
+  currentProfileId,
+}: {
+  profile: AuthorizationMemberProfile;
+  currentProfileId: string;
+}) {
+  return (
+    <>
+      <WarehouseScopePanel profile={profile} currentProfileId={currentProfileId} />
+      <CapabilityDenialPanel profile={profile} currentProfileId={currentProfileId} />
+    </>
+  );
+}
+
 export function CustomerManagerRoleAssignment({
   currentProfileId,
   onNotice,
