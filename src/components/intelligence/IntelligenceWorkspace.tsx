@@ -38,6 +38,7 @@ import {
   createDecisionOutcomeProposal,
   fetchDecisionOutcomes,
   fetchDecisionOutcomeCollection,
+  type DecisionCandidateSnapshot,
   type DecisionOutcomeEventType,
   type DecisionOutcomeView,
   type DecisionOutcomeListResult,
@@ -1217,13 +1218,43 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
     }
     setOutcomeBusyId("new");
     setOutcomeMessage(null);
+    const candidateId = candidateIdFor(proof.currency, proof.period);
+    const candidateSnapshot: DecisionCandidateSnapshot = {
+      schemaVersion: "1.0.0",
+      candidateId,
+      ruleId: "cashflow.collection.followup",
+      ruleVersion: "1.0.0",
+      priority: "P3",
+      priorityScore: 100,
+      what: "متابعة التحصيل للفترة المحددة بعملة " + proof.currency,
+      why: "يعرض المصدر تحصيلات مستحقة متوقعة بقيمة " + proof.value + " " + proof.currency +
+        " للفترة " + proof.period.from + " إلى " + proof.period.to +
+        "؛ هذا المؤشر لا يثبت بمفرده سبب التأخر أو درجة تعثر العميل.",
+      risk: "قد يتأخر التحصيل؛ لم يثبت سبب التأخر من هذا المؤشر وحده.",
+      soWhat: "تتطلب المتابعة مراجعة المستندات وتسجيل نتيجة التواصل والسداد دون افتراض سبب التعثر.",
+      whatNext: "راجع الفواتير والمستندات المرتبطة وسجل نتيجة المتابعة على مصدرها.",
+      owner: "مسؤول التحصيل",
+      expectedOutcome: proposalExpected.trim(),
+      impact: null,
+      impactStatus: "WITHHELD",
+      impactReason: "FOLLOW_UP_IMPACT_NOT_ESTABLISHED",
+      proof: {
+        evidenceIds: [...proof.evidenceIds],
+        metricKeys: [proof.metricKey],
+        asOf: proof.asOf,
+        formulaVersions: [proof.formulaId + "@" + proof.formulaVersion],
+      },
+      createdAt: proof.asOf,
+      expiresAt: null,
+    };
     const created = await createDecisionOutcomeProposal({
-      candidateId: candidateIdFor(proof.currency, proof.period),
+      candidateId,
       ruleId: "cashflow.collection.followup",
       ruleVersion: "1.0.0",
       ownerProfileId: user.profileId,
       expectedOutcome: proposalExpected.trim(),
       reason: proposalReason.trim(),
+      candidateSnapshot,
     });
     setOutcomeBusyId(null);
     if (!created.ok) {

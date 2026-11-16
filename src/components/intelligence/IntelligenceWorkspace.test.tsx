@@ -434,6 +434,19 @@ describe("production intelligence workspace inventory screens", () => {
       ruleVersion: "1.0.0",
       ownerProfileId: "admin-profile",
       expectedOutcome: "تسجيل المتابعة ونتيجة التحصيل من مستندات المؤسسة.",
+      candidateSnapshot: expect.objectContaining({
+        schemaVersion: "1.0.0",
+        candidateId: "cashflow.expected_collections:YER:2026-10-31:2026-11-30",
+        priority: "P3",
+        priorityScore: 100,
+        impact: null,
+        impactStatus: "WITHHELD",
+        proof: expect.objectContaining({
+          evidenceIds: ["invoice:invoice-1", "payment:payment-1"],
+          metricKeys: ["cashflow.expected_collections"],
+          formulaVersions: ["nasr1.receivables-outstanding@1"],
+        }),
+      }),
     })));
   });
 

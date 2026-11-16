@@ -212,7 +212,15 @@ export function StorefrontPredictiveSearch({
           : <Package size={17} aria-hidden="true" />}
         <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
           <span>{suggestion.label}</span>
-          <small style={{ color: "#66817d" }}>{suggestion.product.item_code}</small>
+          <small style={{ color: "#66817d" }}>
+            {[
+              suggestion.product.item_code ? "رمز: " + suggestion.product.item_code : null,
+              suggestion.product.sku && suggestion.product.sku !== suggestion.product.item_code
+                ? "SKU: " + suggestion.product.sku
+                : null,
+              suggestion.product.barcode ? "باركود: " + suggestion.product.barcode : null,
+            ].filter(Boolean).join(" · ") || "رمز غير مسجل"}
+          </small>
         </span>
       </button>
     );
