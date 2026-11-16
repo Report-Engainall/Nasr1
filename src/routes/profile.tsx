@@ -74,9 +74,12 @@ function CustomerAccountProfileEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError("");
     fetchMyCustomerAccountProfile()
       .then((value) => {
         if (!active) return;
@@ -95,7 +98,16 @@ function CustomerAccountProfileEditor() {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [loadAttempt]);
+
+  function retryLoad() {
+    setProfile(null);
+    setDraft({ businessName: "", contactName: "", phone: "", email: "" });
+    setLoading(true);
+    setError("");
+    setNotice("");
+    setLoadAttempt((attempt) => attempt + 1);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,7 +160,14 @@ function CustomerAccountProfileEditor() {
         </div>
       ) : null}
       {loading ? <p role="status" className="mt-3 text-sm text-muted-foreground">جار تحميل بيانات الشركة...</p> : null}
-      {error ? <p role="alert" className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
+      {error ? (
+        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          <span>{error}</span>
+          <button type="button" className="btn secondary" onClick={retryLoad} disabled={loading}>
+            {loading ? "جار إعادة التحميل..." : "إعادة تحميل بيانات الشركة"}
+          </button>
+        </div>
+      ) : null}
       {notice ? <p role="status" className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p> : null}
       {profile ? (
         <form onSubmit={(event) => void submit(event)} className="mt-4 grid gap-3 sm:grid-cols-2">
