@@ -2886,16 +2886,19 @@ function Reports() {
         : formatCurrency(inventoryValueAmount);
   return <>
     <Heading eyebrow="التحليل التنفيذي" title="التقارير الذكية" description="مؤشرات قابلة للتنفيذ مبنية على البيانات التشغيلية الحالية" icon={BarChart3} />
-    <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
-    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="report-grid">
-      <ReportMetric label="إجمالي المبيعات" value={stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح'} icon={CircleDollarSign} />
-      <ReportMetric label="متوسط قيمة الطلب" value={stats ? dashboardAverageOrderDisplay(stats, formatCurrency) : 'غير متاح'} icon={ShoppingCart} />
-      <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
-      <ReportMetric label="الأصناف منخفضة المخزون" value={!stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount)} icon={AlertTriangle} />
-    </div>}
+    <WorkspaceSectionGroup icon={BarChart3} title="مؤشرات الأداء التنفيذي" description="ملخص المبيعات وقيمة المخزون ومتوسط الطلب وحالة إعادة التوريد من بيانات المؤسسة الحالية." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+      <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="report-grid">
+        <ReportMetric label="إجمالي المبيعات" value={stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح'} icon={CircleDollarSign} />
+        <ReportMetric label="متوسط قيمة الطلب" value={stats ? dashboardAverageOrderDisplay(stats, formatCurrency) : 'غير متاح'} icon={ShoppingCart} />
+        <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
+        <ReportMetric label="الأصناف منخفضة المخزون" value={!stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount)} icon={AlertTriangle} />
+      </div>}
+    </WorkspaceSectionGroup>
     {canViewProductActivity && (
       <>
-        <section className="panel product-activity-report" style={{ marginTop: 16 }}>
+        <WorkspaceSectionGroup icon={Activity} title="تقارير حركة المخزون" description="حركة الأصناف والركود وفترات النشاط اعتمادًا على تقرير الخادم." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+        <section className="panel product-activity-report">
           <div className="panel-head">
             <div>
               <h2>تقرير حركة الأصناف والركود</h2>
@@ -2981,6 +2984,7 @@ function Reports() {
               </>
             ) : <Empty text="لم تصل بيانات تقرير حركة الأصناف من الخادم." />}
         </section>
+        </WorkspaceSectionGroup>
         {productActivityPrint.document && (
           <div className="product-activity-print-only" aria-hidden="true">
             <ProductActivityPrintSheet document={productActivityPrint.document} />
@@ -2988,9 +2992,12 @@ function Reports() {
         )}
       </>
     )}
-    <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
-    <ExecutiveStoreAnalytics />
-    <section className="panel" style={{ marginTop: 16 }}>
+    <WorkspaceSectionGroup icon={PackageCheck} title="محركات التحليل المتقدم" description="تحليل Onyx وقراءات أداء المتجر من مصادر البيانات الفعلية." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+      <UnifiedOnyxAnalysisPanel />
+      <ExecutiveStoreAnalytics />
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={Activity} title="مراقبة الإشارات التشغيلية" description="إشارات تستند إلى الطلبات الفعلية فقط، مع توضيح الدليل وحدود الاستنتاج." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+    <section className="panel">
       <div className="panel-head"><div><h2>إشارات تشغيلية مدعومة بالأدلة</h2><p>تحليل حتمي لنتائج الطلبات الفعلية في نطاق المؤسسة، دون اختلاق أسباب أو توقعات.</p></div><Activity size={22} /></div>
       {ordersLoading ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : signals.length === 0
         ? <Empty text="لا توجد إشارات تتجاوز حدود التنبيه الحالية في مجموعة الطلبات المحمّلة." />
@@ -3001,7 +3008,9 @@ function Reports() {
           </article>)}</div>}
       <p className="report-note" style={{ marginTop: 12 }}>لا تُستنتج أسباب الإلغاء أو أثرها المالي. ويُحجب تنبيه تركّز قيمة المبيعات عند وجود مبلغ أو معرّف عميل غير صالح.</p>
     </section>
-    <section className="panel" style={{ marginTop: 16 }}>
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={ShoppingCart} title="تحليل دورة الطلبات" description="توزيع الطلبات حسب الحالة وعددها وقيمتها دون تقدير المبالغ المفقودة." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+    <section className="panel">
       <div className="panel-head"><div><h2>توزيع الطلبات حسب الحالة</h2><p>عدّ ومبالغ من الطلبات الفعلية التي أعادها الخادم للمؤسسة الحالية؛ لا يتم تقدير القيم المفقودة.</p></div><ShoppingCart size={22} /></div>
       {ordersLoading ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : statusBreakdown.length === 0 ? <Empty text="لا توجد طلبات مسجلة لعرض توزيع الحالات." /> :
         <TableWrap><table><thead><tr><th>الحالة</th><th>عدد الطلبات</th><th>النسبة</th><th>قيمة الطلبات</th></tr></thead><tbody>
@@ -3014,7 +3023,10 @@ function Reports() {
         </tbody></table></TableWrap>}
       <p className="report-note" style={{ marginTop: 10 }}>النسب من مجموعة الطلبات المحمّلة فقط. إذا احتوى وضعٌ ما على مبلغ غير صالح، يبقى عدد الطلبات ظاهرًا وتُحجب القيمة المالية لذلك الوضع.</p>
     </section>
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={FileText} title="التوصية التنفيذية" description="إشارة اليوم المبنية على حالة المخزون الموثقة، دون افتراض رصيد غير متحقق." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
     <section className="panel report-note"><FileText size={21} /><div><h2>قرار اليوم</h2><p>{!stats || stats.lowStockCount === null ? 'تعذر إصدار قرار موثوق للمخزون؛ تحقق من ارتباط المستودع واكتمال قراءة الأرصدة أولًا.' : stats.lowStockCount > 0 ? 'ابدأ بمراجعة الأصناف منخفضة المخزون قبل استقبال الطلبات الجديدة.' : 'لا توجد أصناف أقل من حدود إعادة الطلب في المستودع الذي تم التحقق منه. ركّز على مراجعة المبيعات والعملاء.'}</p></div></section>
+    </WorkspaceSectionGroup>
   </>;
 }
 function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon: IconType }) { return <article className="report-metric"><Icon size={23} /><span>{label}</span><strong>{value}</strong></article>; }
