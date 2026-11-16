@@ -20,6 +20,7 @@ import { StorefrontProductReviewModeration } from '@/components/StorefrontProduc
 import { StorefrontProductQuestionModeration } from '@/components/StorefrontProductQuestionModeration';
 import { archiveAdminCatalogProduct, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
+import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { ADMIN_NAV_GROUPS, ADMIN_NAV_PATHS, rolesCanAccessView } from '@/lib/admin-access-matrix';
 import { getAdminOrderProgress } from '@/lib/admin-order-progress';
 import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
@@ -2319,38 +2320,7 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
     () => fetchAdminOrdersPage({ page, search: debouncedSearch, status: statusFilter, sort: sortBy }),
     [page, debouncedSearch, statusFilter, sortBy],
   );
-  const automaticRefreshInFlight = useRef(false);
-  const refreshOrdersWhileActive = useCallback(async () => {
-    if (
-      loading ||
-      automaticRefreshInFlight.current ||
-      document.visibilityState !== 'visible' ||
-      !navigator.onLine
-    ) return;
-
-    automaticRefreshInFlight.current = true;
-    try {
-      await refetch();
-    } finally {
-      automaticRefreshInFlight.current = false;
-    }
-  }, [loading, refetch]);
-
-  useEffect(() => {
-    const refresh = () => { void refreshOrdersWhileActive(); };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-    const interval = window.setInterval(refresh, 45_000);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('online', refresh);
-
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('online', refresh);
-    };
-  }, [refreshOrdersWhileActive]);
+  useRefreshWhileActive({ refresh: refetch, busy: loading, intervalMs: 45_000 });
 
   const rows = data?.items ?? [];
 

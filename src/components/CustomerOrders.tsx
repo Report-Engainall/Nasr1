@@ -70,6 +70,7 @@ function buildCustomerReorderTemplateLines(items: CustomerOrderLine[]): Array<{ 
   }
   return lines;
 }
+import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { Login } from '@/components/Login';
 import { CustomerReturnRequest } from '@/components/CustomerReturnRequest';
 
@@ -395,7 +396,6 @@ function MyOrdersInner() {
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
   const orderListRequestId = useRef(0);
-  const automaticRefreshInFlight = useRef(false);
 
   const load = useCallback(async (quiet = false) => {
     const requestId = ++orderListRequestId.current;
@@ -434,37 +434,12 @@ function MyOrdersInner() {
     }
   }, [page, statusFilter, orderNumberQuery]);
 
-  const refreshWhileCustomerIsActive = useCallback(async () => {
-    if (
-      loading ||
-      automaticRefreshInFlight.current ||
-      document.visibilityState !== 'visible' ||
-      !navigator.onLine
-    ) return;
-
-    automaticRefreshInFlight.current = true;
-    try {
-      await load(true);
-    } finally {
-      automaticRefreshInFlight.current = false;
-    }
-  }, [load, loading]);
-
-  useEffect(() => {
-    const refresh = () => { void refreshWhileCustomerIsActive(); };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-    const interval = window.setInterval(refresh, CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('online', refresh);
-
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('online', refresh);
-    };
-  }, [refreshWhileCustomerIsActive]);
+  const refreshWhileCustomerIsActive = useCallback(() => load(true), [load]);
+  useRefreshWhileActive({
+    refresh: refreshWhileCustomerIsActive,
+    busy: loading,
+    intervalMs: CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS,
+  });
 
   useEffect(() => { void load(); }, [load]);
 
