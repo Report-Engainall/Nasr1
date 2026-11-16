@@ -170,10 +170,8 @@ type ReviewRpcArgs = {
   p_after_created_at: string | null;
   p_after_id: string | null;
   p_search: string | null;
-  p_status: CustomerReturnReviewReviewStatus | null;
+  p_status: CustomerReturnReviewStatus | null;
 };
-
-type CustomerReturnReviewReviewStatus = CustomerReturnReviewStatus;
 
 async function callReviewQueueRpc(args: ReviewRpcArgs): Promise<unknown> {
   const client = supabase as unknown as {
@@ -203,7 +201,15 @@ export async function fetchCustomerReturnReviewPage(
     p_search: search || null,
     p_status: filters.status || null,
   });
-  return readCustomerReturnReviewPage(data);
+  const result = readCustomerReturnReviewPage(data);
+  if (cursor && result.items.some((row) => {
+    const time = Date.parse(row.created_at);
+    const cursorTime = Date.parse(cursor.created_at);
+    return time < cursorTime || (time === cursorTime && row.id <= cursor.id);
+  })) {
+    throw new Error("لم يتقدم سجل المرتجعات بعد مؤشر الصفحة السابق.");
+  }
+  return result;
 }
 
 export async function fetchAllCustomerReturnReviewRows(
