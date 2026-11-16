@@ -10,6 +10,7 @@ import { ORDER_STATUS_LABELS, type Order, type OrderItem } from '@/lib/types';
 import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
 import { downloadCustomerOrderWorkbookXlsx } from '@/lib/customer-order-xlsx';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
+import { WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { getOrCreateBoundIdempotencyKey, type BoundIdempotencyKey } from '@/lib/bound-idempotency-key';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
@@ -433,8 +434,7 @@ function MyOrdersInner() {
   const pageCount = totalCount === null ? 1 : Math.max(1, Math.ceil(totalCount / CUSTOMER_ORDERS_PAGE_SIZE));
   return (
     <Shell>
-      <h1 style={{ fontSize: 26, margin: '0 0 6px' }}>طلباتي</h1>
-      <p style={{ color: '#7a9398', margin: '0 0 20px' }}>كل الطلبات المرسلة من حسابك وحالتها الحالية</p>
+      <WorkspaceSectionHeader eyebrow="حساب العميل" title="طلباتي" description="كل الطلبات المرسلة من حسابك وحالتها الحالية." icon={Package} />
       <MyOrdersSearch
         value={searchDraft}
         disabled={loading}
