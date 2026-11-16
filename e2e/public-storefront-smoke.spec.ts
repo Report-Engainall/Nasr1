@@ -551,31 +551,6 @@ test("public customer routes preserve RTL and fit mobile and desktop viewports",
         await expect(page.getByLabel("البريد الإلكتروني")).toBeVisible();
       } else {
         await expect(page.locator(".sf-header")).toBeVisible();
-        const headingDebug = await page.getByRole("heading", { name: "المنتجات", exact: true }).evaluate((element) => {
-          const chain: Array<Record<string, unknown>> = [];
-          let current: HTMLElement | null = element as HTMLElement;
-          while (current && chain.length < 7) {
-            const style = getComputedStyle(current);
-            const rect = current.getBoundingClientRect();
-            chain.push({
-              tag: current.tagName,
-              className: typeof current.className === "string" ? current.className : "",
-              hidden: current.hidden,
-              visibility: style.visibility,
-              display: style.display,
-              opacity: style.opacity,
-              width: rect.width,
-              height: rect.height,
-              top: rect.top,
-              left: rect.left,
-              clipPath: style.clipPath,
-              overflow: style.overflow,
-            });
-            current = current.parentElement;
-          }
-          return { mediaPrint: matchMedia("print").matches, bodyAttributes: Array.from(document.body.attributes).map((a) => [a.name, a.value]), chain };
-        });
-        console.log("STOREFRONT_PRODUCTS_HEADING_LAYOUT", JSON.stringify(headingDebug));
         await expect(page.getByRole("heading", { name: "المنتجات", exact: true })).toBeVisible();
       }
 
