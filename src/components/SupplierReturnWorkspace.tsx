@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ClipboardList, PackageMinus, RefreshCw, Send } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { WorkspaceSectionGroup } from "@/components/ui/workspace-sections";
 import { SupplierReturnDocumentActions } from "@/components/SupplierReturnDocumentActions";
 import {
   createSupplierReturn,
@@ -163,16 +164,18 @@ export function SupplierReturnWorkspace() {
   }
 
   return (
-    <section className="panel" dir="rtl" style={{ display: "grid", gap: 14 }}>
-      <header className="panel-head">
-        <div>
-          <h2><PackageMinus size={18} style={{ verticalAlign: "middle", marginInlineEnd: 7 }} /> مرتجعات الموردين</h2>
-          <p className="po-muted">كل مرتجع مرتبط بإيصال استلام أصلي. لا يتجاوز الكمية المتبقية القابلة للإرجاع، ويُخصم من المتاح دون المساس بالمحجوز.</p>
-        </div>
+    <WorkspaceSectionGroup
+      icon={PackageMinus}
+      title="مرتجعات الموردين"
+      description="كل مرتجع مرتبط بإيصال استلام أصلي. لا يتجاوز الكمية المتبقية القابلة للإرجاع، ويُخصم من المتاح دون المساس بالمحجوز."
+      className="supplier-return-group"
+      contentClassName="supplier-return-group__content"
+    >
+      <div className="flex justify-end">
         <button className="btn secondary" type="button" onClick={() => void load()} disabled={loading || busy}>
           <RefreshCw size={15} /> تحديث البيانات
         </button>
-      </header>
+      </div>
 
       {error && <p className="po-error" role="alert"><AlertTriangle size={15} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} />{error}</p>}
       {notice && <p className="po-notice" role="status"><CheckCircle2 size={15} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} />{notice}</p>}
@@ -251,6 +254,6 @@ export function SupplierReturnWorkspace() {
           }
         </section>
       </div>
-    </section>
+    </WorkspaceSectionGroup>
   );
 }
