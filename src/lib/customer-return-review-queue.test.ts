@@ -58,6 +58,11 @@ describe("customer return review queue pagination", () => {
     expect(() => readCustomerReturnReviewPage(malformed)).toThrow("لم يتطابق مؤشر الصفحة التالية");
   });
 
+  it("treats blank optional item metadata as absent without rejecting the request", () => {
+    const optionalValues = page([{ ...row(1), items: [{ ...row(1).items[0], item_code: "", unit: "" }] }], false, 1);
+    expect(readCustomerReturnReviewPage(optionalValues).items[0].items[0]).toMatchObject({ item_code: null, unit: null });
+  });
+
   it("rejects duplicate IDs and non-deterministic ordering", () => {
     expect(() => readCustomerReturnReviewPage(page([row(1), row(1)], false, 2))).toThrow("تكرر طلب مرتجع");
     expect(() => readCustomerReturnReviewPage(page([row(2), row(1)], false, 2))).toThrow("ترتيب صفحة المرتجعات");
