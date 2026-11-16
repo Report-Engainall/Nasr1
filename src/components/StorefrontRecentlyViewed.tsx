@@ -28,16 +28,22 @@ export function StorefrontRecentlyViewed({ products, currentProductId, priceVisi
   const [entries, setEntries] = useState<RecentlyViewedProduct[]>([]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !canRecordRecentlyViewedProducts({
-      authReady: ready,
-      profileId: user?.profileId,
-      isStaff: user?.isStaff,
-      roles: user?.roles,
-    })) {
+    const profileId = user?.profileId;
+    if (
+      typeof window === 'undefined'
+      || typeof profileId !== 'string'
+      || !profileId.trim()
+      || !canRecordRecentlyViewedProducts({
+        authReady: ready,
+        profileId,
+        isStaff: user?.isStaff,
+        roles: user?.roles,
+      })
+    ) {
       setEntries([]);
       return;
     }
-    setEntries(readRecentlyViewedProducts(window.localStorage, user.profileId));
+    setEntries(readRecentlyViewedProducts(window.localStorage, profileId));
   }, [ready, user?.profileId, user?.isStaff, user?.roles, currentProductId]);
 
   const visibleProducts = useMemo(
