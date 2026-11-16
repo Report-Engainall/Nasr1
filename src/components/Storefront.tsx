@@ -12,6 +12,7 @@ import { formatNumber } from '@/lib/format';
 import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
 import { ProductComparison } from '@/components/store/ProductComparison';
+import { CartQuantityControl } from '@/components/store/CartQuantityControl';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
@@ -697,45 +698,28 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     setCart((previous) => mergeProductIntoCart(previous, product, requestedQuantity, minimum, multiple, available));
     return true;
   }
-  function updateQty(productId: string, delta: number) {
+  function setCartQuantity(productId: string, requestedQuantity: number) {
     const existingItem = cart.find((item) => item.product.id === productId);
     if (!existingItem) return;
-    if (delta > 0) {
-      const minimum = Number.isSafeInteger(existingItem.product.min_order_quantity) && Number(existingItem.product.min_order_quantity) >= 1
-        ? Number(existingItem.product.min_order_quantity) : 1;
-      const multiple = Number.isSafeInteger(existingItem.product.order_quantity_multiple) && Number(existingItem.product.order_quantity_multiple) >= 1
-        ? Number(existingItem.product.order_quantity_multiple) : 1;
-      const availableRaw = existingItem.product.inventory?.quantity_available;
-      const available = typeof availableRaw === 'number' && Number.isFinite(availableRaw)
-        ? Math.max(0, Math.floor(availableRaw))
-        : null;
-      const next = nextOrderQuantity(existingItem.quantity, minimum, multiple);
-      if (available !== null && next > available) {
-        setCartActionNotice(`لا يمكن زيادة «${existingItem.product.name}»: الكمية التالية (${next}) تتجاوز المتاح (${available} ${existingItem.product.unit}).`);
-        return;
-      }
+    const product = existingItem.product;
+    const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+      ? Number(product.min_order_quantity) : 1;
+    const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+      ? Number(product.order_quantity_multiple) : 1;
+    const availableRaw = product.inventory?.quantity_available;
+    const available = typeof availableRaw === 'number' && Number.isFinite(availableRaw)
+      ? Math.max(existingItem.quantity, Math.floor(availableRaw))
+      : null;
+    if (!Number.isSafeInteger(requestedQuantity) || requestedQuantity < minimum ||
+        (requestedQuantity - minimum) % multiple !== 0 ||
+        (available !== null && requestedQuantity > available)) {
+      setCartActionNotice(`الكمية غير صالحة للصنف «${product.name}». الحد الأدنى ${minimum} ومضاعف الطلب ${multiple}${available === null ? '' : `، والحد المتاح ${available} ${product.unit}`}.`);
+      return;
     }
-
     setCartActionNotice(null);
-    setCart((prev) => prev.map((item) => {
-      if (item.product.id !== productId) return item;
-      const minimum = Number.isSafeInteger(item.product.min_order_quantity) && Number(item.product.min_order_quantity) >= 1
-        ? Number(item.product.min_order_quantity) : 1;
-      const multiple = Number.isSafeInteger(item.product.order_quantity_multiple) && Number(item.product.order_quantity_multiple) >= 1
-        ? Number(item.product.order_quantity_multiple) : 1;
-      let next = 0;
-      if (delta > 0) {
-        next = nextOrderQuantity(item.quantity, minimum, multiple);
-        const availableRaw = item.product.inventory?.quantity_available;
-        const available = typeof availableRaw === 'number' && Number.isFinite(availableRaw)
-          ? Math.max(0, Math.floor(availableRaw))
-          : null;
-        if (available !== null && next > available) return item;
-      } else if (item.quantity > minimum) {
-        next = minimum + Math.max(0, Math.ceil((item.quantity - minimum) / multiple) - 1) * multiple;
-      }
-      return { ...item, quantity: next };
-    }).filter((item) => item.quantity > 0));
+    setCart((previous) => previous.map((item) =>
+      item.product.id === productId ? { ...item, quantity: requestedQuantity } : item
+    ));
   }
   function removeFromCart(productId: string) { setCart((prev) => prev.filter((i) => i.product.id !== productId)); }
   function addMatrixSelection() {
@@ -1079,7 +1063,14 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                 {cart.map((item) => (
                   <div className="sf-cart-row" key={item.product.id}>
                     <div className="sf-cart-info"><div className="sf-cart-img"><Package size={20} /></div><div><strong>{item.product.name}</strong><span>الوحدة: {item.product.unit}</span></div></div>
-                    <div className="sf-cart-qty"><button aria-label={`تقليل كمية ${item.product.name}`} onClick={() => updateQty(item.product.id, -1)}><Minus size={14} /></button><span>{item.quantity}</span><button aria-label={`زيادة كمية ${item.product.name}`} onClick={() => updateQty(item.product.id, 1)}><Plus size={14} /></button></div>
+                    <CartQuantityControl
+                      productName={item.product.name}
+                      quantity={item.quantity}
+                      minimum={item.product.min_order_quantity}
+                      multiple={item.product.order_quantity_multiple}
+                      available={item.product.inventory?.quantity_available}
+                      onCommit={(quantity) => setCartQuantity(item.product.id, quantity)}
+                    />
                     <button className="sf-cart-remove" aria-label={`حذف ${item.product.name} من السلة`} onClick={() => removeFromCart(item.product.id)}><Trash2 size={16} /></button>
                   </div>
                 ))}
