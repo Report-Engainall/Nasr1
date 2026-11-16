@@ -3,7 +3,7 @@ import { ArrowLeft, BadgePercent, CalendarDays, Package, RefreshCw, Tag } from "
 import { fetchProducts, fetchStorefrontPromotions } from "@/lib/api";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { useFetch } from "@/lib/useFetch";
-import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 type StoreProduct = Awaited<ReturnType<typeof fetchProducts>>[number];
 type StorePromotion = Awaited<ReturnType<typeof fetchStorefrontPromotions>>[number];
@@ -119,14 +119,14 @@ function OfferCard({
   const targetProducts = promotionProducts(promotion, products);
 
   return (
-    <article style={{ border: "1px solid #eadfbf", background: "#fffdf7", borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 11 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#805f1a" }}>
-        <BadgePercent size={22} /> <strong>حملة منشورة</strong>
-      </div>
-      <h2 style={{ fontSize: 19, margin: 0 }}>{promotion.title}</h2>
-      <p style={{ margin: 0, color: "#526b70" }}>
-        {promotion.description || "لا يوجد وصف إضافي محفوظ للحملة."}
-      </p>
+    <WorkspaceSectionGroup
+      icon={BadgePercent}
+      title={promotion.title}
+      description={promotion.description || "لا يوجد وصف إضافي محفوظ للحملة."}
+      className="storefront-offer-group"
+      contentClassName="storefront-offer-group__content"
+    >
+      <span className="storefront-offer-group__status"><BadgePercent size={16} /> حملة منشورة</span>
       <strong>{promotionDiscountLabel(promotion)}</strong>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "#526b70", fontSize: 13 }}>
         <CalendarDays size={15} />
@@ -139,7 +139,7 @@ function OfferCard({
       <Link to="/catalog" style={{ marginTop: "auto", textDecoration: "none", color: "#087f8d", fontWeight: 800, display: "inline-flex", gap: 7, alignItems: "center" }}>
         استعراض الكتالوج <ArrowLeft size={15} />
       </Link>
-    </article>
+    </WorkspaceSectionGroup>
   );
 }
 
