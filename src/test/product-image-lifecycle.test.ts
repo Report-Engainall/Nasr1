@@ -218,11 +218,11 @@ describe("product image lifecycle", () => {
   });
 
   it("rejects duplicate or foreign gallery URLs before a server mutation", async () => {
-    const first = "https://storage.example.test/storage/v1/object/public/product-images/" + ORGANIZATION_ID + "/" + PRODUCT_ID + "/first.webp";
+    const first = "https://storage.example.test/storage/v1/object/public/product-images/" + ORGANIZATION_ID + "/" + PRODUCT_ID + "/b2000000-0000-4000-8000-000000000003.webp";
     await expect(reorderProductGalleryImages(PRODUCT_ID, [first, first])).rejects.toThrow("فريدة");
     await expect(
       reorderProductGalleryImages(PRODUCT_ID, [
-        "https://storage.example.test/storage/v1/object/public/product-images/b0000000-0000-0000-0000-000000000099/" + PRODUCT_ID + "/foreign.webp",
+        "https://storage.example.test/storage/v1/object/public/product-images/b0000000-0000-0000-0000-000000000099/" + PRODUCT_ID + "/b2000000-0000-4000-8000-000000000099.webp",
       ]),
     ).rejects.toThrow("لا تنتمي");
     expect(mocks.rpc).not.toHaveBeenCalled();
