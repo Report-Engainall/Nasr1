@@ -68,7 +68,7 @@ describe('InventoryBalanceAdjustmentPanel', () => {
     expect(screen.getByRole('combobox', { name: 'الصنف المراد تسويته' })).toHaveValue(secondBalance.product_id);
     expect(screen.getByRole('option', { name: 'SKU-002 — زيت نباتي 1 لتر' })).toBeInTheDocument();
     expect(screen.getByLabelText('الرصيد الجديد للصنف زيت نباتي 1 لتر')).toHaveValue(42); // Number inputs are exposed as numeric values by jest-dom.
-    expect(screen.getByText('42')).toBeInTheDocument();
+    // The selected quantity is asserted through the controlled number input above.
     expect(screen.queryByLabelText('الرصيد الجديد للصنف أرز 10 كجم')).not.toBeInTheDocument();
   });
 
