@@ -26,6 +26,8 @@ import {
   ProductImageCleanupError,
   removeProductImage,
   uploadProductImage,
+  reorderProductGalleryImages,
+  setProductPrimaryFromGallery,
 } from "@/lib/api";
 
 const ORGANIZATION_ID = "a0000000-0000-0000-0000-000000000001";
@@ -198,4 +200,57 @@ describe("product image lifecycle", () => {
     expect(error).toBeInstanceOf(Error);
     expect(error.imageLinked).toBe(true);
   });
+
+  it("reorders only the exact current-tenant gallery image set through the server command", async () => {
+    const first = \`https://storage.example.test/storage/v1/object/public/product-images/\${ORGANIZATION_ID}/\${PRODUCT_ID}/first.webp\`;
+    const second = \`https://storage.example.test/storage/v1/object/public/product-images/\${ORGANIZATION_ID}/\${PRODUCT_ID}/second.webp\`;
+    mocks.rpc.mockResolvedValue({
+      data: { id: PRODUCT_ID, changed: true, image_gallery_urls: [second, first] },
+      error: null,
+    });
+
+    await expect(reorderProductGalleryImages(PRODUCT_ID, [second, first])).resolves.toEqual([second, first]);
+    expect(mocks.rpc).toHaveBeenCalledWith("reorder_staff_product_gallery_images", {
+      p_product_id: PRODUCT_ID,
+      p_image_urls: [second, first],
+    });
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate or foreign gallery URLs before a server mutation", async () => {
+    const first = \`https://storage.example.test/storage/v1/object/public/product-images/\${ORGANIZATION_ID}/\${PRODUCT_ID}/first.webp\`;
+    await expect(reorderProductGalleryImages(PRODUCT_ID, [first, first])).rejects.toThrow("فريدة");
+    await expect(
+      reorderProductGalleryImages(PRODUCT_ID, [
+        "https://storage.example.test/storage/v1/object/public/product-images/b0000000-0000-0000-0000-000000000099/" + PRODUCT_ID + "/foreign.webp",
+      ]),
+    ).rejects.toThrow("لا تنتمي");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("promotes a selected gallery image with an expected-primary compare value", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        id: PRODUCT_ID,
+        image_url: NEW_URL,
+        previous_image_url: OLD_URL,
+        changed: true,
+        image_gallery_urls: [OLD_URL],
+      },
+      error: null,
+    });
+
+    await expect(setProductPrimaryFromGallery(PRODUCT_ID, NEW_URL, OLD_URL)).resolves.toEqual({
+      imageUrl: NEW_URL,
+      previousImageUrl: OLD_URL,
+      changed: true,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("set_staff_product_primary_from_gallery", {
+      p_product_id: PRODUCT_ID,
+      p_image_url: NEW_URL,
+      p_expected_image_url: OLD_URL,
+    });
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
 });
