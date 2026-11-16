@@ -18,6 +18,8 @@
     "src/lib/customer-service-cases.ts",
     "src/test/customer-quotes-route-acceptance.test.tsx",
     "src/components/AdminCustomer360.tsx",
+    "src/lib/customer-interaction-filter.ts",
+    "src/lib/customer-interaction-filter.test.ts",
     "src/test/admin-customer-360-display.test.tsx",
     "src/components/AghbariApp.tsx",
     "src/components/AdminPages.tsx",
