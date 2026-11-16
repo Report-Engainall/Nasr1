@@ -606,6 +606,8 @@ jobs:
       - name: Test customer receivable identity, same-name separation, tenant FK, accountant access and customer denial
         run: node scripts/test-customer-receivable-aging-identity.mjs
       - name: Test atomic price grid writes, rollback, audit and stale-writer race
+        env:
+          PRICE_GRID_ACCEPTANCE_DIAGNOSTIC_PATH: ${{ runner.temp }}/price-grid-acceptance-diagnostic.json
         run: node scripts/test-price-grid-atomicity.mjs
       - name: Test customer order amendment exact replay and immutable version on local PostgreSQL 17
         run: node scripts/test-customer-order-amendment-replay.mjs
@@ -887,5 +889,6 @@ jobs:
             ${{ runner.temp }}/admin-product-tier-price-editor-browser-proof.json
             ${{ runner.temp }}/admin-category-tree-browser-proof.json
             ${{ runner.temp }}/product-image-storage-proof.json
+            ${{ runner.temp }}/price-grid-acceptance-diagnostic.json
             ${{ runner.temp }}/p2-local-supabase-diagnostics.log
           if-no-files-found: ignore
