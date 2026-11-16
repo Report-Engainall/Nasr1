@@ -13,6 +13,7 @@ import {
   updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
   ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
   uploadProductGalleryImage, removeProductGalleryImage,
+  reorderProductGalleryImages, setProductPrimaryFromGallery,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { StorefrontProductReviewModeration } from '@/components/StorefrontProductReviewModeration';
@@ -1351,10 +1352,19 @@ export function ProductModal({
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [galleryRemoveUrls, setGalleryRemoveUrls] = useState<string[]>([]);
+  const [galleryOrder, setGalleryOrder] = useState<string[]>(product?.image_gallery_urls ?? []);
+  const [galleryPrimaryUrl, setGalleryPrimaryUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   // React state alone does not block two click events dispatched before a rerender.
   const saveInFlight = useRef(false);
+
+  useEffect(() => {
+    setGalleryOrder(product?.image_gallery_urls ?? []);
+    setGalleryPrimaryUrl(null);
+    setGalleryRemoveUrls([]);
+    setGalleryFiles([]);
+  }, [product?.id]);
 
   useEffect(() => {
     if (!product || !canManageLifecycle) {
@@ -1384,11 +1394,11 @@ export function ProductModal({
   }, [product?.id, canManageLifecycle, priceDetailsRetry]);
 
   useEffect(() => {
-    if (!imageFile) { setImagePreview(removeImageRequested ? null : product?.image_url ?? null); return; }
+    if (!imageFile) { setImagePreview(removeImageRequested ? null : galleryPrimaryUrl ?? product?.image_url ?? null); return; }
     const preview = URL.createObjectURL(imageFile);
     setImagePreview(preview);
     return () => URL.revokeObjectURL(preview);
-  }, [imageFile, product?.image_url, removeImageRequested]);
+  }, [imageFile, product?.image_url, removeImageRequested, galleryPrimaryUrl]);
 
   function chooseImage(file: File | null) {
     setError('');
@@ -1396,11 +1406,13 @@ export function ProductModal({
     const issue = validateProductImageFile(file);
     if (issue) { setImageFile(null); setRemoveImageRequested(false); setError(issue); return; }
     setRemoveImageRequested(false);
+    setGalleryPrimaryUrl(null);
     setImageFile(file);
   }
 
   function clearImageSelection() {
     setError('');
+    setGalleryPrimaryUrl(null);
     if (imageFile) {
       setImageFile(null);
       setRemoveImageRequested(false);
@@ -1424,8 +1436,58 @@ export function ProductModal({
     setGalleryFiles((current) => [...current, ...files]);
   }
 
+  function moveGalleryImage(imageUrl: string, direction: -1 | 1) {
+    setGalleryOrder((current) => {
+      const visible = current.filter((url) => !galleryRemoveUrls.includes(url));
+      const index = visible.indexOf(imageUrl);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= visible.length) return current;
+      const reordered = [...visible];
+      [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+      const removed = current.filter((url) => galleryRemoveUrls.includes(url));
+      return [...reordered, ...removed];
+    });
+  }
+
   async function persistProductGalleryChanges(savedId: string): Promise<boolean> {
-    if (galleryRemoveUrls.length === 0 && galleryFiles.length === 0) return true;
+    const originalUrls = product?.image_gallery_urls ?? [];
+    const hasOrderChange = galleryOrder.filter((url) => originalUrls.includes(url) && !galleryRemoveUrls.includes(url))
+      .some((url, index, visible) => url !== originalUrls.filter((entry) => !galleryRemoveUrls.includes(entry))[index]);
+    if (galleryRemoveUrls.length === 0 && galleryFiles.length === 0 && !hasOrderChange) return true;
+    let removed = 0;
+    let uploaded = 0;
+    try {
+      for (const url of galleryRemoveUrls) {
+        await removeProductGalleryImage(savedId, url);
+        removed += 1;
+      }
+      const uploadedUrls: string[] = [];
+      for (const file of galleryFiles) {
+        uploadedUrls.push(await uploadProductGalleryImage(savedId, await toWebp(file)));
+        uploaded += 1;
+      }
+      const retainedOrder = galleryOrder.filter((url) => originalUrls.includes(url) && !galleryRemoveUrls.includes(url));
+      const nextOrder = [...retainedOrder, ...uploadedUrls];
+      await reorderProductGalleryImages(savedId, nextOrder);
+      return true;
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : 'تعذر تحديث معرض الصور.';
+      onSaved('حُفظت بيانات المنتج؛ اكتمل ' + removed + ' إزالة و' + uploaded + ' رفع من معرض الصور قبل التعذر. حدّث المنتج لمراجعة الحالة الحالية. ' + detail);
+      return false;
+    }
+  }
+
+  async function persistProductImageChanges(savedId: string): Promise<boolean> {
+    if (galleryPrimaryUrl && product) {
+      try {
+        await setProductPrimaryFromGallery(savedId, galleryPrimaryUrl, product.image_url ?? null);
+        return true;
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : 'تعذر تعيين الصورة المختارة كرئيسية.';
+        onSaved('تم حفظ بيانات المنتج، لكن لم تتغير الصورة الرئيسية: ' + detail);
+        return false;
+      }
+    }
     let removed = 0;
     let uploaded = 0;
     try {
@@ -1517,6 +1579,16 @@ export function ProductModal({
     if (!Number.isSafeInteger(minimumValue) || minimumValue < 1 || minimumValue > 10000) { setError('الحد الأدنى للطلب يجب أن يكون عددًا صحيحًا بين 1 و10000.'); return; }
     if (!Number.isSafeInteger(multipleValue) || multipleValue < 1 || multipleValue > 10000) { setError('مضاعف الكمية يجب أن يكون عددًا صحيحًا بين 1 و10000.'); return; }
     if (sortOrder.trim() === '' || !Number.isSafeInteger(sortOrderValue) || sortOrderValue < 0 || sortOrderValue > 1000000000) { setError('ترتيب الظهور يجب أن يكون عددًا صحيحًا بين صفر ومليار.'); return; }
+    if (product?.image_url && (imageFile || removeImageRequested || galleryPrimaryUrl)) {
+      const action = galleryPrimaryUrl
+        ? 'ستصبح الصورة المحددة من المعرض هي الصورة الرئيسية، وستُنقل الصورة الرئيسية الحالية إلى المعرض.'
+        : imageFile
+          ? 'سيتم استبدال الصورة الرئيسية الحالية بالصورة الجديدة بعد تأكيد الخادم ربطها.'
+          : 'سيتم فصل الصورة الرئيسية الحالية من المنتج وتنظيف ملفها المملوك بعد تأكيد الخادم.';
+      if (!window.confirm(action + '\nهل تريد المتابعة؟')) return;
+    }
+    if (galleryRemoveUrls.length > 0 &&
+        !window.confirm('سيتم إزالة ' + galleryRemoveUrls.length + ' صورة إضافية من معرض المنتج وتنظيف الملفات المرتبطة بها. متابعة؟')) return;
     saveInFlight.current = true;
     setSaving(true); setError('');
     let productSaved = false;
@@ -1571,8 +1643,13 @@ export function ProductModal({
         savedProductId = created.id;
       }
       productSaved = true;
-      if (!(await persistProductImageChanges(savedProductId))) return;
-      if (!(await persistProductGalleryChanges(savedProductId))) return;
+      if (galleryPrimaryUrl) {
+        if (!(await persistProductGalleryChanges(savedProductId))) return;
+        if (!(await persistProductImageChanges(savedProductId))) return;
+      } else {
+        if (!(await persistProductImageChanges(savedProductId))) return;
+        if (!(await persistProductGalleryChanges(savedProductId))) return;
+      }
       onSaved();
     } catch (cause) {
       if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
@@ -1773,21 +1850,41 @@ export function ProductModal({
         </p>
       )}
       <section aria-label="معرض صور المنتج" style={{ display: 'grid', gap: 10, marginTop: 14 }}>
-        <strong>معرض الصور الإضافية ({((product?.image_gallery_urls ?? []).length - galleryRemoveUrls.length + galleryFiles.length).toLocaleString('ar-YE')} / 8)</strong>
-        <p className="text-muted" style={{ margin: 0 }}>أضف حتى ثماني صور تفصيلية بجانب الصورة الرئيسية. تُحفظ في مساحة المؤسسة وتُربط بأمر خادمي مدقق.</p>
+        <strong>معرض الصور الإضافية ({(galleryOrder.filter((url) => !galleryRemoveUrls.includes(url)).length + galleryFiles.length).toLocaleString('ar-YE')} / 8)</strong>
+        <p className="text-muted" style={{ margin: 0 }}>أضف حتى ثماني صور تفصيلية، رتّبها، أو اختر إحداها لتصبح الصورة الرئيسية. عند الترقية تُحفظ الصورة الرئيسية الحالية كصورة إضافية.</p>
         <input type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="إضافة صور إضافية للمنتج"
           onChange={(event) => { chooseGalleryFiles(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ''; }}
-          disabled={saving || (product?.image_gallery_urls ?? []).length - galleryRemoveUrls.length + galleryFiles.length >= 8} />
-        {(product?.image_gallery_urls ?? []).filter((url) => !galleryRemoveUrls.includes(url)).length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8 }}>
-            {(product?.image_gallery_urls ?? []).filter((url) => !galleryRemoveUrls.includes(url)).map((url) => (
-              <div key={url} style={{ display: 'grid', gap: 4, border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, padding: 6 }}>
-                <img src={url} alt={'صورة إضافية للمنتج ' + name} style={{ width: '100%', height: 84, objectFit: 'contain' }} />
-                <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryRemoveUrls((current) => [...current, url])}>إزالة</button>
-              </div>
-            ))}
+          disabled={saving || galleryOrder.filter((url) => !galleryRemoveUrls.includes(url)).length + galleryFiles.length >= 8} />
+        {galleryOrder.filter((url) => !galleryRemoveUrls.includes(url) && (product?.image_gallery_urls ?? []).includes(url)).length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(128px,1fr))', gap: 8 }}>
+            {galleryOrder.filter((url) => !galleryRemoveUrls.includes(url) && (product?.image_gallery_urls ?? []).includes(url)).map((url) => {
+              const ordered = galleryOrder.filter((entry) => !galleryRemoveUrls.includes(entry) && (product?.image_gallery_urls ?? []).includes(entry));
+              const index = ordered.indexOf(url);
+              return (
+                <div key={url} style={{ display: 'grid', gap: 5, border: galleryPrimaryUrl === url ? '2px solid var(--primary, #176b52)' : '1px solid var(--border, #e2e8f0)', borderRadius: 8, padding: 6 }}>
+                  <img src={url} alt={'صورة إضافية للمنتج ' + name} style={{ width: '100%', height: 96, objectFit: 'contain' }} />
+                  <small>ترتيب الصورة: {(index + 1).toLocaleString('ar-YE')}</small>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button type="button" className="btn ghost" aria-label={'رفع ترتيب صورة المعرض ' + (index + 1)} disabled={saving || index === 0} onClick={() => moveGalleryImage(url, -1)}>↑</button>
+                    <button type="button" className="btn ghost" aria-label={'خفض ترتيب صورة المعرض ' + (index + 1)} disabled={saving || index === ordered.length - 1} onClick={() => moveGalleryImage(url, 1)}>↓</button>
+                  </div>
+                  <button type="button" className="btn outline" disabled={saving || Boolean(galleryPrimaryUrl && galleryPrimaryUrl !== url)} onClick={() => { setGalleryPrimaryUrl(url); setImageFile(null); setRemoveImageRequested(false); }}>
+                    {galleryPrimaryUrl === url ? 'محددة كرئيسية عند الحفظ' : 'تعيين كصورة رئيسية'}
+                  </button>
+                  <button type="button" className="btn ghost" disabled={saving || galleryPrimaryUrl === url} onClick={() => setGalleryRemoveUrls((current) => [...current, url])}>إزالة من المعرض</button>
+                </div>
+              );
+            })}
           </div>
         )}
+        {galleryFiles.length > 0 && <div style={{ display: 'grid', gap: 5 }}>
+          {galleryFiles.map((file, index) => (
+            <div key={file.name + '-' + file.size + '-' + file.lastModified} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+              <span>{file.name}</span>
+              <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>إلغاء الاختيار</button>
+            </div>
+          ))}
+        </div>}
         {galleryFiles.length > 0 && <div style={{ display: 'grid', gap: 5 }}>
           {galleryFiles.map((file, index) => (
             <div key={file.name + '-' + file.size + '-' + file.lastModified} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
