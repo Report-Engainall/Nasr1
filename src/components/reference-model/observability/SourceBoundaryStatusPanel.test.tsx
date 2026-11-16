@@ -10,7 +10,7 @@ describe("SourceBoundaryStatusPanel", () => {
     expect(screen.getByRole("region", { name: "حالة عقود مصادر الوظائف المرجعية" })).toBeInTheDocument();
     expect(screen.getByText("PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY")).toBeInTheDocument();
     expect(screen.getByText("PERSISTENT_SOURCE_ADMIN_ONLY")).toBeInTheDocument();
-    expect(screen.getByText("BLOCKED_NO_PERSISTENT_SOURCE")).toBeInTheDocument();
+    expect(screen.getByText("PERSISTENT_SOURCE_ADMIN_MANAGER_TRIAGE")).toBeInTheDocument();
     expect(screen.getByText("BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE")).toBeInTheDocument();
     expect(screen.getByText(/لا تعرض هذه اللوحة بيانات تشغيل أو سجلات افتراضية/)).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
