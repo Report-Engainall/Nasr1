@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, RefreshCw, ShieldCheck, UserCog } from 'lucide-react';
+import { fetchActiveInventoryWarehouses } from '@/lib/api';
+import type { ActiveInventoryWarehouse } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 type Profile = {
@@ -52,9 +54,9 @@ function CustomerManagerRoleHeading() {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <ShieldCheck size={22} aria-hidden="true" />
       <div>
-        <h2 id="customer-manager-role-title" style={{ margin: 0 }}>إسناد وإدارة دور مسؤول العملاء</h2>
+        <h2 id="customer-manager-role-title" style={{ margin: 0 }}>إدارة أعضاء المؤسسة والأدوار ونطاقات الوصول</h2>
         <p style={{ margin: '5px 0 0', lineHeight: 1.7 }}>
-          تعمل هذه الواجهة عبر RPC مقيد بالمؤسسة ويسجل تغييرات الأدوار. لا يمكن تعديل دور حسابك الحالي.
+          تُدار الأدوار ونطاقات الوصول عبر أوامر خادمية مقيدة بالمؤسسة، مع سبب وإصدار وتدقيق لكل تغيير. لا يمكن تعديل حسابك الحالي.
         </p>
       </div>
     </div>
@@ -210,6 +212,260 @@ function ProfileRoleNotes({
   return null;
 }
 
+
+
+type ProfileScope = {
+  scope_id: string;
+  scope_kind: 'warehouse' | 'assigned_customer';
+  scope_resource_id: string;
+  warehouse_id: string | null;
+  customer_id: string | null;
+  reason: string;
+  is_active: boolean;
+  revision: number;
+  valid_from: string;
+  expires_at: string | null;
+};
+
+function normalizeProfileScopes(value: unknown): ProfileScope[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is ProfileScope => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const scope = entry as Record<string, unknown>;
+    return typeof scope.scope_id === 'string' &&
+      (scope.scope_kind === 'warehouse' || scope.scope_kind === 'assigned_customer') &&
+      typeof scope.scope_resource_id === 'string' &&
+      typeof scope.reason === 'string' &&
+      typeof scope.is_active === 'boolean' &&
+      Number.isSafeInteger(scope.revision) && Number(scope.revision) >= 1;
+  });
+}
+
+function WarehouseScopePanel({
+  profile,
+  currentProfileId,
+}: {
+  profile: Profile;
+  currentProfileId: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [savingResourceId, setSavingResourceId] = useState<string | null>(null);
+  const [warehouses, setWarehouses] = useState<ActiveInventoryWarehouse[]>([]);
+  const [scopes, setScopes] = useState<ProfileScope[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [warehouseRows, scopeResponse] = await Promise.all([
+        fetchActiveInventoryWarehouses(),
+        supabase.rpc('list_authorization_profile_scopes', {
+          p_target_profile_id: profile.profile_id,
+        }),
+      ]);
+      if (scopeResponse.error) throw scopeResponse.error;
+      setWarehouses(warehouseRows);
+      setScopes(normalizeProfileScopes(scopeResponse.data));
+      setSelectedWarehouseId((current) =>
+        current && warehouseRows.some((warehouse) => warehouse.id === current)
+          ? current
+          : warehouseRows[0]?.id ?? '',
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحميل نطاقات المستودعات من الخادم.');
+    } finally {
+      setLoading(false);
+    }
+  }, [profile.profile_id]);
+
+  useEffect(() => {
+    if (expanded) void load();
+  }, [expanded, load]);
+
+  const warehouseScopes = useMemo(
+    () => scopes.filter((scope) => scope.scope_kind === 'warehouse' && scope.warehouse_id),
+    [scopes],
+  );
+  const activeWarehouseIds = useMemo(
+    () => new Set(warehouseScopes
+      .filter((scope) => scope.is_active &&
+        (!scope.expires_at || Date.parse(scope.expires_at) > Date.now()) &&
+        Date.parse(scope.valid_from) <= Date.now())
+      .map((scope) => scope.warehouse_id as string)),
+    [warehouseScopes],
+  );
+  const self = profile.profile_id === currentProfileId;
+  const customer = profile.roles.includes('customer');
+  const selectedScope = warehouseScopes.find((scope) => scope.warehouse_id === selectedWarehouseId) ?? null;
+  const reasonReady = reason.trim().length >= 5 && reason.trim().length <= 500;
+
+  async function saveWarehouseScope(warehouseId: string, existing: ProfileScope | null, active: boolean) {
+    if (self || customer || savingResourceId !== null) return;
+    if (!reasonReady) {
+      setError('أدخل سبباً واضحاً من 5 إلى 500 حرف قبل تغيير نطاق الوصول.');
+      return;
+    }
+    setSavingResourceId(warehouseId);
+    setError('');
+    setNotice('');
+    try {
+      const { data, error: rpcError } = await supabase.rpc('set_authorization_profile_scope', {
+        p_target_profile_id: profile.profile_id,
+        p_scope_kind: 'warehouse',
+        p_scope_id: warehouseId,
+        p_reason: reason.trim(),
+        p_expires_at: null,
+        p_is_active: active,
+        p_expected_revision: existing?.revision ?? 0,
+      });
+      if (rpcError) throw rpcError;
+      const result = data as {
+        changed?: unknown;
+        scope_resource_id?: unknown;
+        revision?: unknown;
+        is_active?: unknown;
+      } | null;
+      if (
+        !result ||
+        typeof result.changed !== 'boolean' ||
+        result.scope_resource_id !== warehouseId ||
+        !Number.isSafeInteger(result.revision) ||
+        result.is_active !== active
+      ) {
+        throw new Error('لم يؤكد الخادم إسناد نطاق المستودع بالإصدار المتوقع.');
+      }
+      setNotice(result.changed
+        ? (active ? 'تم إسناد المستودع بعد تأكيد الخادم.' : 'تم سحب إسناد المستودع بعد تأكيد الخادم.')
+        : 'النطاق مطابق للحالة الحالية؛ لم يُنشأ سجل تدقيق مكرر.');
+      setReason('');
+      await load();
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : '';
+      setError(detail.includes('scope revision changed')
+        ? 'تغير النطاق بواسطة مسؤول آخر. أُعيد تحميل الإصدار الحالي؛ راجع الحالة قبل المحاولة.'
+        : detail || 'رفض الخادم تغيير نطاق المستودع أو تعذر تأكيده.');
+      await load();
+    } finally {
+      setSavingResourceId(null);
+    }
+  }
+
+  return (
+    <section style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #e5eeee' }}>
+      <button
+        type="button"
+        className="btn btn-outline"
+        aria-expanded={expanded}
+        aria-controls={'warehouse-scope-' + profile.profile_id}
+        onClick={() => setExpanded((value) => !value)}
+        disabled={self || customer}
+      >
+        {expanded ? 'إخفاء نطاقات المستودعات' : 'إدارة نطاقات المستودعات'}
+      </button>
+      {self ? <p role="note">لا يمكن إسناد نطاقات إلى حساب المسؤول نفسه من هذه الشاشة.</p> : null}
+      {customer ? <p role="note">حساب العميل منفصل عن عضوية الموظف ولا يقبل نطاق مستودع داخلي.</p> : null}
+      {expanded && !self && !customer ? (
+        <div id={'warehouse-scope-' + profile.profile_id} style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+          <p style={{ margin: 0, color: '#62777b', lineHeight: 1.7 }}>
+            لا تمنح الأدوار وصولاً عاماً للمستودعات. يُسمح للموظف بالمستودعات النشطة المسندة إليه فقط، ويُسحب الوصول فور تعطيل الإسناد أو انتهاء مدته.
+          </p>
+          {loading ? <p role="status">جار تحميل المستودعات والنطاقات...</p> : null}
+          {error ? (
+            <div role="alert" className="error-box">
+              {error}
+              <button type="button" className="btn btn-outline" onClick={() => void load()} disabled={loading}>إعادة المحاولة</button>
+            </div>
+          ) : null}
+          {!loading && warehouses.length === 0 ? (
+            <p role="status">لا توجد مستودعات نشطة متاحة في المؤسسة الحالية.</p>
+          ) : null}
+          {warehouses.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8, alignItems: 'end' }}>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span>المستودع</span>
+                <select
+                  aria-label={'مستودع لإسناده إلى ' + profile.full_name}
+                  value={selectedWarehouseId}
+                  onChange={(event) => setSelectedWarehouseId(event.target.value)}
+                  disabled={loading || savingResourceId !== null}
+                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+                >
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}{warehouse.code ? ' — ' + warehouse.code : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span>سبب التغيير (مطلوب)</span>
+                <input
+                  aria-label={'سبب تغيير نطاق المستودع لـ ' + profile.full_name}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  maxLength={500}
+                  placeholder="مثال: تكليف الموظف بمستودع صنعاء"
+                  disabled={savingResourceId !== null}
+                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void saveWarehouseScope(selectedWarehouseId, selectedScope, true)}
+                disabled={loading || savingResourceId !== null || !selectedWarehouseId || activeWarehouseIds.has(selectedWarehouseId) || !reasonReady}
+              >
+                {savingResourceId === selectedWarehouseId ? 'جار الحفظ...' : selectedScope ? 'تفعيل / تجديد الإسناد' : 'إسناد المستودع'}
+              </button>
+            </div>
+          ) : null}
+          {notice ? <p role="status" style={{ margin: 0 }}>{notice}</p> : null}
+          {warehouseScopes.length > 0 ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <strong>النطاقات المسجلة</strong>
+              {warehouseScopes.map((scope) => {
+                const warehouse = warehouses.find((entry) => entry.id === scope.warehouse_id);
+                const effective = activeWarehouseIds.has(scope.warehouse_id as string);
+                return (
+                  <div key={scope.scope_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center', border: '1px solid #e5eeee', borderRadius: 9, padding: 10 }}>
+                    <div>
+                      <strong>{warehouse?.name ?? 'مستودع غير نشط أو غير متاح'}</strong>
+                      <div style={{ fontSize: 12, color: '#71868a', lineHeight: 1.6 }}>
+                        {scope.reason} · الإصدار {scope.revision}
+                        {scope.expires_at ? ' · ينتهي ' + new Date(scope.expires_at).toLocaleString('ar') : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span className={effective ? 'badge success' : 'badge warning'}>
+                        {effective ? 'مفعّل' : scope.is_active ? 'منتهي / غير نافذ' : 'مسحوب'}
+                      </span>
+                      {scope.is_active ? (
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          onClick={() => void saveWarehouseScope(scope.warehouse_id as string, scope, false)}
+                          disabled={savingResourceId !== null || !reasonReady}
+                        >
+                          {savingResourceId === scope.warehouse_id ? 'جار السحب...' : 'سحب الإسناد'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CustomerManagerProfileCard({
   profile,
   currentProfileId,
@@ -271,6 +527,7 @@ function CustomerManagerProfileCard({
           needsAlternative={needsAlternative}
         />
       </div>
+      <WarehouseScopePanel profile={profile} currentProfileId={currentProfileId} />
     </article>
   );
 }
