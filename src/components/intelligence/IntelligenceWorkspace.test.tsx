@@ -481,13 +481,24 @@ describe("production intelligence workspace inventory screens", () => {
 
 
   it("mounts the daily decision board before the full decision memory book", async () => {
+    mocks.fetchMemoryCollection.mockReset().mockResolvedValue({
+      ok: true,
+      collection: {
+        items: [decisionOutcomeFixture("00000000-0000-4000-8000-000000000991", "قرار اختبار لوحة القرارات اليومية")],
+        total: 1,
+        loaded: 1,
+        pageCount: 1,
+        complete: true,
+        reason: "COMPLETE",
+      },
+    });
     render(<IntelligenceWorkspace />);
 
     const board = await screen.findByRole("region", { name: "لوحة متابعة القرارات اليومية" });
-    expect(board).toHaveTextContent("لا توجد قرارات");
-    expect(board).toHaveTextContent("لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.");
+    expect(board).toHaveTextContent("قرار اختبار لوحة القرارات اليومية");
 
     const memoryBook = await screen.findByRole("region", { name: "دفتر ذاكرة القرارات والتعلم" });
+    expect(memoryBook).toHaveTextContent("قرار اختبار لوحة القرارات اليومية");
     expect(
       board.compareDocumentPosition(memoryBook) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
