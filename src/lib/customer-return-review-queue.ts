@@ -175,11 +175,11 @@ type ReviewRpcArgs = {
 type CustomerReturnReviewReviewStatus = CustomerReturnReviewStatus;
 
 async function callReviewQueueRpc(args: ReviewRpcArgs): Promise<unknown> {
-  const rpc = supabase.rpc as unknown as (
-    functionName: string,
-    parameters: ReviewRpcArgs,
-  ) => Promise<{ data: unknown; error: { message?: string } | null }>;
-  const response = await rpc("list_customer_return_review_queue_page", args);
+  const client = supabase as unknown as {
+    rpc: (functionName: string, parameters: ReviewRpcArgs) =>
+      Promise<{ data: unknown; error: { message?: string } | null }>;
+  };
+  const response = await client.rpc("list_customer_return_review_queue_page", args);
   if (response.error) throw new Error(response.error.message || "تعذر تحميل قائمة مراجعة المرتجعات.");
   return response.data;
 }
