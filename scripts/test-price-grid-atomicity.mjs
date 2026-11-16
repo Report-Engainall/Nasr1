@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
+import { writeFile } from "node:fs/promises";
 import { validateCashExpenseEndpoints } from "./lib/local-endpoint-guard.mjs";
 
 function requiredEnv(name) {
@@ -44,6 +45,7 @@ function payload(id, expected, next) {
   };
 }
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+let priceGridDiagnostic = { phase: "initialization" };
 
 async function obtainLiveAuthClaims(supabaseUrl, publishableKey, email, password, expectedUserId) {
   const endpoint = new URL("/auth/v1/token?grant_type=password", supabaseUrl);
@@ -89,18 +91,70 @@ async function assume(client, claims) {
   await setClaims(client, claims);
   await client.unsafe("set role authenticated");
 }
-async function readGrid(client, id) {
-  const rows = await client.unsafe(
-    "select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail " +
-    "from public.get_admin_product_price_grid() where id=$1::uuid", [id],
+async function assertPriceGridRpcSchema(db) {
+  const rows = await db.unsafe(
+    "select pg_catalog.pg_get_functiondef('public.get_admin_product_price_grid()'::regprocedure) as getter, " +
+    "pg_catalog.pg_get_functiondef('public.save_product_price_grid(jsonb)'::regprocedure) as writer",
   );
-  assert.equal(rows.length, 1, "authorized grid read must return exactly one test product");
-  return { id, ...prices(rows[0]) };
+  const getter = String(rows[0]?.getter ?? "");
+  const writer = String(rows[0]?.writer ?? "");
+  const usesLegacyProductPriceColumn = definition =>
+    definition.includes("p.price_wholesale_of_wholesale") ||
+    definition.includes("p.price_wholesale") ||
+    definition.includes("p.price_retail");
+  priceGridDiagnostic = {
+    phase: "active RPC schema inspection",
+    getterExists: getter.length > 0,
+    writerExists: writer.length > 0,
+    getterUsesLegacyProductPriceColumns: usesLegacyProductPriceColumn(getter),
+    writerUsesLegacyProductPriceColumns: usesLegacyProductPriceColumn(writer),
+    getterUsesProductPrices: getter.includes("public.product_prices"),
+    writerUsesProductPrices: writer.includes("public.product_prices"),
+    getterMentionsMissingColumn: getter.includes("price_wholesale_of_wholesale"),
+    writerMentionsMissingColumn: writer.includes("price_wholesale_of_wholesale"),
+  };
+  assert.ok(getter.length > 0 && writer.length > 0, "both price-grid RPC definitions must exist after migrations");
+  assert.equal(usesLegacyProductPriceColumn(getter), false,
+    "the active price-grid reader must not reference legacy product price columns");
+  assert.equal(usesLegacyProductPriceColumn(writer), false,
+    "the active price-grid writer must use product_prices rather than legacy product price columns");
+  assert.ok(getter.includes("public.product_prices"), "the active price-grid reader must read tier prices from product_prices");
+  assert.ok(writer.includes("public.product_prices"), "the active price-grid writer must persist tier prices to product_prices");
+}
+async function readGrid(client, id) {
+  priceGridDiagnostic = { ...priceGridDiagnostic, phase: "read price-grid RPC", productId: id };
+  try {
+    const rows = await client.unsafe(
+      "select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail " +
+      "from public.get_admin_product_price_grid() where id=$1::uuid", [id],
+    );
+    assert.equal(rows.length, 1, "authorized grid read must return exactly one test product");
+    return { id, ...prices(rows[0]) };
+  } catch (cause) {
+    priceGridDiagnostic = {
+      ...priceGridDiagnostic,
+      phase: "read price-grid RPC",
+      postgresCode: cause?.code ?? null,
+      error: String(cause?.message ?? cause),
+    };
+    throw new Error("Price-grid read RPC failed: " + String(cause?.message ?? cause));
+  }
 }
 async function save(client, changes) {
-  return asJson((await client.unsafe(
-    "select public.save_product_price_grid($1::jsonb) as result", [client.json(changes)],
-  ))[0].result);
+  priceGridDiagnostic = { ...priceGridDiagnostic, phase: "write price-grid RPC" };
+  try {
+    return asJson((await client.unsafe(
+      "select public.save_product_price_grid($1::jsonb) as result", [client.json(changes)],
+    ))[0].result);
+  } catch (cause) {
+    priceGridDiagnostic = {
+      ...priceGridDiagnostic,
+      phase: "write price-grid RPC",
+      postgresCode: cause?.code ?? null,
+      error: String(cause?.message ?? cause),
+    };
+    throw new Error("Price-grid write RPC failed: " + String(cause?.message ?? cause));
+  }
 }
 async function auditCount(db, orgId, id) {
   const rows = await db.unsafe(
@@ -275,6 +329,46 @@ async function main() {
     ) {
       throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify(managerContext));
     }
+    await assertPriceGridRpcSchema(db);
+    // Capture the exact PostgreSQL 17 catalog definition before the first grid read.
+    // This separates a stale RPC/trigger body from a test-fixture or role-context defect.
+    const priceGridFunctions = await db.unsafe(
+      "select p.proname as function_name, pg_catalog.pg_get_function_identity_arguments(p.oid) as arguments, " +
+      "pg_catalog.pg_get_functiondef(p.oid) as definition " +
+      "from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace " +
+      "where n.nspname='public' and p.proname in ('get_admin_product_price_grid','save_product_price_grid') " +
+      "order by p.proname,arguments",
+    );
+    const productPriceColumns = await db.unsafe(
+      "select column_name from information_schema.columns " +
+      "where table_schema='public' and table_name='products' " +
+      "and column_name ilike '%price%' order by ordinal_position",
+    );
+    const productPriceTriggers = await db.unsafe(
+      "select t.tgname as trigger_name, pg_catalog.pg_get_triggerdef(t.oid) as trigger_definition, " +
+      "p.proname as function_name, pg_catalog.pg_get_functiondef(p.oid) as function_definition " +
+      "from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid=t.tgrelid " +
+      "join pg_catalog.pg_namespace n on n.oid=c.relnamespace " +
+      "join pg_catalog.pg_proc p on p.oid=t.tgfoid " +
+      "where n.nspname='public' and c.relname='products' and not t.tgisinternal " +
+      "order by t.tgname",
+    );
+    process.stdout.write("P2_PRICE_GRID_RUNTIME_CATALOG=" + JSON.stringify({
+      functions: priceGridFunctions.map(row => ({
+        function_name: row.function_name,
+        arguments: row.arguments,
+        references_legacy_product_price_columns: /p\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.definition),
+        definition: row.definition,
+      })),
+      product_price_columns: productPriceColumns.map(row => row.column_name),
+      product_triggers: productPriceTriggers.map(row => ({
+        trigger_name: row.trigger_name,
+        trigger_definition: row.trigger_definition,
+        function_name: row.function_name,
+        references_legacy_product_price_columns: /p\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.function_definition),
+        function_definition: row.function_definition,
+      })),
+    }) + "\n");
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
@@ -352,7 +446,18 @@ async function main() {
     await db.end({timeout:5}).catch(()=>{});
   }
 }
-main().catch(error=>{
-  process.stderr.write("FAIL price-grid acceptance: "+String(error?.stack??error)+"\n");
+main().catch(async error=>{
+  const diagnostic = {
+    ...priceGridDiagnostic,
+    error: String(error?.message ?? error),
+    postgresCode: error?.code ?? priceGridDiagnostic.postgresCode ?? null,
+  };
+  const outputPath = process.env.PRICE_GRID_ACCEPTANCE_DIAGNOSTIC_PATH;
+  if (outputPath) {
+    try { await writeFile(outputPath, JSON.stringify(diagnostic, null, 2) + "\n", { mode: 0o600 }); }
+    catch (writeError) { process.stderr.write("Could not persist price-grid diagnostic: "+String(writeError?.message??writeError)+"\n"); }
+  }
+  process.stderr.write("FAIL price-grid acceptance: "+JSON.stringify(diagnostic)+"\n");
+  process.stderr.write(String(error?.stack??error)+"\n");
   process.exitCode=1;
 });
