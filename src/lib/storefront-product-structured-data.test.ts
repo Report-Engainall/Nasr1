@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  applyStorefrontProductHeadMetadata,
+  buildStorefrontProductHeadMetadata,
   buildStorefrontProductStructuredData,
   serializeStorefrontProductStructuredData,
 } from "./storefront-product-structured-data";
@@ -99,5 +102,78 @@ describe("storefront product structured data", () => {
       ...base, imageUrls: ["/storage/products/rice.webp", "//cdn.example/rice.webp"],
     });
     expect(result?.image).toEqual(["https://aghbari.example/storage/products/rice.webp"]);
+  });
+});
+
+
+describe("storefront product head metadata", () => {
+  beforeEach(() => {
+    document.head.innerHTML = '<title>كتالوج الأغبري</title><meta name="description" content="وصف الكتالوج">';
+  });
+
+  afterEach(() => {
+    document.head.innerHTML = "";
+  });
+
+  it("builds a product title, safe canonical URL and public share image without adding price fields", () => {
+    const structuredData = buildStorefrontProductStructuredData(base);
+    const metadata = buildStorefrontProductHeadMetadata(structuredData);
+    expect(metadata).toEqual({
+      title: "أرز بسمتي | متجر الأغبري",
+      description: "أرز فاخر",
+      canonicalUrl: "https://aghbari.example/product/product-123",
+      imageUrl: "https://cdn.example/rice.webp",
+    });
+    expect(Object.keys(metadata ?? {}).sort()).toEqual(["canonicalUrl", "description", "imageUrl", "title"]);
+  });
+
+  it("rejects unsafe canonical and image URLs and provides a useful description fallback", () => {
+    const structuredData = buildStorefrontProductStructuredData({
+      ...base,
+      description: null,
+      imageUrls: ["https://cdn.example/private.webp?token=secret"],
+    })!;
+    const metadata = buildStorefrontProductHeadMetadata({
+      ...structuredData,
+      url: "http://aghbari.example/product/product-123?preview=1",
+    });
+    expect(metadata).toMatchObject({
+      title: "أرز بسمتي | متجر الأغبري",
+      description: "تفاصيل المنتج وبيانات العبوة والوحدات المتاحة في متجر الأغبري.",
+      canonicalUrl: null,
+      imageUrl: null,
+    });
+    expect(buildStorefrontProductHeadMetadata({ ...structuredData, name: "<script></script>" })).toBeNull();
+  });
+
+  it("applies product metadata and restores existing tags when the detail view closes", () => {
+    const structuredData = buildStorefrontProductStructuredData(base);
+    const metadata = buildStorefrontProductHeadMetadata(structuredData)!;
+    const cleanupMetadata = applyStorefrontProductHeadMetadata(metadata, document);
+
+    expect(document.title).toBe("أرز بسمتي | متجر الأغبري");
+    expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBe("أرز فاخر");
+    expect(document.querySelector('meta[property="og:type"]')?.getAttribute("content")).toBe("product");
+    expect(document.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe("https://cdn.example/rice.webp");
+    expect(document.querySelector('meta[name="twitter:card"]')?.getAttribute("content")).toBe("summary_large_image");
+    expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe("https://aghbari.example/product/product-123");
+
+    cleanupMetadata();
+    expect(document.title).toBe("كتالوج الأغبري");
+    expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBe("وصف الكتالوج");
+    expect(document.querySelector('meta[property="og:type"]')).toBeNull();
+    expect(document.querySelector('meta[property="og:image"]')).toBeNull();
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  });
+
+  it("does not overwrite a newer route head update during cleanup", () => {
+    const metadata = buildStorefrontProductHeadMetadata(buildStorefrontProductStructuredData(base))!;
+    const cleanupMetadata = applyStorefrontProductHeadMetadata(metadata, document);
+    document.title = "المنتجات | متجر الأغبري";
+    document.querySelector('meta[name="description"]')?.setAttribute("content", "وصف صفحة المنتجات");
+    cleanupMetadata();
+
+    expect(document.title).toBe("المنتجات | متجر الأغبري");
+    expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBe("وصف صفحة المنتجات");
   });
 });
