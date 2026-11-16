@@ -119,7 +119,18 @@ CREATE TABLE public.authorization_role_capabilities(
 CREATE OR REPLACE FUNCTION public.current_actor_has_capability(p_capability_key text)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $function$
-  SELECT p_capability_key='inventory.balance.adjust' AND public.operational_tasks_can_manage();
+  SELECT
+    (p_capability_key='inventory.balance.adjust' AND public.operational_tasks_can_manage())
+    OR
+    (p_capability_key='identity.roles.assign' AND EXISTS (
+      SELECT 1
+        FROM public.profiles p
+        JOIN public.user_roles ur ON ur.profile_id=p.id
+       WHERE p.auth_user_id=auth.uid()
+         AND p.is_active
+         AND p.organization_id=public.current_organization_id()
+         AND ur.role='admin'
+    ));
 $function$;
 
 INSERT INTO public.organizations(id,name) VALUES
@@ -159,6 +170,7 @@ VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555
 \ir ../migrations/20261116122000_scope_inventory_adjustment_authorization.sql
 \ir ../migrations/20261116123000_authorization_scope_account_boundary.sql
 \ir ../migrations/20261116125000_authorization_scope_resource_listing.sql
+\ir ../migrations/20261116126000_authorization_profile_decision_simulator.sql
 
 DO $customer_staff_separation$
 DECLARE
@@ -256,6 +268,8 @@ DO $scope_resource_catalog$
 DECLARE
   v_resources jsonb;
   v_customer jsonb;
+  v_simulation jsonb;
+  v_foreign_simulation jsonb;
 BEGIN
   v_resources:=public.list_authorization_scope_resources();
   IF jsonb_array_length(v_resources->'warehouses')<>1
@@ -276,6 +290,27 @@ BEGIN
      OR v_customer ? 'phone'
      OR v_customer ? 'email' THEN
     RAISE EXCEPTION 'resource picker exposed fields outside the minimal customer projection: %',v_customer;
+  END IF;
+
+  v_simulation:=public.evaluate_authorization_profile_decision_v2(
+    '22222222-2222-4222-8222-222222222223',
+    'inventory.balance.adjust',
+    '55555555-5555-4555-8555-555555555555'
+  );
+  IF v_simulation->>'decision'<>'DENY'
+     OR v_simulation->>'source'<>'resource_assignment'
+     OR v_simulation->>'target_profile_id'<>'22222222-2222-4222-8222-222222222223' THEN
+    RAISE EXCEPTION 'read-only simulator did not deny manager without warehouse assignment: %',v_simulation;
+  END IF;
+
+  v_foreign_simulation:=public.evaluate_authorization_profile_decision_v2(
+    '22222222-2222-4222-8222-222222222223',
+    'inventory.balance.adjust',
+    '55555555-5555-4555-8555-555555555556'
+  );
+  IF v_foreign_simulation->>'decision'<>'DENY'
+     OR v_foreign_simulation->>'source'<>'tenant_boundary' THEN
+    RAISE EXCEPTION 'read-only simulator did not reject a cross-tenant resource: %',v_foreign_simulation;
   END IF;
 END;
 $scope_resource_catalog$;
