@@ -84,6 +84,8 @@ on:
       - "supabase/migrations/20261114010000_executive_receivable_customer_identity.sql"
       - "src/test/executive-liquidity-command-center-migration.test.ts"
       - "src/components/BulkProductImageUploader.tsx"
+      - "src/components/InventoryBalanceAdjustmentPanel.tsx"
+      - "src/components/InventoryBalanceAdjustmentPanel.test.tsx"
       - "src/components/BulkProductImageUploader.test.tsx"
       - "src/components/CustomerManagerRoleAssignment.tsx"
       - "src/components/CustomerServiceDesk.tsx"

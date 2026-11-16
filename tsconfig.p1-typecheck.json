@@ -13,8 +13,6 @@
     "src/test/ai-gateway-logic.test.ts",
     "src/test/password-reset-route-security.test.ts",
     "src/components/CustomerWorkflows.tsx",
-    "src/lib/customer-payment-history-filter.ts",
-    "src/lib/customer-payment-history-filter.test.ts",
     "src/components/CustomerServiceSlaPolicyPanel.tsx",
     "src/components/CustomerServiceSlaPolicyPanel.test.tsx",
     "src/lib/customer-service-cases.ts",
@@ -92,6 +90,8 @@
     "src/routeTree.gen.ts",
     "src/lib/product-image-upload-handler.test.ts",
     "src/lib/admin-capability-catalog.ts",
-    "src/lib/admin-capability-catalog.test.ts"
+    "src/lib/admin-capability-catalog.test.ts",
+    "src/components/InventoryBalanceAdjustmentPanel.tsx",
+    "src/components/InventoryBalanceAdjustmentPanel.test.tsx"
   ]
 }
