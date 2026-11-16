@@ -77,6 +77,39 @@ describe("StorefrontProductQuestions", () => {
     expect(screen.getByText("بانتظار الإجابة")).toBeInTheDocument();
   });
 
+  it("does not show a completed question submission after the authenticated customer changes", async () => {
+    mocks.user = customer;
+    const staleSubmission = deferred<{
+      id: string;
+      moderationStatus: string;
+      message: string;
+    }>();
+    mocks.submit.mockReturnValueOnce(staleSubmission.promise);
+    const { rerender } = render(<StorefrontProductQuestions productId={productId} />);
+    const field = await screen.findByLabelText("سؤالك عن المنتج");
+    fireEvent.change(field, { target: { value: "هل يناسب الاستخدام اليومي؟" } });
+    fireEvent.click(screen.getByRole("button", { name: "إرسال السؤال للمراجعة" }));
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalled());
+
+    mocks.user = {
+      ...customer,
+      id: "c1000000-0000-0000-0000-000000000002",
+      profileId: "d1000000-0000-0000-0000-000000000002",
+    };
+    rerender(<StorefrontProductQuestions productId={productId} />);
+    expect(await screen.findByText("طرح الأسئلة متاح لحساب العميل المسجّل فقط.")).toBeInTheDocument();
+
+    await act(async () => {
+      staleSubmission.resolve({
+        id: "e1000000-0000-0000-0000-000000000002",
+        moderationStatus: "pending",
+        message: "نتيجة خاصة بالحساب السابق",
+      });
+      await staleSubmission.promise;
+    });
+    expect(screen.queryByText("نتيجة خاصة بالحساب السابق")).not.toBeInTheDocument();
+  });
+
   it("ignores a late pagination response after navigation to another product", async () => {
     const nextProductId = "a1000000-0000-0000-0000-000000000002";
     const nextProductQuestion = {
@@ -93,7 +126,7 @@ describe("StorefrontProductQuestions", () => {
     };
     const stalePage = deferred<{
       questionCount: number;
-      items: typeof publicItem[];
+      items: Array<typeof publicItem>;
       hasMore: boolean;
     }>();
     mocks.fetchPublic.mockImplementation((requestedProductId: string, _limit?: number, offset?: number) => {
