@@ -1326,3 +1326,17 @@ button.workspace-section-group__heading { cursor: pointer; }
     flex: 1 1 calc(50% - 8px);
   }
 }
+
+
+/* Customer storefront category, subcategory, and promotion cards use the same hierarchy. */
+.workspace-section-group.storefront-category-group,
+.workspace-section-group.storefront-offer-group { height: 100%; }
+.workspace-section-group__content.storefront-category-group__content,
+.workspace-section-group__content.storefront-offer-group__content { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 100%; padding: 16px; }
+.storefront-offer-group__status { display: inline-flex; align-items: center; gap: 7px; color: var(--aghbari-brand); font-size: 12px; font-weight: 800; }
+.workspace-section-group.storefront-subcategory-group { margin-bottom: 18px; }
+.workspace-section-group__content.storefront-subcategory-group__content { padding: 12px; }
+@media (max-width: 600px) {
+  .workspace-section-group__content.storefront-category-group__content,
+  .workspace-section-group__content.storefront-offer-group__content { padding: 12px; }
+}
