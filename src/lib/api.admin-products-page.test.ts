@@ -32,7 +32,9 @@ describe("fetchAdminProductsPage server-side filters", () => {
       isStaff: true,
       canViewInternalProductPrices: false,
     });
-    mocks.rpc.mockResolvedValue({ data: emptyPage(), error: null });
+    mocks.rpc.mockImplementation((_name: string, args: { p_page: number }) =>
+      Promise.resolve({ data: emptyPage(args.p_page), error: null }),
+    );
   });
 
   afterEach(() => {
