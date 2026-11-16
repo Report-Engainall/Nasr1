@@ -91,6 +91,21 @@ test("public storefront and login routes render without external backend writes"
   expect(pageErrors, "The public storefront routes must not throw uncaught browser errors.").toEqual([]);
 });
 
+test("the storefront header cart button opens the real cart route", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  await page.goto("/");
+  await expect(page.locator(".sf-header")).toBeVisible({ timeout: 30_000 });
+  await page.locator(".sf-cart-btn").click();
+  await expect(page).toHaveURL(/\\/cart$/);
+  await expect(page.getByRole("heading", { name: "سلة المشتريات", exact: true })).toBeVisible();
+  expect(pageErrors, "Opening the cart must not produce uncaught browser errors.").toEqual([]);
+});
+
 test("subcategory deep link renders the child category screen", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
