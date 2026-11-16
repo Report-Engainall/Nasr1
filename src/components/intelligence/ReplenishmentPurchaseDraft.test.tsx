@@ -103,6 +103,7 @@ describe("ReplenishmentPurchaseDraft", () => {
     await waitFor(() => expect(mocks.createPurchaseOrder).toHaveBeenCalledTimes(2));
     const retryRequest = mocks.createPurchaseOrder.mock.calls[1][0];
     expect(retryRequest.idempotencyKey).toBe(firstRequest.idempotencyKey);
+    await waitFor(() => expect(createButton).toBeEnabled());
 
     fireEvent.change(screen.getByLabelText("كمية سكر"), { target: { value: "9" } });
     fireEvent.click(createButton);
