@@ -38,3 +38,33 @@ export function resolveSupportedBarcodeFormats(
   const available = supportedFormats ?? DEFAULT_BARCODE_DETECTOR_FORMATS;
   return DEFAULT_BARCODE_DETECTOR_FORMATS.filter((format) => available.includes(format));
 }
+
+/**
+ * Return the next valid cart total after one more barcode scan.
+ * A scan adds the product's minimum quantity on the first add, then advances
+ * by the server-defined quantity multiple. Invalid policies and totals above
+ * the cart's 10,000-unit bound fail closed.
+ */
+export function nextBarcodeScanQuantity(
+  currentQuantity: number,
+  minimumQuantity: number,
+  quantityMultiple: number,
+): number | null {
+  const MAX_QUANTITY = 10_000;
+  if (
+    !Number.isSafeInteger(currentQuantity) || currentQuantity < 0 || currentQuantity > MAX_QUANTITY ||
+    !Number.isSafeInteger(minimumQuantity) || minimumQuantity < 1 || minimumQuantity > MAX_QUANTITY ||
+    !Number.isSafeInteger(quantityMultiple) || quantityMultiple < 1 || quantityMultiple > MAX_QUANTITY
+  ) {
+    return null;
+  }
+
+  const nextQuantity = currentQuantity < minimumQuantity
+    ? minimumQuantity
+    : currentQuantity + (
+      (currentQuantity - minimumQuantity) % quantityMultiple === 0
+        ? quantityMultiple
+        : quantityMultiple - ((currentQuantity - minimumQuantity) % quantityMultiple)
+    );
+  return nextQuantity <= MAX_QUANTITY ? nextQuantity : null;
+}
