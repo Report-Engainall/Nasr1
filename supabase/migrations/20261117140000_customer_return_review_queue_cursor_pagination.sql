@@ -117,7 +117,7 @@ BEGIN
                 'unit', ri.unit_snapshot,
                 'requested_quantity', ri.requested_quantity
               )
-              ORDER BY ri.created_at, ri.id
+              ORDER BY ri.id
             )
             FROM public.customer_return_request_items ri
             WHERE ri.return_request_id = visible.id
