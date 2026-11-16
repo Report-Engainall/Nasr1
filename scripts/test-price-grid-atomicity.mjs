@@ -96,14 +96,17 @@ async function assertPriceGridRpcSchema(db) {
   );
   const getter = String(rows[0]?.getter ?? "");
   const writer = String(rows[0]?.writer ?? "");
-  const legacyProductPriceColumn = /\\bp\\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/;
+  const usesLegacyProductPriceColumn = definition =>
+    definition.includes("p.price_wholesale_of_wholesale") ||
+    definition.includes("p.price_wholesale") ||
+    definition.includes("p.price_retail");
   assert.ok(getter.length > 0 && writer.length > 0, "both price-grid RPC definitions must exist after migrations");
-  assert.equal(legacyProductPriceColumn.test(getter), false,
+  assert.equal(usesLegacyProductPriceColumn(getter), false,
     "the active price-grid reader must not reference legacy product price columns");
-  assert.equal(legacyProductPriceColumn.test(writer), false,
+  assert.equal(usesLegacyProductPriceColumn(writer), false,
     "the active price-grid writer must use product_prices rather than legacy product price columns");
-  assert.match(getter, /public\\.product_prices/i, "the active price-grid reader must read tier prices from product_prices");
-  assert.match(writer, /public\\.product_prices/i, "the active price-grid writer must persist tier prices to product_prices");
+  assert.ok(getter.includes("public.product_prices"), "the active price-grid reader must read tier prices from product_prices");
+  assert.ok(writer.includes("public.product_prices"), "the active price-grid writer must persist tier prices to product_prices");
 }
 async function readGrid(client, id) {
   try {
