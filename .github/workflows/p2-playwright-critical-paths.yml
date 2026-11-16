@@ -21,6 +21,7 @@ on:
       - "scripts/test-storefront-product-questions.mjs"
       - "scripts/test-ai-prompt-governance.mjs"
       - "scripts/test-customer-receivable-aging-identity.mjs"
+      - "scripts/test-inventory-adjustment-v2-authorization.mjs"
       - "e2e/**"
       - "playwright.config.ts"
       - "tsconfig.p2-e2e-typecheck.json"
@@ -593,6 +594,8 @@ jobs:
         run: node scripts/seed-p2-local-playwright.mjs
       - name: Test server authorization capability registry and six-role legacy parity
         run: node scripts/test-authorization-capability-registry.mjs
+      - name: Test RBAC V2 enforcement on inventory adjustment commands and reads
+        run: node scripts/test-inventory-adjustment-v2-authorization.mjs
       - name: Test product-image upload handler against the actual local Supabase Storage API
         env:
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
