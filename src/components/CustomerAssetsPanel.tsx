@@ -12,7 +12,7 @@ const EVENT_LABEL:Record<string,string>={asset_registered:"تسجيل الأصل
 const INPUT={width:"100%",minWidth:0,border:"1px solid #cbd5e1",borderRadius:8,padding:"8px 10px",background:"#fff",color:"#111827"} as const;
 const FIELD={display:"grid",gap:5,minWidth:0,fontSize:13,fontWeight:600} as const;
 const nil=(v:string)=>v.trim()?v.trim():null;
-function replacementRequestKey(){const token=typeof crypto!=="undefined"&&typeof crypto.randomUUID==="function"?crypto.randomUUID().replace(/-/g,""):Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join("");return "asset_replace_"+token;}
+function createReplacementRequestKey(){const token=typeof crypto!=="undefined"&&typeof crypto.randomUUID==="function"?crypto.randomUUID().replace(/-/g,""):Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join("");return "asset_replace_"+token;}
 const dateLabel=(v:string|null)=>v?new Date(v+"T00:00:00").toLocaleDateString("ar-YE"):"غير مثبت";
 function csvCell(value:unknown){let s=value==null?"":String(value);if(/^[\s]*[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}
 function exportCsv(rows:Asset[]){const headers=["الأصل","الشركة","الموديل","التسلسل","الحالة","تاريخ الشراء","دليل الشراء","مرجع الضمان","بداية الضمان","نهاية الضمان","مرجع التغطية","بداية التغطية","نهاية التغطية"];const data=rows.map(a=>[a.asset_name,a.manufacturer,a.model,a.serial_number,STATUS[a.status],a.purchase_date,a.purchase_evidence_note||a.source_order_id||a.source_invoice_id,a.warranty_reference||a.warranty_evidence_note,a.warranty_start_date,a.warranty_end_date,a.coverage_reference,a.coverage_start_date,a.coverage_end_date]);const blob=new Blob(["\uFEFF"+[headers,...data].map(r=>r.map(csvCell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"});const u=URL.createObjectURL(blob);const a=document.createElement("a");a.href=u;a.download="customer-assets.csv";a.click();URL.revokeObjectURL(u);}
@@ -52,7 +52,7 @@ export function CustomerAssetsPanel({customerId}:{customerId:string}){
   setShowForm(true);setError("");setNotice("");
  }
  function beginReplacement(a:Asset){
-  setEditingAsset(null);setReplacementAsset(a);setReplacementRequestKey(replacementRequestKey());
+  setEditingAsset(null);setReplacementAsset(a);setReplacementRequestKey(createReplacementRequestKey());
   setForm({name:a.asset_name,manufacturer:"",model:"",serial:"",product:"",order:"",invoice:"",purchaseDate:"",purchaseEvidence:"",warrantyProvider:"",warrantyRef:"",warrantyEvidence:"",warrantyStart:"",warrantyEnd:"",coverageRef:"",coverageStart:"",coverageEnd:"",notes:"",reason:""});
   setShowForm(true);setError("");setNotice("");
  }
