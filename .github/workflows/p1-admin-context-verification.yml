@@ -16,6 +16,8 @@ on:
       - "supabase/tests/opening_inventory_baseline_approval.sql"
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
+      - "src/components/AdminAiGovernanceWorkspace.tsx"
+      - "src/components/AdminAiGovernanceWorkspace.test.tsx"
       - "src/components/Storefront.tsx"
       - "src/components/StorefrontCategoryLandingPage.tsx"
       - "src/components/StorefrontCategoryLandingPage.test.tsx"
