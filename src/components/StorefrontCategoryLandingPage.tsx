@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronLeft, Layers3, RefreshCw } from "lucide-react";
 import { Storefront } from "@/components/Storefront";
 import { fetchCategories } from "@/lib/api";
 import { resolveStorefrontCategorySlug, storefrontCategorySlug } from "@/lib/storefront-slugs";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { useFetch } from "@/lib/useFetch";
 
 type StoreCategory = Awaited<ReturnType<typeof fetchCategories>>[number];
@@ -52,51 +53,33 @@ function CategoryPageHeader({
   onRefresh: () => void;
 }) {
   return (
-    <header
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 14,
-        flexWrap: "wrap",
-        marginBottom: 18,
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <nav
-          aria-label="مسار التصنيف"
-          style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", color: "#64777b", fontSize: 13 }}
-        >
-          <Link to="/categories" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#087f8d", textDecoration: "none" }}>
-            <ArrowLeft size={15} aria-hidden="true" />
-            جميع التصنيفات
-          </Link>
-          <ChevronLeft size={14} aria-hidden="true" />
-          {isSubcategory ? (
-            <>
-              <Link
-                to={("/category/" + storefrontCategorySlug(parent)) as never}
-                style={{ color: "#087f8d", textDecoration: "none", fontWeight: 700 }}
-              >
-                {parent.name}
-              </Link>
-              <ChevronLeft size={14} aria-hidden="true" />
-            </>
-          ) : null}
-          <span aria-current="page" style={{ color: "#173b39", fontWeight: 800 }}>{active.name}</span>
-        </nav>
-        <p style={{ margin: "12px 0 3px", color: "#64777b", fontSize: 13 }}>
-          {isSubcategory ? "فرع من " + parent.name : "تصنيف المنتجات"}
-        </p>
-        <h1 style={{ fontSize: 27, margin: "0 0 6px" }}>{active.name}</h1>
-        <p style={{ margin: 0, color: "#526b70" }}>
-          تُحمّل الأصناف المنشورة لهذا التصنيف من الكتالوج المرقّم.
-        </p>
-      </div>
-      <button type="button" className="btn outline" onClick={onRefresh}>
-        <RefreshCw size={15} /> تحديث البيانات
-      </button>
-    </header>
+    <div className="storefront-category-page-header">
+      <nav
+        aria-label="مسار التصنيف"
+        style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", color: "#64777b", fontSize: 13, marginBottom: 10 }}
+      >
+        <Link to="/categories" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#087f8d", textDecoration: "none" }}>
+          <ArrowLeft size={15} aria-hidden="true" /> جميع التصنيفات
+        </Link>
+        <ChevronLeft size={14} aria-hidden="true" />
+        {isSubcategory ? (
+          <>
+            <Link to={("/category/" + storefrontCategorySlug(parent)) as never} style={{ color: "#087f8d", textDecoration: "none", fontWeight: 700 }}>
+              {parent.name}
+            </Link>
+            <ChevronLeft size={14} aria-hidden="true" />
+          </>
+        ) : null}
+        <span aria-current="page" style={{ color: "#173b39", fontWeight: 800 }}>{active.name}</span>
+      </nav>
+      <WorkspaceSectionHeader
+        eyebrow={isSubcategory ? "فرع من " + parent.name : "تصنيف المنتجات"}
+        title={active.name}
+        description="تُحمّل الأصناف المنشورة لهذا التصنيف من الكتالوج المرقّم."
+        icon={Layers3}
+        actions={<button type="button" className="btn outline" onClick={onRefresh}><RefreshCw size={15} /> تحديث البيانات</button>}
+      />
+    </div>
   );
 }
 
