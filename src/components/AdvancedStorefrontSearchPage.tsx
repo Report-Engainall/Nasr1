@@ -30,7 +30,7 @@ function SearchPageHeader() {
 function SearchTextField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <label style={{ display: "grid", gap: 6 }}>
-      اسم الصنف أو رمزه أو الباركود
+      اسم الصنف أو رمز الصنف أو SKU أو الباركود
       <input
         value={value}
         onChange={(event) => onChange(normalizeCatalogSearchQuery(event.target.value))}
