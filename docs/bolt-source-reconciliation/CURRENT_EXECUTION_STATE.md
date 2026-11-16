@@ -6008,3 +6008,14 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - **No side effects:** no migrations, DB writes, RPC/RLS/grant/role changes, production writes, hosted integration calls, deployment, Vercel activity, paid service or secrets were used.
 - **Next action / precedence:** this P3 UI delivery does not reorder the latest active P2 security queue or alter its current owner. P2's browser-fixture follow-up is independent and remains with P2; P3 continues from the current tail-most execution cursor after rechecking live `main`. Overall release remains **NO-GO**.
 
+## P3 CHECKPOINT — Arabic natural-language query-window guardrails — 16 NOVEMBER 2026
+
+- Base application HEAD before this increment: `0b3f610f5bd45f23fc597fc808850e8b59d498d8`.
+- Exact code/test SHA: `61ab1b8bd5c5fc3c8b08635af8172f5199563877` (source commit `4f8eda48e1c3587e9680044ba98022931a0e5de4`; regression-test commit `61ab1b8bd5c5fc3c8b08635af8172f5199563877`).
+- P3 checkpoint: `docs/execution/P3_NATURAL_LANGUAGE_QUERY_WINDOW_GUARDS_CHECKPOINT_2026-11-16.md`, committed at `a3cf0c8f377d2d7a441fe5d74c938e3b6393702f`.
+- Corrected two allow-listed Arabic regex window guards in `src/lib/intelligence/natural-language-assistant.ts`: Growth Radar now captures supported 30/60/90/180/365-day requests instead of silently defaulting to 90; task-quality historical windows now return UNSUPPORTED instead of being misread as a current snapshot.
+- Added regression cases in `src/lib/intelligence/natural-language-assistant-client.test.ts`: all supported Growth Radar windows and aliases, default-only-without-request, unsupported windows, historical task-quality refusal, zero RPC/provider egress on refusal, and current snapshot compatibility. Existing purchase-order local read and authorization-denial tests remain.
+- Exact source blobs: planner `afd2a020b4580b9175066138b7662c8465ef2bd1`; tests `90e8bd1746fe27fe30e26f270fc28fca75326710`.
+- **IMPLEMENTED_ON_MAIN:** yes. **P1 exact-SHA Vitest / strict TypeScript / production build:** NOT VERIFIED at checkpoint update; combined status returned no entries and the available workflow-run wrapper did not expose push-triggered runs. An empty status list is not a pass. Do not transfer prior SHA evidence.
+- No RPC/migration/RLS/role/data or business calculations changed; no DB call/write, provider egress, deployment, Vercel use, paid service or secrets.
+- Matrix rows `REF-NL-GROWTH-RADAR-READ-001` and `REF-TASK-QUALITY-METRICS-ASSISTANT-001` remain open for their existing independent data/runtime acceptance; this is a source/parser correction only. Overall release remains **NO-GO**.
