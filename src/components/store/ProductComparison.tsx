@@ -4,6 +4,7 @@ import type { ProductWithInventory } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
 import { resolveStorefrontPricePresentation } from "@/lib/storefront-price-visibility";
 import { StorefrontPricePresentation } from "@/components/StorefrontPricePresentation";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 type ProductComparisonProps = {
   products: ProductWithInventory[];
@@ -163,14 +164,14 @@ export function ProductComparison({
         <ArrowRight size={16} aria-hidden="true" /> العودة للمتجر
       </button>
 
-      <div className="sf-products-head">
-        <div>
-          <h2 id="sf-product-comparison-title">
-            <span aria-hidden="true">⇄</span> مقارنة المنتجات
-          </h2>
-          <span>{formatNumber(products.length)} من 3 منتجات محددة</span>
-        </div>
-      </div>
+      <WorkspaceSectionHeader
+        eyebrow="قوائم متجر الأغبري"
+        title="مقارنة المنتجات"
+        titleId="sf-product-comparison-title"
+        description={`${formatNumber(products.length)} من 3 منتجات محددة للمقارنة.`}
+        icon={Package}
+        className="sf-products-heading"
+      />
 
       {products.length > 0 ? (
         <>
