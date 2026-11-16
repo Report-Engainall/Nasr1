@@ -76,7 +76,7 @@ describe("StorefrontRecentlyViewed", () => {
     expect(screen.queryByText(/42/)).not.toBeInTheDocument();
     expect(screen.queryByText(/55/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "إزالة المنتج الحالي الأول من سجل المشاهدة" }));
+    fireEvent.click(screen.getByRole("button", { name: "إزالة الاسم الحالي الأول من سجل المشاهدة" }));
     await waitFor(() => {
       expect(screen.queryByText("الاسم الحالي الأول")).not.toBeInTheDocument();
     });
