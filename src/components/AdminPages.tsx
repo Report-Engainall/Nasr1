@@ -412,12 +412,18 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
         {gatewayError && <ErrorBox message={gatewayError} />}
       </>}
     </WorkspaceSectionGroup>}
-    {canManageGateway && <AiGatewayOperationsPanel />}
+    {canManageGateway && <WorkspaceSectionGroup icon={Activity} title="تشغيلات بوابة الذكاء" description="متابعة سجلات تشغيل المزود والطلبات والتحكم في نتائج التنفيذ." className="ai-operations-group" contentClassName="ai-operations-group__content">
+      <AiGatewayOperationsPanel />
+    </WorkspaceSectionGroup>}
     <div className="ai-tabs"><button className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><AlertTriangle size={16} /> التنبيهات</button><button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}><Check size={16} /> المهام</button></div>
     {tab === 'alerts' ? (
-      <AiAlertsPanel alerts={alerts} loading={aLoading} error={aError} onResolve={resolve} />
+      <WorkspaceSectionGroup icon={AlertTriangle} title="تنبيهات الذكاء" description="التنبيهات الفعلية المفتوحة وإجراءات مراجعتها وحلها." className="ai-output-group" contentClassName="ai-output-group__content">
+        <AiAlertsPanel alerts={alerts} loading={aLoading} error={aError} onResolve={resolve} />
+      </WorkspaceSectionGroup>
     ) : (
-      <AiTasksPanel tasks={tasks} loading={tLoading} error={tError} onAction={taskAction} />
+      <WorkspaceSectionGroup icon={Check} title="مهام الذكاء" description="متابعة المهام المسجلة وتحديث حالتها وفق إجراءات النظام." className="ai-output-group" contentClassName="ai-output-group__content">
+        <AiTasksPanel tasks={tasks} loading={tLoading} error={tError} onAction={taskAction} />
+      </WorkspaceSectionGroup>
     )}
   </AdminPage>;
 }
