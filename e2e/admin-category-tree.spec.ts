@@ -198,11 +198,11 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     const managerProductProjection = await localAuthenticatedRpc(manager, 'fetch_staff_products', { p_product_id: fixtureProductId });
     expect(managerProductProjection.status, 'Manager must retain privileged product access.').toBe(200);
     expect(Array.isArray(managerProductProjection.payload)).toBe(true);
-    const managerProductRow = (managerProductProjection.payload as Array<Record<string, unknown>>)
+    const managerProductProjectionRow = (managerProductProjection.payload as Array<Record<string, unknown>>)
       .find((row) => row.id === fixtureProductId);
-    expect(managerProductRow, 'Manager projection must contain the disposable product.').toBeDefined();
-    expect(managerProductRow).toHaveProperty('base_price');
-    expect(managerProductRow).toHaveProperty('cost_price');
+    expect(managerProductProjectionRow, 'Manager projection must contain the disposable product.').toBeDefined();
+    expect(managerProductProjectionRow).toHaveProperty('base_price');
+    expect(managerProductProjectionRow).toHaveProperty('cost_price');
 
     // Manager sees the real base-price and stock projection for the seeded local product.
     await manager.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
@@ -258,7 +258,7 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
       'price_retail', 'price_wholesale', 'price_wholesale_of_wholesale',
       'max_stock', 'margin', 'margin_amount',
     ]) {
-      expect(Object.hasOwn(staffSafeRow, forbiddenField), 'Staff RPC must omit ' + forbiddenField + '.').toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(staffSafeRow, forbiddenField), 'Staff RPC must omit ' + forbiddenField + '.').toBe(false);
     }
     const staffPrivilegedProjection = await localAuthenticatedRpc(staff, 'fetch_staff_products', { p_product_id: fixtureProductId });
     expect(staffPrivilegedProjection.status).toBe(403);
