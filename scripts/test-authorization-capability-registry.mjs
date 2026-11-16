@@ -115,13 +115,34 @@ async function main() {
   const actual=await db.unsafe("select role,capability_key from public.authorization_role_capabilities where grant_source='legacy-role-parity:ADMIN_OPERATION_RULES'");
   assert.deepEqual(actual.map(r=>r.role+"|"+r.capability_key).sort(),expectedPairs,"server grants must exactly preserve the old ADMIN_OPERATION_RULES matrix");
 
+  const expectedFinanceCommandPairs=[
+   ["admin","finance.journal.create_draft"],["manager","finance.journal.create_draft"],["accountant","finance.journal.create_draft"],
+   ["admin","finance.journal.post"],["manager","finance.journal.post"],["accountant","finance.journal.post"],
+   ["admin","finance.journal.reverse"],["manager","finance.journal.reverse"]
+  ].map(([role,key])=>role+"|"+key).sort();
+  const actualFinanceCommandPairs=await db.unsafe(
+   "select role,capability_key from public.authorization_role_capabilities "+
+   "where grant_source='command-parity:finance.workspace.manage' and capability_key like 'finance.journal.%'"
+  );
+  assert.deepEqual(actualFinanceCommandPairs.map(row=>row.role+"|"+row.capability_key).sort(),
+   expectedFinanceCommandPairs,
+   "journal command capabilities preserve current finance roles and keep reversal admin/manager-only");
+
+  const managerJournalPost=await decision(db,actors.get("manager"),"finance.journal.post");
+  assert.equal(managerJournalPost.approval_mode,"maker_checker");
+  assert.equal(managerJournalPost.separation_of_duties,true);
+
   const checks=[
    ["admin","identity.roles.assign",true],["manager","identity.roles.assign",false],
    ["manager","pricing.edit_draft",true],["staff","pricing.propose",true],
    ["staff","pricing.approve",false],["staff","inventory.transfer.create",true],
    ["accountant","finance.workspace.manage",true],["accountant","catalog.internal_prices.read",false],
    ["customer_manager","customers.lifecycle.write",true],["customer_manager","customers.read_financial",false],
-   ["customer","orders.create_draft",false],["staff","orders.approve",false],["admin","finance.journal.post",false]
+   ["customer","orders.create_draft",false],["staff","orders.approve",false],
+   ["admin","finance.journal.create_draft",true],["manager","finance.journal.create_draft",true],["accountant","finance.journal.create_draft",true],
+   ["admin","finance.journal.post",true],["manager","finance.journal.post",true],["accountant","finance.journal.post",true],
+   ["staff","finance.journal.post",false],
+   ["admin","finance.journal.reverse",true],["manager","finance.journal.reverse",true],["accountant","finance.journal.reverse",false]
   ];
   for(const [role,key,allowed] of checks) {
    const result=await decision(db,actors.get(role),key);

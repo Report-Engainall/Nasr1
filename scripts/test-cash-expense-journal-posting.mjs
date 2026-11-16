@@ -53,6 +53,51 @@ async function voidExpense(client, expenseId, reason) {
   return asJson((await client.unsafe("select public.void_cash_expense($1::uuid,$2::text) as result", [expenseId, reason]))[0].result);
 }
 
+async function snapshotJournalBoundary(journalId) {
+  const entryRows = await db.unsafe(
+    "select to_jsonb(e)::text as row_json from public.accounting_journal_entries e " +
+      "where e.organization_id=$1::uuid and e.id=$2::uuid",
+    [organizationId, journalId],
+  );
+  assert.equal(entryRows.length, 1, "journal boundary snapshot must resolve one tenant-owned entry");
+  const lineRows = await db.unsafe(
+    "select to_jsonb(l)::text as row_json from public.accounting_journal_lines l " +
+      "where l.organization_id=$1::uuid and l.journal_entry_id=$2::uuid order by l.line_number",
+    [organizationId, journalId],
+  );
+  const reversalRows = await db.unsafe(
+    "select to_jsonb(r)::text as row_json,r.id::text as reversal_id " +
+      "from public.accounting_journal_reversals r where r.organization_id=$1::uuid " +
+      "and (r.original_journal_entry_id=$2::uuid or r.reversal_journal_entry_id=$2::uuid) order by r.id::text",
+    [organizationId, journalId],
+  );
+  const reversalIds = reversalRows.map(({ reversal_id }) => reversal_id);
+  const auditRows = await db.unsafe(
+    "select to_jsonb(a)::text as row_json from public.audit_logs a " +
+      "where a.organization_id=$1::uuid and (" +
+      "(a.entity_type='accounting_journal_entry' and a.entity_id=$2::uuid) or " +
+      "(a.entity_type='accounting_journal_reversal' and a.entity_id=any($3::uuid[]))) order by a.id::text",
+    [organizationId, journalId, reversalIds],
+  );
+  return JSON.stringify({
+    entry:entryRows.map(({row_json})=>row_json),
+    lines:lineRows.map(({row_json})=>row_json),
+    reversals:reversalRows.map(({row_json})=>row_json),
+    audit:auditRows.map(({row_json})=>row_json),
+  });
+}
+
+async function createManualJournal(client,key,description,debitAccountId,creditAccountId,amount) {
+  const lines=[
+    {account_id:debitAccountId,debit:amount,credit:0,memo:"اختبار قيد يدوي مستقل"},
+    {account_id:creditAccountId,debit:0,credit:amount,memo:"اختبار قيد يدوي مستقل"},
+  ];
+  return asJson((await client.unsafe(
+    "select public.create_general_journal_draft($1::uuid,current_date,$2::text,$3::jsonb,NULL::text) as result",
+    [key,description,JSON.stringify(lines)],
+  ))[0].result);
+}
+
 async function snapshotExpenseRecordBoundary(idempotencyKey) {
   const rows = await db.unsafe(
     "select jsonb_build_object(" +
@@ -147,6 +192,22 @@ async function main() {
   const managerRows = await db.unsafe("select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true", [organizationId, managerEmail]);
   assert.equal(managerRows.length, 1, "local fixture must contain exactly one active organization-scoped manager");
   const manager = managerRows[0];
+  const adminEmail = requiredEnv("E2E_DEVICE_ADMIN_EMAIL").toLowerCase();
+  const adminRows = await db.unsafe(
+    "select p.id,p.auth_user_id,p.email from public.profiles p join public.user_roles r on r.profile_id=p.id " +
+      "where p.organization_id=$1::uuid and lower(p.email)=lower($2) and p.is_active=true and r.role='admin'",
+    [organizationId,adminEmail],
+  );
+  assert.equal(adminRows.length,1,"local tenant must contain one active administrator for journal maker/checker");
+  const admin = adminRows[0];
+  const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL").toLowerCase();
+  const accountantRows = await db.unsafe(
+    "select p.id,p.auth_user_id,p.email from public.profiles p join public.user_roles r on r.profile_id=p.id " +
+      "where p.organization_id=$1::uuid and lower(p.email)=lower($2) and p.is_active=true and r.role='accountant'",
+    [organizationId,accountantEmail],
+  );
+  assert.equal(accountantRows.length,1,"local tenant must contain one active accountant for journal maker/checker");
+  const accountant = accountantRows[0];
   const customerEmail = process.env.E2E_EMAIL?.trim().toLowerCase();
   const customerRows = customerEmail ? await db.unsafe("select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true", [organizationId, customerEmail]) : [];
   assert.equal(customerRows.length, 1, "local fixture must contain the paired customer for role-denial acceptance");
@@ -170,6 +231,8 @@ async function main() {
   const settlementAccount = await createAccount("P2-E2E-CASH-" + suffix, "P2 E2E Cash " + suffix, "asset");
   const alternateExpenseAccount = await createAccount("P2-E2E-EXP2-" + suffix, "P2 E2E Alternate Expense " + suffix, "expense");
   const managerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const adminDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const accountantDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const concurrentA = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const concurrentB = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const customerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -177,6 +240,8 @@ async function main() {
   const staffDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   try {
     await setIdentity(managerDb, manager.auth_user_id, manager.email);
+    await setIdentity(adminDb, admin.auth_user_id, admin.email);
+    await setIdentity(accountantDb, accountant.auth_user_id, accountant.email);
     await setIdentity(concurrentA, manager.auth_user_id, manager.email);
     await setIdentity(concurrentB, manager.auth_user_id, manager.email);
     const expenseKey = randomUUID();
@@ -238,12 +303,28 @@ async function main() {
     assert.equal(lines[1].debit, "0.00");
     assert.equal(lines[1].credit, "125.50");
     await expectFailure("authenticated finance user cannot write directly to immutable source-posting links", () => managerDb.unsafe("insert into public.accounting_source_postings(organization_id,source_type,source_id,posting_kind,journal_entry_id,source_amount,source_currency,expense_account_id,settlement_account_id,idempotency_key,payload_fingerprint,created_by_profile_id) values($1::uuid,'cash_expense',$2::uuid,'original',$3::uuid,125.50,'YER',$4::uuid,$5::uuid,$6::uuid,repeat('a',32),$7::uuid)", [organizationId, expense.expense_id, journalId, expenseAccount, settlementAccount, randomUUID(), manager.id]), /permission denied/i);
-    const posted = await postJournal(managerDb, journalId);
+    const preSelfPost = await snapshotExpenseVoidBoundary(expense.expense_id);
+    const selfPostError = await expectFailure(
+      "journal creator cannot post their own source-linked draft",
+      () => postJournal(managerDb, journalId),
+      /independent checker different from the journal creator/i,
+    );
+    assert.equal(selfPostError.code, "42501");
+    assert.deepEqual(await snapshotExpenseVoidBoundary(expense.expense_id), preSelfPost,
+      "maker self-post denial preserves source, posting link, journal, lines and audit byte-for-byte");
+    const posted = await postJournal(adminDb, journalId);
     assert.equal(posted.status, "posted");
     assert.equal(posted.replayed, false);
-    const postedReplay = await postJournal(managerDb, journalId);
+    const postedReplay = await postJournal(adminDb, journalId);
     assert.equal(postedReplay.status, "posted");
-    assert.equal(postedReplay.replayed, true, "journal posting replay is a no-op");
+    assert.equal(postedReplay.replayed, true, "independent checker posting replay is a no-op");
+    const postedIdentity = await db.unsafe(
+      "select created_by_profile_id::text as creator,posted_by_profile_id::text as poster " +
+        "from public.accounting_journal_entries where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId,journalId],
+    );
+    assert.equal(postedIdentity[0].creator,manager.id);
+    assert.equal(postedIdentity[0].poster,admin.id);
     const ledger = asJson((await managerDb.unsafe("select public.fetch_general_ledger(null,null,null,100,0) as result"))[0].result);
     const sourceLedgerRow = ledger.entries.find((entry) => entry.id === journalId);
     assert.ok(sourceLedgerRow, "posted source journal must appear in the actual general-ledger RPC");
@@ -254,17 +335,123 @@ async function main() {
     const expectedAudit = await db.unsafe("select action,actor_id from public.audit_logs where organization_id=$1::uuid and entity_type='cash_expense' and entity_id=$2::uuid order by action", [organizationId, expense.expense_id]);
     assert.ok(expectedAudit.some((row) => row.action === "cash_expense.recorded" && row.actor_id === manager.id));
     assert.ok(expectedAudit.some((row) => row.action === "accounting.cash_expense_journal_draft_created" && row.actor_id === manager.id));
-    const journalAudit = await db.unsafe("select action from public.audit_logs where organization_id=$1::uuid and entity_type='accounting_journal_entry' and entity_id=$2::uuid", [organizationId, journalId]);
-    assert.ok(journalAudit.some((row) => row.action === "accounting.journal_posted"));
+    const journalAudit = await db.unsafe("select action,actor_id from public.audit_logs where organization_id=$1::uuid and entity_type='accounting_journal_entry' and entity_id=$2::uuid", [organizationId, journalId]);
+    assert.ok(journalAudit.some((row) => row.action === "accounting.journal_posted" && row.actor_id === admin.id),
+      "journal posting audit identifies the independent reviewer");
     const inbox = asJson((await managerDb.unsafe("select public.fetch_cash_expense_accounting_inbox(50,0,'posted') as result"))[0].result);
     assert.ok(inbox.items.some((item) => item.id === expense.expense_id && item.journal_entry_id === journalId && item.journal_status === "posted"), "cash-expense accounting inbox must show the linked posted journal");
+
+    // Manual journal maker/checker: accountant creates; manager posts; administrator reverses;
+    // manager then posts the independent reversal. Denied actions must produce no row/audit delta.
+    const manualDraft = await createManualJournal(
+      accountantDb,randomUUID(),"P2 independent maker checker journal",expenseAccount,settlementAccount,"77.25",
+    );
+    assert.equal(manualDraft.status,"draft");
+    assert.equal(manualDraft.replayed,false);
+    const beforeAccountantSelfPost = await snapshotJournalBoundary(manualDraft.id);
+    const accountantSelfPost = await expectFailure(
+      "accountant cannot post their own manual journal draft",
+      () => postJournal(accountantDb,manualDraft.id),
+      /independent checker different from the journal creator/i,
+    );
+    assert.equal(accountantSelfPost.code,"42501");
+    assert.equal(await snapshotJournalBoundary(manualDraft.id),beforeAccountantSelfPost,
+      "self-post denial preserves the journal, lines, reversal links and audit");
+    const manualPosted = await postJournal(managerDb,manualDraft.id);
+    assert.equal(manualPosted.status,"posted");
+    assert.equal(manualPosted.replayed,false);
+    const manualPostedIdentity = await db.unsafe(
+      "select created_by_profile_id::text as creator,posted_by_profile_id::text as poster " +
+        "from public.accounting_journal_entries where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId,manualDraft.id],
+    );
+    assert.equal(manualPostedIdentity[0].creator,accountant.id);
+    assert.equal(manualPostedIdentity[0].poster,manager.id);
+
+    const beforeManagerSelfReverse = await snapshotJournalBoundary(manualDraft.id);
+    const managerSelfReverse = await expectFailure(
+      "original poster cannot reverse the same journal",
+      () => managerDb.unsafe(
+        "select public.reverse_general_journal_entry($1::uuid,$2::text,$3::uuid)",
+        [manualDraft.id,"Original poster reversal denial",randomUUID()],
+      ),
+      /independent reviewer different from the original creator and poster/i,
+    );
+    assert.equal(managerSelfReverse.code,"42501");
+    assert.equal(await snapshotJournalBoundary(manualDraft.id),beforeManagerSelfReverse,
+      "denied same-poster reversal preserves journal, lines, reversal links and audit");
+
+    const reverseKey=randomUUID();
+    const reverseResult=asJson((await adminDb.unsafe(
+      "select public.reverse_general_journal_entry($1::uuid,$2::text,$3::uuid) as result",
+      [manualDraft.id,"Independent administrator reversal",reverseKey],
+    ))[0].result);
+    assert.equal(reverseResult.status,"draft");
+    assert.equal(reverseResult.replayed,false);
+    const reverseReplay=asJson((await adminDb.unsafe(
+      "select public.reverse_general_journal_entry($1::uuid,$2::text,$3::uuid) as result",
+      [manualDraft.id,"Independent administrator reversal",reverseKey],
+    ))[0].result);
+    assert.equal(reverseReplay.reversal_journal_entry_id,reverseResult.reversal_journal_entry_id);
+    assert.equal(reverseReplay.replayed,true);
+    const reverseId=reverseResult.reversal_journal_entry_id;
+    const reverseIdentity=await db.unsafe(
+      "select created_by_profile_id::text as creator,posted_by_profile_id::text as poster,status " +
+        "from public.accounting_journal_entries where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId,reverseId],
+    );
+    assert.equal(reverseIdentity[0].creator,admin.id);
+    assert.equal(reverseIdentity[0].poster,null);
+    assert.equal(reverseIdentity[0].status,"draft");
+    const beforeReverseSelfPost=await snapshotJournalBoundary(reverseId);
+    const reverseSelfPost=await expectFailure(
+      "reversal maker cannot post their own reversal draft",
+      () => postJournal(adminDb,reverseId),
+      /independent checker different from the journal creator/i,
+    );
+    assert.equal(reverseSelfPost.code,"42501");
+    assert.equal(await snapshotJournalBoundary(reverseId),beforeReverseSelfPost,
+      "reversal maker self-post denial preserves reversal, mirrored lines and audit");
+    const reversePosted=await postJournal(managerDb,reverseId);
+    assert.equal(reversePosted.status,"posted");
+    assert.equal(reversePosted.replayed,false);
+    const originalLines=await db.unsafe(
+      "select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines " +
+        "where organization_id=$1::uuid and journal_entry_id=$2::uuid order by line_number",
+      [organizationId,manualDraft.id],
+    );
+    const reversalLines=await db.unsafe(
+      "select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines " +
+        "where organization_id=$1::uuid and journal_entry_id=$2::uuid order by line_number",
+      [organizationId,reverseId],
+    );
+    assert.equal(reversalLines.length,originalLines.length);
+    for(let index=0;index<originalLines.length;index++){
+      assert.equal(reversalLines[index].line_number,originalLines[index].line_number);
+      assert.equal(reversalLines[index].account_id,originalLines[index].account_id);
+      assert.equal(reversalLines[index].debit,originalLines[index].credit);
+      assert.equal(reversalLines[index].credit,originalLines[index].debit);
+    }
+    const reversalAudit=await db.unsafe(
+      "select action,actor_id from public.audit_logs where organization_id=$1::uuid " +
+        "and entity_type='accounting_journal_entry' and entity_id=$2::uuid",
+      [organizationId,reverseId],
+    );
+    assert.ok(reversalAudit.some(row=>row.action==="accounting.journal_posted" && row.actor_id===manager.id),
+      "reversal post audit identifies the independent checker");
+    assert.equal((await db.unsafe(
+      "select count(*)::integer as count from public.accounting_journal_reversals " +
+        "where organization_id=$1::uuid and original_journal_entry_id=$2::uuid",
+      [organizationId,manualDraft.id],
+    ))[0].count,1,"one unique reversal link must exist for the posted manual journal");
+
     const raceExpense = await recordExpense(managerDb, randomUUID(), "P2 expense post/void race", "50.00");
     const raceDraft = await createDraft(managerDb, raceExpense.expense_id, expenseAccount, settlementAccount, randomUUID());
     assert.equal(raceDraft.status, "draft");
     const racePostClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
     const raceVoidClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
     try {
-      await Promise.all([setIdentity(racePostClient, manager.auth_user_id, manager.email), setIdentity(raceVoidClient, manager.auth_user_id, manager.email)]);
+      await Promise.all([setIdentity(racePostClient, admin.auth_user_id, admin.email), setIdentity(raceVoidClient, manager.auth_user_id, manager.email)]);
       const [postOutcome, voidOutcome] = await Promise.allSettled([postJournal(racePostClient, raceDraft.journal_entry_id), voidExpense(raceVoidClient, raceExpense.expense_id, "P2 concurrent source cancellation")]);
       assert.equal(voidOutcome.status, "fulfilled", "source void must complete under a concurrent journal post");
       assert.equal(voidOutcome.value.status, "void");
@@ -422,6 +609,8 @@ async function main() {
     process.stdout.write("PASS cash-expense source posting: PostgreSQL journal draft, immutable source link, balanced exact amounts, source/account mapping guard, concurrent draft idempotency, posted-ledger visibility, audit attribution, customer denial and post/void compensation race\n");
   } finally {
     await staffDb.end({ timeout: 5 }).catch(() => {});
+    await accountantDb.end({ timeout: 5 }).catch(() => {});
+    await adminDb.end({ timeout: 5 }).catch(() => {});
     await foreignManagerDb.end({ timeout: 5 }).catch(() => {});
     await customerDb.end({ timeout: 5 }).catch(() => {});
     await concurrentB.end({ timeout: 5 }).catch(() => {});
