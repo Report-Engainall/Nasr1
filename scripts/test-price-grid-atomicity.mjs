@@ -330,7 +330,7 @@ async function main() {
       functions: priceGridFunctions.map(row => ({
         function_name: row.function_name,
         arguments: row.arguments,
-        references_legacy_product_price_columns: /p\\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.definition),
+        references_legacy_product_price_columns: /p\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.definition),
         definition: row.definition,
       })),
       product_price_columns: productPriceColumns.map(row => row.column_name),
@@ -338,10 +338,10 @@ async function main() {
         trigger_name: row.trigger_name,
         trigger_definition: row.trigger_definition,
         function_name: row.function_name,
-        references_legacy_product_price_columns: /p\\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.function_definition),
+        references_legacy_product_price_columns: /p\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.function_definition),
         function_definition: row.function_definition,
       })),
-    }) + "\\n");
+    }) + "\n");
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
