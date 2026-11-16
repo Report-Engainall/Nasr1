@@ -303,6 +303,45 @@ async function main() {
       throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify(managerContext));
     }
     await assertPriceGridRpcSchema(db);
+    // Capture the exact PostgreSQL 17 catalog definition before the first grid read.
+    // This separates a stale RPC/trigger body from a test-fixture or role-context defect.
+    const priceGridFunctions = await db.unsafe(
+      "select p.proname as function_name, pg_catalog.pg_get_function_identity_arguments(p.oid) as arguments, " +
+      "pg_catalog.pg_get_functiondef(p.oid) as definition " +
+      "from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace " +
+      "where n.nspname='public' and p.proname in ('get_admin_product_price_grid','save_product_price_grid') " +
+      "order by p.proname,arguments",
+    );
+    const productPriceColumns = await db.unsafe(
+      "select column_name from information_schema.columns " +
+      "where table_schema='public' and table_name='products' " +
+      "and column_name ilike '%price%' order by ordinal_position",
+    );
+    const productPriceTriggers = await db.unsafe(
+      "select t.tgname as trigger_name, pg_catalog.pg_get_triggerdef(t.oid) as trigger_definition, " +
+      "p.proname as function_name, pg_catalog.pg_get_functiondef(p.oid) as function_definition " +
+      "from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid=t.tgrelid " +
+      "join pg_catalog.pg_namespace n on n.oid=c.relnamespace " +
+      "join pg_catalog.pg_proc p on p.oid=t.tgfoid " +
+      "where n.nspname='public' and c.relname='products' and not t.tgisinternal " +
+      "order by t.tgname",
+    );
+    process.stdout.write("P2_PRICE_GRID_RUNTIME_CATALOG=" + JSON.stringify({
+      functions: priceGridFunctions.map(row => ({
+        function_name: row.function_name,
+        arguments: row.arguments,
+        references_legacy_product_price_columns: /p\\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.definition),
+        definition: row.definition,
+      })),
+      product_price_columns: productPriceColumns.map(row => row.column_name),
+      product_triggers: productPriceTriggers.map(row => ({
+        trigger_name: row.trigger_name,
+        trigger_definition: row.trigger_definition,
+        function_name: row.function_name,
+        references_legacy_product_price_columns: /p\\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/i.test(row.function_definition),
+        function_definition: row.function_definition,
+      })),
+    }) + "\\n");
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
