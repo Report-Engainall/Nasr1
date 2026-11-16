@@ -491,6 +491,297 @@ function WarehouseScopePanel({
   );
 }
 
+
+
+type CapabilityOption = {
+  capability_key: string;
+  domain: string;
+  scope_kind: string;
+  sensitivity: string;
+  is_active: boolean;
+};
+
+type ProfileDenial = {
+  denial_id: string;
+  capability_key: string;
+  reason: string;
+  is_active: boolean;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function normalizeCapabilityOptions(value: unknown): CapabilityOption[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is CapabilityOption => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const capability = entry as Record<string, unknown>;
+    return typeof capability.capability_key === 'string' &&
+      typeof capability.domain === 'string' &&
+      typeof capability.scope_kind === 'string' &&
+      typeof capability.sensitivity === 'string' &&
+      capability.is_active === true;
+  }).sort((left, right) => left.capability_key.localeCompare(right.capability_key));
+}
+
+function normalizeProfileDenials(value: unknown): ProfileDenial[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is ProfileDenial => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const denial = entry as Record<string, unknown>;
+    return typeof denial.denial_id === 'string' &&
+      typeof denial.capability_key === 'string' &&
+      typeof denial.reason === 'string' &&
+      typeof denial.is_active === 'boolean' &&
+      (denial.expires_at === null || typeof denial.expires_at === 'string') &&
+      typeof denial.created_at === 'string' &&
+      typeof denial.updated_at === 'string';
+  });
+}
+
+function CapabilityDenialPanel({
+  profile,
+  currentProfileId,
+}: {
+  profile: Profile;
+  currentProfileId: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [capabilities, setCapabilities] = useState<CapabilityOption[]>([]);
+  const [denials, setDenials] = useState<ProfileDenial[]>([]);
+  const [selectedCapabilityKey, setSelectedCapabilityKey] = useState('');
+  const [reason, setReason] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const self = profile.profile_id === currentProfileId;
+  const customer = profile.roles.includes('customer');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [capabilityResponse, denialResponse] = await Promise.all([
+        supabase.rpc('list_authorization_capability_registry'),
+        supabase.rpc('list_authorization_profile_denials', {
+          p_target_profile_id: profile.profile_id,
+        }),
+      ]);
+      if (capabilityResponse.error) throw capabilityResponse.error;
+      if (denialResponse.error) throw denialResponse.error;
+      const nextCapabilities = normalizeCapabilityOptions(capabilityResponse.data);
+      setCapabilities(nextCapabilities);
+      setDenials(normalizeProfileDenials(denialResponse.data));
+      setSelectedCapabilityKey((current) =>
+        current && nextCapabilities.some((capability) => capability.capability_key === current)
+          ? current
+          : nextCapabilities[0]?.capability_key ?? '',
+      );
+    } catch (cause) {
+      setError(cause instanceof Error
+        ? cause.message
+        : 'تعذر تحميل قاموس القدرات والمنع الصريح من الخادم.');
+    } finally {
+      setLoading(false);
+    }
+  }, [profile.profile_id]);
+
+  useEffect(() => {
+    if (expanded && !self && !customer) void load();
+  }, [expanded, self, customer, load]);
+
+  const selectedDenial = denials.find((denial) =>
+    denial.capability_key === selectedCapabilityKey,
+  ) ?? null;
+  const reasonReady = reason.trim().length >= 5 && reason.trim().length <= 500;
+  const expiryReady = !expiresAt || (
+    Number.isFinite(Date.parse(expiresAt)) &&
+    Date.parse(expiresAt) > Date.now()
+  );
+
+  async function setExplicitDenial(active: boolean, denial: ProfileDenial | null = null) {
+    if (self || customer || saving) return;
+    if (active && !reasonReady) {
+      setError('سبب المنع الصريح مطلوب، ويجب أن يكون بين 5 و500 حرف.');
+      return;
+    }
+    if (active && !expiryReady) {
+      setError('تاريخ انتهاء المنع يجب أن يكون في المستقبل.');
+      return;
+    }
+    const capabilityKey = denial?.capability_key ?? selectedCapabilityKey;
+    if (!capabilityKey) {
+      setError('اختر قدرة من قاموس القدرات أولاً.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data, error: rpcError } = await supabase.rpc('set_authorization_profile_denial', {
+        p_target_profile_id: profile.profile_id,
+        p_capability_key: capabilityKey,
+        p_reason: active ? reason.trim() : null,
+        p_expires_at: active && expiresAt ? new Date(expiresAt).toISOString() : null,
+        p_is_active: active,
+      });
+      if (rpcError) throw rpcError;
+      const result = data as {
+        changed?: unknown;
+        denial_id?: unknown;
+        is_active?: unknown;
+      } | null;
+      if (
+        !result ||
+        typeof result.changed !== 'boolean' ||
+        result.is_active !== active ||
+        (active && typeof result.denial_id !== 'string')
+      ) {
+        throw new Error('لم يؤكد الخادم تغيير حالة المنع الصريح.');
+      }
+      setNotice(result.changed
+        ? (active ? 'تم تفعيل المنع الصريح بعد تأكيد الخادم.' : 'تم إلغاء المنع الصريح بعد تأكيد الخادم.')
+        : 'حالة المنع مطابقة لما هو مسجل؛ لم يُكرر سجل التدقيق.');
+      setReason('');
+      setExpiresAt('');
+      await load();
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : '';
+      const message = detail.includes('last active organization administrator')
+        ? 'رُفض المنع لحماية آخر مسؤول نشط من فقد صلاحيات إدارة المؤسسة.'
+        : detail || 'رفض الخادم تغيير المنع الصريح أو تعذر تأكيده.';
+      await load();
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5eeee' }}>
+      <button
+        type="button"
+        className="btn btn-outline"
+        aria-expanded={expanded}
+        aria-controls={'capability-denials-' + profile.profile_id}
+        onClick={() => setExpanded((value) => !value)}
+        disabled={self || customer}
+      >
+        {expanded ? 'إخفاء المنع الصريح' : 'إدارة المنع الصريح للقدرات'}
+      </button>
+      {self ? <p role="note">لا يمكن لهذه الشاشة تعديل منع صلاحيات حساب المسؤول نفسه.</p> : null}
+      {customer ? <p role="note">حساب العميل منفصل عن إدارة صلاحيات الموظفين.</p> : null}
+      {expanded && !self && !customer ? (
+        <div id={'capability-denials-' + profile.profile_id} style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+          <p style={{ margin: 0, color: '#62777b', lineHeight: 1.7 }}>
+            المنع الصريح يتغلب على منح الدور. اختر قدرة محددة، وسجل السبب ومدة المنع عند الحاجة. إلغاء المنع لا ينشئ منحة جديدة؛ يعيد تقييم منح الدور والنطاق الأصليين فقط.
+          </p>
+          {loading ? <p role="status">جار تحميل قاموس القدرات وسجل المنع...</p> : null}
+          {error ? (
+            <div role="alert" className="error-box">
+              {error}
+              <button type="button" className="btn btn-outline" onClick={() => void load()} disabled={loading || saving}>إعادة المحاولة</button>
+            </div>
+          ) : null}
+          {capabilities.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8, alignItems: 'end' }}>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span>القدرة المستهدفة</span>
+                <select
+                  aria-label={'القدرة المطلوب منعها عن ' + profile.full_name}
+                  value={selectedCapabilityKey}
+                  onChange={(event) => setSelectedCapabilityKey(event.target.value)}
+                  disabled={loading || saving}
+                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+                >
+                  {capabilities.map((capability) => (
+                    <option key={capability.capability_key} value={capability.capability_key}>
+                      {capability.capability_key} — {capability.domain}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span>سبب المنع (مطلوب)</span>
+                <input
+                  aria-label={'سبب المنع الصريح لـ ' + profile.full_name}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  maxLength={500}
+                  placeholder="اكتب سبباً محدداً للمنع"
+                  disabled={saving}
+                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span>انتهاء المنع (اختياري)</span>
+                <input
+                  type="datetime-local"
+                  aria-label={'تاريخ انتهاء المنع الصريح لـ ' + profile.full_name}
+                  value={expiresAt}
+                  onChange={(event) => setExpiresAt(event.target.value)}
+                  disabled={saving}
+                  aria-invalid={!expiryReady}
+                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void setExplicitDenial(true)}
+                disabled={loading || saving || !selectedCapabilityKey || !reasonReady || !expiryReady}
+              >
+                {saving ? 'جار الحفظ...' : selectedDenial?.is_active ? 'تحديث المنع الصريح' : 'تفعيل المنع الصريح'}
+              </button>
+            </div>
+          ) : !loading ? (
+            <p role="status">لم يُرجع الخادم قدرات نشطة متاحة للإدارة.</p>
+          ) : null}
+          {notice ? <p role="status" style={{ margin: 0 }}>{notice}</p> : null}
+          {denials.length > 0 ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <strong>سجل المنع الصريح</strong>
+              {denials.map((denial) => {
+                const effective = denial.is_active &&
+                  (!denial.expires_at || Date.parse(denial.expires_at) > Date.now());
+                return (
+                  <div key={denial.denial_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center', border: '1px solid #e5eeee', borderRadius: 9, padding: 10 }}>
+                    <div>
+                      <strong>{denial.capability_key}</strong>
+                      <div style={{ fontSize: 12, color: '#71868a', lineHeight: 1.6 }}>
+                        {denial.reason}
+                        {denial.expires_at ? ' · ينتهي ' + new Date(denial.expires_at).toLocaleString('ar') : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span className={effective ? 'badge warning' : 'badge info'}>
+                        {effective ? 'منع نافذ' : denial.is_active ? 'منع منتهي' : 'ملغى'}
+                      </span>
+                      {denial.is_active ? (
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          onClick={() => void setExplicitDenial(false, denial)}
+                          disabled={saving || loading}
+                        >
+                          {saving ? 'جار الإلغاء...' : 'إلغاء المنع'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CustomerManagerProfileCard({
   profile,
   currentProfileId,
@@ -553,6 +844,7 @@ function CustomerManagerProfileCard({
         />
       </div>
       <WarehouseScopePanel profile={profile} currentProfileId={currentProfileId} />
+      <CapabilityDenialPanel profile={profile} currentProfileId={currentProfileId} />
     </article>
   );
 }
