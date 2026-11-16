@@ -1203,6 +1203,7 @@ export function ProductGrid({
               <h3>{product.name}</h3>
               {product.name_en ? <small dir="auto" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 500 }}>{product.name_en}</small> : null}
               <p>{product.category?.name ?? 'غير مصنف'} · {product.item_code}</p>
+              <small className="sf-product-unit">الوحدة: {product.unit}</small>
               {product.sku ? <small dir="ltr" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 600, textAlign: 'right' }}>SKU: {product.sku}</small> : null}
               <StorefrontPricePresentation
                 policyValue={priceVisibilityPolicy}

@@ -44,6 +44,9 @@ describe("storefront product card accessibility", () => {
       />,
     );
 
+    expect(screen.getByText("الوحدة: كيس")).toBeInTheDocument();
+    expect(screen.queryByText("السعر غير متاح")).not.toBeInTheDocument();
+
     const imageButton = screen.getByRole("button", { name: "عرض تفاصيل رز بسمتي قابل للوصول" });
     expect(imageButton.tagName).toBe("BUTTON");
     expect(imageButton.querySelector("button")).toBeNull();
