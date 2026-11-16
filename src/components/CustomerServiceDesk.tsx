@@ -18,6 +18,7 @@ import {
 } from "@/lib/customer-service-cases";
 import { projectCustomerServiceDeskPrintDocument, type CustomerServiceDeskPrintDocument } from "@/lib/customer-service-desk-print";
 import { downloadCustomerServiceDeskWorkbookXlsx } from "@/lib/customer-service-desk-xlsx";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { CustomerServiceDeskPrintSheet } from "@/components/CustomerServiceDeskPrintSheet";
 import {
   fetchCustomerServiceDeskPage,
@@ -380,20 +381,20 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
 
   return <>
   <section className="customer-service-desk" dir="rtl">
-    <header className="customer-service-desk-hero">
-      <div>
-        <span><Headphones size={16} /> مركز خدمة العملاء</span>
-        <h1>طابور خدمة العملاء الموحد</h1>
-        <p>شكاوى واستفسارات وطلبات الخدمة من جميع العملاء في مساحة تشغيل واحدة، مع الاستحقاق والمسؤول وسجل المهمة المرتبطة.</p>
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+    <WorkspaceSectionHeader
+      eyebrow="مركز خدمة العملاء"
+      title="طابور خدمة العملاء الموحد"
+      description="شكاوى واستفسارات وطلبات الخدمة من جميع العملاء في مساحة تشغيل واحدة، مع الاستحقاق والمسؤول وسجل المهمة المرتبطة."
+      icon={Headphones}
+      className="customer-service-desk-heading"
+      actions={<div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         {canManage && <>
           <Button variant="secondary" disabled={loading || items.length === 0} onClick={exportServiceDeskReport}><Download size={15} /> تصدير Excel</Button>
           <Button variant="secondary" disabled={loading || items.length === 0} onClick={printServiceDeskReport}><Printer size={15} /> طباعة / PDF</Button>
         </>}
         <Button variant="secondary" disabled={loading} onClick={() => { void loadFirstPage(); }}><RefreshCw size={16} /> تحديث الطابور</Button>
-      </div>
-    </header>
+      </div>}
+    />
 
     <div className="customer-service-desk-metrics">
       <Metric icon={Headphones} label="الحالات المفتوحة" value={summary.open_count} />
