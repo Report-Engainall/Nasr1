@@ -162,6 +162,54 @@ INSERT INTO public.customers(id,organization_id,business_name,customer_code) VAL
 INSERT INTO public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point)
 VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555',100,15,10);
 
+\ir ../migrations/20261018080000_inventory_write_boundary_and_reorder_point.sql
+
+SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333334',false);
+SET ROLE authenticated;
+DO $direct_inventory_write_denial$
+DECLARE
+  v_balance_update_denied boolean:=false;
+  v_balance_insert_denied boolean:=false;
+  v_movement_insert_denied boolean:=false;
+  v_movement_update_denied boolean:=false;
+BEGIN
+  BEGIN
+    UPDATE public.inventory_balances
+       SET quantity_on_hand=quantity_on_hand+1
+     WHERE product_id='44444444-4444-4444-8444-444444444444'
+       AND warehouse_id='55555555-5555-4555-8555-555555555555';
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_balance_update_denied:=true;
+  END;
+
+  BEGIN
+    INSERT INTO public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point)
+    VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555',101,15,10);
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_balance_insert_denied:=true;
+  END;
+
+  BEGIN
+    INSERT INTO public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reason,created_by)
+    VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555','adjustment',1,101,'direct-write-denial-test','22222222-2222-4222-8222-222222222223');
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_movement_insert_denied:=true;
+  END;
+
+  BEGIN
+    UPDATE public.inventory_movements
+       SET reason='tampered'
+     WHERE product_id='44444444-4444-4444-8444-444444444444';
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_movement_update_denied:=true;
+  END;
+
+  IF NOT v_balance_update_denied OR NOT v_balance_insert_denied
+     OR NOT v_movement_insert_denied OR NOT v_movement_update_denied THEN
+    RAISE EXCEPTION
+      'authenticated role bypassed inventory write boundary: balance update %, balance insert %, movement insert %, movement update %',
+      v_balance_update_denied,v_balance_insert_denied,v_movement_insert_denied,v_movement_update_denied;
+  END IF;
+END;
+$direct_inventory_write_denial$;
+RESET ROLE;
+
 \ir ../migrations/20261116110000_inventory_balance_adjustment_command.sql
 \ir ../migrations/20261116111000_inventory_adjustment_invariants.sql
 \ir ../migrations/20261116112000_inventory_adjustment_authorization_v2.sql
