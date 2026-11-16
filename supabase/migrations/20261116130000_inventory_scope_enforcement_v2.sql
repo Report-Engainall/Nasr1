@@ -583,7 +583,7 @@ BEGIN
     RAISE EXCEPTION 'inventory transfer history RPC is missing';
   END IF;
   v_definition:=pg_catalog.pg_get_functiondef(v_oid);
-  IF pg_catalog.position(v_legacy_predicate IN v_definition)=0 THEN
+  IF pg_catalog.strpos(v_definition,v_legacy_predicate)=0 THEN
     RAISE EXCEPTION 'inventory transfer history tenant predicate changed; refusing an unscoped SECURITY DEFINER reader';
   END IF;
   v_definition:=pg_catalog.replace(v_definition,v_legacy_predicate,v_scoped_predicate);
