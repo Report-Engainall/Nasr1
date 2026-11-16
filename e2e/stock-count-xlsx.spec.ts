@@ -139,7 +139,8 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       expect(normalizeLocalizedQuantity(expectedQuantityText)).toBe(authoritativeQuantity);
       await firstRow.locator('input[type="number"]').fill("99");
       await firstRow.getByRole("button", { name: "حفظ العد", exact: true }).click();
-      await expect(manager.getByRole("status")).toContainText("تم حفظ عدّ " + itemName, { timeout: 20_000 });
+      await expect(manager.locator(".data-status.success[role='status']"))
+        .toContainText("تم حفظ عدّ " + itemName, { timeout: 20_000 });
     });
 
     await test.step("manager downloads and parses the actual XLSX", async () => {
