@@ -1382,7 +1382,8 @@ export async function fetchAdminOrdersPage(input: {
   }
   const searchPattern = search ? '%' + search + '%' : null;
   const sort = input.sort ?? 'newest';
-  if (!['newest', 'oldest', 'amount_high', 'amount_low'].includes(sort)) {
+  const allowedSorts = new Set<string>(['newest', 'oldest', 'amount_high', 'amount_low']);
+  if (!allowedSorts.has(sort)) {
     throw new Error('ترتيب الطلبات غير معتمد.');
   }
 
