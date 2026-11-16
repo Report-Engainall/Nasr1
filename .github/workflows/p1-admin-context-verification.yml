@@ -419,7 +419,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: p1-admin-context-${{ github.ref }}
+  group: p1-admin-context-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
