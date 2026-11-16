@@ -5,7 +5,30 @@ BEGIN;
 DO $capability_catalog$
 DECLARE
   v_mapping record;
+  v_missing_capabilities integer;
 BEGIN
+  -- Cancellation is a separate warehouse-scoped command. It remains limited
+  -- to the admin/manager parity of stock-count finalization, requires a reason,
+  -- and may only cancel an open session.
+  INSERT INTO public.authorization_capabilities (
+    capability_key,domain,resource,action,sensitivity,scope_kind,
+    approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active
+  ) VALUES (
+    'inventory.count.cancel','inventory','stock_count','cancel','inventory','warehouse',
+    'none',false,'{"requires_reason":true,"required_status":"open"}'::jsonb,NULL,true
+  )
+  ON CONFLICT (capability_key) DO UPDATE SET
+    domain=EXCLUDED.domain,
+    resource=EXCLUDED.resource,
+    action=EXCLUDED.action,
+    sensitivity=EXCLUDED.sensitivity,
+    scope_kind=EXCLUDED.scope_kind,
+    approval_mode=EXCLUDED.approval_mode,
+    separation_of_duties=EXCLUDED.separation_of_duties,
+    state_requirements=EXCLUDED.state_requirements,
+    legacy_operation_id=NULL,
+    is_active=true,
+    updated_at=statement_timestamp();
   IF NOT EXISTS (SELECT 1 FROM public.authorization_capabilities WHERE capability_key='inventory.transfer.execute') THEN
 -- This is a distinct V2 capability. The legacy operation identifier is
 -- unique and remains bound to inventory.transfer.create only.
@@ -20,14 +43,16 @@ BEGIN
     WHERE c.capability_key='inventory.transfer.create';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM public.authorization_capabilities
-    WHERE capability_key IN (
-      'inventory.read_balance','inventory.count.start','inventory.count.enter',
-      'inventory.count.finalize','inventory.count.cancel','inventory.transfer.execute'
-    )
-  ) THEN
-    RAISE EXCEPTION 'required inventory V2 capability catalog entries are missing';
+  SELECT pg_catalog.count(*)::integer
+    INTO v_missing_capabilities
+    FROM public.authorization_capabilities
+   WHERE capability_key IN (
+     'inventory.read_balance','inventory.count.start','inventory.count.enter',
+     'inventory.count.finalize','inventory.count.cancel','inventory.transfer.execute'
+   );
+
+  IF v_missing_capabilities<>6 THEN
+    RAISE EXCEPTION 'required inventory V2 capability catalog entries are incomplete (found % of 6)',v_missing_capabilities;
   END IF;
 
   UPDATE public.authorization_capabilities

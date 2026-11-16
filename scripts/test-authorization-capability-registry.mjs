@@ -135,6 +135,28 @@ async function main() {
   assert.equal((await decision(db,actors.get("manager"),"system.root")).decision,"DENY");
   assert.equal((await decision(db,actors.get("manager"),"orders.read")).decision,"DENY");
 
+  const cancelCapability=await db.unsafe(
+   "select domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active from public.authorization_capabilities where capability_key='inventory.count.cancel'"
+  );
+  assert.equal(cancelCapability.length,1,"stock-count cancellation must have a real V2 capability definition");
+  assert.deepEqual(cancelCapability[0],{
+   domain:"inventory",
+   resource:"stock_count",
+   action:"cancel",
+   sensitivity:"inventory",
+   scope_kind:"warehouse",
+   approval_mode:"none",
+   separation_of_duties:false,
+   state_requirements:{requires_reason:true,required_status:"open"},
+   legacy_operation_id:null,
+   is_active:true
+  });
+  const cancelGrantRows=await db.unsafe(
+   "select role from public.authorization_role_capabilities where capability_key='inventory.count.cancel' order by role"
+  );
+  assert.deepEqual(cancelGrantRows.map(row=>row.role),["admin","manager"],
+   "only the existing admin/manager stock-count finalization parity may cancel a count");
+
   const managerContext=await withActor(db,actors.get("manager"),tx=>tx.unsafe("select public.get_current_tenant_context() as context"));
   const staffContext=await withActor(db,actors.get("staff"),tx=>tx.unsafe("select public.get_current_tenant_context() as context"));
   assert.equal(managerContext[0].context.can_view_internal_product_prices,true);
