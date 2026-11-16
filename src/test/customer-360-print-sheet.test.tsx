@@ -7,6 +7,7 @@ import type { Customer360PrintDocument } from "@/lib/customer-360-print";
 
 function makeDocument(
   recentOrders: Customer360PrintDocument["recentOrders"],
+  interactions: Customer360PrintDocument["interactions"] = [],
 ): Customer360PrintDocument {
   return {
     generatedAt: "2026-11-01T10:00:00.000Z",
@@ -37,7 +38,7 @@ function makeDocument(
     financeByCurrency: [],
     topProducts: [],
     recommendations: [],
-    interactions: [],
+    interactions,
   };
 }
 
@@ -78,4 +79,32 @@ describe("Customer360PrintSheet recent order rows", () => {
     expect(screen.getByText("لا توجد طلبات حديثة.")).toBeInTheDocument();
     expect(screen.queryByTestId("customer-360-print-order-row")).not.toBeInTheDocument();
   });
+
+  it("prints all bounded interaction fields including the creation timestamp", () => {
+    render(
+      <Customer360PrintSheet
+        document={makeDocument([], [{
+          interactionType: "whatsapp",
+          subject: "متابعة طلب الأرز",
+          details: "تم الاتفاق على إعادة التواصل غدًا",
+          interactionAt: "2026-10-30T09:15:00.000Z",
+          nextFollowUpAt: "2026-10-31T10:30:00.000Z",
+          createdAt: "2026-10-30T09:20:00.000Z",
+          recordedByName: "موظف المبيعات",
+        }])}
+      />,
+    );
+
+    expect(screen.getByText("وقت التسجيل")).toBeInTheDocument();
+    expect(screen.getByText("وقت التواصل")).toBeInTheDocument();
+    expect(screen.getByText("سُجل بواسطة")).toBeInTheDocument();
+    const rows = screen.getAllByTestId("customer-360-print-interaction-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("متابعة طلب الأرز");
+    expect(rows[0]).toHaveTextContent("تم الاتفاق على إعادة التواصل غدًا");
+    expect(rows[0]).toHaveTextContent("موظف المبيعات");
+    expect(rows[0]).toHaveTextContent("٣٠‏/١٠‏/٢٠٢٦");
+    expect(rows[0]).toHaveTextContent("٣١‏/١٠‏/٢٠٢٦");
+  });
+
 });
