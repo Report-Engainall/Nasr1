@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -25,6 +25,13 @@ vi.mock("@/lib/product-image", () => ({
   toWebp: vi.fn(),
   validateProductImageFile: vi.fn(() => null),
 }));
+
+beforeEach(() => {
+  // Keep call counts local to each case while preserving the mock implementations
+  // configured by each test. This prevents a previous upload from masquerading
+  // as a duplicate invocation in the immediate-double-click regression.
+  vi.clearAllMocks();
+});
 
 afterEach(() => cleanup());
 

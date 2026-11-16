@@ -22,5 +22,6 @@ export default defineConfig({
   test: {
     // Keep Vitest scoped to app/unit tests; Playwright E2E specs are run by P2 only.
     include: ["src/**/*.{test,spec}.?(c|m)[jt]s?(x)"],
+    setupFiles: ["./src/test/setup.ts"],
   },
 });
