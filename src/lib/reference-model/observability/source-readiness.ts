@@ -3,7 +3,8 @@ export type ReferenceSourceReadinessStatus =
   | "BLOCKED_NO_TENANT_SAFE_READ_CONTRACT"
   | "BLOCKED_NO_SAFE_REPOSITORY_READ_SOURCE"
   | "PERSISTENT_SOURCE_ADMIN_ONLY"
-  | "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY";
+  | "PERSISTENT_SOURCE_ADMIN_MANAGER_READ_ONLY"
+  | "PERSISTENT_SOURCE_ADMIN_MANAGER_TRIAGE";
 
 export interface ReferenceSourceReadiness {
   id: "ai_audit" | "prompt_persistence" | "error_log" | "developer_tools";
@@ -35,9 +36,9 @@ export const REFERENCE_SOURCE_READINESS: readonly ReferenceSourceReadiness[] = [
   {
     id: "error_log",
     title: "سجل أخطاء دائم",
-    status: "BLOCKED_NO_PERSISTENT_SOURCE",
-    source: "src/lib/error-capture.ts · src/lib/runtime-error-reporting.ts",
-    detail: "التقاط الخطأ مؤقت في الذاكرة أو console؛ لا يوجد مصدر متعدد المستخدمين محفوظ يمكن عرضه كسجل عمليات.",
+    status: "PERSISTENT_SOURCE_ADMIN_MANAGER_TRIAGE",
+    source: "public.runtime_error_events · public.list_runtime_error_events() · public.transition_runtime_error_event()",
+    detail: "تُحفظ بيانات أخطاء المتصفح المنقحة ضمن المؤسسة المشتقة من الجلسة، مع قراءة وإقرار وحل للمشرف والمدير فقط وسجل انتقالات append-only. لا تُحفظ الرسائل أو المكدسات أو الروابط أو بيانات العملاء أو الأسرار؛ توجد حدود إزالة تكرار ومعدل تسجيل.",
   },
   {
     id: "developer_tools",
