@@ -893,7 +893,13 @@ test("admin access matrix compares roles, searches and filters access with keybo
     // The all-role filter narrows the same query without changing the underlying policy.
     await filter.selectOption("accountant");
     await expect(pages.getByTestId("page-finance-accountant")).toBeVisible();
-    await expect(pages.getByTestId("page-finance-staff")).toHaveCount(0);
+    // The role scope filters page/operation rows, while all six role columns remain visible for comparison.
+    await expect(pages.getByTestId("page-finance-staff")).toContainText("ممنوع");
+    await expect(pages.getByTestId("page-finance-staff")).toContainText("تتطلب مساحة المالية");
+    for (const role of roles) {
+      await expect(pageTable.getByRole("columnheader", { name: role, exact: true })).toBeVisible();
+      await expect(operationTable.getByRole("columnheader", { name: role, exact: true })).toBeVisible();
+    }
     await expect(operations.getByTestId("operation-finance_manage-accountant")).toBeVisible();
 
     // No-result and clear behavior must remain explicit; clearing search preserves the chosen scope.
