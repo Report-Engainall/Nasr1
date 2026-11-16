@@ -192,6 +192,54 @@ INSERT INTO public.authorization_profile_scopes(
   '22222222-2222-4222-8222-222222222222'
 );
 
+DO $scope_resource_boundary$
+DECLARE
+  v_foreign_denied boolean:=false;
+  v_immutable_denied boolean:=false;
+  v_actual_warehouse uuid;
+BEGIN
+  BEGIN
+    INSERT INTO public.authorization_profile_scopes(
+      organization_id,profile_id,scope_kind,warehouse_id,customer_id,reason,is_active,
+      valid_from,revision,created_by,updated_by
+    ) VALUES(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      'warehouse',
+      '55555555-5555-4555-8555-555555555556',
+      NULL,'Cross tenant warehouse must be denied',true,
+      statement_timestamp(),1,
+      '22222222-2222-4222-8222-222222222222',
+      '22222222-2222-4222-8222-222222222222'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_foreign_denied:=true;
+  END;
+  IF NOT v_foreign_denied THEN
+    RAISE EXCEPTION 'cross-tenant warehouse scope was accepted';
+  END IF;
+
+  BEGIN
+    UPDATE public.authorization_profile_scopes
+       SET warehouse_id='55555555-5555-4555-8555-555555555556'
+     WHERE profile_id='22222222-2222-4222-8222-222222222222'
+       AND warehouse_id='55555555-5555-4555-8555-555555555555';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_immutable_denied:=true;
+  END;
+  IF NOT v_immutable_denied THEN
+    RAISE EXCEPTION 'scope resource identity was mutable';
+  END IF;
+
+  SELECT warehouse_id INTO v_actual_warehouse
+    FROM public.authorization_profile_scopes
+   WHERE profile_id='22222222-2222-4222-8222-222222222222'
+     AND scope_kind='warehouse';
+  IF v_actual_warehouse IS DISTINCT FROM '55555555-5555-4555-8555-555555555555'::uuid THEN
+    RAISE EXCEPTION 'denied scope reassignment changed the original authorization resource';
+  END IF;
+END;
+$scope_resource_boundary$;
 
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',false);
 
