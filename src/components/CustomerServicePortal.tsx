@@ -1,10 +1,10 @@
 import { useCallback,useEffect,useRef,useState,type FormEvent } from "react";
-import { AlertCircle,CheckCircle2,Clock3,Headphones,MessageCircle,Plus,RefreshCw,Send,ShieldCheck } from "lucide-react";
+import { AlertCircle,CheckCircle2,Clock3,Headphones,MessageCircle,Plus,RefreshCw,Search,Send,ShieldCheck } from "lucide-react";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { addMyCustomerServiceCaseMessage,createMyCustomerServiceCase,fetchMyCustomerServiceCasesPage,fetchMyCustomerServicePortalContext,newCustomerServicePortalRequestKey,type CustomerServicePortalCase,type CustomerServicePortalMessage,type CustomerServicePortalCursor } from "@/lib/customer-service-portal";
 import type { CustomerServiceCasePriority,CustomerServiceCaseStatus,CustomerServiceCaseType } from "@/lib/customer-service-cases";
-import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 const types:Record<CustomerServiceCaseType,string>={complaint:"شكوى",inquiry:"استفسار",service_request:"طلب خدمة",delivery_issue:"مشكلة تسليم",other:"أخرى"};
 const priorities:Record<CustomerServiceCasePriority,string>={low:"منخفضة",medium:"متوسطة",high:"عالية",urgent:"عاجلة"};
@@ -79,18 +79,20 @@ function Workspace(){
     actions={<button type="button" className="btn secondary" disabled={loading} onClick={()=>{void load();}}><RefreshCw size={15}/> تحديث الحالات</button>}
    />
   {notice&&<p className="customer-service-portal-notice" role="status"><CheckCircle2 size={15}/>{notice}</p>}{error&&<div className="customer-service-portal-error" role="alert"><AlertCircle size={16}/>{error}</div>}
-  {canCreate&&<section className="customer-service-portal-create"><div className="customer-service-portal-section-heading"><div><h2><Plus size={17}/> فتح حالة خدمة جديدة</h2><p>حدد نوع الطلب واكتب التفاصيل التي يحتاجها فريق المعالجة.</p></div><ShieldCheck size={21}/></div>
+  {canCreate&&<WorkspaceSectionGroup icon={Plus} title="فتح حالة خدمة جديدة" description="أرسل طلب خدمة أو شكوى إلى فريق الأغبري من حساب شركتك." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content"><section className="customer-service-portal-create"><div className="customer-service-portal-section-heading"><div><h2><Plus size={17}/> فتح حالة خدمة جديدة</h2><p>حدد نوع الطلب واكتب التفاصيل التي يحتاجها فريق المعالجة.</p></div><ShieldCheck size={21}/></div>
    <form onSubmit={e=>{void create(e);}}><div className="customer-service-portal-form-grid">
     <label>نوع الحالة<select value={draft.caseType} disabled={saving} onChange={e=>change("caseType",e.target.value as CustomerServiceCaseType)}>{Object.entries(types).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
     <label>الأولوية<select value={draft.priority} disabled={saving} onChange={e=>change("priority",e.target.value as CustomerServiceCasePriority)}>{Object.entries(priorities).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
     <label className="wide">موضوع الحالة<input value={draft.subject} maxLength={200} required disabled={saving} onChange={e=>change("subject",e.target.value)} placeholder="مثال: استفسار عن طلب أو مشكلة في التسليم"/></label>
     <label className="wide">التفاصيل<textarea value={draft.description} maxLength={4000} required rows={4} disabled={saving} onChange={e=>change("description",e.target.value)} placeholder="اشرح المشكلة أو الخدمة المطلوبة..."/></label>
    </div><div className="customer-service-portal-form-footer"><small>رقم مستقل للحالة ومسار متابعة واحد لدى فريق الخدمة.</small><button type="submit" className="btn primary" disabled={saving||!draft.subject.trim()||!draft.description.trim()}><Plus size={15}/>{saving?"جار فتح الحالة...":"فتح الحالة"}</button></div></form>
-  </section>}
+  </section></WorkspaceSectionGroup>}
   {!canCreate&&canReply&&<p className="customer-service-portal-readonly">يمكنك متابعة الحالات والرد عليها؛ فتح حالة جديدة متاح لمسؤول المشتريات المخول.</p>}
   {!canReply&&!canCreate&&<p className="customer-service-portal-readonly">حسابك يملك صلاحية الاطلاع فقط؛ يمكن للمشتري المخول فتح الحالات والرد عليها.</p>}
+  <WorkspaceSectionGroup icon={MessageCircle} title="حالات شركتك" description="تابع مراسلات الشركة وحالات الخدمة وردّ فريق الأغبري." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
   <section className="customer-service-portal-list-section">
    <div className="customer-service-portal-section-heading"><div><h2><MessageCircle size={17}/> حالات شركتك</h2><p>المراسلات العامة الخاصة بشركتك فقط.</p></div><span>{totalCount.toLocaleString("ar-YE")} نتيجة</span></div>
+   <WorkspaceSectionGroup icon={Search} title="البحث والتصفية" description="ابحث في سجل الشركة وحدد حالة الخدمة ونوعها." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
    <form className="customer-service-portal-case-filters" onSubmit={applyFilters} aria-label="البحث وتصفية حالات الخدمة">
     <label>البحث في رقم الحالة أو الموضوع أو تفاصيلها أو الرسائل<input value={searchDraft} maxLength={120} disabled={loading} onChange={e=>setSearchDraft(e.target.value)} placeholder="رقم الحالة أو كلمة من المحادثة..."/></label>
     <label>الحالة<select value={statusDraft} disabled={loading} onChange={e=>setStatusDraft(e.target.value)}><option value="">كل الحالات</option>{Object.entries(statuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
@@ -98,6 +100,7 @@ function Workspace(){
     <div className="customer-service-portal-filter-actions"><button type="submit" className="btn primary" disabled={loading}>تطبيق المرشحات</button>{searchDraft||statusDraft||typeDraft||appliedSearch||appliedStatus||appliedType?<button type="button" className="btn secondary" disabled={loading} onClick={clearFilters}>مسح</button>:null}</div>
     <p className="customer-service-portal-muted">البحث والمرشحات تُطبّق على كامل سجل شركتك قبل ترقيم الصفحات.</p>
    </form>
+   </WorkspaceSectionGroup>
    {loading?<p className="customer-service-portal-empty" role="status">جار تحميل حالات الخدمة...</p>:error?<p className="customer-service-portal-empty" role="status">تعذر عرض السجل حتى نجاح إعادة التحميل.</p>:cases.length===0?<div className="customer-service-portal-empty">لا توجد حالات مطابقة للبحث والمرشحات الحالية.</div>:<div className="customer-service-portal-cases">{cases.map(item=><PortalCaseCard key={item.id} item={item} canReply={canReply} onReply={reply}/>)}</div>}
    {(page>0||hasMore)?<nav className="customer-service-portal-pagination" aria-label="صفحات حالات الخدمة">
     <span>صفحة {page+1} من {pageCount} · {cases.length.toLocaleString("ar-YE")} حالة في الصفحة · 50 لكل دفعة</span>
@@ -105,6 +108,7 @@ function Workspace(){
    </nav>:null}
    <p className="customer-service-portal-footnote">تعرض الصفحة حتى 50 حالة من سجل الشركة وفق صلاحية الحساب. الملاحظات الداخلية والتصعيد والإسناد ومعلومات الحساب المالية غير متاحة من بوابة العميل؛ وتُحمّل حتى 50 رسالة عامة لكل حالة.</p>
   </section>
+  </WorkspaceSectionGroup>
  </main>;
 }
 
