@@ -325,7 +325,38 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       </section>
       <section className="panel admin-category-details">
         {!selected ? <div className="admin-category-empty"><FolderTree size={28}/><strong>اختر تصنيفاً لعرض تفاصيله</strong><span>حدد عقدة لعرض الأب والفروع والمنتجات المرتبطة.</span></div> : <>
-          <div className="admin-category-details__header"><div><span>تفاصيل التصنيف</span><h2>{selected.name}</h2><p>{path.map((item) => item.name).join(' / ')}</p></div><span className={`admin-category-status ${selected.is_active === false ? 'is-archived' : 'is-active'}`}>{selected.is_active === false ? 'مؤرشف' : 'نشط'}</span></div>
+          <div className="admin-category-details__header">
+            <div>
+              <span>تفاصيل التصنيف</span>
+              <h2>{selected.name}</h2>
+              <nav
+                className="admin-category-breadcrumbs"
+                aria-label="مسار التصنيف"
+                style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, fontSize: 12 }}
+              >
+                {path.map((item, index) => (
+                  <span key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {index > 0 && <span aria-hidden="true" className="text-muted">/</span>}
+                    {item.id === selected.id ? (
+                      <span aria-current="page" className="font-semibold">{item.name}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="admin-category-link"
+                        aria-label={`الانتقال إلى ${item.name}`}
+                        onClick={() => selectCategory(item.id)}
+                      >
+                        {item.name}
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </nav>
+            </div>
+            <span className={`admin-category-status ${selected.is_active === false ? 'is-archived' : 'is-active'}`}>
+              {selected.is_active === false ? 'مؤرشف' : 'نشط'}
+            </span>
+          </div>
           <div className="admin-category-meta">
             <div><span>الرمز</span><strong dir="auto">{selected.code || 'غير محدد'}</strong></div>
             <div><span>الأب</span><strong>{selected.parent_id ? categories.find((item) => item.id === selected.parent_id)?.name ?? 'غير موجود' : 'تصنيف رئيسي'}</strong></div>
