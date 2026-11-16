@@ -21,6 +21,7 @@ on:
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
       - "scripts/test-ai-prompt-governance.mjs"
+      - "scripts/test-runtime-error-log.mjs"
       - "scripts/test-customer-receivable-aging-identity.mjs"
       - "scripts/test-inventory-adjustment-v2-authorization.mjs"
       - "e2e/**"
@@ -593,6 +594,8 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test durable runtime error log, tenant isolation and audited triage on local PostgreSQL 17
+        run: node scripts/test-runtime-error-log.mjs
       - name: Test server authorization capability registry and six-role legacy parity
         run: node scripts/test-authorization-capability-registry.mjs
       - name: Test RBAC V2 enforcement on inventory adjustment commands and reads
@@ -649,6 +652,11 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-local-e2e-preview.log"; exit 1; fi
           echo "Built app ready; local-only Supabase URL host: $(node -e 'console.log(new URL(process.env.SUPABASE_URL).hostname)')" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify persistent error-log route and triage in authenticated Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/admin-error-log.spec.ts"
       - name: Run authenticated order persistence and cross-tenant denial in Chromium
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
