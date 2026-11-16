@@ -31,7 +31,6 @@ import { formatCurrency, formatDate, formatDateShort, formatNumber } from "@/lib
 import {
   classifyAssistantIntent,
   matchesArabicCatalogSearch,
-  normalizeCartDraft,
   sanitizePublicCatalogCache,
   summarizeAccount,
   summarizeInvoiceAmounts,
@@ -219,6 +218,8 @@ type Product = {
   base_price?: number | string | null;
   status?: string;
   image_url?: string | null;
+  min_order_quantity?: number;
+  order_quantity_multiple?: number;
 };
 type Quote = {
   id: string;
@@ -249,6 +250,61 @@ type ReorderTemplate = {
   source_order_id: string | null;
 };
 type ReorderTemplateLine = { product_id: string | null; quantity: number | string };
+type ReorderCartLine = { product_id: string; quantity: number };
+
+function validateReorderTemplateLines(value: unknown, products: readonly Product[]): ReorderCartLine[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("لا يحتوي قالب إعادة الطلب على أصناف صالحة لإضافتها إلى السلة.");
+  }
+  if (value.length > 100) {
+    throw new Error("لا يمكن تطبيق قالب يضم أكثر من 100 صنف في السلة الواحدة.");
+  }
+
+  const productsById = new Map<string, Product>();
+  for (const product of products) {
+    if (product.status === "active") productsById.set(product.id.toLowerCase(), product);
+  }
+  const seen = new Set<string>();
+
+  return value.map((candidate) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      throw new Error("يحتوي القالب على بند غير صالح؛ لم تُغيّر السلة.");
+    }
+    const row = candidate as ReorderTemplateLine;
+    const productId = typeof row.product_id === "string" ? row.product_id.trim().toLowerCase() : "";
+    if (!productId) throw new Error("يحتوي القالب على صنف بلا معرّف صالح؛ لم تُغيّر السلة.");
+    if (seen.has(productId)) throw new Error("يحتوي القالب على الصنف نفسه أكثر من مرة؛ لم تُغيّر السلة.");
+    seen.add(productId);
+
+    const quantity = typeof row.quantity === "number"
+      ? row.quantity
+      : typeof row.quantity === "string" && row.quantity.trim()
+        ? Number(row.quantity.trim())
+        : Number.NaN;
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10000) {
+      throw new Error("يجب أن تكون كمية كل صنف عددًا صحيحًا بين 1 و10000.");
+    }
+
+    const product = productsById.get(productId);
+    if (!product) {
+      throw new Error("أحد أصناف القالب لم يعد نشطًا أو غير متاح في كتالوج المؤسسة. حدّث القالب قبل استخدامه.");
+    }
+    const minimum = product.min_order_quantity === undefined ? 1 : product.min_order_quantity;
+    const multiple = product.order_quantity_multiple === undefined ? 1 : product.order_quantity_multiple;
+    if (!Number.isSafeInteger(minimum) || minimum < 1 || minimum > 10000 ||
+        !Number.isSafeInteger(multiple) || multiple < 1 || multiple > 10000) {
+      throw new Error("تعذر التحقق من سياسة كمية الصنف «" + product.name + "». أعد تحميل المنتجات قبل المتابعة.");
+    }
+    if (quantity < minimum) {
+      throw new Error("الحد الأدنى لطلب «" + product.name + "» هو " + minimum + " " + product.unit + ".");
+    }
+    if ((quantity - minimum) % multiple !== 0) {
+      throw new Error("كمية «" + product.name + "» يجب أن تبدأ من " + minimum + " وتزيد بمضاعف " + multiple + ".");
+    }
+
+    return { product_id: productId, quantity };
+  });
+}
 type AssistantOrderRow = { order_number: string | number; status: string; created_at: string };
 type AssistantInvoiceStatusRow = { invoice_number: string; status: string; issued_at: string };
 type AssistantProductRow = {
@@ -2091,7 +2147,7 @@ function Reorder() {
     const responses = await Promise.all([
       supabase
         .from("products")
-        .select("id,name,item_code,barcode,unit,status")
+        .select("id,name,item_code,barcode,unit,status,min_order_quantity,order_quantity_multiple")
         .eq("organization_id", orgId)
         .eq("status", "active")
         .order("name")
@@ -2147,11 +2203,18 @@ function Reorder() {
   async function save(e: FormEvent) {
     e.preventDefault();
     const actionProfileId = user?.profileId;
-    const lines = Object.entries(quantities)
-      .filter(([, q]) => Number.isInteger(q) && q > 0)
+    const selectedLines = Object.entries(quantities)
+      .filter(([, quantity]) => quantity !== 0)
       .map(([product_id, quantity]) => ({ product_id, quantity }));
-    if (name.trim().length < 2 || !lines.length) {
+    if (name.trim().length < 2 || !selectedLines.length) {
       setError("اكتب اسم القالب واختر صنفًا واحدًا على الأقل.");
+      return;
+    }
+    let lines: ReorderCartLine[];
+    try {
+      lines = validateReorderTemplateLines(selectedLines, products);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "توجد كمية لا تطابق سياسة أحد الأصناف.");
       return;
     }
     setBusy(true);
@@ -2191,15 +2254,24 @@ function Reorder() {
         .eq("template_id", t.id);
       if (activeProfileIdRef.current !== actionProfileId) return;
       if (r.error) throw new Error("تعذر قراءة أصناف القالب. حاول مجددًا.");
-      const draft = normalizeCartDraft(
-        (r.data ?? [])
-          .filter((x: ReorderTemplateLine) => x.product_id)
-          .map((x: ReorderTemplateLine) => ({
-            product_id: x.product_id as string,
-            quantity: Number(x.quantity),
-          })),
-      );
-      if (!draft.length) throw new Error("لا يحتوي القالب على أصناف صالحة لإضافتها إلى السلة.");
+      const draft = validateReorderTemplateLines(r.data, products);
+      const currentDraft = loadOfflineCartDraft(window.localStorage, actionProfileId);
+      const combinedQuantities = new Map<string, number>();
+      for (const line of currentDraft) {
+        combinedQuantities.set(line.product_id.toLowerCase(), line.quantity);
+      }
+      for (const line of draft) {
+        const productId = line.product_id.toLowerCase();
+        combinedQuantities.set(
+          productId,
+          Math.min(10000, (combinedQuantities.get(productId) ?? 0) + line.quantity),
+        );
+      }
+      const combinedDraft = [...combinedQuantities.entries()].map(([product_id, quantity]) => ({
+        product_id,
+        quantity,
+      }));
+      validateReorderTemplateLines(combinedDraft, products);
       const merged = mergeOfflineCartDraft(window.localStorage, actionProfileId, draft);
       if (!merged) throw new Error("تعذر حفظ السلة المعزولة لهذا الحساب على الجهاز.");
       if (activeProfileIdRef.current !== actionProfileId) return;
@@ -2251,42 +2323,54 @@ function Reorder() {
             borderRadius: 10,
           }}
         >
-          {visible.map((p) => (
-            <div
-              key={p.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0,1fr) 95px",
-                gap: 10,
-                alignItems: "center",
-                padding: 10,
-                borderBottom: "1px solid #edf2f3",
-              }}
-            >
-              <div>
-                <strong>{p.name}</strong>
-                <div style={quiet}>
-                  {p.item_code}{customerStorefrontPriceSuffix(priceVisibilityPolicy, p.base_price)}
+          {visible.map((p) => {
+            const minimum = p.min_order_quantity ?? 1;
+            const multiple = p.order_quantity_multiple ?? 1;
+            const policyId = "reorder-policy-" + p.id;
+            return (
+              <div
+                key={p.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1fr) 95px",
+                  gap: 10,
+                  alignItems: "center",
+                  padding: 10,
+                  borderBottom: "1px solid #edf2f3",
+                }}
+              >
+                <div>
+                  <strong>{p.name}</strong>
+                  <div style={quiet}>
+                    {p.item_code} · {p.unit}{customerStorefrontPriceSuffix(priceVisibilityPolicy, p.base_price)}
+                  </div>
+                  <small id={policyId} style={{ ...quiet, display: "block", marginTop: 3 }}>
+                    الحد الأدنى: {minimum} {p.unit} · الزيادة من الحد الأدنى بمضاعف: {multiple}
+                  </small>
                 </div>
+                <input
+                  style={field}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  dir="ltr"
+                  maxLength={16}
+                  aria-label={"كمية " + p.name}
+                  aria-describedby={policyId}
+                  value={quantities[p.id] ?? ""}
+                  onChange={(e) => {
+                    const normalized = normalizeLocalizedDecimalInput(e.currentTarget.value);
+                    const parsed = normalized === "" ? 0 : Number(normalized);
+                    setQuantities((prev) => ({
+                      ...prev,
+                      [p.id]: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+                    }));
+                  }}
+                  placeholder="الكمية"
+                />
               </div>
-              <input
-                style={field}
-                type="number"
-                min="0"
-                max="10000"
-                step="1"
-                aria-label={"كمية " + p.name}
-                value={quantities[p.id] ?? ""}
-                onChange={(e) =>
-                  setQuantities((prev) => ({
-                    ...prev,
-                    [p.id]: Math.min(10000, Math.max(0, Number(e.target.value) || 0)),
-                  }))
-                }
-                placeholder="الكمية"
-              />
-            </div>
-          ))}
+            );
+          })}
         </div>
         <button type="submit" style={primary} disabled={busy}>
           <Save size={16} />
