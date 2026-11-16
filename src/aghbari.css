@@ -1277,3 +1277,52 @@ button.workspace-section-group__heading { cursor: pointer; }
 @media (max-width: 600px) {
   .workspace-section-group__content.stock-count-group__content { padding: 12px; }
 }
+
+
+/* Consistent section → category → tool hierarchy for operational workspaces. */
+.workspace-domain-group { margin-block: 14px; }
+.workspace-domain-group__content--stacked {
+  display: grid;
+  gap: 12px;
+}
+.workspace-domain-group__table-content {
+  padding: 0;
+}
+.workspace-domain-group__table-content > .table-head {
+  padding: 14px 16px;
+}
+.workspace-domain-group__table-content > .toolbar {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--aghbari-border);
+}
+.workspace-domain-group__tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+.workspace-domain-group__tabs > button {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 999px;
+}
+@media (max-width: 600px) {
+  .workspace-domain-group__content--stacked > .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .workspace-domain-group__table-content > .table-head {
+    padding: 12px;
+  }
+  .workspace-domain-group__table-content > .toolbar {
+    padding: 10px 12px;
+  }
+  .workspace-domain-group__tabs {
+    padding: 10px;
+  }
+  .workspace-domain-group__tabs > button {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
