@@ -1,3 +1,4 @@
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { lazy, Suspense, useState, useMemo, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
@@ -7,7 +8,7 @@ const quiet: CSSProperties = { margin: 0, color: 'var(--muted-foreground, #64748
 const field: CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #cbd5e1)', background: 'var(--background, #fff)', font: 'inherit' };
 import {
   AlertTriangle, Bell, Bot, Check, ChevronLeft, Database,
-  Package, Plus, RefreshCw, Search, Settings, Smartphone,
+  Package, Plus, RefreshCw, Search, Settings, Smartphone, Palette, ShieldCheck, Store, Users,
   X, ExternalLink, Save, Download, Printer,
 } from 'lucide-react';
 import {
@@ -349,8 +350,13 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
   async function taskAction(id: string, status: string) { try { await toggleAiTaskStatus(id, status); rTasks(); onNotice(status === 'completed' ? 'تم إنجاز المهمة' : 'تم تحديث المهمة'); } catch (e) { onNotice(e instanceof Error ? e.message : 'خطأ'); } }
 
   return <AdminPage eyebrow="الذكاء الاصطناعي" title="مركز الذكاء" description="تنبيهات ومهام ومزودون بحدود استهلاك واضحة" icon={Bot} note={`${alerts?.filter((a) => !a.is_resolved).length ?? 0} تنبيه نشط — ${tasks?.filter((t) => t.status !== 'completed').length ?? 0} مهمة معلقة`} toolbar={<Button variant="secondary" onClick={() => { rAlerts(); rTasks(); }}><RefreshCw size={16} /> تحديث</Button>}>
-    {canManageGateway && <section style={{ ...card, display: 'grid', gap: 14 }}>
-      <div><h2 style={{ margin: 0, fontSize: 19 }}>بوابة الذكاء والميزانية</h2><p style={quiet}>المفاتيح لا تُحفظ هنا. خزّنها كأسرار Edge Function ثم اختبر الاتصال بعد الحفظ.</p></div>
+    {canManageGateway && <WorkspaceSectionGroup
+      icon={Bot}
+      title="بوابة الذكاء والميزانية"
+      description="إعداد المزود والحدود ومتابعة استهلاك خدمات الذكاء الاصطناعي."
+      className="ai-gateway-group"
+      contentClassName="ai-gateway-group__content"
+    >
       {gatewayLoading ? <Loading /> : <>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12 }}>
           <label style={{ display: 'grid', gap: 6 }}>المزود الأساسي
@@ -405,13 +411,19 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
         {gatewayMessage && <p role="status" style={card}>{gatewayMessage}</p>}
         {gatewayError && <ErrorBox message={gatewayError} />}
       </>}
-    </section>}
-    {canManageGateway && <AiGatewayOperationsPanel />}
+    </WorkspaceSectionGroup>}
+    {canManageGateway && <WorkspaceSectionGroup icon={Bot} title="تشغيلات بوابة الذكاء" description="متابعة سجلات تشغيل المزود والطلبات والتحكم في نتائج التنفيذ." className="ai-operations-group" contentClassName="ai-operations-group__content">
+      <AiGatewayOperationsPanel />
+    </WorkspaceSectionGroup>}
     <div className="ai-tabs"><button className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><AlertTriangle size={16} /> التنبيهات</button><button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}><Check size={16} /> المهام</button></div>
     {tab === 'alerts' ? (
-      <AiAlertsPanel alerts={alerts} loading={aLoading} error={aError} onResolve={resolve} />
+      <WorkspaceSectionGroup icon={AlertTriangle} title="تنبيهات الذكاء" description="التنبيهات الفعلية المفتوحة وإجراءات مراجعتها وحلها." className="ai-output-group" contentClassName="ai-output-group__content">
+        <AiAlertsPanel alerts={alerts} loading={aLoading} error={aError} onResolve={resolve} />
+      </WorkspaceSectionGroup>
     ) : (
-      <AiTasksPanel tasks={tasks} loading={tLoading} error={tError} onAction={taskAction} />
+      <WorkspaceSectionGroup icon={Check} title="مهام الذكاء" description="متابعة المهام المسجلة وتحديث حالتها وفق إجراءات النظام." className="ai-output-group" contentClassName="ai-output-group__content">
+        <AiTasksPanel tasks={tasks} loading={tLoading} error={tError} onAction={taskAction} />
+      </WorkspaceSectionGroup>
     )}
   </AdminPage>;
 }
@@ -1253,15 +1265,15 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
         </>}
         {canManageRoles && <button type="button" className={tab === 'access' ? 'active' : ''} aria-pressed={tab === 'access'} onClick={() => setTab('access')}>المستخدمون والصلاحيات</button>}
       </div>
-      {tab === 'general' && <SettingsPanel title="معلومات المتجر"><SettingInput label="اسم المتجر" value={(map.store_name as string) ?? ''} onSave={(v) => save('store_name', v, 'general')} saving={saving} /><SettingInput label="الوصف المختصر" value={(map.store_tagline as string) ?? ''} onSave={(v) => save('store_tagline', v, 'general')} saving={saving} /><SettingInput label="الهاتف" value={(map.store_phone as string) ?? ''} onSave={(v) => save('store_phone', v, 'general')} saving={saving} /><SettingInput label="البريد" value={(map.store_email as string) ?? ''} onSave={(v) => save('store_email', v, 'general')} saving={saving} /><SettingInput label="العنوان" value={(map.store_address as string) ?? ''} onSave={(v) => save('store_address', v, 'general')} saving={saving} /></SettingsPanel>}
+      {tab === 'general' && <SettingsPanel title="معلومات المتجر" icon={Store}><SettingInput label="اسم المتجر" value={(map.store_name as string) ?? ''} onSave={(v) => save('store_name', v, 'general')} saving={saving} /><SettingInput label="الوصف المختصر" value={(map.store_tagline as string) ?? ''} onSave={(v) => save('store_tagline', v, 'general')} saving={saving} /><SettingInput label="الهاتف" value={(map.store_phone as string) ?? ''} onSave={(v) => save('store_phone', v, 'general')} saving={saving} /><SettingInput label="البريد" value={(map.store_email as string) ?? ''} onSave={(v) => save('store_email', v, 'general')} saving={saving} /><SettingInput label="العنوان" value={(map.store_address as string) ?? ''} onSave={(v) => save('store_address', v, 'general')} saving={saving} /></SettingsPanel>}
       {tab === 'storefront' && <>
-        <SettingsPanel title="إعدادات المتجر">
+        <SettingsPanel title="إعدادات المتجر" icon={Store}>
           <SettingInput label="عنوان البانر" value={(map.hero_title as string) ?? ''} onSave={(v) => save('hero_title', v, 'storefront')} saving={saving} />
           <SettingInput label="نص البانر الفرعي" value={(map.hero_subtitle as string) ?? ''} onSave={(v) => save('hero_subtitle', v, 'storefront')} saving={saving} />
           <SettingToggle label="شريط العرض المتحرك" value={(map.ticker_enabled as boolean) ?? true} onSave={(v) => save('ticker_enabled', v, 'storefront')} saving={saving} />
           <SettingToggle label="إظهار المنتجات النافدة" value={(map.show_out_of_stock as boolean) ?? true} onSave={(v) => save('show_out_of_stock', v, 'storefront')} saving={saving} />
         </SettingsPanel>
-        {canManageStorefrontContent && <SettingsPanel title="خصوصية الأسعار والمبالغ">
+        {canManageStorefrontContent && <SettingsPanel title="خصوصية الأسعار والمبالغ" icon={ShieldCheck}>
           <p className="privacy-note">تُطبّق هذه الخيارات في الخادم؛ تعطيل العرض يعني حذف قيم الأسعار والإجماليات من استجابة العميل، وليس إخفاءها بالشكل فقط.</p>
           <SettingToggle label="إظهار السعر على بطاقات المنتجات" value={(map.show_price_on_cards as boolean) ?? true} onSave={(v) => save('show_price_on_cards', v, 'storefront')} saving={saving} />
           <SettingToggle label="إظهار أسعار السلة ومراجعة الطلب" value={(map.show_price_in_cart as boolean) ?? false} onSave={(v) => save('show_price_in_cart', v, 'storefront')} saving={saving} />
@@ -1270,7 +1282,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
           <SettingToggle label="إظهار فئة السعر في واجهات العميل" value={(map.show_customer_tier_in_customer_views as boolean) ?? false} onSave={(v) => save('show_customer_tier_in_customer_views', v, 'storefront')} saving={saving} />
         </SettingsPanel>}
       </>}
-      {tab === 'appearance' && <SettingsPanel title="ألوان النظام">
+      {tab === 'appearance' && <SettingsPanel title="ألوان النظام" icon={Palette}>
         <section aria-label="إعداد مظهر المؤسسة" style={{ display: 'grid', gap: 16 }}>
           <div>
             <h3 style={{ margin: '0 0 5px', fontSize: 14, fontWeight: 800 }}>قوالب الهوية البصرية</h3>
@@ -1609,7 +1621,7 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
   const changed = (profile: ManagedOrganizationProfile) =>
     JSON.stringify([...(profile.roles ?? [])].sort()) !== JSON.stringify([...(drafts[profile.profile_id] ?? [])].sort());
 
-  return <SettingsPanel title="المستخدمون والأدوار">
+  return <SettingsPanel title="المستخدمون والأدوار" icon={Users}>
     <div style={{ padding: 18 }}>
       <p style={{ marginTop: 0, color: '#71868a', lineHeight: 1.8 }}>
         إدارة الأدوار متاحة لمدير النظام فقط. تُحفظ عبر أوامر خادمية مقيّدة بالمؤسسة، ويسجل كل تغيير في سجل التدقيق.
@@ -1652,14 +1664,16 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
   </SettingsPanel>;
 }
 
-function SettingsPanel({ title, children }: { title: string; children: React.ReactNode }) { return <section className="panel settings-panel"><div className="panel-head"><div><h2>{title}</h2></div></div><div className="settings-body">{children}</div></section>; }
+function SettingsPanel({ title, icon: Icon = Settings, children }: { title: string; icon?: IconType; children: React.ReactNode }) {
+  return <WorkspaceSectionGroup icon={Icon} title={title} className="settings-panel" contentClassName="settings-body">{children}</WorkspaceSectionGroup>;
+}
 function SettingInput({ label, value, onSave, saving }: { label: string; value: string; onSave: (v: string) => void; saving: boolean }) { const [v, setV] = useState(value); useEffect(() => setV(value), [value]); return <div className="setting-row"><label><span>{label}</span><input value={v} onChange={(e) => setV(e.target.value)} /></label><Button variant="outline" onClick={() => onSave(v)} disabled={saving}>حفظ</Button></div>; }
 function SettingToggle({ label, value, onSave, saving }: { label: string; value: boolean; onSave: (v: boolean) => void; saving: boolean }) { return <div className="setting-row"><div className="setting-label"><span>{label}</span><label className="switch"><input type="checkbox" checked={value} onChange={(e) => onSave(e.target.checked)} disabled={saving} /><span /></label></div></div>; }
 function SettingColor({ label, value, onSave, saving }: { label: string; value: string; onSave: (v: string) => void; saving: boolean }) { return <div className="setting-row"><label><span>{label}</span><input type="color" value={value} onChange={(e) => onSave(e.target.value)} disabled={saving} /></label></div>; }
 
 // ─── Shared components ───
 export function AdminPage({ eyebrow, title, description, icon: Icon, note, toolbar, children }: { eyebrow: string; title: string; description: string; icon: IconType; note: string; toolbar?: React.ReactNode; children: React.ReactNode }) {
-  return <><div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>{(note || toolbar) && <div className="toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
+  return <><WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />{(note || toolbar) && <div className="toolbar workspace-section-toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
 }
 export function Loading() { return <div className="loading"><RefreshCw size={20} className="spin" /> جار تحميل البيانات...</div>; }
 export function ErrorBox({ message }: { message: string }) { return <div className="error-box" role="alert"><AlertTriangle size={19} /> تعذر تحميل البيانات. {message}</div>; }

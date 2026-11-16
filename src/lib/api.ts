@@ -9,7 +9,7 @@ import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './cu
 import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
 import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
-import { buildProductAdminSearchFilter, normalizeProductAdminSearchTerm, isValidProductAdminCategoryId, isValidProductAdminStatusFilter, type ProductAdminStatusFilter } from './product-admin-pagination';
+import { buildProductAdminSearchFilter, normalizeProductAdminSearchTerm, isValidProductAdminCategoryId } from './product-admin-pagination';
 import { getImportJobsPageBounds } from './import-job-pagination';
 import { calculateBusinessInventoryValue } from './business-inventory-valuation';
 import { summarizeDashboardOrders } from './dashboard-metrics';
@@ -528,7 +528,6 @@ export async function fetchAdminProductsPage(input: {
   page: number;
   search?: string;
   activeOnly?: boolean;
-  status?: ProductAdminStatusFilter;
   categoryId?: string;
 }): Promise<AdminProductPage> {
   const page = input.page;
@@ -538,10 +537,6 @@ export async function fetchAdminProductsPage(input: {
   }
   if (input.categoryId !== undefined && !isValidProductAdminCategoryId(input.categoryId)) {
     throw new Error('معرّف التصنيف غير صالح لعرض الكتالوج.');
-  }
-  const status: ProductAdminStatusFilter = input.status ?? (input.activeOnly === true ? 'active' : 'all');
-  if (!isValidProductAdminStatusFilter(status)) {
-    throw new Error('حالة المنتج المطلوبة غير صالحة لعرض الكتالوج.');
   }
 
   const scope = await getStorefrontDataScope();
@@ -555,11 +550,11 @@ export async function fetchAdminProductsPage(input: {
     return { items: [], page, pageSize, hasNextPage: false };
   }
 
-  const response = await readWithRetry(() => supabase.rpc('get_admin_products_page_v2', {
+  const response = await readWithRetry(() => supabase.rpc('get_admin_products_page', {
     p_page: page,
     p_page_size: pageSize,
     p_search: search,
-    p_status: status,
+    p_active_only: input.activeOnly ?? false,
     p_category_id: input.categoryId ?? null,
   }));
   if (response === null || typeof response !== 'object' || Array.isArray(response)) {

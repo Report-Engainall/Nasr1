@@ -1,8 +1,9 @@
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
-  Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard,
+  Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard, Store,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/storefront-catalog';
@@ -883,10 +884,12 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         <div className="sf-ticker"><div className="sf-ticker-track">{tickerMessages.map((msg, i) => <span key={i}>{msg}</span>)}</div></div>
       )}
 
-      <nav className={`sf-cats ${mobileMenu ? 'open' : ''}`}>
-        <button className={activeCat === '' ? 'active' : ''} onClick={() => { setActiveCat(''); setCatalogPage(1); setMobileMenu(false); }}>كل المنتجات</button>
-        {categories?.map((c: Category) => <button key={c.id} className={activeCat === c.id ? 'active' : ''} onClick={() => { setActiveCat(c.id); setCatalogPage(1); setMobileMenu(false); }}>{c.name}</button>)}
-      </nav>
+      <WorkspaceSectionGroup icon={Tag} title="تصنيفات الكتالوج" description="تصفّح المنتجات حسب التصنيفات الفعلية المنشورة في متجر الأغبري." className="sf-category-group" contentClassName="sf-category-group__content">
+        <nav aria-label="تصنيفات المنتجات" className={`sf-cats ${mobileMenu ? 'open' : ''}`}>
+          <button className={activeCat === '' ? 'active' : ''} onClick={() => { setActiveCat(''); setCatalogPage(1); setMobileMenu(false); }}>كل المنتجات</button>
+          {categories?.map((c: Category) => <button key={c.id} className={activeCat === c.id ? 'active' : ''} onClick={() => { setActiveCat(c.id); setCatalogPage(1); setMobileMenu(false); }}>{c.name}</button>)}
+        </nav>
+      </WorkspaceSectionGroup>
 
       {availableOnly && (
         <div role="status" className="sf-catalog-filter-notice" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '9px 16px', color: '#174b50', background: '#eaf6f4', borderBottom: '1px solid #c8e5e0', fontSize: 12 }}>
@@ -903,9 +906,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         </div>
       )}
 
-      <div aria-label="أدوات الحساب التجاري" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', padding: '10px 16px', borderBottom: '1px solid #e4eeee', background: '#fff' }}>
-        {[['/invoices', 'الفواتير'], ['/statement', 'كشف الحساب'], ['/quotes', 'عروض الأسعار'], ['/reorder', 'إعادة الطلب'], ['/barcode', 'ماسح الباركود'], ['/assistant', 'المساعد الذكي'], ['/offline', 'دون اتصال']].map(([to, label]) => <Link key={to} to={to as never} style={{ textDecoration: 'none', color: '#0b7b89', border: '1px solid #d8e9e9', borderRadius: 18, padding: '6px 12px', fontSize: 11, fontWeight: 800 }}>{label}</Link>)}
-      </div>
+      <WorkspaceSectionGroup icon={Store} title="خدمات الحساب التجاري" description="الفواتير وكشف الحساب وعروض الأسعار وإعادة الطلب وأدوات العميل المتاحة." className="sf-business-tools-group" contentClassName="sf-business-tools-group__content">
+        <div aria-label="أدوات الحساب التجاري" className="sf-business-tool-links">
+          {[['/invoices', 'الفواتير'], ['/statement', 'كشف الحساب'], ['/quotes', 'عروض الأسعار'], ['/reorder', 'إعادة الطلب'], ['/barcode', 'ماسح الباركود'], ['/assistant', 'المساعد الذكي'], ['/offline', 'دون اتصال']].map(([to, label]) => <Link key={to} to={to as never}>{label}</Link>)}
+        </div>
+      </WorkspaceSectionGroup>
 
       {!isOnline && <div role="status" style={{ padding: '10px 16px', background: '#fff4df', color: '#7c4a05', borderBottom: '1px solid #efd7a5', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>
         أنت غير متصل حاليًا. يعرض المتجر آخر نسخة محلية متاحة؛ قد تتغير الأسعار والأرصدة، ولن يُعتمد أي طلب حتى يعود الاتصال ويتحقق الخادم من البيانات الحالية.
@@ -969,7 +974,22 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             )}
 
             <section className="sf-products">
-              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
+              <WorkspaceSectionHeader
+                eyebrow="كتالوج متجر الأغبري"
+                title="المنتجات"
+                description={productsLoading && !products.length
+                  ? 'جار تحميل الكتالوج...'
+                  : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}
+                icon={Package}
+                className="sf-products-heading"
+                actions={
+                  <div className="sf-discovery-links">
+                    <button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button>
+                    <button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button>
+                    <button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button>
+                  </div>
+                }
+              />
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
                 : productsError && !products.length
@@ -1046,7 +1066,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
         {view === 'cart' && (!cartRestored ? (
           <section className="sf-cart-page">
-            <h2>سلة المشتريات</h2>
+            <WorkspaceSectionHeader eyebrow="متجر الأغبري" title="سلة المشتريات" description="راجع الأصناف والكميات قبل متابعة إنشاء الطلب." icon={ShoppingCart} />
             <div className="sf-empty" role={productsError ? 'alert' : 'status'}>
               <span>{productsLoading ? 'جار استعادة السلة المحلية...' : productsError ? 'تعذر استعادة تفاصيل السلة من الكتالوج الحالي.' : 'جار استعادة السلة...'}</span>
               {productsError && <><small>{productsError}</small><button type="button" className="sf-btn-secondary" onClick={() => void refetchProducts()}>إعادة المحاولة</button></>}
@@ -1054,7 +1074,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           </section>
         ) : (
           <section className="sf-cart-page">
-            <h2>سلة المشتريات</h2>
+            <WorkspaceSectionHeader eyebrow="متجر الأغبري" title="سلة المشتريات" description="راجع الأصناف والكميات قبل متابعة إنشاء الطلب." icon={ShoppingCart} />
             {persistentCartProfileId && (
               <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d8e6e8', background: '#f7fafb', color: '#344b52', fontSize: 12 }}>
                 <span>{describeCustomerCartSyncState(customerCartSyncState, isOnline)}</span>
@@ -1449,8 +1469,13 @@ export function ProductDetail({
           </span>
         </div>
         <div className="sf-detail-content">
-          <span className="sf-detail-category">{product.category?.name ?? 'غير مصنف'}</span>
-          <h2>{product.name}</h2>
+          <WorkspaceSectionHeader
+            eyebrow={product.category?.name ?? 'تفاصيل المنتج'}
+            title={product.name}
+            description="معلومات الصنف والتوفر وخيارات الطلب."
+            icon={Package}
+            className="sf-product-detail-heading"
+          />
           {product.name_en ? <p dir="auto" style={{ margin: '-4px 0 12px', color: '#5f777b', fontSize: 14, fontWeight: 500 }}>{product.name_en}</p> : null}
           <p className="sf-detail-description">{product.description || 'لا يوجد وصف متاح لهذا المنتج.'}</p>
           <StorefrontPricePresentation
@@ -1650,9 +1675,13 @@ function CollectionView({
   return (
     <section className="sf-collection">
       <button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للمتجر</button>
-      <div className="sf-products-head">
-        <div><h2><Icon size={21} /> {title}</h2><span>{products.length} منتجات</span></div>
-      </div>
+      <WorkspaceSectionHeader
+        eyebrow="قوائم متجر الأغبري"
+        title={title}
+        description={`${formatNumber(products.length)} منتجات في هذه القائمة ضمن الكتالوج الحالي.`}
+        icon={Icon}
+        className="sf-products-heading"
+      />
       {products.length
         ? <ProductGrid
             products={products}
@@ -1941,7 +1970,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
 
   return (
     <section className="sf-checkout">
-      <h2>إتمام الطلب</h2>
+      <WorkspaceSectionHeader eyebrow="متجر الأغبري" title="إتمام الطلب" description="أدخل بيانات العميل والتوصيل لمراجعة الطلب وإرساله." icon={CreditCard} />
       <div className="sf-checkout-layout">
         <div className="sf-checkout-form">
           <label className="sf-form-field"><span>الاسم الكامل *</span><input value={name} disabled={submitting || ambiguousSubmit} onChange={(e) => setName(e.target.value)} placeholder="اسمك الكامل" /></label>
@@ -2030,10 +2059,14 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
   return (
     <section className="sf-collection">
       <button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للكتالوج</button>
-      <div className="sf-products-head">
-        <div><h2><ClipboardList size={21} /> الطلب السريع</h2><span>حدد كميات عدة أصناف في شاشة واحدة ثم أضفها إلى السلة. لا تعرض شاشة الطلب السريع أي أسعار أو إجماليات.</span></div>
-        <div className="sf-discovery-links"><button onClick={onCart}><ShoppingCart size={15} /> عرض السلة</button></div>
-      </div>
+      <WorkspaceSectionHeader
+        eyebrow="مساحة الطلب"
+        title="الطلب السريع"
+        description="حدد كميات عدة أصناف في شاشة واحدة ثم أضفها إلى السلة. لا تعرض شاشة الطلب السريع أي أسعار أو إجماليات."
+        icon={ClipboardList}
+        className="sf-products-heading"
+        actions={<div className="sf-discovery-links"><button type="button" onClick={onCart}><ShoppingCart size={15} /> عرض السلة</button></div>}
+      />
       <p style={{ margin: '0 0 14px', color: '#667b80', fontSize: 12 }} role="note">
         لا تُعرض الأسعار أو إجماليات الطلب هنا؛ يتحقق الخادم من الأصناف والكميات والمخزون ويعيد احتساب السعر داخليًا عند إرسال الطلب.
       </p>

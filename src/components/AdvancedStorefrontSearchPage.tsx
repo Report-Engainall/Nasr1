@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import { fetchCategories } from "@/lib/api";
 import { MAX_CATALOG_SEARCH_LENGTH, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { useFetch } from "@/lib/useFetch";
 
 type SearchCategoryOption = {
@@ -13,17 +14,13 @@ type SearchCategoryOption = {
 
 function SearchPageHeader() {
   return (
-    <header style={{ marginBottom: 20 }}>
-      <Link to="/store" style={{ display: "inline-flex", gap: 6, alignItems: "center", color: "#087f8d", textDecoration: "none" }}>
-        <ArrowLeft size={16} /> العودة للمتجر
-      </Link>
-      <h1 style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0 5px" }}>
-        <SlidersHorizontal size={25} /> البحث المتقدم
-      </h1>
-      <p style={{ color: "#526b70", margin: 0 }}>
-        تُطبّق الشروط على نتائج الكتالوج نفسه؛ المخزون المجهول لا يُحسب متاحًا في فلتر المتوفر فقط.
-      </p>
-    </header>
+    <WorkspaceSectionHeader
+      eyebrow="بحث الكتالوج"
+      title="البحث المتقدم"
+      description="تُطبّق الشروط على نتائج الكتالوج نفسه؛ المخزون المجهول لا يُحسب متاحًا في فلتر المتوفر فقط."
+      icon={SlidersHorizontal}
+      actions={<Link to="/store" className="sf-back-link"><ArrowLeft size={16} /> العودة للمتجر</Link>}
+    />
   );
 }
 
@@ -143,7 +140,7 @@ function AdvancedSearchForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} style={{ background: "#fff", border: "1px solid #dce9e8", borderRadius: 15, padding: 18, display: "grid", gap: 15 }}>
+    <form onSubmit={onSubmit} className="advanced-storefront-search-form" style={{ display: "grid", gap: 15 }}>
       <SearchTextField value={query} onChange={onQueryChange} />
       <SearchCategorySelect
         categories={categories}
@@ -193,20 +190,22 @@ export function AdvancedStorefrontSearchPage() {
   return (
     <main className="storefront" dir="rtl" style={{ minHeight: "100vh", padding: 20, maxWidth: 920, margin: "0 auto" }}>
       <SearchPageHeader />
-      <AdvancedSearchForm
-        query={query}
-        categoryId={categoryId}
-        availableOnly={availableOnly}
-        formError={formError}
-        categoryLoading={categoryQuery.loading}
-        categoryError={categoryQuery.error}
-        categories={activeCategories}
-        onQueryChange={setQuery}
-        onCategoryChange={setCategoryId}
-        onAvailabilityChange={setAvailableOnly}
-        onCategoryRetry={() => void categoryQuery.refetch()}
-        onSubmit={submit}
-      />
+      <WorkspaceSectionGroup icon={Search} title="معايير البحث المتقدم" description="اجمع اسم الصنف أو رمزه مع التصنيف وحالة التوفر قبل عرض نتائج الكتالوج الفعلية." className="advanced-storefront-search-group" contentClassName="advanced-storefront-search-group__content">
+        <AdvancedSearchForm
+          query={query}
+          categoryId={categoryId}
+          availableOnly={availableOnly}
+          formError={formError}
+          categoryLoading={categoryQuery.loading}
+          categoryError={categoryQuery.error}
+          categories={activeCategories}
+          onQueryChange={setQuery}
+          onCategoryChange={setCategoryId}
+          onAvailabilityChange={setAvailableOnly}
+          onCategoryRetry={() => void categoryQuery.refetch()}
+          onSubmit={submit}
+        />
+      </WorkspaceSectionGroup>
     </main>
   );
 }

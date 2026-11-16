@@ -18,6 +18,7 @@ import { GeneralLedgerPrintSheet } from "@/components/GeneralLedgerPrintSheet";
 import { projectFinancialStatementsPrintDocument, projectGeneralJournalPrintDocument, type GeneralLedgerPrintDocument } from "@/lib/general-journal-print";
 import { downloadFinancialStatementsWorkbookXlsx } from "@/lib/financial-statements-xlsx";
 import { downloadTrialBalanceWorkbookXlsx } from "@/lib/trial-balance-xlsx";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
@@ -447,19 +448,16 @@ export function GeneralLedgerWorkspace() {
 
   return (
     <section style={{ display: "grid", gap: 16, marginTop: 18, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }} aria-label="دفتر الأستاذ العام">
-      <header style={card}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 20, display: "flex", alignItems: "center", gap: 8 }}><BookOpenCheck size={20} /> دفتر الأستاذ العام وقيود اليومية</h2>
-            <p style={muted}>قيود مزدوجة متوازنة، دفتر موحد للمؤسسة، وميزان مراجعة محسوب من القيود المرحلة فقط.</p>
-          </div>
-          <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" style={button} onClick={() => void refresh()} disabled={loading || saving}><RefreshCw size={15} /> تحديث</button>
-            <button type="button" style={primary} onClick={() => setShowAccountForm((shown) => !shown)}><Plus size={15} /> حساب جديد</button>
-          </div>
-        </div>
-        <p style={{ ...muted, fontSize: 12 }}>لا يُنشئ النظام أرصدة افتتاحية أو قيودًا تاريخية تلقائية. لا تُربط الفواتير أو الدفعات القديمة بقيود مصطنعة.</p>
-      </header>
+      <WorkspaceSectionHeader
+        eyebrow="المالية والمحاسبة"
+        title="دفتر الأستاذ العام وقيود اليومية"
+        description="قيود مزدوجة متوازنة، دفتر موحد للمؤسسة، وميزان مراجعة محسوب من القيود المرحلة فقط. لا يُنشئ النظام أرصدة افتتاحية أو قيودًا تاريخية تلقائية؛ ولا تُربط الفواتير أو الدفعات القديمة بقيود مصطنعة."
+        icon={BookOpenCheck}
+        actions={<div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" style={button} onClick={() => void refresh()} disabled={loading || saving}><RefreshCw size={15} /> تحديث</button>
+          <button type="button" style={primary} onClick={() => setShowAccountForm((shown) => !shown)}><Plus size={15} /> حساب جديد</button>
+        </div>}
+      />
 
       <CashAccountReconciliationWorkspace />
 

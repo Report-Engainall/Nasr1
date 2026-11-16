@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { Landmark } from "lucide-react";
+import { WorkspaceSectionGroup } from "@/components/ui/workspace-sections";
 
 type SupplierFinanceTab = "payments" | "invoice-capture" | "invoice-review" | "activity";
 type SupplierFinanceAccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
@@ -130,13 +132,13 @@ export function SupplierFinancialWorkspaceHub() {
   }
 
   return (
-    <section dir="rtl" aria-label="مساحات الموردين المالية" style={{ display: "grid", gap: 12, marginBlock: 22, minWidth: 0 }}>
-      <header style={{ display: "grid", gap: 5 }}>
-        <h2 style={{ margin: 0, fontSize: 19 }}>عمليات الموردين المالية</h2>
-        <p style={{ margin: 0, color: "var(--muted-foreground, #64748b)", lineHeight: 1.8 }}>
-          نقطة وصول موحدة إلى مساحات السداد والمطابقة وكشف الأستاذ القائمة. البيانات والموافقات تبقى خاضعة لخدمات الخادم وصلاحيات المؤسسة.
-        </p>
-      </header>
+    <WorkspaceSectionGroup
+      icon={Landmark}
+      title="عمليات الموردين المالية"
+      description="نقطة وصول موحدة إلى مساحات السداد والمطابقة وكشف الأستاذ القائمة. البيانات والموافقات تبقى خاضعة لخدمات الخادم وصلاحيات المؤسسة."
+      className="supplier-finance-hub"
+      contentClassName="supplier-finance-hub__content"
+    >
 
       <div role="tablist" aria-label="مساحات العمل المالية للموردين" style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
         {tabs.map((item) => (
@@ -170,6 +172,6 @@ export function SupplierFinancialWorkspaceHub() {
           {tab === "activity" && <AccountActivityWorkspace refreshKey={activityRefreshKey} />}
         </Suspense>
       </div>
-    </section>
+    </WorkspaceSectionGroup>
   );
 }

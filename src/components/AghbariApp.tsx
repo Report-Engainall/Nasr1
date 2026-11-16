@@ -1,3 +1,4 @@
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, Headphones, PackageCheck, Tags,
@@ -473,10 +474,8 @@ function AdminSidebarNavigation({ groups, view, firstMobileNavItemRef, navigatio
   return (
     <nav aria-label="التنقل الإداري">
       {groups.map((group) => (
-        <div key={group.id} className="admin-nav-group" style={{ display: "contents" }}>
-          <div className="admin-nav-group-title" style={{ padding: "14px 18px 5px", color: "var(--muted-foreground, #64748b)", fontSize: 11, fontWeight: 700 }}>
-            {group.label}
-          </div>
+        <div key={group.id} className="admin-nav-group" role="group" aria-label={group.label}>
+          <div className="admin-nav-group-title">{group.label}</div>
           {group.items.map(({ id, label, icon: Icon }) => {
             const isFirst = firstButton;
             firstButton = false;
@@ -986,17 +985,22 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
           return item ? [item] : [];
         });
         const GroupIcon = entries[0]?.icon ?? LayoutDashboard;
-        return <article className={`admin-group-card admin-group-card--${group.id}`} key={group.id}>
-          <button type="button" className="admin-group-card__heading" onClick={() => setActiveGroupId(group.id)} aria-label={`فتح مجموعة ${group.label}`}>
-            <span className="admin-group-card__icon"><GroupIcon size={20} /></span>
-            <span><strong>{group.label}</strong><small>{entries.length} وجهات متاحة وفق صلاحية الحساب</small></span>
-          </button>
-          <div className="admin-group-card__links">
-            {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
-              <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
-            </button>)}
-          </div>
-        </article>;
+        return <WorkspaceSectionGroup
+          key={group.id}
+          icon={GroupIcon}
+          title={group.label}
+          description={`${entries.length} وجهات متاحة وفق صلاحية الحساب`}
+          className={`admin-group-card admin-group-card--${group.id}`}
+          headingClassName="admin-group-card__heading"
+          iconClassName="admin-group-card__icon"
+          contentClassName="admin-group-card__links"
+          onActivate={() => setActiveGroupId(group.id)}
+          activateLabel={`فتح مجموعة ${group.label}`}
+        >
+          {entries.map(({ id, label, icon: ItemIcon }) => <button type="button" key={id} onClick={() => onNavigate(id)}>
+            <ItemIcon size={16} /><span>{label}</span><ChevronLeft size={14} />
+          </button>)}
+        </WorkspaceSectionGroup>;
       })}
     </section>
     <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.length ? alerts.map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{lowStockProductsLoading ? <Loading /> : lowStockProductsError ? <ErrorBox message={lowStockProductsError} /> : !stats?.hasActiveWarehouse ? <Empty text="لم يتم تحديد مستودع نشط؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : stats.lowStockCount === null || lowStockProducts === null ? <Empty text="بيانات المخزون غير مكتملة؛ تعذر تأكيد قائمة الأصناف منخفضة المخزون." /> : lowStockProducts.length ? lowStockProducts.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.quantity_available <= 0 ? 'critical' : ''}>{formatNumber(product.quantity_available)} {product.unit}</b></div>) : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
@@ -1006,7 +1010,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
 function Sparkline() { return <svg className="sparkline" viewBox="0 0 160 52" aria-hidden="true"><path d="M2 42 C25 43 25 28 43 31 S65 42 79 27 S104 25 114 17 S139 24 158 6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>; }
 
 function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string; title: string; description: string; icon: IconType }) {
-  return <div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>;
+  return <WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />;
 }
 
 function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
@@ -1271,73 +1275,77 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
-    <BulkProductImageUploader
-      loadProducts={fetchProducts}
-      catalogRevision={catalogRevision}
-      canManage={canUploadProductImages}
-      onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
-      onOpenProduct={canManageProductLifecycle ? (product) => { setEditing(product); setModal(true); } : undefined}
-    />
-    <div className="admin-product-filters" role="group" aria-label="تصفية كتالوج المنتجات">
-      <label>
-        <span>حالة المنتج</span>
-        <select
-          aria-label="تصفية حسب حالة المنتج"
-          value={statusFilter}
-          disabled={loading}
-          onChange={(event) => {
-            setPage(1);
-            setStatusFilter(event.target.value as 'all' | 'active' | 'inactive');
-          }}
-        >
-          <option value="all">كل الحالات</option>
-          <option value="active">المنتجات النشطة</option>
-          <option value="inactive">المنتجات المؤرشفة</option>
-        </select>
-      </label>
-      <label>
-        <span>التصنيف</span>
-        <select
-          aria-label="تصفية حسب التصنيف"
-          value={categoryFilter}
-          disabled={categoriesLoading || Boolean(categoriesError) || loading}
-          onChange={(event) => {
-            setPage(1);
-            setCategoryFilter(event.target.value);
-          }}
-        >
-          <option value="all">جميع التصنيفات</option>
-          {(categories ?? []).map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.parent_id ? '— ' : ''}{category.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {categoriesLoading && <span className="admin-product-filters__hint" role="status">جار تحميل التصنيفات…</span>}
-      {categoriesError && (
-        <span className="admin-product-filters__error" role="alert">
-          تعذر تحميل التصنيفات؛ أعد المحاولة قبل التصفية حسب التصنيف.
-          <button type="button" onClick={() => void refetchCategories()}>إعادة المحاولة</button>
-        </span>
-      )}
-      {(statusFilter !== 'all' || categoryFilter !== 'all') && (
-        <button
-          type="button"
-          className="admin-product-filters__reset"
-          disabled={loading}
-          onClick={() => {
-            setPage(1);
-            setStatusFilter('all');
-            setCategoryFilter('all');
-          }}
-        >
-          مسح التصفية
-        </button>
-      )}
-    </div>
-    <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
+    <WorkspaceSectionGroup icon={SlidersHorizontal} title="أدوات الكتالوج" description="إنشاء المنتجات ومراجعة محتوى المتجر وتحديث بيانات الصور بالجملة." className="workspace-domain-group workspace-domain-group--catalog" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+      <BulkProductImageUploader
+        loadProducts={fetchProducts}
+        catalogRevision={catalogRevision}
+        canManage={canUploadProductImages}
+        onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
+        onOpenProduct={canManageProductLifecycle ? (product) => { setEditing(product); setModal(true); } : undefined}
+      />
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={SlidersHorizontal} title="تصفية الكتالوج" description="اعرض المنتجات بحسب حالة النشر والتصنيف الفعلي دون تغيير سجل المنتجات." className="workspace-domain-group workspace-domain-group--filters" contentClassName="workspace-domain-group__content--stacked">
+      <div className="admin-product-filters" role="group" aria-label="تصفية كتالوج المنتجات">
+        <label>
+          <span>حالة المنتج</span>
+          <select
+            aria-label="تصفية حسب حالة المنتج"
+            value={statusFilter}
+            disabled={loading}
+            onChange={(event) => {
+              setPage(1);
+              setStatusFilter(event.target.value as 'all' | 'active' | 'inactive');
+            }}
+          >
+            <option value="all">كل الحالات</option>
+            <option value="active">المنتجات النشطة</option>
+            <option value="inactive">المنتجات المؤرشفة</option>
+          </select>
+        </label>
+        <label>
+          <span>التصنيف</span>
+          <select
+            aria-label="تصفية حسب التصنيف"
+            value={categoryFilter}
+            disabled={categoriesLoading || Boolean(categoriesError) || loading}
+            onChange={(event) => {
+              setPage(1);
+              setCategoryFilter(event.target.value);
+            }}
+          >
+            <option value="all">جميع التصنيفات</option>
+            {(categories ?? []).map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.parent_id ? '— ' : ''}{category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {categoriesLoading && <span className="admin-product-filters__hint" role="status">جار تحميل التصنيفات…</span>}
+        {categoriesError && (
+          <span className="admin-product-filters__error" role="alert">
+            تعذر تحميل التصنيفات؛ أعد المحاولة قبل التصفية حسب التصنيف.
+            <button type="button" onClick={() => void refetchCategories()}>إعادة المحاولة</button>
+          </span>
+        )}
+        {(statusFilter !== 'all' || categoryFilter !== 'all') && (
+          <button
+            type="button"
+            className="admin-product-filters__reset"
+            disabled={loading}
+            onClick={() => {
+              setPage(1);
+              setStatusFilter('all');
+              setCategoryFilter('all');
+            }}
+          >
+            مسح التصفية
+          </button>
+        )}
+      </div>
+    </WorkspaceSectionGroup>
+        <WorkspaceSectionGroup icon={Package} title="قائمة المنتجات" description="استعرض الأصناف الفعلية، حالتها، أسعارها، توافرها وإجراءات المخزون المسموح بها." className="workspace-domain-group workspace-domain-group--table" contentClassName="workspace-domain-group__table-content"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
@@ -1364,7 +1372,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
           <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
         </div>
       </div>
-    </section>
+    </WorkspaceSectionGroup>
     {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); void refreshProducts(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
@@ -2023,14 +2031,16 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
 
   return <>
     <Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} />
-    <div className="toolbar">
-      <span className="toolbar-note" aria-label="إجمالي نتائج دليل العملاء">{resultSummary}</span>
-      <div className="toolbar-actions">
-        <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
-        {!isCustomerManagerOnly && <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>}
+    <WorkspaceSectionGroup icon={Users} title="أدوات إدارة العملاء" description="تحديث الدليل وإضافة حساب عميل جديد وفق صلاحيات المستخدم." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar">
+        <span className="toolbar-note" aria-label="إجمالي نتائج دليل العملاء">{resultSummary}</span>
+        <div className="toolbar-actions">
+          <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
+          {!isCustomerManagerOnly && <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>}
+        </div>
       </div>
-    </div>
-    <section className="panel table-panel">
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={Users} title="دليل العملاء" description="ملفات العملاء وحالات الاعتماد وشرائح الأسعار والأرصدة التي تسمح الصلاحيات بعرضها." className="workspace-domain-group workspace-domain-group--table" contentClassName="workspace-domain-group__table-content">
       <div className="table-head">
         <h2>دليل العملاء</h2>
         <form className="search-field" onSubmit={(event) => {
@@ -2083,7 +2093,7 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
           <button type="button" className="btn outline" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount} aria-label="صفحة العملاء التالية">التالي</button>
         </nav>}
       </>}
-    </section>
+    </WorkspaceSectionGroup>
     {selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}
     {activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}
     {tierCustomer && <CustomerTierDialog customer={tierCustomer} onClose={() => setTierCustomer(null)} onSaved={() => {
@@ -2309,14 +2319,16 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
 
   return <>
     <Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام حتى التسليم" icon={ShoppingCart} />
-    <div className="toolbar">
-      <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
-      <div className="toolbar-actions">
-        <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
-        <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+    <WorkspaceSectionGroup icon={ShoppingCart} title="إجراءات الطلبات" description="إنشاء طلب يدوي وتحديث قائمة الطلبات ضمن نطاق المؤسسة." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar">
+        <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
+        <div className="toolbar-actions">
+          <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
+          <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+        </div>
       </div>
-    </div>
-    <section className="panel table-panel">
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={ShoppingCart} title="قائمة الطلبات" description="الطلبات المحفوظة فعليًا وحالة كل طلب وملخصه، مع فتح التفاصيل من السجل." className="workspace-domain-group workspace-domain-group--table" contentClassName="workspace-domain-group__table-content">
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refetch()}>إعادة تحميل الصفحة</Button></> : <TableWrap>
         <table>
           <thead><tr><th>رقم الطلب</th><th>العميل</th><th>التاريخ</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th><th /></tr></thead>
@@ -2339,7 +2351,7 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
           <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
         </div>
       </div>
-    </section>
+    </WorkspaceSectionGroup>
     {showCreate && <AdminOrderCreationDialog onClose={() => setShowCreate(false)} onNotice={onNotice} onCreated={async () => { await refetch(); }} />}
   </>;
 }
@@ -2459,7 +2471,7 @@ function Pricing({
         <article className="report-metric"><AlertTriangle size={22} /><span>موقوفة أو بانتظار المراجعة</span><strong>{formatNumber(data?.filter((rule) => !rule.is_active || (rule.requires_approval && !rule.approved_at) || !PRICING_SCOPES.has(rule.scope_type)).length ?? 0)}</strong></article>
       </div>
 
-      <div className="toolbar-actions" role="group" aria-label="مساحات التسعير والعروض" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+      <WorkspaceSectionGroup icon={SlidersHorizontal} title="مساحات التسعير والعروض" description="تنقل بين شبكة الأسعار وقواعد الاحتساب ومحاكاة العميل والحملات." className="workspace-domain-group workspace-domain-group--tabs" contentClassName="workspace-domain-group__tabs">
         {PRICING_WORKSPACE_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -2471,7 +2483,7 @@ function Pricing({
             {tab.label}
           </button>
         ))}
-      </div>
+      </WorkspaceSectionGroup>
 
       <div id="pricing-workspace-panel">
         {activeTab === 'grid' && (
@@ -2952,16 +2964,19 @@ function Reports() {
         : formatCurrency(inventoryValueAmount);
   return <>
     <Heading eyebrow="التحليل التنفيذي" title="التقارير الذكية" description="مؤشرات قابلة للتنفيذ مبنية على البيانات التشغيلية الحالية" icon={BarChart3} />
-    <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
-    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="report-grid">
-      <ReportMetric label="إجمالي المبيعات" value={stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح'} icon={CircleDollarSign} />
-      <ReportMetric label="متوسط قيمة الطلب" value={stats ? dashboardAverageOrderDisplay(stats, formatCurrency) : 'غير متاح'} icon={ShoppingCart} />
-      <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
-      <ReportMetric label="الأصناف منخفضة المخزون" value={!stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount)} icon={AlertTriangle} />
-    </div>}
+    <WorkspaceSectionGroup icon={BarChart3} title="مؤشرات الأداء التنفيذي" description="ملخص المبيعات وقيمة المخزون ومتوسط الطلب وحالة إعادة التوريد من بيانات المؤسسة الحالية." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+      <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="report-grid">
+        <ReportMetric label="إجمالي المبيعات" value={stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح'} icon={CircleDollarSign} />
+        <ReportMetric label="متوسط قيمة الطلب" value={stats ? dashboardAverageOrderDisplay(stats, formatCurrency) : 'غير متاح'} icon={ShoppingCart} />
+        <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
+        <ReportMetric label="الأصناف منخفضة المخزون" value={!stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount)} icon={AlertTriangle} />
+      </div>}
+    </WorkspaceSectionGroup>
     {canViewProductActivity && (
       <>
-        <section className="panel product-activity-report" style={{ marginTop: 16 }}>
+        <WorkspaceSectionGroup icon={Activity} title="تقارير حركة المخزون" description="حركة الأصناف والركود وفترات النشاط اعتمادًا على تقرير الخادم." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+        <section className="panel product-activity-report">
           <div className="panel-head">
             <div>
               <h2>تقرير حركة الأصناف والركود</h2>
@@ -3047,6 +3062,7 @@ function Reports() {
               </>
             ) : <Empty text="لم تصل بيانات تقرير حركة الأصناف من الخادم." />}
         </section>
+        </WorkspaceSectionGroup>
         {productActivityPrint.document && (
           <div className="product-activity-print-only" aria-hidden="true">
             <ProductActivityPrintSheet document={productActivityPrint.document} />
@@ -3054,9 +3070,12 @@ function Reports() {
         )}
       </>
     )}
-    <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
-    <ExecutiveStoreAnalytics />
-    <section className="panel" style={{ marginTop: 16 }}>
+    <WorkspaceSectionGroup icon={PackageCheck} title="محركات التحليل المتقدم" description="تحليل Onyx وقراءات أداء المتجر من مصادر البيانات الفعلية." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+      <UnifiedOnyxAnalysisPanel />
+      <ExecutiveStoreAnalytics />
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={Activity} title="مراقبة الإشارات التشغيلية" description="إشارات تستند إلى الطلبات الفعلية فقط، مع توضيح الدليل وحدود الاستنتاج." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+    <section className="panel">
       <div className="panel-head"><div><h2>إشارات تشغيلية مدعومة بالأدلة</h2><p>تحليل حتمي لنتائج الطلبات الفعلية في نطاق المؤسسة، دون اختلاق أسباب أو توقعات.</p></div><Activity size={22} /></div>
       {ordersLoading ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : signals.length === 0
         ? <Empty text="لا توجد إشارات تتجاوز حدود التنبيه الحالية في مجموعة الطلبات المحمّلة." />
@@ -3067,7 +3086,9 @@ function Reports() {
           </article>)}</div>}
       <p className="report-note" style={{ marginTop: 12 }}>لا تُستنتج أسباب الإلغاء أو أثرها المالي. ويُحجب تنبيه تركّز قيمة المبيعات عند وجود مبلغ أو معرّف عميل غير صالح.</p>
     </section>
-    <section className="panel" style={{ marginTop: 16 }}>
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={ShoppingCart} title="تحليل دورة الطلبات" description="توزيع الطلبات حسب الحالة وعددها وقيمتها دون تقدير المبالغ المفقودة." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
+    <section className="panel">
       <div className="panel-head"><div><h2>توزيع الطلبات حسب الحالة</h2><p>عدّ ومبالغ من الطلبات الفعلية التي أعادها الخادم للمؤسسة الحالية؛ لا يتم تقدير القيم المفقودة.</p></div><ShoppingCart size={22} /></div>
       {ordersLoading ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : statusBreakdown.length === 0 ? <Empty text="لا توجد طلبات مسجلة لعرض توزيع الحالات." /> :
         <TableWrap><table><thead><tr><th>الحالة</th><th>عدد الطلبات</th><th>النسبة</th><th>قيمة الطلبات</th></tr></thead><tbody>
@@ -3080,7 +3101,10 @@ function Reports() {
         </tbody></table></TableWrap>}
       <p className="report-note" style={{ marginTop: 10 }}>النسب من مجموعة الطلبات المحمّلة فقط. إذا احتوى وضعٌ ما على مبلغ غير صالح، يبقى عدد الطلبات ظاهرًا وتُحجب القيمة المالية لذلك الوضع.</p>
     </section>
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={FileText} title="التوصية التنفيذية" description="إشارة اليوم المبنية على حالة المخزون الموثقة، دون افتراض رصيد غير متحقق." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
     <section className="panel report-note"><FileText size={21} /><div><h2>قرار اليوم</h2><p>{!stats || stats.lowStockCount === null ? 'تعذر إصدار قرار موثوق للمخزون؛ تحقق من ارتباط المستودع واكتمال قراءة الأرصدة أولًا.' : stats.lowStockCount > 0 ? 'ابدأ بمراجعة الأصناف منخفضة المخزون قبل استقبال الطلبات الجديدة.' : 'لا توجد أصناف أقل من حدود إعادة الطلب في المستودع الذي تم التحقق منه. ركّز على مراجعة المبيعات والعملاء.'}</p></div></section>
+    </WorkspaceSectionGroup>
   </>;
 }
 function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon: IconType }) { return <article className="report-metric"><Icon size={23} /><span>{label}</span><strong>{value}</strong></article>; }
@@ -3119,9 +3143,10 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
   return <>
     <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد"
       description="الاستيراد والتصدير ومصادر البيانات التشغيلية في مساحة واحدة" icon={Database} />
-    <div className="toolbar">
-      <span className="toolbar-note">المصدر المعتمد هو قاعدة بيانات المؤسسة الحالية؛ لا تُنشأ بيانات تجريبية.</span>
-      <div className="toolbar-actions">
+    <WorkspaceSectionGroup icon={Database} title="أدوات إدارة البيانات" description="التصنيفات والاستيراد وسجل الدفعات وتصدير البيانات حسب الصلاحية." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar">
+        <span className="toolbar-note">المصدر المعتمد هو قاعدة بيانات المؤسسة الحالية؛ لا تُنشأ بيانات تجريبية.</span>
+        <div className="toolbar-actions">
         {rolesCanAccessView(user?.roles ?? [], "categories") && (
           <Button onClick={() => onNavigate('categories')}>
             <Tags size={16} /> إدارة التصنيفات الهرمية
@@ -3142,8 +3167,9 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
             <Download size={16} /> تصدير الطلبات
           </Link>
         )}
+        </div>
       </div>
-    </div>
+    </WorkspaceSectionGroup>
     <section className="panel data-info">
       <Database size={28} />
       <h2>دورة البيانات دون محررات مكررة</h2>
@@ -3151,14 +3177,7 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
       <div className="data-status">مصادر البيانات الحالية — دون بيانات تجريبية</div>
     </section>
     {(user?.isStaff || canManageImports) && (
-      <section className="panel" style={{ marginTop: 16 }} aria-label="مساحات Onyx">
-        <div className="panel-head">
-          <div>
-            <h2>مساحات Onyx</h2>
-            <p>نقطة دخول واحدة لإدارة اللقطات والتحليل ومصالحة أرصدة المخزون.</p>
-          </div>
-          <PackageCheck size={22} />
-        </div>
+      <WorkspaceSectionGroup icon={PackageCheck} title="مساحات Onyx" description="إدارة اللقطات والتحليل ومصالحة أرصدة المخزون من مساحة تشغيل مستقلة." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
         <div className="toolbar-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {user?.isStaff && (
             <Button variant="outline" onClick={() => setSection('onyx')}>
@@ -3170,7 +3189,7 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
         <p className="report-note" style={{ marginTop: 10 }}>
           قراءة اللقطات والتحليل منفصلان عن المصالحة؛ المعاينة لا تعدّل الرصيد، وأي تطبيق أو تراجع يخضعان لضوابط الخادم وسجل التدقيق.
         </p>
-      </section>
+      </WorkspaceSectionGroup>
     )}
   </>;
 }

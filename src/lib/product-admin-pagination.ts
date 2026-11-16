@@ -53,11 +53,3 @@ const PRODUCT_CATEGORY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 export function isValidProductAdminCategoryId(value: unknown): value is string {
   return typeof value === "string" && PRODUCT_CATEGORY_UUID.test(value);
 }
-
-
-export type ProductAdminStatusFilter = "all" | "active" | "inactive";
-
-/** Accept only the status values supported by the server-side catalog page contract. */
-export function isValidProductAdminStatusFilter(value: unknown): value is ProductAdminStatusFilter {
-  return value === "all" || value === "active" || value === "inactive";
-}
