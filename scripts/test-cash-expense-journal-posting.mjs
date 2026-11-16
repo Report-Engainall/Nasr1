@@ -92,9 +92,17 @@ async function createManualJournal(client,key,description,debitAccountId,creditA
     {account_id:debitAccountId,debit:amount,credit:0,memo:"اختبار قيد يدوي مستقل"},
     {account_id:creditAccountId,debit:0,credit:amount,memo:"اختبار قيد يدوي مستقل"},
   ];
+  // Use Postgres.js's JSON parameter encoder. A JSON-looking text argument can otherwise
+  // be treated as plain text by the wire serializer rather than the JSON value this RPC expects.
+  const jsonShape = await client.unsafe(
+    "select jsonb_typeof($1::jsonb) as value_type,jsonb_array_length($1::jsonb) as line_count",
+    [client.json(lines)],
+  );
+  assert.equal(jsonShape[0]?.value_type, "array", "manual journal payload reaches PostgreSQL as a JSON array");
+  assert.equal(Number(jsonShape[0]?.line_count), 2, "manual journal payload reaches PostgreSQL with both balanced lines");
   return asJson((await client.unsafe(
     "select public.create_general_journal_draft($1::uuid,current_date,$2::text,$3::jsonb,NULL::text) as result",
-    [key,description,JSON.stringify(lines)],
+    [key,description,client.json(lines)],
   ))[0].result);
 }
 
@@ -658,4 +666,17 @@ async function main() {
     await db.end({ timeout: 5 }).catch(() => {});
   }
 }
-main().catch((error) => { process.stderr.write("FAIL cash-expense source posting acceptance: " + String(error?.stack ?? error) + "\n"); process.exitCode = 1; });
+main().catch((error) => {
+  const diagnostic = error && typeof error === "object" ? {
+    code: error.code,
+    routine: error.routine,
+    line: error.line,
+    where: error.where,
+    constraint: error.constraint_name,
+  } : undefined;
+  process.stderr.write(
+    "FAIL cash-expense source posting acceptance: " + String(error?.stack ?? error) +
+    (diagnostic ? "\nDatabase diagnostic: " + JSON.stringify(diagnostic) : "") + "\n",
+  );
+  process.exitCode = 1;
+});
