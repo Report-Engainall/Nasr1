@@ -1168,3 +1168,76 @@ button.workspace-section-group__heading { cursor: pointer; }
   .workspace-section-toolbar .toolbar-actions { width: 100%; }
   .workspace-section-toolbar .toolbar-actions > * { flex: 1 1 auto; }
 }
+
+/* Shared section headers for the operational panels used across all modules. */
+.panel-head {
+  min-height: 64px;
+  align-items: center;
+  margin: 12px 12px 14px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-bottom: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 76%, var(--aghbari-surface));
+}
+.panel-head > div { min-width: 0; }
+.panel-head h2 {
+  color: var(--aghbari-text);
+  font-size: 13px;
+  font-weight: 850;
+}
+.panel-head p {
+  color: var(--aghbari-text-muted);
+  margin: 3px 0 0;
+  font-size: 10px;
+  line-height: 1.65;
+}
+.panel-head > svg:last-child {
+  display: block;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-radius: 50%;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-surface);
+}
+.panel-head .btn { border-radius: 999px; }
+.admin-category-tree__header {
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 76%, var(--aghbari-surface));
+}
+.admin-category-tree__header > span {
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-radius: 50%;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-surface);
+}
+.admin-category-tree__row.is-selected {
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 92%, var(--aghbari-surface));
+}
+.admin-category-tree__expand,
+.admin-category-tree__select,
+.admin-category-search {
+  border-radius: 999px;
+}
+.ai-tabs { flex-wrap: wrap; }
+.ai-tabs button {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 78%, var(--aghbari-surface));
+}
+.ai-tabs button.active {
+  color: var(--aghbari-on-brand-surface);
+  background: var(--aghbari-brand-surface);
+}
+@media (max-width: 600px) {
+  .panel-head {
+    margin: 8px 8px 12px;
+    padding: 9px 10px;
+    gap: 8px;
+  }
+  .panel-head > svg:last-child { width: 35px; height: 35px; flex-basis: 35px; padding: 8px; }
+}
