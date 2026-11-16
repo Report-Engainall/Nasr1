@@ -373,12 +373,18 @@ export const MAX_CATALOG_SEARCH_LENGTH = 120;
 
 /** Bound untrusted user input before local catalog filtering. */
 export function normalizeCatalogSearchQuery(value: unknown): string {
-  return String(value ?? '').normalize('NFKC').slice(0, MAX_CATALOG_SEARCH_LENGTH);
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .slice(0, MAX_CATALOG_SEARCH_LENGTH);
 }
 
 export function normalizeArabicSearchText(value: unknown): string {
   return String(value ?? '')
     .normalize('NFKC')
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
     .replace(/\u0640/g, '')
     .replace(ARABIC_DIACRITICS, '')
     .replace(/[أإآٱ]/g, 'ا')
@@ -420,6 +426,7 @@ function editDistanceAtMostOne(left: string, right: string): boolean {
 export type ArabicCatalogSearchRecord = {
   name?: unknown;
   item_code?: unknown;
+  sku?: unknown;
   barcode?: unknown;
 };
 
@@ -436,7 +443,7 @@ export function matchesArabicCatalogSearch(
 
   const codeQuery = normalized.replace(/\s+/g, '');
   if (codeQuery) {
-    const codes = [product.item_code, product.barcode]
+    const codes = [product.item_code, product.sku, product.barcode]
       .map((value) => normalizeArabicSearchText(value).replace(/\s+/g, ''))
       .filter(Boolean);
     if (codes.some((code) => code === codeQuery || code.startsWith(codeQuery))) return true;
