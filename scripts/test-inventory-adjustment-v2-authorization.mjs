@@ -332,6 +332,23 @@ async function main() {
         ))[0].decision);
         assert.equal(countEnterDecision.decision,"PERMIT",
           "the assigned manager must retain the independent stock-count entry capability");
+        assert.ok(otherWarehouse,"an independent unassigned warehouse fixture is required");
+        const unassignedCountDecision=decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
+          [otherWarehouse.warehouse_id],
+        ))[0].decision);
+        assert.equal(unassignedCountDecision.decision,"DENY",
+          "the count-entry capability must be denied for a same-tenant but unassigned warehouse");
+        const unassignedCountKey="rbac-v2-count-unassigned-"+process.pid+"-"+Date.now();
+        await expectSqlState(tx,"42501",()=>tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text)",
+          [otherWarehouse.warehouse_id,unassignedCountKey,"unassigned warehouse must be rejected"],
+        ),"a manager cannot start a stock count in an unassigned warehouse");
+        const unassignedCountSessions=await db.unsafe(
+          "select id from public.stock_count_sessions where organization_id=$1::uuid and idempotency_key=$2::text",
+          [organizationId,unassignedCountKey],
+        );
+        assert.equal(unassignedCountSessions.length,0,"a denied unassigned count must not persist a session");
         const countKey="rbac-v2-count-"+process.pid+"-"+Date.now();
         const countSessionRows=await tx.unsafe(
           "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
@@ -367,7 +384,7 @@ async function main() {
         assert.equal(separateAdjustmentDenial[0].allowed,false,
           "stock-count entry must not restore or manufacture the separately denied balance-adjustment capability");
 
-// The converse is also required: an explicit denial of count entry
+        // The converse is also required: an explicit denial of count entry
         // blocks both creating a session and saving a previously opened line.
         await applyActor(tx, actors.admin);
         const countEntryDenial = decodeJson((await tx.unsafe(
