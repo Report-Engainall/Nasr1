@@ -130,7 +130,7 @@ describe("observability architecture route is not duplicated in general settings
         p_roles: ["customer_manager", "manager"],
       });
     });
-    expect(await profileControls.findByText("مسؤول العملاء")).toBeInTheDocument();
+    expect(profileControls.getByRole("checkbox", { name: "مسؤول العملاء" })).toBeChecked();
     expect(onNotice).toHaveBeenCalledWith(expect.stringContaining("تم حفظ أدوار موظف المخزن"));
     view.unmount();
   });

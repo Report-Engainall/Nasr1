@@ -97,7 +97,10 @@ export function filterCustomerInteractions(
       item.follow_up_status ? FOLLOW_UP_LABELS[item.follow_up_status] ?? item.follow_up_status : "",
     ].map(normalizeCustomerInteractionSearch);
 
-    return searchable.some((value) => value.includes(term));
+    const searchTerms = term.split(" ").filter(Boolean);
+    return searchTerms.every((searchTerm) =>
+      searchable.some((value) => value.includes(searchTerm)),
+    );
   });
 
   return { items, active };
