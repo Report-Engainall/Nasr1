@@ -47,7 +47,7 @@ permissions:
   packages: read
 
 concurrency:
-  group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -607,6 +607,8 @@ jobs:
         run: node scripts/test-customer-receivable-aging-identity.mjs
       - name: Test atomic price grid writes, rollback, audit and stale-writer race
         run: node scripts/test-price-grid-atomicity.mjs
+      - name: Test customer order amendment exact replay and immutable version on local PostgreSQL 17
+        run: node scripts/test-customer-order-amendment-replay.mjs
       - name: Test tenant-safe category subtree archival and create/product race locks on local PostgreSQL 17
         run: node scripts/test-admin-catalog-category-hierarchy.mjs
       - name: Test cash-expense source posting, idempotency and void/post concurrency
