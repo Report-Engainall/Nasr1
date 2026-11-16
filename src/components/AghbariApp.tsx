@@ -68,6 +68,7 @@ const UnifiedOnyxAnalysisPanel = lazy(async () => ({ default: (await import('@/c
 const ExecutiveStoreAnalytics = lazy(async () => ({ default: (await import('@/components/ExecutiveStoreAnalytics')).ExecutiveStoreAnalytics }));
 const PromotionManager = lazy(async () => ({ default: (await import('@/components/PromotionManager')).PromotionManager }));
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
+import { PendingProductGalleryFiles } from '@/components/PendingProductGalleryFiles';
 const BulkProductImageUploader = lazy(async () => ({ default: (await import('@/components/BulkProductImageUploader')).BulkProductImageUploader }));
 import { validateCustomerInput } from '@/lib/customer-input';
 const StaffQuotesPage = lazy(async () => ({ default: (await import('@/components/CustomerWorkflows')).StaffQuotesPage }));
@@ -1855,22 +1856,14 @@ export function ProductModal({
             })}
           </div>
         )}
-        {galleryFiles.length > 0 && <div style={{ display: 'grid', gap: 5 }}>
-          {galleryFiles.map((file, index) => (
-            <div key={file.name + '-' + file.size + '-' + file.lastModified} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-              <span>{file.name}</span>
-              <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>إلغاء الاختيار</button>
-            </div>
-          ))}
-        </div>}
-        {galleryFiles.length > 0 && <div style={{ display: 'grid', gap: 5 }}>
-          {galleryFiles.map((file, index) => (
-            <div key={file.name + '-' + file.size + '-' + file.lastModified} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-              <span>{file.name}</span>
-              <button type="button" className="btn ghost" disabled={saving} onClick={() => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>إلغاء الاختيار</button>
-            </div>
-          ))}
-        </div>}
+        {galleryFiles.length > 0 && (
+          <PendingProductGalleryFiles
+            files={galleryFiles}
+            disabled={saving}
+            onRemove={(index) => setGalleryFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+          />
+        )}
+        
       </section>
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="modal-actions">
