@@ -1,4 +1,5 @@
 export type CustomerPaymentFilterPayment = {
+  id?: string;
   invoice_id: string;
   amount: number | string;
   paid_at?: string;
