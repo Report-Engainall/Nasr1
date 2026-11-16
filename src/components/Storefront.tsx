@@ -33,6 +33,7 @@ import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-add
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
+import { StorefrontRecentlyViewed } from '@/components/StorefrontRecentlyViewed';
 import { readStorefrontCompareIds, storefrontCompareStorageKey, writeStorefrontCompareIds } from '@/lib/storefront-compare';
 import { applyStorefrontProductHeadMetadata, buildStorefrontProductHeadMetadata, buildStorefrontProductStructuredData, serializeStorefrontProductStructuredData } from '@/lib/storefront-product-structured-data';
 
@@ -1030,6 +1031,15 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
+        {view === 'product' && selectedProduct && (
+          <StorefrontRecentlyViewed
+            products={products}
+            currentProductId={selectedProduct.id}
+            priceVisibilityPolicy={settings?.show_price_on_cards}
+            onOpen={openProduct}
+          />
+        )}
+
         {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
         {view === 'compare' && <ProductComparison products={products.filter((product) => compare.includes(product.id))} priceVisibilityPolicy={settings?.show_price_on_cards} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onRemove={toggleCompare} onBack={() => void navigate({ to: '/' })} />}
         {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} alreadyInCart={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
