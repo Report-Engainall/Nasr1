@@ -4,6 +4,7 @@ import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { addMyCustomerServiceCaseMessage,createMyCustomerServiceCase,fetchMyCustomerServiceCasesPage,fetchMyCustomerServicePortalContext,newCustomerServicePortalRequestKey,type CustomerServicePortalCase,type CustomerServicePortalMessage,type CustomerServicePortalCursor } from "@/lib/customer-service-portal";
 import type { CustomerServiceCasePriority,CustomerServiceCaseStatus,CustomerServiceCaseType } from "@/lib/customer-service-cases";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 const types:Record<CustomerServiceCaseType,string>={complaint:"شكوى",inquiry:"استفسار",service_request:"طلب خدمة",delivery_issue:"مشكلة تسليم",other:"أخرى"};
 const priorities:Record<CustomerServiceCasePriority,string>={low:"منخفضة",medium:"متوسطة",high:"عالية",urgent:"عاجلة"};
@@ -69,7 +70,14 @@ function Workspace(){
  function clearFilters(){cursorStack.current=[null];setPage(0);setSearchDraft("");setAppliedSearch("");setStatusDraft("");setAppliedStatus(null);setTypeDraft("");setAppliedType(null);}
  const pageCount=Math.max(1,Math.ceil(totalCount/50));
  return <main className="customer-service-portal" dir="rtl">
-  <header className="customer-service-portal-hero"><div><span><Headphones size={16}/> خدمة العملاء</span><h1>مركز خدمة العملاء</h1><p>{company?"حالات ومراسلات "+company:"تابع حالات الخدمة وتواصل مع فريق الأغبري."}</p></div><button type="button" className="btn secondary" disabled={loading} onClick={()=>{void load();}}><RefreshCw size={15}/> تحديث الحالات</button></header>
+   <WorkspaceSectionHeader
+    eyebrow="خدمة العملاء"
+    title="مركز خدمة العملاء"
+    description={company?"حالات ومراسلات "+company:"تابع حالات الخدمة وتواصل مع فريق الأغبري."}
+    icon={Headphones}
+    className="customer-service-portal-hero"
+    actions={<button type="button" className="btn secondary" disabled={loading} onClick={()=>{void load();}}><RefreshCw size={15}/> تحديث الحالات</button>}
+   />
   {notice&&<p className="customer-service-portal-notice" role="status"><CheckCircle2 size={15}/>{notice}</p>}{error&&<div className="customer-service-portal-error" role="alert"><AlertCircle size={16}/>{error}</div>}
   {canCreate&&<section className="customer-service-portal-create"><div className="customer-service-portal-section-heading"><div><h2><Plus size={17}/> فتح حالة خدمة جديدة</h2><p>حدد نوع الطلب واكتب التفاصيل التي يحتاجها فريق المعالجة.</p></div><ShieldCheck size={21}/></div>
    <form onSubmit={e=>{void create(e);}}><div className="customer-service-portal-form-grid">
