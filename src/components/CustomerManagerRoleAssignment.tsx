@@ -54,9 +54,9 @@ function CustomerManagerRoleHeading() {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <ShieldCheck size={22} aria-hidden="true" />
       <div>
-        <h2 id="customer-manager-role-title" style={{ margin: 0 }}>إدارة أعضاء المؤسسة والأدوار ونطاقات الوصول</h2>
+        <h2 id="customer-manager-role-title" style={{ margin: 0 }}>إدارة مسؤول العملاء ونطاقات المستودعات</h2>
         <p style={{ margin: '5px 0 0', lineHeight: 1.7 }}>
-          تُدار الأدوار ونطاقات الوصول عبر أوامر خادمية مقيدة بالمؤسسة، مع سبب وإصدار وتدقيق لكل تغيير. لا يمكن تعديل حسابك الحالي.
+          يُسند دور مسؤول العملاء ونطاقات المستودعات عبر أوامر خادمية مقيدة بالمؤسسة، مع سبب وإصدار وتدقيق لكل تغيير. لا يمكن تعديل حسابك الحالي.
         </p>
       </div>
     </div>
