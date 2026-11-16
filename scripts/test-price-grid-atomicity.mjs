@@ -454,10 +454,10 @@ main().catch(async error=>{
   };
   const outputPath = process.env.PRICE_GRID_ACCEPTANCE_DIAGNOSTIC_PATH;
   if (outputPath) {
-    try { await writeFile(outputPath, JSON.stringify(diagnostic, null, 2) + "\\n", { mode: 0o600 }); }
-    catch (writeError) { process.stderr.write("Could not persist price-grid diagnostic: "+String(writeError?.message??writeError)+"\\n"); }
+    try { await writeFile(outputPath, JSON.stringify(diagnostic, null, 2) + "\n", { mode: 0o600 }); }
+    catch (writeError) { process.stderr.write("Could not persist price-grid diagnostic: "+String(writeError?.message??writeError)+"\n"); }
   }
-  process.stderr.write("FAIL price-grid acceptance: "+JSON.stringify(diagnostic)+"\\n");
-  process.stderr.write(String(error?.stack??error)+"\\n");
+  process.stderr.write("FAIL price-grid acceptance: "+JSON.stringify(diagnostic)+"\n");
+  process.stderr.write(String(error?.stack??error)+"\n");
   process.exitCode=1;
 });
