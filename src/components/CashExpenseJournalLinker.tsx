@@ -31,8 +31,10 @@ type CashExpenseItem = {
   journal_entry_number: string | null;
   expense_account_id: string | null;
   settlement_account_id: string | null;
+  reversal_entry_id: string | null;
   reversal_status: JournalStatus;
   reversal_entry_number: string | null;
+  reversal_can_post: boolean;
 };
 type InboxResult = { items: CashExpenseItem[]; total_count: number; has_more: boolean; limit: number; offset: number };
 type Props = { accounts: readonly LedgerAccountOption[]; onRefresh: () => Promise<void> };
@@ -65,7 +67,9 @@ function parseInbox(value: unknown): InboxResult {
         typeof raw.currency !== "string" || typeof raw.payment_method !== "string" ||
         typeof raw.expense_date !== "string" || (raw.source_status !== "posted" && raw.source_status !== "void") ||
         (raw.journal_status !== null && raw.journal_status !== "draft" && raw.journal_status !== "posted" && raw.journal_status !== "void") ||
-        (raw.reversal_status !== null && raw.reversal_status !== "draft" && raw.reversal_status !== "posted" && raw.reversal_status !== "void")) {
+        (raw.reversal_status !== null && raw.reversal_status !== "draft" && raw.reversal_status !== "posted" && raw.reversal_status !== "void") ||
+        (raw.reversal_entry_id !== null && typeof raw.reversal_entry_id !== "string") ||
+        typeof raw.reversal_can_post !== "boolean") {
       throw new Error("تعذر التحقق من أحد سجلات المصروف المصدر.");
     }
     return {
@@ -76,7 +80,9 @@ function parseInbox(value: unknown): InboxResult {
       journal_status:raw.journal_status,journal_entry_number:typeof raw.journal_entry_number==="string"?raw.journal_entry_number:null,
       expense_account_id:typeof raw.expense_account_id==="string"?raw.expense_account_id:null,
       settlement_account_id:typeof raw.settlement_account_id==="string"?raw.settlement_account_id:null,
+      reversal_entry_id:typeof raw.reversal_entry_id==="string"?raw.reversal_entry_id:null,
       reversal_status:raw.reversal_status,reversal_entry_number:typeof raw.reversal_entry_number==="string"?raw.reversal_entry_number:null,
+      reversal_can_post:raw.reversal_can_post,
     };
   });
   return {items,total_count:value.total_count,has_more:value.has_more,limit:value.limit,offset:value.offset};
@@ -85,7 +91,9 @@ function journalStatusLabel(item: CashExpenseItem): string {
   if (item.source_status==="void") {
     return item.reversal_status==="posted"
       ? "مصروف ملغى؛ عكسه القيد رقم "+item.reversal_entry_number
-      : "مصروف ملغى مع الاحتفاظ بالسجل";
+      : item.reversal_status==="draft"
+        ? "مصروف ملغى؛ مسودة العكس بانتظار مراجعة مستقلة"
+        : "مصروف ملغى مع الاحتفاظ بالسجل";
   }
   if (item.journal_status==="posted") return "قيد مرحّل رقم "+item.journal_entry_number;
   if (item.journal_status==="draft") return "مسودة قيد رقم "+item.journal_entry_number;
@@ -144,6 +152,9 @@ function CashExpenseJournalSourceWarnings({ item }: { item: CashExpenseItem }) {
   if (item.source_status === "void" && item.reversal_status === "posted") {
     return <p style={muted}>قيد العكس المرحّل: #{item.reversal_entry_number}. تم حفظ حركة العكس بدل حذف القيد الأصلي.</p>;
   }
+  if (item.source_status === "void" && item.reversal_status === "draft") {
+    return <p style={{...muted,color:"#8b5a18"}}>المصروف ملغى، لكن القيد الأصلي المرحّل يبقى في الأستاذ حتى يرحّل مراجع مستقل مسودة العكس.</p>;
+  }
 
   return null;
 }
@@ -160,6 +171,7 @@ function CashExpenseJournalDraftActions({
   busy: boolean;
   onPost: (item: CashExpenseItem) => void;
   onVoid: (item: CashExpenseItem) => void;
+  onPostReversal: (item: CashExpenseItem) => void;
 }) {
   if (item.source_status !== "posted" || item.journal_status !== "draft" || !item.journal_entry_id) {
     return null;
@@ -177,6 +189,15 @@ function CashExpenseJournalDraftActions({
       ) : null}
     </div>
   );
+}
+
+function CashExpenseJournalReversalActions({item,busy,onPost}:{item:CashExpenseItem;busy:boolean;onPost:(item:CashExpenseItem)=>void}) {
+  if (item.source_status!=="void" || item.reversal_status!=="draft" || !item.reversal_entry_id) return null;
+  return <div className="no-print" style={{display:"grid",gap:6}}>
+    {item.reversal_can_post
+      ? <button type="button" style={primary} disabled={busy} onClick={()=>onPost(item)}><Send size={14}/> ترحيل مسودة عكس المصروف رقم {item.expense_number}</button>
+      : <p role="status" style={{...muted,color:"#8b5a18"}}>مسودة العكس بانتظار مراجع مستقل عن منشئ العكس ومنشئ القيد الأصلي ومرحل القيد الأصلي.</p>}
+  </div>;
 }
 
 function CashExpenseJournalAccountSelectors({
@@ -270,6 +291,7 @@ function CashExpenseJournalItemCard({
   onCreate,
   onPost,
   onVoid,
+  onPostReversal,
 }: {
   item: CashExpenseItem;
   expenseAccountId: string;
@@ -283,6 +305,7 @@ function CashExpenseJournalItemCard({
   onCreate: (item: CashExpenseItem) => void;
   onPost: (item: CashExpenseItem) => void;
   onVoid: (item: CashExpenseItem) => void;
+  onPostReversal: (item: CashExpenseItem) => void;
 }) {
   return (
     <article style={{ border: "1px solid var(--border, #e3e9ec)", borderRadius: 10, padding: 12, display: "grid", gap: 10, breakInside: "avoid" }}>
@@ -298,6 +321,7 @@ function CashExpenseJournalItemCard({
         </div>
       </header>
       <CashExpenseJournalSourceWarnings item={item} />
+      <CashExpenseJournalReversalActions item={item} busy={busy} onPost={onPostReversal} />
       <CashExpenseJournalDraftActions
         item={item}
         canVoidDraft={canVoidDraft}
@@ -334,6 +358,7 @@ function CashExpenseJournalInbox({
   onCreate,
   onPost,
   onVoid,
+  onPostReversal,
 }: {
   items: CashExpenseItem[];
   loading: boolean;
@@ -369,6 +394,7 @@ function CashExpenseJournalInbox({
           onCreate={onCreate}
           onPost={onPost}
           onVoid={onVoid}
+          onPostReversal={onPostReversal}
         />
       ))}
     </div>
@@ -482,6 +508,20 @@ export function CashExpenseJournalLinker({accounts,onRefresh}:Props) {
     finally{setBusyId("");}
   }
 
+  async function postReversal(item:CashExpenseItem){
+    if(!item.reversal_entry_id)return;
+    if(!item.reversal_can_post){setError("مسودة العكس لا تسمح بترحيلك؛ يلزم مراجع مستقل عن أطراف القيد المصدر.");return;}
+    setBusyId(item.id);setError("");setNotice("");
+    try{
+      const result=await supabase.rpc("post_general_journal_entry",{p_entry_id:item.reversal_entry_id});
+      if(result.error || !isRecord(result.data) || result.data.status!=="posted" || typeof result.data.replayed!=="boolean")
+        throw new Error("رفض الخادم ترحيل مسودة العكس؛ تحقق من صلاحية المراجع وحالة المصدر.");
+      setNotice("تم ترحيل مسودة عكس المصروف رقم "+item.expense_number+" بواسطة مراجع مستقل.");
+      await refreshInbox();await onRefresh();
+    }catch(cause){setError(cause instanceof Error?cause.message:"تعذر ترحيل مسودة عكس المصروف.");}
+    finally{setBusyId("");}
+  }
+
   async function voidDraft(item:CashExpenseItem){
     if(!canVoidDraft||!item.journal_entry_id)return;
     const reason=window.prompt("سبب إلغاء مسودة قيد المصروف (5 أحرف على الأقل):");
@@ -551,6 +591,7 @@ export function CashExpenseJournalLinker({accounts,onRefresh}:Props) {
         onCreate={(item) => void createDraft(item)}
         onPost={(item) => void postDraft(item)}
         onVoid={(item) => void voidDraft(item)}
+        onPostReversal={(item) => void postReversal(item)}
       />
       <CashExpenseJournalPagination
         page={page}
@@ -561,7 +602,7 @@ export function CashExpenseJournalLinker({accounts,onRefresh}:Props) {
         onNext={() => setPage((current) => current + 1)}
       />
       <p style={{ ...muted, fontSize: 12 }}>
-        القيد لا يُنشأ للمصروف الأجنبي لغياب سياسة صرف مؤكدة. إلغاء مصروف مرتبط بمسودة يُبطل المسودة مع حفظ التدقيق، وإلغاء مصروف له قيد مرحّل ينشئ قيد عكس متوازنًا في نفس المعاملة قبل حفظ إلغاء المصدر.
+        القيد لا يُنشأ للمصروف الأجنبي لغياب سياسة صرف مؤكدة. إلغاء مصروف مرتبط بمسودة يُبطلها مع حفظ التدقيق. إلغاء مصروف له قيد مرحّل ينشئ مسودة عكس متوازنة مرتبطة بالمصدر؛ ويبقى القيد الأصلي في الأستاذ حتى يرحّل العكس مراجع مستقل.
       </p>
     </section>
   );
