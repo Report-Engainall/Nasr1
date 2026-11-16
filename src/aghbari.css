@@ -1490,3 +1490,27 @@ button.workspace-section-group__heading { cursor: pointer; }
 @media (max-width: 600px) {
   .advanced-storefront-search-group__content { padding: 12px; }
 }
+
+
+/* AI center follows the same category-first workspace hierarchy. */
+.ai-operations-group,
+.ai-output-group {
+  margin-block: 14px;
+}
+.ai-operations-group__content,
+.ai-output-group__content {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+.ai-operations-group__content > *,
+.ai-output-group__content > * {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .ai-operations-group__content,
+  .ai-output-group__content {
+    gap: 10px;
+    padding: 10px;
+  }
+}
