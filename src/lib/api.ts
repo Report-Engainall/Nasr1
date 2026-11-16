@@ -573,7 +573,12 @@ export async function fetchAdminProductsPage(input: {
   }
 
   const hasNextPage = rawProducts.length > pageSize;
-  const pageRows = rawProducts.slice(0, pageSize) as Array<Record<string, unknown>>;
+  const pageRows: Array<Record<string, unknown>> = rawProducts.slice(0, pageSize).map((row) => {
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+      throw new Error('أعاد الخادم صف منتج غير صالح؛ أُوقف العرض لمنع قراءة بيانات غير موثوقة.');
+    }
+    return Object.fromEntries(Object.entries(row));
+  });
   const productIds = pageRows.map((row) => {
     if (
       typeof row.id !== 'string' ||
