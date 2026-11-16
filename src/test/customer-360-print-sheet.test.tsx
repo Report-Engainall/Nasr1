@@ -103,8 +103,9 @@ describe("Customer360PrintSheet recent order rows", () => {
     expect(rows[0]).toHaveTextContent("متابعة طلب الأرز");
     expect(rows[0]).toHaveTextContent("تم الاتفاق على إعادة التواصل غدًا");
     expect(rows[0]).toHaveTextContent("موظف المبيعات");
-    expect(rows[0]).toHaveTextContent("٣٠‏/١٠‏/٢٠٢٦");
-    expect(rows[0]).toHaveTextContent("٣١‏/١٠‏/٢٠٢٦");
+    expect(rows[0]).toHaveTextContent(new Intl.DateTimeFormat("ar-YE", { dateStyle: "short", timeStyle: "short" }).format(new Date("2026-10-30T09:15:00.000Z")));
+    expect(rows[0]).toHaveTextContent(new Intl.DateTimeFormat("ar-YE", { dateStyle: "short", timeStyle: "short" }).format(new Date("2026-10-30T09:20:00.000Z")));
+    expect(rows[0]).toHaveTextContent(new Intl.DateTimeFormat("ar-YE", { dateStyle: "short", timeStyle: "short" }).format(new Date("2026-10-31T10:30:00.000Z")));
   });
 
 });
