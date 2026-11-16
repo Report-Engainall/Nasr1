@@ -159,18 +159,20 @@ function AdditionalCategoryCard({
     : "/category/" + storefrontCategorySlug(category);
 
   return (
-    <WorkspaceSectionGroup
-      icon={Layers3}
-      title={category.name}
-      description={parent ? "فرع ضمن " + parent.name : category.parent_id ? "فرع ذو علاقة أب غير متاحة" : "تصنيف مستقل"}
-      className="storefront-category-group storefront-category-group--additional"
-      contentClassName="storefront-category-group__content"
-    >
-      <span style={{ color: "#526b70", fontSize: 13 }}>{count.toLocaleString("ar-YE")} صنف مباشر</span>
-      <Link to={href as never} style={{ color: "#087f8d", fontWeight: 800, textDecoration: "none" }}>
-        تصفح هذا المستوى
-      </Link>
-    </WorkspaceSectionGroup>
+    <article data-category-card className="storefront-category-additional-card">
+      <WorkspaceSectionGroup
+        icon={Layers3}
+        title={category.name}
+        description={parent ? "فرع ضمن " + parent.name : category.parent_id ? "فرع ذو علاقة أب غير متاحة" : "تصنيف مستقل"}
+        className="storefront-category-group storefront-category-group--additional"
+        contentClassName="storefront-category-group__content"
+      >
+        <span style={{ color: "#526b70", fontSize: 13 }}>{count.toLocaleString("ar-YE")} صنف مباشر</span>
+        <Link to={href as never} style={{ color: "#087f8d", fontWeight: 800, textDecoration: "none" }}>
+          تصفح هذا المستوى
+        </Link>
+      </WorkspaceSectionGroup>
+    </article>
   );
 }
 
