@@ -181,4 +181,58 @@ describe("staff customer 360 XLSX export", () => {
     }));
     expect(() => buildStaffCustomer360WorkbookXlsx(input)).toThrow(/حد آخر 20 حركة/);
   });
+
+  it("exports the same bounded interaction history to its dedicated sheet without internal identifiers", () => {
+    const interactionId = "11111111-2222-4333-8444-555555555555";
+    const taskId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const interactions = [{
+      id: interactionId,
+      interaction_type: "whatsapp" as const,
+      subject: "متابعة طلب الأرز",
+      details: "تم الاتفاق على إعادة التواصل غدًا",
+      interaction_at: "2026-10-30T09:15:00.000Z",
+      next_follow_up_at: "2026-10-31T10:30:00.000Z",
+      created_at: "2026-10-30T09:20:00.000Z",
+      recorded_by_name: "موظف المبيعات",
+      follow_up_task_id: taskId,
+      follow_up_due_at: "2026-10-31T10:30:00.000Z",
+      follow_up_status: "pending" as const,
+      follow_up_cancellation_reason: null,
+      follow_up_updated_at: null,
+    }];
+    const files = unzipStore(buildStaffCustomer360WorkbookXlsx(sample(), interactions));
+    const workbook = files.get("xl/workbook.xml") ?? "";
+    const history = files.get("xl/worksheets/sheet9.xml") ?? "";
+    expect(workbook).toContain('sheet name="سجل التواصل"');
+    expect(history).toContain("اتصال");
+    expect(history).toContain("متابعة طلب الأرز");
+    expect(history).toContain("تم الاتفاق على إعادة التواصل غدًا");
+    expect(history).toContain("2026-10-30T09:15:00.000Z");
+    expect(history).toContain("2026-10-31T10:30:00.000Z");
+    expect(history).toContain("موظف المبيعات");
+    expect(history).toContain("2026-10-30T09:20:00.000Z");
+    expect(files.get("xl/worksheets/sheet1.xml")).toContain("أحدث 50 إدخالًا");
+    expect([...files.values()].join("\n")).not.toContain(interactionId);
+    expect([...files.values()].join("\n")).not.toContain(taskId);
+  });
+
+  it("rejects interaction histories above the server's bounded 50-row contract", () => {
+    const interactions = Array.from({ length: 51 }, (_value, index) => ({
+      id: "interaction-" + index,
+      interaction_type: "note" as const,
+      subject: "ملاحظة " + index,
+      details: "تفاصيل",
+      interaction_at: "2026-10-30T09:15:00.000Z",
+      next_follow_up_at: null,
+      created_at: "2026-10-30T09:20:00.000Z",
+      recorded_by_name: "موظف",
+      follow_up_task_id: null,
+      follow_up_due_at: null,
+      follow_up_status: null,
+      follow_up_cancellation_reason: null,
+      follow_up_updated_at: null,
+    }));
+    expect(() => buildStaffCustomer360WorkbookXlsx(sample(), interactions)).toThrow(/حد أحدث 50/);
+  });
+
 });
