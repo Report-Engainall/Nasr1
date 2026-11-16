@@ -22,6 +22,8 @@
     "src/lib/customer-interaction-filter.test.ts",
     "src/test/admin-customer-360-display.test.tsx",
     "src/components/AghbariApp.tsx",
+    "src/components/AdminAiGovernanceWorkspace.tsx",
+    "src/components/AdminAiGovernanceWorkspace.test.tsx",
     "src/components/AdminPages.tsx",
     "src/components/AdminPages.settings-architecture.test.tsx",
     "src/routes/__root.tsx",
