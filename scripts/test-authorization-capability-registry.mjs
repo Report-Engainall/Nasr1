@@ -157,6 +157,16 @@ async function main() {
   assert.deepEqual(cancelGrantRows.map(row=>row.role),["admin","manager"],
    "only the existing admin/manager stock-count finalization parity may cancel a count");
 
+  const guardedTransferFunctions=await db.unsafe(
+   "select p.proname,pg_catalog.pg_get_functiondef(p.oid) as definition from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('transfer_inventory','transfer_inventory_batch') order by p.proname"
+  );
+  assert.equal(guardedTransferFunctions.length,2,
+   "single and batch transfer RPCs must both exist after V2 scope migration");
+  for(const fn of guardedTransferFunctions) {
+   assert.match(fn.definition,/PERFORM public\.assert_inventory_transfer_scope_v2\(/,
+    fn.proname+" must check both assigned warehouses before any idempotency replay");
+  }
+
   const managerContext=await withActor(db,actors.get("manager"),tx=>tx.unsafe("select public.get_current_tenant_context() as context"));
   const staffContext=await withActor(db,actors.get("staff"),tx=>tx.unsafe("select public.get_current_tenant_context() as context"));
   assert.equal(managerContext[0].context.can_view_internal_product_prices,true);

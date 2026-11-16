@@ -534,14 +534,18 @@ BEGIN
       RAISE EXCEPTION 'cannot locate executable body for public.%',v_function.proname;
     END IF;
 
-    v_definition:=pg_catalog.overlay(
-      v_definition
-      PLACING E'\nBEGIN\n  PERFORM public.assert_inventory_transfer_scope_v2('
-        || pg_catalog.quote_ident(v_source_arg) || ','
-        || pg_catalog.quote_ident(v_destination_arg) || E');\n'
-      FROM v_begin_position
-      FOR pg_catalog.length(E'\nBEGIN\n')
-    );
+    -- Replace the BEGIN delimiter using ordinary substr concatenation.
+    -- OVERLAY's PLACING syntax is a SQL special form and cannot be invoked as
+    -- pg_catalog.overlay(... PLACING ...), which fails during migration parse.
+    v_definition:=
+      pg_catalog.substr(v_definition,1,v_begin_position-1)
+      || E'\nBEGIN\n  PERFORM public.assert_inventory_transfer_scope_v2('
+         || pg_catalog.quote_ident(v_source_arg) || ','
+         || pg_catalog.quote_ident(v_destination_arg) || E');\n'
+      || pg_catalog.substr(
+           v_definition,
+           v_begin_position+pg_catalog.length(E'\nBEGIN\n')
+         );
     EXECUTE v_definition;
   END LOOP;
 
