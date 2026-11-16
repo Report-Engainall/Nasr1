@@ -83,7 +83,7 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
   const validNewQuantity = parsedNewQuantity !== null && Number.isFinite(parsedNewQuantity)
     && parsedNewQuantity >= 0 && parsedNewQuantity <= 999999999999.999
     && Number.isSafeInteger(Math.round(parsedNewQuantity * 1000))
-    && Math.round(parsedNewQuantity * 1000) === parsedNewQuantity * 1000;
+    && Math.abs(Math.round(parsedNewQuantity * 1000) / 1000 - parsedNewQuantity) < 1e-9;
   const delta = selected && validNewQuantity ? parsedNewQuantity! - selected.quantity_on_hand : null;
   const belowReserved = Boolean(selected && validNewQuantity && parsedNewQuantity! < selected.quantity_reserved);
 

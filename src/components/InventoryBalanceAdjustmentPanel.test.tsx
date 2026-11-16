@@ -75,6 +75,35 @@ describe('InventoryBalanceAdjustmentPanel', () => {
     expect(await screen.findByText(/تم تنفيذ التسوية وحفظ حركتها وتدقيقها/)).toBeInTheDocument();
   });
 
+
+  it('accepts valid three-decimal quantities without floating-point representation false negatives', async () => {
+    const fractionalBalance = {
+      ...initialBalance,
+      quantity_on_hand: 1,
+      quantity_reserved: 0,
+      quantity_available: 1,
+    };
+    vi.mocked(fetchInventoryAdjustmentBalances).mockResolvedValue([fractionalBalance]);
+    vi.mocked(adjustInventoryBalance).mockResolvedValue({
+      ...successfulAdjustment,
+      previous_quantity_on_hand: 1,
+      new_quantity_on_hand: 1.001,
+      quantity_delta: 0.001,
+      reserved_quantity: 0,
+      quantity_available_after: 1.001,
+    });
+    render(<InventoryBalanceAdjustmentPanel warehouseId={initialBalance.warehouse_id} warehouseName="المستودع الرئيسي" />);
+    await screen.findByRole('option', { name: 'SKU-001 — أرز 10 كجم' });
+    fireEvent.change(screen.getByLabelText('الرصيد الجديد للصنف أرز 10 كجم'), { target: { value: '1.001' } });
+    fireEvent.change(screen.getByLabelText('سبب التسوية'), { target: { value: 'فرق وزن موثق' } });
+    expect(screen.getByRole('button', { name: 'اعتماد زيادة الرصيد' }).hasAttribute('disabled')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'اعتماد زيادة الرصيد' }));
+    await waitFor(() => expect(adjustInventoryBalance).toHaveBeenCalledWith(expect.objectContaining({
+      expectedQuantity: 1,
+      newQuantity: 1.001,
+    })));
+  });
+
   it('blocks quantities below reserved stock before the command reaches the server', async () => {
     render(<InventoryBalanceAdjustmentPanel warehouseId={initialBalance.warehouse_id} warehouseName="المستودع الرئيسي" />);
     await screen.findByRole('option', { name: 'SKU-001 — أرز 10 كجم' });
