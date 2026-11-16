@@ -1130,3 +1130,6 @@ button.workspace-section-group__heading { cursor: pointer; }
   .admin-group-card__links { grid-template-columns: 1fr; }
   .admin-group-landing__item { border-radius: 14px; }
 }
+
+.sf-products-heading { margin-bottom: 16px; }
+.sf-products-heading .sf-discovery-links { margin-inline-start: auto; }
