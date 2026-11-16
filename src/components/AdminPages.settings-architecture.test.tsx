@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./AdminPages";
 import { useAuth } from "@/lib/auth";
@@ -131,7 +131,8 @@ describe("observability architecture route is not duplicated in general settings
     const simulatorButton = managerControls.getByRole("button", { name: "محاكاة قرار الصلاحية" });
     expect(simulatorButton).toBeEnabled();
     fireEvent.click(simulatorButton);
-    expect(await managerControls.findByRole("button", { name: "تقييم القرار" })).toBeEnabled();
+    const evaluateButton = await managerControls.findByRole("button", { name: "تقييم القرار" });
+    await waitFor(() => expect(evaluateButton).toBeEnabled());
     fireEvent.click(scopeButton);
     const scopeType = await screen.findByRole("combobox", { name: "نوع نطاق الوصول لـ موظف المخزن" });
     expect(within(scopeType).getByRole("option", { name: "عميل مسند" })).toBeInTheDocument();
