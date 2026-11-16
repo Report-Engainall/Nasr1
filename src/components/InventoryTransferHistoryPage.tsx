@@ -12,6 +12,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { downloadInventoryTransferHistoryWorkbookXlsx } from '@/lib/inventory-transfer-history-xlsx';
 import { projectInventoryTransferPrintRow } from '@/lib/inventory-transfer-history-print';
+import { WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 
 type DraftLine = { productId: string; quantity: string };
 type TransferPreview = { signature: string; draft: ReturnType<typeof normalizeInventoryTransferBatchDraft> };
@@ -43,14 +44,12 @@ function renderDestinationWarehouseOptions(warehouses: TransferWarehouse[], sour
 
 function TransferPageHeading() {
   return (
-    <header className="heading">
-      <div className="heading-icon"><ClipboardList size={24} /></div>
-      <div>
-        <span>الأصناف والمخزون</span>
-        <h1>سجل تحويلات المخزون</h1>
-        <p>تحويل عدة أصناف بين مستودعين داخل المؤسسة في معاملة خادمية واحدة، مع حماية الحجوزات وسجل الحركات والتدقيق.</p>
-      </div>
-    </header>
+    <WorkspaceSectionHeader
+      eyebrow="الأصناف والمخزون"
+      title="سجل تحويلات المخزون"
+      description="تحويل عدة أصناف بين مستودعين داخل المؤسسة في معاملة خادمية واحدة، مع حماية الحجوزات وسجل الحركات والتدقيق."
+      icon={ClipboardList}
+    />
   );
 }
 
