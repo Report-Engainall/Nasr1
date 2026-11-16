@@ -13,10 +13,28 @@ function localOnly(connectionString) {
   throw new Error("Authorization capability acceptance refuses non-loopback PostgreSQL endpoints.");
  }
 }
+function localSupabaseOnly(value) {
+ const api=new URL(value);
+ if(api.protocol!=="http:"||!["127.0.0.1","localhost"].includes(api.hostname)||api.port!=="54321") throw new Error("Authorization acceptance requires loopback local Supabase Auth.");
+ return api;
+}
+async function signInLocal(apiUrl,publishableKey,email,password,expectedUserId) {
+ const response=await fetch(new URL("/auth/v1/token?grant_type=password",apiUrl),{
+  method:"POST",headers:{apikey:publishableKey,"Content-Type":"application/json"},body:JSON.stringify({email,password})
+ });
+ const payload=await response.json().catch(()=>null);
+ if(!response.ok||typeof payload?.access_token!=="string") throw new Error("Local Supabase Auth sign-in failed (HTTP "+response.status+").");
+ const parts=payload.access_token.split(".");
+ if(parts.length!==3) throw new Error("Local Supabase issued a malformed JWT.");
+ const claims=JSON.parse(Buffer.from(parts[1],"base64url").toString("utf8"));
+ if(claims.sub!==expectedUserId||typeof claims.session_id!=="string") throw new Error("JWT is missing expected user/session identity.");
+ return claims;
+}
 async function withActor(db,actor,callback) {
+ if(!actor.jwtClaims?.session_id) throw new Error("A live Auth session is required for this role.");
  return db.begin(async(tx)=>{
   await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[actor.auth_user_id]);
-  await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({sub:actor.auth_user_id,role:"authenticated"})]);
+  await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({...actor.jwtClaims,role:"authenticated"})]);
   await tx.unsafe("set local role authenticated");
   return callback(tx);
  });
@@ -31,6 +49,8 @@ async function decision(db,actor,key) {
 async function main() {
  const connectionString=requiredEnv("TEST_DATABASE_URL");
  localOnly(connectionString);
+ const apiUrl=localSupabaseOnly(requiredEnv("SUPABASE_URL"));
+ const publishableKey=requiredEnv("SUPABASE_PUBLISHABLE_KEY");
  const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
  try {
   const profiles=await db.unsafe(
@@ -45,6 +65,24 @@ async function main() {
    const actor=profiles.find(p=>p.organization_id===org&&p.roles.includes(role));
    assert.ok(actor,"P2 local seed must provide "+role+" within the manager organization");
    actors.set(role,actor);
+  }
+
+  const loginEnv={
+   admin:["E2E_DEVICE_ADMIN_EMAIL","E2E_DEVICE_ADMIN_PASSWORD"],
+   manager:["E2E_MANAGER_EMAIL","E2E_MANAGER_PASSWORD"],
+   staff:["E2E_STAFF_EMAIL","E2E_STAFF_PASSWORD"],
+   accountant:["E2E_ACCOUNTANT_EMAIL","E2E_ACCOUNTANT_PASSWORD"],
+   customer_manager:["E2E_CUSTOMER_MANAGER_EMAIL","E2E_CUSTOMER_MANAGER_PASSWORD"],
+   customer:["E2E_EMAIL","E2E_PASSWORD"]
+  };
+  for(const [role,actor] of actors) {
+   const [emailName,passwordName]=loginEnv[role];
+   actor.jwtClaims=await signInLocal(apiUrl,publishableKey,requiredEnv(emailName),requiredEnv(passwordName),actor.auth_user_id);
+   const liveSession=await db.unsafe(
+    "select id::text from auth.sessions where id=$1::uuid and user_id=$2::uuid and (not_after is null or not_after>now())",
+    [actor.jwtClaims.session_id,actor.auth_user_id]
+   );
+   assert.equal(liveSession.length,1,role+" must have a real live session in auth.sessions");
   }
 
   const expectedPairs=[
@@ -134,7 +172,10 @@ async function main() {
     "authenticated clients must not query the internal authorization tables"
    );
   }
-  process.stdout.write("PASS authorization capability registry: exact six-role parity, server identity, deny-by-default, scope fail-closed, explicit-deny precedence, idempotent audit, last-admin protection, and product financial RPC boundaries\n");
+  await db.unsafe("delete from auth.sessions where id=$1::uuid and user_id=$2::uuid",[manager.jwtClaims.session_id,manager.auth_user_id]);
+  assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"DENY",
+   "revoking auth.sessions must deny the next decision even when the same signed JWT is presented");
+  process.stdout.write("PASS authorization capability registry: exact six-role parity, real JWT sessions, immediate session revocation, deny-by-default, scope fail-closed, explicit-deny precedence, idempotent audit, last-admin protection, and product financial RPC boundaries\n");
  } finally { await db.end({timeout:5}).catch(()=>{}); }
 }
 main().catch(error=>{process.stderr.write("FAIL authorization capability registry acceptance: "+String(error?.stack??error)+"\n");process.exitCode=1;});
