@@ -12,9 +12,10 @@ export type CurrentTenantScope = {
   warehouseId: string | null;
   isStaff: boolean;
   canManageCustomers: boolean;
+  canViewInternalProductPrices: boolean;
 };
 
-export type StorefrontDataScope = Pick<CurrentTenantScope, 'organizationId' | 'warehouseId' | 'isStaff'>;
+export type StorefrontDataScope = Pick<CurrentTenantScope, 'organizationId' | 'warehouseId' | 'isStaff' | 'canViewInternalProductPrices'>;
 
 type TenantScopePayload = {
   profile_id?: unknown;
@@ -22,6 +23,7 @@ type TenantScopePayload = {
   warehouse_id?: unknown;
   is_staff?: unknown;
   can_manage_customers?: unknown;
+  can_view_internal_product_prices?: unknown;
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -84,7 +86,9 @@ export async function getCurrentTenantScope(options: { forceRefresh?: boolean } 
       !isUuid(payload.organization_id) ||
       (payload.warehouse_id !== null && !isUuid(payload.warehouse_id)) ||
       typeof payload.is_staff !== 'boolean' ||
-      (payload.can_manage_customers !== undefined && typeof payload.can_manage_customers !== 'boolean')
+      (payload.can_manage_customers !== undefined && typeof payload.can_manage_customers !== 'boolean') ||
+      typeof payload.can_view_internal_product_prices !== 'boolean' ||
+      (payload.can_view_internal_product_prices === true && payload.is_staff !== true)
     ) {
       throw new Error('أعاد الخادم نطاق مؤسسة غير صالح؛ تم إيقاف العملية لحماية البيانات.');
     }
@@ -95,6 +99,7 @@ export async function getCurrentTenantScope(options: { forceRefresh?: boolean } 
       warehouseId: payload.warehouse_id,
       isStaff: payload.is_staff,
       canManageCustomers: payload.can_manage_customers === true,
+      canViewInternalProductPrices: payload.can_view_internal_product_prices === true,
     };
   })();
 
@@ -124,5 +129,6 @@ export async function getStorefrontDataScope(): Promise<StorefrontDataScope> {
     organizationId: scope.organizationId,
     warehouseId: scope.warehouseId,
     isStaff: scope.isStaff,
+    canViewInternalProductPrices: scope.canViewInternalProductPrices,
   };
 }

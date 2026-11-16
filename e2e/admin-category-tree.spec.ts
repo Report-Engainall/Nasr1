@@ -21,6 +21,39 @@ function normalizeQuantityDigits(value: string): string {
     .trim();
 }
 
+async function localAuthenticatedRpc(page: Page, rpcName: string, body: Record<string, unknown>): Promise<{ status: number; payload: unknown }> {
+  const apiUrl = new URL(requiredEnv('SUPABASE_URL'));
+  if (apiUrl.protocol !== 'http:' || !['localhost', '127.0.0.1', '::1'].includes(apiUrl.hostname) || apiUrl.port !== '54321') {
+    throw new Error('Sensitive product projection acceptance is restricted to disposable local Supabase.');
+  }
+  const accessToken = await page.evaluate(() => {
+    for (const [key, value] of Object.entries(window.localStorage)) {
+      if (!key.endsWith('-auth-token')) continue;
+      try {
+        const token = (JSON.parse(value) as { access_token?: unknown }).access_token;
+        if (typeof token === 'string' && token.length > 20) return token;
+      } catch {
+        // Ignore unrelated local-storage keys and continue to the verified session key.
+      }
+    }
+    return null;
+  });
+  if (!accessToken) throw new Error('An authenticated local browser session is required for RPC projection proof.');
+  const response = await fetch(new URL('/rest/v1/rpc/' + rpcName, apiUrl), {
+    method: 'POST',
+    headers: {
+      apikey: requiredEnv('SUPABASE_PUBLISHABLE_KEY'),
+      authorization: 'Bearer ' + accessToken,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const raw = await response.text();
+  let payload: unknown = raw;
+  try { payload = raw ? JSON.parse(raw) : null; } catch { /* retain raw body for diagnostics */ }
+  return { status: response.status, payload };
+}
+
 async function signIn(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
@@ -161,6 +194,16 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await expect.poll(() => new URL(manager.url()).searchParams.get("category")).toBe(childId);
     await expect(manager.getByRole("heading", { name: childName, exact: true })).toBeVisible();
 
+    // Manager retains its existing privileged product projection.
+    const managerProductProjection = await localAuthenticatedRpc(manager, 'fetch_staff_products', { p_product_id: fixtureProductId });
+    expect(managerProductProjection.status, 'Manager must retain privileged product access.').toBe(200);
+    expect(Array.isArray(managerProductProjection.payload)).toBe(true);
+    const managerProductRow = (managerProductProjection.payload as Array<Record<string, unknown>>)
+      .find((row) => row.id === fixtureProductId);
+    expect(managerProductRow, 'Manager projection must contain the disposable product.').toBeDefined();
+    expect(managerProductRow).toHaveProperty('base_price');
+    expect(managerProductRow).toHaveProperty('cost_price');
+
     // Manager sees the real base-price and stock projection for the seeded local product.
     await manager.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
     const managerCatalog = manager.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });
@@ -202,6 +245,30 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await expect(staff.getByRole("button", { name: /إضافة فرع تحت هذا الأب/ })).toHaveCount(0);
     await expect(staff.getByRole("button", { name: "حفظ الاسم", exact: true })).toHaveCount(0);
     await expect(staff.getByRole("button", { name: "أرشفة التصنيف", exact: true })).toHaveCount(0);
+    // Staff receives an allowlisted row from PostgreSQL, not a full row hidden only in the UI.
+    const staffSafeProjection = await localAuthenticatedRpc(staff, 'fetch_staff_catalog_products', { p_product_id: fixtureProductId });
+    expect(staffSafeProjection.status, 'Staff-safe product projection must be available.').toBe(200);
+    expect(Array.isArray(staffSafeProjection.payload)).toBe(true);
+    const staffSafeRows = staffSafeProjection.payload as Array<Record<string, unknown>>;
+    expect(staffSafeRows).toHaveLength(1);
+    const staffSafeRow = staffSafeRows[0];
+    expect(staffSafeRow.id).toBe(fixtureProductId);
+    for (const forbiddenField of [
+      'base_price', 'cost_price', 'retail_price', 'wholesale_price',
+      'price_retail', 'price_wholesale', 'price_wholesale_of_wholesale',
+      'max_stock', 'margin', 'margin_amount',
+    ]) {
+      expect(Object.hasOwn(staffSafeRow, forbiddenField), 'Staff RPC must omit ' + forbiddenField + '.').toBe(false);
+    }
+    const staffPrivilegedProjection = await localAuthenticatedRpc(staff, 'fetch_staff_products', { p_product_id: fixtureProductId });
+    expect(staffPrivilegedProjection.status).toBe(403);
+    expect((staffPrivilegedProjection.payload as Record<string, unknown>)?.code).toBe('42501');
+    const staffBasePriceResolver = await localAuthenticatedRpc(staff, 'get_storefront_product_prices', {
+      p_product_ids: [fixtureProductId], p_quantity: 1,
+    });
+    expect(staffBasePriceResolver.status).toBe(403);
+    expect((staffBasePriceResolver.payload as Record<string, unknown>)?.code).toBe('42501');
+
     await staff.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
     const staffCatalog = staff.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });
     await expect(staffCatalog).toBeVisible({ timeout: 30_000 });
@@ -216,10 +283,22 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     expect(onHandColumnIndex, "The staff projection must expose a distinct on-hand stock column.").toBeGreaterThanOrEqual(0);
     const onHandCell = staffProductRow.locator("td").nth(onHandColumnIndex);
     await expect(onHandCell).toBeVisible();
+    // Read the exact on-hand baseline after preceding disposable stock workflows.
+    const expectedStockRows = await sql.unsafe(
+      "select b.quantity_on_hand::text as quantity_on_hand " +
+      "from public.inventory_balances b " +
+      "join public.warehouses w on w.id=b.warehouse_id " +
+      "where b.product_id=$1::uuid and b.warehouse_id=public.public_storefront_warehouse_id() " +
+      "and w.organization_id=$2::uuid and w.is_active=true",
+      [fixtureProductId, fixtureOrganizationId],
+    );
+    expect(expectedStockRows, "Compare against one tenant-owned active warehouse balance.").toHaveLength(1);
+    const expectedOnHand = normalizeQuantityDigits(String(expectedStockRows[0].quantity_on_hand));
+    expect(expectedOnHand).toMatch(/^\d+(?:\.\d+)?$/);
     expect(
       normalizeQuantityDigits(await onHandCell.innerText()),
-      "The exact on-hand quantity must be asserted from its own column after Arabic/Persian digit normalization.",
-    ).toBe("100");
+      "The on-hand cell must equal the actual isolated database balance after digit normalization.",
+    ).toBe(expectedOnHand);
 
     // Customer direct navigation is blocked before the administrative category screen renders.
     customerContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });

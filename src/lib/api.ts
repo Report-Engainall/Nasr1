@@ -1,4 +1,4 @@
-import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+import { getCurrentTenantScope, getStorefrontDataScope, supabase, type StorefrontDataScope } from './supabase';
 
 import { fetchStorefrontCatalogPage } from './storefront-catalog';
 import { readPublicStorefrontCategories } from './storefront-categories';
@@ -48,6 +48,15 @@ async function readWithRetry<T>(operation: () => PromiseLike<SupabaseReadOutcome
     if (error) throw error;
     return data;
   });
+}
+
+/** Server-projected product read: internal price columns are available only to privileged manager/admin scope. */
+function readStaffProducts(
+  scope: Pick<StorefrontDataScope, 'canViewInternalProductPrices'>,
+  productId: string | null,
+) {
+  const rpc = scope.canViewInternalProductPrices ? 'fetch_staff_products' : 'fetch_staff_catalog_products';
+  return supabase.rpc(rpc, { p_product_id: productId });
 }
 
 // Fetch unit prices using the server-derived customer/company tier. The client never
@@ -217,13 +226,13 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   if (!sessionData.session?.user.id) return fetchAnonymousStorefrontProducts();
 
   const scope = await getStorefrontDataScope();
-  const { organizationId: orgId, warehouseId, isStaff } = scope;
+  const { organizationId: orgId, warehouseId, isStaff, canViewInternalProductPrices } = scope;
   const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
   let products: Product[];
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
     // Staff reads cross this tenant-bound, role-checked RPC instead of table-wide SELECT.
-    const data = await readWithRetry(() => supabase.rpc('fetch_staff_products', { p_product_id: null }));
+    const data = await readWithRetry(() => readStaffProducts(scope, null));
     products = ((data ?? []) as Product[]).sort((a, b) => a.name.localeCompare(b.name));
   } else {
     const data = await readWithRetry(() => supabase
@@ -320,7 +329,11 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   (categories as unknown as Category[] | null)?.forEach((cat) => catMap.set(cat.id, cat));
 
   return (products as Product[]).map((p) => {
-    const displayPrice = isStaff ? Number(p.base_price) : customerPriceMap?.get(p.id);
+    const displayPrice = canViewInternalProductPrices
+      ? Number(p.base_price)
+      : isStaff
+        ? null
+        : customerPriceMap?.get(p.id);
     if (
       displayPrice === undefined ||
       (displayPrice !== null && (!Number.isFinite(displayPrice) || displayPrice < 0))
@@ -333,8 +346,9 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     const staffProduct = p as Product & {
       status?: string;
       created_at?: string;
+      min_stock?: number | string | null;
     };
-    const productFields: Record<string, unknown> = isStaff
+    const productFields: Record<string, unknown> = canViewInternalProductPrices
       ? {
           ...p,
           base_price: Number(p.base_price),
@@ -342,7 +356,28 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
           order_quantity_multiple: Number(p.order_quantity_multiple ?? 1),
           image_gallery_urls: galleryByProduct.get(p.id) ?? [],
         }
-      : {
+      : isStaff
+        ? {
+            id: p.id,
+            category_id: p.category_id,
+            name: p.name,
+            name_en: p.name_en,
+            item_code: p.item_code,
+            sku: p.sku,
+            barcode: p.barcode,
+            description: p.description,
+            unit: p.unit,
+            status: staffProduct.status,
+            image_url: p.image_url,
+            created_at: staffProduct.created_at,
+            min_order_quantity: Number(p.min_order_quantity ?? 1),
+            order_quantity_multiple: Number(p.order_quantity_multiple ?? 1),
+            min_stock: staffProduct.min_stock,
+            is_featured: p.is_featured,
+            sort_order: p.sort_order,
+            image_gallery_urls: galleryByProduct.get(p.id) ?? [],
+          }
+        : {
           id: p.id,
           category_id: p.category_id,
           name: p.name,
@@ -410,8 +445,7 @@ export async function fetchAdminProductOptions(input: {
     return { rows: [], page, pageSize, hasNextPage: false };
   }
 
-  let query = supabase
-    .rpc('fetch_staff_products', { p_product_id: null })
+  let query = readStaffProducts(scope, null)
     .select('id,name,item_code,status')
     .order('name', { ascending: true })
     .order('id', { ascending: true });
@@ -455,8 +489,7 @@ export async function fetchAdminProductOptionById(productId: string): Promise<Ad
   const scope = await getStorefrontDataScope();
   if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة المنتج المرتبط بقاعدة التسعير.');
 
-  const row = await readWithRetry(() => supabase
-    .rpc('fetch_staff_products', { p_product_id: normalizedId })
+  const row = await readWithRetry(() => readStaffProducts(scope, normalizedId)
     .select('id,name,item_code,status')
     .limit(1)
     .maybeSingle());
@@ -487,6 +520,8 @@ const ADMIN_PRODUCT_PAGE_SIZE = 40;
 const ADMIN_PRODUCT_MAX_PAGE = 2500;
 const PRODUCT_ADMIN_PAGE_COLUMNS =
   'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,base_price,min_stock,created_at,min_order_quantity,order_quantity_multiple,is_featured,sort_order';
+const STAFF_PRODUCT_ADMIN_PAGE_COLUMNS =
+  'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,min_stock,created_at,min_order_quantity,order_quantity_multiple,is_featured,sort_order';
 
 /**
  * Bounded, tenant-scoped staff catalog read for the product-management table.
@@ -521,9 +556,8 @@ export async function fetchAdminProductsPage(input: {
   const from = (page - 1) * pageSize;
   const to = from + pageSize; // inclusive: one extra row proves whether another page exists.
 
-  let productQuery = supabase
-    .rpc('fetch_staff_products', { p_product_id: null })
-    .select(PRODUCT_ADMIN_PAGE_COLUMNS)
+  let productQuery = readStaffProducts(scope, null)
+    .select(scope.canViewInternalProductPrices ? PRODUCT_ADMIN_PAGE_COLUMNS : STAFF_PRODUCT_ADMIN_PAGE_COLUMNS)
     .order('name', { ascending: true })
     .order('id', { ascending: true });
 
@@ -700,7 +734,9 @@ export async function fetchAdminProductsPage(input: {
 }
 
 async function fetchStaffProductById(id: string): Promise<Product> {
-  const { data, error } = await supabase.rpc('fetch_staff_products', { p_product_id: id });
+  const scope = await getStorefrontDataScope();
+  if (!scope.isStaff) throw new Error('صلاحية قراءة المنتجات مطلوبة.');
+  const { data, error } = await readStaffProducts(scope, id);
   if (error) throw error;
   const product = (data as Product[] | null)?.[0];
   if (!product) throw new Error('الصنف غير موجود في المؤسسة الحالية أو لا تملك صلاحية قراءته.');
@@ -1401,10 +1437,11 @@ export async function fetchBusinessAnalyticsOrders(): Promise<Array<Pick<Order, 
  */
 export async function fetchBusinessInventoryValue(): Promise<number | null> {
   const scope = await getStorefrontDataScope();
-  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة قيمة المخزون.');
+  if (!scope.isStaff || !scope.canViewInternalProductPrices) {
+    throw new Error('صلاحية عرض قيمة المخزون والتسعير الداخلي محصورة بمدير النظام أو المدير.');
+  }
 
-  const products = await readWithRetry(() => supabase
-    .rpc('fetch_staff_products', { p_product_id: null })
+  const products = await readWithRetry(() => readStaffProducts(scope, null)
     .select('id,base_price')
     .order('id', { ascending: true }));
 
@@ -2727,7 +2764,9 @@ export type InventoryTransferBatchResult = {
 };
 
 export async function fetchInventoryTransferProducts(): Promise<InventoryTransferProduct[]> {
-  const { data, error } = await supabase.rpc('fetch_staff_products', { p_product_id: null });
+  const scope = await getStorefrontDataScope();
+  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة أصناف التحويل.');
+  const { data, error } = await readStaffProducts(scope, null);
   if (error) throw error;
   return ((data ?? []) as Array<Partial<InventoryTransferProduct>>)
     .filter((row): row is InventoryTransferProduct =>
@@ -3368,9 +3407,10 @@ export async function fetchDashboardLowStockProducts(
 
   // At most four authenticated, tenant-checked point reads. No catalogue, pricing,
   // media, category or customer financial payload is loaded for the dashboard preview.
+  const scope = await getStorefrontDataScope();
+  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة أصناف لوحة المعلومات.');
   return Promise.all(candidates.map(async (candidate): Promise<DashboardLowStockProduct> => {
-    const data = await readWithRetry<unknown>(() => supabase
-      .rpc('fetch_staff_products', { p_product_id: candidate.productId })
+    const data = await readWithRetry<unknown>(() => readStaffProducts(scope, candidate.productId)
       .select('id,name,item_code,unit'));
 
     if (!Array.isArray(data) || data.length !== 1) {
