@@ -204,6 +204,21 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     expect(managerProductProjectionRow).toHaveProperty('base_price');
     expect(managerProductProjectionRow).toHaveProperty('cost_price');
 
+    const managerCatalogPageResponse = await localAuthenticatedRpc(manager, 'get_storefront_catalog_page', {
+      p_search: 'P2 Local E2E Product',
+      p_category_id: null,
+      p_page: 1,
+      p_page_size: 50,
+      p_available_only: false,
+    });
+    expect(managerCatalogPageResponse.status, 'Manager must retain the full-price catalog page.').toBe(200);
+    const managerCatalogPage = managerCatalogPageResponse.payload as Record<string, unknown>;
+    const managerCatalogPageRows = managerCatalogPage.items as Array<Record<string, unknown>>;
+    const managerCatalogPageProduct = managerCatalogPageRows.find((row) => row.id === fixtureProductId);
+    expect(managerCatalogPageProduct).toBeDefined();
+    expect(typeof managerCatalogPageProduct?.display_price).toBe('number');
+    expect(typeof managerCatalogPageProduct?.base_price).toBe('number');
+
     // Manager sees the real base-price and stock projection for the seeded local product.
     await manager.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
     const managerCatalog = manager.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });
@@ -268,6 +283,30 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     });
     expect(staffBasePriceResolver.status).toBe(403);
     expect((staffBasePriceResolver.payload as Record<string, unknown>)?.code).toBe('42501');
+
+    const staffCatalogPageResponse = await localAuthenticatedRpc(staff, 'get_storefront_catalog_page', {
+      p_search: 'P2 Local E2E Product',
+      p_category_id: null,
+      p_page: 1,
+      p_page_size: 50,
+      p_available_only: false,
+    });
+    expect(staffCatalogPageResponse.status, 'Staff must retain catalog access without privileged price resolution.').toBe(200);
+    const staffCatalogPage = staffCatalogPageResponse.payload as Record<string, unknown>;
+    const staffCatalogPageRows = staffCatalogPage.items as Array<Record<string, unknown>>;
+    const staffCatalogPageProduct = staffCatalogPageRows.find((row) => row.id === fixtureProductId);
+    expect(staffCatalogPageProduct).toBeDefined();
+    expect(staffCatalogPageProduct?.display_price).toBeNull();
+    for (const forbiddenField of [
+      'base_price', 'cost_price', 'retail_price', 'wholesale_price',
+      'price_retail', 'price_wholesale', 'price_wholesale_of_wholesale',
+      'margin', 'margin_amount',
+    ]) {
+      expect(
+        Object.prototype.hasOwnProperty.call(staffCatalogPageProduct, forbiddenField),
+        'Staff catalog-page JSON must omit ' + forbiddenField + '.',
+      ).toBe(false);
+    }
 
     await staff.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
     const staffCatalog = staff.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });

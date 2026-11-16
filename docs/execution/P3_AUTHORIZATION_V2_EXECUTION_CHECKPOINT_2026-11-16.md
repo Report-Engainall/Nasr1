@@ -60,3 +60,12 @@ No fix is claimed yet; this work remains open and must not be hidden with a fron
 - Corrected the category stock test to read `quantity_on_hand` from the isolated PostgreSQL 17 tenant/storefront warehouse and compare the exact “on hand” column after Arabic/Persian digit normalization. This replaces the invalid fixed `100` expectation; it does not modify stock rows.
 - P1 run `43782740178` and P2 run `43782740161` were created for this exact SHA. At checkpoint time both were in progress; no test/build/browser acceptance is claimed yet. Prior P2 run `43781738663` failed on older SHA `8d45dc7ae3b58445a2064540679d53d176e25929` at the former fixed-value stock assertion and is not evidence for this implementation.
 - Status: code/migration/test source `IMPLEMENTED`; exact-SHA Vitest/TypeScript/build and PostgreSQL 17/Chromium `IN_PROGRESS`; no `TESTED_EXACT_SHA` or `BROWSER_PROVEN` claim until the current runs finish successfully.
+
+
+## Staff storefront catalog-page follow-through — implemented, awaiting isolated acceptance — 2026-11-16
+
+- Added forward-only migration `supabase/migrations/20261116102000_staff_storefront_catalog_price_redaction.sql`.
+- Existing `get_storefront_catalog_page` previously called `get_storefront_product_prices` for all authenticated staff because it keyed `base_price` on broad `is_staff`. The price resolver now correctly rejects operational staff; without a branch, that would make the whole catalogue-page RPC fail even though safe product browse should remain available.
+- The new function separates `is_staff` from `can_view_internal_product_prices`. For operational staff only, it passes an empty UUID batch to the privileged price resolver (which returns before price resolution), unions product rows with `unit_price NULL`, emits `display_price: null`, and omits the `base_price` key. Manager/admin price path is preserved.
+- Chromium E2E now authenticates local manager and staff and inspects raw RPC JSON from `get_storefront_catalog_page`: manager must receive numeric display/base prices; staff must receive the product row with `display_price === null` and no base/cost/tier/margin fields. Existing safe staff product projection, old RPC denial, and price-resolver denial remain.
+- New migration and raw-response test are `IMPLEMENTED`; `TESTED_EXACT_SHA` and `BROWSER_PROVEN` remain pending the next P2 run on the commit SHA. No production data or hosted Supabase resources changed.

@@ -6087,3 +6087,15 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Scope boundary: this is a source-level legacy parity baseline only. It is deliberately marked `legacy-ui-reference-only`; it does not authorize requests or replace route guards, RPC checks, PostgreSQL permissions or RLS. No role IDs, user assignments, grants, SQL/RPC/RLS, migrations, Auth settings, customer data, finance, inventory, production resources or deployment were changed.
 - Confirmed next security gap: the existing `fetch_staff_products(uuid)` source returns `SETOF public.products` via `SELECT p.*` to staff, while the browser only hides the base-price column. The actual network field projection remains unproven and must be corrected server-side; no frontend-only masking or null placeholder is acceptable.
 - **NEXT_ACTION_ID:** `AUTHZ-STAFF-PRODUCT-PROJECTION-001` — implement a strict role-specific server projection and resolver denial, preserving current admin/manager behavior; then prove actual JSON key absence, same-tenant allow and unauthorized/foreign-scope deny on isolated PostgreSQL 17/Chromium. Keep all six legacy role grants unchanged until separate parity evidence authorizes a migration.
+
+
+---
+
+## P3 staff catalog-page price redaction — 2026-11-16
+
+- Active action remains `AUTHZ-STAFF-PRODUCT-PROJECTION-001`.
+- Added forward-only `20261116102000_staff_storefront_catalog_price_redaction.sql` to keep staff catalogue browsing functional while preventing the staff path from invoking the privileged price resolver.
+- Staff catalog-page JSON now carries `display_price: null` (explicit hidden-price contract) and omits `base_price`; manager/admin retain their price path. This is implemented but not accepted until exact-SHA local PostgreSQL 17 + Chromium tests pass.
+- Updated `e2e/admin-category-tree.spec.ts` to validate manager and staff raw `get_storefront_catalog_page` RPC JSON. Staff tests verify price resolver denial and raw key absence, not DOM-only hiding.
+- Prior P1 workflow run `43783321699` succeeded on SHA `9e52a4f55e639db5ce16ded2dbaedc34dc025627`; current P2 run `43783469993` is on parent SHA `a31b08a89159447453ca6290721064a496b85389` and will be superseded by the new exact-SHA run. Do not reuse its evidence for this migration.
+- No production DB/Auth/Storage/Edge or live integration was touched.
