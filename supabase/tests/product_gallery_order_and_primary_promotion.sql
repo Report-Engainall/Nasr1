@@ -125,6 +125,28 @@ BEGIN
   END;
   IF NOT v_error THEN RAISE EXCEPTION 'foreign tenant image URL was not rejected'; END IF;
 
+  -- A same-tenant URL with a .webp suffix is still invalid unless its object key is UUID-owned.
+  v_error:=false;
+  BEGIN
+    PERFORM public.reorder_staff_product_gallery_images(v_product,ARRAY[
+      'https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/legacy-image.webp',
+      v_old_primary
+    ]);
+  EXCEPTION WHEN SQLSTATE '22023' THEN v_error:=true;
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'non-UUID same-tenant gallery object key was accepted'; END IF;
+
+  v_error:=false;
+  BEGIN
+    PERFORM public.set_staff_product_primary_from_gallery(
+      v_product,
+      'https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/legacy-image.webp',
+      v_second
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN v_error:=true;
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'non-UUID same-tenant primary image key was accepted'; END IF;
+
   IF (SELECT count(*) FROM public.audit_logs WHERE entity_id=v_product
       AND action IN ('catalog.product_gallery_reordered','catalog.product_primary_promoted_from_gallery'))<>2 THEN
     RAISE EXCEPTION 'gallery order/promotion audit records missing';
