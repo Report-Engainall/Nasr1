@@ -52,6 +52,9 @@ const returnOrderId = randomUUID();
 const returnOrderNumber = "P2-RET-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
 const returnInvoiceNumber = "INV-" + returnOrderNumber;
 const returnItemName = "P2 Playwright Return Item";
+const amendmentOrderId = randomUUID();
+const amendmentOrderNumber = "P2-AMD-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
+let amendmentOrderItemId = "";
 const multiReceiptSuffix = runKey.replaceAll("-", "").slice(-12).toUpperCase();
 const multiReceiptInvoiceANumber = "P2-MR-A-" + multiReceiptSuffix;
 const multiReceiptInvoiceBNumber = "P2-MR-B-" + multiReceiptSuffix;
@@ -333,6 +336,25 @@ async function main() {
     if (returnOrderItemRows.length !== 1) {
       throw new Error("The isolated customer return order line could not be created.");
     }
+    // This returned, unreserved order isolates the customer amendment replay path.
+    const amendmentOrderRows = await tx.unsafe(
+      "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4,'returned',200,1,'Isolated P2 customer amendment replay',$5::uuid) returning id",
+      [amendmentOrderId, organizationId, returnCustomerId, amendmentOrderNumber, profileAId],
+    );
+    if (amendmentOrderRows.length !== 1) {
+      throw new Error("The isolated customer amendment replay order could not be created.");
+    }
+    const amendmentOrderItemRows = await tx.unsafe(
+      "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) " +
+      "values($1::uuid,$2::uuid,'P2-AMD-001','P2 Local E2E Amendment Item','piece',2,2,2,100,0,200) returning id",
+      [amendmentOrderId, productId],
+    );
+    if (amendmentOrderItemRows.length !== 1) {
+      throw new Error("The isolated customer amendment replay order line could not be created.");
+    }
+    amendmentOrderItemId = amendmentOrderItemRows[0].id;
+
     const returnInvoiceRows = await tx.unsafe(
       "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
       "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',pg_catalog.now(),'YER',200,0,200) returning id",
@@ -437,6 +459,8 @@ async function main() {
     "E2E_EXPIRED_COMPANY_INVITATION_ID=" + expiredInvitationId,
     "E2E_RETURN_ORDER_ID=" + returnOrderId,
     "E2E_RETURN_ORDER_NUMBER=" + returnOrderNumber,
+    "E2E_AMENDMENT_ORDER_ID=" + amendmentOrderId,
+    "E2E_AMENDMENT_ITEM_ID=" + amendmentOrderItemId,
     "E2E_MULTI_RECEIPT_INVOICE_A_NUMBER=" + multiReceiptInvoiceANumber,
     "E2E_MULTI_RECEIPT_INVOICE_B_NUMBER=" + multiReceiptInvoiceBNumber,
     "E2E_MULTI_RECEIPT_CUSTOMER_NAME=P2 Local E2E Customer A",

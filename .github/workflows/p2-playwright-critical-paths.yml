@@ -9,6 +9,7 @@ on:
       - "public/**"
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
+      - "scripts/test-customer-order-amendment-replay.mjs"
       - "scripts/test-authorization-capability-registry.mjs"
       - "scripts/test-product-image-storage.ts"
       - "scripts/prepare-p2-local-storage-migrations.mjs"
@@ -593,6 +594,8 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
+        run: node scripts/test-customer-order-amendment-replay.mjs
       - name: Test server authorization capability registry and six-role legacy parity
         run: node scripts/test-authorization-capability-registry.mjs
       - name: Test RBAC V2 enforcement on inventory adjustment commands and reads
