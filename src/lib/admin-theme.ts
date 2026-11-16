@@ -17,16 +17,16 @@ export const ADMIN_THEME_PRESETS: readonly AdminThemePreset[] = [
   {
     id: "aghbari",
     label: "هوية الأغبري",
-    description: "أخضر مؤسسي وذهبي هادئ",
-    primary: "#1f563d",
-    accent: "#c5a45c",
+    description: "تركواز مؤسسي وأزرق مخضر هادئ",
+    primary: "#087f8d",
+    accent: "#0eaa97",
   },
   {
     id: "turquoise",
-    label: "أخضر بحري",
-    description: "تركوازي متوازن ولمسة خضراء",
-    primary: "#087f8d",
-    accent: "#0eaa97",
+    label: "تركواز مشرق",
+    description: "تركواز أكثر إشراقاً مع أخضر مائي",
+    primary: "#0b929f",
+    accent: "#27b69f",
   },
   {
     id: "ocean",
@@ -39,8 +39,8 @@ export const ADMIN_THEME_PRESETS: readonly AdminThemePreset[] = [
 
 export const DEFAULT_ADMIN_THEME_PALETTE: AdminThemePalette = {
   id: "aghbari",
-  primary: "#1f563d",
-  accent: "#c5a45c",
+  primary: "#087f8d",
+  accent: "#0eaa97",
 };
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -80,12 +80,24 @@ export function resolveAdminThemePalette(
     : isAdminThemeColor(legacyAccent)
       ? legacyAccent
       : DEFAULT_ADMIN_THEME_PALETTE.accent;
-  const preset = matchingPreset(primary, accent);
+
+  // Upgrade only the exact former built-in Aghbari palette at read time.
+  // Tenant-specific/custom colors remain untouched and no settings row is written.
+  const isFormerBuiltInPalette =
+    primary.toLowerCase() === "#1f563d" &&
+    accent.toLowerCase() === "#c5a45c";
+  const resolvedPrimary = isFormerBuiltInPalette
+    ? DEFAULT_ADMIN_THEME_PALETTE.primary
+    : primary;
+  const resolvedAccent = isFormerBuiltInPalette
+    ? DEFAULT_ADMIN_THEME_PALETTE.accent
+    : accent;
+  const preset = matchingPreset(resolvedPrimary, resolvedAccent);
 
   return {
     id: preset?.id ?? "custom",
-    primary,
-    accent,
+    primary: resolvedPrimary,
+    accent: resolvedAccent,
   };
 }
 

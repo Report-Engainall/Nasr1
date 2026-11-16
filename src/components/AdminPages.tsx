@@ -1,3 +1,4 @@
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { lazy, Suspense, useState, useMemo, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
@@ -1659,7 +1660,7 @@ function SettingColor({ label, value, onSave, saving }: { label: string; value: 
 
 // ─── Shared components ───
 export function AdminPage({ eyebrow, title, description, icon: Icon, note, toolbar, children }: { eyebrow: string; title: string; description: string; icon: IconType; note: string; toolbar?: React.ReactNode; children: React.ReactNode }) {
-  return <><div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>{(note || toolbar) && <div className="toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
+  return <><WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />{(note || toolbar) && <div className="toolbar workspace-section-toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
 }
 export function Loading() { return <div className="loading"><RefreshCw size={20} className="spin" /> جار تحميل البيانات...</div>; }
 export function ErrorBox({ message }: { message: string }) { return <div className="error-box" role="alert"><AlertTriangle size={19} /> تعذر تحميل البيانات. {message}</div>; }
