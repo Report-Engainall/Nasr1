@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import { fetchCategories } from "@/lib/api";
 import { MAX_CATALOG_SEARCH_LENGTH, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
-import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { useFetch } from "@/lib/useFetch";
 
 type SearchCategoryOption = {
@@ -140,7 +140,7 @@ function AdvancedSearchForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} style={{ background: "#fff", border: "1px solid #dce9e8", borderRadius: 15, padding: 18, display: "grid", gap: 15 }}>
+    <form onSubmit={onSubmit} className="advanced-storefront-search-form" style={{ display: "grid", gap: 15 }}>
       <SearchTextField value={query} onChange={onQueryChange} />
       <SearchCategorySelect
         categories={categories}
@@ -190,20 +190,22 @@ export function AdvancedStorefrontSearchPage() {
   return (
     <main className="storefront" dir="rtl" style={{ minHeight: "100vh", padding: 20, maxWidth: 920, margin: "0 auto" }}>
       <SearchPageHeader />
-      <AdvancedSearchForm
-        query={query}
-        categoryId={categoryId}
-        availableOnly={availableOnly}
-        formError={formError}
-        categoryLoading={categoryQuery.loading}
-        categoryError={categoryQuery.error}
-        categories={activeCategories}
-        onQueryChange={setQuery}
-        onCategoryChange={setCategoryId}
-        onAvailabilityChange={setAvailableOnly}
-        onCategoryRetry={() => void categoryQuery.refetch()}
-        onSubmit={submit}
-      />
+      <WorkspaceSectionGroup icon={Search} title="معايير البحث المتقدم" description="اجمع اسم الصنف أو رمزه مع التصنيف وحالة التوفر قبل عرض نتائج الكتالوج الفعلية." className="advanced-storefront-search-group" contentClassName="advanced-storefront-search-group__content">
+        <AdvancedSearchForm
+          query={query}
+          categoryId={categoryId}
+          availableOnly={availableOnly}
+          formError={formError}
+          categoryLoading={categoryQuery.loading}
+          categoryError={categoryQuery.error}
+          categories={activeCategories}
+          onQueryChange={setQuery}
+          onCategoryChange={setCategoryId}
+          onAvailabilityChange={setAvailableOnly}
+          onCategoryRetry={() => void categoryQuery.refetch()}
+          onSubmit={submit}
+        />
+      </WorkspaceSectionGroup>
     </main>
   );
 }
