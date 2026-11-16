@@ -6,6 +6,7 @@ import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { formatDate, formatNumber } from "@/lib/format";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import {
   readCustomerReturnHistoryPage,
   type CustomerReturnHistoryCursor,
@@ -61,8 +62,7 @@ export function CustomerReturnsPage() {
   if (user.isStaff || !user.roles.includes("customer")) return (
     <main className="mx-auto w-full max-w-4xl px-4 py-10" dir="rtl">
       <section className="rounded-2xl border bg-card p-6">
-        <h1 className="text-xl font-bold">مرتجعات العملاء</h1>
-        <p className="mt-2 text-sm text-muted-foreground">هذه الصفحة مخصصة لحساب العميل. استخدم طابور مراجعة المرتجعات في مساحة الإدارة.</p>
+        <WorkspaceSectionHeader eyebrow="خدمة العملاء" title="مرتجعات العملاء" description="هذه الصفحة مخصصة لحساب العميل. استخدم طابور مراجعة المرتجعات في مساحة الإدارة." icon={RotateCcw} />
         <Link to="/admin/orders" className="mt-4 inline-flex items-center gap-2 text-primary">فتح إدارة المرتجعات <ArrowLeft size={15}/></Link>
       </section>
     </main>
@@ -171,20 +171,15 @@ function CustomerReturnsWorkspace({ user }: {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8" dir="rtl">
-      <header className="mb-6 rounded-2xl border bg-card p-5 sm:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <Link to="/orders" className="inline-flex items-center gap-2 text-sm text-primary hover:underline"><ArrowLeft size={16}/> طلباتي</Link>
-            <h1 className="mt-3 text-2xl font-bold">مرتجعاتي</h1>
-            <p className="mt-2 text-sm leading-7 text-muted-foreground">
-              سجل طلبات الإرجاع الخاص بحسابك، مع حالة المراجعة والقرار وأسباب السحب. البحث والصفحات يعملان مباشرة على سجل المرتجعات الخادمي.
-            </p>
-          </div>
-          <button type="button" className="btn secondary" disabled={loading} onClick={() => void load()}>
-            <RefreshCw size={16}/>{loading ? "جار التحديث..." : "تحديث السجل"}
-          </button>
-        </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <WorkspaceSectionHeader
+        eyebrow="خدمة العملاء"
+        title="مرتجعاتي"
+        description="سجل طلبات الإرجاع الخاص بحسابك، مع حالة المراجعة والقرار وأسباب السحب. البحث والصفحات يعملان مباشرة على سجل المرتجعات الخادمي."
+        icon={RotateCcw}
+        actions={<div className="flex flex-wrap items-center gap-2"><Link to="/orders" className="sf-back-link"><ArrowLeft size={16}/> طلباتي</Link><button type="button" className="btn secondary" disabled={loading} onClick={() => void load()}><RefreshCw size={16}/>{loading ? "جار التحديث..." : "تحديث السجل"}</button></div>}
+      />
+      <WorkspaceSectionGroup icon={RotateCcw} title="ملخص سجل المرتجعات" description="ملخص نتائج السجل الحالي وحدود الصفحة المعروضة." className="customer-returns-summary" contentClassName="customer-returns-summary__content">
+        <div className="grid gap-3 sm:grid-cols-3">
           <article className="rounded-xl border p-3">
             <span className="text-xs text-muted-foreground">طلبات الإرجاع في الصفحة</span>
             <strong className="mt-1 block text-xl tabular-nums">{records.length.toLocaleString("ar-YE")}</strong>
@@ -198,7 +193,7 @@ function CustomerReturnsWorkspace({ user }: {
             <strong className="mt-1 block text-xl tabular-nums">{PAGE_SIZE.toLocaleString("ar-YE")}</strong>
           </article>
         </div>
-      </header>
+      </WorkspaceSectionGroup>
 
       {error ? (
         <section className="mb-5 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800" role="alert">
@@ -207,8 +202,9 @@ function CustomerReturnsWorkspace({ user }: {
         </section>
       ) : null}
 
+      <WorkspaceSectionGroup icon={Search} title="البحث والتصفية" description="ابحث في سجل المرتجعات الخادمي وصفِّ النتائج حسب حالة الطلب." className="customer-returns-filter-group" contentClassName="customer-returns-filter-group__content">
       <form
-        className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4"
         aria-label="البحث في سجل المرتجعات"
         onSubmit={(event) => {
           event.preventDefault();
@@ -269,6 +265,7 @@ function CustomerReturnsWorkspace({ user }: {
           {totalCount.toLocaleString("ar-YE")} نتيجة في سجل حسابك{appliedQuery ? " مطابقة للبحث" : ""}{appliedStatus ? " بالحالة: " + (statusLabels[appliedStatus] ?? appliedStatus) : ""} · التصفية والبحث يشملان السجل كله لا الصفحة الظاهرة فقط.
         </span>
       </form>
+      </WorkspaceSectionGroup>
 
       {loading ? (
         <p role="status" className="rounded-xl border bg-card p-6 text-sm">جار تحميل طلباتك وسجل المرتجعات...</p>
