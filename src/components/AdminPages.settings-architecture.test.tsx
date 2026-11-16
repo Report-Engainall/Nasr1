@@ -104,9 +104,9 @@ describe("observability architecture route is not duplicated in general settings
     });
 
     renderForRoles(["admin"]);
-    fireEvent.click(screen.getByRole("button", { name: "المستخدمون والصلاحيات", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "المستخدمون والصلاحيات" }));
 
-    expect(await screen.findByRole("heading", { name: "المستخدمون والأدوار", exact: true })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "المستخدمون والأدوار" })).toBeInTheDocument();
     expect(await screen.findByText("موظف المخزن")).toBeInTheDocument();
 
     const managerCard = screen.getByText("موظف المخزن").closest("article");
