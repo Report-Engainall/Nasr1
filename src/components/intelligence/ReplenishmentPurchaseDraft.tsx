@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, LoaderCircle, ShoppingCart } from "lucide-react";
 import {
   createPurchaseOrder,
@@ -44,6 +44,8 @@ export function ReplenishmentPurchaseDraft({
   const [notice, setNotice] = useState("");
   const [blocked, setBlocked] = useState<string[]>([]);
   const [createdOrder, setCreatedOrder] = useState<PurchaseOrder | null>(null);
+  // Preserve one server idempotency key for each exact draft payload during this dialog session.
+  const idempotencyKeys = useRef(new Map<string, string>());
 
   const load = useCallback(async () => {
     if (!canManage) { setLoading(false); setError("تتطلب هذه العملية صلاحية المدير أو مدير المؤسسة."); return; }
@@ -133,22 +135,40 @@ export function ReplenishmentPurchaseDraft({
       purchaseLines.push({ product_id: line.productId, quantity, unit_cost: null });
     }
     const summary = lines.map((line) => line.productName + ": " + formatQty(Number(line.quantity)) + " " + line.unit).join("\n");
+    const purchaseNotes = [
+      "مسودة من توصيات إعادة التوريد المثبتة.",
+      "مصدر الكمية: المحرك الحتمي inventory.replenishment-target@1.0.0.",
+      notes.trim(),
+    ].filter(Boolean).join("\n").slice(0, 2000);
     if (!window.confirm(
       "سيُنشأ أمر شراء مسودة بهذه البنود:\n" + summary +
       "\n\nالمورد والمخزن المحددان سيحفظان في الأمر. التكلفة ستبقى غير مسجلة حتى ورود عرض/فاتورة موثقة. لن يُعتمد الأمر ولن يتغير المخزون. متابعة؟"
     )) return;
+
+    // A timeout can happen after the server committed. Reuse the key for the same
+    // normalized supplier/warehouse/lines/notes payload; issue a new key only for edits.
+    const fingerprint = JSON.stringify({
+      supplierId,
+      warehouseId,
+      lines: purchaseLines
+        .map((line) => ({ product_id: line.product_id, quantity: line.quantity, unit_cost: line.unit_cost }))
+        .sort((left, right) => left.product_id.localeCompare(right.product_id)),
+      notes: purchaseNotes,
+    });
+    let idempotencyKey = idempotencyKeys.current.get(fingerprint);
+    if (!idempotencyKey) {
+      idempotencyKey = "replenishment-" + globalThis.crypto.randomUUID().replace(/-/g, "");
+      idempotencyKeys.current.set(fingerprint, idempotencyKey);
+    }
+
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await createPurchaseOrder({
         supplierId,
         warehouseId,
         lines: purchaseLines,
-        notes: [
-          "مسودة من توصيات إعادة التوريد المثبتة.",
-          "مصدر الكمية: المحرك الحتمي inventory.replenishment-target@1.0.0.",
-          notes.trim(),
-        ].filter(Boolean).join("\n").slice(0, 2000),
-        idempotencyKey: "replenishment-" + globalThis.crypto.randomUUID().replace(/-/g, ""),
+        notes: purchaseNotes,
+        idempotencyKey,
       });
       setCreatedOrder(result.purchase_order);
       setNotice(result.idempotent_replay
