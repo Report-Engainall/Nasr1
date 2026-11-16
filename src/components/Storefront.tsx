@@ -33,7 +33,7 @@ import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSave
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
 import { readStorefrontCompareIds, storefrontCompareStorageKey, writeStorefrontCompareIds } from '@/lib/storefront-compare';
-import { buildStorefrontProductStructuredData, serializeStorefrontProductStructuredData } from '@/lib/storefront-product-structured-data';
+import { applyStorefrontProductHeadMetadata, buildStorefrontProductHeadMetadata, buildStorefrontProductStructuredData, serializeStorefrontProductStructuredData } from '@/lib/storefront-product-structured-data';
 
 const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 
@@ -1316,6 +1316,16 @@ export function ProductDetail({
     () => productStructuredData ? serializeStorefrontProductStructuredData(productStructuredData) : null,
     [productStructuredData],
   );
+
+  const productHeadMetadata = useMemo(
+    () => buildStorefrontProductHeadMetadata(productStructuredData),
+    [productStructuredData],
+  );
+
+  useEffect(() => {
+    if (!productHeadMetadata || typeof document === 'undefined') return;
+    return applyStorefrontProductHeadMetadata(productHeadMetadata, document);
+  }, [productHeadMetadata]);
 
   useEffect(() => {
     let active = true;
