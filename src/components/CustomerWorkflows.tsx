@@ -1498,7 +1498,7 @@ function CustomerPayments() {
             <Search size={16} />
             <input value={search} onChange={event => setSearch(event.target.value)}
               placeholder="رقم الفاتورة أو التاريخ أو المبلغ أو العملة" maxLength={120}
-              aria-label="البحث في سجل الدفعات" />
+              aria-label="البحث برقم الفاتورة أو التاريخ أو المبلغ أو العملة" />
           </label>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap", marginTop: 14 }}>
