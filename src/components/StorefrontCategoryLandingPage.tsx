@@ -100,6 +100,7 @@ function SubcategoryList({
     <WorkspaceSectionGroup
       icon={Layers3}
       title={isBrowsingSiblings ? "تصفح فروع " + parent.name : "التصنيفات الفرعية"}
+      regionLabel={isBrowsingSiblings ? "التصنيفات الشقيقة" : "التصنيفات الفرعية"}
       description={isBrowsingSiblings ? "انتقل بين التصنيفات الشقيقة ضمن القسم الأب نفسه." : "التصنيفات التابعة لهذا القسم كما وردت في كتالوج المؤسسة."}
       className="storefront-subcategory-group"
       contentClassName="storefront-subcategory-group__content"
