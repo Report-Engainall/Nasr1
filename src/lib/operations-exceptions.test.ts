@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ImportJob, OperationalTask } from "./types";
-import { buildOperationsExceptions } from "./operations-exceptions";
+import { buildOperationsExceptions, buildSupplierDueDateExceptions } from "./operations-exceptions";
+import type { CashflowScheduleResult } from "./intelligence/cashflow-schedule-client";
 
 function task(overrides: Partial<OperationalTask> = {}): OperationalTask {
   return {
@@ -157,5 +158,66 @@ describe("buildOperationsExceptions", () => {
     });
     expect(items[0].evidence).toContain("مختلف: ٢");
     expect(items[0].evidence).toContain("جديد: ١");
+  });
+});
+
+
+describe("buildSupplierDueDateExceptions", () => {
+  const invoiceId = "8d319a2e-1f6e-4ac2-9df4-7ec4ec4b6e11";
+  const dueDateEvidenceId = "b7a2b5d1-4897-4d6b-a978-94e24813c120";
+  const snapshot = (): CashflowScheduleResult => ({
+    ok: true,
+    data: {
+      status: "OK", requestId: "request-1", asOf: "2026-11-16T12:00:00.000Z",
+      period: { from: "2026-11-16", to: "2026-12-16" }, currency: "YER",
+      effectiveRole: "accountant", completeness: "COMPLETE", quality: "ACCEPTABLE",
+      schedule: {
+        status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE",
+        entries: [{
+          id: "supplier-invoice-outflow:" + invoiceId, direction: "OUTFLOW", dueDate: "2026-11-20",
+          amount: {
+            id: "metric:supplier-payable:" + invoiceId, key: "supplier.payable.outstanding",
+            value: 999999.25, currency: "YER", status: "VERIFIED", completeness: "COMPLETE",
+            quality: "ACCEPTABLE", asOf: "2026-11-16T12:00:00.000Z",
+            lineage: { evidenceIds: [dueDateEvidenceId], formulaId: "nasr1.supplier-posted-payable-after-settlements", formulaVersion: "1" },
+          },
+        }],
+        warnings: [],
+      },
+      evidenceCount: 1,
+      evidenceRecords: [{
+        id: dueDateEvidenceId,
+        source: { kind: "TABLE", name: "purchase_supplier_invoice_due_dates", recordId: dueDateEvidenceId },
+        sourceTimestamp: "2026-11-16T11:30:00.000Z", asOf: "2026-11-16T12:00:00.000Z",
+        period: { from: "2026-11-16", to: "2026-12-16" }, currency: "YER",
+        status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [],
+      }],
+      measurementMetrics: [], warnings: [],
+    },
+  } as unknown as CashflowScheduleResult);
+
+  it("projects only evidenced supplier invoice dates and redacts payable values", () => {
+    const items = buildSupplierDueDateExceptions(snapshot(), Date.parse("2026-11-16T12:00:00.000Z"));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: "supplier_due_date", sourceId: invoiceId, dueAt: "2026-11-20T00:00:00.000Z",
+      statusLabel: "موثق ومكتمل", priority: "high", isOverdue: false,
+    });
+    const rendered = JSON.stringify(items);
+    expect(rendered).not.toContain("999999.25");
+    expect(rendered).not.toContain("YER");
+    expect(rendered).not.toContain(dueDateEvidenceId);
+    expect(rendered).not.toContain("metric:supplier-payable");
+  });
+
+  it("rejects entries with a different payable formula", () => {
+    const input = snapshot() as unknown as { ok: true; data: { schedule: { entries: Array<{ amount: { lineage: { formulaId: string } } }> } } };
+    input.data.schedule.entries[0].amount.lineage.formulaId = "untrusted.formula";
+    expect(buildSupplierDueDateExceptions(input as unknown as CashflowScheduleResult)).toHaveLength(0);
+  });
+
+  it("fails closed when the protected finance schedule is denied or unavailable", () => {
+    expect(buildSupplierDueDateExceptions({ ok: false, status: "DENIED", message: "denied" })).toEqual([]);
+    expect(buildSupplierDueDateExceptions(null)).toEqual([]);
   });
 });

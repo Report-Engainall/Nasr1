@@ -61,6 +61,7 @@ const TaskCenter = lazy(async () => ({ default: (await import('@/components/Task
 const InventoryStockCountPage = lazy(async () => ({ default: (await import('@/components/InventoryStockCountPage')).InventoryStockCountPage }));
 const InventoryTransferHistoryPage = lazy(async () => ({ default: (await import('@/components/InventoryTransferHistoryPage')).InventoryTransferHistoryPage }));
 const PurchaseOrdersPage = lazy(async () => ({ default: (await import('@/components/PurchaseOrdersPage')).PurchaseOrdersPage }));
+const SupplierInvoiceWorkspace = lazy(async () => ({ default: (await import('@/components/SupplierInvoiceWorkspace')).SupplierInvoiceWorkspace }));
 const UnifiedImportEngine = lazy(async () => ({ default: (await import('@/components/UnifiedImportEngine')).UnifiedImportEngine }));
 const OnyxSnapshotCenter = lazy(async () => ({ default: (await import('@/components/OnyxSnapshotCenter')).OnyxSnapshotCenter }));
 const OnyxInventoryReconciliationWorkspace = lazy(async () => ({ default: (await import('@/components/OnyxInventoryReconciliationWorkspace')).OnyxInventoryReconciliationWorkspace }));
@@ -186,6 +187,10 @@ function AdminWorkspaceContent({
     });
     onNavigate(destination);
   };
+  const openSupplierInvoice = (invoiceId: string) => {
+    keepSourceContext("supplier_invoice", invoiceId, "فاتورة مورد", "مرجع فاتورة من سجل الاستحقاقات الموثقة", "finance");
+    onNotice("تم فتح مساحة مراجعة فاتورة المورد المحددة.");
+  };
 
   switch (view) {
     case "dashboard":
@@ -243,10 +248,7 @@ function AdminWorkspaceContent({
       return <Reports />;
     case "intelligence":
       return <IntelligenceWorkspace
-        onOpenSupplierInvoice={(invoiceId) => {
-          keepSourceContext("supplier_invoice", invoiceId, "فاتورة مورد", "مرجع فاتورة مصدره مركز ذكاء الأعمال", "finance");
-          onNotice("تم فتح مساحة المالية مع الاحتفاظ بمرجع فاتورة المورد: " + invoiceId);
-        }}
+        onOpenSupplierInvoice={openSupplierInvoice}
         onOpenPurchaseOrder={(purchaseOrderId) => {
           keepSourceContext("purchase_order", purchaseOrderId, "أمر شراء", "مرجع أمر شراء من مركز ذكاء الأعمال", "purchase-orders");
           onNotice("تم فتح مساحة أوامر الشراء مع الاحتفاظ بالمرجع: " + purchaseOrderId);
@@ -333,7 +335,7 @@ function AdminWorkspaceContent({
     case "data":
       return <DataCenter onNotice={onNotice} onNavigate={onNavigate} initialImportJobId={recordContext?.kind === "import" ? recordContext.id : undefined} />;
     case "operations":
-      return <OperationsCenter onNotice={onNotice} onOpenTask={(taskId) => { setNotificationTaskId(taskId); onNavigate("tasks"); }} />;
+      return <OperationsCenter onNotice={onNotice} onOpenTask={(taskId) => { setNotificationTaskId(taskId); onNavigate("tasks"); }} onOpenSupplierInvoice={openSupplierInvoice} />;
     case "system-health":
       return <SystemHealthScreen />;
     case "error-log":
@@ -357,6 +359,9 @@ function AdminWorkspaceContent({
       return (
         <>
           <StaffFinancePage initialInvoiceId={recordContext?.kind === "invoice" ? recordContext.id : undefined} />
+          {user.roles.some((role) => role === "admin" || role === "manager" || role === "accountant")
+            ? <SupplierInvoiceWorkspace mode="review" initialInvoiceId={recordContext?.kind === "supplier_invoice" ? recordContext.id : undefined} />
+            : null}
           {user.roles.some((role) => role === "admin" || role === "manager" || role === "accountant")
             ? <GeneralLedgerWorkspace />
             : null}

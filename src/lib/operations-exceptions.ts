@@ -1,6 +1,7 @@
 import type { ImportJob, OperationalTask } from "./types";
+import type { CashflowScheduleResult } from "./intelligence/cashflow-schedule-client";
 
-export type OperationsExceptionKind = "task" | "import" | "reconciliation";
+export type OperationsExceptionKind = "task" | "import" | "reconciliation" | "supplier_due_date";
 export type OperationsExceptionPriority = "low" | "medium" | "high" | "critical";
 
 export interface OperationsException {
@@ -268,4 +269,60 @@ export function buildOperationsExceptions(
     || timestamp(b.createdAt) - timestamp(a.createdAt)
     || a.id.localeCompare(b.id),
   );
+}
+
+
+const SUPPLIER_OUTFLOW_PREFIX = "supplier-invoice-outflow:";
+const SUPPLIER_INVOICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Projects only attested supplier due dates. Payable amounts and currencies are never copied. */
+export function buildSupplierDueDateExceptions(result: CashflowScheduleResult | null, nowMs = Date.now()): OperationsException[] {
+  if (!result?.ok || !Number.isFinite(nowMs)) return [];
+  const { data } = result;
+  const today = new Date(nowMs).toISOString().slice(0, 10);
+  const evidenceById = new Map(data.evidenceRecords.map((item) => [item.id, item]));
+
+  return data.schedule.entries.flatMap((entry): OperationsException[] => {
+    const amount = entry.amount;
+    const invoiceId = entry.id.startsWith(SUPPLIER_OUTFLOW_PREFIX) ? entry.id.slice(SUPPLIER_OUTFLOW_PREFIX.length) : "";
+    if (
+      entry.direction !== "OUTFLOW" ||
+      amount.key !== "supplier.payable.outstanding" ||
+      amount.lineage.formulaId !== "nasr1.supplier-posted-payable-after-settlements" ||
+      amount.lineage.formulaVersion !== "1" ||
+      !SUPPLIER_INVOICE_UUID.test(invoiceId) ||
+      !/^\\d{4}-\\d{2}-\\d{2}$/.test(entry.dueDate)
+    ) return [];
+    const dueDate = new Date(entry.dueDate + "T00:00:00.000Z");
+    if (!Number.isFinite(dueDate.getTime()) || dueDate.toISOString().slice(0, 10) !== entry.dueDate) return [];
+    const sourceEvidence = amount.lineage.evidenceIds
+      .map((id) => evidenceById.get(id))
+      .find((item) => item?.source.name === "purchase_supplier_invoice_due_dates");
+    if (!sourceEvidence) return [];
+
+    const dueOffsetDays = Math.floor((dueDate.getTime() - Date.parse(today + "T00:00:00.000Z")) / 86_400_000);
+    const verified = amount.status === "VERIFIED" && amount.completeness === "COMPLETE" && amount.quality === "ACCEPTABLE";
+    const priority: OperationsExceptionPriority = dueOffsetDays <= 7 ? "high" : dueOffsetDays <= 30 ? "medium" : "low";
+
+    return [{
+      id: "supplier_due_date:" + invoiceId,
+      kind: "supplier_due_date",
+      category: "التزامات الموردين",
+      title: "استحقاق فاتورة مورد",
+      reason: verified
+        ? "تاريخ الاستحقاق مرتبط بمستند مورد محفوظ وفاتورة مطابقة بالكامل. راجع المستند وسجل الإجراء من مساحة فواتير الموردين."
+        : "يوجد تاريخ استحقاق من مصدر المورد، لكن اكتمال الدليل أو جودته يحتاج مراجعة قبل اتخاذ إجراء.",
+      evidence: "تاريخ الاستحقاق: " + entry.dueDate + " • مصدر التاريخ: مستند فاتورة مورد محفوظ • وقت اللقطة: " + data.asOf,
+      sourceId: invoiceId,
+      sourceReference: "purchase_supplier_invoice_due_dates",
+      sourceLabel: "فاتورة مورد ذات استحقاق موثق",
+      ownerLabel: "غير محدد في مصدر الاستحقاق",
+      dueAt: entry.dueDate + "T00:00:00.000Z",
+      createdAt: sourceEvidence.sourceTimestamp,
+      statusLabel: verified ? "موثق ومكتمل" : "يحتاج مراجعة الدليل",
+      priority: verified ? priority : "high",
+      isOverdue: entry.dueDate < today,
+      actionLabel: "فتح فاتورة المورد",
+    }];
+  }).sort((left, right) => timestamp(left.dueAt) - timestamp(right.dueAt) || left.id.localeCompare(right.id));
 }
