@@ -171,7 +171,6 @@ function CashExpenseJournalDraftActions({
   busy: boolean;
   onPost: (item: CashExpenseItem) => void;
   onVoid: (item: CashExpenseItem) => void;
-  onPostReversal: (item: CashExpenseItem) => void;
 }) {
   if (item.source_status !== "posted" || item.journal_status !== "draft" || !item.journal_entry_id) {
     return null;
@@ -373,6 +372,7 @@ function CashExpenseJournalInbox({
   onCreate: (item: CashExpenseItem) => void;
   onPost: (item: CashExpenseItem) => void;
   onVoid: (item: CashExpenseItem) => void;
+  onPostReversal: (item: CashExpenseItem) => void;
 }) {
   if (loading) return <p role="status" style={muted}>جارٍ تحميل المصروفات...</p>;
   if (items.length === 0) return <p style={muted}>لا توجد مصروفات في هذه الحالة. لم يُنشأ قيد إلا من مستند مصدر حقيقي.</p>;
