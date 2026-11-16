@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProductPriceGridRow } from './api';
-import { filterPriceGridRows, type PriceGridFilters } from './price-grid-filters';
+import { filterPriceGridRows, PRICE_GRID_UNCATEGORIZED_FILTER, type PriceGridFilters } from './price-grid-filters';
 
 function row(id: string, overrides: Partial<ProductPriceGridRow> = {}): ProductPriceGridRow {
   return {
@@ -9,6 +9,8 @@ function row(id: string, overrides: Partial<ProductPriceGridRow> = {}): ProductP
     item_code: 'SKU-' + id,
     unit: 'قطعة',
     is_active: true,
+    category_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    category_name: 'مواد غذائية',
     base_price: 100,
     price_wholesale_of_wholesale: 90,
     price_wholesale: 80,
@@ -26,6 +28,7 @@ const defaults: PriceGridFilters = {
   search: '',
   productStatus: 'all',
   inventoryStatus: 'all',
+  categoryId: 'all',
   sortBy: 'name',
 };
 
@@ -41,6 +44,19 @@ describe('price grid search, stock filters and stable sorting', () => {
     expect(filterPriceGridRows(products, { ...defaults, search: '  RICE-001 ' }).map((item) => item.id)).toEqual(['أرز بسمتي']);
     expect(filterPriceGridRows(products, { ...defaults, search: 'سكر' }).map((item) => item.id)).toEqual(['سكر']);
     expect(products).toHaveLength(4);
+  });
+
+  it('searches and filters using only the server-projected category identity', () => {
+    const categoryB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const categorized = [
+      products[0],
+      row('منظفات', { category_id: categoryB, category_name: 'منظفات منزلية' }),
+      row('غير مصنف', { category_id: null, category_name: null }),
+    ];
+    expect(filterPriceGridRows(categorized, { ...defaults, search: 'منظفات منزلية' }).map((item) => item.id)).toEqual(['منظفات']);
+    expect(filterPriceGridRows(categorized, { ...defaults, categoryId: categoryB }).map((item) => item.id)).toEqual(['منظفات']);
+    expect(filterPriceGridRows(categorized, { ...defaults, categoryId: PRICE_GRID_UNCATEGORIZED_FILTER }).map((item) => item.id)).toEqual(['غير مصنف']);
+    expect(filterPriceGridRows(categorized, defaults)).toHaveLength(3);
   });
 
   it('filters active and inactive products independently', () => {

@@ -15,6 +15,7 @@ export const PRICE_GRID_EXPORT_HEADERS = [
   'إجمالي المتاح',
   'إجمالي حد إعادة الطلب',
   'عدد المخازن ذات الرصيد',
+  'التصنيف',
 ] as const;
 
 function spreadsheetSafeText(value: string): string {
@@ -70,6 +71,7 @@ export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string 
       row.quantity_available_total === null ? null : formattedNumber(row.quantity_available_total, 3, 'quantity_available_total', true),
       row.reorder_point_total === null ? null : formattedNumber(row.reorder_point_total, 0, 'reorder_point_total'),
       formattedNumber(row.inventory_warehouse_count, 0, 'inventory_warehouse_count'),
+      row.category_name,
     ];
     output.push(values.map(csvCell).join(','));
   }

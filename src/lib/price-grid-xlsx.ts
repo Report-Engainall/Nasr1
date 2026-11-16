@@ -90,6 +90,7 @@ export function buildPriceGridXlsx(rows: readonly ProductPriceGridRow[]): Blob {
     row.id,row.item_code,row.name,row.unit,row.is_active?'نشط':'موقوف',
     Number(row.base_price),Number(row.price_wholesale_of_wholesale),Number(row.price_wholesale),Number(row.price_retail),
     row.quantity_on_hand_total,row.quantity_reserved_total,row.quantity_available_total,row.reorder_point_total,row.inventory_warehouse_count,
+    row.category_name,
   ]);
   const sheetRows=table.map((values,rowIndex)=>{
     const cells=values.map((value,colIndex)=>{

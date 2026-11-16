@@ -6,13 +6,13 @@ import { parseXlsxFirstWorksheet } from '@/lib/unified-import';
 import { fetchAdminProductPriceGrid, saveProductPriceGrid, type ProductPriceGridChange, type ProductPriceGridRow } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { parsePriceGridInput } from '@/lib/price-grid-money';
-import { filterPriceGridRows, type PriceGridFilters } from '@/lib/price-grid-filters';
+import { filterPriceGridRows, PRICE_GRID_UNCATEGORIZED_FILTER, type PriceGridFilters } from '@/lib/price-grid-filters';
 
 type PriceKey = 'base_price' | 'price_wholesale_of_wholesale' | 'price_wholesale' | 'price_retail';
 type DraftKey = 'basePrice' | 'wholesaleOfWholesale' | 'wholesale' | 'retail';
 type PriceDraft = Partial<Record<DraftKey, string>>;
 type PriceValues = Record<PriceKey, number>;
-type ReviewRow = { id: string; name: string; itemCode: string; before: PriceValues; after: PriceValues; command: ProductPriceGridChange };
+type ReviewRow = { id: string; name: string; itemCode: string; categoryName: string; before: PriceValues; after: PriceValues; command: ProductPriceGridChange };
 const PRICE_FIELDS: { source: PriceKey; draft: DraftKey; label: string }[] = [
   { source: 'base_price', draft: 'basePrice', label: 'السعر الأساسي' },
   { source: 'price_wholesale_of_wholesale', draft: 'wholesaleOfWholesale', label: 'جملة الجملة' },
@@ -43,7 +43,7 @@ function PriceGridPreview({ preview }: { preview: ReviewRow[] }) {
 function PriceGridReviewRow({ item }: { item: ReviewRow }) {
   return (
     <tr>
-      <th scope="row">{item.name}<small>{item.itemCode}</small></th>
+      <th scope="row">{item.name}<small>{item.itemCode}</small><small>{item.categoryName}</small></th>
       {PRICE_FIELDS.map((field) => (
         <td key={field.source}>
           {item.before[field.source] === item.after[field.source]
@@ -67,7 +67,7 @@ function PriceGridEditorTable({ rows, editable, drafts, cells, onCellChange, onC
 }) {
   return (
     <div className="price-grid-table-scroll"><table className="price-grid-table">
-      <thead><tr><th>الصنف</th><th>الوحدة</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الرصيد الفعلي</th><th>المحجوز</th><th>المتاح للبيع</th><th>حد إعادة الطلب الإجمالي</th><th>مخازن بها رصيد</th><th>الحالة</th></tr></thead>
+      <thead><tr><th>الصنف</th><th>التصنيف</th><th>الوحدة</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الرصيد الفعلي</th><th>المحجوز</th><th>المتاح للبيع</th><th>حد إعادة الطلب الإجمالي</th><th>مخازن بها رصيد</th><th>الحالة</th></tr></thead>
       <tbody>{rows.map((row, productIndex) => <PriceGridEditorRow key={row.id} row={row} productIndex={productIndex} editable={editable} drafts={drafts} cells={cells} onCellChange={onCellChange} onCellKeyDown={onCellKeyDown} />)}</tbody>
     </table></div>
   );
@@ -85,6 +85,7 @@ function PriceGridEditorRow({ row, productIndex, editable, drafts, cells, onCell
   return (
     <tr>
       <th scope="row">{row.name}<small>{row.item_code}</small></th>
+      <td>{row.category_name ?? (row.category_id ? 'تصنيف غير متاح' : 'غير مصنف')}</td>
       <td>{row.unit}</td>
       {PRICE_FIELDS.map((field, fieldIndex) => {
         const draftValue = drafts[row.id]?.[field.draft];
@@ -144,6 +145,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
   const [gridSearch, setGridSearch] = useState('');
   const [productStatusFilter, setProductStatusFilter] = useState<PriceGridFilters['productStatus']>('all');
   const [inventoryStatusFilter, setInventoryStatusFilter] = useState<PriceGridFilters['inventoryStatus']>('all');
+  const [categoryFilter, setCategoryFilter] = useState<PriceGridFilters['categoryId']>('all');
   const [sortBy, setSortBy] = useState<PriceGridFilters['sortBy']>('name');
   const cells = useRef<Map<string, HTMLInputElement>>(new Map());
   const importInput = useRef<HTMLInputElement>(null);
@@ -152,8 +154,19 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     search: gridSearch,
     productStatus: productStatusFilter,
     inventoryStatus: inventoryStatusFilter,
+    categoryId: categoryFilter,
     sortBy,
-  }), [rows, gridSearch, productStatusFilter, inventoryStatusFilter, sortBy]);
+  }), [rows, gridSearch, productStatusFilter, inventoryStatusFilter, categoryFilter, sortBy]);
+  const categories = useMemo(() => {
+    const unique = new Map<string, string>();
+    for (const row of rows) {
+      if (row.category_id && row.category_name) unique.set(row.category_id, row.category_name);
+    }
+    return [...unique.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'ar'));
+  }, [rows]);
+  const hasUncategorizedProducts = rows.some((row) => row.category_id === null);
 
   const changedCount = useMemo(() => rows.filter((row) => PRICE_FIELDS.some((field) => {
     const raw = drafts[row.id]?.[field.draft];
@@ -197,7 +210,9 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
       }
       if (!rowChanged) continue;
       result.push({
-        id: row.id, name: row.name, itemCode: row.item_code, before, after,
+        id: row.id, name: row.name, itemCode: row.item_code,
+        categoryName: row.category_name ?? (row.category_id ? 'تصنيف غير متاح' : 'غير مصنف'),
+        before, after,
         command: {
           id: row.id,
           expectedBasePrice: before.base_price,
@@ -310,13 +325,21 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     </div>
     <div className="price-grid-filters" role="group" aria-label="بحث وتصفية شبكة الأسعار">
       <label className="price-grid-filter-search">
-        <span>بحث بالصنف أو SKU</span>
-        <div><Search size={15} aria-hidden="true" /><input type="search" value={gridSearch} onChange={(event) => setGridSearch(event.target.value)} placeholder="اسم المنتج أو كوده..." maxLength={100} aria-label="بحث باسم المنتج أو SKU" /></div>
+        <span>بحث بالصنف أو التصنيف</span>
+        <div><Search size={15} aria-hidden="true" /><input type="search" value={gridSearch} onChange={(event) => setGridSearch(event.target.value)} placeholder="اسم المنتج أو كوده أو التصنيف..." maxLength={100} aria-label="بحث باسم المنتج أو كود المنتج أو التصنيف" /></div>
       </label>
       <label>
         <span>حالة المنتج</span>
         <select value={productStatusFilter} onChange={(event) => setProductStatusFilter(event.target.value as PriceGridFilters['productStatus'])} aria-label="تصفية حالة المنتج">
           <option value="all">كل المنتجات</option><option value="active">نشط</option><option value="inactive">غير نشط</option>
+        </select>
+      </label>
+      <label>
+        <span>التصنيف</span>
+        <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="تصفية شبكة الأسعار حسب التصنيف">
+          <option value="all">كل التصنيفات</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          {hasUncategorizedProducts && <option value={PRICE_GRID_UNCATEGORIZED_FILTER}>غير مصنف</option>}
         </select>
       </label>
       <label>
@@ -332,6 +355,12 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
         </select>
       </label>
       <span className="price-grid-filter-count" role="status">{visibleRows.length} من {rows.length} صنفًا</span>
+      {(gridSearch || productStatusFilter !== 'all' || inventoryStatusFilter !== 'all' || categoryFilter !== 'all') && (
+        <button type="button" className="btn outline" disabled={busy}
+          onClick={() => { setGridSearch(''); setProductStatusFilter('all'); setInventoryStatusFilter('all'); setCategoryFilter('all'); }}>
+          مسح عوامل التصفية
+        </button>
+      )}
       <button type="button" className="btn outline" onClick={() => void refetch()} disabled={loading || busy} aria-label="تحديث شبكة الأسعار والمخزون"><RefreshCw size={15} /> تحديث</button>
     </div>
     {formError && <p className="price-grid-error" role="alert">{formError}</p>}

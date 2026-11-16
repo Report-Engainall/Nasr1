@@ -4,8 +4,11 @@ export type PriceGridFilters = {
   search: string;
   productStatus: 'all' | 'active' | 'inactive';
   inventoryStatus: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'unknown';
+  categoryId: string;
   sortBy: 'name' | 'price_high' | 'price_low' | 'stock_high' | 'stock_low';
 };
+
+export const PRICE_GRID_UNCATEGORIZED_FILTER = '__uncategorized__';
 
 function normalized(value: string): string {
   return value.normalize('NFKC').trim().toLocaleLowerCase();
@@ -26,7 +29,14 @@ export function filterPriceGridRows(
   const filtered = rows.filter((row) => {
     if (filters.productStatus === 'active' && !row.is_active) return false;
     if (filters.productStatus === 'inactive' && row.is_active) return false;
-    if (search && !normalized(row.name + ' ' + row.item_code).includes(search)) return false;
+    if (filters.categoryId !== 'all') {
+      if (filters.categoryId === PRICE_GRID_UNCATEGORIZED_FILTER) {
+        if (row.category_id !== null) return false;
+      } else if (row.category_id !== filters.categoryId) {
+        return false;
+      }
+    }
+    if (search && !normalized(row.name + ' ' + row.item_code + ' ' + (row.category_name ?? '')).includes(search)) return false;
 
     const available = row.quantity_available_total;
     if (filters.inventoryStatus === 'in_stock' && !(available !== null && available > 0)) return false;

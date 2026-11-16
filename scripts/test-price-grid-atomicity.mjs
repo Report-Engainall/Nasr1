@@ -134,6 +134,9 @@ async function main() {
   const clientB=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const customer=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const ids=[randomUUID(),randomUUID()];
+  const categoryId=randomUUID();
+  const categoryName="P2 Price Grid Category "+categoryId.replaceAll("-","").slice(-8).toUpperCase();
+  const categoryCode="P2CAT-"+categoryId.replaceAll("-","").slice(-8).toUpperCase();
   const original=new Map();
 
   try {
@@ -150,13 +153,17 @@ async function main() {
     assert.equal(customerRows.length,1,"the local fixture must provide one same-tenant customer");
     const cust=customerRows[0];
 
+    await db.unsafe(
+      "insert into public.categories(id,organization_id,name,code,is_active) values($1::uuid,$2::uuid,$3,$4,true)",
+      [categoryId,orgId,categoryName,categoryCode],
+    );
     for (let i=0;i<ids.length;i++) {
       const id=ids[i], suffix=id.replaceAll("-","").slice(-12).toUpperCase();
       const base=i===0?100:50, vip=i===0?90:45, wholesale=i===0?95:48, retail=i===0?110:60;
       await db.unsafe(
-        "insert into public.products(id,organization_id,name,item_code,unit,base_price,wholesale_price,retail_price,status) " +
-        "values($1::uuid,$2::uuid,$3,$4,'piece',$5,$6,$7,'inactive')",
-        [id,orgId,"P2 Price Grid Acceptance "+suffix,"P2-PRICE-"+suffix,base,wholesale,retail],
+        "insert into public.products(id,organization_id,category_id,name,item_code,unit,base_price,wholesale_price,retail_price,status) " +
+        "values($1::uuid,$2::uuid,$3::uuid,$4,$5,'piece',$6,$7,$8,'inactive')",
+        [id,orgId,categoryId,"P2 Price Grid Acceptance "+suffix,"P2-PRICE-"+suffix,base,wholesale,retail],
       );
       await db.unsafe(
         "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values " +
@@ -312,6 +319,20 @@ async function main() {
       views: priceGridViews,
       triggers: priceGridTriggers,
     }) + "\\n");
+    const categoryProjection = await manager.unsafe(
+      "select id::text,category_id::text,category_name from public.get_admin_product_price_grid_v2() where id=any($1::uuid[])",
+      [ids],
+    );
+    assert.equal(categoryProjection.length,2,"category projection must return the two same-tenant test products");
+    for (const row of categoryProjection) {
+      assert.equal(row.category_id,categoryId,"category id must match the persisted product category");
+      assert.equal(row.category_name,categoryName,"category name must come from the same-tenant categories table");
+    }
+    await expectFailure(
+      "ordinary customer must not read the administrative category/price grid",
+      () => customer.unsafe("select count(*) from public.get_admin_product_price_grid_v2()"),
+      /requires an active admin or manager/i,
+    );
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
@@ -379,7 +400,7 @@ async function main() {
       if (JSON.stringify(prices(now))!==JSON.stringify(prices(before))) restore.push(payload(id,now,prices(before)));
     }
     if (restore.length) await save(manager,restore);
-    process.stdout.write("PASS price-grid acceptance: atomic two-row commit, committed row identifiers, actor audit, all-or-nothing rollback, duplicate-row rejection, stale-writer concurrency and customer-role denial\n");
+    process.stdout.write("PASS price-grid acceptance: tenant-scoped category projection, customer read denial, atomic two-row commit, committed row identifiers, actor audit, all-or-nothing rollback, duplicate-row rejection, stale-writer concurrency and customer-role write denial\n");
   } finally {
     await customer.end({timeout:5}).catch(()=>{});
     await clientB.end({timeout:5}).catch(()=>{});

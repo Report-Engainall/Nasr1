@@ -2449,13 +2449,14 @@ export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementIn
 // ─── Server-resolved, role-authorized price grid read model ───
 export interface ProductPriceGridRow {
   id: string; name: string; item_code: string; unit: string; is_active: boolean;
+  category_id: string | null; category_name: string | null;
   base_price: number; price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number;
   quantity_on_hand_total: number | null; quantity_reserved_total: number | null;
   quantity_available_total: number | null; reorder_point_total: number | null;
   inventory_warehouse_count: number;
 }
 export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[]> {
-  const { data, error } = await supabase.rpc('get_admin_product_price_grid_with_inventory');
+  const { data, error } = await supabase.rpc('get_admin_product_price_grid_v2');
   if (error) throw new Error('تعذر تحميل شبكة الأسعار والمخزون: ' + error.message);
   if (!Array.isArray(data)) throw new Error('أعاد الخادم شبكة أسعار غير صالحة.');
   return data.map((value) => {
@@ -2489,12 +2490,21 @@ export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[
     if (!Number.isInteger(warehouseCount) || warehouseCount < 0 || warehouseCount > 100000) {
       throw new Error('أعاد الخادم عدد مخازن غير صالح لشبكة الأسعار.');
     };
+    const categoryId = row.category_id;
+    const categoryName = row.category_name;
+    const categoryIdValid = categoryId === null ||
+      (typeof categoryId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId));
+    const categoryNameValid = categoryName === null ||
+      (typeof categoryName === 'string' && categoryName.trim().length > 0 && categoryName.length <= 100);
     if (typeof row.id !== 'string' || typeof row.name !== 'string' ||
-      typeof row.item_code !== 'string' || typeof row.unit !== 'string' || typeof row.is_active !== 'boolean') {
-      throw new Error('أعاد الخادم هوية منتج غير صالحة لشبكة الأسعار.');
+      typeof row.item_code !== 'string' || typeof row.unit !== 'string' || typeof row.is_active !== 'boolean' ||
+      !categoryIdValid || !categoryNameValid || ((categoryId === null) !== (categoryName === null))) {
+      throw new Error('أعاد الخادم هوية منتج أو تصنيفًا غير صالح لشبكة الأسعار.');
     }
     return {
       id: row.id, name: row.name, item_code: row.item_code, unit: row.unit, is_active: row.is_active,
+      category_id: categoryId as string | null,
+      category_name: categoryName as string | null,
       base_price: money('base_price'),
       price_wholesale_of_wholesale: money('price_wholesale_of_wholesale'),
       price_wholesale: money('price_wholesale'),
