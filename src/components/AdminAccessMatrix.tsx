@@ -125,17 +125,20 @@ function AllRolesComparison({ views, searchQuery, filter, selectedRoleIds, diffe
   selectedRoleIds: readonly AdminRoleId[];
   differencesOnly: boolean;
 }) {
-  const comparisonRoles = ADMIN_ACCESS_ROLES.filter((role) => selectedRoleIds.includes(role.id));
+  const comparisonRoles = useMemo(
+    () => ADMIN_ACCESS_ROLES.filter((role) => selectedRoleIds.includes(role.id)),
+    [selectedRoleIds],
+  );
   const hasPageDifference = (view: AdminViewId) =>
     new Set(comparisonRoles.map((role) => pageAccessReason(role.id, view).startsWith("مسموح"))).size > 1;
   const hasOperationDifference = (operationId: (typeof ADMIN_OPERATION_RULES)[number]["id"]) =>
     new Set(comparisonRoles.map((role) => operationAllowed(role.id, operationId))).size > 1;
   const rolePageCounts = useMemo(() => Object.fromEntries(comparisonRoles.map((role) => [
     role.id, views.filter((view) => pageAccessReason(role.id, view).startsWith("مسموح")).length,
-  ])) as Partial<Record<AdminRoleId, number>>, [views, selectedRoleIds]);
+  ])) as Partial<Record<AdminRoleId, number>>, [views, comparisonRoles]);
   const roleOperationCounts = useMemo(() => Object.fromEntries(comparisonRoles.map((role) => [
     role.id, ADMIN_OPERATION_RULES.filter((item) => operationAllowed(role.id, item.id)).length,
-  ])) as Partial<Record<AdminRoleId, number>>, [selectedRoleIds]);
+  ])) as Partial<Record<AdminRoleId, number>>, [comparisonRoles]);
   const visibleGroups = ADMIN_NAV_GROUPS.map((group) => ({
     ...group,
     views: group.views.filter((view) => {

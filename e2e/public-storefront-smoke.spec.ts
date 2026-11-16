@@ -944,13 +944,38 @@ test("admin access matrix compares roles, searches and filters access with keybo
     await matrix.getByRole("button", { name: "مسح البحث", exact: true }).click();
     await expect(matrix.getByTestId("single-page-finance")).toBeVisible();
 
-    // Verify the real keyboard sequence: mode controls → search → filter → both scrollable tables.
+    // Selected-role comparison exposes only the selected role columns and hides identical rows by default.
+    await matrix.getByRole("button", { name: "مقارنة أدوار محددة" }).click();
+    const selectedAdmin = matrix.getByRole("checkbox", { name: "اختيار دور مدير النظام للمقارنة" });
+    const selectedStaff = matrix.getByRole("checkbox", { name: "اختيار دور موظف تشغيل للمقارنة" });
+    const differencesOnly = matrix.getByRole("checkbox", { name: "عرض الفروقات فقط" });
+    await expect(selectedAdmin).toBeChecked();
+    await expect(selectedStaff).toBeChecked();
+    await expect(differencesOnly).toBeChecked();
+    await expect(pages.getByTestId("page-finance-admin")).toContainText("مسموح");
+    await expect(pages.getByTestId("page-finance-staff")).toContainText("ممنوع");
+    await expect(pages.getByTestId("page-dashboard-admin")).toHaveCount(0);
+    await expect(pageTable.getByRole("columnheader", { name: "مدير النظام", exact: true })).toBeVisible();
+    await expect(pageTable.getByRole("columnheader", { name: "موظف تشغيل", exact: true })).toBeVisible();
+    await expect(pageTable.getByRole("columnheader", { name: "مدير", exact: true })).toHaveCount(0);
+    await differencesOnly.uncheck();
+    await expect(pages.getByTestId("page-dashboard-admin")).toBeVisible();
+    await differencesOnly.check();
+
+    // At least two roles must remain selected so the comparison cannot collapse into a misleading single-role view.
+    await expect(selectedAdmin).toBeDisabled();
+    await expect(selectedStaff).toBeDisabled();
     await matrix.getByRole("button", { name: "مقارنة جميع الأدوار" }).click();
     await search.fill("");
     await filter.selectOption("all");
+
+    // Verify the real keyboard sequence: all-role mode → selected-role mode → single role → search → filter → tables.
     const allRolesButton = matrix.getByRole("button", { name: "مقارنة جميع الأدوار" });
+    const compareRolesButton = matrix.getByRole("button", { name: "مقارنة أدوار محددة" });
     const singleRoleButton = matrix.getByRole("button", { name: "تفاصيل دور واحد" });
     await allRolesButton.focus();
+    await page.keyboard.press("Tab");
+    await expect(compareRolesButton).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(singleRoleButton).toBeFocused();
     await page.keyboard.press("Tab");

@@ -70,6 +70,7 @@ function buildCustomerReorderTemplateLines(items: CustomerOrderLine[]): Array<{ 
   }
   return lines;
 }
+import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { Login } from '@/components/Login';
 import { CustomerReturnRequest } from '@/components/CustomerReturnRequest';
 
@@ -394,8 +395,11 @@ function MyOrdersInner() {
   const [orderNumberQuery, setOrderNumberQuery] = useState('');
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const orderListRequestId = useRef(0);
+
+  const load = useCallback(async (quiet = false) => {
+    const requestId = ++orderListRequestId.current;
+    if (!quiet) setLoading(true);
     setError('');
     try {
       let query = supabase
@@ -411,6 +415,7 @@ function MyOrdersInner() {
       if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
         throw new Error('تعذر تأكيد إجمالي الطلبات. أعد المحاولة قبل الاعتماد على قائمة الطلبات.');
       }
+      if (requestId !== orderListRequestId.current) return;
       const nextPageCount = Math.max(1, Math.ceil(count / CUSTOMER_ORDERS_PAGE_SIZE));
       setTotalCount(count);
       if (page > nextPageCount) {
@@ -420,13 +425,21 @@ function MyOrdersInner() {
       }
       setData((rows ?? []) as CustomerOrderSummary[]);
     } catch (cause) {
+      if (requestId !== orderListRequestId.current) return;
       setData(null);
       setTotalCount(null);
       setError(cause instanceof Error ? cause.message : 'تعذر تحميل الطلبات.');
     } finally {
-      setLoading(false);
+      if (!quiet && requestId === orderListRequestId.current) setLoading(false);
     }
   }, [page, statusFilter, orderNumberQuery]);
+
+  const refreshWhileCustomerIsActive = useCallback(() => load(true), [load]);
+  useRefreshWhileActive({
+    refresh: refreshWhileCustomerIsActive,
+    busy: loading,
+    intervalMs: CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS,
+  });
 
   useEffect(() => { void load(); }, [load]);
 

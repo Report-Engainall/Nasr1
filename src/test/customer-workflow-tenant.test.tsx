@@ -273,9 +273,7 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("Rice");
     expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
     const products = queryFor("products");
-    expect(products.columns).toBe(
-      "id,name,item_code,barcode,unit,status,min_order_quantity,order_quantity_multiple",
-    );
+    expect(products.columns).toBe("id,name,item_code,barcode,unit,status");
     expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
     expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
     expect(products.filters).toContainEqual({ column: "status", value: "active" });
