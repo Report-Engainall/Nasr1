@@ -71,8 +71,10 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavigationGroup[] = [
     { id: "notifications", label: "التنبيهات", path: "/admin/notifications" },
     { id: "engine-status", label: "حالة المحركات", path: "/admin/engine-status" },
   ]),
-  defineAdminNavigationGroup("administration", "الإدارة والنظام", [
+  defineAdminNavigationGroup("finance", "المالية والذمم", [
     { id: "finance", label: "الفواتير والتحصيل", path: "/admin/finance" },
+  ]),
+  defineAdminNavigationGroup("administration", "إدارة النظام والحوكمة", [
     { id: "devices", label: "الأجهزة والجلسات", path: "/admin/devices" },
     { id: "audit", label: "سجل التدقيق", path: "/admin/audit" },
     { id: "settings", label: "الإعدادات", path: "/admin/settings" },

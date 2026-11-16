@@ -14,8 +14,12 @@ describe("admin access presentation contract", () => {
     expect(ids).toHaveLength(28);
     expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.views).toContain('categories');
     expect(ADMIN_NAV_GROUPS.find(({ id }) => id === 'catalog')?.items).toEqual(ADMIN_NAV_ITEMS.filter(({ id }) => ['products', 'categories', 'pricing', 'offers'].includes(id)));
-    expect(ADMIN_NAV_GROUPS).toHaveLength(6);
+    expect(ADMIN_NAV_GROUPS).toHaveLength(7);
     expect(ADMIN_NAV_ITEMS).toHaveLength(28);
+    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === "finance")?.items).toEqual([
+      { id: "finance", label: "الفواتير والتحصيل", path: "/admin/finance" },
+    ]);
+    expect(ADMIN_NAV_GROUPS.find(({ id }) => id === "administration")?.views).not.toContain("finance");
     expect(new Set(ADMIN_NAV_ITEMS.map(({ path }) => path)).size).toBe(ADMIN_NAV_ITEMS.length);
     expect(ADMIN_NAV_ITEMS.every(({ label, path }) => label.trim().length > 0 && path.startsWith('/admin'))).toBe(true);
     expect(ADMIN_NAV_PATHS.categories).toBe('/admin/categories');
