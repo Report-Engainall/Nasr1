@@ -25,7 +25,11 @@ import {
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { getCurrentTenantScope, supabase } from "@/lib/supabase";
-import { normalizeLocalizedBarcodeInput } from "@/lib/localized-barcode-input";
+import {
+  DEFAULT_BARCODE_DETECTOR_FORMATS,
+  normalizeLocalizedBarcodeInput,
+  resolveSupportedBarcodeFormats,
+} from "@/lib/localized-barcode-input";
 import { normalizeLocalizedDecimalInput } from "@/lib/localized-number-input";
 import { formatCurrency, formatDate, formatDateShort, formatNumber } from "@/lib/format";
 import {
@@ -2424,8 +2428,6 @@ function Barcode() {
       new (options: { formats: string[] }): Detector;
       getSupportedFormats?: () => Promise<string[]>;
     };
-    const preferredFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "qr_code"];
-
     const setup = async () => {
       try {
         const BarcodeCtor = (window as unknown as { BarcodeDetector?: DetectorCtor })
@@ -2445,9 +2447,9 @@ function Barcode() {
 
         const supportedFormats = typeof BarcodeCtor.getSupportedFormats === "function"
           ? await BarcodeCtor.getSupportedFormats()
-          : preferredFormats;
+          : DEFAULT_BARCODE_DETECTOR_FORMATS;
         if (!active) return;
-        const formats = preferredFormats.filter((format) => supportedFormats.includes(format));
+        const formats = resolveSupportedBarcodeFormats(supportedFormats);
         if (!formats.length) {
           setCameraError("الكاميرا متاحة، لكن المتصفح لا يدعم صيغ الباركود المطلوبة. استخدم الإدخال اليدوي.");
           setScanning(false);
@@ -2556,6 +2558,10 @@ function Barcode() {
             style={{ ...field, flex: "1 1 260px" }}
             value={value}
             onChange={(e) => {
+              // Editing the value invalidates any pending result for the previous code.
+              lookupRevisionRef.current += 1;
+              setBusy(false);
+              setProduct(null);
               setValue(normalizeLocalizedBarcodeInput(e.currentTarget.value));
               setError("");
             }}
@@ -2570,6 +2576,12 @@ function Barcode() {
             style={secondary}
             onClick={() => {
               setCameraError("");
+              if (!scanning) {
+                lookupRevisionRef.current += 1;
+                setBusy(false);
+                setProduct(null);
+                setError("");
+              }
               setScanning((v) => !v);
             }}
           >
