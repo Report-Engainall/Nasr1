@@ -3,26 +3,20 @@ import { ArrowLeft, Layers3, RefreshCw, Tags } from "lucide-react";
 import { fetchCategories, fetchProducts } from "@/lib/api";
 import { groupStorefrontCategories } from "@/lib/storefront-category-groups";
 import { storefrontCategorySlug } from "@/lib/storefront-slugs";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { useFetch } from "@/lib/useFetch";
 
 type StoreCategory = Awaited<ReturnType<typeof fetchCategories>>[number];
 
 function CollectionPageHeader({ loading, onRefresh }: { loading: boolean; onRefresh: () => void }) {
   return (
-    <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
-      <div>
-        <Link to="/store" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#087f8d", textDecoration: "none" }}>
-          <ArrowLeft size={16} /> العودة للمتجر
-        </Link>
-        <h1 style={{ margin: "12px 0 4px" }}>تصنيفات المنتجات</h1>
-        <p style={{ margin: 0, color: "#526b70" }}>
-          التصنيفات وعدد الأصناف مأخوذة من كتالوج المؤسسة المنشور؛ لا تُنشأ تصنيفات أو أعداد افتراضية.
-        </p>
-      </div>
-      <button type="button" className="btn outline" disabled={loading} onClick={onRefresh}>
-        <RefreshCw size={15} /> تحديث البيانات
-      </button>
-    </header>
+    <WorkspaceSectionHeader
+      eyebrow="متجر الأغبري"
+      title="تصنيفات المنتجات"
+      description="التصنيفات وعدد الأصناف مأخوذة من كتالوج المؤسسة المنشور؛ لا تُنشأ تصنيفات أو أعداد افتراضية."
+      icon={Layers3}
+      actions={<div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><Link to="/store" className="sf-back-link"><ArrowLeft size={16} /> العودة للمتجر</Link><button type="button" className="btn outline" disabled={loading} onClick={onRefresh}><RefreshCw size={15} /> تحديث البيانات</button></div>}
+    />
   );
 }
 
