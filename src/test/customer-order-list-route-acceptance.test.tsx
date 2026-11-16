@@ -217,13 +217,13 @@ describe("customer order-list real route acceptance", () => {
   it("refreshes the visible order status automatically without a manual reload", async () => {
     mocks.user = CUSTOMER;
     mocks.rows = [makeOrder(1)];
-    let refresh: (() => void) | null = null;
+    const refresh: { current: (() => void) | null } = { current: null };
     const originalSetInterval = window.setInterval.bind(window);
     const originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
     const originalOnline = Object.getOwnPropertyDescriptor(navigator, "onLine");
     const setIntervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler, timeout, ...args) => {
       if (timeout === 45_000 && typeof handler === "function") {
-        refresh = handler as () => void;
+        refresh.current = handler as () => void;
         return 77;
       }
       return originalSetInterval(handler, timeout, ...args);
@@ -235,12 +235,12 @@ describe("customer order-list real route acceptance", () => {
       await mountOrdersRoute();
 
       expect(host?.textContent).toContain("بانتظار المراجعة");
-      expect(refresh).toBeTypeOf("function");
+      expect(refresh.current).toBeTypeOf("function");
       expect(mocks.from).toHaveBeenCalledTimes(1);
 
       mocks.rows = [{ ...mocks.rows[0], status: "confirmed" }];
       await act(async () => {
-        refresh?.();
+        refresh.current?.();
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
