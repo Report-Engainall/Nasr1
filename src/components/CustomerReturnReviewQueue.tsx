@@ -7,7 +7,6 @@ import {
   fetchAllCustomerReturnReviewRows,
   fetchCustomerReturnReviewPage,
   type CustomerReturnReviewCursor,
-  type CustomerReturnReviewFilters,
   type CustomerReturnReviewPage,
   type CustomerReturnReviewReason,
   type CustomerReturnReviewRow,
@@ -117,6 +116,7 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
   const [statusDraft, setStatusDraft] = useState<CustomerReturnReviewStatus | "">("");
   const [appliedQuery, setAppliedQuery] = useState("");
   const [appliedStatus, setAppliedStatus] = useState<CustomerReturnReviewStatus | "">("");
+  const [reloadVersion, setReloadVersion] = useState(0);
   const cursorStack = useRef<Array<CustomerReturnReviewCursor | null>>([null]);
   const requestGeneration = useRef(0);
   const { user } = useAuth();
@@ -144,7 +144,7 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
     } finally {
       if (generation === requestGeneration.current) setLoading(false);
     }
-  }, [appliedQuery, appliedStatus, pageIndex]);
+  }, [appliedQuery, appliedStatus, pageIndex, reloadVersion]);
 
   useEffect(() => {
     void load();
@@ -159,6 +159,7 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
     setStatusDraft(nextStatus);
     setAppliedQuery(nextSearch.trim());
     setAppliedStatus(nextStatus);
+    setReloadVersion((version) => version + 1);
   }
 
   async function exportCurrentQueue() {
