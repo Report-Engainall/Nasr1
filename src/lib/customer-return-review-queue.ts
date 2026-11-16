@@ -37,6 +37,7 @@ export type CustomerReturnReviewPage = {
 export const CUSTOMER_RETURN_REVIEW_PAGE_SIZE = 50;
 export const CUSTOMER_RETURN_REVIEW_EXPORT_PAGE_SIZE = 100;
 export const CUSTOMER_RETURN_REVIEW_EXPORT_MAX = 1000;
+export const CUSTOMER_RETURN_REVIEW_EXPORT_MAX_LINES = 25000;
 
 const REASONS = new Set<CustomerReturnReviewReason>(["damaged", "wrong_item", "missing_item", "quality", "other"]);
 const STATUSES = new Set<CustomerReturnReviewStatus>(["submitted", "under_review"]);
@@ -215,6 +216,7 @@ export async function fetchAllCustomerReturnReviewRows(
   const rows: CustomerReturnReviewRow[] = [];
   const seenIds = new Set<string>();
   const seenCursors = new Set<string>();
+  let itemLineCount = 0;
   let cursor: CustomerReturnReviewCursor | null = null;
   let expectedTotal: number | null = null;
 
@@ -232,6 +234,10 @@ export async function fetchAllCustomerReturnReviewRows(
     for (const row of page.items) {
       if (seenIds.has(row.id)) throw new Error("تكرر سجل مرتجع بين الصفحات؛ أُوقف التصدير دون إنشاء ملف.");
       seenIds.add(row.id);
+      itemLineCount += row.items.length;
+      if (itemLineCount > CUSTOMER_RETURN_REVIEW_EXPORT_MAX_LINES) {
+        throw new Error("تجاوز التصدير 25000 سطر صنف؛ لم يُنشأ ملف جزئي. قسّم التصدير باستخدام البحث أو الحالة.");
+      }
       rows.push(row);
       if (rows.length > maxRecords) throw new Error("تجاوز التصدير الحد الآمن؛ لم يُنشأ ملف جزئي.");
     }
