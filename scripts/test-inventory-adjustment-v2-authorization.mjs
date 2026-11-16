@@ -163,7 +163,11 @@ async function main() {
           "select public.evaluate_authorization_profile_decision_v2($1::uuid,'identity.roles.assign',NULL::uuid) as decision",
           [actors.admin.profile_id],
         ))[0].decision);
-        assert.equal(organizationSimulation.decision, "PERMIT");
+        // Role assignment has a maker-checker approval contract; a grant is not final execution authority.
+        assert.equal(organizationSimulation.decision, "REQUIRES_APPROVAL");
+        assert.equal(organizationSimulation.scope_kind, "organization");
+        assert.equal(organizationSimulation.approval_mode, "maker_checker");
+        assert.equal(organizationSimulation.separation_of_duties, true);
         const managerCannotSimulate = async (sp) => {
           await applyActor(sp, actors.manager);
           return sp.unsafe(
