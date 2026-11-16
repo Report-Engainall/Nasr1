@@ -1480,20 +1480,21 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError('');
     try {
       const result = await supabase.rpc('list_organization_user_roles');
-      if (result.error) {
-        setError('تعذر تحميل حسابات المؤسسة وصلاحياتها. تحقق من نشر ترحيل إدارة الأدوار.');
-        return;
-      }
+      if (result.error) throw result.error;
       const loaded = (Array.isArray(result.data) ? result.data : []) as ManagedOrganizationProfile[];
       setRows(loaded);
       setDrafts(Object.fromEntries(loaded.map((profile) => [profile.profile_id, [...(profile.roles ?? [])]])));
+      return true;
     } catch {
-      setError('تعذر الاتصال بالخادم لتحميل حسابات المؤسسة.');
+      setRows([]);
+      setDrafts({});
+      setError('تعذر تحميل حسابات المؤسسة وصلاحياتها. أعد المحاولة قبل إجراء أي تعديل.');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -1526,6 +1527,7 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
 
   async function save(profile: ManagedOrganizationProfile) {
     const selected = [...(drafts[profile.profile_id] ?? [])].sort();
+    const expectedRoles = [...(profile.roles ?? [])].sort();
     if (!selected.length) {
       setError('يجب إبقاء دور واحد على الأقل لكل حساب نشط.');
       return;
@@ -1537,12 +1539,22 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
     setSavingProfileId(profile.profile_id);
     setError('');
     try {
-      const result = await supabase.rpc('set_organization_user_roles', {
+      const result = await supabase.rpc('set_organization_user_roles_v2', {
         p_profile_id: profile.profile_id,
+        p_expected_roles: expectedRoles,
         p_roles: selected,
       });
       if (result.error) {
-        const message = result.error.message;
+        const message = result.error.message ?? '';
+        const isRevisionConflict = result.error.code === '40001' ||
+          message.includes('role assignment changed since it was loaded');
+        if (isRevisionConflict) {
+          const refreshed = await load();
+          setError(refreshed
+            ? 'تغيرت أدوار هذا الحساب بعد تحميل القائمة. تم تحديث الحالة الحالية؛ راجع الأدوار ثم أعد المحاولة.'
+            : 'تغيرت أدوار هذا الحساب وتعذر تحميل النسخة الأحدث. أخفيت القائمة القديمة؛ أعد التحميل قبل أي تعديل.');
+          return;
+        }
         setError(message.includes('last active administrator')
           ? 'لا يمكن إزالة آخر مدير نظام نشط في المؤسسة.'
           : message.includes('outside the current organization')
@@ -1552,24 +1564,42 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
               : 'تعذر حفظ الأدوار. تحقق من صلاحيتك وأن الحساب ما زال نشطًا.');
         return;
       }
-      const confirmed = result.data as { profile_id?: unknown; roles?: unknown } | null;
-      const confirmedRoles = Array.isArray(confirmed?.roles)
-        ? [...new Set(confirmed.roles.filter((role): role is string => typeof role === 'string'))].sort()
+      const confirmed = result.data as {
+        profile_id?: unknown;
+        roles?: unknown;
+        previous_roles?: unknown;
+        changed?: unknown;
+      } | null;
+      const confirmedRoles = Array.isArray(confirmed?.roles) &&
+        confirmed.roles.every((role): role is string => typeof role === 'string')
+        ? [...confirmed.roles].sort()
+        : null;
+      const confirmedPreviousRoles = Array.isArray(confirmed?.previous_roles) &&
+        confirmed.previous_roles.every((role): role is string => typeof role === 'string')
+        ? [...confirmed.previous_roles].sort()
         : null;
       if (
         !confirmed ||
         confirmed.profile_id !== profile.profile_id ||
         !confirmedRoles ||
-        JSON.stringify(confirmedRoles) !== JSON.stringify(selected)
+        JSON.stringify(confirmedRoles) !== JSON.stringify(selected) ||
+        !confirmedPreviousRoles ||
+        JSON.stringify(confirmedPreviousRoles) !== JSON.stringify(expectedRoles) ||
+        typeof confirmed.changed !== 'boolean'
       ) {
-        setError('لم يؤكد الخادم الأدوار المحفوظة؛ لم تُعرض رسالة نجاح. أعد تحميل الحساب للتحقق من الحالة.');
         await load();
+        setError('لم يؤكد الخادم لقطة الأدوار السابقة والنتيجة النهائية؛ لم تُعرض رسالة نجاح. تحقق من الحالة وأعد المحاولة.');
         return;
       }
-      onNotice('تم حفظ أدوار ' + profile.full_name + ' وتأكيدها من الخادم مع تسجيل التغيير في سجل التدقيق.');
+      onNotice(confirmed.changed
+        ? 'تم حفظ أدوار ' + profile.full_name + ' وتأكيدها من الخادم مع تسجيل التغيير في سجل التدقيق.'
+        : 'الأدوار مطابقة بالفعل لما هو محفوظ على الخادم.');
       await load();
     } catch {
-      setError('تعذر الاتصال بالخادم لحفظ الأدوار. أعد التحميل للتحقق من الحالة الحالية.');
+      const refreshed = await load();
+      setError(refreshed
+        ? 'تعذر تأكيد نتيجة الحفظ. تم تحديث الأدوار من الخادم؛ راجع الحالة قبل إعادة المحاولة.'
+        : 'تعذر تأكيد نتيجة الحفظ وتعذر تحميل الحالة الأحدث. أخفيت القائمة القديمة؛ أعد التحميل قبل أي تعديل.');
     } finally {
       setSavingProfileId(null);
     }

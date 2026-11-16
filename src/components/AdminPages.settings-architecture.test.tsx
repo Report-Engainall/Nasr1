@@ -65,6 +65,76 @@ describe("observability architecture route is not duplicated in general settings
       expect(screen.queryByRole("region", { name: "معمارية النظام" })).not.toBeInTheDocument();
     },
   );
+  it("saves general organization roles through the revision-guarded RPC", async () => {
+    const onNotice = vi.fn();
+    let currentRoles = ["manager"];
+    let currentProfile = {
+      profile_id: "manager-profile",
+      full_name: "موظف المخزن",
+      email: "warehouse@example.invalid",
+      is_active: true,
+      roles: currentRoles,
+    };
+    supabaseRpc.mockImplementation(async (functionName: string, args?: Record<string, unknown>) => {
+      if (functionName === "list_organization_user_roles") {
+        return { data: [{ ...currentProfile, roles: [...currentRoles] }], error: null };
+      }
+      if (functionName === "set_organization_user_roles_v2") {
+        expect(args).toEqual({
+          p_profile_id: "manager-profile",
+          p_expected_roles: ["manager"],
+          p_roles: ["customer_manager", "manager"],
+        });
+        currentRoles = ["customer_manager", "manager"];
+        currentProfile = { ...currentProfile, roles: currentRoles };
+        return {
+          data: {
+            profile_id: "manager-profile",
+            previous_roles: ["manager"],
+            roles: ["customer_manager", "manager"],
+            changed: true,
+          },
+          error: null,
+        };
+      }
+      if (functionName === "list_authorization_scope_resources") {
+        return { data: { warehouses: [], customers: [] }, error: null };
+      }
+      if (functionName === "list_authorization_profile_scopes") {
+        return { data: [], error: null };
+      }
+      if (functionName === "list_authorization_capability_registry") {
+        return { data: [], error: null };
+      }
+      return { data: null, error: { message: "Unexpected RPC: " + functionName } };
+    });
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "test-auth-user", profileId: "test-profile", email: "test@example.invalid", name: "اختبار الصلاحيات", roles: ["admin"], isStaff: true },
+    } as ReturnType<typeof useAuth>);
+    vi.mocked(useFetch).mockReturnValue({ data: [{ key: "store_name", value: "متجر الأغبري" }], loading: false, error: null, refetch: vi.fn() } as never);
+    const view = render(<SettingsPage onNotice={onNotice} />);
+    fireEvent.click(screen.getByRole("button", { name: "المستخدمون والصلاحيات" }));
+    expect(await screen.findByRole("heading", { name: "المستخدمون والأدوار" })).toBeInTheDocument();
+
+    const profileName = await screen.findByText("موظف المخزن");
+    const profileCard = profileName.closest("article");
+    expect(profileCard).not.toBeNull();
+    const profileControls = within(profileCard as HTMLElement);
+    fireEvent.click(profileControls.getByRole("checkbox", { name: "مسؤول العملاء" }));
+    fireEvent.click(profileControls.getByRole("button", { name: "حفظ الأدوار" }));
+
+    await waitFor(() => {
+      expect(supabaseRpc).toHaveBeenCalledWith("set_organization_user_roles_v2", {
+        p_profile_id: "manager-profile",
+        p_expected_roles: ["manager"],
+        p_roles: ["customer_manager", "manager"],
+      });
+    });
+    expect(await profileControls.findByText("مسؤول العملاء")).toBeInTheDocument();
+    expect(onNotice).toHaveBeenCalledWith(expect.stringContaining("تم حفظ أدوار موظف المخزن"));
+    view.unmount();
+  });
+
   it("unifies roles, warehouse scopes and explicit denials in one member card", async () => {
     supabaseRpc.mockImplementation(async (functionName: string) => {
       if (functionName === "list_organization_user_roles") {
