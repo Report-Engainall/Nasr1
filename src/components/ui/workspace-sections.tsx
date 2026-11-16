@@ -6,6 +6,7 @@ export type WorkspaceSectionHeaderProps = {
   title: string;
   description: string;
   icon: LucideIcon;
+  titleId?: string;
   actions?: ReactNode;
   className?: string;
 };
@@ -16,6 +17,7 @@ export function WorkspaceSectionHeader({
   title,
   description,
   icon: Icon,
+  titleId,
   actions,
   className,
 }: WorkspaceSectionHeaderProps) {
@@ -26,7 +28,7 @@ export function WorkspaceSectionHeader({
       </span>
       <div className="workspace-section-heading__copy">
         <span>{eyebrow}</span>
-        <h1>{title}</h1>
+        <h1 id={titleId}>{title}</h1>
         <p>{description}</p>
       </div>
       {actions ? <div className="workspace-section-heading__actions">{actions}</div> : null}
