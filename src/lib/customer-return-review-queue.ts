@@ -54,7 +54,9 @@ function requiredText(value: unknown, field: string): string {
 }
 
 function nullableText(value: unknown): string | null {
-  return value === null || value === undefined ? null : requiredText(value, "نص اختياري");
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") throw new Error("أعاد الخادم نصًا اختياريًا غير صالح.");
+  return value.trim() ? value : null;
 }
 
 function validTimestamp(value: unknown): string {
