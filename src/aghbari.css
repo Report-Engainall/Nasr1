@@ -1424,3 +1424,31 @@ button.workspace-section-group__heading { cursor: pointer; }
     flex: 1 1 calc(50% - 8px);
   }
 }
+
+
+/* Executive reporting pages: named operational domains without flattening report panels. */
+.workspace-domain-group__report-content {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+.workspace-domain-group__report-content > .panel {
+  min-width: 0;
+  margin: 0 !important;
+}
+.workspace-domain-group__report-content > .report-hero {
+  margin: 0;
+}
+.workspace-domain-group__report-content > .report-grid {
+  margin-bottom: 0;
+}
+@media (max-width: 600px) {
+  .workspace-domain-group__report-content {
+    gap: 10px;
+    padding: 10px;
+  }
+  .workspace-domain-group__report-content > .report-hero {
+    padding: 16px;
+    border-radius: 14px;
+  }
+}
