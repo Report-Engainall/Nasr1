@@ -71,6 +71,8 @@
     "src/lib/help-center-search.test.ts",
     "src/lib/api.ts",
     "src/lib/api.admin-products-page.test.ts",
+    "src/lib/price-grid-filters.ts",
+    "src/lib/price-grid-filters.test.ts",
     "src/lib/admin-order-progress.ts",
     "src/lib/admin-order-progress.test.ts",
     "src/lib/api.admin-orders-page.test.ts",

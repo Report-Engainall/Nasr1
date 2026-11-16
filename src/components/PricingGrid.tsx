@@ -1,11 +1,12 @@
 import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
-import { ChevronRight, Download, Eye, RotateCcw, Save, Upload, X } from 'lucide-react';
+import { ChevronRight, Download, Eye, RefreshCw, RotateCcw, Save, Search, Upload, X } from 'lucide-react';
 import { downloadPriceGridCsv, parsePriceGridCsv, parsePriceGridRecords } from '@/lib/price-grid-csv';
 import { downloadPriceGridXlsx } from '@/lib/price-grid-xlsx';
 import { parseXlsxFirstWorksheet } from '@/lib/unified-import';
 import { fetchAdminProductPriceGrid, saveProductPriceGrid, type ProductPriceGridChange, type ProductPriceGridRow } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { parsePriceGridInput } from '@/lib/price-grid-money';
+import { filterPriceGridRows, type PriceGridFilters } from '@/lib/price-grid-filters';
 
 type PriceKey = 'base_price' | 'price_wholesale_of_wholesale' | 'price_wholesale' | 'price_retail';
 type DraftKey = 'basePrice' | 'wholesaleOfWholesale' | 'wholesale' | 'retail';
@@ -112,7 +113,7 @@ function PriceGridEditorRow({ row, productIndex, editable, drafts, cells, onCell
   );
 }
 
-function PriceGridResults({ loading, error, rows, editable, drafts, cells, onCellChange, onCellKeyDown }: {
+function PriceGridResults({ loading, error, rows, editable, drafts, cells, onCellChange, onCellKeyDown, emptyMessage }: {
   loading: boolean;
   error: string | null;
   rows: ProductPriceGridRow[];
@@ -121,14 +122,15 @@ function PriceGridResults({ loading, error, rows, editable, drafts, cells, onCel
   cells: PriceGridCells;
   onCellChange: (productId: string, field: DraftKey, value: string) => void;
   onCellKeyDown: (event: KeyboardEvent<HTMLInputElement>, productIndex: number, fieldIndex: number) => void;
+  emptyMessage: string;
 }) {
   if (loading) return <p className="price-grid-muted">جارٍ تحميل أسعار المنتجات بصلاحية الموظف المخوّل...</p>;
   if (error) return <p className="price-grid-error" role="alert">{error}</p>;
-  if (rows.length === 0) return <p className="price-grid-muted">لا توجد أصناف لعرضها.</p>;
+  if (rows.length === 0) return <p className="price-grid-muted">{emptyMessage}</p>;
   return (
     <>
       <PriceGridEditorTable rows={rows} editable={editable} drafts={drafts} cells={cells} onCellChange={onCellChange} onCellKeyDown={onCellKeyDown} />
-      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصديرا CSV وXLSX يعكسان الأسعار المحفوظة وملخص المخزون للقراءة فقط؛ الأرصدة غير المسجلة تُترك فارغة ولا تُحوّل إلى صفر.</p>
+      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف في دفعة الحفظ؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصديرا CSV وXLSX يعكسان جميع الأسعار المحفوظة وملخص المخزون للقراءة فقط؛ الأرصدة غير المسجلة تُترك فارغة ولا تُحوّل إلى صفر.</p>
     </>
   );
 }
@@ -139,9 +141,19 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
   const [preview, setPreview] = useState<ReviewRow[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
+  const [gridSearch, setGridSearch] = useState('');
+  const [productStatusFilter, setProductStatusFilter] = useState<PriceGridFilters['productStatus']>('all');
+  const [inventoryStatusFilter, setInventoryStatusFilter] = useState<PriceGridFilters['inventoryStatus']>('all');
+  const [sortBy, setSortBy] = useState<PriceGridFilters['sortBy']>('name');
   const cells = useRef<Map<string, HTMLInputElement>>(new Map());
   const importInput = useRef<HTMLInputElement>(null);
   const rows: ProductPriceGridRow[] = products ?? [];
+  const visibleRows = useMemo(() => filterPriceGridRows(rows, {
+    search: gridSearch,
+    productStatus: productStatusFilter,
+    inventoryStatus: inventoryStatusFilter,
+    sortBy,
+  }), [rows, gridSearch, productStatusFilter, inventoryStatusFilter, sortBy]);
 
   const changedCount = useMemo(() => rows.filter((row) => PRICE_FIELDS.some((field) => {
     const raw = drafts[row.id]?.[field.draft];
@@ -161,7 +173,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     const nextField = fieldIndex + 1;
     const nextProduct = productIndex + (nextField >= PRICE_FIELDS.length ? 1 : 0);
     const nextColumn = nextField % PRICE_FIELDS.length;
-    const product = rows[nextProduct];
+    const product = visibleRows[nextProduct];
     if (product) cells.current.get(product.id + ':' + PRICE_FIELDS[nextColumn].draft)?.focus();
   }
 
@@ -296,17 +308,44 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
         </>}
       </div>
     </div>
-    {formError && <p className="price-grid-error" role="alert">{formError}</p>}
+    <div className="price-grid-filters" role="group" aria-label="بحث وتصفية شبكة الأسعار">
+      <label className="price-grid-filter-search">
+        <span>بحث بالصنف أو SKU</span>
+        <div><Search size={15} aria-hidden="true" /><input type="search" value={gridSearch} onChange={(event) => setGridSearch(event.target.value)} placeholder="اسم المنتج أو كوده..." maxLength={100} aria-label="بحث باسم المنتج أو SKU" /></div>
+      </label>
+      <label>
+        <span>حالة المنتج</span>
+        <select value={productStatusFilter} onChange={(event) => setProductStatusFilter(event.target.value as PriceGridFilters['productStatus'])} aria-label="تصفية حالة المنتج">
+          <option value="all">كل المنتجات</option><option value="active">نشط</option><option value="inactive">غير نشط</option>
+        </select>
+      </label>
+      <label>
+        <span>حالة المخزون</span>
+        <select value={inventoryStatusFilter} onChange={(event) => setInventoryStatusFilter(event.target.value as PriceGridFilters['inventoryStatus'])} aria-label="تصفية حالة المخزون">
+          <option value="all">كل الحالات</option><option value="in_stock">متوفر</option><option value="low_stock">منخفض</option><option value="out_of_stock">نافد</option><option value="unknown">غير مثبت</option>
+        </select>
+      </label>
+      <label>
+        <span>ترتيب الجدول</span>
+        <select value={sortBy} onChange={(event) => setSortBy(event.target.value as PriceGridFilters['sortBy'])} aria-label="ترتيب شبكة الأسعار">
+          <option value="name">اسم المنتج</option><option value="price_high">السعر الأعلى</option><option value="price_low">السعر الأقل</option><option value="stock_high">المتاح الأعلى</option><option value="stock_low">المتاح الأقل</option>
+        </select>
+      </label>
+      <span className="price-grid-filter-count" role="status">{visibleRows.length} من {rows.length} صنفًا</span>
+      <button type="button" className="btn outline" onClick={() => void refetch()} disabled={loading || busy} aria-label="تحديث شبكة الأسعار والمخزون"><RefreshCw size={15} /> تحديث</button>
+    </div>
+    {formError && <p className="price-grid-error" role="alert">{formError}</p>
     {preview && <PriceGridPreview preview={preview} />}
     <PriceGridResults
       loading={loading}
       error={error}
-      rows={rows}
+      rows={visibleRows}
       editable={editable}
       drafts={drafts}
       cells={cells}
       onCellChange={updateCell}
       onCellKeyDown={onCellKeyDown}
+      emptyMessage={rows.length > 0 ? 'لا توجد أصناف تطابق البحث أو عوامل التصفية الحالية.' : 'لا توجد أصناف لعرضها.'}
     />
   </section>;
 }
