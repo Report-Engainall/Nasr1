@@ -94,22 +94,25 @@ export function InventoryStockCountPage() {
       return () => { active = false; };
     }
     setAdjustmentAccess('loading');
-    void supabase.rpc('current_authorization_decision', {
-      p_capability_key: 'inventory.balance.adjust',
-      p_resource_id: warehouseId,
-    }).then(({ data, error }) => {
-      if (!active) return;
-      if (error) {
-        setAdjustmentAccess('unavailable');
-        return;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('current_authorization_decision', {
+          p_capability_key: 'inventory.balance.adjust',
+          p_resource_id: warehouseId,
+        });
+        if (!active) return;
+        if (error) {
+          setAdjustmentAccess('unavailable');
+          return;
+        }
+        const decision = data && typeof data === 'object' && 'decision' in data
+          ? data.decision
+          : null;
+        setAdjustmentAccess(decision === 'PERMIT' ? 'allowed' : 'denied');
+      } catch {
+        if (active) setAdjustmentAccess('unavailable');
       }
-      const decision = data && typeof data === 'object' && 'decision' in data
-        ? data.decision
-        : null;
-      setAdjustmentAccess(decision === 'PERMIT' ? 'allowed' : 'denied');
-    }).catch(() => {
-      if (active) setAdjustmentAccess('unavailable');
-    });
+    })();
     return () => { active = false; };
   }, [canFinalize, warehouseId, user?.profileId]);
 
