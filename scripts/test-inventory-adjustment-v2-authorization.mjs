@@ -323,6 +323,50 @@ async function main() {
         assert.equal(deniedDecision.decision, "DENY");
         assert.equal(deniedDecisionRows[0].allowed, false);
 
+        // Stock-count entry is a distinct capability: the manager remains denied
+        // inventory.balance.adjust but may record a count in the explicitly assigned
+        // warehouse when inventory.count.enter is permitted.
+        const countEnterDecision=decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(countEnterDecision.decision,"PERMIT",
+          "the assigned manager must retain the independent stock-count entry capability");
+        const countKey="rbac-v2-count-"+process.pid+"-"+Date.now();
+        const countSessionRows=await tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+          [fixture.warehouse_id,countKey,"RBAC V2 count-entry permission separation"],
+        );
+        const countSession=decodeJson(countSessionRows[0]?.result);
+        assert.equal(countSession.status,"open","the assigned manager must be able to create the source-backed count snapshot");
+        const countLineRows=await tx.unsafe(
+          "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
+          [countSession.id,fixture.product_id,oldQuantity],
+        );
+        const countedLine=decodeJson(countLineRows[0]?.result);
+        assert.equal(countedLine.product_id,fixture.product_id);
+        assert.equal(Number(countedLine.counted_quantity),oldQuantity);
+        assert.equal(countedLine.counted_by,actors.manager.profile_id,
+          "the database trigger must attribute the physical count to the authenticated manager");
+        const countSessionState=await tx.unsafe(
+          "select counted_lines from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(countSessionState[0].counted_lines,1,
+          "saving a counted line must update the persisted session counter");
+        const [balanceAfterCountEntry]=await tx.unsafe(
+          "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id,fixture.warehouse_id],
+        );
+        assert.equal(Number(balanceAfterCountEntry.quantity_on_hand),oldQuantity,
+          "draft count entry must not mutate the canonical inventory balance");
+        const separateAdjustmentDenial=await tx.unsafe(
+          "select public.current_actor_has_capability('inventory.balance.adjust',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        );
+        assert.equal(separateAdjustmentDenial[0].allowed,false,
+          "stock-count entry must not restore or manufacture the separately denied balance-adjustment capability");
+
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.get_inventory_adjustment_balances($1::uuid)",
           [fixture.warehouse_id],
