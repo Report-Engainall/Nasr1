@@ -85,7 +85,10 @@ describe("ReplenishmentPurchaseDraft", () => {
         idempotent_replay: false,
       });
 
-    render(<ReplenishmentPurchaseDraft recommendations={[recommendation]} onClose={vi.fn()} />);
+    const idempotencyKeys = new Map<string, string>();
+    const firstRender = render(
+      <ReplenishmentPurchaseDraft recommendations={[recommendation]} idempotencyKeys={idempotencyKeys} onClose={vi.fn()} />,
+    );
 
     await screen.findByText("سكر");
     fireEvent.change(screen.getByLabelText("المورد"), { target: { value: SUPPLIER_ID } });
@@ -100,11 +103,23 @@ describe("ReplenishmentPurchaseDraft", () => {
     const firstRequest = mocks.createPurchaseOrder.mock.calls[0][0];
     expect(firstRequest.idempotencyKey).toBe("replenishment-aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa");
 
-    fireEvent.click(createButton);
+    // Closing the modal unmounts this form. The parent workspace retains the
+    // shared key map, so reopening the exact same draft must replay the same request.
+    firstRender.unmount();
+    render(
+      <ReplenishmentPurchaseDraft recommendations={[recommendation]} idempotencyKeys={idempotencyKeys} onClose={vi.fn()} />,
+    );
+    await screen.findByText("سكر");
+    fireEvent.change(screen.getByLabelText("المورد"), { target: { value: SUPPLIER_ID } });
+    fireEvent.change(screen.getByLabelText("المخزن المستلم"), { target: { value: WAREHOUSE_ID } });
+    fireEvent.change(screen.getByLabelText("كمية سكر"), { target: { value: "8" } });
+
+    const reopenedCreateButton = screen.getByRole("button", { name: "تأكيد وإنشاء مسودة أمر الشراء" });
+    fireEvent.click(reopenedCreateButton);
     await waitFor(() => expect(mocks.createPurchaseOrder).toHaveBeenCalledTimes(2));
     const retryRequest = mocks.createPurchaseOrder.mock.calls[1][0];
     expect(retryRequest.idempotencyKey).toBe(firstRequest.idempotencyKey);
-    await waitFor(() => expect(createButton).toBeEnabled());
+    await waitFor(() => expect(reopenedCreateButton).toBeEnabled());
 
     fireEvent.change(screen.getByLabelText("كمية سكر"), { target: { value: "9" } });
     fireEvent.click(createButton);
