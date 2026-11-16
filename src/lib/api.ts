@@ -1381,6 +1381,10 @@ export async function fetchAdminOrdersPage(input: {
     throw new Error('عبارة البحث في رقم الطلب غير صالحة أو تحتوي رموزًا غير مسموحة أو تتجاوز 80 حرفًا.');
   }
   const searchPattern = search ? '%' + search + '%' : null;
+  const sort = input.sort ?? 'newest';
+  if (!['newest', 'oldest', 'amount_high', 'amount_low'].includes(sort)) {
+    throw new Error('ترتيب الطلبات غير معتمد.');
+  }
 
   const { organizationId, isStaff } = await getCurrentTenantScope();
   if (!isStaff) throw new Error('صلاحية الموظف مطلوبة لعرض قائمة الطلبات.');
@@ -1393,8 +1397,15 @@ export async function fetchAdminOrdersPage(input: {
       .select('id,order_number,customer_id,created_at,total_items,total_amount,status');
     if (status !== 'all') query = query.eq('status', status);
     if (searchPattern) query = query.ilike('order_number', searchPattern);
+    if (sort === 'amount_high' || sort === 'amount_low') {
+      return query
+        .order('total_amount', { ascending: sort === 'amount_low' })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to);
+    }
     return query
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: sort === 'oldest' })
       .order('id', { ascending: true })
       .range(from, to);
   });

@@ -2305,6 +2305,7 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -2315,8 +2316,8 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
   }, [search]);
 
   const { data, loading, error, refetch } = useFetch(
-    () => fetchAdminOrdersPage({ page, search: debouncedSearch, status: statusFilter }),
-    [page, debouncedSearch, statusFilter],
+    () => fetchAdminOrdersPage({ page, search: debouncedSearch, status: statusFilter, sort: sortBy }),
+    [page, debouncedSearch, statusFilter, sortBy],
   );
   const rows = data?.items ?? [];
 
@@ -2343,6 +2344,15 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
             {ADMIN_ORDER_FILTER_STATUSES.map((status) => (
               <option key={status} value={status}>{orderLabel(status)}</option>
             ))}
+          </select>
+        </label>
+        <label className="admin-orders-status-filter">
+          <span>ترتيب النتائج</span>
+          <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setPage(1); }} aria-label="ترتيب الطلبات">
+            <option value="newest">الأحدث أولاً</option>
+            <option value="oldest">الأقدم أولاً</option>
+            <option value="amount_high">الأعلى قيمة</option>
+            <option value="amount_low">الأقل قيمة</option>
           </select>
         </label>
         <div className="admin-orders-toolbar-actions">

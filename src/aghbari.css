@@ -945,7 +945,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* Order board — card-based operational lifecycle with tenant-backed filters. */
 .admin-orders-workspace { display: grid; gap: 12px; direction: rtl; }
-.admin-orders-toolbar { display: grid; grid-template-columns: minmax(220px, 1.3fr) minmax(170px, .7fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid var(--aghbari-border); border-radius: 14px; background: var(--aghbari-surface); }
+.admin-orders-toolbar { display: grid; grid-template-columns: minmax(220px, 1.25fr) minmax(155px, .65fr) minmax(155px, .65fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid var(--aghbari-border); border-radius: 14px; background: var(--aghbari-surface); }
 .admin-orders-search { min-width: 0; min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--aghbari-border); border-radius: 10px; background: #fff; color: var(--aghbari-text-muted); }
 .admin-orders-search:focus-within { border-color: var(--aghbari-brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--aghbari-brand) 13%, transparent); }
 .admin-orders-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--aghbari-text); font: inherit; font-size: 12px; }

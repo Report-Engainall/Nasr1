@@ -60,6 +60,21 @@ describe('fetchAdminOrdersPage server-side filtering', () => {
     expect(mocks.calls).toContainEqual({ method: 'range', args: [0, 40] });
   });
 
+  it('sorts by amount on the server and uses a stable created-at and id tie-break', async () => {
+    await fetchAdminOrdersPage({ page: 1, sort: 'amount_high' });
+
+    expect(mocks.calls).toContainEqual({ method: 'order', args: ['total_amount', { ascending: false }] });
+    expect(mocks.calls).toContainEqual({ method: 'order', args: ['created_at', { ascending: false }] });
+    expect(mocks.calls).toContainEqual({ method: 'order', args: ['id', { ascending: true }] });
+    expect(mocks.calls).toContainEqual({ method: 'range', args: [0, 40] });
+  });
+
+  it('rejects unsupported sort options before requesting the order list', async () => {
+    await expect(fetchAdminOrdersPage({ page: 1, sort: 'random' })).rejects.toThrow('ترتيب الطلبات');
+    expect(mocks.getCurrentTenantScope).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it('rejects unsupported status filters before tenant reads or RPC calls', async () => {
     await expect(fetchAdminOrdersPage({ page: 1, status: 'unknown' })).rejects.toThrow('حالة تصفية الطلبات');
     expect(mocks.getCurrentTenantScope).not.toHaveBeenCalled();
