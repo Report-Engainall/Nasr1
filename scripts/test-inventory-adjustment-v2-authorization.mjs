@@ -375,6 +375,7 @@ async function main() {
         ))[0].decision);
         assert.equal(revokedSimulation.decision, "DENY");
         assert.equal(revokedSimulation.source, "resource_assignment");
+        await applyActor(tx, actors.manager);
         await expectSqlState(tx, "42501", () => invoke(tx), "revoked warehouse assignment must deny the next inventory write");
 
         await applyActor(tx, actors.admin);
