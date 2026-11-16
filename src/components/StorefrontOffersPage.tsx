@@ -3,26 +3,20 @@ import { ArrowLeft, BadgePercent, CalendarDays, Package, RefreshCw, Tag } from "
 import { fetchProducts, fetchStorefrontPromotions } from "@/lib/api";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { useFetch } from "@/lib/useFetch";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 type StoreProduct = Awaited<ReturnType<typeof fetchProducts>>[number];
 type StorePromotion = Awaited<ReturnType<typeof fetchStorefrontPromotions>>[number];
 
 function OffersPageHeader({ loading, onRefresh }: { loading: boolean; onRefresh: () => void }) {
   return (
-    <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
-      <div>
-        <Link to="/store" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#087f8d", textDecoration: "none" }}>
-          <ArrowLeft size={16} /> العودة للمتجر
-        </Link>
-        <h1 style={{ margin: "12px 0 4px" }}>العروض المنشورة</h1>
-        <p style={{ margin: 0, color: "#526b70" }}>
-          تعرض هذه الصفحة إعداد الحملات المنشورة من الخادم؛ لا تصنع خصومات أو أسعارًا بديلة عند تعذر بيانات الحملة.
-        </p>
-      </div>
-      <button type="button" className="btn outline" disabled={loading} onClick={onRefresh}>
-        <RefreshCw size={15} /> تحديث العروض
-      </button>
-    </header>
+    <WorkspaceSectionHeader
+      eyebrow="متجر الأغبري"
+      title="العروض المنشورة"
+      description="تعرض هذه الصفحة إعداد الحملات المنشورة من الخادم؛ لا تصنع خصومات أو أسعارًا بديلة عند تعذر بيانات الحملة."
+      icon={Tag}
+      actions={<div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><Link to="/store" className="sf-back-link"><ArrowLeft size={16} /> العودة للمتجر</Link><button type="button" className="btn outline" disabled={loading} onClick={onRefresh}><RefreshCw size={15} /> تحديث العروض</button></div>}
+    />
   );
 }
 
