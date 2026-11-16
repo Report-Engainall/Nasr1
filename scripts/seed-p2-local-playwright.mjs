@@ -243,6 +243,30 @@ async function main() {
     }
     purchaseWarehouse = warehouses[0];
 
+    // Keep the manager's stock-count assignment isolated from the two deliberately
+    // unassigned warehouses used by the negative/positive RLS authorization test.
+    const unassignedWarehouseIds = [
+      "d0000000-0000-0000-0000-000000000002",
+      "d0000000-0000-0000-0000-000000000003",
+    ];
+    await tx.unsafe(
+      "insert into public.warehouses(id,organization_id,branch_id,name,code,is_active) values " +
+      "($1::uuid,$2::uuid,NULL,'P2 Unassigned RLS Warehouse A','P2-LOCAL-RLS-A',true)," +
+      "($3::uuid,$2::uuid,NULL,'P2 Unassigned RLS Warehouse B','P2-LOCAL-RLS-B',true) " +
+      "on conflict(id) do nothing",
+      [unassignedWarehouseIds[0], organizationId, unassignedWarehouseIds[1]],
+    );
+    const unassignedWarehouses = await tx.unsafe(
+      "select id::text,organization_id::text,code from public.warehouses " +
+      "where id=any($1::uuid[]) and organization_id=$2::uuid and is_active=true " +
+      "and code in ('P2-LOCAL-RLS-A','P2-LOCAL-RLS-B') order by id",
+      [unassignedWarehouseIds, organizationId],
+    );
+    if (unassignedWarehouses.length !== 2 ||
+        unassignedWarehouses.some((warehouse) => !unassignedWarehouseIds.includes(warehouse.id))) {
+      throw new Error("The isolated unassigned-warehouse RLS fixtures are missing or tenant-mismatched.");
+    }
+
     // The seed-removal migration deliberately disables public publication and clears
     // its warehouse. Re-enable it only in this disposable local P2 database, and only
     // against the canonical organization + verified fixture warehouse created above.
@@ -306,10 +330,10 @@ async function main() {
       throw new Error("The isolated P2 receipt supplier fixture is missing, inactive, or owned by another tenant.");
     }
     await tx.unsafe(
-      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
-      "values($1::uuid,$2::uuid,100,0,0) " +
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values " +
+      "($1::uuid,$2::uuid,100,0,0),($1::uuid,$3::uuid,100,0,0),($1::uuid,$4::uuid,100,0,0) " +
       "on conflict(product_id,warehouse_id) do update set quantity_on_hand=100,quantity_reserved=0,reorder_point=0",
-      [productId, warehouses[0].id],
+      [productId, warehouses[0].id, unassignedWarehouseIds[0], unassignedWarehouseIds[1]],
     );
 
     // A tenant-scoped supplier fixture is required by the actual purchase-order RPC.
