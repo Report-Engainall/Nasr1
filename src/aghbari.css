@@ -1452,3 +1452,41 @@ button.workspace-section-group__heading { cursor: pointer; }
     border-radius: 14px;
   }
 }
+
+
+/* Customer advanced search uses the shared section hierarchy rather than a detached form card. */
+.advanced-storefront-search-group {
+  margin-top: 14px;
+}
+.advanced-storefront-search-group__content {
+  padding: 18px;
+}
+.advanced-storefront-search-form {
+  min-width: 0;
+}
+.advanced-storefront-search-form label {
+  color: var(--aghbari-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+.advanced-storefront-search-form input:not([type="checkbox"]),
+.advanced-storefront-search-form select {
+  min-height: 42px;
+  color: var(--aghbari-text);
+  background: var(--aghbari-surface-soft);
+  border-color: var(--aghbari-border) !important;
+  border-radius: 11px !important;
+  font: inherit;
+}
+.advanced-storefront-search-form input:focus-visible,
+.advanced-storefront-search-form select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--aghbari-brand) 22%, white);
+  outline-offset: 1px;
+}
+.advanced-storefront-search-form button[type="submit"] {
+  min-height: 42px;
+  border-radius: 999px;
+}
+@media (max-width: 600px) {
+  .advanced-storefront-search-group__content { padding: 12px; }
+}
