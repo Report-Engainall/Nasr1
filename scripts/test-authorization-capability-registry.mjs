@@ -218,6 +218,68 @@ async function main() {
    "last active administrator must retain authorization administration"
   );
 
+  const roleTarget=actors.get("staff");
+  const originalRoles=[...roleTarget.roles].sort();
+  assert.ok(originalRoles.includes("staff"),"role revision fixture must be an operational staff profile");
+  const updatedRoles=originalRoles.includes("customer_manager")
+   ?originalRoles.filter(role=>role!=="customer_manager")
+   :[...originalRoles,"customer_manager"].sort();
+  const auditBefore=await db.unsafe(
+   "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='user.roles.changed' and entity_id=$2::uuid",
+   [org,roleTarget.profile_id]);
+  const roleChange=await withActor(db,admin,tx=>tx.unsafe(
+   "select public.set_organization_user_roles_v2($1::uuid,$2::text[],$3::text[]) as result",
+   [roleTarget.profile_id,originalRoles,updatedRoles]));
+  assert.equal(roleChange[0].result.changed,true,"a fresh expected role snapshot must allow the intended role update");
+  assert.deepEqual(roleChange[0].result.previous_roles,originalRoles);
+  assert.deepEqual(roleChange[0].result.roles,updatedRoles);
+
+  await assert.rejects(
+   ()=>withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_organization_user_roles_v2($1::uuid,$2::text[],$3::text[])",
+    [roleTarget.profile_id,originalRoles,originalRoles])),
+   error=>error&&String(error.code)==="40001",
+   "a stale role snapshot must not overwrite a newer administrator decision"
+  );
+  const afterStale=await db.unsafe(
+   "select coalesce(array_agg(role order by role),ARRAY[]::text[]) as roles from public.user_roles where profile_id=$1::uuid",
+   [roleTarget.profile_id]);
+  assert.deepEqual(afterStale[0].roles,updatedRoles,"a rejected stale request must preserve the newer role assignment");
+
+  const noOp=await withActor(db,admin,tx=>tx.unsafe(
+   "select public.set_organization_user_roles_v2($1::uuid,$2::text[],$3::text[]) as result",
+   [roleTarget.profile_id,updatedRoles,updatedRoles]));
+  assert.equal(noOp[0].result.changed,false,"an exact role replay must be a no-op");
+  const auditAfterNoOp=await db.unsafe(
+   "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='user.roles.changed' and entity_id=$2::uuid",
+   [org,roleTarget.profile_id]);
+  assert.equal(auditAfterNoOp[0].count,auditBefore[0].count+1,"stale and no-op requests must not create audit records");
+
+  await assert.rejects(
+   ()=>withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_organization_user_roles($1::uuid,$2::text[])",
+    [roleTarget.profile_id,originalRoles])),
+   error=>error&&String(error.code)==="42501",
+   "authenticated clients must not bypass the revision guard through the legacy role RPC"
+  );
+  await assert.rejects(
+   ()=>withActor(db,manager,tx=>tx.unsafe(
+    "select public.set_organization_user_roles_v2($1::uuid,$2::text[],$3::text[])",
+    [roleTarget.profile_id,updatedRoles,originalRoles])),
+   error=>error&&String(error.code)==="42501",
+   "managers without identity.roles.assign must not use the guarded role command"
+  );
+
+  const restored=await withActor(db,admin,tx=>tx.unsafe(
+   "select public.set_organization_user_roles_v2($1::uuid,$2::text[],$3::text[]) as result",
+   [roleTarget.profile_id,updatedRoles,originalRoles]));
+  assert.equal(restored[0].result.changed,true);
+  assert.deepEqual(restored[0].result.roles,originalRoles);
+  const auditAfterRestore=await db.unsafe(
+   "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='user.roles.changed' and entity_id=$2::uuid",
+   [org,roleTarget.profile_id]);
+  assert.equal(auditAfterRestore[0].count,auditBefore[0].count+2,"only the two confirmed role changes may be audited");
+
   for(const sql of ["select * from public.authorization_capabilities","select * from public.authorization_role_capabilities","select * from public.authorization_profile_denials"]) {
    await assert.rejects(
     ()=>withActor(db,manager,tx=>tx.unsafe(sql)),
@@ -228,7 +290,7 @@ async function main() {
   await db.unsafe("delete from auth.sessions where id=$1::uuid and user_id=$2::uuid",[manager.jwtClaims.session_id,manager.auth_user_id]);
   assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"DENY",
    "revoking auth.sessions must deny the next decision even when the same signed JWT is presented");
-  process.stdout.write("PASS authorization capability registry: exact six-role parity, real JWT sessions, immediate session revocation, deny-by-default, scope fail-closed, explicit-deny precedence, private denial history, idempotent audit, last-admin protection, and product financial RPC boundaries\n");
+  process.stdout.write("PASS authorization capability registry: exact six-role parity, real JWT sessions, stale role-revision rejection, legacy role RPC denial, idempotent role replay, audited role changes, immediate session revocation, deny-by-default, scope fail-closed, explicit-deny precedence, private denial history, last-admin protection, and product financial RPC boundaries\n");
  } finally { await db.end({timeout:5}).catch(()=>{}); }
 }
 main().catch(error=>{process.stderr.write("FAIL authorization capability registry acceptance: "+String(error?.stack??error)+"\n");process.exitCode=1;});

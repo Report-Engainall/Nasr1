@@ -36,8 +36,19 @@ function normalizeOrganizationProfiles(data: unknown): Profile[] {
     .map((profile) => ({ ...profile, roles: sorted(profile.roles) }));
 }
 
+function isRoleRevisionConflict(cause: unknown): boolean {
+  if (!cause || typeof cause !== 'object') return false;
+  const error = cause as { code?: unknown; message?: unknown };
+  const detail = cause instanceof Error ? cause.message : typeof error.message === 'string' ? error.message : '';
+  return error.code === '40001' || detail.includes('role assignment changed since it was loaded');
+}
+
 function roleUpdateErrorMessage(cause: unknown): string {
-  const detail = cause instanceof Error ? cause.message : '';
+  const error = cause && typeof cause === 'object' ? cause as { code?: unknown; message?: unknown } : null;
+  const detail = cause instanceof Error ? cause.message : typeof error?.message === 'string' ? error.message : '';
+  if (isRoleRevisionConflict(cause)) {
+    return 'تغيرت أدوار هذا الحساب بعد تحميل القائمة. حدّثت البيانات الحالية؛ راجع الأدوار ثم أعد المحاولة.';
+  }
   if (detail.includes('outside the current organization')) {
     return 'رفض الخادم التعديل لأن الحساب خارج المؤسسة الحالية أو غير نشط.';
   }
@@ -1265,31 +1276,40 @@ export function CustomerManagerRoleAssignment({
     setError('');
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('set_organization_user_roles', {
+      const { data, error: rpcError } = await supabase.rpc('set_organization_user_roles_v2', {
         p_profile_id: profile.profile_id,
+        p_expected_roles: currentRoles,
         p_roles: nextRoles,
       });
       if (rpcError) throw rpcError;
 
-      const result = data as { profile_id?: string; roles?: unknown } | null;
+      const result = data as { profile_id?: string; roles?: unknown; previous_roles?: unknown; changed?: unknown } | null;
       const responseRoles = Array.isArray(result?.roles)
         ? sorted(result.roles.filter((role): role is string => typeof role === 'string'))
+        : null;
+      const previousRoles = Array.isArray(result?.previous_roles)
+        ? sorted(result.previous_roles.filter((role): role is string => typeof role === 'string'))
         : null;
       if (
         !result ||
         result.profile_id !== profile.profile_id ||
         !responseRoles ||
-        JSON.stringify(responseRoles) !== JSON.stringify(nextRoles)
+        JSON.stringify(responseRoles) !== JSON.stringify(nextRoles) ||
+        !previousRoles ||
+        JSON.stringify(previousRoles) !== JSON.stringify(currentRoles) ||
+        typeof result.changed !== 'boolean'
       ) {
         throw new Error('unconfirmed server result');
       }
 
       onNotice(
-        (enable ? 'تم إسناد دور مسؤول العملاء إلى ' : 'تم تحديث أدوار ') +
-        profile.full_name + ' بعد تأكيد الخادم.',
+        result.changed
+          ? (enable ? 'تم إسناد دور مسؤول العملاء إلى ' : 'تم تحديث أدوار ') + profile.full_name + ' بعد تأكيد الخادم.'
+          : 'الأدوار مطابقة بالفعل لما هو محفوظ على الخادم.',
       );
       await load();
     } catch (cause) {
+      if (isRoleRevisionConflict(cause)) await load();
       setError(roleUpdateErrorMessage(cause));
     } finally {
       setSavingId(null);
