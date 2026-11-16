@@ -1072,3 +1072,34 @@ test("help center navigation, Arabic search and action destinations are browser-
   expect(pageErrors, "Help center navigation and search must not throw browser errors.").toEqual([]);
 });
 
+
+
+test("mobile storefront exposes predictive product search in an accessible dialog", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  await page.goto("/");
+  await expect(page.locator(".sf-header")).toBeVisible();
+  const trigger = page.getByRole("button", { name: "فتح بحث المنتجات" });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+
+  const dialog = page.getByRole("dialog", { name: "بحث المنتجات" });
+  await expect(dialog).toBeVisible();
+  const input = dialog.getByRole("combobox", { name: "ابحث عن منتج" });
+  await expect(input).toBeFocused();
+  await input.fill("رز");
+  await expect(dialog.getByRole("option", { name: "عرض نتائج البحث عن «رز»" })).toBeVisible();
+
+  await input.press("Escape");
+  await expect(dialog.getByRole("listbox")).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await input.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(pageErrors).toEqual([]);
+});

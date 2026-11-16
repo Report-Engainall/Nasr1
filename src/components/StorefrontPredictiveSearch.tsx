@@ -19,6 +19,7 @@ type StorefrontPredictiveSearchProps = {
   onSearch: (value: string) => void;
   onProductSelect: (product: ProductWithInventory) => void;
   onCategorySelect: (category: Category) => void;
+  autoFocus?: boolean;
 };
 
 /**
@@ -39,6 +40,7 @@ export function StorefrontPredictiveSearch({
   onSearch,
   onProductSelect,
   onCategorySelect,
+  autoFocus = false,
 }: StorefrontPredictiveSearchProps) {
   const generatedId = useId();
   const listboxId = `aghbari-store-search-${generatedId}`;
@@ -222,6 +224,7 @@ export function StorefrontPredictiveSearch({
       <input
         type="search"
         role="combobox"
+        autoFocus={autoFocus}
         aria-label="ابحث عن منتج"
         aria-autocomplete="list"
         aria-haspopup="listbox"

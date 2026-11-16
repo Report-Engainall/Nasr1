@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
-  Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard,
+  Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard, Search,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/storefront-catalog';
@@ -23,6 +23,7 @@ import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
 import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
 import { StorefrontPredictiveSearch } from '@/components/StorefrontPredictiveSearch';
+import { StorefrontMobileSearch } from '@/components/StorefrontMobileSearch';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
@@ -859,6 +860,18 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             <button className="sf-admin-btn" onClick={onExit}><Activity size={16} /> لوحة التحكم</button>
           )}
           <StorefrontPredictiveSearch query={query} products={predictiveSearchProducts} categories={categories ?? []} loading={predictiveSearchLoading} productsAvailable={predictiveSearchProductsAvailable} error={predictiveSearchError} onQueryChange={(value) => { setQuery(normalizeCatalogSearchQuery(value)); setCatalogPage(1); }} onSearch={(value) => submitPredictiveSearch(value)} onProductSelect={openProduct} onCategorySelect={(category) => submitPredictiveSearch(query, category.id)} />
+          <StorefrontMobileSearch
+            query={query}
+            products={predictiveSearchProducts}
+            categories={categories ?? []}
+            loading={predictiveSearchLoading}
+            productsAvailable={predictiveSearchProductsAvailable}
+            error={predictiveSearchError}
+            onQueryChange={(value) => { setQuery(normalizeCatalogSearchQuery(value)); setCatalogPage(1); }}
+            onSearch={(value) => submitPredictiveSearch(value)}
+            onProductSelect={openProduct}
+            onCategorySelect={(category) => submitPredictiveSearch(query, category.id)}
+          />
           <div className="sf-header-links"><Link to="/search/advanced" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'inherit', textDecoration: 'none', fontSize: 11, fontWeight: 700 }}><SlidersHorizontal size={15} /> بحث متقدم</Link><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={16} /> المفضلة <b>{wishlist.length}</b></button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={16} /> مقارنة</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={16} /> طلب سريع</button><Link to="/orders" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'inherit', textDecoration: 'none', fontSize: 11, fontWeight: 700 }}><FileText size={16} /> طلباتي</Link>{!user && <Link to="/login" style={{ color: '#0b97a5', fontWeight: 800, fontSize: 11 }}>دخول</Link>}</div>
           <button className="sf-cart-btn" onClick={() => void navigate({ to: '/cart' })}><ShoppingCart size={20} /> {cartCount > 0 && <b>{cartCount}</b>}</button>
           <button className="sf-mobile-toggle" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={22} /></button>
