@@ -96,14 +96,14 @@ describe("observability architecture route is not duplicated in general settings
     expect(managerCard).not.toBeNull();
     const managerControls = within(managerCard as HTMLElement);
     expect(managerControls.getByRole("checkbox", { name: "مسؤول العملاء" })).toBeInTheDocument();
-    expect(managerControls.getByRole("button", { name: "إدارة نطاقات المستودعات" })).toBeEnabled();
+    expect(managerControls.getByRole("button", { name: "إدارة نطاقات الوصول" })).toBeEnabled();
     expect(managerControls.getByRole("button", { name: "إدارة المنع الصريح للقدرات" })).toBeEnabled();
 
     const customerCard = screen.getByText("عميل منفصل").closest("article");
     expect(customerCard).not.toBeNull();
     const customerControls = within(customerCard as HTMLElement);
     expect(customerControls.getByRole("checkbox", { name: "مسؤول العملاء" })).toBeDisabled();
-    expect(customerControls.getByRole("button", { name: "إدارة نطاقات المستودعات" })).toBeDisabled();
+    expect(customerControls.getByRole("button", { name: "إدارة نطاقات الوصول" })).toBeDisabled();
     expect(customerControls.getByRole("button", { name: "إدارة المنع الصريح للقدرات" })).toBeDisabled();
 
     expect(screen.queryByRole("heading", { name: "إدارة مسؤول العملاء ونطاقات المستودعات" })).not.toBeInTheDocument();
