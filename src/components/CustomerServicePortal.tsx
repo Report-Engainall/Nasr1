@@ -4,6 +4,7 @@ import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { addMyCustomerServiceCaseMessage,createMyCustomerServiceCase,fetchMyCustomerServiceCasesPage,fetchMyCustomerServicePortalContext,newCustomerServicePortalRequestKey,type CustomerServicePortalCase,type CustomerServicePortalMessage,type CustomerServicePortalCursor } from "@/lib/customer-service-portal";
 import type { CustomerServiceCasePriority,CustomerServiceCaseStatus,CustomerServiceCaseType } from "@/lib/customer-service-cases";
+import { getCustomerServiceCaseCodeFromSearch } from "@/lib/customer-service-notification-link";
 
 const types:Record<CustomerServiceCaseType,string>={complaint:"شكوى",inquiry:"استفسار",service_request:"طلب خدمة",delivery_issue:"مشكلة تسليم",other:"أخرى"};
 const priorities:Record<CustomerServiceCasePriority,string>={low:"منخفضة",medium:"متوسطة",high:"عالية",urgent:"عاجلة"};
@@ -38,7 +39,8 @@ function PortalCaseCard({item,canReply,onReply}:{item:CustomerServicePortalCase;
 function Workspace(){
  const[company,setCompany]=useState(""),[canCreate,setCanCreate]=useState(false),[canReply,setCanReply]=useState(false),[cases,setCases]=useState<CustomerServicePortalCase[]>([]);
  const[totalCount,setTotalCount]=useState(0),[page,setPage]=useState(0),[hasMore,setHasMore]=useState(false);
- const[searchDraft,setSearchDraft]=useState(""),[appliedSearch,setAppliedSearch]=useState("");
+ const[linkedCaseCode]=useState(()=>getCustomerServiceCaseCodeFromSearch(typeof window==="undefined"?"":window.location.search));
+ const[searchDraft,setSearchDraft]=useState(linkedCaseCode),[appliedSearch,setAppliedSearch]=useState(linkedCaseCode);
  const[statusDraft,setStatusDraft]=useState(""),[appliedStatus,setAppliedStatus]=useState<CustomerServiceCaseStatus|null>(null);
  const[typeDraft,setTypeDraft]=useState(""),[appliedType,setAppliedType]=useState<CustomerServiceCaseType|null>(null);
  const[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
@@ -70,6 +72,7 @@ function Workspace(){
  const pageCount=Math.max(1,Math.ceil(totalCount/50));
  return <main className="customer-service-portal" dir="rtl">
   <header className="customer-service-portal-hero"><div><span><Headphones size={16}/> خدمة العملاء</span><h1>مركز خدمة العملاء</h1><p>{company?"حالات ومراسلات "+company:"تابع حالات الخدمة وتواصل مع فريق الأغبري."}</p></div><button type="button" className="btn secondary" disabled={loading} onClick={()=>{void load();}}><RefreshCw size={15}/> تحديث الحالات</button></header>
+  {linkedCaseCode&&<p className="customer-service-portal-notice" role="status">تم فتح الحالة {linkedCaseCode} من التنبيهات. يمكنك مسح البحث للعودة إلى بقية الحالات.</p>}
   {notice&&<p className="customer-service-portal-notice" role="status"><CheckCircle2 size={15}/>{notice}</p>}{error&&<div className="customer-service-portal-error" role="alert"><AlertCircle size={16}/>{error}</div>}
   {canCreate&&<section className="customer-service-portal-create"><div className="customer-service-portal-section-heading"><div><h2><Plus size={17}/> فتح حالة خدمة جديدة</h2><p>حدد نوع الطلب واكتب التفاصيل التي يحتاجها فريق المعالجة.</p></div><ShieldCheck size={21}/></div>
    <form onSubmit={e=>{void create(e);}}><div className="customer-service-portal-form-grid">
