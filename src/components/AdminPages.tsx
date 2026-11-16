@@ -20,6 +20,7 @@ import {
   type AiGatewayBudget,
 } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
+import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { formatCurrency, formatDateShort, formatNumber, timeAgo } from '@/lib/format';
 import { ORDER_STATUS_LABELS } from '@/lib/types';
 import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem, StorefrontAnnouncement, StorefrontAnnouncementAudience, StorefrontAnnouncementInput } from '@/lib/types';
@@ -125,6 +126,7 @@ function NotificationsContent({
 
 export function Notifications({ onNotice, onOpenTask }: { onNotice: (m: string) => void; onOpenTask: (taskId: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchNotifications);
+  useRefreshWhileActive({ refresh: refetch, busy: loading });
   const unread = data?.filter((n) => !n.is_read).length ?? 0;
 
   async function readAll() {
@@ -266,6 +268,10 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const canManageGateway = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const { data: alerts, loading: aLoading, error: aError, refetch: rAlerts } = useFetch(fetchAiAlerts);
   const { data: tasks, loading: tLoading, error: tError, refetch: rTasks } = useFetch(fetchAiTasks);
+  const refreshAiOperations = useCallback(async () => {
+    await Promise.all([rAlerts(), rTasks()]);
+  }, [rAlerts, rTasks]);
+  useRefreshWhileActive({ refresh: refreshAiOperations, busy: aLoading || tLoading });
   const [tab, setTab] = useState<'alerts' | 'tasks'>('alerts');
   const [gateway, setGateway] = useState<AiGatewayBudget | null>(null);
   const [draft, setDraft] = useState<AiGatewayDraft>(defaultAiGatewayDraft);
