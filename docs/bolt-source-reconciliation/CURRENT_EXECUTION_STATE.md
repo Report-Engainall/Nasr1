@@ -6151,3 +6151,17 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Earlier failed candidate SHAs are superseded and not counted. No production DB write, financial posting, inventory movement, live provider integration, Vercel usage or deployment occurred.
 - Remaining acceptance: P2 public browser result and local PostgreSQL 17 run on this exact SHA; hosted customer/order/tenant E2E remains external/blocked. Current price-grid source RPC does not return category name, so category is not fabricated into the price grid.
 - Release remains **NO-GO** pending independent finance, inventory, authenticated tenant, category-route and full-screen acceptance gates.
+
+
+---
+
+## P3 CHECKPOINT — IMMUTABLE DECISION SNAPSHOT REQUIRED — 2026-11-17
+
+- Implementation commit: `0038476178ea15274f0b7cfce73cd177f5fad313`; follow-up test fix and tested source SHA: `b5b9a313eb020d65e867acd4f70b0a7f035bfe47`.
+- Current main later advanced through four unrelated inventory/barcode commits; compare confirms no changed decision snapshot files. Exact acceptance remains attached to `b5b9a313...`, not the newer head.
+- All new DecisionOutcome proposals now require a valid immutable P0-P3/evidence candidate snapshot and route only through `create_decision_outcome_proposal_with_snapshot`. The authenticated legacy no-snapshot RPC is revoked. Manual cashflow follow-up persists exact evidence IDs/formula/metric and WITHHELD numeric impact; no causal claim is fabricated.
+- Added `20261117140000_decision_outcome_snapshot_required.sql`, client/component regression tests and a PostgreSQL 17/Auth-local rollback-only acceptance script in the P2 local job. It tests snapshot, append-only CREATE/audit, idempotency, conflicting payload, legacy RPC denial, snapshot immutability and zero persistent fixture rows.
+- P1 run `43983285125` and P2 run `43983285142`: both QUEUED at retrieval on exact SHA `b5b9a313...`; **no PASS yet**. No production/hosted migration, data write, live integration or deployment.
+- Historical outcomes with NULL snapshots remain unchanged/unverified; no backfill. The entire decision lifecycle still requires role/tenant/state/side-effect acceptance.
+- Remaining finance gap: no separate approved future operating-expense commitments feed in 7/30/90 cash forecast. Posted/void actual expenses are not future commitments and must not be counted twice.
+- Next: resolve the exact-SHA P1/P2 runs, then build/test the operating-expense commitment lifecycle and cashflow link. Keep opening estimate 3,235 excluded from confirmed ATP until physical count; original product imagery still required for 114 real product links (0/114 currently).
