@@ -49,3 +49,24 @@ describe("resolveSupportedBarcodeFormats", () => {
     expect(resolveSupportedBarcodeFormats([])).toEqual([]);
   });
 });
+
+
+describe("nextBarcodeScanQuantity", () => {
+  it("starts at the server-defined minimum quantity", async () => {
+    const { nextBarcodeScanQuantity } = await import("./localized-barcode-input");
+    expect(nextBarcodeScanQuantity(0, 6, 2)).toBe(6);
+  });
+
+  it("advances each later scan by the server-defined multiple", async () => {
+    const { nextBarcodeScanQuantity } = await import("./localized-barcode-input");
+    expect(nextBarcodeScanQuantity(6, 6, 2)).toBe(8);
+    expect(nextBarcodeScanQuantity(7, 2, 3)).toBe(8);
+  });
+
+  it("rejects invalid policy values and quantities beyond the cart limit", async () => {
+    const { nextBarcodeScanQuantity } = await import("./localized-barcode-input");
+    expect(nextBarcodeScanQuantity(-1, 1, 1)).toBeNull();
+    expect(nextBarcodeScanQuantity(0, 0, 1)).toBeNull();
+    expect(nextBarcodeScanQuantity(10000, 1, 1)).toBeNull();
+  });
+});
