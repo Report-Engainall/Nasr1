@@ -19,10 +19,10 @@ BEGIN
   v_definition:=pg_catalog.pg_get_functiondef(
     'public.get_inventory_adjustment_balances(uuid)'::regprocedure
   );
-  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+  IF pg_catalog.strpos(v_definition, v_legacy_guard)>0 THEN
     v_definition:=pg_catalog.replace(v_definition,v_legacy_guard,v_warehouse_guard);
   END IF;
-  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+  IF pg_catalog.strpos(v_definition, v_legacy_guard)>0 THEN
     RAISE EXCEPTION 'inventory balance projection still contains an unscoped authorization guard';
   END IF;
   EXECUTE v_definition;
@@ -30,11 +30,11 @@ BEGIN
   v_definition:=pg_catalog.pg_get_functiondef(
     'public.adjust_inventory_balance(uuid,uuid,numeric,numeric,text,text,text,text)'::regprocedure
   );
-  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+  IF pg_catalog.strpos(v_definition, v_legacy_guard)>0 THEN
     v_definition:=pg_catalog.replace(v_definition,v_legacy_guard,v_warehouse_guard);
   END IF;
-  IF pg_catalog.position(v_legacy_guard IN v_definition)>0
-     OR pg_catalog.position('current_actor_has_capability(''inventory.balance.adjust'', p_warehouse_id)' IN v_definition)=0 THEN
+  IF pg_catalog.strpos(v_definition, v_legacy_guard)>0
+     OR pg_catalog.strpos(v_definition, 'current_actor_has_capability(''inventory.balance.adjust'', p_warehouse_id)')=0 THEN
     RAISE EXCEPTION 'inventory adjustment command is not guarded by its submitted warehouse';
   END IF;
   EXECUTE v_definition;
@@ -42,15 +42,15 @@ BEGIN
   v_definition:=pg_catalog.pg_get_functiondef(
     'public.guard_inventory_adjustment_capability_v2()'::regprocedure
   );
-  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+  IF pg_catalog.strpos(v_definition, v_legacy_guard)>0 THEN
     v_definition:=pg_catalog.replace(
       v_definition,
       v_legacy_guard,
       'current_actor_has_capability(''inventory.balance.adjust'', NEW.warehouse_id)'
     );
   END IF;
-  IF pg_catalog.position(v_legacy_guard IN v_definition)>0
-     OR pg_catalog.position('NEW.warehouse_id' IN v_definition)=0 THEN
+  IF pg_catalog.strpos(v_definition, v_legacy_guard)>0
+     OR pg_catalog.strpos(v_definition, 'NEW.warehouse_id')=0 THEN
     RAISE EXCEPTION 'inventory adjustment insert trigger is not guarded by NEW.warehouse_id';
   END IF;
   EXECUTE v_definition;
