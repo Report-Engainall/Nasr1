@@ -6031,3 +6031,18 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Final P1 exact-SHA Vitest/strict-TypeScript/build evidence remains **NOT VERIFIED**: combined status has no entries, and the available workflow-run connector exposes pull-request runs only, not push runs. No PASS is claimed.
 - No RPC, migration, RLS, role, database, provider, business calculation, deployment or production data changed. Both matrix acceptance rows remain open for exact-SHA CI and their pre-existing data/runtime acceptance.
 - Updated P3 checkpoint: `docs/execution/P3_NATURAL_LANGUAGE_QUERY_WINDOW_GUARDS_CHECKPOINT_2026-11-16.md`, checkpoint update commit `07a5be7122d4c6b563afc791c661510e9b785d88`.
+
+
+---
+
+## LIVE AUTHORIZATION V2 CHECKPOINT — DLV-002 ACCESS MATRIX — 2026-11-16
+
+- Canonical task: `DLV-002-ADMIN-ROLE-ACCESS-COMPARISON-001`.
+- Main base observed before the browser-spec correction: `65f0b0aaed40d2d5c50e42ed1cb21752cfb9b479`.
+- Exact browser-spec commit: `7ab02fca23a1c1b5261ac4c074f8ad90b68b4fc3`; changed path: `e2e/public-storefront-smoke.spec.ts` only.
+- The test uses the existing public fixture under `public/e2e/fixtures/admin-access-matrix.html` and real `AdminAccessMatrix` component. It now asserts six role columns, finance/pricing denial reasons, Arabic diacritic keyboard search, all-role scope filter, no-result and clear, selected-role allowed/denied filter, both 360px/1280px table scrolling widths and keyboard focus order/visibility.
+- P1 source/component evidence remains 127/127 test files and 908/908 tests plus strict TypeScript and production build PASS on exact source/test SHA `80a55e576f46d658853da9c5d6e9a8207483718f`. No evidence has been transferred to the E2E-only SHA.
+- Exact-SHA P2 Chromium on `7ab02fca23a1c1b5261ac4c074f8ad90b68b4fc3`: **NOT RUN / NOT VERIFIED**. No run result was available through the connected status/run readers and no local checkout could be executed in this session. The prior run `43776555758` remains a failure on its older SHA and is not presented as a result for this update.
+- The matrix row is updated with the exact source SHA, evidence boundary and next acceptance action. Detailed checkpoint: `docs/execution/AUTHZ_DLV002_ACCESS_MATRIX_CHROMIUM_CHECKPOINT_2026-11-16.md`.
+- No role policy, user assignment, SQL/RPC/RLS/grant, migration, hosted or production resource, deployment, paid service or secret changed.
+- **Active precedence:** complete public Chromium and authenticated local admin/denied-role acceptance for DLV-002 first. Only then start `AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001`. Architecture V2 remains DOCUMENTED; capability registry, runtime RBAC/ABAC/ReBAC, new role grants and server-side staff price redaction remain NOT IMPLEMENTED / OPEN.
