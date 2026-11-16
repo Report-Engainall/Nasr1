@@ -60,13 +60,6 @@ async function main() {
    "and p.organization_id is not null group by p.id,p.auth_user_id,p.organization_id,p.email order by p.created_at,p.id");
   const org=profiles.find(p=>p.roles.includes("manager"))?.organization_id;
   assert.ok(org,"P2 local seed must provide a manager organization");
-  const actors=new Map();
-  for(const role of ["admin","manager","staff","accountant","customer_manager","customer"]) {
-   const actor=profiles.find(p=>p.organization_id===org&&p.roles.includes(role));
-   assert.ok(actor,"P2 local seed must provide "+role+" within the manager organization");
-   actors.set(role,actor);
-  }
-
   const loginEnv={
    admin:["E2E_DEVICE_ADMIN_EMAIL","E2E_DEVICE_ADMIN_PASSWORD"],
    manager:["E2E_MANAGER_EMAIL","E2E_MANAGER_PASSWORD"],
@@ -75,14 +68,26 @@ async function main() {
    customer_manager:["E2E_CUSTOMER_MANAGER_EMAIL","E2E_CUSTOMER_MANAGER_PASSWORD"],
    customer:["E2E_EMAIL","E2E_PASSWORD"]
   };
-  for(const [role,actor] of actors) {
-   const [emailName,passwordName]=loginEnv[role];
-   actor.jwtClaims=await signInLocal(apiUrl,publishableKey,requiredEnv(emailName),requiredEnv(passwordName),actor.auth_user_id);
+  const actors=new Map();
+  for(const [role,[emailName,passwordName]] of Object.entries(loginEnv)) {
+   const email=requiredEnv(emailName).trim().toLowerCase();
+   // Bind every capability assertion to the exact profile whose credentials are
+   // used to mint the live JWT. Picking the first profile for a role can silently
+   // pair a seeded/legacy admin with the distinct ephemeral admin login.
+   const matches=profiles.filter(p=>
+    p.organization_id===org&&
+    p.roles.includes(role)&&
+    String(p.email??"").trim().toLowerCase()===email
+   );
+   assert.equal(matches.length,1,"P2 local seed must provide exactly one "+role+" profile for the authenticated fixture identity");
+   const actor=matches[0];
+   actor.jwtClaims=await signInLocal(apiUrl,publishableKey,email,requiredEnv(passwordName),actor.auth_user_id);
    const liveSession=await db.unsafe(
     "select id::text from auth.sessions where id=$1::uuid and user_id=$2::uuid and (not_after is null or not_after>now())",
     [actor.jwtClaims.session_id,actor.auth_user_id]
    );
    assert.equal(liveSession.length,1,role+" must have a real live session in auth.sessions");
+   actors.set(role,actor);
   }
 
   const expectedPairs=[
