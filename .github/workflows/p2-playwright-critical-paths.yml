@@ -15,6 +15,7 @@ on:
       - "scripts/test-local-endpoint-guard.mjs"
       - "scripts/lib/local-endpoint-guard.mjs"
       - "scripts/test-price-grid-atomicity.mjs"
+      - "scripts/test-customer-order-amendment-replay.mjs"
       - "scripts/test-admin-catalog-category-hierarchy.mjs"
       - "scripts/test-cash-expense-journal-posting.mjs"
       - "scripts/test-purchase-receipt-accounting.mjs"
@@ -606,6 +607,8 @@ jobs:
         run: node scripts/test-local-endpoint-guard.mjs
       - name: Test customer receivable identity, same-name separation, tenant FK, accountant access and customer denial
         run: node scripts/test-customer-receivable-aging-identity.mjs
+      - name: Test customer order amendment exact replay and immutable version on local PostgreSQL 17
+        run: node scripts/test-customer-order-amendment-replay.mjs
       - name: Test atomic price grid writes, rollback, audit and stale-writer race
         run: node scripts/test-price-grid-atomicity.mjs
       - name: Test tenant-safe category subtree archival and create/product race locks on local PostgreSQL 17

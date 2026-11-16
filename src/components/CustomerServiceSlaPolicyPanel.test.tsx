@@ -96,7 +96,7 @@ describe("CustomerServiceSlaPolicyPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "حفظ سياسة عالية" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("رفض الخادم حفظ سياسة SLA");
-    expect(screen.queryByText("أكد الخادم حفظ سياسة الأولوية عالية.")).not.toBeInTheDocument();
+    expect(screen.queryByText("أكد الخادم حفظ سياسة الأولوية عالية")).not.toBeInTheDocument();
   });
 
   it("keeps the policy UI and server reads unavailable to non-managers", () => {
