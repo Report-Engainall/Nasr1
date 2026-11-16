@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { Login } from '@/components/Login';
 import { formatDate } from '@/lib/format';
 import type { Notification } from '@/lib/types';
+import { WorkspaceSectionHeader, WorkspaceSectionGroup } from '@/components/ui/workspace-sections';
 
 function notificationDestination(notification: Notification, isStaff: boolean): 'order' | 'task' | 'service-case' | null {
   if (notification.entity_type === 'order' && typeof notification.entity_id === 'string') return 'order';
@@ -199,14 +200,13 @@ function CustomerNotificationWorkspace() {
 
   return (
     <main className="storefront" dir="rtl" style={{ paddingTop: 24, paddingBottom: 40 }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 900 }}>التنبيهات</h1>
-          <p style={{ margin: '6px 0 0', color: 'var(--muted-foreground)', fontSize: 13 }}>
-            {notifications.length.toLocaleString('ar-YE')} محمّل — {unread.toLocaleString('ar-YE')} غير مقروء
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <WorkspaceSectionHeader
+        eyebrow="حساب العميل"
+        title="التنبيهات"
+        description={notifications.length.toLocaleString('ar-YE') + " محمّل — " + unread.toLocaleString('ar-YE') + " غير مقروء"}
+        icon={Bell}
+        className="customer-notifications-heading"
+        actions={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {unread > 0 && (
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void markAllRead(); }} disabled={busyId === '__all__'}>
               <Check size={14} /> تعليم الكل كمقروء
@@ -215,10 +215,10 @@ function CustomerNotificationWorkspace() {
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void refetch(); }} disabled={loading}>
             <RefreshCw size={15} /> تحديث
           </button>
-        </div>
-      </header>
+        </div>}
+      />
 
-      <section className="mb-4 grid gap-3 rounded-xl border border-border bg-card p-4" aria-label="البحث وتصفية التنبيهات">
+      <WorkspaceSectionGroup icon={Search} title="البحث والتصفية" description="ابحث في التنبيهات المحمّلة وضيّق النتائج حسب نوعها وحالتها." className="customer-notification-filter" contentClassName="customer-notification-filter__content">
         <label className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
           <Search size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="sr-only">ابحث في التنبيهات المحمّلة</span>
@@ -252,7 +252,7 @@ function CustomerNotificationWorkspace() {
           </span>
         </div>
         <p className="text-xs text-muted-foreground">تُحمّل التنبيهات بصفحات متتابعة من 30 عنصرًا للحساب الحالي. استخدم «تحميل الأقدم» للوصول إلى بقية السجل المتاح.</p>
-      </section>
+      </WorkspaceSectionGroup>
 
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
       {loading ? (
