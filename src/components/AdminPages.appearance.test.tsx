@@ -67,7 +67,7 @@ describe("organization appearance settings integration", () => {
     const { container, onNotice } = renderForRoles(["manager"]);
     openAppearance(container);
 
-    const turquoise = screen.getByRole("button", { name: /أخضر بحري/ });
+    const turquoise = screen.getByRole("button", { name: /تركواز مشرق/ });
     fireEvent.click(turquoise);
 
     expect(turquoise).toHaveAttribute("aria-pressed", "true");
@@ -78,7 +78,7 @@ describe("organization appearance settings integration", () => {
     await waitFor(() => {
       expect(mocks.updateSetting).toHaveBeenCalledWith(
         "theme_palette",
-        { id: "turquoise", primary: "#087f8d", accent: "#0eaa97" },
+        { id: "turquoise", primary: "#0b929f", accent: "#27b69f" },
         "appearance",
       );
     });
