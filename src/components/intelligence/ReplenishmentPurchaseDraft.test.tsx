@@ -96,6 +96,7 @@ describe("ReplenishmentPurchaseDraft", () => {
     fireEvent.click(createButton);
     await waitFor(() => expect(mocks.createPurchaseOrder).toHaveBeenCalledTimes(1));
     await screen.findByText("network timeout");
+    await waitFor(() => expect(createButton).toBeEnabled());
     const firstRequest = mocks.createPurchaseOrder.mock.calls[0][0];
     expect(firstRequest.idempotencyKey).toBe("replenishment-aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa");
 
