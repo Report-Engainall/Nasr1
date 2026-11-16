@@ -349,6 +349,36 @@ describe("AdminCategoryTree", () => {
     });
   });
 
+  it("navigates to an ancestor directly from the selected category breadcrumb", async () => {
+    const grandchild = category(
+      "55555555-5555-4555-8555-555555555555",
+      "التصنيف المتداخل",
+      CHILD_ID,
+    );
+    mocks.fetchCategories.mockResolvedValueOnce([root, child, grandchild]);
+    window.history.replaceState({}, "", "/admin/categories?category=" + grandchild.id);
+
+    renderTree();
+
+    expect(await screen.findByRole("heading", { name: grandchild.name })).toBeInTheDocument();
+    const breadcrumb = screen.getByRole("navigation", { name: "مسار التصنيف" });
+    expect(within(breadcrumb).getByRole("button", { name: "الانتقال إلى التصنيف التصنيف الرئيسي" })).toBeInTheDocument();
+    expect(within(breadcrumb).getByRole("button", { name: "الانتقال إلى التصنيف التصنيف الفرعي" })).toBeInTheDocument();
+    expect(within(breadcrumb).getByText(grandchild.name)).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(within(breadcrumb).getByRole("button", {
+      name: "الانتقال إلى التصنيف التصنيف الفرعي",
+    }));
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get("category")).toBe(CHILD_ID);
+    });
+    expect(await screen.findByRole("heading", { name: child.name })).toBeInTheDocument();
+    const updatedBreadcrumb = screen.getByRole("navigation", { name: "مسار التصنيف" });
+    expect(within(updatedBreadcrumb).getByText(child.name)).toHaveAttribute("aria-current", "page");
+    expect(within(updatedBreadcrumb).queryByRole("button", { name: /التصنيف الفرعي/ })).not.toBeInTheDocument();
+  });
+
   it("does not request category data for a role that cannot open the workspace", async () => {
     mocks.roles = ["customer"];
     renderTree();
