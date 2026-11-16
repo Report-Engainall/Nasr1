@@ -7,6 +7,7 @@ import {
 import { Button, Empty, ErrorBox, Loading } from "@/components/AdminPages";
 import { useAuth } from "@/lib/auth";
 import { CustomerServiceConversation } from "@/components/CustomerServiceConversation";
+import { CustomerServiceSlaPolicyPanel } from "@/components/CustomerServiceSlaPolicyPanel";
 import { fetchOperationalTaskAssignees } from "@/lib/api";
 import type { OperationalTaskAssignee } from "@/lib/types";
 import {
@@ -401,6 +402,8 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
       <Metric icon={UserRound} label="غير مسندة" value={summary.unassigned_count} tone={summary.unassigned_count ? "warning" : "default"} />
       <Metric icon={ShieldAlert} label="عاجلة" value={summary.urgent_count} tone={summary.urgent_count ? "warning" : "default"} />
     </div>
+
+    {canManage ? <CustomerServiceSlaPolicyPanel canManage={canManage} /> : null}
 
     <section className="customer-service-desk-filters">
       <div className="customer-service-desk-filter-heading"><Filter size={16} /><strong>تصفية طابور الحالات</strong><span>ملخص المؤشرات يعرض كامل الحالات المفتوحة في المؤسسة</span></div>
