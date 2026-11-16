@@ -200,7 +200,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  }
  const growthRadarQuestion=/(رادار النمو|فرص النمو|فرص تجاريه|فرص متابعه العملاء|فرص اعاده الشراء|فرص تكرار الشراء|عملاء يحتاجون متابعه|فرص النمو للعملاء)/.test(normalizedQuestion);
  if(growthRadarQuestion){
-  const dayMatch=normalizedQuestion.match(/(?:اخر\\s*)?(30|60|90|180|365)\\s*(?:يوما?|ايام)/);
+  const dayMatch=normalizedQuestion.match(/(?:اخر\s*)?(30|60|90|180|365)\s*(?:يوما?|ايام)/);
   const monthPeriod=/اخر شهر/.test(normalizedQuestion)?30:
    /اخر 3 اشهر/.test(normalizedQuestion)?90:/اخر 6 اشهر/.test(normalizedQuestion)?180:
    /اخر سنه/.test(normalizedQuestion)?365:null;
@@ -351,7 +351,7 @@ export function planNaturalLanguageQuery(question:string):NaturalLanguagePlanRes
  }
  const taskQualityQuestion=/(جوده المهام|جوده التوصيات|دقه التوصيات|قابليه تنفيذ المهام|الانذارات الكاذبه|التنبيهات الصحيحه|التنبيهات الخاطئه|مراجعات جوده المهام|جوده التنبيهات|جوده قرارات التوصيه|اسباب رفض التوصيات|اسباب تاجيل التوصيات|الاسباب المتكرره|اسباب التكرار|سبب تكرار المهام|اسباب عدم قابليه التنفيذ)/.test(normalizedQuestion);
  if(taskQualityQuestion){
-  const historicalQualityWindow=/(اليوم|امس|البارحه|الاسبوع الماضي|الاسبوع السابق|هذا الاسبوع|الاسبوع الحالي|الشهر الماضي|الشهر السابق|هذا الشهر|الشهر الحالي|اخر\\s*(?:[0-9]+\\s*)?(?:يوم|ايام|اسبوع|اسابيع|شهر|اشهر)|خلال|منذ|بين تاريخ|من تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion);
+  const historicalQualityWindow=/(اليوم|امس|البارحه|الاسبوع الماضي|الاسبوع السابق|هذا الاسبوع|الاسبوع الحالي|الشهر الماضي|الشهر السابق|هذا الشهر|الشهر الحالي|اخر\s*(?:[0-9]+\s*)?(?:يوم|ايام|اسبوع|اسابيع|شهر|اشهر)|خلال|منذ|بين تاريخ|من تاريخ|20[0-9]{2}-[0-9]{2}-[0-9]{2})/.test(normalizedQuestion);
   if(historicalQualityWindow)return {
    status:"UNSUPPORTED",normalizedQuestion,
    explanation:"مؤشرات جودة المهام تقرأ أحدث مراجعة محفوظة لكل كيان ونوع ولا توفر ترشيحاً تاريخياً؛ لا يمكن نسب الإنذارات الكاذبة أو أسباب الرفض إلى أسبوع أو شهر محدد من هذا المصدر."
