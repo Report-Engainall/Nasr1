@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   user: null as null | { id: string; profileId: string; roles: string[]; isStaff: boolean },
@@ -31,6 +31,13 @@ const customer = {
   profileId: "d1000000-0000-0000-0000-000000000001",
   roles: ["customer"], isStaff: false,
 };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   mocks.user = null;
   mocks.fetchPublic.mockReset().mockResolvedValue({ questionCount: 1, items: [publicItem], hasMore: false });
@@ -68,6 +75,49 @@ describe("StorefrontProductQuestions", () => {
     }));
     expect(await screen.findByText("تم إرسال سؤالك إلى فريق المتجر")).toBeInTheDocument();
     expect(screen.getByText("بانتظار الإجابة")).toBeInTheDocument();
+  });
+
+  it("ignores a late pagination response after navigation to another product", async () => {
+    const nextProductId = "a1000000-0000-0000-0000-000000000002";
+    const nextProductQuestion = {
+      ...publicItem,
+      id: "b1000000-0000-0000-0000-000000000002",
+      questionText: "هل وصل المنتج الجديد سريعاً؟",
+      answerText: "نعم، وصل المنتج الجديد في الموعد.",
+    };
+    const stalePageQuestion = {
+      ...publicItem,
+      id: "b1000000-0000-0000-0000-000000000003",
+      questionText: "سؤال متأخر للمنتج السابق",
+      answerText: "هذه الإجابة تخص المنتج السابق فقط.",
+    };
+    const stalePage = deferred<{
+      questionCount: number;
+      items: typeof publicItem[];
+      hasMore: boolean;
+    }>();
+    mocks.fetchPublic.mockImplementation((requestedProductId: string, _limit?: number, offset?: number) => {
+      if (requestedProductId === productId && offset === 1) return stalePage.promise;
+      if (requestedProductId === productId) {
+        return { questionCount: 2, items: [publicItem], hasMore: true };
+      }
+      return { questionCount: 1, items: [nextProductQuestion], hasMore: false };
+    });
+
+    const { rerender } = render(<StorefrontProductQuestions productId={productId} />);
+    expect(await screen.findByText("س: " + publicItem.questionText)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "عرض أسئلة أخرى" }));
+    await waitFor(() => expect(mocks.fetchPublic).toHaveBeenCalledWith(productId, 8, 1));
+
+    rerender(<StorefrontProductQuestions productId={nextProductId} />);
+    expect(await screen.findByText("س: " + nextProductQuestion.questionText)).toBeInTheDocument();
+
+    await act(async () => {
+      stalePage.resolve({ questionCount: 2, items: [stalePageQuestion], hasMore: false });
+      await stalePage.promise;
+    });
+    expect(screen.queryByText("س: " + stalePageQuestion.questionText)).not.toBeInTheDocument();
+    expect(screen.getByText("س: " + nextProductQuestion.questionText)).toBeInTheDocument();
   });
 
   it("loads the customer's own rejection note privately", async () => {
