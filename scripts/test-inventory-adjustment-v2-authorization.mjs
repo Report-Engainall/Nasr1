@@ -100,14 +100,24 @@ async function main() {
       "from public.products p join public.inventory_balances ib on ib.product_id=p.id " +
       "join public.warehouses w on w.id=ib.warehouse_id and w.is_active=true " +
       "where p.organization_id=$1::uuid and p.status='active' and ib.quantity_on_hand<999999999999.999 " +
-      "order by p.item_code,p.id limit 1",
-      [organizationId],
+      "and not exists (select 1 from public.authorization_profile_scopes s " +
+      "where s.organization_id=p.organization_id and s.profile_id=$2::uuid and s.scope_kind='warehouse' " +
+      "and s.warehouse_id=w.id and s.is_active=true and s.valid_from<=statement_timestamp() " +
+      "and (s.expires_at is null or s.expires_at>statement_timestamp())) " +
+      "order by w.id,p.item_code,p.id limit 1",
+      [organizationId, actors.manager.profile_id],
     );
     assert.ok(fixture, "local fixture must have an existing active stock balance");
     const [otherWarehouse] = await db.unsafe(
-      "select id::text as warehouse_id from public.warehouses " +
-      "where organization_id=$1::uuid and is_active=true and id<>$2::uuid order by created_at,id limit 1",
-      [organizationId, fixture.warehouse_id],
+      "select w.id::text as warehouse_id from public.warehouses w " +
+      "where w.organization_id=$1::uuid and w.is_active=true and w.id<>$2::uuid " +
+      "and exists (select 1 from public.inventory_balances ib where ib.warehouse_id=w.id and ib.product_id=$4::uuid) " +
+      "and not exists (select 1 from public.authorization_profile_scopes s " +
+      "where s.organization_id=w.organization_id and s.profile_id=$3::uuid and s.scope_kind='warehouse' " +
+      "and s.warehouse_id=w.id and s.is_active=true and s.valid_from<=statement_timestamp() " +
+      "and (s.expires_at is null or s.expires_at>statement_timestamp())) " +
+      "order by w.id limit 1",
+      [organizationId, fixture.warehouse_id, actors.manager.profile_id, fixture.product_id],
     );
     const oldQuantity = Number(fixture.quantity_on_hand);
     const newQuantity = Number((oldQuantity + 1).toFixed(3));
@@ -123,6 +133,16 @@ async function main() {
 
     try {
       await db.begin(async (tx) => {
+        // The broader P2 storefront fixture intentionally places a manager-level
+        // explicit denial on this capability. Revoke it only inside this rollback-
+        // only acceptance transaction so this test can separately prove both
+        // unassigned-scope denial and the explicit-denial override path below.
+        await applyActor(tx, actors.admin);
+        await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.balance.adjust',NULL,NULL::timestamptz,false)",
+          [actors.manager.profile_id],
+        );
+
         // A legacy role grant alone cannot authorize an unassigned warehouse.
         await applyActor(tx, actors.manager);
         const noScopeRows = await tx.unsafe(
