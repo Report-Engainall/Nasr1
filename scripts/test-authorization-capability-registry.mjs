@@ -58,31 +58,39 @@ async function main() {
    "p.email,array_agg(r.role order by r.role) as roles from public.profiles p "+
    "join public.user_roles r on r.profile_id=p.id where p.is_active=true and p.auth_user_id is not null "+
    "and p.organization_id is not null group by p.id,p.auth_user_id,p.organization_id,p.email order by p.created_at,p.id");
-  const org=profiles.find(p=>p.roles.includes("manager"))?.organization_id;
-  assert.ok(org,"P2 local seed must provide a manager organization");
+  const loginEnv={
+    admin:["E2E_DEVICE_ADMIN_EMAIL","E2E_DEVICE_ADMIN_PASSWORD"],
+    manager:["E2E_MANAGER_EMAIL","E2E_MANAGER_PASSWORD"],
+    staff:["E2E_STAFF_EMAIL","E2E_STAFF_PASSWORD"],
+    accountant:["E2E_ACCOUNTANT_EMAIL","E2E_ACCOUNTANT_PASSWORD"],
+    customer_manager:["E2E_CUSTOMER_MANAGER_EMAIL","E2E_CUSTOMER_MANAGER_PASSWORD"],
+    customer:["E2E_EMAIL","E2E_PASSWORD"]
+  };
+  const managerLoginEmail=requiredEnv(loginEnv.manager[0]).trim().toLowerCase();
+  const managerActor=profiles.find(p=>
+    p.email?.trim().toLowerCase()===managerLoginEmail&&p.roles.includes("manager"));
+  assert.ok(managerActor,"P2 local manager login must map to its own active manager profile");
+  const org=managerActor.organization_id;
   const actors=new Map();
   for(const role of ["admin","manager","staff","accountant","customer_manager","customer"]) {
-   const actor=profiles.find(p=>p.organization_id===org&&p.roles.includes(role));
-   assert.ok(actor,"P2 local seed must provide "+role+" within the manager organization");
-   actors.set(role,actor);
-  }
-
-  const loginEnv={
-   admin:["E2E_DEVICE_ADMIN_EMAIL","E2E_DEVICE_ADMIN_PASSWORD"],
-   manager:["E2E_MANAGER_EMAIL","E2E_MANAGER_PASSWORD"],
-   staff:["E2E_STAFF_EMAIL","E2E_STAFF_PASSWORD"],
-   accountant:["E2E_ACCOUNTANT_EMAIL","E2E_ACCOUNTANT_PASSWORD"],
-   customer_manager:["E2E_CUSTOMER_MANAGER_EMAIL","E2E_CUSTOMER_MANAGER_PASSWORD"],
-   customer:["E2E_EMAIL","E2E_PASSWORD"]
-  };
-  for(const [role,actor] of actors) {
-   const [emailName,passwordName]=loginEnv[role];
-   actor.jwtClaims=await signInLocal(apiUrl,publishableKey,requiredEnv(emailName),requiredEnv(passwordName),actor.auth_user_id);
-   const liveSession=await db.unsafe(
-    "select id::text from auth.sessions where id=$1::uuid and user_id=$2::uuid and (not_after is null or not_after>now())",
-    [actor.jwtClaims.session_id,actor.auth_user_id]
-   );
-   assert.equal(liveSession.length,1,role+" must have a real live session in auth.sessions");
+    const [emailName,passwordName]=loginEnv[role];
+    const email=requiredEnv(emailName).trim();
+    const actor=profiles.find(p=>
+      p.organization_id===org&&
+      p.email?.trim().toLowerCase()===email.toLowerCase()&&
+      p.roles.includes(role));
+    assert.ok(actor,"P2 local "+role+" credentials must map to that exact role profile in the manager tenant");
+    actors.set(role,actor);
+    try {
+      actor.jwtClaims=await signInLocal(apiUrl,publishableKey,email,requiredEnv(passwordName),actor.auth_user_id);
+    } catch(cause) {
+      throw new Error("P2 local "+role+" credentials did not authenticate the selected profile: "+String(cause?.message??cause));
+    }
+    const liveSession=await db.unsafe(
+      "select id::text from auth.sessions where id=$1::uuid and user_id=$2::uuid and (not_after is null or not_after>now())",
+      [actor.jwtClaims.session_id,actor.auth_user_id]
+    );
+    assert.equal(liveSession.length,1,role+" must have a real live session in auth.sessions");
   }
 
   const expectedPairs=[
