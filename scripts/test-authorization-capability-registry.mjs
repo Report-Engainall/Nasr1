@@ -142,6 +142,37 @@ async function main() {
   );
 
   const manager=actors.get("manager"),admin=actors.get("admin");
+
+  const commandFlags=await Promise.all([
+   withActor(db,manager,tx=>tx.unsafe("select public.purchase_orders_can_manage() as purchasing,public.can_manage_finance() as finance")),
+   withActor(db,actors.get("accountant"),tx=>tx.unsafe("select public.purchase_orders_can_manage() as purchasing,public.can_manage_finance() as finance")),
+   withActor(db,actors.get("staff"),tx=>tx.unsafe("select public.purchase_orders_can_manage() as purchasing,public.can_manage_finance() as finance"))
+  ]);
+  assert.equal(commandFlags[0][0].purchasing,true);
+  assert.equal(commandFlags[0][0].finance,true);
+  assert.equal(commandFlags[1][0].purchasing,false);
+  assert.equal(commandFlags[1][0].finance,true);
+  assert.equal(commandFlags[2][0].purchasing,false);
+  assert.equal(commandFlags[2][0].finance,false);
+
+  const deniedCommands=[
+   [actors.get("accountant"),"select public.transfer_inventory(NULL::uuid,NULL::uuid,NULL::uuid,1::numeric,'denied','authz-test-key-0001')"],
+   [actors.get("accountant"),"select public.start_stock_count(NULL::uuid,'authz-test-count-key-0001',NULL)"],
+   [actors.get("accountant"),"select public.set_stock_count_line(NULL::uuid,NULL::uuid,1::numeric)"],
+   [actors.get("staff"),"select public.complete_stock_count(NULL::uuid)"],
+   [actors.get("staff"),"select public.cancel_stock_count(NULL::uuid,'denied')"],
+   [actors.get("staff"),"select public.save_product_price_grid('[]'::jsonb)"],
+   [actors.get("staff"),"select public.fetch_purchase_orders()"],
+   [actors.get("staff"),"select public.record_cash_expense(gen_random_uuid(),'test','denied',1::numeric)"]
+  ];
+  for(const [actor,sql] of deniedCommands) {
+   await assert.rejects(
+    ()=>withActor(db,actor,tx=>tx.unsafe(sql)),
+    error=>error&&String(error.code)==="42501",
+    "the V2 command capability must reject unauthorized RPC execution before validating payload or writing"
+   );
+  }
+
   const deny=await withActor(db,admin,tx=>tx.unsafe(
    "select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',$2::text,NULL::timestamptz,true) as result",
    [manager.profile_id,"Temporary authorization acceptance denial"]));
