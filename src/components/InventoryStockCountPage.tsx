@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { projectStockCountPrintDocument } from '@/lib/stock-count-print';
 import { InventoryBalanceAdjustmentPanel } from '@/components/InventoryBalanceAdjustmentPanel';
 import { OpeningInventoryBaselineApprovalPanel } from '@/components/OpeningInventoryBaselineApprovalPanel';
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 const q = (v: number | null | undefined) => v == null || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(Number(v));
 const idempotencyKey = () => 'stock-count-' + crypto.randomUUID().replace(/-/g, '');
 function StockCountLineRow({
@@ -249,8 +250,8 @@ export function InventoryStockCountPage() {
         .stock-count-print-document .print-footer { margin-top:10px; font-size:9px; }
       }
     `}</style>
-    <header className="heading"><div className="heading-icon"><ClipboardCheck size={24} /></div><div><span>الأصناف والمخزون</span><h1>الجرد الفعلي</h1><p>لقطة محفوظة، عدّ لكل صنف، واعتماد إداري للفروقات دون الكتابة فوق حركة مخزون أحدث.</p></div></header>
-    <section className="panel">
+    <WorkspaceSectionHeader eyebrow="الأصناف والمخزون" title="الجرد الفعلي" description="لقطة محفوظة، عدّ لكل صنف، واعتماد إداري للفروقات دون الكتابة فوق حركة مخزون أحدث." icon={ClipboardCheck} />
+    <WorkspaceSectionGroup icon={ClipboardCheck} title="تهيئة جلسة الجرد" description="حدد المستودع ونفّذ بدء اللقطة الموثقة؛ لا تُنشأ أرصدة أو أصناف تلقائيًا." className="stock-count-group" contentClassName="stock-count-group__content">
       <div className="form-grid" style={{ alignItems: 'end' }}>
         <label>المستودع النشط<select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} disabled={loading || busy || Boolean(session)}><option value="">اختر المستودع</option>{renderStockCountWarehouseOptions(warehouses)}</select></label>
         {!session && <label>ملاحظات بداية الجرد (اختياري)<input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="سبب الجرد أو رقم محضر العد" disabled={busy || !warehouseId} /></label>}
@@ -262,7 +263,7 @@ export function InventoryStockCountPage() {
         </div>
       </div>
       <p className="text-muted">لا تُنشأ أصناف أو أرصدة أو عمليات تاريخية تلقائيًا؛ تبدأ الجلسة من الأرصدة الموجودة في المستودع المحدد فقط.</p>
-    </section>
+    </WorkspaceSectionGroup>
     {canFinalize && warehouseId && (
       adjustmentAccess === 'allowed' ? (
         <InventoryBalanceAdjustmentPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />
