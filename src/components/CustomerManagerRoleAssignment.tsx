@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, RefreshCw, ShieldCheck, UserCog } from 'lucide-react';
-import { fetchActiveInventoryWarehouses } from '@/lib/api';
-import type { ActiveInventoryWarehouse } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 type Profile = {
@@ -241,7 +239,42 @@ function normalizeProfileScopes(value: unknown): ProfileScope[] {
   });
 }
 
-function WarehouseScopePanel({
+type ScopeResource = {
+  id: string;
+  name: string;
+  code: string | null;
+};
+
+type ScopeResourceCatalog = {
+  warehouses: ScopeResource[];
+  customers: ScopeResource[];
+};
+
+function normalizeScopeResourceCatalog(value: unknown): ScopeResourceCatalog {
+  const decoded = typeof value === 'string' ? (() => {
+    try { return JSON.parse(value) as unknown; } catch { return null; }
+  })() : value;
+  if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+    throw new Error('أعاد الخادم فهرس نطاقات غير صالح.');
+  }
+  const source = decoded as Record<string, unknown>;
+  function readRows(rows: unknown, label: string): ScopeResource[] {
+    if (!Array.isArray(rows)) throw new Error('قائمة ' + label + ' غير صالحة.');
+    return rows.filter((entry): entry is ScopeResource => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+      const resource = entry as Record<string, unknown>;
+      return typeof resource.id === 'string' &&
+        typeof resource.name === 'string' &&
+        (resource.code === null || typeof resource.code === 'string');
+    });
+  }
+  return {
+    warehouses: readRows(source.warehouses, 'المستودعات'),
+    customers: readRows(source.customers, 'العملاء'),
+  };
+}
+
+function ResourceScopePanel({
   profile,
   currentProfileId,
 }: {
@@ -251,78 +284,91 @@ function WarehouseScopePanel({
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [savingResourceId, setSavingResourceId] = useState<string | null>(null);
-  const [warehouses, setWarehouses] = useState<ActiveInventoryWarehouse[]>([]);
+  const [resources, setResources] = useState<ScopeResourceCatalog>({ warehouses: [], customers: [] });
   const [scopes, setScopes] = useState<ProfileScope[]>([]);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [scopeKind, setScopeKind] = useState<'warehouse' | 'assigned_customer'>('warehouse');
+  const [selectedResourceId, setSelectedResourceId] = useState('');
   const [reason, setReason] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
+  const self = profile.profile_id === currentProfileId;
+  const customerProfile = profile.roles.includes('customer');
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [warehouseRows, scopeResponse] = await Promise.all([
-        fetchActiveInventoryWarehouses(),
+      const [resourceResponse, scopeResponse] = await Promise.all([
+        supabase.rpc('list_authorization_scope_resources'),
         supabase.rpc('list_authorization_profile_scopes', {
           p_target_profile_id: profile.profile_id,
         }),
       ]);
+      if (resourceResponse.error) throw resourceResponse.error;
       if (scopeResponse.error) throw scopeResponse.error;
-      setWarehouses(warehouseRows);
-      setScopes(normalizeProfileScopes(scopeResponse.data));
-      setSelectedWarehouseId((current) =>
-        current && warehouseRows.some((warehouse) => warehouse.id === current)
+      const nextResources = normalizeScopeResourceCatalog(resourceResponse.data);
+      const nextScopes = normalizeProfileScopes(scopeResponse.data);
+      setResources(nextResources);
+      setScopes(nextScopes);
+      const currentRows = scopeKind === 'warehouse' ? nextResources.warehouses : nextResources.customers;
+      setSelectedResourceId((current) =>
+        current && currentRows.some((resource) => resource.id === current)
           ? current
-          : warehouseRows[0]?.id ?? '',
+          : currentRows[0]?.id ?? '',
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'تعذر تحميل نطاقات المستودعات من الخادم.');
+      setError(cause instanceof Error ? cause.message : 'تعذر تحميل الموارد ونطاقات الوصول من الخادم.');
     } finally {
       setLoading(false);
     }
-  }, [profile.profile_id]);
+  }, [profile.profile_id, scopeKind]);
 
   useEffect(() => {
-    if (expanded) void load();
-  }, [expanded, load]);
+    if (expanded && !self && !customerProfile) void load();
+  }, [expanded, self, customerProfile, load]);
 
-  const warehouseScopes = useMemo(
-    () => scopes.filter((scope) => scope.scope_kind === 'warehouse' && scope.warehouse_id),
-    [scopes],
+  const currentResources = scopeKind === 'warehouse' ? resources.warehouses : resources.customers;
+  const currentScopes = useMemo(
+    () => scopes.filter((scope) => scope.scope_kind === scopeKind),
+    [scopes, scopeKind],
   );
-  const activeWarehouseIds = useMemo(
-    () => new Set(warehouseScopes
+  const effectiveResourceIds = useMemo(
+    () => new Set(currentScopes
       .filter((scope) => scope.is_active &&
         (!scope.expires_at || Date.parse(scope.expires_at) > Date.now()) &&
         Date.parse(scope.valid_from) <= Date.now())
-      .map((scope) => scope.warehouse_id as string)),
-    [warehouseScopes],
+      .map((scope) => scope.scope_resource_id)),
+    [currentScopes],
   );
-  const self = profile.profile_id === currentProfileId;
-  const customer = profile.roles.includes('customer');
-  const selectedScope = warehouseScopes.find((scope) => scope.warehouse_id === selectedWarehouseId) ?? null;
+  const selectedScope = currentScopes.find((scope) => scope.scope_resource_id === selectedResourceId) ?? null;
   const reasonReady = reason.trim().length >= 5 && reason.trim().length <= 500;
   const expiryReady = !expiresAt || (
     Number.isFinite(Date.parse(expiresAt)) &&
     Date.parse(expiresAt) > Date.now()
   );
+  const resourceLabel = scopeKind === 'warehouse' ? 'المستودع' : 'العميل';
+  const resourcePlural = scopeKind === 'warehouse' ? 'المستودعات' : 'العملاء';
 
-  async function saveWarehouseScope(warehouseId: string, existing: ProfileScope | null, active: boolean) {
-    if (self || customer || savingResourceId !== null) return;
+  async function saveScope(resourceId: string, existing: ProfileScope | null, active: boolean) {
+    if (self || customerProfile || savingResourceId !== null) return;
     if (!reasonReady) {
       setError('أدخل سبباً واضحاً من 5 إلى 500 حرف قبل تغيير نطاق الوصول.');
       return;
     }
-    setSavingResourceId(warehouseId);
+    if (active && !expiryReady) {
+      setError('تاريخ انتهاء الإسناد يجب أن يكون في المستقبل.');
+      return;
+    }
+    setSavingResourceId(resourceId);
     setError('');
     setNotice('');
     try {
       const { data, error: rpcError } = await supabase.rpc('set_authorization_profile_scope', {
         p_target_profile_id: profile.profile_id,
-        p_scope_kind: 'warehouse',
-        p_scope_id: warehouseId,
+        p_scope_kind: scopeKind,
+        p_scope_id: resourceId,
         p_reason: reason.trim(),
         p_expires_at: active && expiresAt ? new Date(expiresAt).toISOString() : null,
         p_is_active: active,
@@ -332,6 +378,7 @@ function WarehouseScopePanel({
       const result = data as {
         changed?: unknown;
         scope_id?: unknown;
+        scope_kind?: unknown;
         scope_resource_id?: unknown;
         revision?: unknown;
         is_active?: unknown;
@@ -344,15 +391,16 @@ function WarehouseScopePanel({
       if (
         !result ||
         typeof result.changed !== 'boolean' ||
-        (result.scope_resource_id !== warehouseId && !confirmedIdempotentReplay) ||
+        (result.scope_resource_id !== resourceId && !confirmedIdempotentReplay) ||
+        (result.scope_kind !== scopeKind && !confirmedIdempotentReplay) ||
         !Number.isSafeInteger(result.revision) ||
         result.is_active !== active
       ) {
-        throw new Error('لم يؤكد الخادم إسناد نطاق المستودع بالإصدار المتوقع.');
+        throw new Error('لم يؤكد الخادم تغيير نطاق المورد بالإصدار المتوقع.');
       }
       setNotice(result.changed
-        ? (active ? 'تم إسناد المستودع بعد تأكيد الخادم.' : 'تم سحب إسناد المستودع بعد تأكيد الخادم.')
-        : 'النطاق مطابق للحالة الحالية؛ لم يُنشأ سجل تدقيق مكرر.');
+        ? (active ? 'تم إسناد ' + resourceLabel + ' بعد تأكيد الخادم.' : 'تم سحب إسناد ' + resourceLabel + ' بعد تأكيد الخادم.')
+        : 'النطاق مطابق للحالة الحالية؛ لم يُكرر سجل التدقيق.');
       setReason('');
       setExpiresAt('');
       await load();
@@ -360,12 +408,17 @@ function WarehouseScopePanel({
       const detail = cause instanceof Error ? cause.message : '';
       const message = detail.includes('scope revision changed')
         ? 'تغير النطاق بواسطة مسؤول آخر. أُعيد تحميل الإصدار الحالي؛ راجع الحالة قبل المحاولة.'
-        : detail || 'رفض الخادم تغيير نطاق المستودع أو تعذر تأكيده.';
+        : detail || 'رفض الخادم تغيير نطاق المورد أو تعذر تأكيده.';
       await load();
       setError(message);
     } finally {
       setSavingResourceId(null);
     }
+  }
+
+  function findResource(scope: ProfileScope): ScopeResource | undefined {
+    const rows = scope.scope_kind === 'warehouse' ? resources.warehouses : resources.customers;
+    return rows.find((resource) => resource.id === scope.scope_resource_id);
   }
 
   return (
@@ -374,92 +427,114 @@ function WarehouseScopePanel({
         type="button"
         className="btn btn-outline"
         aria-expanded={expanded}
-        aria-controls={'warehouse-scope-' + profile.profile_id}
+        aria-controls={'member-resource-scope-' + profile.profile_id}
         onClick={() => setExpanded((value) => !value)}
-        disabled={self || customer}
+        disabled={self || customerProfile}
       >
-        {expanded ? 'إخفاء نطاقات المستودعات' : 'إدارة نطاقات المستودعات'}
+        {expanded ? 'إخفاء نطاقات الوصول' : 'إدارة نطاقات الوصول'}
       </button>
       {self ? <p role="note">لا يمكن إسناد نطاقات إلى حساب المسؤول نفسه من هذه الشاشة.</p> : null}
-      {customer ? <p role="note">حساب العميل منفصل عن عضوية الموظف ولا يقبل نطاق مستودع داخلي.</p> : null}
-      {expanded && !self && !customer ? (
-        <div id={'warehouse-scope-' + profile.profile_id} style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+      {customerProfile ? <p role="note">حساب العميل منفصل عن عضوية الموظف ولا يقبل نطاقات الموارد الداخلية.</p> : null}
+      {expanded && !self && !customerProfile ? (
+        <div id={'member-resource-scope-' + profile.profile_id} style={{ marginTop: 12, display: 'grid', gap: 10 }}>
           <p style={{ margin: 0, color: '#62777b', lineHeight: 1.7 }}>
-            لا تمنح الأدوار وصولاً عاماً للمستودعات. يُسمح للموظف بالمستودعات النشطة المسندة إليه فقط، ويُسحب الوصول فور تعطيل الإسناد أو انتهاء مدته.
+            الإسناد يحدد العلاقة بالمورد ولا ينشئ منحة صلاحية. لا يحصل الموظف إلا على الموارد التي تسند إليه، وتبقى القدرات غير الممنوحة مرفوضة افتراضياً.
           </p>
-          {loading ? <p role="status">جار تحميل المستودعات والنطاقات...</p> : null}
+          {loading ? <p role="status">جار تحميل موارد المؤسسة والنطاقات...</p> : null}
           {error ? (
             <div role="alert" className="error-box">
               {error}
-              <button type="button" className="btn btn-outline" onClick={() => void load()} disabled={loading}>إعادة المحاولة</button>
+              <button type="button" className="btn btn-outline" onClick={() => void load()} disabled={loading || savingResourceId !== null}>إعادة المحاولة</button>
             </div>
           ) : null}
-          {!loading && warehouses.length === 0 ? (
-            <p role="status">لا توجد مستودعات نشطة متاحة في المؤسسة الحالية.</p>
-          ) : null}
-          {warehouses.length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8, alignItems: 'end' }}>
-              <label style={{ display: 'grid', gap: 5 }}>
-                <span>المستودع</span>
-                <select
-                  aria-label={'مستودع لإسناده إلى ' + profile.full_name}
-                  value={selectedWarehouseId}
-                  onChange={(event) => setSelectedWarehouseId(event.target.value)}
-                  disabled={loading || savingResourceId !== null}
-                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
-                >
-                  {warehouses.map((warehouse) => (
-                    <option key={warehouse.id} value={warehouse.id}>
-                      {warehouse.name}{warehouse.code ? ' — ' + warehouse.code : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: 5 }}>
-                <span>سبب التغيير (مطلوب)</span>
-                <input
-                  aria-label={'سبب تغيير نطاق المستودع لـ ' + profile.full_name}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  maxLength={500}
-                  placeholder="مثال: تكليف الموظف بمستودع صنعاء"
-                  disabled={savingResourceId !== null}
-                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 5 }}>
-                <span>انتهاء الإسناد (اختياري)</span>
-                <input
-                  type="datetime-local"
-                  aria-label={'تاريخ انتهاء نطاق المستودع لـ ' + profile.full_name}
-                  value={expiresAt}
-                  onChange={(event) => setExpiresAt(event.target.value)}
-                  disabled={savingResourceId !== null}
-                  aria-invalid={!expiryReady}
-                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
-                />
-              </label>
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => void saveWarehouseScope(selectedWarehouseId, selectedScope, true)}
-                disabled={loading || savingResourceId !== null || !selectedWarehouseId || activeWarehouseIds.has(selectedWarehouseId) || !reasonReady || !expiryReady}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8, alignItems: 'end' }}>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span>نوع النطاق</span>
+              <select
+                aria-label={'نوع نطاق الوصول لـ ' + profile.full_name}
+                value={scopeKind}
+                onChange={(event) => {
+                  const next = event.target.value === 'assigned_customer' ? 'assigned_customer' : 'warehouse';
+                  setScopeKind(next);
+                  const nextRows = next === 'warehouse' ? resources.warehouses : resources.customers;
+                  setSelectedResourceId(nextRows[0]?.id ?? '');
+                  setReason('');
+                  setExpiresAt('');
+                  setError('');
+                  setNotice('');
+                }}
+                disabled={loading || savingResourceId !== null}
+                style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
               >
-                {savingResourceId === selectedWarehouseId ? 'جار الحفظ...' : selectedScope ? 'تفعيل / تجديد الإسناد' : 'إسناد المستودع'}
-              </button>
-            </div>
+                <option value="warehouse">مستودع</option>
+                <option value="assigned_customer">عميل مسند</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span>{resourceLabel}</span>
+              <select
+                aria-label={resourceLabel + ' لإسناده إلى ' + profile.full_name}
+                value={selectedResourceId}
+                onChange={(event) => setSelectedResourceId(event.target.value)}
+                disabled={loading || savingResourceId !== null || currentResources.length === 0}
+                style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+              >
+                {currentResources.map((resource) => (
+                  <option key={resource.id} value={resource.id}>
+                    {resource.name}{resource.code ? ' — ' + resource.code : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span>سبب التغيير (مطلوب)</span>
+              <input
+                aria-label={'سبب تغيير نطاق ' + resourceLabel + ' لـ ' + profile.full_name}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                maxLength={500}
+                placeholder="اكتب سبب التكليف أو سحب الصلاحية"
+                disabled={savingResourceId !== null}
+                style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span>انتهاء الإسناد (اختياري)</span>
+              <input
+                type="datetime-local"
+                aria-label={'تاريخ انتهاء نطاق ' + resourceLabel + ' لـ ' + profile.full_name}
+                value={expiresAt}
+                onChange={(event) => setExpiresAt(event.target.value)}
+                disabled={savingResourceId !== null}
+                aria-invalid={!expiryReady}
+                style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => void saveScope(selectedResourceId, selectedScope, true)}
+              disabled={loading || savingResourceId !== null || !selectedResourceId || !reasonReady || !expiryReady}
+            >
+              {savingResourceId === selectedResourceId ? 'جار الحفظ...' : selectedScope?.is_active ? 'تحديث الإسناد' : 'إسناد المورد'}
+            </button>
+          </div>
+          {!loading && currentResources.length === 0 ? (
+            <p role="status">لا توجد {resourcePlural} متاحة في المؤسسة الحالية.</p>
           ) : null}
           {notice ? <p role="status" style={{ margin: 0 }}>{notice}</p> : null}
-          {warehouseScopes.length > 0 ? (
+          {currentScopes.length > 0 ? (
             <div style={{ display: 'grid', gap: 8 }}>
-              <strong>النطاقات المسجلة</strong>
-              {warehouseScopes.map((scope) => {
-                const warehouse = warehouses.find((entry) => entry.id === scope.warehouse_id);
-                const effective = activeWarehouseIds.has(scope.warehouse_id as string);
+              <strong>نطاقات {resourcePlural} المسجلة</strong>
+              {currentScopes.map((scope) => {
+                const resource = findResource(scope);
+                const effective = scope.is_active &&
+                  (!scope.expires_at || Date.parse(scope.expires_at) > Date.now()) &&
+                  Date.parse(scope.valid_from) <= Date.now();
                 return (
                   <div key={scope.scope_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center', border: '1px solid #e5eeee', borderRadius: 9, padding: 10 }}>
                     <div>
-                      <strong>{warehouse?.name ?? 'مستودع غير نشط أو غير متاح'}</strong>
+                      <strong>{resource?.name ?? 'مورد غير متاح'}</strong>
                       <div style={{ fontSize: 12, color: '#71868a', lineHeight: 1.6 }}>
                         {scope.reason} · الإصدار {scope.revision}
                         {scope.expires_at ? ' · ينتهي ' + new Date(scope.expires_at).toLocaleString('ar') : ''}
@@ -473,10 +548,10 @@ function WarehouseScopePanel({
                         <button
                           type="button"
                           className="btn btn-outline"
-                          onClick={() => void saveWarehouseScope(scope.warehouse_id as string, scope, false)}
+                          onClick={() => void saveScope(scope.scope_resource_id, scope, false)}
                           disabled={savingResourceId !== null || !reasonReady}
                         >
-                          {savingResourceId === scope.warehouse_id ? 'جار السحب...' : 'سحب الإسناد'}
+                          {savingResourceId === scope.scope_resource_id ? 'جار السحب...' : 'سحب الإسناد'}
                         </button>
                       ) : null}
                     </div>
@@ -490,7 +565,6 @@ function WarehouseScopePanel({
     </section>
   );
 }
-
 
 
 type CapabilityOption = {
@@ -843,7 +917,7 @@ function CustomerManagerProfileCard({
           needsAlternative={needsAlternative}
         />
       </div>
-      <WarehouseScopePanel profile={profile} currentProfileId={currentProfileId} />
+      <ResourceScopePanel profile={profile} currentProfileId={currentProfileId} />
       <CapabilityDenialPanel profile={profile} currentProfileId={currentProfileId} />
     </article>
   );
@@ -897,7 +971,7 @@ export function MemberAuthorizationAccessControls({
 }) {
   return (
     <>
-      <WarehouseScopePanel profile={profile} currentProfileId={currentProfileId} />
+      <ResourceScopePanel profile={profile} currentProfileId={currentProfileId} />
       <CapabilityDenialPanel profile={profile} currentProfileId={currentProfileId} />
     </>
   );
