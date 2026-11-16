@@ -67,6 +67,8 @@ describe("natural-language assistant local execution when model providers are un
 describe("Arabic assistant query-window guardrails", () => {
   it.each([
     ["رادار النمو آخر 30 يوماً", 30],
+    ["رادار النمو آخر ٣٠ يوماً", 30],
+    ["رادار النمو آخر ۶۰ يوماً", 60],
     ["رادار النمو آخر 60 يوماً", 60],
     ["رادار النمو آخر 90 يوماً", 90],
     ["رادار النمو آخر 180 يوماً", 180],
@@ -98,6 +100,7 @@ describe("Arabic assistant query-window guardrails", () => {
 
   it.each([
     "جودة المهام آخر 30 يوماً",
+    "جودة المهام آخر ٣٠ يوماً",
     "جودة المهام آخر أسبوع",
   ])("refuses a historical task-quality question instead of returning the latest snapshot: %s", (question) => {
     expect(planNaturalLanguageQuery(question).status).toBe("UNSUPPORTED");
