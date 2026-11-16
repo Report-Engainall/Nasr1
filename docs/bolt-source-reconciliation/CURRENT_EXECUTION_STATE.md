@@ -6099,3 +6099,21 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Updated `e2e/admin-category-tree.spec.ts` to validate manager and staff raw `get_storefront_catalog_page` RPC JSON. Staff tests verify price resolver denial and raw key absence, not DOM-only hiding.
 - Prior P1 workflow run `43783321699` succeeded on SHA `9e52a4f55e639db5ce16ded2dbaedc34dc025627`; current P2 run `43783469993` is on parent SHA `a31b08a89159447453ca6290721064a496b85389` and will be superseded by the new exact-SHA run. Do not reuse its evidence for this migration.
 - No production DB/Auth/Storage/Edge or live integration was touched.
+
+
+---
+
+## ADMIN CONTROL PANEL — finance navigation and shared frame checkpoint — 2026-11-17
+
+- Implementation base SHA: `05d59d00b59a84775014afc19103b88c05f7213b`.
+- Exact implementation SHA: `23a395cca9b61d1d7225f736b1fe1d1112f6c464` (direct fast-forward on `main`; no branch or PR).
+- Updated the canonical `ADMIN_NAV_GROUPS` registry: `finance` is now a dedicated `المالية والذمم` group; system administration is now `إدارة النظام والحوكمة`. The page IDs, all 28 paths, role grants, route guards, backend contracts and RLS boundaries remain unchanged.
+- Updated administrator and accountant navigation tests so the dashboard cards, grouped sidebar and group landing pages are verified against the new canonical grouping; accountant remains restricted to the finance and tasks destinations already granted by `ROLE_PAGE_ACCESS`.
+- Added an accessible `عرض المتجر` action to the common administration top bar. It delegates to the existing `setMode('storefront')` guard, so an unapproved order draft still blocks navigation; at mobile widths the action becomes icon-only with its accessible label retained.
+- Exact-SHA checks were started automatically:
+  - P1 Admin Context Verification: run `43966256219`, checked out exact SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`; dependency installation succeeded; Vitest was in progress at checkpoint capture; TypeScript and production bundle steps were pending.
+  - P2 Playwright Critical Paths: run `43966256168`, checked out exact SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`; dependency installation, Chromium environment check, exact-SHA production build and local no-write server startup succeeded; read-only storefront browser assertions were in progress.
+  - The authenticated customer-order/tenant-isolation job was `SKIPPED` because the workflow's isolated non-production Supabase/test-account confirmation gate was not configured. This remains `BLOCKED_EXTERNAL`, not a pass.
+- No database migration, production database write, financial posting, inventory movement, live integration, Vercel build or deployment was performed.
+- Do not reuse historical test results for this change. The P1 and P2 results above must be resolved against this exact implementation SHA before marking the code `TESTED_EXACT_SHA`.
+- NEXT_ACTION_ID: `ADMIN-PANEL-FRAME-EXACT-SHA-VERIFICATION-001` — close P1 and read-only P2 results for SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`; retain the authenticated E2E gate as `BLOCKED_EXTERNAL` unless dedicated non-production credentials and explicit write confirmation are available.
