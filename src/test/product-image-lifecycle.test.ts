@@ -202,8 +202,8 @@ describe("product image lifecycle", () => {
   });
 
   it("reorders only the exact current-tenant gallery image set through the server command", async () => {
-    const first = \`https://storage.example.test/storage/v1/object/public/product-images/\${ORGANIZATION_ID}/\${PRODUCT_ID}/first.webp\`;
-    const second = \`https://storage.example.test/storage/v1/object/public/product-images/\${ORGANIZATION_ID}/\${PRODUCT_ID}/second.webp\`;
+    const first = `https://storage.example.test/storage/v1/object/public/product-images/${ORGANIZATION_ID}/${PRODUCT_ID}/first.webp`;
+    const second = `https://storage.example.test/storage/v1/object/public/product-images/${ORGANIZATION_ID}/${PRODUCT_ID}/second.webp`;
     mocks.rpc.mockResolvedValue({
       data: { id: PRODUCT_ID, changed: true, image_gallery_urls: [second, first] },
       error: null,
@@ -218,7 +218,7 @@ describe("product image lifecycle", () => {
   });
 
   it("rejects duplicate or foreign gallery URLs before a server mutation", async () => {
-    const first = \`https://storage.example.test/storage/v1/object/public/product-images/\${ORGANIZATION_ID}/\${PRODUCT_ID}/first.webp\`;
+    const first = `https://storage.example.test/storage/v1/object/public/product-images/${ORGANIZATION_ID}/${PRODUCT_ID}/first.webp`;
     await expect(reorderProductGalleryImages(PRODUCT_ID, [first, first])).rejects.toThrow("فريدة");
     await expect(
       reorderProductGalleryImages(PRODUCT_ID, [
