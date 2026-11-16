@@ -6019,3 +6019,18 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - **IMPLEMENTED_ON_MAIN:** yes. **P1 exact-SHA Vitest / strict TypeScript / production build:** NOT VERIFIED at checkpoint update; combined status returned no entries and the available workflow-run wrapper did not expose push-triggered runs. An empty status list is not a pass. Do not transfer prior SHA evidence.
 - No RPC/migration/RLS/role/data or business calculations changed; no DB call/write, provider egress, deployment, Vercel use, paid service or secrets.
 - Matrix rows `REF-NL-GROWTH-RADAR-READ-001` and `REF-TASK-QUALITY-METRICS-ASSISTANT-001` remain open for their existing independent data/runtime acceptance; this is a source/parser correction only. Overall release remains **NO-GO**.
+
+
+---
+
+## P3 PROCESS BOTTLENECK CAVEAT ACCEPTANCE — IN PROGRESS — 2026-11-16
+
+- Repository: `Report-Engainall/Nasr1`; working branch: `p3/process-bottleneck-caveat-acceptance-20261116`; base `main` SHA: `ece227af0f179f7eb0d1c96f1fae2bc09ec84d11`.
+- Work item: `REF-PROCESS-BOTTLENECK-CAVEAT-LIFECYCLE-001`. This is an isolated P3 deterministic-engine/acceptance slice; it does not edit P2-owned browser/category/access tests, PR #490 runtime error logging, shared navigation, taxonomy UI, financial RPCs, or server permissions.
+- The current-main engine is retained and hardened only at the snapshot boundary: metric completion evidence after the snapshot `asOf` instant is now rejected. Current/baseline period comparability remains equal-duration and strictly chronological; unavailable source rows remain excluded rather than converted to zero.
+- The historical regression file previously referenced by this matrix row was absent from current `main`. The preserved cases are being reconciled into a current-main test file, with explicit coverage for as-of chronology, unavailable/all-unavailable sources, low sample withholding and a later baseline period.
+- P1 path filters are being extended only for the process-bottleneck source and test files. This branch also changes this cursor so the P1 push/pull-request workflow is eligible to run; P2 workflow and `e2e/**` are untouched.
+- Starting source blob: `src/lib/intelligence/process-bottlenecks.ts` = `bef9bb9954f47ffb47e5b5b087c27db4a2b1d2da`. Reconstructed prior test source blob = `a1eb251756a1ba28f2e13889a2859e1bf5076fd7`; it was fetched from historical commit `52898135ec0aabdc8d34fdbb5a1dde6c8438d9f6`, not current `main`.
+- Acceptance status at checkpoint creation: **IN PROGRESS / NO PASS CLAIMED**. Await exact-PR-SHA Vitest, strict TypeScript and production build. No PostgreSQL/RPC/RLS/browser acceptance is implied by this deterministic source slice.
+- Safety: no database connection/write, migration, role/grant/RLS change, external AI/provider call, secret, Vercel action, deployment, preview, Bolt/Lovable use, or production side effect.
+- Next action: inspect the PR-triggered P1 run on the exact head SHA; fix only evidenced failures in this owned engine/test/workflow scope, then update this cursor and the single canonical acceptance matrix with the resulting exact-SHA evidence.
