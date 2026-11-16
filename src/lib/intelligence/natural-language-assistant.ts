@@ -48,6 +48,7 @@ export type NaturalLanguagePlanResult=
  |{status:"CLARIFICATION"|"UNSUPPORTED";normalizedQuestion:string;explanation:string;clarification?:string};
 function normalizeArabic(value:string):string {
  return value.normalize("NFKC").replace(/[\u064B-\u065F\u0670\u0640]/g,"")
+  .replace(/[٠-٩۰-۹]/g,digit=>{const code=digit.charCodeAt(0);return String(code>=0x06f0?code-0x06f0:code-0x0660);})
   .replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").toLowerCase()
   .replace(/[؟?!.,،؛:()[\]{}]/g," ").replace(/\s+/g," ").trim();
 }
