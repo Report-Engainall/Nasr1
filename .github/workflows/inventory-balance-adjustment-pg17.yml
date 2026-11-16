@@ -1,0 +1,55 @@
+name: Inventory Balance Adjustment PostgreSQL 17 Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
+      - "supabase/tests/inventory_balance_adjustment.sql"
+      - ".github/workflows/inventory-balance-adjustment-pg17.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
+      - "supabase/tests/inventory_balance_adjustment.sql"
+      - ".github/workflows/inventory-balance-adjustment-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inventory-balance-adjustment-pg17-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory-balance-adjustment:
+    name: PostgreSQL 17 atomic adjustment and denial tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Apply command migration and exercise manager/staff/tenant paths
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/inventory_balance_adjustment.sql
