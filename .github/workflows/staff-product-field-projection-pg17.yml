@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: staff-product-field-projection-pg17-\${{ github.ref }}-\${{ github.sha }}
+  group: staff-product-field-projection-pg17-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
       - name: Checkout the exact triggering commit
         uses: actions/checkout@v4
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
@@ -54,5 +54,5 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: |
           set -euo pipefail
-          psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 \\
+          psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
             --file supabase/tests/staff_product_field_projection.sql
