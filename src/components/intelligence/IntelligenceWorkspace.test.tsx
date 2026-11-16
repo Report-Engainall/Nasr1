@@ -442,7 +442,7 @@ describe("production intelligence workspace inventory screens", () => {
         impact: null,
         impactStatus: "WITHHELD",
         proof: expect.objectContaining({
-          evidenceIds: ["invoice:one"],
+          evidenceIds: ["invoice:invoice-1", "payment:payment-1"],
           metricKeys: ["cashflow.expected_collections"],
           formulaVersions: ["nasr1.receivables-outstanding@1"],
         }),
