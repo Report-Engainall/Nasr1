@@ -11,6 +11,16 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+function normalizeQuantityDigits(value: string): string {
+  return value
+    .replace(/[٠-٩۰-۹]/g, (digit) => {
+      const code = digit.charCodeAt(0);
+      return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+    })
+    .replace(/[٬,]/g, "")
+    .trim();
+}
+
 async function signIn(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
@@ -201,7 +211,15 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     const staffProductRow = staffCatalog.getByRole("row", { name: /P2 Local E2E Product/ });
     await expect(staffProductRow).toBeVisible();
     await expect(staffProductRow).not.toContainText(managerPriceText);
-    await expect(staffProductRow).toContainText(/100/);
+    const staffCatalogHeaders = await staffCatalog.locator("thead th").allInnerTexts();
+    const onHandColumnIndex = staffCatalogHeaders.findIndex((header) => header.trim() === "على اليد");
+    expect(onHandColumnIndex, "The staff projection must expose a distinct on-hand stock column.").toBeGreaterThanOrEqual(0);
+    const onHandCell = staffProductRow.locator("td").nth(onHandColumnIndex);
+    await expect(onHandCell).toBeVisible();
+    expect(
+      normalizeQuantityDigits(await onHandCell.innerText()),
+      "The exact on-hand quantity must be asserted from its own column after Arabic/Persian digit normalization.",
+    ).toBe("100");
 
     // Customer direct navigation is blocked before the administrative category screen renders.
     customerContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
