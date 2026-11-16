@@ -47,6 +47,7 @@ function renderForRoles(roles: string[], onNotice = vi.fn()) {
 function openAppearance(container: HTMLElement) {
   fireEvent.click(screen.getByRole("button", { name: "المظهر" }));
   expect(container.querySelector('[aria-label="إعداد مظهر المؤسسة"]')).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "ألوان النظام" })).toBeInTheDocument();
 }
 
 describe("organization appearance settings integration", () => {
