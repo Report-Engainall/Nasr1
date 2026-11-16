@@ -367,6 +367,65 @@ async function main() {
         assert.equal(separateAdjustmentDenial[0].allowed,false,
           "stock-count entry must not restore or manufacture the separately denied balance-adjustment capability");
 
+// The converse is also required: an explicit denial of count entry
+        // blocks both creating a session and saving a previously opened line.
+        await applyActor(tx, actors.admin);
+        const countEntryDenial = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.enter',$2::text,NULL::timestamptz,true) as result",
+          [actors.manager.profile_id, "P2 explicit stock-count entry denial proof"],
+        ))[0].result);
+        assert.equal(countEntryDenial.changed, true);
+        await applyActor(tx, actors.manager);
+        const deniedCountEntry = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(deniedCountEntry.decision, "DENY");
+
+        const deniedCountKey = "rbac-v2-count-denied-" + process.pid + "-" + Date.now();
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text)",
+          [fixture.warehouse_id, deniedCountKey, "must be denied before session creation"],
+        ), "an explicit count-entry denial must block creating a stock-count session");
+
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+          [countSession.id, fixture.product_id, oldQuantity + 0.5],
+        ), "an explicit count-entry denial must block saving a line in an existing session");
+
+        const deniedStartRows = await tx.unsafe(
+          "select count(*)::integer as count from public.stock_count_sessions where organization_id=$1::uuid and idempotency_key=$2",
+          [organizationId, deniedCountKey],
+        );
+        assert.equal(deniedStartRows[0].count, 0,
+          "denied count-session creation must leave no persisted session");
+
+        const [unchangedCountLine] = await tx.unsafe(
+          "select counted_quantity from public.stock_count_lines where session_id=$1::uuid and product_id=$2::uuid",
+          [countSession.id, fixture.product_id],
+        );
+        assert.equal(Number(unchangedCountLine.counted_quantity), oldQuantity,
+          "denied count-line update must leave the previously saved count unchanged");
+        const [unchangedCountBalance] = await tx.unsafe(
+          "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id, fixture.warehouse_id],
+        );
+        assert.equal(Number(unchangedCountBalance.quantity_on_hand), oldQuantity,
+          "denied count entry must not mutate canonical stock");
+
+        await applyActor(tx, actors.admin);
+        const restoredCountEntryDenial = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.enter',NULL,NULL::timestamptz,false) as result",
+          [actors.manager.profile_id],
+        ))[0].result);
+        assert.equal(restoredCountEntryDenial.changed, true);
+        await applyActor(tx, actors.manager);
+        assert.equal(
+          (await tx.unsafe("select public.current_actor_has_capability('inventory.count.enter') as allowed"))[0].allowed,
+          true,
+          "removing the test-only denial must restore the independent count-entry capability",
+        );
+
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.get_inventory_adjustment_balances($1::uuid)",
           [fixture.warehouse_id],
