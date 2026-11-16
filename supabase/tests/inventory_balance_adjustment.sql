@@ -125,12 +125,14 @@ INSERT INTO public.profiles(id,auth_user_id,organization_id,is_active) VALUES
  ('22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111',true),
  ('22222222-2222-4222-8222-222222222223','33333333-3333-4333-8333-333333333334','11111111-1111-4111-8111-111111111111',true),
  ('22222222-2222-4222-8222-222222222224','33333333-3333-4333-8333-333333333335','11111111-1111-4111-8111-111111111111',true),
- ('22222222-2222-4222-8222-222222222225','33333333-3333-4333-8333-333333333336','12121212-1212-4121-8121-121212121212',true);
+ ('22222222-2222-4222-8222-222222222225','33333333-3333-4333-8333-333333333336','12121212-1212-4121-8121-121212121212',true),
+ ('22222222-2222-4222-8222-222222222226','33333333-3333-4333-8333-333333333337','11111111-1111-4111-8111-111111111111',true);
 INSERT INTO public.user_roles(profile_id,role) VALUES
  ('22222222-2222-4222-8222-222222222222','admin'),
  ('22222222-2222-4222-8222-222222222223','manager'),
  ('22222222-2222-4222-8222-222222222224','staff'),
- ('22222222-2222-4222-8222-222222222225','admin');
+ ('22222222-2222-4222-8222-222222222225','admin'),
+ ('22222222-2222-4222-8222-222222222226','customer');
 
 INSERT INTO public.products(id,organization_id,status,item_code,name,unit) VALUES
  ('44444444-4444-4444-8444-444444444444','11111111-1111-4111-8111-111111111111','active','SKU-001','Aghbari Test Product','carton'),
@@ -147,6 +149,34 @@ VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555
 \ir ../migrations/20261116113000_inventory_adjustment_capability_v2.sql
 \ir ../migrations/20261116121000_authorization_profile_scopes_v2.sql
 \ir ../migrations/20261116122000_scope_inventory_adjustment_authorization.sql
+\ir ../migrations/20261116123000_authorization_scope_account_boundary.sql
+
+DO $customer_staff_separation$
+DECLARE
+  v_denied boolean:=false;
+BEGIN
+  BEGIN
+    INSERT INTO public.authorization_profile_scopes(
+      organization_id,profile_id,scope_kind,warehouse_id,customer_id,reason,is_active,
+      valid_from,revision,created_by,updated_by
+    ) VALUES(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222226',
+      'warehouse',
+      '55555555-5555-4555-8555-555555555555',
+      NULL,'Customer account must not receive employee scope',true,
+      statement_timestamp(),1,
+      '22222222-2222-4222-8222-222222222222',
+      '22222222-2222-4222-8222-222222222222'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied:=true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'customer identity was allowed to receive an internal warehouse scope';
+  END IF;
+END;
+$customer_staff_separation$;
 
 INSERT INTO public.authorization_profile_scopes(
   organization_id,profile_id,scope_kind,warehouse_id,customer_id,reason,is_active,
