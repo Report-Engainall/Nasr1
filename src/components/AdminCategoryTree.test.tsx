@@ -369,7 +369,7 @@ describe("AdminCategoryTree", () => {
     expect(within(breadcrumb).getByText(grandchild.name)).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(within(breadcrumb).getByRole("button", {
-      name: "الانتقال إلى التصنيف التصنيف الفرعي",
+      name: "الانتقال إلى التصنيف الفرعي",
     }));
 
     await waitFor(() => {
