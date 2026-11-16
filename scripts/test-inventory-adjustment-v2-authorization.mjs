@@ -317,12 +317,46 @@ async function main() {
         assert.equal(reactivatedScope.changed, true);
         assert.equal(reactivatedScope.revision, 3);
 
+        const expiresAt = new Date(Date.now() + 1500).toISOString();
+        const expiringScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,$4::timestamptz,true,3) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 temporary warehouse assignment expiry", expiresAt],
+        ))[0].result);
+        assert.equal(expiringScope.changed, true);
+        assert.equal(expiringScope.revision, 4);
+
+        await new Promise((resolve) => setTimeout(resolve, 1800));
+        await applyActor(tx, actors.manager);
+        const expiredDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(expiredDecision.decision, "DENY", "expired warehouse scope must be denied on the next request");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.get_inventory_adjustment_balances($1::uuid)",
+          [fixture.warehouse_id],
+        ), "expired warehouse assignment must deny the next balance read");
+
+        await applyActor(tx, actors.admin);
+        const renewedScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,4) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 permanent warehouse scope renewal"],
+        ))[0].result);
+        assert.equal(renewedScope.changed, true);
+        assert.equal(renewedScope.revision, 5);
+        await applyActor(tx, actors.manager);
+        const renewedDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(renewedDecision.decision, "PERMIT");
+
         await tx.unsafe("reset role");
         const [scopeAudit] = await tx.unsafe(
           "select count(*)::integer as count from public.audit_logs where entity_type='authorization_profile_scope' and entity_id=$1::uuid and action='authorization.scope.assignment.changed'",
           [warehouseScope.scope_id],
         );
-        assert.equal(scopeAudit.count, 3, "creation, revocation and reactivation must each be audited once");
+        assert.equal(scopeAudit.count, 5, "creation, revocation, reactivation, expiry change and renewal must each be audited once");
         await applyActor(tx, actors.manager);
 
         await expectSqlState(tx, "42501", async (sp) => {
