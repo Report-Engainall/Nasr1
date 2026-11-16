@@ -398,11 +398,21 @@ async function main() {
    [manager.profile_id]));
   const listedDenials=typeof denialList[0].denials==="string"?JSON.parse(denialList[0].denials):denialList[0].denials;
   assert.ok(Array.isArray(listedDenials));
-  assert.equal(listedDenials.length,1);
-  assert.equal(listedDenials[0].denial_id,deny[0].result.denial_id);
-  assert.equal(listedDenials[0].capability_key,"pricing.edit_draft");
-  assert.equal(listedDenials[0].is_active,true);
-  assert.equal(listedDenials[0].reason,"Temporary authorization acceptance denial");
+  assert.equal(
+    new Set(listedDenials.map((entry)=>entry.denial_id)).size,
+    listedDenials.length,
+    "the denial-history RPC must return each persisted denial exactly once"
+  );
+  const listedTargetDenials=listedDenials.filter((entry)=>entry.denial_id===deny[0].result.denial_id);
+  assert.equal(listedTargetDenials.length,1,"the newly activated pricing denial must appear exactly once in the full history");
+  const listedTargetDenial=listedTargetDenials[0];
+  assert.equal(listedTargetDenial.capability_key,"pricing.edit_draft");
+  assert.equal(listedTargetDenial.is_active,true);
+  assert.equal(listedTargetDenial.reason,"Temporary authorization acceptance denial");
+  assert.ok(
+    listedDenials.some((entry)=>entry.capability_key==="inventory.balance.adjust"&&entry.is_active===true),
+    "the manager's independent stock-adjustment denial from the local count fixture must remain visible and active"
+  );
   await assert.rejects(
    ()=>withActor(db,manager,tx=>tx.unsafe(
     "select public.list_authorization_profile_denials($1::uuid)",
@@ -423,7 +433,13 @@ async function main() {
    "select public.list_authorization_profile_denials($1::uuid) as denials",
    [manager.profile_id]));
   const revokedDenials=typeof revokedList[0].denials==="string"?JSON.parse(revokedList[0].denials):revokedList[0].denials;
-  assert.equal(revokedDenials[0].is_active,false,"revocation must remain visible in denial history");
+  const revokedTargetDenials=revokedDenials.filter((entry)=>entry.denial_id===deny[0].result.denial_id);
+  assert.equal(revokedTargetDenials.length,1,"revoked pricing denial must remain exactly once in denial history");
+  assert.equal(revokedTargetDenials[0].is_active,false,"revocation must remain visible in denial history");
+  assert.ok(
+    revokedDenials.some((entry)=>entry.capability_key==="inventory.balance.adjust"&&entry.is_active===true),
+    "revoking pricing edits must not revoke the independent stock-adjustment denial"
+  );
 
   await assert.rejects(
    ()=>withActor(db,admin,tx=>tx.unsafe(
