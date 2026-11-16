@@ -255,6 +255,7 @@ function WarehouseScopePanel({
   const [scopes, setScopes] = useState<ProfileScope[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [reason, setReason] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -303,6 +304,10 @@ function WarehouseScopePanel({
   const customer = profile.roles.includes('customer');
   const selectedScope = warehouseScopes.find((scope) => scope.warehouse_id === selectedWarehouseId) ?? null;
   const reasonReady = reason.trim().length >= 5 && reason.trim().length <= 500;
+  const expiryReady = !expiresAt || (
+    Number.isFinite(Date.parse(expiresAt)) &&
+    Date.parse(expiresAt) > Date.now()
+  );
 
   async function saveWarehouseScope(warehouseId: string, existing: ProfileScope | null, active: boolean) {
     if (self || customer || savingResourceId !== null) return;
@@ -319,7 +324,7 @@ function WarehouseScopePanel({
         p_scope_kind: 'warehouse',
         p_scope_id: warehouseId,
         p_reason: reason.trim(),
-        p_expires_at: null,
+        p_expires_at: active && expiresAt ? new Date(expiresAt).toISOString() : null,
         p_is_active: active,
         p_expected_revision: existing?.revision ?? 0,
       });
@@ -349,6 +354,7 @@ function WarehouseScopePanel({
         ? (active ? 'تم إسناد المستودع بعد تأكيد الخادم.' : 'تم سحب إسناد المستودع بعد تأكيد الخادم.')
         : 'النطاق مطابق للحالة الحالية؛ لم يُنشأ سجل تدقيق مكرر.');
       setReason('');
+      setExpiresAt('');
       await load();
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : '';
@@ -421,11 +427,23 @@ function WarehouseScopePanel({
                   style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
                 />
               </label>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span>انتهاء الإسناد (اختياري)</span>
+                <input
+                  type="datetime-local"
+                  aria-label={'تاريخ انتهاء نطاق المستودع لـ ' + profile.full_name}
+                  value={expiresAt}
+                  onChange={(event) => setExpiresAt(event.target.value)}
+                  disabled={savingResourceId !== null}
+                  aria-invalid={!expiryReady}
+                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+                />
+              </label>
               <button
                 type="button"
                 className="btn primary"
                 onClick={() => void saveWarehouseScope(selectedWarehouseId, selectedScope, true)}
-                disabled={loading || savingResourceId !== null || !selectedWarehouseId || activeWarehouseIds.has(selectedWarehouseId) || !reasonReady}
+                disabled={loading || savingResourceId !== null || !selectedWarehouseId || activeWarehouseIds.has(selectedWarehouseId) || !reasonReady || !expiryReady}
               >
                 {savingResourceId === selectedWarehouseId ? 'جار الحفظ...' : selectedScope ? 'تفعيل / تجديد الإسناد' : 'إسناد المستودع'}
               </button>
