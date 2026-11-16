@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
-  Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard, Search,
+  Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/storefront-catalog';
