@@ -327,8 +327,7 @@ async function main() {
         // inventory.balance.adjust but may record a count in the explicitly assigned
         // warehouse when inventory.count.enter is permitted.
         const countEnterDecision=decodeJson((await tx.unsafe(
-          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
-          [fixture.warehouse_id],
+          "select public.current_authorization_decision('inventory.count.enter') as decision",
         ))[0].decision);
         assert.equal(countEnterDecision.decision,"PERMIT",
           "the assigned manager must retain the independent stock-count entry capability");
@@ -377,8 +376,7 @@ async function main() {
         assert.equal(countEntryDenial.changed, true);
         await applyActor(tx, actors.manager);
         const deniedCountEntry = decodeJson((await tx.unsafe(
-          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
-          [fixture.warehouse_id],
+          "select public.current_authorization_decision('inventory.count.enter') as decision",
         ))[0].decision);
         assert.equal(deniedCountEntry.decision, "DENY");
 
