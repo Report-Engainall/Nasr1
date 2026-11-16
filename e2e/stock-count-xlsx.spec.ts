@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import postgres from "postgres";
 import { test, expect, type Page } from "@playwright/test";
 
 test.describe.configure({ retries: 0 });
@@ -38,6 +39,43 @@ function normalizeLocalizedQuantity(value: string): number {
     .replace(/[٫]/g, ".")
     .trim();
   return Number(western);
+}
+
+/** Read the authoritative opening source quantity from the local PostgreSQL fixture. */
+async function readLocalSourceQuantity(): Promise<number> {
+  const connectionString = requiredEnv("TEST_DATABASE_URL");
+  const database = new URL(connectionString);
+  if (!["127.0.0.1", "localhost"].includes(database.hostname) ||
+      !/^\\d+$/.test(database.port) ||
+      Number(database.port) < 1 || Number(database.port) > 65535) {
+    throw new Error("Stock-count XLSX acceptance refuses non-loopback PostgreSQL endpoints.");
+  }
+  const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  try {
+    const rows = await db.unsafe(
+      "select ib.quantity_on_hand::text as quantity_on_hand " +
+      "from public.inventory_balances ib " +
+      "join public.products p on p.id=ib.product_id " +
+      "where ib.product_id=$1::uuid and ib.warehouse_id=$2::uuid " +
+      "and p.organization_id=$3::uuid and p.item_code=$4",
+      [
+        requiredEnv("E2E_PRODUCT_ID"),
+        requiredEnv("E2E_PURCHASE_WAREHOUSE_ID"),
+        requiredEnv("E2E_PURCHASE_ORGANIZATION_ID"),
+        requiredEnv("E2E_PURCHASE_ITEM_CODE"),
+      ],
+    );
+    if (rows.length !== 1) {
+      throw new Error("The exact tenant/product/warehouse source balance was not found for stock-count XLSX acceptance.");
+    }
+    const quantity = Number(rows[0].quantity_on_hand);
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      throw new Error("The authoritative local stock quantity is malformed or negative.");
+    }
+    return quantity;
+  } finally {
+    await db.end({ timeout: 3 });
+  }
 }
 
 /** Read one stored OOXML ZIP member so the downloaded browser artifact is tested. */
@@ -96,7 +134,8 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       const expectedQuantityText = (await firstRow.locator("td").nth(3).innerText()).trim();
       expect(itemCode).toBe("P2-LOCAL-E2E-001");
       expect(itemName).toBe("P2 Local E2E Product");
-      expect(normalizeLocalizedQuantity(expectedQuantityText)).toBe(100);
+      const authoritativeQuantity = await readLocalSourceQuantity();
+      expect(normalizeLocalizedQuantity(expectedQuantityText)).toBe(authoritativeQuantity);
       await firstRow.locator('input[type="number"]').fill("99");
       await firstRow.getByRole("button", { name: "حفظ العد", exact: true }).click();
       await expect(manager.getByRole("status")).toContainText("تم حفظ عدّ " + itemName, { timeout: 20_000 });
@@ -146,7 +185,8 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
           itemCode,
           itemName,
           savedCount: 99,
-          source: "persisted local Supabase stock-count snapshot",
+          sourceQuantity: authoritativeQuantity,
+          source: "persisted local Supabase stock-count snapshot matched to the canonical PostgreSQL inventory_balances row",
           sessionNoteIncluded: true,
           internalIdentifiersOrFinancialCostsPresent: false,
           formulaCellsPresent: false,
