@@ -98,7 +98,12 @@ CREATE TABLE public.authorization_capabilities(
   separation_of_duties boolean NOT NULL,state_requirements jsonb NOT NULL,
   legacy_operation_id text,is_active boolean NOT NULL DEFAULT true,updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE TABLE public.customers(id uuid PRIMARY KEY,organization_id uuid NOT NULL);
+CREATE TABLE public.customers(
+  id uuid PRIMARY KEY,
+  organization_id uuid NOT NULL,
+  business_name text NOT NULL,
+  customer_code text
+);
 CREATE TABLE public.authorization_profile_denials(
   organization_id uuid NOT NULL,profile_id uuid NOT NULL,capability_key text NOT NULL,
   is_active boolean NOT NULL DEFAULT true,expires_at timestamptz
@@ -140,6 +145,9 @@ INSERT INTO public.products(id,organization_id,status,item_code,name,unit) VALUE
 INSERT INTO public.warehouses(id,organization_id,name,code,is_active) VALUES
  ('55555555-5555-4555-8555-555555555555','11111111-1111-4111-8111-111111111111','Main Warehouse','MAIN',true),
  ('55555555-5555-4555-8555-555555555556','12121212-1212-4121-8121-121212121212','Foreign Warehouse','FOREIGN',true);
+INSERT INTO public.customers(id,organization_id,business_name,customer_code) VALUES
+ ('66666666-6666-4666-8666-666666666666','11111111-1111-4111-8111-111111111111','Aghbari Test Customer','CUS-001'),
+ ('66666666-6666-4666-8666-666666666667','12121212-1212-4121-8121-121212121212','Foreign Test Customer','CUS-FOREIGN');
 INSERT INTO public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point)
 VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555',100,15,10);
 
@@ -150,6 +158,7 @@ VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555
 \ir ../migrations/20261116121000_authorization_profile_scopes_v2.sql
 \ir ../migrations/20261116122000_scope_inventory_adjustment_authorization.sql
 \ir ../migrations/20261116123000_authorization_scope_account_boundary.sql
+\ir ../migrations/20261116125000_authorization_scope_resource_listing.sql
 
 DO $customer_staff_separation$
 DECLARE
@@ -242,6 +251,34 @@ END;
 $scope_resource_boundary$;
 
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',false);
+
+DO $scope_resource_catalog$
+DECLARE
+  v_resources jsonb;
+  v_customer jsonb;
+BEGIN
+  v_resources:=public.list_authorization_scope_resources();
+  IF jsonb_array_length(v_resources->'warehouses')<>1
+     OR v_resources->'warehouses'->0->>'id'<>'55555555-5555-4555-8555-555555555555' THEN
+    RAISE EXCEPTION 'administrator resource picker did not remain tenant-scoped: %',v_resources;
+  END IF;
+  IF jsonb_array_length(v_resources->'customers')<>1
+     OR v_resources->'customers'->0->>'id'<>'66666666-6666-4666-8666-666666666666' THEN
+    RAISE EXCEPTION 'administrator customer picker did not remain tenant-scoped: %',v_resources;
+  END IF;
+  v_customer:=v_resources->'customers'->0;
+  IF (SELECT count(*) FROM jsonb_object_keys(v_customer))<>3
+     OR NOT (v_customer ? 'id')
+     OR NOT (v_customer ? 'name')
+     OR NOT (v_customer ? 'code')
+     OR v_customer ? 'current_balance'
+     OR v_customer ? 'credit_limit'
+     OR v_customer ? 'phone'
+     OR v_customer ? 'email' THEN
+    RAISE EXCEPTION 'resource picker exposed fields outside the minimal customer projection: %',v_customer;
+  END IF;
+END;
+$scope_resource_catalog$;
 
 DO $admin_acceptance$
 DECLARE
@@ -437,13 +474,20 @@ $append_only_and_constraints$;
 
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333334',false);
 DO $manager_scope_denial$
-DECLARE denied boolean:=false;
+DECLARE
+  denied boolean:=false;
+  resource_denied boolean:=false;
 BEGIN
   BEGIN
     PERFORM public.get_inventory_adjustment_balances('55555555-5555-4555-8555-555555555555');
   EXCEPTION WHEN SQLSTATE '42501' THEN denied:=true;
   END;
+  BEGIN
+    PERFORM public.list_authorization_scope_resources();
+  EXCEPTION WHEN SQLSTATE '42501' THEN resource_denied:=true;
+  END;
   IF NOT denied THEN RAISE EXCEPTION 'manager without warehouse assignment was not denied'; END IF;
+  IF NOT resource_denied THEN RAISE EXCEPTION 'manager without role assignment authority enumerated organization resources'; END IF;
 END;
 $manager_scope_denial$;
 
@@ -460,6 +504,27 @@ INSERT INTO public.authorization_profile_scopes(
   '22222222-2222-4222-8222-222222222222',
   '22222222-2222-4222-8222-222222222222'
 );
+
+DO $assigned_customer_relation$
+DECLARE v_decision jsonb;
+BEGIN
+  INSERT INTO public.authorization_profile_scopes(
+    organization_id,profile_id,scope_kind,warehouse_id,customer_id,reason,is_active,
+    valid_from,revision,created_by,updated_by
+  ) VALUES(
+    '11111111-1111-4111-8111-111111111111',
+    '22222222-2222-4222-8222-222222222223',
+    'assigned_customer',NULL,'66666666-6666-4666-8666-666666666666',
+    'Manager assigned to test customer',true,statement_timestamp(),1,
+    '22222222-2222-4222-8222-222222222222',
+    '22222222-2222-4222-8222-222222222222'
+  );
+  v_decision:=public.current_authorization_decision('customers.read_basic','66666666-6666-4666-8666-666666666666');
+  IF v_decision->>'decision'<>'DENY' THEN
+    RAISE EXCEPTION 'customer assignment manufactured a capability grant: %',v_decision;
+  END IF;
+END;
+$assigned_customer_relation$;
 
 DO $manager_scope_permit$
 DECLARE v_items jsonb;
