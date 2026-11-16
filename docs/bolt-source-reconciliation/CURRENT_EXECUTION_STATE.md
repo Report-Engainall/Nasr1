@@ -6117,3 +6117,21 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - No database migration, production database write, financial posting, inventory movement, live integration, Vercel build or deployment was performed.
 - Do not reuse historical test results for this change. The P1 and P2 results above must be resolved against this exact implementation SHA before marking the code `TESTED_EXACT_SHA`.
 - NEXT_ACTION_ID: `ADMIN-PANEL-FRAME-EXACT-SHA-VERIFICATION-001` — close P1 and read-only P2 results for SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`; retain the authenticated E2E gate as `BLOCKED_EXTERNAL` unless dedicated non-production credentials and explicit write confirmation are available.
+
+
+---
+
+## ADMIN-PANEL EXACT-SHA VERIFICATION RESULT — 2026-11-17
+
+- Exact implementation SHA verified: `23a395cca9b61d1d7225f736b1fe1d1112f6c464`.
+- P1 Admin Context Verification run `43966256219`: **SUCCESS** on that exact SHA.
+  - Vitest: **140/140 files, 1,006/1,006 tests passed**.
+  - Strict P1 TypeScript check: **SUCCESS**.
+  - Production application build: **SUCCESS**.
+  - Vitest emitted a post-test Vite shutdown-timeout warning after the suite had passed; the step closed successfully and did not fail.
+- P2 Playwright Critical Paths run `43966256168`: the exact-SHA build and both local server-start steps succeeded. The read-only public storefront Chromium assertions remained **IN_PROGRESS** at checkpoint capture; not yet counted as a completed browser acceptance.
+- P2 authenticated order/tenant-isolation job: **SKIPPED / BLOCKED_EXTERNAL** because the isolated non-production Supabase endpoint, separate accounts and explicit test-write confirmation were not configured. This is not an authorization, customer-order, or cross-tenant acceptance pass.
+- No production database, live customer, financial posting, inventory balance, Auth/Storage, integration endpoint or deployment was written.
+- The implementation can be marked `TESTED_EXACT_SHA` for Vitest, strict TypeScript and production build only. It is **not** `BROWSER_PROVEN` for the admin frame, and no production-readiness claim is made.
+- Main now contains the implementation commit, then the checkpoint commits `e308dcacea9fc676146eeeca90e939c13ddb8d0f` and this result update; all code checks above remain explicitly tied to implementation SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`.
+- NEXT_ACTION_ID: `ADMIN-PANEL-P2-PUBLIC-SMOKE-AND-AUTH-GATE-001` — record the terminal P2 read-only smoke result when available; keep order and tenant-isolation proof open until a dedicated non-production E2E environment is explicitly approved and configured.
