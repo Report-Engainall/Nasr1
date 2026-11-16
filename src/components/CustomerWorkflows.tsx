@@ -2894,7 +2894,10 @@ function Offline() {
     };
   }, [refresh, user?.profileId]);
   const visibleCachedProducts = useMemo(() => cachedProducts.filter((product) =>
-    product.status === "active" && matchesArabicCatalogSearch(product, catalogSearch),
+    product.status === "active" && matchesArabicCatalogSearch({
+      ...product,
+      name: product.name + " " + (product.category?.name ?? ""),
+    }, catalogSearch),
   ), [cachedProducts, catalogSearch]);
 
   function addCachedProductToDraft(product: CachedOfflineProduct) {

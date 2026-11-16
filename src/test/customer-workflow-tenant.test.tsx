@@ -554,7 +554,7 @@ describe("customer quote workspace tenant boundary", () => {
     window.localStorage.setItem(keys.catalogKey, JSON.stringify([
       {
         id: sugarId,
-        name: "سكر أبيض",
+        name: "مواد تموينية",
         item_code: "000125",
         barcode: "628000125",
         unit: "كرتون",
@@ -582,7 +582,7 @@ describe("customer quote workspace tenant boundary", () => {
     await mountQuoteWorkspace("/offline");
 
     expect(host?.textContent).toContain("الكتالوج المحفوظ");
-    expect(host?.textContent).toContain("سكر أبيض");
+    expect(host?.textContent).toContain("مواد تموينية");
     expect(host?.textContent).toContain("أرز بسمتي");
     expect(host?.textContent).not.toContain("1200");
     expect(host?.textContent).not.toContain("900");
@@ -594,10 +594,10 @@ describe("customer quote workspace tenant boundary", () => {
       setter?.call(search, "سكر");
       search?.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(host?.textContent).toContain("سكر أبيض");
+    expect(host?.textContent).toContain("مواد تموينية");
     expect(host?.textContent).not.toContain("أرز بسمتي");
 
-    const quantity = host?.querySelector<HTMLInputElement>('[aria-label="الكمية لمسودة السلة: سكر أبيض"]');
+    const quantity = host?.querySelector<HTMLInputElement>('[aria-label="الكمية لمسودة السلة: مواد تموينية"]');
     expect(quantity).not.toBeNull();
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
@@ -617,7 +617,7 @@ describe("customer quote workspace tenant boundary", () => {
     expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
       { product_id: sugarId, quantity: 2 },
     ]);
-    expect(host?.textContent).toContain("أُضيف سكر أبيض");
+    expect(host?.textContent).toContain("أُضيف مواد تموينية");
     expect(host?.textContent).toContain("لم يُرسل طلب ولم يُعتمد سعر أو مخزون");
     expect(mocks.fetchProducts).not.toHaveBeenCalled();
     expect(mocks.fetchResolvedProductPrices).not.toHaveBeenCalled();
