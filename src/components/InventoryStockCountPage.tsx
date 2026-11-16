@@ -5,6 +5,7 @@ import type { ActiveInventoryWarehouse, InventoryStockCountLine, InventoryStockC
 import { downloadStockCountWorkbookXlsx } from '@/lib/stock-count-xlsx';
 import { useAuth } from '@/lib/auth';
 import { projectStockCountPrintDocument } from '@/lib/stock-count-print';
+import { InventoryBalanceAdjustmentPanel } from '@/components/InventoryBalanceAdjustmentPanel';
 const q = (v: number | null | undefined) => v == null || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(Number(v));
 const idempotencyKey = () => 'stock-count-' + crypto.randomUUID().replace(/-/g, '');
 function StockCountLineRow({
@@ -230,6 +231,7 @@ export function InventoryStockCountPage() {
       </div>
       <p className="text-muted">لا تُنشأ أصناف أو أرصدة أو عمليات تاريخية تلقائيًا؛ تبدأ الجلسة من الأرصدة الموجودة في المستودع المحدد فقط.</p>
     </section>
+    {canFinalize && warehouseId && <InventoryBalanceAdjustmentPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />}
     {error && <div className="form-error" role="alert"><AlertTriangle size={16} /> {error}</div>}
     {notice && <div className="data-status success" role="status"><Check size={16} /> {notice}</div>}
     {loading && <section className="panel">جار تحميل بيانات الجرد المحفوظة…</section>}
