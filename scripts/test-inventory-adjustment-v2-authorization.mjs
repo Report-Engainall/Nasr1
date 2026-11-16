@@ -138,8 +138,29 @@ async function main() {
           [fixture.warehouse_id],
         ), "manager without an assigned warehouse must be denied");
 
-        // Admin assigns only this warehouse with an optimistic revision.
+        // The simulator evaluates the selected member without impersonating them.
         await applyActor(tx, actors.admin);
+        const noScopeSimulation = decodeJson((await tx.unsafe(
+          "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.balance.adjust',$2::uuid) as decision",
+          [actors.manager.profile_id, fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(noScopeSimulation.decision, "DENY");
+        assert.equal(noScopeSimulation.source, "resource_assignment");
+        const organizationSimulation = decodeJson((await tx.unsafe(
+          "select public.evaluate_authorization_profile_decision_v2($1::uuid,'identity.roles.assign',NULL::uuid) as decision",
+          [actors.admin.profile_id],
+        ))[0].decision);
+        assert.equal(organizationSimulation.decision, "PERMIT");
+        const managerCannotSimulate = async (sp) => {
+          await applyActor(sp, actors.manager);
+          return sp.unsafe(
+            "select public.evaluate_authorization_profile_decision_v2($1::uuid,'identity.roles.assign',NULL::uuid)",
+            [actors.admin.profile_id],
+          );
+        };
+        await expectSqlState(tx, "42501", managerCannotSimulate, "only role administrators may use the authorization simulator");
+
+        // Admin assigns only this warehouse with an optimistic revision.
         const assignmentRows = await tx.unsafe(
           "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
           [actors.manager.profile_id, fixture.warehouse_id, "P2 assigned warehouse scope acceptance"],
@@ -170,6 +191,14 @@ async function main() {
           await applyActor(sp, actors.manager);
           return sp.unsafe("select public.list_authorization_scope_resources()");
         }, "non-administrator cannot enumerate organization resources for scope assignment");
+
+        const assignedSimulation = decodeJson((await tx.unsafe(
+          "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.balance.adjust',$2::uuid) as decision",
+          [actors.manager.profile_id, fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(assignedSimulation.decision, "PERMIT");
+        assert.ok(assignedSimulation.scope_assignment_id);
+        assert.equal(assignedSimulation.scope_resource_id, fixture.warehouse_id);
 
         if (resourceCatalog.customers.length > 0) {
           const assignedCustomerId = resourceCatalog.customers[0].id;
@@ -339,6 +368,13 @@ async function main() {
           [fixture.warehouse_id],
         ))[0].decision);
         assert.equal(revokedDecision.decision, "DENY");
+        await applyActor(tx, actors.admin);
+        const revokedSimulation = decodeJson((await tx.unsafe(
+          "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.balance.adjust',$2::uuid) as decision",
+          [actors.manager.profile_id, fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(revokedSimulation.decision, "DENY");
+        assert.equal(revokedSimulation.source, "resource_assignment");
         await expectSqlState(tx, "42501", () => invoke(tx), "revoked warehouse assignment must deny the next inventory write");
 
         await applyActor(tx, actors.admin);
