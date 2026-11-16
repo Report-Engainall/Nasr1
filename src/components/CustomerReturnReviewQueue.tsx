@@ -235,6 +235,9 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
           <p style={{ ...muted, marginTop: 5 }}>
             مراجعة كل الطلبات المفتوحة مع البحث في رقم المرتجع والطلب والعميل والصنف، وتصفية الحالة على مستوى الخادم.
           </p>
+          <p style={{ ...muted, marginTop: 3 }}>
+            يتطلب القبول أو الرفض مبررًا مدققًا. الموافقة تنشئ مهمة استلام وفحص؛ لا تسجل ردًا ماليًا أو حركة مخزون قبل الاستلام الفعلي.
+          </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {canExport && (
