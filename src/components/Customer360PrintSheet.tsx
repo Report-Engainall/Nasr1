@@ -28,6 +28,11 @@ function money(value: number | null, currency: string): string {
 function date(value: string | null): string {
   return value ? formatDateShort(value) : "غير متاح";
 }
+function dateTime(value: string | null): string {
+  return value
+    ? new Intl.DateTimeFormat("ar-YE", { dateStyle: "short", timeStyle: "short" }).format(new Date(value))
+    : "غير متاح";
+}
 function number(value: number | null): string {
   return value === null ? "غير متاح" : formatNumber(value);
 }
@@ -224,16 +229,17 @@ function CustomerInteractionsSection({ document }: { document: Customer360PrintD
         <p>لا يوجد سجل تواصل ضمن البيانات المعروضة.</p>
       ) : (
         <table>
-          <thead><tr><th>التاريخ</th><th>النوع</th><th>الموضوع</th><th>الملخص والنتيجة</th><th>المتابعة القادمة</th><th>سُجل بواسطة</th></tr></thead>
+          <thead><tr><th>وقت التواصل</th><th>النوع</th><th>الموضوع</th><th>الملخص والنتيجة</th><th>موعد المتابعة</th><th>سُجل بواسطة</th><th>وقت التسجيل</th></tr></thead>
           <tbody>
             {document.interactions.map((row, index) => (
-              <tr key={row.subject + "-" + row.interactionAt + "-" + index}>
-                <td>{date(row.interactionAt)}</td>
+              <tr key={row.subject + "-" + row.interactionAt + "-" + index} data-testid="customer-360-print-interaction-row">
+                <td>{dateTime(row.interactionAt)}</td>
                 <td>{interactionTypeLabels[row.interactionType] ?? row.interactionType}</td>
                 <td>{row.subject}</td>
                 <td>{row.details}</td>
-                <td>{date(row.nextFollowUpAt)}</td>
+                <td>{dateTime(row.nextFollowUpAt)}</td>
                 <td>{row.recordedByName}</td>
+                <td>{dateTime(row.createdAt)}</td>
               </tr>
             ))}
           </tbody>
