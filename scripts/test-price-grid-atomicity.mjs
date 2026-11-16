@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
+import { writeFile } from "node:fs/promises";
 import { validateCashExpenseEndpoints } from "./lib/local-endpoint-guard.mjs";
 
 function requiredEnv(name) {
@@ -44,6 +45,7 @@ function payload(id, expected, next) {
   };
 }
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+let priceGridDiagnostic = { phase: "initialization" };
 
 async function obtainLiveAuthClaims(supabaseUrl, publishableKey, email, password, expectedUserId) {
   const endpoint = new URL("/auth/v1/token?grant_type=password", supabaseUrl);
@@ -100,6 +102,17 @@ async function assertPriceGridRpcSchema(db) {
     definition.includes("p.price_wholesale_of_wholesale") ||
     definition.includes("p.price_wholesale") ||
     definition.includes("p.price_retail");
+  priceGridDiagnostic = {
+    phase: "active RPC schema inspection",
+    getterExists: getter.length > 0,
+    writerExists: writer.length > 0,
+    getterUsesLegacyProductPriceColumns: usesLegacyProductPriceColumn(getter),
+    writerUsesLegacyProductPriceColumns: usesLegacyProductPriceColumn(writer),
+    getterUsesProductPrices: getter.includes("public.product_prices"),
+    writerUsesProductPrices: writer.includes("public.product_prices"),
+    getterMentionsMissingColumn: getter.includes("price_wholesale_of_wholesale"),
+    writerMentionsMissingColumn: writer.includes("price_wholesale_of_wholesale"),
+  };
   assert.ok(getter.length > 0 && writer.length > 0, "both price-grid RPC definitions must exist after migrations");
   assert.equal(usesLegacyProductPriceColumn(getter), false,
     "the active price-grid reader must not reference legacy product price columns");
@@ -109,6 +122,7 @@ async function assertPriceGridRpcSchema(db) {
   assert.ok(writer.includes("public.product_prices"), "the active price-grid writer must persist tier prices to product_prices");
 }
 async function readGrid(client, id) {
+  priceGridDiagnostic = { ...priceGridDiagnostic, phase: "read price-grid RPC", productId: id };
   try {
     const rows = await client.unsafe(
       "select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail " +
@@ -117,15 +131,28 @@ async function readGrid(client, id) {
     assert.equal(rows.length, 1, "authorized grid read must return exactly one test product");
     return { id, ...prices(rows[0]) };
   } catch (cause) {
+    priceGridDiagnostic = {
+      ...priceGridDiagnostic,
+      phase: "read price-grid RPC",
+      postgresCode: cause?.code ?? null,
+      error: String(cause?.message ?? cause),
+    };
     throw new Error("Price-grid read RPC failed: " + String(cause?.message ?? cause));
   }
 }
 async function save(client, changes) {
+  priceGridDiagnostic = { ...priceGridDiagnostic, phase: "write price-grid RPC" };
   try {
     return asJson((await client.unsafe(
       "select public.save_product_price_grid($1::jsonb) as result", [client.json(changes)],
     ))[0].result);
   } catch (cause) {
+    priceGridDiagnostic = {
+      ...priceGridDiagnostic,
+      phase: "write price-grid RPC",
+      postgresCode: cause?.code ?? null,
+      error: String(cause?.message ?? cause),
+    };
     throw new Error("Price-grid write RPC failed: " + String(cause?.message ?? cause));
   }
 }
@@ -419,7 +446,18 @@ async function main() {
     await db.end({timeout:5}).catch(()=>{});
   }
 }
-main().catch(error=>{
-  process.stderr.write("FAIL price-grid acceptance: "+String(error?.stack??error)+"\n");
+main().catch(async error=>{
+  const diagnostic = {
+    ...priceGridDiagnostic,
+    error: String(error?.message ?? error),
+    postgresCode: error?.code ?? priceGridDiagnostic.postgresCode ?? null,
+  };
+  const outputPath = process.env.PRICE_GRID_ACCEPTANCE_DIAGNOSTIC_PATH;
+  if (outputPath) {
+    try { await writeFile(outputPath, JSON.stringify(diagnostic, null, 2) + "\\n", { mode: 0o600 }); }
+    catch (writeError) { process.stderr.write("Could not persist price-grid diagnostic: "+String(writeError?.message??writeError)+"\\n"); }
+  }
+  process.stderr.write("FAIL price-grid acceptance: "+JSON.stringify(diagnostic)+"\\n");
+  process.stderr.write(String(error?.stack??error)+"\\n");
   process.exitCode=1;
 });
