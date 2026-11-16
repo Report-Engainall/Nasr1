@@ -29,6 +29,11 @@ export function normalizeProductImageItemCode(value: string): string {
   return value.trim().normalize("NFKC").toLocaleUpperCase("en-US");
 }
 
+/** Only a public HTTPS URL counts as a usable primary product image. */
+export function hasSafePrimaryProductImageUrl(value: unknown): boolean {
+  return typeof value === "string" && /^https:\/\//i.test(value.trim());
+}
+
 /** Uses the exact item code first. Numbered suffixes such as SKU__2 or SKU (2) are fallback aliases only. */
 export function productImageItemCodeFromFilename(fileName: string): string | null {
   const basename = fileName.replace(/^.*[\\/]/, "").trim();
@@ -141,7 +146,7 @@ export function matchProductImagesByCode<TFile extends ProductImageBatchFile>(
       left.file.name.localeCompare(right.file.name, "en", { numeric: true, sensitivity: "base" }),
     );
 
-    let primaryAssigned = Boolean(product.image_url?.trim());
+    let primaryAssigned = hasSafePrimaryProductImageUrl(product.image_url);
     let galleryCount = product.image_gallery_urls?.length ?? 0;
 
     for (const entry of group) {

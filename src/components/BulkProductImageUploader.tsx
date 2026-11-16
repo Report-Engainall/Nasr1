@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadProductGalleryImage, uploadProductImage } from "@/lib/api";
 import { toWebp, validateProductImageFile } from "@/lib/product-image";
-import { matchProductImagesByCode, type ProductImageBatchEntry } from "@/lib/product-image-batch-match";
+import { hasSafePrimaryProductImageUrl, matchProductImagesByCode, type ProductImageBatchEntry } from "@/lib/product-image-batch-match";
 import type { ProductWithInventory } from "@/lib/types";
 
 type UploadResult = {
@@ -61,8 +61,8 @@ function imagePlacementLabel(value: "primary" | "gallery"): string {
   return value === "primary" ? "الصورة الرئيسية" : "صورة إضافية";
 }
 
-function hasPrimaryProductImage(product: ProductWithInventory): boolean {
-  return typeof product.image_url === "string" && /^https:\/\//i.test(product.image_url.trim());
+function hasPrimaryProductImage(product: { image_url?: string | null }): boolean {
+  return hasSafePrimaryProductImageUrl(product.image_url);
 }
 
 export function getProductsMissingPrimaryImage(
@@ -285,7 +285,7 @@ export function BulkProductImageUploader({
     setDirectUploadBusyId(product.id);
     setDirectImageErrors((current) => ({ ...current, [product.id]: "" }));
     try {
-      const publicUrl = await uploadProductImage(product.id, await toWebp(file), null);
+      const publicUrl = await uploadProductImage(product.id, await toWebp(file), product.image_url ?? null);
       if (typeof publicUrl !== "string" || !/^https:\/\//i.test(publicUrl)) {
         throw new Error("لم يرجع الخادم رابط صورة رئيسية آمناً.");
       }
@@ -391,7 +391,7 @@ export function BulkProductImageUploader({
 
         const hasPrimary = primaryLinked.has(product.id)
           ? primaryLinked.get(product.id) === true
-          : Boolean(product.image_url?.trim());
+          : hasPrimaryProductImage(product);
         const placement: "primary" | "gallery" = hasPrimary ? "gallery" : "primary";
 
         try {
