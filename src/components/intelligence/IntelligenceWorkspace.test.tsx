@@ -484,7 +484,7 @@ describe("production intelligence workspace inventory screens", () => {
     render(<IntelligenceWorkspace />);
 
     const board = await screen.findByRole("region", { name: "لوحة متابعة القرارات اليومية" });
-    expect(board).toHaveTextContent("تغطية مكتملة");
+    expect(board).toHaveTextContent("لا توجد قرارات");
     expect(board).toHaveTextContent("لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.");
 
     const memoryBook = await screen.findByRole("region", { name: "دفتر ذاكرة القرارات والتعلم" });
