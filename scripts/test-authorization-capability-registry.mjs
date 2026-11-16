@@ -221,13 +221,12 @@ async function main() {
   assert.equal(staffProposal.approved_at,null);
   const staffProposalBefore=await readPricingRule(staffProposal.id);
   const staffProposalAuditBefore=await auditCountForPricingRule(staffProposal.id);
-  await assert.rejects(
-    ()=>withActor(db,staff,tx=>tx.unsafe(
-      "update public.pricing_rules set adjustment_value=124 where id=$1::uuid",[staffProposal.id]
-    )),
-    error=>error&&String(error.code)==="42501",
-    "staff with proposal-only capability must not edit a submitted pricing rule"
-  );
+  const deniedStaffUpdate=await withActor(db,staff,tx=>tx.unsafe(
+    "update public.pricing_rules set adjustment_value=124 where id=$1::uuid returning id",
+    [staffProposal.id]
+  ));
+  assert.equal(deniedStaffUpdate.length,0,
+    "RLS must expose no editable row to staff with proposal-only capability");
   await assert.rejects(
     ()=>withActor(db,staff,tx=>tx.unsafe(
       "select public.approve_pricing_rule($1::uuid,'self approval attempt')",[staffProposal.id]
@@ -279,14 +278,12 @@ async function main() {
     "a manager whose edit capability is explicitly denied must fall back to the approval-gated proposal path");
   const managerProposalBefore=await readPricingRule(managerProposal.id);
   const managerProposalAuditBefore=await auditCountForPricingRule(managerProposal.id);
-  await assert.rejects(
-    ()=>withActor(db,manager,tx=>tx.unsafe(
-      "update public.pricing_rules set adjustment_value=125 where id=$1::uuid",
-      [managerProposal.id]
-    )),
-    error=>error&&String(error.code)==="42501",
-    "explicit pricing.edit_draft denial must reject manager direct edits"
-  );
+  const deniedManagerUpdate=await withActor(db,manager,tx=>tx.unsafe(
+    "update public.pricing_rules set adjustment_value=125 where id=$1::uuid returning id",
+    [managerProposal.id]
+  ));
+  assert.equal(deniedManagerUpdate.length,0,
+    "RLS must expose no editable row while the manager has an explicit pricing.edit_draft denial");
   await assert.rejects(
     ()=>withActor(db,manager,tx=>tx.unsafe(
       "select public.approve_pricing_rule($1::uuid,'same actor must not approve')",
