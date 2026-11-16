@@ -101,6 +101,9 @@
     "src/lib/admin-capability-catalog.ts",
     "src/lib/admin-capability-catalog.test.ts",
     "src/components/InventoryBalanceAdjustmentPanel.tsx",
-    "src/components/InventoryBalanceAdjustmentPanel.test.tsx"
+    "src/components/InventoryBalanceAdjustmentPanel.test.tsx",
+    "src/components/Storefront.tsx",
+    "src/lib/storefront-product-structured-data.ts",
+    "src/lib/storefront-product-structured-data.test.ts"
   ]
 }
