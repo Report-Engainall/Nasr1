@@ -10,6 +10,7 @@ on:
       - "supabase/migrations/20261116113000_inventory_adjustment_capability_v2.sql"
       - "supabase/migrations/20261116121000_authorization_profile_scopes_v2.sql"
       - "supabase/migrations/20261116122000_scope_inventory_adjustment_authorization.sql"
+      - "supabase/migrations/20261116123000_authorization_scope_account_boundary.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
   pull_request:
