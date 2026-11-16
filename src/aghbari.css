@@ -1259,3 +1259,13 @@ button.workspace-section-group__heading { cursor: pointer; }
     width: 100%;
   }
 }
+
+
+/* Settings and AI configuration use the same reusable section hierarchy as the rest of Nasr1. */
+.workspace-section-group.settings-panel { margin-bottom: 16px; }
+.workspace-section-group__content.settings-body { padding: 20px; }
+.workspace-section-group__content.ai-gateway-group__content { display: grid; gap: 14px; padding: 16px; }
+@media (max-width: 600px) {
+  .workspace-section-group__content.settings-body,
+  .workspace-section-group__content.ai-gateway-group__content { padding: 12px; }
+}
