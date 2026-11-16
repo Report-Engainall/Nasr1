@@ -89,18 +89,42 @@ async function assume(client, claims) {
   await setClaims(client, claims);
   await client.unsafe("set role authenticated");
 }
-async function readGrid(client, id) {
-  const rows = await client.unsafe(
-    "select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail " +
-    "from public.get_admin_product_price_grid() where id=$1::uuid", [id],
+async function assertPriceGridRpcSchema(db) {
+  const rows = await db.unsafe(
+    "select pg_catalog.pg_get_functiondef('public.get_admin_product_price_grid()'::regprocedure) as getter, " +
+    "pg_catalog.pg_get_functiondef('public.save_product_price_grid(jsonb)'::regprocedure) as writer",
   );
-  assert.equal(rows.length, 1, "authorized grid read must return exactly one test product");
-  return { id, ...prices(rows[0]) };
+  const getter = String(rows[0]?.getter ?? "");
+  const writer = String(rows[0]?.writer ?? "");
+  const legacyProductPriceColumn = /\\bp\\.(?:price_wholesale_of_wholesale|price_wholesale|price_retail)\\b/;
+  assert.ok(getter.length > 0 && writer.length > 0, "both price-grid RPC definitions must exist after migrations");
+  assert.equal(legacyProductPriceColumn.test(getter), false,
+    "the active price-grid reader must not reference legacy product price columns");
+  assert.equal(legacyProductPriceColumn.test(writer), false,
+    "the active price-grid writer must use product_prices rather than legacy product price columns");
+  assert.match(getter, /public\\.product_prices/i, "the active price-grid reader must read tier prices from product_prices");
+  assert.match(writer, /public\\.product_prices/i, "the active price-grid writer must persist tier prices to product_prices");
+}
+async function readGrid(client, id) {
+  try {
+    const rows = await client.unsafe(
+      "select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail " +
+      "from public.get_admin_product_price_grid() where id=$1::uuid", [id],
+    );
+    assert.equal(rows.length, 1, "authorized grid read must return exactly one test product");
+    return { id, ...prices(rows[0]) };
+  } catch (cause) {
+    throw new Error("Price-grid read RPC failed: " + String(cause?.message ?? cause));
+  }
 }
 async function save(client, changes) {
-  return asJson((await client.unsafe(
-    "select public.save_product_price_grid($1::jsonb) as result", [client.json(changes)],
-  ))[0].result);
+  try {
+    return asJson((await client.unsafe(
+      "select public.save_product_price_grid($1::jsonb) as result", [client.json(changes)],
+    ))[0].result);
+  } catch (cause) {
+    throw new Error("Price-grid write RPC failed: " + String(cause?.message ?? cause));
+  }
 }
 async function auditCount(db, orgId, id) {
   const rows = await db.unsafe(
@@ -275,6 +299,7 @@ async function main() {
     ) {
       throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify(managerContext));
     }
+    await assertPriceGridRpcSchema(db);
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
