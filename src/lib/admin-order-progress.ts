@@ -67,12 +67,15 @@ export function getAdminOrderProgress(status: string): AdminOrderProgress {
       message: 'حالة الطلب غير معروفة؛ راجع سجل الطلب قبل اتخاذ أي إجراء.',
     };
   }
+  const deliveryComplete = status === 'delivered' || status === 'invoiced';
   return {
     kind: 'progress',
     currentStep,
     steps: ADMIN_ORDER_PROGRESS_STEPS.map((label, index) => ({
       label,
-      state: index < currentStep ? 'complete' : index === currentStep ? 'current' : 'upcoming',
+      state: index < currentStep || (deliveryComplete && index === currentStep)
+        ? 'complete'
+        : index === currentStep ? 'current' : 'upcoming',
     })),
     message: null,
   };
