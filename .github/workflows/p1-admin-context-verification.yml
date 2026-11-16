@@ -19,6 +19,8 @@ on:
       - "src/components/AdminAiGovernanceWorkspace.tsx"
       - "src/components/AdminAiGovernanceWorkspace.test.tsx"
       - "src/components/Storefront.tsx"
+      - "src/lib/storefront-product-structured-data.ts"
+      - "src/lib/storefront-product-structured-data.test.ts"
       - "src/components/StorefrontCategoryLandingPage.tsx"
       - "src/components/StorefrontCategoryLandingPage.test.tsx"
       - "src/components/StorefrontCollectionsPage.tsx"
