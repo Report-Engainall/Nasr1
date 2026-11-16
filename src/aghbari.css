@@ -1340,3 +1340,87 @@ button.workspace-section-group__heading { cursor: pointer; }
   .workspace-section-group__content.storefront-category-group__content,
   .workspace-section-group__content.storefront-offer-group__content { padding: 12px; }
 }
+
+
+/* Customer storefront: group real catalog filters and account destinations in the same visual language. */
+.sf-category-group,
+.sf-business-tools-group {
+  max-width: 1400px;
+  margin: 0 auto 12px;
+}
+.sf-category-group .workspace-section-group__content {
+  padding: 4px 10px;
+}
+.sf-category-group .sf-cats {
+  max-width: none;
+  margin: 0;
+  padding: 9px 8px;
+}
+.sf-category-group .sf-cats button {
+  min-height: 36px;
+  border-color: color-mix(in srgb, var(--aghbari-brand) 14%, var(--aghbari-border));
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 65%, white);
+  color: var(--aghbari-text);
+}
+.sf-category-group .sf-cats button.active {
+  background: var(--aghbari-brand-surface);
+  color: var(--aghbari-on-brand-surface);
+  border-color: var(--aghbari-brand);
+}
+.sf-business-tools-group .workspace-section-group__content {
+  padding: 10px 14px 13px;
+}
+.sf-business-tool-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sf-business-tool-links a {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 15%, var(--aghbari-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 62%, white);
+  color: var(--aghbari-text);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.sf-business-tool-links a:hover,
+.sf-business-tool-links a:focus-visible {
+  color: var(--aghbari-brand);
+  background: var(--aghbari-brand-soft);
+  border-color: var(--aghbari-brand);
+}
+.sf-business-tool-links a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--aghbari-brand) 25%, white);
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .sf-category-group,
+  .sf-business-tools-group {
+    margin-inline: 10px;
+  }
+  .sf-category-group .sf-cats {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+  .sf-category-group .sf-cats button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .sf-business-tool-links {
+    justify-content: stretch;
+  }
+  .sf-business-tool-links a {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
