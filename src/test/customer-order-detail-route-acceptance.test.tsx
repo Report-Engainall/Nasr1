@@ -339,6 +339,92 @@ describe("customer order detail real route acceptance", () => {
     }
   });
 
+  it("does not overwrite an unsent customer amendment draft during status polling", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: {
+        data: [{
+          id: orderId,
+          order_number: "SO-DRAFT-001",
+          customer_id: CUSTOMER.profileId,
+          status: "needs_customer_amendment",
+          total_items: 1,
+          notes: null,
+          created_at: "2026-10-28T00:00:00.000Z",
+          quantity_review_required: false,
+          customer_adjustment_note: "يرجى مراجعة الكمية",
+          customer_payment_requested_at: null,
+          customer_confirmed_at: null,
+          payment_request_status: "none",
+          delivery_address_snapshot: null,
+        }],
+        error: null,
+      },
+      order_items: {
+        data: [{
+          id: "44444444-4444-4444-8444-444444444444",
+          product_id: "55555555-5555-4555-8555-555555555555",
+          item_code: "SKU-DRAFT-001",
+          product_name_snapshot: "صنف الاختبار",
+          unit_snapshot: "علبة",
+          quantity: 1,
+          requested_quantity: 1,
+          approved_quantity: 1,
+        }],
+        error: null,
+      },
+      order_status_history: {
+        data: [{ id: "hist-1", to_status: "needs_customer_amendment", created_at: "2026-10-28T00:00:00.000Z", notes: null }],
+        error: null,
+      },
+      customers: {
+        data: [{ customer_code: "C-DRAFT-01", business_name: "شركة الاختبار", contact_name: null }],
+        error: null,
+      },
+    };
+
+    const poller: { callback?: () => void } = {};
+    const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler, delay) => {
+      if (delay === 45_000 && typeof handler === "function") {
+        poller.callback = handler as () => void;
+      }
+      return 902;
+    });
+
+    try {
+      await mountOrderRoute();
+      const quantityInput = host?.querySelector<HTMLInputElement>(
+        'input[aria-label="الكمية المعدلة صنف الاختبار"]',
+      );
+      expect(quantityInput).not.toBeNull();
+      expect(quantityInput?.value).toBe("1");
+      expect(poller.callback).toBeTypeOf("function");
+
+      const nativeValueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      await act(async () => {
+        nativeValueSetter?.call(quantityInput, "2");
+        quantityInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(quantityInput?.value).toBe("2");
+
+      const currentOrder = mocks.results.orders.data[0] as Record<string, unknown>;
+      mocks.results.orders.data[0] = { ...currentOrder, status: "confirmed" };
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+      expect(quantityInput?.value).toBe("2");
+      expect(host?.textContent).toContain("بانتظار تعديل العميل");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(1);
+    } finally {
+      intervalSpy.mockRestore();
+    }
+  });
+
   it("re-reads persisted order status when the customer refreshes order details", async () => {
     mocks.user = CUSTOMER;
     const orderId = "33333333-3333-4333-8333-333333333333";

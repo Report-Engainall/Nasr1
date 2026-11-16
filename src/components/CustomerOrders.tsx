@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -537,10 +537,20 @@ function OrderInvoiceInner({ id }: { id: string }) {
     };
   }, [id]);
 
+  const hasUnsavedAmendmentDraft = useMemo(() => {
+    if (amendmentBusy || amendmentNote.trim()) return true;
+    return (data?.items ?? []).some((item) => {
+      const draftQuantity = amendmentQuantities[item.id];
+      const persistedQuantity = String(item.approved_quantity ?? item.quantity);
+      return draftQuantity !== undefined && draftQuantity !== persistedQuantity;
+    });
+  }, [amendmentBusy, amendmentNote, amendmentQuantities, data?.items]);
+
   const automaticRefreshInFlight = useRef(false);
   const refreshWhileCustomerIsActive = useCallback(async () => {
     if (
       automaticRefreshInFlight.current ||
+      hasUnsavedAmendmentDraft ||
       document.visibilityState !== 'visible' ||
       !navigator.onLine
     ) return;
@@ -551,7 +561,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
     } finally {
       automaticRefreshInFlight.current = false;
     }
-  }, [refetch]);
+  }, [hasUnsavedAmendmentDraft, refetch]);
 
   useEffect(() => {
     const refresh = () => { void refreshWhileCustomerIsActive(); };
