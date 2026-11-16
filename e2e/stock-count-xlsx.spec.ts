@@ -213,7 +213,7 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       });
       await manager.getByRole("button", { name: "إلغاء الجلسة دون تعديل الرصيد", exact: true }).click();
       await dialogPromise;
-      await expect(manager.locator(".data-status.success[role='status']")).toContainText("أُلغيت الجلسة وسُجل السبب في التدقيق.", { timeout: 20_000 });
+      await expect(manager.getByRole("status")).toContainText("أُلغيت الجلسة وسُجل السبب في التدقيق.", { timeout: 20_000 });
       await expect(manager.getByRole("heading", { name: "لا توجد جلسة جرد مفتوحة" })).toBeVisible();
     });
   } finally {
