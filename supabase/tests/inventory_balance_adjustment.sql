@@ -81,6 +81,22 @@ AS $function$
   );
 $function$;
 
+CREATE TABLE public.authorization_capabilities(
+  capability_key text PRIMARY KEY,domain text NOT NULL,resource text NOT NULL,action text NOT NULL,
+  sensitivity text NOT NULL,scope_kind text NOT NULL,approval_mode text NOT NULL,
+  separation_of_duties boolean NOT NULL,state_requirements jsonb NOT NULL,
+  legacy_operation_id text,is_active boolean NOT NULL DEFAULT true,updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.authorization_role_capabilities(
+  role text NOT NULL,capability_key text NOT NULL REFERENCES public.authorization_capabilities(capability_key),
+  grant_source text NOT NULL,PRIMARY KEY(role,capability_key)
+);
+CREATE OR REPLACE FUNCTION public.current_actor_has_capability(p_capability_key text)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $function$
+  SELECT p_capability_key='inventory.balance.adjust' AND public.operational_tasks_can_manage();
+$function$;
+
 INSERT INTO public.organizations(id,name) VALUES
  ('11111111-1111-4111-8111-111111111111','Aghbari test tenant'),
  ('12121212-1212-4121-8121-121212121212','Foreign test tenant');
@@ -107,6 +123,7 @@ VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555
 
 \ir ../migrations/20261116110000_inventory_balance_adjustment_command.sql
 \ir ../migrations/20261116111000_inventory_adjustment_invariants.sql
+\ir ../migrations/20261116112000_inventory_adjustment_authorization_v2.sql
 
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',false);
 
