@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -39,45 +39,58 @@ export function StorefrontProductQuestions({ productId }: { productId: string })
   const [questionText, setQuestionText] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ text: string; kind: "success" | "error" } | null>(null);
+  // Invalidate pages and private account reads as soon as product/account scope changes.
+  const requestGenerationRef = useRef(0);
+  const isCurrentGeneration = (generation: number) => requestGenerationRef.current === generation;
 
-  async function loadPublic(isActive: () => boolean = () => true) {
+  async function loadPublic(generation = requestGenerationRef.current) {
     setLoading(true);
     setError("");
     try {
       const result = await fetchStorefrontProductQuestions(productId);
-      if (isActive()) setSummary(result);
+      if (isCurrentGeneration(generation)) setSummary(result);
     } catch (cause) {
-      if (isActive()) setError(cause instanceof Error ? cause.message : "تعذر تحميل أسئلة المنتج.");
+      if (isCurrentGeneration(generation)) {
+        setError(cause instanceof Error ? cause.message : "تعذر تحميل أسئلة المنتج.");
+      }
     } finally {
-      if (isActive()) setLoading(false);
+      if (isCurrentGeneration(generation)) setLoading(false);
     }
   }
-  async function loadMine(isActive: () => boolean = () => true) {
+  async function loadMine(generation = requestGenerationRef.current) {
     if (!isCustomer) {
-      setMine([]);
-      setMineError("");
-      setMineLoading(false);
+      if (isCurrentGeneration(generation)) {
+        setMine([]);
+        setMineError("");
+        setMineLoading(false);
+      }
       return;
     }
     setMineLoading(true);
     setMineError("");
     try {
       const result = await fetchCustomerProductQuestions(productId);
-      if (isActive()) setMine(result);
+      if (isCurrentGeneration(generation)) setMine(result);
     } catch (cause) {
-      if (isActive()) setMineError(cause instanceof Error ? cause.message : "تعذر تحميل أسئلتك الخاصة.");
+      if (isCurrentGeneration(generation)) {
+        setMineError(cause instanceof Error ? cause.message : "تعذر تحميل أسئلتك الخاصة.");
+      }
     } finally {
-      if (isActive()) setMineLoading(false);
+      if (isCurrentGeneration(generation)) setMineLoading(false);
     }
   }
   async function loadMore() {
     if (!summary || !summary.hasMore || loadingMore) return;
+    const generation = requestGenerationRef.current;
+    const requestedProductId = productId;
+    const offset = summary.items.length;
     setLoadingMore(true);
     setError("");
     try {
-      const next = await fetchStorefrontProductQuestions(productId, 8, summary.items.length);
+      const next = await fetchStorefrontProductQuestions(requestedProductId, 8, offset);
+      if (!isCurrentGeneration(generation)) return;
       setSummary((current) => {
-        if (!current) return next;
+        if (!current) return current;
         const seen = new Set(current.items.map((item) => item.id));
         return {
           ...current,
@@ -86,35 +99,55 @@ export function StorefrontProductQuestions({ productId }: { productId: string })
         };
       });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل بقية الأسئلة.");
+      if (isCurrentGeneration(generation)) {
+        setError(cause instanceof Error ? cause.message : "تعذر تحميل بقية الأسئلة.");
+      }
     } finally {
-      setLoadingMore(false);
+      if (isCurrentGeneration(generation)) setLoadingMore(false);
     }
   }
   useEffect(() => {
-    let active = true;
+    const generation = ++requestGenerationRef.current;
     setSummary(null);
     setMine([]);
     setNotice(null);
-    void loadPublic(() => active);
-    void loadMine(() => active);
-    return () => { active = false; };
+    setError("");
+    setMineError("");
+    setLoading(true);
+    setMineLoading(isCustomer);
+    setLoadingMore(false);
+    setSaving(false);
+    setQuestionText("");
+    void loadPublic(generation);
+    void loadMine(generation);
+    return () => {
+      if (requestGenerationRef.current === generation) requestGenerationRef.current += 1;
+    };
   }, [productId, user?.id, user?.profileId, isCustomer]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isCustomer || saving) return;
+    const generation = requestGenerationRef.current;
+    const submittedProductId = productId;
+    const submittedQuestionText = questionText;
     setSaving(true);
     setNotice(null);
     try {
-      const result = await submitStorefrontProductQuestion({ productId, questionText });
+      const result = await submitStorefrontProductQuestion({
+        productId: submittedProductId,
+        questionText: submittedQuestionText,
+      });
+      if (!isCurrentGeneration(generation)) return;
       setQuestionText("");
       setNotice({ text: result.message, kind: "success" });
-      await loadMine();
+      await loadMine(generation);
     } catch (cause) {
-      setNotice({ text: cause instanceof Error ? cause.message : "تعذر إرسال السؤال.", kind: "error" });
+      if (isCurrentGeneration(generation)) {
+        setNotice({ text: cause instanceof Error ? cause.message : "تعذر إرسال السؤال.", kind: "error" });
+      }
     } finally {
-      setSaving(false);
+      if (isCurrentGeneration(generation)) setSaving(false);
     }
   }
 
