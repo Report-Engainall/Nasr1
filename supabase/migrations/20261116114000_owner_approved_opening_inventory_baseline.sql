@@ -158,7 +158,7 @@ BEGIN
       JOIN active_products p ON p.id=im.product_id
      WHERE im.warehouse_id=p_warehouse_id
        AND im.movement_type='opening_balance'
-       AND pg_catalog.position(v_marker IN coalesce(im.reason,''))>0
+       AND pg_catalog.strpos(coalesce(im.reason,''),v_marker)>0
   )
   SELECT
     (SELECT pg_catalog.count(*)::integer FROM active_products),
@@ -203,7 +203,7 @@ BEGIN
       FROM public.inventory_movements im
      WHERE im.product_id=p.id AND im.warehouse_id=p_warehouse_id
        AND im.movement_type='opening_balance'
-       AND pg_catalog.position(v_marker IN coalesce(im.reason,''))>0
+       AND pg_catalog.strpos(coalesce(im.reason,''),v_marker)>0
      ORDER BY im.created_at,im.id
      LIMIT 1
   ) s ON true
@@ -299,7 +299,7 @@ BEGIN
       JOIN public.products p ON p.id=ib.product_id AND p.organization_id=v_org AND p.status='active'
       JOIN public.inventory_movements im ON im.product_id=p.id AND im.warehouse_id=p_warehouse_id
         AND im.movement_type='opening_balance'
-        AND pg_catalog.position(v_marker IN coalesce(im.reason,''))>0
+        AND pg_catalog.strpos(coalesce(im.reason,''),v_marker)>0
      WHERE ib.warehouse_id=p_warehouse_id
      ORDER BY p.id,im.created_at,im.id
      FOR UPDATE OF ib,im,p
@@ -336,7 +336,7 @@ BEGIN
   JOIN public.inventory_movements im
     ON im.product_id=p.id AND im.warehouse_id=p_warehouse_id
    AND im.movement_type='opening_balance'
-   AND pg_catalog.position(v_marker IN coalesce(im.reason,''))>0
+   AND pg_catalog.strpos(coalesce(im.reason,''),v_marker)>0
   JOIN public.inventory_balances ib
     ON ib.product_id=p.id AND ib.warehouse_id=p_warehouse_id
   WHERE p.organization_id=v_org AND p.status='active'
