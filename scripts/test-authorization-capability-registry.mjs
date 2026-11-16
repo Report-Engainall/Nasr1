@@ -183,6 +183,163 @@ async function main() {
 
   const manager=actors.get("manager"),admin=actors.get("admin");
 
+  // P2 acceptance: approval-gated pricing proposals and the guarded manager edit path.
+  const staff=actors.get("staff");
+  const accountant=actors.get("accountant");
+  const pricingInsertSql =
+    "insert into public.pricing_rules("+
+    "organization_id,name,scope_type,scope_value,base_type,base_source,adjustment_type,"+
+    "calculation_method,adjustment_value,target_tier,min_quantity,priority,is_active,effective_from,effective_until"+
+    ") values($1::uuid,$2::text,'default',NULL,'base_price','base_price','fixed','fixed_price',"+
+    "$3::numeric,'retail',1,$4::integer,false,NULL,NULL) "+
+    "returning id::text as id,submitted_by::text as submitted_by,requires_approval,approved_at,approved_by::text as approved_by,version";
+  const auditCountForPricingRule=async(ruleId)=>{
+    const rows=await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs "+
+      "where entity_type='pricing_rule' and entity_id=$1::uuid",
+      [ruleId]
+    );
+    return rows[0].count;
+  };
+  const readPricingRule=async(ruleId)=>{
+    const rows=await db.unsafe(
+      "select to_jsonb(r) as row from public.pricing_rules r where r.id=$1::uuid",
+      [ruleId]
+    );
+    assert.equal(rows.length,1,"pricing rule fixture must remain in the local tenant");
+    return rows[0].row;
+  };
+
+  // Ordinary staff may submit a proposal, but cannot edit it or approve it.
+  const staffProposalRows=await withActor(db,staff,tx=>tx.unsafe(
+    pricingInsertSql,[org,"P2 staff pricing proposal",123,99001]
+  ));
+  const staffProposal=staffProposalRows[0];
+  assert.ok(staffProposal.id,"staff proposal must be persisted");
+  assert.equal(staffProposal.submitted_by,staff.profile_id);
+  assert.equal(staffProposal.requires_approval,true,"staff proposal must be routed to approval");
+  assert.equal(staffProposal.approved_at,null);
+  const staffProposalBefore=await readPricingRule(staffProposal.id);
+  const staffProposalAuditBefore=await auditCountForPricingRule(staffProposal.id);
+  await assert.rejects(
+    ()=>withActor(db,staff,tx=>tx.unsafe(
+      "update public.pricing_rules set adjustment_value=124 where id=$1::uuid",[staffProposal.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "staff with proposal-only capability must not edit a submitted pricing rule"
+  );
+  await assert.rejects(
+    ()=>withActor(db,staff,tx=>tx.unsafe(
+      "select public.approve_pricing_rule($1::uuid,'self approval attempt')",[staffProposal.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "staff without pricing.approve must not approve a pricing proposal"
+  );
+  await assert.rejects(
+    ()=>withActor(db,accountant,tx=>tx.unsafe(
+      "select public.approve_pricing_rule($1::uuid,'unauthorized approval attempt')",[staffProposal.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "accountant must not approve pricing proposals"
+  );
+  assert.deepEqual(await readPricingRule(staffProposal.id),staffProposalBefore,
+    "denied staff edit/approval attempts must preserve every pricing rule field");
+  assert.equal(await auditCountForPricingRule(staffProposal.id),staffProposalAuditBefore,
+    "denied staff edit/approval attempts must not create a pricing audit event");
+  const managerApproval=await withActor(db,manager,tx=>tx.unsafe(
+    "select public.approve_pricing_rule($1::uuid,'Reviewed independent price proposal') as result",
+    [staffProposal.id]
+  ));
+  assert.equal(managerApproval[0].result.approved,true,"a different authorized manager must approve a staff proposal");
+  const staffProposalApproved=await readPricingRule(staffProposal.id);
+  assert.equal(staffProposalApproved.approved_by,manager.profile_id);
+  assert.ok(staffProposalApproved.approved_at);
+  assert.equal(staffProposalApproved.approval_note,"Reviewed independent price proposal");
+  assert.equal(await auditCountForPricingRule(staffProposal.id),staffProposalAuditBefore+1,
+    "successful independent approval must add exactly one pricing audit event");
+
+  // Explicit edit denial must override the manager's legacy role while preserving proposal/approval separation.
+  const managerEditDenial=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',$2::text,NULL::timestamptz,true) as result",
+    [manager.profile_id,"Pricing edits temporarily require independent approval"]
+  ));
+  assert.equal(managerEditDenial[0].result.changed,true);
+  assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"DENY");
+  assert.equal((await decision(db,manager,"pricing.propose")).decision,"PERMIT",
+    "a scoped edit denial must not silently remove the separate proposal capability");
+  assert.equal((await decision(db,manager,"pricing.approve")).decision,"PERMIT",
+    "a scoped edit denial must not silently remove the independent approval capability");
+  const managerProposalRows=await withActor(db,manager,tx=>tx.unsafe(
+    pricingInsertSql,[org,"P2 manager proposal under edit denial",124,99002]
+  ));
+  const managerProposal=managerProposalRows[0];
+  assert.ok(managerProposal.id);
+  assert.equal(managerProposal.submitted_by,manager.profile_id);
+  assert.equal(managerProposal.requires_approval,true,
+    "a manager whose edit capability is explicitly denied must fall back to the approval-gated proposal path");
+  const managerProposalBefore=await readPricingRule(managerProposal.id);
+  const managerProposalAuditBefore=await auditCountForPricingRule(managerProposal.id);
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "update public.pricing_rules set adjustment_value=125 where id=$1::uuid",
+      [managerProposal.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "explicit pricing.edit_draft denial must reject manager direct edits"
+  );
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.approve_pricing_rule($1::uuid,'same actor must not approve')",
+      [managerProposal.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "pricing.approve capability must still enforce maker-checker against the same submitter"
+  );
+  assert.deepEqual(await readPricingRule(managerProposal.id),managerProposalBefore,
+    "denied manager direct edit and self-approval must leave the submitted rule unchanged");
+  assert.equal(await auditCountForPricingRule(managerProposal.id),managerProposalAuditBefore,
+    "denied manager direct edit and self-approval must not create audit records");
+  const independentApproval=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.approve_pricing_rule($1::uuid,'Independent administrator approval') as result",
+    [managerProposal.id]
+  ));
+  assert.equal(independentApproval[0].result.approved,true,
+    "an independent administrator must be able to approve the manager proposal");
+  const managerProposalApproved=await readPricingRule(managerProposal.id);
+  assert.equal(managerProposalApproved.approved_by,admin.profile_id);
+  assert.ok(managerProposalApproved.approved_at);
+  assert.equal(await auditCountForPricingRule(managerProposal.id),managerProposalAuditBefore+1);
+  await withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',NULL,NULL::timestamptz,false)",
+    [manager.profile_id]
+  ));
+  assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"PERMIT",
+    "revoking the explicit denial must restore the manager's original edit grant");
+
+  // Authorized manager draft creation and update continue to work through the same audited table contract.
+  const managerDraftRows=await withActor(db,manager,tx=>tx.unsafe(
+    pricingInsertSql,[org,"P2 manager editable pricing draft",125,99003]
+  ));
+  const managerDraft=managerDraftRows[0];
+  assert.ok(managerDraft.id);
+  assert.equal(managerDraft.submitted_by,manager.profile_id);
+  assert.equal(managerDraft.requires_approval,false,
+    "a manager with pricing.edit_draft must retain the direct draft workflow");
+  const managerDraftBefore=await readPricingRule(managerDraft.id);
+  const managerDraftAuditBefore=await auditCountForPricingRule(managerDraft.id);
+  const managerDraftUpdate=await withActor(db,manager,tx=>tx.unsafe(
+    "update public.pricing_rules set adjustment_value=126 where id=$1::uuid "+
+    "returning id::text as id,adjustment_value,version",
+    [managerDraft.id]
+  ));
+  assert.equal(managerDraftUpdate.length,1,"authorized manager edit must persist the draft");
+  assert.equal(Number(managerDraftUpdate[0].adjustment_value),126);
+  assert.ok(managerDraftUpdate[0].version>managerDraftBefore.version,
+    "authorized manager update must advance the optimistic version");
+  assert.equal(await auditCountForPricingRule(managerDraft.id),managerDraftAuditBefore+1,
+    "authorized manager update must append one pricing audit event");
+
+
   const commandFlags=await Promise.all([
    withActor(db,manager,tx=>tx.unsafe("select public.purchase_orders_can_manage() as purchasing,public.can_manage_finance() as finance")),
    withActor(db,actors.get("accountant"),tx=>tx.unsafe("select public.purchase_orders_can_manage() as purchasing,public.can_manage_finance() as finance")),
