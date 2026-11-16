@@ -826,7 +826,7 @@ test("daily decision board stays keyboard-operable and fits mobile and desktop C
     .toEqual([]);
 });
 
-test("admin access matrix compares every role and keeps wide tables keyboard-scrollable", async ({ page }) => {
+test("admin access matrix compares roles, searches and filters access with keyboard at mobile and desktop widths", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   const fixturePath = "/e2e/fixtures/admin-access-matrix.html";
@@ -865,26 +865,100 @@ test("admin access matrix compares every role and keeps wide tables keyboard-scr
       documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
       pageClientWidth: document.querySelector('[aria-label="جدول مقارنة الوصول إلى الصفحات حسب الدور"]')?.clientWidth ?? 0,
       pageScrollWidth: document.querySelector('[aria-label="جدول مقارنة الوصول إلى الصفحات حسب الدور"]')?.scrollWidth ?? 0,
+      operationClientWidth: document.querySelector('[aria-label="جدول مقارنة العمليات وحدودها حسب الدور"]')?.clientWidth ?? 0,
+      operationScrollWidth: document.querySelector('[aria-label="جدول مقارنة العمليات وحدودها حسب الدور"]')?.scrollWidth ?? 0,
     }));
     expect(layout.lang).toMatch(/^ar(?:-|$)/);
     expect(layout.direction).toBe("rtl");
     expect(layout.documentWidth, "Access matrix caused document-level horizontal overflow at " + viewport.width + "px.")
       .toBeLessThanOrEqual(layout.viewportWidth + 1);
     expect(layout.pageClientWidth).toBeGreaterThan(0);
+    expect(layout.operationClientWidth).toBeGreaterThan(0);
     if (viewport.width === 360) {
       expect(layout.pageScrollWidth).toBeGreaterThan(layout.pageClientWidth);
+      expect(layout.operationScrollWidth).toBeGreaterThan(layout.operationClientWidth);
     }
 
-    await pages.focus();
-    await expect(pages).toBeFocused();
-    await page.keyboard.press("ArrowLeft");
-    await expect(pages).toBeFocused();
-    const focus = await pages.evaluate((element) => {
+    // Search with keyboard input must normalize Arabic diacritics and search both page and operation labels.
+    const search = matrix.getByRole("searchbox", { name: "بحث في الصفحات والعمليات" });
+    const filter = matrix.getByRole("combobox", { name: "تصفية الصلاحيات" });
+    await expect(search).toBeVisible();
+    await expect(filter).toBeVisible();
+    await search.focus();
+    await page.keyboard.type("الفَوَاتِير");
+    await expect(pages.getByTestId("page-finance-staff")).toBeVisible();
+    await expect(operations.getByTestId("operation-finance_manage-accountant")).toBeVisible();
+    await expect(pages.getByTestId("page-products-admin")).toHaveCount(0);
+
+    // The all-role filter narrows the same query without changing the underlying policy.
+    await filter.selectOption("accountant");
+    await expect(pages.getByTestId("page-finance-accountant")).toBeVisible();
+    await expect(pages.getByTestId("page-finance-staff")).toHaveCount(0);
+    await expect(operations.getByTestId("operation-finance_manage-accountant")).toBeVisible();
+
+    // No-result and clear behavior must remain explicit; clearing search preserves the chosen scope.
+    await search.fill("لا يوجد تطابق بهذه العبارة");
+    await expect(matrix.getByText("لا توجد صلاحيات مطابقة للبحث والتصفية الحالية.")).toBeVisible();
+    const clearSearch = matrix.getByRole("button", { name: "مسح البحث", exact: true });
+    await expect(clearSearch).toBeEnabled();
+    await clearSearch.click();
+    await expect(search).toHaveValue("");
+    await expect(pages.getByTestId("page-finance-accountant")).toBeVisible();
+    await filter.selectOption("all");
+    await expect(pages.getByTestId("page-finance-staff")).toBeVisible();
+
+    // Selected-role mode supports allowed/denied filtering and preserves the explanatory denial.
+    await matrix.getByRole("button", { name: "تفاصيل دور واحد" }).click();
+    await matrix.getByRole("combobox", { name: "الدور محل المراجعة" }).selectOption("staff");
+    await search.fill("الفَوَاتِير");
+    await filter.selectOption("denied");
+    await expect(matrix.getByTestId("single-page-finance")).toContainText("ممنوع");
+    await expect(matrix.getByTestId("single-page-finance")).toContainText("تتطلب مساحة المالية");
+    await expect(matrix.getByTestId("single-page-products")).toHaveCount(0);
+    await filter.selectOption("allowed");
+    await expect(matrix.getByTestId("single-page-finance")).toHaveCount(0);
+    await filter.selectOption("denied");
+    await search.fill("لا يوجد تطابق بهذه العبارة");
+    await expect(matrix.getByText("لا توجد صلاحيات مطابقة للبحث والتصفية الحالية.")).toBeVisible();
+    await matrix.getByRole("button", { name: "مسح البحث", exact: true }).click();
+    await expect(matrix.getByTestId("single-page-finance")).toBeVisible();
+
+    // Verify the real keyboard sequence: mode controls → search → filter → both scrollable tables.
+    await matrix.getByRole("button", { name: "مقارنة جميع الأدوار" }).click();
+    await search.fill("");
+    await filter.selectOption("all");
+    const allRolesButton = matrix.getByRole("button", { name: "مقارنة جميع الأدوار" });
+    const singleRoleButton = matrix.getByRole("button", { name: "تفاصيل دور واحد" });
+    await allRolesButton.focus();
+    await page.keyboard.press("Tab");
+    await expect(singleRoleButton).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(search).toBeFocused();
+    const searchFocus = await search.evaluate((element) => {
       const style = getComputedStyle(element);
       return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
     });
-    expect(focus.outlineStyle).not.toBe("none");
-    expect(focus.outlineWidth).toBeGreaterThan(0);
+    expect(searchFocus.outlineStyle).not.toBe("none");
+    expect(searchFocus.outlineWidth).toBeGreaterThan(0);
+
+    await page.keyboard.press("Tab");
+    await expect(filter).toBeFocused();
+    const filterFocus = await filter.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+    });
+    expect(filterFocus.outlineStyle).not.toBe("none");
+    expect(filterFocus.outlineWidth).toBeGreaterThan(0);
+
+    await page.keyboard.press("Tab");
+    await expect(pages).toBeFocused();
+    const pageFocus = await pages.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+    });
+    expect(pageFocus.outlineStyle).not.toBe("none");
+    expect(pageFocus.outlineWidth).toBeGreaterThan(0);
+
     await page.keyboard.press("Tab");
     await expect(operations).toBeFocused();
     await page.keyboard.press("Shift+Tab");
