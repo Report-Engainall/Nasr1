@@ -53,6 +53,18 @@ describe("product image filename matching", () => {
     expect(entries[0].product).toBeNull();
   });
 
+  it("treats non-HTTPS legacy image URLs as missing primary images", () => {
+    const legacyHttp = product({ image_url: "http://legacy.example.test/old.jpg" });
+    const unsafeScheme = product({ id: "unsafe", item_code: "000126", image_url: "javascript:alert(1)" });
+    const entries = matchProductImagesByCode(
+      [legacyHttp, unsafeScheme],
+      [file("000125.jpg"), file("000126.jpg")],
+    );
+
+    expect(entries.map((entry) => entry.placement)).toEqual(["primary", "primary"]);
+    expect(entries.every((entry) => entry.status === "ready")).toBe(true);
+  });
+
   it("never replaces an existing primary image and enforces the eight-image gallery limit", () => {
     const existing = product({
       image_url: "https://example.invalid/current.webp",
