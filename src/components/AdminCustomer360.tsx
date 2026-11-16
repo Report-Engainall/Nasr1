@@ -11,6 +11,7 @@ import { downloadStaffCustomer360WorkbookXlsx } from '@/lib/customer-360-xlsx';
 import { projectStaffCustomer360PrintDocument } from '@/lib/customer-360-print';
 import { Customer360PrintSheet } from '@/components/Customer360PrintSheet';
 import type { StaffCustomer360Summary } from '@/lib/customer-360-summary';
+import { filterCustomerInteractions } from '@/lib/customer-interaction-filter';
 import { fetchCustomerRetentionReport } from '@/lib/customer-retention-client';
 import type { CustomerRetentionReport } from '@/lib/intelligence/customer-retention';
 import { CustomerServiceCases } from '@/components/CustomerServiceCases';
@@ -644,6 +645,9 @@ function Customer360Interactions({
   onHistoryState: (items: CustomerInteraction[], loading: boolean, error: string) => void;
 }) {
   const [items, setItems] = useState<CustomerInteraction[]>([]);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | CustomerInteractionType>('all');
+  const [followUpFilter, setFollowUpFilter] = useState<'all' | 'open' | 'completed' | 'cancelled' | 'not_scheduled'>('all');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -674,6 +678,13 @@ function Customer360Interactions({
 
   useEffect(() => { void reload(); }, [reload]);
 
+  const historyView = useMemo(() => filterCustomerInteractions({
+    items,
+    search: historySearch,
+    type: historyTypeFilter,
+    followUp: followUpFilter,
+  }), [followUpFilter, historySearch, historyTypeFilter, items]);
+
   async function submitInteraction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!subject.trim() || !details.trim()) return;
@@ -692,6 +703,9 @@ function Customer360Interactions({
       setSubject('');
       setDetails('');
       setNextFollowUpAt('');
+      setHistorySearch('');
+      setHistoryTypeFilter('all');
+      setFollowUpFilter('all');
       setIdempotencyKey(createCustomerInteractionIdempotencyKey());
       setNotice('حُفظ التواصل في سجل العميل مع هوية الموظف وسجل التدقيق، وأُنشئت مهمة المتابعة في مركز العمليات عند تحديد موعد.');
       await reload();
@@ -742,11 +756,85 @@ function Customer360Interactions({
 
       {notice && <p className="customer-360-interaction-notice" role="status">{notice}</p>}
       {error && <ErrorBox message={error} />}
+      <div
+        className="customer-360-interaction-filters"
+        aria-label="مرشحات سجل التواصل"
+        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, margin: "14px 0" }}
+      >
+        <label style={{ display: "grid", gap: 5 }}>
+          <span>بحث في أحدث 50 سجلًا</span>
+          <input
+            type="search"
+            value={historySearch}
+            maxLength={120}
+            disabled={loading}
+            onChange={(event) => setHistorySearch(event.target.value)}
+            placeholder="الموضوع أو التفاصيل أو الموظف أو التاريخ"
+            aria-label="البحث في سجل تواصل العميل"
+            style={{ width: "100%", minHeight: 40, padding: "8px 10px", border: "1px solid #d9e5eb", borderRadius: 8, font: "inherit" }}
+          />
+        </label>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span>نوع التواصل</span>
+          <select
+            value={historyTypeFilter}
+            disabled={loading}
+            onChange={(event) => setHistoryTypeFilter(event.target.value as 'all' | CustomerInteractionType)}
+            aria-label="تصفية حسب نوع التواصل"
+            style={{ width: "100%", minHeight: 40, padding: "8px 10px", border: "1px solid #d9e5eb", borderRadius: 8, font: "inherit", background: "#fff" }}
+          >
+            <option value="all">كل أنواع التواصل</option>
+            {Object.entries(interactionTypeLabels).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span>حالة المتابعة</span>
+          <select
+            value={followUpFilter}
+            disabled={loading}
+            onChange={(event) => setFollowUpFilter(event.target.value as typeof followUpFilter)}
+            aria-label="تصفية حسب حالة المتابعة"
+            style={{ width: "100%", minHeight: 40, padding: "8px 10px", border: "1px solid #d9e5eb", borderRadius: 8, font: "inherit", background: "#fff" }}
+          >
+            <option value="all">كل الحالات</option>
+            <option value="open">مفتوحة أو قيد التنفيذ</option>
+            <option value="completed">مكتملة</option>
+            <option value="cancelled">ملغاة</option>
+            <option value="not_scheduled">دون موعد متابعة</option>
+          </select>
+        </label>
+        <div style={{ display: "flex", alignItems: "end" }}>
+          <button
+            type="button"
+            disabled={!historyView.active || loading}
+            onClick={() => {
+              setHistorySearch('');
+              setHistoryTypeFilter('all');
+              setFollowUpFilter('all');
+            }}
+            style={{ minHeight: 40, padding: "8px 14px", border: "1px solid #b9d3cc", borderRadius: 8, background: "#f4faf7", color: "#176b55", font: "inherit", fontWeight: 700, cursor: historyView.active ? "pointer" : "not-allowed" }}
+          >
+            مسح المرشحات
+          </button>
+        </div>
+      </div>
+      {!loading && items.length > 0 && (
+        <p className="report-note" role="status">
+          المعروض {formatNumber(historyView.items.length)} من {formatNumber(items.length)} سجلًا محمّلًا.
+          {historyView.active
+            ? ' المرشحات تخص عرض هذه القائمة فقط؛ الطباعة وExcel يحتفظان بجميع أحدث 50 سجلًا.'
+            : ' الطباعة وExcel يشملان جميع أحدث 50 سجلًا معادًا من الخادم.'}
+        </p>
+      )}
       {loading ? <Loading /> : items.length === 0 ? (
         <Empty text="لا يوجد سجل تواصل مسجل لهذا العميل؛ أضف أول متابعة من النموذج أعلاه." />
+      ) : historyView.items.length === 0 ? (
+        <Empty text="لا توجد سجلات تواصل تطابق المرشحات الحالية؛ غيّر البحث أو امسح المرشحات." />
       ) : (
         <div className="customer-360-interaction-list">
-          {items.map((item) => (
+          {historyView.items.map((item) => (
             <article className="customer-360-interaction-item" key={item.id}>
               <div className="customer-360-interaction-meta">
                 <strong>{item.subject}</strong>
@@ -762,7 +850,7 @@ function Customer360Interactions({
           ))}
         </div>
       )}
-      <p className="report-note">يعرض السجل أحدث {formatNumber(items.length)} إدخالًا من حد العرض الحالي (حتى 50 سجلًا)؛ تبقى بقية الإدخالات محفوظة في قاعدة البيانات ولا تُحذف من هذه الشاشة.</p>
+      <p className="report-note">يعرض سجل التواصل أحدث {formatNumber(items.length)} إدخالًا من حد العرض الحالي (حتى 50 سجلًا)؛ تبقى بقية الإدخالات محفوظة في قاعدة البيانات ولا تُحذف من هذه الشاشة.</p>
     </section>
   );
 }
