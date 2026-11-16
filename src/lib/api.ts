@@ -2713,7 +2713,7 @@ export async function adjustInventoryBalance(input: {
   assertStockCountId(input.warehouseId, 'معرّف المستودع');
   const quantityValid = (value: number) =>
     Number.isFinite(value) && value >= 0 && value <= 999999999999.999 &&
-    Number.isSafeInteger(Math.round(value * 1000)) && Math.round(value * 1000) === value * 1000;
+    Number.isSafeInteger(Math.round(value * 1000)) && Math.abs(Math.round(value * 1000) / 1000 - value) < 1e-9;
   if (!quantityValid(input.expectedQuantity) || !quantityValid(input.newQuantity)) {
     throw new Error('الرصيد يجب أن يكون غير سالب وبحد أقصى ثلاث منازل عشرية.');
   }
@@ -2762,6 +2762,173 @@ export async function adjustInventoryBalance(input: {
     quantity_delta: Number(result.quantity_delta),
     reserved_quantity: Number(result.reserved_quantity),
     quantity_available_after: Number(result.quantity_available_after),
+    idempotent_replay: result.idempotent_replay,
+  };
+}
+
+
+export type OpeningInventoryBaselineItem = {
+  product_id: string;
+  item_code: string;
+  product_name: string;
+  unit: string | null;
+  opening_movement_id: string | null;
+  opening_quantity: number | null;
+  source_movement_count: number;
+  quantity_on_hand: number | null;
+  quantity_reserved: number | null;
+  quantity_available: number | null;
+  movement_created_at: string | null;
+  source_marker_present: boolean;
+};
+
+export type OpeningInventoryBaselinePreview = {
+  organization_id: string;
+  warehouse_id: string;
+  source_batch_id: string;
+  source_marker: string;
+  active_product_count: number;
+  opening_movement_count: number;
+  distinct_opening_products: number;
+  opening_total_quantity: number;
+  matching_balance_count: number;
+  missing_opening_product_count: number;
+  duplicate_opening_product_count: number;
+  missing_balance_count: number;
+  invalid_quantity_count: number;
+  ready_to_approve: boolean;
+  approval_id: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  approval_status: string | null;
+  items: OpeningInventoryBaselineItem[];
+};
+
+export type OpeningInventoryBaselineApprovalResult = {
+  approval_id: string;
+  status: 'approved_pending_physical_count';
+  approved_at: string;
+  approved_by: string;
+  product_count: number;
+  total_opening_quantity: number;
+  idempotent_replay: boolean;
+};
+
+export async function fetchOpeningInventoryBaselinePreview(warehouseId: string): Promise<OpeningInventoryBaselinePreview> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('get_opening_inventory_baseline_preview', {
+    p_warehouse_id: warehouseId,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يؤكد الخادم معاينة خط الأساس الافتتاحي.');
+  }
+  const payload = data as Record<string, unknown>;
+  const numericFields = [
+    'active_product_count','opening_movement_count','distinct_opening_products',
+    'opening_total_quantity','matching_balance_count','missing_opening_product_count',
+    'duplicate_opening_product_count','missing_balance_count','invalid_quantity_count',
+  ] as const;
+  if (
+    payload.warehouse_id !== warehouseId ||
+    typeof payload.organization_id !== 'string' ||
+    typeof payload.source_batch_id !== 'string' ||
+    typeof payload.source_marker !== 'string' ||
+    typeof payload.ready_to_approve !== 'boolean' ||
+    !Array.isArray(payload.items) ||
+    numericFields.some((field) => !Number.isFinite(Number(payload[field])))
+  ) {
+    throw new Error('إسقاط معاينة خط الأساس الافتتاحي غير مكتمل أو لا يطابق المستودع.');
+  }
+  const items = payload.items.map((value): OpeningInventoryBaselineItem => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('أعاد الخادم صنفاً غير صالح في معاينة الافتتاح.');
+    }
+    const item = value as Record<string, unknown>;
+    const nullableNumber = (field: string): number | null =>
+      item[field] === null || item[field] === undefined ? null : Number(item[field]);
+    if (
+      typeof item.product_id !== 'string' ||
+      typeof item.item_code !== 'string' ||
+      typeof item.product_name !== 'string' ||
+      typeof item.source_marker_present !== 'boolean' ||
+      !Number.isFinite(Number(item.source_movement_count))
+    ) {
+      throw new Error('بيانات صنف خط الأساس الافتتاحي غير مكتملة.');
+    }
+    const openingQuantity = nullableNumber('opening_quantity');
+    const onHand = nullableNumber('quantity_on_hand');
+    const reserved = nullableNumber('quantity_reserved');
+    const available = nullableNumber('quantity_available');
+    if ([openingQuantity,onHand,reserved,available].some((value) => value !== null && !Number.isFinite(value))) {
+      throw new Error('أعاد الخادم كمية غير رقمية في لقطة الافتتاح.');
+    }
+    return {
+      product_id: item.product_id,
+      item_code: item.item_code,
+      product_name: item.product_name,
+      unit: typeof item.unit === 'string' ? item.unit : null,
+      opening_movement_id: typeof item.opening_movement_id === 'string' ? item.opening_movement_id : null,
+      opening_quantity: openingQuantity,
+      source_movement_count: Number(item.source_movement_count),
+      quantity_on_hand: onHand,
+      quantity_reserved: reserved,
+      quantity_available: available,
+      movement_created_at: typeof item.movement_created_at === 'string' ? item.movement_created_at : null,
+      source_marker_present: item.source_marker_present,
+    };
+  });
+  return {
+    organization_id: payload.organization_id as string,
+    warehouse_id: warehouseId,
+    source_batch_id: payload.source_batch_id as string,
+    source_marker: payload.source_marker as string,
+    active_product_count: Number(payload.active_product_count),
+    opening_movement_count: Number(payload.opening_movement_count),
+    distinct_opening_products: Number(payload.distinct_opening_products),
+    opening_total_quantity: Number(payload.opening_total_quantity),
+    matching_balance_count: Number(payload.matching_balance_count),
+    missing_opening_product_count: Number(payload.missing_opening_product_count),
+    duplicate_opening_product_count: Number(payload.duplicate_opening_product_count),
+    missing_balance_count: Number(payload.missing_balance_count),
+    invalid_quantity_count: Number(payload.invalid_quantity_count),
+    ready_to_approve: payload.ready_to_approve,
+    approval_id: typeof payload.approval_id === 'string' ? payload.approval_id : null,
+    approved_at: typeof payload.approved_at === 'string' ? payload.approved_at : null,
+    approved_by: typeof payload.approved_by === 'string' ? payload.approved_by : null,
+    approval_status: typeof payload.approval_status === 'string' ? payload.approval_status : null,
+    items,
+  };
+}
+
+export async function approveOpeningInventoryBaseline(warehouseId: string): Promise<OpeningInventoryBaselineApprovalResult> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('approve_opening_inventory_baseline', {
+    p_warehouse_id: warehouseId,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يؤكد الخادم اعتماد خط الأساس الافتتاحي.');
+  }
+  const result = data as Record<string, unknown>;
+  if (
+    typeof result.approval_id !== 'string' ||
+    result.status !== 'approved_pending_physical_count' ||
+    typeof result.approved_at !== 'string' ||
+    typeof result.approved_by !== 'string' ||
+    Number(result.product_count) !== 114 ||
+    Number(result.total_opening_quantity) !== 3235 ||
+    typeof result.idempotent_replay !== 'boolean'
+  ) {
+    throw new Error('نتيجة اعتماد خط الأساس لم تطابق لقطة 114 صنفاً و3,235 وحدة بيع.');
+  }
+  return {
+    approval_id: result.approval_id,
+    status: 'approved_pending_physical_count',
+    approved_at: result.approved_at,
+    approved_by: result.approved_by,
+    product_count: 114,
+    total_opening_quantity: 3235,
     idempotent_replay: result.idempotent_replay,
   };
 }
