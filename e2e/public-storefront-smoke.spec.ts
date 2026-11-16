@@ -101,7 +101,7 @@ test("the storefront header cart button opens the real cart route", async ({ pag
   await page.goto("/");
   await expect(page.locator(".sf-header")).toBeVisible({ timeout: 30_000 });
   await page.locator(".sf-cart-btn").click();
-  await expect(page).toHaveURL(/\\/cart$/);
+  await expect(page).toHaveURL(/\/cart$/);
   await expect(page.getByRole("heading", { name: "سلة المشتريات", exact: true })).toBeVisible();
   expect(pageErrors, "Opening the cart must not produce uncaught browser errors.").toEqual([]);
 });
