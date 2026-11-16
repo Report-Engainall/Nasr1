@@ -59,6 +59,53 @@ function imagePlacementLabel(value: "primary" | "gallery"): string {
   return value === "primary" ? "الصورة الرئيسية" : "صورة إضافية";
 }
 
+function hasPrimaryProductImage(product: ProductWithInventory): boolean {
+  return typeof product.image_url === "string" && /^https:\/\//i.test(product.image_url.trim());
+}
+
+export function getProductsMissingPrimaryImage(
+  products: readonly ProductWithInventory[],
+): ProductWithInventory[] {
+  return products
+    .filter((product) => !hasPrimaryProductImage(product))
+    .slice()
+    .sort((left, right) =>
+      left.item_code.localeCompare(right.item_code, "en", { numeric: true, sensitivity: "base" }),
+    );
+}
+
+export function getProductImageCoverage(products: readonly ProductWithInventory[]) {
+  const primaryImageCount = products.filter(hasPrimaryProductImage).length;
+  const galleryImageCount = products.reduce((total, product) => {
+    const urls = Array.isArray(product.image_gallery_urls)
+      ? new Set(product.image_gallery_urls.filter((url) => typeof url === "string" && /^https:\/\//i.test(url.trim())))
+      : new Set<string>();
+    return total + urls.size;
+  }, 0);
+  return {
+    totalProducts: products.length,
+    primaryImageCount,
+    missingPrimaryCount: products.length - primaryImageCount,
+    galleryImageCount,
+    completionPercentage: products.length === 0
+      ? null
+      : Math.round((primaryImageCount / products.length) * 100),
+  };
+}
+
+export function buildMissingProductImagesCsv(
+  products: readonly ProductWithInventory[],
+): string {
+  const headers = ["رمز الصنف", "اسم الصنف", "التصنيف", "عدد الصور الإضافية"];
+  const rows = getProductsMissingPrimaryImage(products).map((product) => [
+    product.item_code,
+    product.name,
+    product.category?.name ?? "",
+    String(Array.isArray(product.image_gallery_urls) ? product.image_gallery_urls.length : 0),
+  ]);
+  return "\\uFEFF" + [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\\r\\n");
+}
+
 function matchStatusLabel(entry: ProductImageBatchEntry<File>): string {
   if (entry.status === "ambiguous") return "كود مكرر — مرفوض";
   if (entry.status === "gallery_limit") return "تجاوز حد المعرض";
@@ -71,11 +118,13 @@ export function BulkProductImageUploader({
   catalogRevision,
   canManage,
   onUploaded,
+  onOpenProduct,
 }: {
   loadProducts: () => Promise<ProductWithInventory[]>;
   catalogRevision: number;
   canManage: boolean;
   onUploaded: (message: string) => void | Promise<void>;
+  onOpenProduct?: (product: ProductWithInventory) => void;
 }) {
   const [products, setProducts] = useState<readonly ProductWithInventory[] | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -89,6 +138,10 @@ export function BulkProductImageUploader({
   const uploadInFlight = useRef(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<UploadResult[]>([]);
+  const [missingQuery, setMissingQuery] = useState("");
+  const [directImageFiles, setDirectImageFiles] = useState<Record<string, File>>({});
+  const [directImageErrors, setDirectImageErrors] = useState<Record<string, string>>({});
+  const [directUploadBusyId, setDirectUploadBusyId] = useState<string | null>(null);
 
   const fileChecks = useMemo(
     () => files.map((file) => ({ file, issue: validateProductImageFile(file) })),
@@ -125,6 +178,22 @@ export function BulkProductImageUploader({
     [entries],
   );
   const blockedEntries = entries.filter((entry) => entry.status !== "ready");
+  const imageCoverage = useMemo(
+    () => getProductImageCoverage(products ?? []),
+    [products],
+  );
+  const missingPrimaryProducts = useMemo(
+    () => getProductsMissingPrimaryImage(products ?? []),
+    [products],
+  );
+  const filteredMissingProducts = useMemo(() => {
+    const query = missingQuery.trim().toLocaleLowerCase("ar-YE");
+    if (!query) return missingPrimaryProducts;
+    return missingPrimaryProducts.filter((product) =>
+      [product.name, product.item_code, product.sku ?? "", product.barcode ?? "", product.category?.name ?? ""]
+        .some((value) => value.toLocaleLowerCase("ar-YE").includes(query)),
+    );
+  }, [missingPrimaryProducts, missingQuery]);
 
   async function ensureCatalog(force = false): Promise<void> {
     if (!force && products !== null) return;
@@ -162,6 +231,77 @@ export function BulkProductImageUploader({
 
   if (!canManage) return null;
 
+  function downloadMissingProductsReport() {
+    if (!products || missingPrimaryProducts.length === 0) return;
+    const blob = new Blob([buildMissingProductImagesCsv(products)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "aghbari-products-missing-primary-images-" + new Date().toISOString().replace(/[:.]/g, "-") + ".csv";
+    link.hidden = true;
+    document.body.appendChild(link);
+    try {
+      link.click();
+    } finally {
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+  }
+
+  function chooseMissingPrimaryImage(productId: string, file: File | null) {
+    setDirectImageErrors((current) => ({ ...current, [productId]: "" }));
+    if (!file) {
+      setDirectImageFiles((current) => {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      });
+      return;
+    }
+    const issue = validateProductImageFile(file);
+    if (issue) {
+      setDirectImageFiles((current) => {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      });
+      setDirectImageErrors((current) => ({ ...current, [productId]: issue }));
+      return;
+    }
+    setDirectImageFiles((current) => ({ ...current, [productId]: file }));
+  }
+
+  async function uploadMissingPrimaryImage(product: ProductWithInventory) {
+    const file = directImageFiles[product.id];
+    if (!file || busy || directUploadBusyId || hasPrimaryProductImage(product)) return;
+    setDirectUploadBusyId(product.id);
+    setDirectImageErrors((current) => ({ ...current, [product.id]: "" }));
+    let publicUrl: string;
+    try {
+      publicUrl = await uploadProductImage(product.id, await toWebp(file), null);
+      if (!/^https:\/\//i.test(publicUrl)) {
+        throw new Error("لم يرجع الخادم رابط صورة رئيسية آمناً.");
+      }
+    } catch (cause) {
+      setDirectImageErrors((current) => ({
+        ...current,
+        [product.id]: errorMessage(cause),
+      }));
+      setDirectUploadBusyId(null);
+      return;
+    }
+    setProducts((current) => current?.map((item) =>
+      item.id === product.id ? { ...item, image_url: publicUrl } : item,
+    ) ?? current);
+    setDirectImageFiles((current) => {
+      const next = { ...current };
+      delete next[product.id];
+      return next;
+    });
+    setDirectUploadBusyId(null);
+    await onUploaded("تم ربط الصورة الرئيسية بالصنف " + product.name + " بنجاح.");
+  }
+
   function selectFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = "";
@@ -197,7 +337,7 @@ export function BulkProductImageUploader({
     // A React state update is not synchronous between two click events. Keep a
     // ref lock as the authoritative guard so one selected batch can never start
     // two concurrent storage uploads before the next render commits.
-    if (uploadInFlight.current || busy || !catalogReady || readyEntries.length === 0) return;
+    if (uploadInFlight.current || busy || directUploadBusyId || !catalogReady || readyEntries.length === 0) return;
     uploadInFlight.current = true;
     setBusy(true);
     setProgress(0);
@@ -280,6 +420,86 @@ export function BulkProductImageUploader({
           يضيف الصور الجديدة إلى المعرض، ويحوّلها إلى WebP بمقاس لا يتجاوز 1600 بكسل.
         </p>
 
+        {catalogReady && (
+          <section aria-label="اكتمال صور الكتالوج" className="panel" style={{ display: "grid", gap: 12, padding: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <strong>تغطية الصور الرئيسية</strong>
+              <span className="badge badge-info">
+                {imageCoverage.completionPercentage === null ? "غير متاح" : imageCoverage.completionPercentage + "% مكتمل"}
+              </span>
+            </div>
+            <div role="group" aria-label="مؤشرات صور الكتالوج" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8 }}>
+              <div className="privacy-note"><span>إجمالي الأصناف</span><strong aria-label="إجمالي الأصناف">{imageCoverage.totalProducts.toLocaleString("ar-YE")}</strong></div>
+              <div className="privacy-note"><span>بصورة رئيسية</span><strong aria-label="الأصناف ذات صورة رئيسية">{imageCoverage.primaryImageCount.toLocaleString("ar-YE")}</strong></div>
+              <div className="privacy-note"><span>بلا صورة رئيسية</span><strong aria-label="عدد الأصناف بلا صورة رئيسية">{imageCoverage.missingPrimaryCount.toLocaleString("ar-YE")}</strong></div>
+              <div className="privacy-note"><span>صور إضافية في المعارض</span><strong aria-label="إجمالي الصور الإضافية">{imageCoverage.galleryImageCount.toLocaleString("ar-YE")}</strong></div>
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6, fontSize: 12 }}>
+                <span>اكتمال الصور الرئيسية</span>
+                <span>{imageCoverage.completionPercentage === null ? "غير متاح" : imageCoverage.completionPercentage + "%"}</span>
+              </div>
+              <div className="progress-track" role="progressbar" aria-label="نسبة اكتمال الصور الرئيسية" aria-valuemin={0} aria-valuemax={100} aria-valuenow={imageCoverage.completionPercentage ?? 0}>
+                <i aria-hidden="true" style={{ width: (imageCoverage.completionPercentage ?? 0) + "%" }} />
+              </div>
+            </div>
+            {missingPrimaryProducts.length > 0 ? (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <strong>أصناف تحتاج صورة رئيسية ({missingPrimaryProducts.length.toLocaleString("ar-YE")})</strong>
+                  <button type="button" className="btn outline" onClick={downloadMissingProductsReport}>تصدير قائمة الأصناف بلا صورة (CSV)</button>
+                </div>
+                <label className="form-field">
+                  <span>ابحث في الأصناف التي بلا صورة</span>
+                  <input type="search" aria-label="البحث في الأصناف بلا صورة" value={missingQuery} onChange={(event) => setMissingQuery(event.currentTarget.value)} placeholder="اسم الصنف أو الكود أو التصنيف..." />
+                </label>
+                <div style={{ display: "grid", gap: 8, maxHeight: 420, overflow: "auto" }}>
+                  {filteredMissingProducts.length === 0 ? (
+                    <div className="privacy-note" role="status">لا توجد أصناف تطابق البحث الحالي.</div>
+                  ) : filteredMissingProducts.map((product) => (
+                    <article key={product.id} className="panel" style={{ padding: 10, display: "grid", gap: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                        <div style={{ display: "grid", gap: 3 }}>
+                          <strong>{product.name}</strong>
+                          <small>رمز الصنف: <code dir="auto">{product.item_code}</code> · {product.category?.name ?? "غير مصنف"}</small>
+                        </div>
+                        <span className="badge badge-warning">بلا صورة رئيسية</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
+                        <label className="form-field" style={{ flex: "1 1 220px", margin: 0 }}>
+                          <span>اختيار صورة رئيسية</span>
+                          <input type="file" accept="image/jpeg,image/png,image/webp"
+                            aria-label={"اختيار صورة رئيسية للصنف " + product.name}
+                            disabled={busy || Boolean(directUploadBusyId)}
+                            onChange={(event) => { chooseMissingPrimaryImage(product.id, event.currentTarget.files?.[0] ?? null); event.currentTarget.value = ""; }} />
+                        </label>
+                        <button type="button" className="btn primary"
+                          aria-label={"رفع كصورة رئيسية للصنف " + product.name}
+                          disabled={busy || Boolean(directUploadBusyId) || !directImageFiles[product.id]}
+                          onClick={() => void uploadMissingPrimaryImage(product)}>
+                          {directUploadBusyId === product.id ? "جارٍ رفع الصورة..." : "ربط الصورة الرئيسية"}
+                        </button>
+                        {onOpenProduct && (
+                          <button type="button" className="btn outline"
+                            aria-label={"فتح تحرير الصنف " + product.name}
+                            onClick={() => onOpenProduct(product)}>
+                            فتح تحرير الصنف
+                          </button>
+                        )}
+                      </div>
+                      {directImageErrors[product.id] && <div className="form-error" role="alert">{directImageErrors[product.id]}</div>}
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : imageCoverage.totalProducts > 0 ? (
+              <div className="privacy-note" role="status">كل الأصناف المحمّلة لديها صورة رئيسية صالحة.</div>
+            ) : (
+              <div className="privacy-note" role="status">لا توجد أصناف في الكتالوج المحمّل حاليًا.</div>
+            )}
+          </section>
+        )}
+
         <label className="form-field">
           <span>اختر عدة صور (JPG / PNG / WebP)</span>
           <input
@@ -287,7 +507,7 @@ export function BulkProductImageUploader({
             accept="image/jpeg,image/png,image/webp"
             multiple
             onChange={selectFiles}
-            disabled={busy || !catalogReady || catalogLoading || Boolean(catalogError)}
+            disabled={busy || Boolean(directUploadBusyId) || !catalogReady || catalogLoading || Boolean(catalogError)}
           />
         </label>
         {catalogLoading && <div className="privacy-note" role="status">جارٍ تحميل قائمة الأصناف للمطابقة الدقيقة...</div>}

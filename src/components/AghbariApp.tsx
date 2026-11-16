@@ -1259,6 +1259,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       catalogRevision={catalogRevision}
       canManage={canUploadProductImages}
       onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
+      onOpenProduct={canManageProductLifecycle ? (product) => { setEditing(product); setModal(true); } : undefined}
     />
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>

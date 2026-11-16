@@ -4,7 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { BulkProductImageUploader, buildProductImageBatchReportCsv, formatProductImageFileSize } from "./BulkProductImageUploader";
+import {
+  BulkProductImageUploader,
+  buildMissingProductImagesCsv,
+  buildProductImageBatchReportCsv,
+  formatProductImageFileSize,
+  getProductImageCoverage,
+  getProductsMissingPrimaryImage,
+} from "./BulkProductImageUploader";
 import { uploadProductImage } from "@/lib/api";
 import { toWebp } from "@/lib/product-image";
 import type { ProductWithInventory } from "@/lib/types";
@@ -177,5 +184,110 @@ describe("product image batch result report", () => {
     expect(csv).toContain(`"'=HYPERLINK(""https://example.test"",""open"")"`);
     expect(csv).toContain('"تعذر الرفع  ""راجع الصلاحية"""');
     expect(csv.split("\r\n")).toHaveLength(3);
+  });
+});
+
+
+describe("product image coverage and direct completion", () => {
+  const completeProduct = {
+    id: "product-complete",
+    name: "أرز كامل",
+    item_code: "000100",
+    image_url: "https://cdn.example.test/primary.webp",
+    image_gallery_urls: ["https://cdn.example.test/side.webp", "https://cdn.example.test/side.webp"],
+  } as unknown as ProductWithInventory;
+  const missingProduct = {
+    id: "product-missing",
+    name: "أرز ناقص",
+    item_code: "000101",
+    image_url: null,
+    image_gallery_urls: [],
+    category: { name: "الأرز" },
+  } as unknown as ProductWithInventory;
+
+  it("calculates coverage from actual valid image URLs and deduplicates gallery URLs", () => {
+    expect(getProductImageCoverage([completeProduct, missingProduct])).toEqual({
+      totalProducts: 2,
+      primaryImageCount: 1,
+      missingPrimaryCount: 1,
+      galleryImageCount: 1,
+      completionPercentage: 50,
+    });
+    expect(getProductsMissingPrimaryImage([completeProduct, missingProduct])).toEqual([missingProduct]);
+  });
+
+  it("exports only missing primary-image products and neutralizes spreadsheet formulas", () => {
+    const csv = buildMissingProductImagesCsv([
+      missingProduct,
+      { ...missingProduct, id: "formula", item_code: "=1+1", name: "+SUM(A1:A2)" } as ProductWithInventory,
+      completeProduct,
+    ]);
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv).toContain("'=1+1");
+    expect(csv).toContain("'+SUM(A1:A2)");
+    expect(csv.split("\\r\\n")).toHaveLength(3);
+  });
+
+  it("uploads a selected image directly as the primary image for a product with no primary image", async () => {
+    const converted = new Blob(["webp"], { type: "image/webp" });
+    vi.mocked(toWebp).mockResolvedValue(converted);
+    vi.mocked(uploadProductImage).mockResolvedValue("https://cdn.example.test/new-primary.webp");
+    const loadProducts = vi.fn().mockResolvedValue([missingProduct]);
+    const onUploaded = vi.fn();
+    const onOpenProduct = vi.fn();
+    const { container } = render(
+      <BulkProductImageUploader
+        loadProducts={loadProducts}
+        catalogRevision={0}
+        canManage
+        onUploaded={onUploaded}
+        onOpenProduct={onOpenProduct}
+      />,
+    );
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("اختيار صورة رئيسية للصنف أرز ناقص"), {
+      target: { files: [new File(["source"], "rice.webp", { type: "image/webp" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "رفع كصورة رئيسية للصنف أرز ناقص" }));
+
+    await waitFor(() => expect(uploadProductImage).toHaveBeenCalledWith(
+      "product-missing",
+      converted,
+      null,
+    ));
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("تم ربط الصورة الرئيسية بالصنف أرز ناقص بنجاح."));
+    expect(screen.getByRole("status").textContent).toContain("كل الأصناف المحمّلة لديها صورة رئيسية صالحة.");
+    expect(screen.queryByRole("button", { name: "رفع كصورة رئيسية للصنف أرز ناقص" })).not.toBeInTheDocument();
+
+    // Product opening remains an explicit, separate action from the image upload.
+    // It is tested with the same catalog entry before its upload in a dedicated render below.
+    expect(onOpenProduct).not.toHaveBeenCalled();
+  });
+
+  it("opens the existing product editor from the missing-image queue without duplicating the editor", async () => {
+    const loadProducts = vi.fn().mockResolvedValue([missingProduct]);
+    const onOpenProduct = vi.fn();
+    const { container } = render(
+      <BulkProductImageUploader
+        loadProducts={loadProducts}
+        catalogRevision={0}
+        canManage
+        onUploaded={vi.fn()}
+        onOpenProduct={onOpenProduct}
+      />,
+    );
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "فتح تحرير الصنف أرز ناقص" }));
+    expect(onOpenProduct).toHaveBeenCalledWith(missingProduct);
   });
 });
