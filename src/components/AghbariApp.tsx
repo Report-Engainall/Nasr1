@@ -54,7 +54,7 @@ const AdminCustomer360 = lazy(async () => ({ default: (await import('@/component
 const CustomerServiceDesk = lazy(async () => ({ default: (await import('@/components/CustomerServiceDesk')).CustomerServiceDesk }));
 const CustomerActivationInvitationDialog = lazy(async () => ({ default: (await import('@/components/CustomerActivationInvitationDialog')).CustomerActivationInvitationDialog }));
 import type { CustomerActivationCandidate } from '@/components/CustomerActivationInvitationDialog';
-const CustomerManagerRoleAssignment = lazy(async () => ({ default: (await import('@/components/CustomerManagerRoleAssignment')).CustomerManagerRoleAssignment }));
+
 const DeviceManagement = lazy(async () => ({ default: (await import('@/components/DeviceManagement')).DeviceManagement }));
 const TaskCenter = lazy(async () => ({ default: (await import('@/components/TaskCenter')).TaskCenter }));
 const InventoryStockCountPage = lazy(async () => ({ default: (await import('@/components/InventoryStockCountPage')).InventoryStockCountPage }));
@@ -348,9 +348,6 @@ function AdminWorkspaceContent({
           {user.roles.some((role) => role === "admin" || role === "manager") ? (
             <StorefrontPublicationReadiness />
           ) : null}
-          {user.roles.includes("admin") && (
-            <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={onNotice} />
-          )}
         </>
       );
     case "quotes":
