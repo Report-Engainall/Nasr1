@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import { fetchCategories } from "@/lib/api";
 import { MAX_CATALOG_SEARCH_LENGTH, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { useFetch } from "@/lib/useFetch";
 
 type SearchCategoryOption = {
@@ -13,17 +14,13 @@ type SearchCategoryOption = {
 
 function SearchPageHeader() {
   return (
-    <header style={{ marginBottom: 20 }}>
-      <Link to="/store" style={{ display: "inline-flex", gap: 6, alignItems: "center", color: "#087f8d", textDecoration: "none" }}>
-        <ArrowLeft size={16} /> العودة للمتجر
-      </Link>
-      <h1 style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0 5px" }}>
-        <SlidersHorizontal size={25} /> البحث المتقدم
-      </h1>
-      <p style={{ color: "#526b70", margin: 0 }}>
-        تُطبّق الشروط على نتائج الكتالوج نفسه؛ المخزون المجهول لا يُحسب متاحًا في فلتر المتوفر فقط.
-      </p>
-    </header>
+    <WorkspaceSectionHeader
+      eyebrow="بحث الكتالوج"
+      title="البحث المتقدم"
+      description="تُطبّق الشروط على نتائج الكتالوج نفسه؛ المخزون المجهول لا يُحسب متاحًا في فلتر المتوفر فقط."
+      icon={SlidersHorizontal}
+      actions={<Link to="/store" className="sf-back-link"><ArrowLeft size={16} /> العودة للمتجر</Link>}
+    />
   );
 }
 
