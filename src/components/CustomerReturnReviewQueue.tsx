@@ -250,7 +250,7 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
 
       <form
         onSubmit={(event) => { event.preventDefault(); applyFilters(); }}
-        style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) minmax(150px,220px) auto", gap: 8, alignItems: "end" }}
+        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8, alignItems: "end" }}
         aria-label="البحث وتصفية طلبات المرتجعات"
       >
         <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
