@@ -95,7 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          local_project="$RUNNER_TEMP/storefront-feedback-supabase"
+          local_project="$RUNNER_TEMP/p2-local-supabase"
           mkdir -p "$local_project/supabase"
           cp -R supabase/. "$local_project/supabase/"
           test -f "$local_project/supabase/config.toml"
@@ -119,11 +119,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/storefront-feedback-supabase"
+          cd "$RUNNER_TEMP/p2-local-supabase"
           test "$(sed -n '1p' supabase/config.toml)" = 'project_id = "storefront-feedback-pg17"'
           registry=ghcr.io
           for attempt in 1 2 3; do
-            log_file="$RUNNER_TEMP/storefront-feedback-supabase-start-${attempt}.log"
+            log_file="$RUNNER_TEMP/p2-local-supabase-start-${attempt}.log"
             if SUPABASE_INTERNAL_IMAGE_REGISTRY="$registry" timeout 210s supabase start --exclude realtime,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
               echo "Disposable Supabase services started using $registry."
               exit 0
@@ -146,14 +146,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/storefront-feedback-supabase"
+          cd "$RUNNER_TEMP/p2-local-supabase"
           timeout 12m supabase db reset --local
 
       - name: Export local-only Supabase credentials
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/storefront-feedback-supabase"
+          cd "$RUNNER_TEMP/p2-local-supabase"
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
@@ -188,6 +188,6 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [ -d "$RUNNER_TEMP/storefront-feedback-supabase" ]; then
-            (cd "$RUNNER_TEMP/storefront-feedback-supabase" && supabase stop --no-backup >/dev/null 2>&1) || true
+          if [ -d "$RUNNER_TEMP/p2-local-supabase" ]; then
+            (cd "$RUNNER_TEMP/p2-local-supabase" && supabase stop --no-backup >/dev/null 2>&1) || true
           fi
