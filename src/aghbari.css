@@ -1133,3 +1133,38 @@ button.workspace-section-group__heading { cursor: pointer; }
 
 .sf-products-heading { margin-bottom: 16px; }
 .sf-products-heading .sf-discovery-links { margin-inline-start: auto; }
+
+/* Shared action shelf beneath every administration page heading. */
+.workspace-section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  margin: -7px 0 18px;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 12%, var(--aghbari-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 72%, var(--aghbari-surface));
+}
+.workspace-section-toolbar .toolbar-note {
+  color: var(--aghbari-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.workspace-section-toolbar .toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.workspace-section-toolbar .btn {
+  min-height: 35px;
+  border-radius: 999px;
+}
+@media (max-width: 600px) {
+  .workspace-section-toolbar { align-items: stretch; padding: 9px; }
+  .workspace-section-toolbar .toolbar-actions { width: 100%; }
+  .workspace-section-toolbar .toolbar-actions > * { flex: 1 1 auto; }
+}
