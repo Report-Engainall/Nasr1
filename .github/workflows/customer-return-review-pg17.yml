@@ -1,0 +1,55 @@
+name: Customer Return Review Queue PostgreSQL 17 Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261117140000_customer_return_review_queue_cursor_pagination.sql"
+      - "supabase/tests/customer_return_review_queue_pagination.sql"
+      - ".github/workflows/customer-return-review-pg17.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261117140000_customer_return_review_queue_cursor_pagination.sql"
+      - "supabase/tests/customer_return_review_queue_pagination.sql"
+      - ".github/workflows/customer-return-review-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: customer-return-review-pg17-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  customer-return-review-acceptance:
+    name: PostgreSQL 17 customer return review queue
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact tested source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Apply the migration and exercise the protected review queue
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/customer_return_review_queue_pagination.sql
