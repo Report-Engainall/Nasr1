@@ -960,6 +960,227 @@ function CustomerManagerProfileList({
   );
 }
 
+type SimulatedAuthorizationDecision = {
+  decision: 'PERMIT' | 'DENY' | 'REQUIRES_APPROVAL';
+  capability_key: string;
+  target_profile_id: string;
+  scope_kind?: string;
+  scope_resource_id?: string | null;
+  scope_assignment_id?: string | null;
+  reason: string;
+  source?: string;
+  grant_source?: string;
+  approval_mode?: string;
+  separation_of_duties?: boolean;
+  sensitivity?: string;
+};
+
+function AuthorizationDecisionSimulator({ profile }: { profile: Profile }) {
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [capabilities, setCapabilities] = useState<CapabilityOption[]>([]);
+  const [resources, setResources] = useState<ScopeResourceCatalog>({ warehouses: [], customers: [] });
+  const [selectedCapabilityKey, setSelectedCapabilityKey] = useState('');
+  const [selectedResourceId, setSelectedResourceId] = useState('');
+  const [decision, setDecision] = useState<SimulatedAuthorizationDecision | null>(null);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [capabilityResponse, resourceResponse] = await Promise.all([
+        supabase.rpc('list_authorization_capability_registry'),
+        supabase.rpc('list_authorization_scope_resources'),
+      ]);
+      if (capabilityResponse.error) throw capabilityResponse.error;
+      if (resourceResponse.error) throw resourceResponse.error;
+      const nextCapabilities = normalizeCapabilityOptions(capabilityResponse.data);
+      const nextResources = normalizeScopeResourceCatalog(resourceResponse.data);
+      setCapabilities(nextCapabilities);
+      setResources(nextResources);
+      setSelectedCapabilityKey((current) =>
+        current && nextCapabilities.some((capability) => capability.capability_key === current)
+          ? current
+          : nextCapabilities[0]?.capability_key ?? '',
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحميل القدرات والموارد للمحاكاة.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (expanded) void load();
+  }, [expanded, load]);
+
+  const selectedCapability = capabilities.find(
+    (capability) => capability.capability_key === selectedCapabilityKey,
+  ) ?? null;
+  const scopeKind = selectedCapability?.scope_kind;
+  const resourceRequired = scopeKind === 'warehouse' || scopeKind === 'assigned_customer';
+  const resourceOptions = scopeKind === 'warehouse'
+    ? resources.warehouses
+    : scopeKind === 'assigned_customer'
+      ? resources.customers
+      : [];
+  const resourceReady = !resourceRequired || (
+    Boolean(selectedResourceId) &&
+    resourceOptions.some((resource) => resource.id === selectedResourceId)
+  );
+
+  useEffect(() => {
+    setSelectedResourceId((current) =>
+      current && resourceOptions.some((resource) => resource.id === current)
+        ? current
+        : resourceOptions[0]?.id ?? '',
+    );
+    setDecision(null);
+  }, [selectedCapabilityKey, resources]);
+
+  async function evaluate() {
+    if (!selectedCapability || !resourceReady || evaluating) return;
+    setEvaluating(true);
+    setError('');
+    setDecision(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc('evaluate_authorization_profile_decision_v2', {
+        p_target_profile_id: profile.profile_id,
+        p_capability_key: selectedCapability.capability_key,
+        p_resource_id: resourceRequired ? selectedResourceId : null,
+      });
+      if (rpcError) throw rpcError;
+      const decoded = typeof data === 'string' ? JSON.parse(data) as unknown : data;
+      if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+        throw new Error('أعاد الخادم نتيجة محاكاة غير صالحة.');
+      }
+      const result = decoded as Record<string, unknown>;
+      if (
+        !['PERMIT', 'DENY', 'REQUIRES_APPROVAL'].includes(String(result.decision)) ||
+        result.capability_key !== selectedCapability.capability_key ||
+        result.target_profile_id !== profile.profile_id ||
+        typeof result.reason !== 'string'
+      ) {
+        throw new Error('لم يؤكد الخادم قرار المحاكاة للموظف والقدرة المحددين.');
+      }
+      setDecision(result as unknown as SimulatedAuthorizationDecision);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تقييم قرار الصلاحية.');
+    } finally {
+      setEvaluating(false);
+    }
+  }
+
+  const decisionLabel = decision?.decision === 'PERMIT'
+    ? 'مسموح'
+    : decision?.decision === 'REQUIRES_APPROVAL'
+      ? 'يتطلب موافقة'
+      : decision?.decision === 'DENY'
+        ? 'مرفوض'
+        : '';
+
+  return (
+    <section style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5eeee' }}>
+      <button
+        type="button"
+        className="btn btn-outline"
+        aria-expanded={expanded}
+        aria-controls={'authorization-simulator-' + profile.profile_id}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? 'إخفاء محاكي الصلاحيات' : 'محاكاة قرار الصلاحية'}
+      </button>
+      {expanded ? (
+        <div id={'authorization-simulator-' + profile.profile_id} style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+          <p style={{ margin: 0, color: '#62777b', lineHeight: 1.7 }}>
+            تقييم قراءة فقط للعضو المحدد. لا ينفذ العملية ولا يغير المنح أو النطاقات.
+          </p>
+          {loading ? <p role="status">جار تحميل سجل القدرات والموارد...</p> : null}
+          {error ? <p role="alert" className="error-box">{error}</p> : null}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8, alignItems: 'end' }}>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span>القدرة</span>
+              <select
+                aria-label={'قدرة لمحاكاتها لـ ' + profile.full_name}
+                value={selectedCapabilityKey}
+                onChange={(event) => {
+                  setSelectedCapabilityKey(event.target.value);
+                  setDecision(null);
+                }}
+                disabled={loading || evaluating || capabilities.length === 0}
+                style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+              >
+                {capabilities.map((capability) => (
+                  <option key={capability.capability_key} value={capability.capability_key}>
+                    {capability.capability_key} — {capability.domain}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {resourceRequired ? (
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span>{scopeKind === 'warehouse' ? 'المستودع' : 'العميل المسند'}</span>
+                <select
+                  aria-label={'المورد لمحاكاة ' + selectedCapabilityKey}
+                  value={selectedResourceId}
+                  onChange={(event) => {
+                    setSelectedResourceId(event.target.value);
+                    setDecision(null);
+                  }}
+                  disabled={loading || evaluating || resourceOptions.length === 0}
+                  style={{ width: '100%', padding: 9, border: '1px solid #d5e7e9', borderRadius: 8 }}
+                >
+                  {resourceOptions.map((resource) => (
+                    <option key={resource.id} value={resource.id}>
+                      {resource.name}{resource.code ? ' — ' + resource.code : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p role="note" style={{ margin: 0, alignSelf: 'center' }}>
+                {scopeKind === 'organization'
+                  ? 'نطاق المؤسسة — لا يحتاج إلى مورد محدد.'
+                  : 'هذا النطاق غير مدعوم حالياً؛ سيعيد الخادم المنع الافتراضي.'}
+              </p>
+            )}
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => void evaluate()}
+              disabled={loading || evaluating || !selectedCapabilityKey || !resourceReady}
+            >
+              {evaluating ? 'جار تقييم السياسة...' : 'تقييم القرار'}
+            </button>
+          </div>
+          {resourceRequired && resourceOptions.length === 0 && !loading ? (
+            <p role="status">لا توجد موارد مناسبة لهذا النوع من النطاق داخل المؤسسة.</p>
+          ) : null}
+          {decision ? (
+            <div role="status" aria-live="polite" style={{ border: '1px solid #d9e7e8', borderRadius: 10, padding: 12, display: 'grid', gap: 7 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <strong>{decisionLabel}</strong>
+                <code>{decision.decision}</code>
+              </div>
+              <div>{decision.reason}</div>
+              <div style={{ color: '#71868a', fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {decision.source ? <span>مصدر القرار: {decision.source}</span> : null}
+                {decision.grant_source ? <span>مصدر المنحة: {decision.grant_source}</span> : null}
+                {decision.scope_kind ? <span>النطاق: {decision.scope_kind}</span> : null}
+                {decision.approval_mode ? <span>مسار الموافقة: {decision.approval_mode}</span> : null}
+                {decision.separation_of_duties ? <span>فصل الواجبات: مطلوب</span> : null}
+                {decision.sensitivity ? <span>الحساسية: {decision.sensitivity}</span> : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export type AuthorizationMemberProfile = Profile;
 
 export function MemberAuthorizationAccessControls({
@@ -973,6 +1194,7 @@ export function MemberAuthorizationAccessControls({
     <>
       <ResourceScopePanel profile={profile} currentProfileId={currentProfileId} />
       <CapabilityDenialPanel profile={profile} currentProfileId={currentProfileId} />
+      <AuthorizationDecisionSimulator profile={profile} />
     </>
   );
 }
