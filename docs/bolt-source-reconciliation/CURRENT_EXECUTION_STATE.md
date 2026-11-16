@@ -6135,3 +6135,19 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - The implementation can be marked `TESTED_EXACT_SHA` for Vitest, strict TypeScript and production build only. It is **not** `BROWSER_PROVEN` for the admin frame, and no production-readiness claim is made.
 - Main now contains the implementation commit, then the checkpoint commits `e308dcacea9fc676146eeeca90e939c13ddb8d0f` and this result update; all code checks above remain explicitly tied to implementation SHA `23a395cca9b61d1d7225f736b1fe1d1112f6c464`.
 - NEXT_ACTION_ID: `ADMIN-PANEL-P2-PUBLIC-SMOKE-AND-AUTH-GATE-001` — record the terminal P2 read-only smoke result when available; keep order and tenant-isolation proof open until a dedicated non-production E2E environment is explicitly approved and configured.
+
+
+---
+
+## P3 ADMIN ORDERS BOARD + PRICE/INVENTORY GRID — 2026-11-17
+
+- Code SHA: `276e9612cb509c0979cf458faa225705f148548c`.
+- Orders list now uses responsive lifecycle cards with server-filtered order-number search, server status filtering, stable server sorting, existing review/detail route, and truthful handling of returned/stopped/unknown states.
+- Price grid now supports search by item name/code, product active-state and stock-state filters, stable price/stock sorting, result count and real refresh. Save/import/export/preview remain bound to the full loaded grid, not only visible filtered rows.
+- Inventory quantities remain read-only in the price grid. Actual quantity changes stay inside source-backed inventory adjustment, transfer and stock-count flows; no direct balance mutation was added.
+- Added `admin-order-progress` and `price-grid-filters` pure modules with regression tests. Added `20261117113000_stock_count_line_authorization_precedes_payload.sql` so an actor must pass tenant identity, base count-entry capability and exact session-warehouse scope before product/quantity validation and line update.
+- P1 run [43975356771](https://github.com/Report-Engainall/Nasr1/actions/runs/43975356771): **SUCCESS on exact code SHA**; 145/145 Vitest files, 1,042/1,042 tests, strict TypeScript and production build all passed.
+- P2 run [43975356738](https://github.com/Report-Engainall/Nasr1/actions/runs/43975356738): public Chromium smoke **IN_PROGRESS** at checkpoint time; authenticated customer-order/tenant job **SKIPPED** by the non-production credential/write-confirmation gate. Local Supabase order/tenant job had not yet started because it depends on public smoke. Separate Storefront feedback PostgreSQL 17 run [43975356833](https://github.com/Report-Engainall/Nasr1/actions/runs/43975356833) succeeded; it is not order/tenant proof.
+- Earlier failed candidate SHAs are superseded and not counted. No production DB write, financial posting, inventory movement, live provider integration, Vercel usage or deployment occurred.
+- Remaining acceptance: P2 public browser result and local PostgreSQL 17 run on this exact SHA; hosted customer/order/tenant E2E remains external/blocked. Current price-grid source RPC does not return category name, so category is not fabricated into the price grid.
+- Release remains **NO-GO** pending independent finance, inventory, authenticated tenant, category-route and full-screen acceptance gates.
