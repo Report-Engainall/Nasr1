@@ -95,6 +95,7 @@ on:
       - "src/lib/useAdminOrganizationTheme.test.ts"
       - "src/test/admin-notifications-screen-acceptance.test.tsx"
       - "src/test/public-catalog-privacy.test.ts"
+      - "src/test/product-image-lifecycle.test.ts"
       - "src/components/DeviceManagement.tsx"
       - "src/test/device-management.test.tsx"
       - "tsconfig.p1-typecheck.json"
