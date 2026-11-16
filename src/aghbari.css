@@ -969,7 +969,7 @@ button.workspace-section-group__heading { cursor: pointer; }
   background: var(--aghbari-surface);
 }
 .workspace-section-group__copy { display: block; min-width: 0; }
-.workspace-section-group__copy strong {
+.workspace-section-group__copy .workspace-section-group__title {
   display: block;
   color: var(--aghbari-text);
   font-size: 12px;
