@@ -15,7 +15,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 import { runNaturalLanguageAssistantQuery } from "./natural-language-assistant-client";
 import { planNaturalLanguageQuery } from "./natural-language-assistant";
 
-describe("natural-language assistant local execution when model providers are unavailable", () => {
+  describe("natural-language assistant local execution when model providers are unavailable", () => {
   beforeEach(() => {
     rpc.mockReset();
     invoke.mockReset();
@@ -66,12 +66,11 @@ describe("natural-language assistant local execution when model providers are un
 
 describe("Arabic assistant query-window guardrails", () => {
   beforeEach(() => {
-    // This describe is independent from the execution tests above; isolate shared hoisted RPC mocks.
+    // This suite shares file-level mocks with local execution tests; reset history for every assertion.
     rpc.mockReset();
     invoke.mockReset();
     invoke.mockRejectedValue(new Error("all configured AI model providers are unavailable"));
   });
-
   it.each([
     ["رادار النمو آخر 30 يوماً", 30],
     ["رادار النمو آخر ٣٠ يوماً", 30],

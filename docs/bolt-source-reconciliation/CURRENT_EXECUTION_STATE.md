@@ -6087,3 +6087,18 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Scope boundary: this is a source-level legacy parity baseline only. It is deliberately marked `legacy-ui-reference-only`; it does not authorize requests or replace route guards, RPC checks, PostgreSQL permissions or RLS. No role IDs, user assignments, grants, SQL/RPC/RLS, migrations, Auth settings, customer data, finance, inventory, production resources or deployment were changed.
 - Confirmed next security gap: the existing `fetch_staff_products(uuid)` source returns `SETOF public.products` via `SELECT p.*` to staff, while the browser only hides the base-price column. The actual network field projection remains unproven and must be corrected server-side; no frontend-only masking or null placeholder is acceptable.
 - **NEXT_ACTION_ID:** `AUTHZ-STAFF-PRODUCT-PROJECTION-001` — implement a strict role-specific server projection and resolver denial, preserving current admin/manager behavior; then prove actual JSON key absence, same-tenant allow and unauthorized/foreign-scope deny on isolated PostgreSQL 17/Chromium. Keep all six legacy role grants unchanged until separate parity evidence authorizes a migration.
+
+
+---
+
+## P3 PROCESS BOTTLENECK CAVEAT ACCEPTANCE — FINAL REBASE PENDING EXACT P1 — 2026-11-16
+
+- Repository: `Report-Engainall/Nasr1`; PR #491 branch: `p3/process-bottleneck-caveat-acceptance-20261116-v2`; latest main base for this rebase: `a31b08a89159447453ca6290721064a496b85389`.
+- Work item: `REF-PROCESS-BOTTLENECK-CAVEAT-LIFECYCLE-001`. P3 deterministic engine/test only. No P2 category/access/Chromium files, PR #490 runtime error logging, staff financial projection, P4 monitoring screens, shared navigation, taxonomy, finance RPCs or server permissions were modified.
+- Prior exact P3-inclusive P1 acceptance: SHA `553db4e3b1300e32fdb776f7b71a4d4c8174ed01`, run `43782464674`: Vitest **129/129 files and 945/945 tests**, process bottleneck **13/13**, Arabic assistant guardrail **20/20**, strict TypeScript **PASS**, production build **PASS**.
+- The security owner repaired the staff product projection acceptance and its generated types. Main P1 run `43783321699` at exact SHA `9e52a4f55e639db5ce16ded2dbaedc34dc025627` completed **SUCCESS**: **128/128 files, 932/932 tests**, strict TypeScript **PASS**, production build **PASS**. Main then received one further P2-only E2E correction at `a31b08a89159447453ca6290721064a496b85389`; this is inherited unchanged.
+- Engine behavior: reject a metric whose `lastCompletedAt` is after snapshot `asOf`; suppress generic no-common-stage caveat when no verified stages exist, while keeping source-specific unavailable explanations.
+- Regression coverage: 13 deterministic cases for equal-duration chronological windows, unequal/overlap/future baselines, current/baseline n>=3, missing stage, duplicate/out-of-period metrics, quantile/queue-age validity, missing baseline, post-asOf evidence, partial/all unavailable sources.
+- Assistant test-harness correction: Arabic query-window suite resets shared RPC/provider mocks in its own `beforeEach`; no assistant runtime source/RPC/provider behavior changed.
+- This branch overlays exactly six scoped files onto latest main: P1 workflow path filters, canonical state cursor, canonical acceptance matrix, assistant test harness, process bottleneck test, process bottleneck engine. P2 E2E ownership stays intact.
+- Exact P1 on the new PR head is pending. Do not transfer earlier PASS to a later SHA. Keep PR #491 unmerged until the PR-head P1 rerun succeeds. No Postgres/RPC/RLS/migration/role/data write, external provider, Vercel/deployment, or bottleneck UI/browser runtime acceptance is claimed.
