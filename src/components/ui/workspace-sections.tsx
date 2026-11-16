@@ -68,7 +68,7 @@ export function WorkspaceSectionGroup({
         <Icon size={20} strokeWidth={1.9} />
       </span>
       <span className="workspace-section-group__copy">
-        <strong>{title}</strong>
+        <span className="workspace-section-group__title" role="heading" aria-level={2}>{title}</span>
         {description ? <small>{description}</small> : null}
       </span>
     </>
