@@ -48,7 +48,30 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const secondBalance = {
+  ...initialBalance,
+  product_id: '44444444-4444-4444-8444-444444444445',
+  item_code: 'SKU-002',
+  product_name: 'زيت نباتي 1 لتر',
+  quantity_on_hand: 42,
+  quantity_reserved: 7,
+  quantity_available: 35,
+};
 describe('InventoryBalanceAdjustmentPanel', () => {
+  it('selects the first matching product when search hides the previous selection', async () => {
+    vi.mocked(fetchInventoryAdjustmentBalances).mockResolvedValue([initialBalance, secondBalance]);
+    render(<InventoryBalanceAdjustmentPanel warehouseId={initialBalance.warehouse_id} warehouseName="المستودع الرئيسي" />);
+    await screen.findByRole('option', { name: 'SKU-001 — أرز 10 كجم' });
+
+    fireEvent.change(screen.getByLabelText('البحث عن صنف للتسوية'), { target: { value: 'SKU-002' } });
+
+    expect(screen.getByRole('combobox', { name: 'الصنف المراد تسويته' })).toHaveValue(secondBalance.product_id);
+    expect(screen.getByRole('option', { name: 'SKU-002 — زيت نباتي 1 لتر' })).toBeInTheDocument();
+    expect(screen.getByLabelText('الرصيد الجديد للصنف زيت نباتي 1 لتر')).toHaveValue('42');
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.queryByLabelText('الرصيد الجديد للصنف أرز 10 كجم')).not.toBeInTheDocument();
+  });
+
   it('loads server balances and submits an explicitly confirmed single-item adjustment', async () => {
     render(<InventoryBalanceAdjustmentPanel warehouseId={initialBalance.warehouse_id} warehouseName="المستودع الرئيسي" />);
     await screen.findByRole('option', { name: 'SKU-001 — أرز 10 كجم' });

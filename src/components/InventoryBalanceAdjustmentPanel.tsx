@@ -12,6 +12,15 @@ function normalizeSearch(value: string): string {
     .trim();
 }
 
+function filterInventoryItems(items: InventoryAdjustmentBalance[], search: string): InventoryAdjustmentBalance[] {
+  const query = normalizeSearch(search);
+  if (!query) return items;
+  return items.filter((item) =>
+    [item.item_code, item.product_name, item.unit ?? '']
+      .some((value) => normalizeSearch(value).includes(query)),
+  );
+}
+
 export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: {
   warehouseId: string;
   warehouseName: string;
@@ -70,14 +79,7 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
   }, [warehouseId]);
 
   const selected = items.find((item) => item.product_id === selectedProductId) ?? null;
-  const filteredItems = useMemo(() => {
-    const query = normalizeSearch(search);
-    if (!query) return items;
-    return items.filter((item) =>
-      [item.item_code, item.product_name, item.unit ?? '']
-        .some((value) => normalizeSearch(value).includes(query)),
-    );
-  }, [items, search]);
+  const filteredItems = useMemo(() => filterInventoryItems(items, search), [items, search]);
 
   const parsedNewQuantity = newQuantity.trim() === '' ? null : Number(newQuantity);
   const validNewQuantity = parsedNewQuantity !== null && Number.isFinite(parsedNewQuantity)
@@ -179,7 +181,25 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
           <div className="form-grid">
             <label>
               البحث عن الصنف
-              <input aria-label="البحث عن صنف للتسوية" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="رمز الصنف أو الاسم أو الوحدة" disabled={busy} />
+              <input
+                aria-label="البحث عن صنف للتسوية"
+                value={search}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  const matches = filterInventoryItems(items, value);
+                  setSearch(value);
+                  if (!matches.some((item) => item.product_id === selectedProductId)) {
+                    const next = matches[0] ?? null;
+                    setSelectedProductId(next?.product_id ?? '');
+                    setNewQuantity(next ? String(next.quantity_on_hand) : '');
+                    setError('');
+                    setNotice('');
+                    pendingKey.current = null;
+                  }
+                }}
+                placeholder="رمز الصنف أو الاسم أو الوحدة"
+                disabled={busy}
+              />
             </label>
             <label>
               الصنف
