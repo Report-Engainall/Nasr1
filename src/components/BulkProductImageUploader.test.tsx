@@ -149,13 +149,13 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "رفع الصور المطابقة" }));
     await waitFor(() => expect(uploadProductGalleryImage).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("تعذر 1"));
+    await waitFor(() => expect(container.querySelector('section[aria-label="نتائج رفع الصور"] [role="status"]')?.textContent).toContain("تعذر 1"));
 
     const retryButton = screen.getByRole("button", { name: "إعادة محاولة الصور الفاشلة (1)" });
     fireEvent.click(retryButton);
 
     await waitFor(() => expect(uploadProductGalleryImage).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("تعذر 0"));
+    await waitFor(() => expect(container.querySelector('section[aria-label="نتائج رفع الصور"] [role="status"]')?.textContent).toContain("تعذر 0"));
     expect(uploadProductImage).toHaveBeenCalledTimes(1);
     expect(uploadProductGalleryImage).toHaveBeenCalledTimes(2);
     expect(toWebp).toHaveBeenCalledTimes(3);
