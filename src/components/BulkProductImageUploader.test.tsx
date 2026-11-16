@@ -12,7 +12,7 @@ import {
   getProductImageCoverage,
   getProductsMissingPrimaryImage,
 } from "./BulkProductImageUploader";
-import { uploadProductImage } from "@/lib/api";
+import { uploadProductGalleryImage, uploadProductImage } from "@/lib/api";
 import { toWebp } from "@/lib/product-image";
 import type { ProductWithInventory } from "@/lib/types";
 
@@ -106,6 +106,62 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
     expect(screen.getByRole("button", { name: "تصدير نتائج الدفعة الحالية (CSV)" })).toBeTruthy();
   });
 
+
+  it("retries only failed image files and never uploads a successful primary twice", async () => {
+    const converted = new Blob(["webp"], { type: "image/webp" });
+    vi.mocked(toWebp).mockResolvedValue(converted);
+    vi.mocked(uploadProductImage).mockResolvedValue("https://cdn.example.test/primary.webp");
+    vi.mocked(uploadProductGalleryImage)
+      .mockRejectedValueOnce(new Error("temporary gallery failure"))
+      .mockResolvedValueOnce("https://cdn.example.test/gallery.webp");
+
+    const product = {
+      id: "product-retry",
+      name: "Rice",
+      item_code: "000125",
+      image_url: null,
+      image_gallery_urls: [],
+    } as unknown as ProductWithInventory;
+    const onUploaded = vi.fn();
+    const { container } = render(
+      <BulkProductImageUploader
+        loadProducts={vi.fn().mockResolvedValue([product])}
+        catalogRevision={0}
+        canManage
+        onUploaded={onUploaded}
+      />,
+    );
+
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)")).toBeEnabled());
+
+    fireEvent.change(screen.getByLabelText("اختر عدة صور (JPG / PNG / WebP)"), {
+      target: {
+        files: [
+          new File(["primary"], "000125.jpg", { type: "image/jpeg" }),
+          new File(["gallery"], "000125__2.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "رفع الصور المطابقة" }));
+    await waitFor(() => expect(uploadProductGalleryImage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("تعذر 1"));
+
+    const retryButton = screen.getByRole("button", { name: "إعادة محاولة الصور الفاشلة (1)" });
+    fireEvent.click(retryButton);
+
+    await waitFor(() => expect(uploadProductGalleryImage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("تعذر 0"));
+    expect(uploadProductImage).toHaveBeenCalledTimes(1);
+    expect(uploadProductGalleryImage).toHaveBeenCalledTimes(2);
+    expect(toWebp).toHaveBeenCalledTimes(3);
+    expect(onUploaded).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "اكتمل رفع الصور" })).toBeDisabled();
+  });
 
   it("does not fetch the full catalog until the image tool is expanded", async () => {
     const loadProducts = vi.fn().mockResolvedValue([]);
