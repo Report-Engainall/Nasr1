@@ -45,6 +45,7 @@ export type WorkspaceSectionGroupProps = {
   headingClassName?: string;
   iconClassName?: string;
   contentClassName?: string;
+  regionLabel?: string;
   onActivate?: () => void;
   activateLabel?: string;
 };
@@ -59,6 +60,7 @@ export function WorkspaceSectionGroup({
   headingClassName,
   iconClassName,
   contentClassName,
+  regionLabel,
   onActivate,
   activateLabel,
 }: WorkspaceSectionGroupProps) {
@@ -75,7 +77,7 @@ export function WorkspaceSectionGroup({
   );
 
   return (
-    <section className={["workspace-section-group", className].filter(Boolean).join(" ")} aria-label={title} dir="rtl">
+    <section className={["workspace-section-group", className].filter(Boolean).join(" ")} aria-label={regionLabel ?? title} dir="rtl">
       {onActivate ? (
         <button
           type="button"
