@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import type { Notification } from "@/lib/types";
 
 const mocks = vi.hoisted(() => ({
@@ -17,7 +18,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/useFetch", () => ({ useFetch: mocks.useFetch }));
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children, ...props }: { to: string; children: React.ReactNode; [key: string]: unknown }) =>
+  Link: ({ to, children, ...props }: { to: string; children: ReactNode; [key: string]: unknown }) =>
     <a href={to} {...props}>{children}</a>,
   useNavigate: () => mocks.navigate,
 }));
