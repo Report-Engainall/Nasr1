@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "supabase/migrations/20261018080000_inventory_write_boundary_and_reorder_point.sql"
       - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
       - "supabase/migrations/20261116111000_inventory_adjustment_invariants.sql"
       - "supabase/migrations/20261116112000_inventory_adjustment_authorization_v2.sql"
@@ -18,6 +19,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "supabase/migrations/20261018080000_inventory_write_boundary_and_reorder_point.sql"
       - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
@@ -27,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: inventory-balance-adjustment-pg17-${{ github.ref }}
+  group: inventory-balance-adjustment-pg17-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
