@@ -18,7 +18,7 @@ import {
 } from "@/lib/customer-service-cases";
 import { projectCustomerServiceDeskPrintDocument, type CustomerServiceDeskPrintDocument } from "@/lib/customer-service-desk-print";
 import { downloadCustomerServiceDeskWorkbookXlsx } from "@/lib/customer-service-desk-xlsx";
-import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { CustomerServiceDeskPrintSheet } from "@/components/CustomerServiceDeskPrintSheet";
 import {
   fetchCustomerServiceDeskPage,
@@ -396,6 +396,7 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
       </div>}
     />
 
+    <WorkspaceSectionGroup icon={Headphones} title="مؤشرات خدمة العملاء" description="حالة الطابور والاستحقاقات والإسناد من سجلات الخدمة الحالية." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
     <div className="customer-service-desk-metrics">
       <Metric icon={Headphones} label="الحالات المفتوحة" value={summary.open_count} />
       <Metric icon={AlertTriangle} label="تجاوزت الاستجابة" value={summary.response_overdue_count} tone={summary.response_overdue_count ? "danger" : "default"} />
@@ -403,9 +404,11 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
       <Metric icon={UserRound} label="غير مسندة" value={summary.unassigned_count} tone={summary.unassigned_count ? "warning" : "default"} />
       <Metric icon={ShieldAlert} label="عاجلة" value={summary.urgent_count} tone={summary.urgent_count ? "warning" : "default"} />
     </div>
+    </WorkspaceSectionGroup>
 
     {canManage ? <CustomerServiceSlaPolicyPanel canManage={canManage} /> : null}
 
+    <WorkspaceSectionGroup icon={Filter} title="تصفية طابور الحالات" description="ابحث وصفِّ الحالات حسب سير المعالجة والأولوية والإسناد والتأخير." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
     <section className="customer-service-desk-filters">
       <div className="customer-service-desk-filter-heading"><Filter size={16} /><strong>تصفية طابور الحالات</strong><span>ملخص المؤشرات يعرض كامل الحالات المفتوحة في المؤسسة</span></div>
       <form className="customer-service-desk-search" onSubmit={applySearch}>
@@ -438,8 +441,10 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
         </label>
       </div>
     </section>
+    </WorkspaceSectionGroup>
 
     {error && <ErrorBox message={error} />}
+    <WorkspaceSectionGroup icon={ClipboardList} title="حالات خدمة العملاء" description="قائمة الحالات المطابقة للمرشحات، مع أدوات الإسناد والتصعيد وفق الدور." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
     <div className="customer-service-desk-results-heading">
       <div><h2>الحالات</h2><span>المعروض {items.length.toLocaleString("ar-YE")} · نشطة في هذه الصفحة {activeCases.length.toLocaleString("ar-YE")}</span></div>
       {canManage && <span><Users size={15} /> أدوات الإسناد والتصعيد متاحة للمديرين</span>}
@@ -456,6 +461,7 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
       </Button>
     </div>}
     <p className="customer-service-desk-footnote">يستخدم المركز السجلات التشغيلية الأصلية للحالات ومهامها؛ لا ينشئ نسخة ثانية من بيانات العميل أو طابور إسناد موازيًا.</p>
+    </WorkspaceSectionGroup>
   </section>
   {printDocument && typeof document !== "undefined"
     ? createPortal(<CustomerServiceDeskPrintSheet document={printDocument} />, document.body)
