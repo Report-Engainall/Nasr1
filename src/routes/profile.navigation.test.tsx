@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   signOutCurrent: vi.fn(),
   signOutOtherSessions: vi.fn(),
   signOutEverywhere: vi.fn(),
+  fetchAccountProfile: vi.fn(),
+  saveAccountProfile: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -38,16 +40,8 @@ vi.mock("@/components/AccountPersonalizationSettings", () => ({
 }));
 
 vi.mock("@/lib/customer-account-profile", () => ({
-  fetchMyCustomerAccountProfile: vi.fn(async () => ({
-    business_name: "شركة الاختبار",
-    contact_name: "مسؤول الاختبار",
-    phone: "777123456",
-    email: "account@example.test",
-    customer_code: "C-TEST",
-    status: "approved",
-    updated_at: "2026-11-01T10:00:00.000Z",
-  })),
-  saveMyCustomerAccountProfile: vi.fn(),
+  fetchMyCustomerAccountProfile: mocks.fetchAccountProfile,
+  saveMyCustomerAccountProfile: mocks.saveAccountProfile,
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -97,11 +91,43 @@ describe("My Aghbari customer account navigation", () => {
     mocks.signOutCurrent.mockReset().mockResolvedValue(undefined);
     mocks.signOutOtherSessions.mockReset().mockResolvedValue(undefined);
     mocks.signOutEverywhere.mockReset().mockResolvedValue(undefined);
+    mocks.fetchAccountProfile.mockReset().mockResolvedValue({
+      business_name: "شركة الاختبار",
+      contact_name: "مسؤول الاختبار",
+      phone: "777123456",
+      email: "account@example.test",
+      customer_code: "C-TEST",
+      status: "approved",
+      updated_at: "2026-11-01T10:00:00.000Z",
+    });
+    mocks.saveAccountProfile.mockReset();
   });
 
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+  });
+
+  it("recovers from a failed customer-profile load without requiring a full page refresh", async () => {
+    mocks.fetchAccountProfile
+      .mockRejectedValueOnce(new Error("تعذر تحميل بيانات الشركة"))
+      .mockResolvedValueOnce({
+        business_name: "شركة الاختبار",
+        contact_name: "مسؤول الاختبار",
+        phone: "777123456",
+        email: "account@example.test",
+        customer_code: "C-TEST",
+        status: "approved",
+        updated_at: "2026-11-01T10:00:00.000Z",
+      });
+
+    render(<CustomerAccountProfilePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل بيانات الشركة");
+    fireEvent.click(screen.getByRole("button", { name: "إعادة تحميل بيانات الشركة" }));
+
+    expect(await screen.findByLabelText("اسم الشركة")).toHaveValue("شركة الاختبار");
+    expect(mocks.fetchAccountProfile).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("signs out only the current device without revoking other sessions", async () => {
