@@ -123,15 +123,13 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
   const canExport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const rows = page?.items ?? [];
   const totalCount = page?.totalCount ?? 0;
-  const filters: CustomerReturnReviewFilters = { search: appliedQuery, status: appliedStatus };
-
   const load = useCallback(async () => {
     const generation = ++requestGeneration.current;
     const cursor = cursorStack.current[pageIndex] ?? null;
     setLoading(true);
     setError("");
     try {
-      const result = await fetchCustomerReturnReviewPage(filters, cursor);
+      const result = await fetchCustomerReturnReviewPage({ search: appliedQuery, status: appliedStatus }, cursor);
       if (generation !== requestGeneration.current) return;
       if (pageIndex > 0 && result.items.length === 0 && result.totalCount > 0) {
         cursorStack.current = cursorStack.current.slice(0, pageIndex);
@@ -168,7 +166,7 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
     setExporting(true);
     setError("");
     try {
-      const allRows = await fetchAllCustomerReturnReviewRows(filters);
+      const allRows = await fetchAllCustomerReturnReviewRows({ search: appliedQuery, status: appliedStatus });
       const downloaded = downloadCustomerReturnReviewWorkbookXlsx({
         rows: allRows,
         roles: user?.roles ?? [],
