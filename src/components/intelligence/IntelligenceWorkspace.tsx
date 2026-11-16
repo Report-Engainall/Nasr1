@@ -47,6 +47,7 @@ import {
   CommercePolicyGovernancePanel,
   BusinessHealthMap,
   DecisionMemoryBook,
+  DailyDecisionBoard,
   ExecutiveLiquidityCommandCenter,
   CashflowForecastCard,
   DeadStockCard,
@@ -1711,6 +1712,12 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
             onTransition={runTransition}
           />
+          {decisionMemoryBook ? (
+            <DailyDecisionBoard
+              result={decisionMemoryBook}
+              onRetry={() => { void loadOutcomes(); void loadDecisionMemoryCollection(); }}
+            />
+          ) : null}
           <DecisionMemoryBook
             result={decisionMemoryBook}
             state={decisionMemoryState}
