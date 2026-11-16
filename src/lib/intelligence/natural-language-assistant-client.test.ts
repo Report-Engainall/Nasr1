@@ -65,6 +65,13 @@ describe("natural-language assistant local execution when model providers are un
 
 
 describe("Arabic assistant query-window guardrails", () => {
+  beforeEach(() => {
+    // This describe is independent from the execution tests above; isolate shared hoisted RPC mocks.
+    rpc.mockReset();
+    invoke.mockReset();
+    invoke.mockRejectedValue(new Error("all configured AI model providers are unavailable"));
+  });
+
   it.each([
     ["رادار النمو آخر 30 يوماً", 30],
     ["رادار النمو آخر ٣٠ يوماً", 30],
