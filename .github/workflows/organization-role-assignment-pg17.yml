@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: organization-role-assignment-pg17-${{ github.ref }}
+  group: organization-role-assignment-pg17-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
