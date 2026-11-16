@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/20261116114000_owner_approved_opening_inventory_baseline.sql"
+      - "supabase/migrations/20261116127000_owner_opening_baseline_source_identity_guard.sql"
       - "supabase/tests/opening_inventory_baseline_approval.sql"
       - ".github/workflows/opening-inventory-baseline-pg17.yml"
   pull_request:
     branches: [main]
     paths:
       - "supabase/migrations/20261116114000_owner_approved_opening_inventory_baseline.sql"
+      - "supabase/migrations/20261116127000_owner_opening_baseline_source_identity_guard.sql"
       - "supabase/tests/opening_inventory_baseline_approval.sql"
       - ".github/workflows/opening-inventory-baseline-pg17.yml"
   workflow_dispatch:

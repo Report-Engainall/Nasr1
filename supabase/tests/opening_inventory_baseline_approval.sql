@@ -112,6 +112,19 @@ SELECT p.id,'55555555-5555-4555-8555-555555555555','opening_balance',ib.quantity
  WHERE p.organization_id='11111111-1111-4111-8111-111111111111';
 
 \ir ../migrations/20261116114000_owner_approved_opening_inventory_baseline.sql
+\ir ../migrations/20261116127000_owner_opening_baseline_source_identity_guard.sql
+-- Deliberately similar marker from another batch; it must not enter source totals or the approved snapshot.
+INSERT INTO public.inventory_movements(
+ product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by
+)
+SELECT p.id,'55555555-5555-4555-8555-555555555555','opening_balance',999,ib.quantity_available,
+       'opening_setup','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       'OWNER_AUTHORIZED_OPENING_ESTIMATE_PENDING_PHYSICAL_COUNT',NULL
+  FROM public.products p
+  JOIN public.inventory_balances ib ON ib.product_id=p.id AND ib.warehouse_id='55555555-5555-4555-8555-555555555555'
+ WHERE p.organization_id='11111111-1111-4111-8111-111111111111'
+   AND p.item_code='SKU-001';
+
 
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',false);
 DO $admin_acceptance$
@@ -124,9 +137,16 @@ DECLARE
   v_total numeric(15,3);
   v_movement_count integer;
   v_balance_count integer;
+  v_movement_count_before integer;
+  v_balance_count_before integer;
   v_update_denied boolean:=false;
   v_delete_denied boolean:=false;
 BEGIN
+  SELECT count(*) INTO v_movement_count_before FROM public.inventory_movements
+   WHERE warehouse_id='55555555-5555-4555-8555-555555555555' AND movement_type='opening_balance';
+  SELECT count(*) INTO v_balance_count_before FROM public.inventory_balances
+   WHERE warehouse_id='55555555-5555-4555-8555-555555555555';
+
   v_preview:=public.get_opening_inventory_baseline_preview('55555555-5555-4555-8555-555555555555');
   IF (v_preview->>'ready_to_approve')::boolean IS NOT TRUE
      OR (v_preview->>'active_product_count')::integer<>114
@@ -156,7 +176,7 @@ BEGIN
    WHERE warehouse_id='55555555-5555-4555-8555-555555555555' AND movement_type='opening_balance';
   SELECT count(*) INTO v_balance_count FROM public.inventory_balances
    WHERE warehouse_id='55555555-5555-4555-8555-555555555555';
-  IF v_movement_count<>114 OR v_balance_count<>114 THEN
+  IF v_movement_count<>v_movement_count_before OR v_balance_count<>v_balance_count_before THEN
     RAISE EXCEPTION 'approval changed opening ledger or balance count';
   END IF;
 
