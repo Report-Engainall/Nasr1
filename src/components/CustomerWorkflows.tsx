@@ -343,6 +343,8 @@ function withResolvedProductPrice(
     unit?: unknown;
     status?: unknown;
     image_url?: unknown;
+    min_order_quantity?: unknown;
+    order_quantity_multiple?: unknown;
   },
   price: number | null | undefined,
 ): Product {
@@ -356,6 +358,16 @@ function withResolvedProductPrice(
     unit: typeof product.unit === "string" ? product.unit : "",
     status: typeof product.status === "string" ? product.status : undefined,
     image_url: typeof product.image_url === "string" ? product.image_url : null,
+    ...(typeof product.min_order_quantity === "number" &&
+        Number.isSafeInteger(product.min_order_quantity) &&
+        product.min_order_quantity >= 1 && product.min_order_quantity <= 10000
+      ? { min_order_quantity: product.min_order_quantity }
+      : {}),
+    ...(typeof product.order_quantity_multiple === "number" &&
+        Number.isSafeInteger(product.order_quantity_multiple) &&
+        product.order_quantity_multiple >= 1 && product.order_quantity_multiple <= 10000
+      ? { order_quantity_multiple: product.order_quantity_multiple }
+      : {}),
   };
   return price === null || price === undefined
     ? safeProduct
