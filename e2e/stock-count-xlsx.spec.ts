@@ -80,8 +80,9 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       await signIn(manager, managerEmail, managerPassword);
       await manager.goto("/admin/stock-count");
       await expect(manager.getByRole("heading", { name: "الجرد الفعلي" })).toBeVisible();
-      await expect(manager.getByText("لا يتوفر لهذا الحساب نطاق نشط لتسوية أرصدة هذا المستودع. اطلب من مسؤول المؤسسة تعيين المستودع ضمن صلاحيات الحساب.")).toBeVisible();
-      await expect(manager.getByRole("region", { name: "تسوية رصيد صنف مستقل" })).toHaveCount(0);
+      await expect(manager.getByText("لا تتوفر لهذه العضوية صلاحية تسوية أرصدة هذا المستودع. اطلب من مسؤول المؤسسة مراجعة الصلاحية ونطاق المستودع.")).toBeVisible();
+      await expect(manager.getByRole("region", { name: "صلاحية تسوية رصيد الصنف" })).toBeVisible();
+      await expect(manager.getByRole("region", { name: "صلاحية تسوية رصيد الصنف" })).toContainText("لا تتوفر لهذه العضوية صلاحية تسوية أرصدة هذا المستودع. اطلب من مسؤول المؤسسة مراجعة الصلاحية ونطاق المستودع.");
       await expect(manager.getByRole("heading", { name: "لا توجد جلسة جرد مفتوحة" })).toBeVisible();
       await manager.getByPlaceholder("سبب الجرد أو رقم محضر العد").fill(sessionNote);
       await manager.getByRole("button", { name: "بدء جلسة جرد فعلية", exact: true }).click();

@@ -71,6 +71,25 @@ let purchaseProduct = null;
 
 const db = postgres(connectionString, { max: 2, prepare: false, idle_timeout: 5 });
 
+async function signInLocal(email, password, expectedUserId) {
+  const response = await fetch(new URL("/auth/v1/token?grant_type=password", api), {
+    method: "POST",
+    headers: { apikey: publishableKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || typeof body?.access_token !== "string") {
+    throw new Error("Local Supabase administrator sign-in failed (HTTP " + response.status + ").");
+  }
+  const parts = body.access_token.split(".");
+  if (parts.length !== 3) throw new Error("Local Supabase issued a malformed administrator JWT.");
+  const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  if (claims.sub !== expectedUserId || typeof claims.session_id !== "string") {
+    throw new Error("Local Supabase administrator JWT is missing the expected session identity.");
+  }
+  return claims;
+}
+
 async function createConfirmedUser(email, password, fullName) {
   const response = await fetch(new URL("/auth/v1/admin/users", api), {
     method: "POST",
@@ -103,6 +122,7 @@ async function main() {
   const managerUserId = await createConfirmedUser(managerEmail, managerPassword, "P2 Local E2E Manager");
   const staffUserId = await createConfirmedUser(staffEmail, staffPassword, "P2 Local E2E Staff");
   const adminUserId = await createConfirmedUser(adminEmail, adminPassword, "P2 Local E2E Administrator");
+  const adminJwtClaims = await signInLocal(adminEmail, adminPassword, adminUserId);
   const accountantUserId = await createConfirmedUser(accountantEmail, accountantPassword, "P2 Local E2E Accountant");
   const companyMemberUserId = await createConfirmedUser(companyMemberEmail, companyMemberPassword, "P2 Local E2E Company Member");
   const customerManagerUserId = await createConfirmedUser(customerManagerEmail, customerManagerPassword, "P2 Local E2E Customer Manager");
@@ -416,6 +436,52 @@ async function main() {
     }
     returnReceivableAccountId = receivableRows[0].id;
     returnRevenueAccountId = revenueRows[0].id;
+
+    // A disposable warehouse relationship is needed for stock-count start/entry.
+    // Keep the separate single-item balance-adjustment command explicitly denied.
+    await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)", [adminUserId]);
+    await tx.unsafe("select set_config('request.jwt.claims',$1,true)", [
+      JSON.stringify({ ...adminJwtClaims, role: "authenticated" }),
+    ]);
+    await tx.unsafe("set local role authenticated");
+    try {
+      const decodeJson = (value) => typeof value === "string" ? JSON.parse(value) : value;
+      const scopeRows = await tx.unsafe(
+        "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+        [managerProfileId, preferredWarehouseId, "P2 local stock-count warehouse assignment"],
+      );
+      const scopeResult = decodeJson(scopeRows[0]?.result);
+      if (scopeResult?.changed !== true || scopeResult?.is_active !== true) {
+        throw new Error("Local stock-count warehouse scope was not persisted and audited.");
+      }
+      const denialRows = await tx.unsafe(
+        "select public.set_authorization_profile_denial($1::uuid,'inventory.balance.adjust',$2::text,NULL::timestamptz,true) as result",
+        [managerProfileId, "P2 local fixture keeps standalone inventory adjustments denied"],
+      );
+      const denialResult = decodeJson(denialRows[0]?.result);
+      if (denialResult?.changed !== true || denialResult?.is_active !== true) {
+        throw new Error("Local manager balance-adjustment denial was not persisted and audited.");
+      }
+      const decisions = await tx.unsafe(
+        "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.start',$2::uuid) as count_start," +
+        "public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.enter',$2::uuid) as count_enter," +
+        "public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.balance.adjust',$2::uuid) as balance_adjust",
+        [managerProfileId, preferredWarehouseId],
+      );
+      const countStart = decodeJson(decisions[0]?.count_start);
+      const countEnter = decodeJson(decisions[0]?.count_enter);
+      const balanceAdjust = decodeJson(decisions[0]?.balance_adjust);
+      if (countStart?.decision !== "PERMIT" || countEnter?.decision !== "PERMIT" ||
+          balanceAdjust?.decision !== "DENY") {
+        throw new Error(
+          "Local manager authorization mismatch: count.start=" + String(countStart?.decision) +
+          ", count.enter=" + String(countEnter?.decision) +
+          ", balance.adjust=" + String(balanceAdjust?.decision) + ".",
+        );
+      }
+    } finally {
+      await tx.unsafe("reset role");
+    }
   });
 
   const configuredTenant = await db.unsafe(

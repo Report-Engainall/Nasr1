@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
   from: vi.fn(),
   results: {} as Record<string, QueryResult>,
+  rpc: vi.fn(),
   signOut: vi.fn(),
 }));
 
@@ -45,7 +46,7 @@ vi.mock("@/components/CustomerReturnRequest", () => ({
 }));
 
 vi.mock("@/lib/supabase", () => ({
-  supabase: { from: mocks.from },
+  supabase: { from: mocks.from, rpc: mocks.rpc },
 }));
 
 const CUSTOMER: TestUser = {
@@ -98,6 +99,7 @@ describe("customer order detail real route acceptance", () => {
     vi.clearAllMocks();
     mocks.user = null;
     mocks.results = {};
+    mocks.rpc.mockReset();
     mocks.from.mockReset().mockImplementation((table: string) => makeQuery(table));
   });
 
@@ -383,6 +385,15 @@ describe("customer order detail real route acceptance", () => {
         error: null,
       },
     };
+    mocks.rpc.mockResolvedValue({
+      data: {
+        order_id: orderId,
+        order_status: "needs_customer_amendment",
+        return_events: [],
+        amendments: [],
+      },
+      error: null,
+    });
 
     const poller: { callback?: () => void } = {};
     const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler, delay) => {
