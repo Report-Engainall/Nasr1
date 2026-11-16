@@ -51,6 +51,7 @@ import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } fr
 import { downloadCustomerQuoteWorkbookXlsx } from "@/lib/customer-quote-xlsx";
 import { downloadCustomerInvoiceWorkbookXlsx } from "@/lib/customer-invoice-xlsx";
 import { downloadCustomerPaymentHistoryWorkbookXlsx } from "@/lib/customer-payment-history-xlsx";
+import { filterCustomerPaymentHistory } from "@/lib/customer-payment-history-filter";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
@@ -1368,6 +1369,8 @@ function CustomerPayments() {
   const [payments, setPayments] = useState<CustomerPaymentHistoryRow[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [search, setSearch] = useState("");
+  const [paidFrom, setPaidFrom] = useState("");
+  const [paidThrough, setPaidThrough] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [xlsxError, setXlsxError] = useState("");
@@ -1424,21 +1427,17 @@ function CustomerPayments() {
   useEffect(() => { void load(); }, [load]);
 
   const invoiceById = useMemo(() => new Map(invoices.map(invoice => [invoice.id, invoice])), [invoices]);
-  const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("ar");
-    if (!term) return payments;
-    return payments.filter(payment => {
-      const invoice = invoiceById.get(payment.invoice_id);
-      return [
-        invoice?.invoice_number ?? "",
-        payment.paid_at ? formatDateShort(payment.paid_at) : "",
-        payment.invoice_id,
-      ].some(value => value.toLocaleLowerCase("ar").includes(term));
-    });
-  }, [invoiceById, payments, search]);
+  const paymentFilter = useMemo(() => filterCustomerPaymentHistory({
+    payments,
+    invoices,
+    search,
+    paidFrom,
+    paidThrough,
+  }), [invoices, paidFrom, paidThrough, payments, search]);
+  const filtered = paymentFilter.items;
 
   function downloadPaymentHistoryXlsx() {
-    if (loading || error || filtered.length === 0 || xlsxBusy) return;
+    if (loading || error || paymentFilter.error || filtered.length === 0 || xlsxBusy) return;
     setXlsxBusy(true);
     setXlsxError("");
     try {
@@ -1454,7 +1453,7 @@ function CustomerPayments() {
         }),
         loadedCount: payments.length,
         detailMayBePartial,
-        searchFiltered: Boolean(search.trim()),
+        searchFiltered: paymentFilter.active,
       });
     } catch (cause) {
       setXlsxError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لسجل الدفعات.");
@@ -1475,7 +1474,7 @@ function CustomerPayments() {
           <Link to="/invoices" style={secondary}>الفواتير</Link>
         </div>
         <button type="button" style={secondary} onClick={downloadPaymentHistoryXlsx}
-          disabled={loading || Boolean(error) || filtered.length === 0 || xlsxBusy}>
+          disabled={loading || Boolean(error) || Boolean(paymentFilter.error) || filtered.length === 0 || xlsxBusy}>
           <FileSpreadsheet size={15} /> {xlsxBusy ? "جارٍ تجهيز Excel..." : "تنزيل Excel"}
         </button>
         <button type="button" style={secondary} onClick={() => void load()} disabled={loading}>
@@ -1495,17 +1494,37 @@ function CustomerPayments() {
             <h2 style={{ margin: 0, fontSize: 18 }}>سجل الدفعات</h2>
             <p style={{ ...quiet, marginTop: 6 }}>عدد الحركات المحمّلة: {payments.length.toLocaleString("ar-YE")} · المعروض: {filtered.length.toLocaleString("ar-YE")}</p>
           </div>
-          <label className="search-field" style={{ minWidth: 220 }}>
+          <label className="search-field" style={{ minWidth: 260 }}>
             <Search size={16} />
-            <input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث برقم الفاتورة أو التاريخ" maxLength={120} />
+            <input value={search} onChange={event => setSearch(event.target.value)}
+              placeholder="رقم الفاتورة أو التاريخ أو المبلغ أو العملة" maxLength={120}
+              aria-label="البحث في سجل الدفعات" />
           </label>
         </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap", marginTop: 14 }}>
+          <label style={{ display: "grid", gap: 5, minWidth: 170 }}>
+            <span style={quiet}>من تاريخ الدفع</span>
+            <input type="date" value={paidFrom} max={paidThrough || undefined}
+              onChange={event => setPaidFrom(event.target.value)}
+              aria-label="من تاريخ الدفع" style={{ ...field, minHeight: 40 }} />
+          </label>
+          <label style={{ display: "grid", gap: 5, minWidth: 170 }}>
+            <span style={quiet}>إلى تاريخ الدفع</span>
+            <input type="date" value={paidThrough} min={paidFrom || undefined}
+              onChange={event => setPaidThrough(event.target.value)}
+              aria-label="إلى تاريخ الدفع" style={{ ...field, minHeight: 40 }} />
+          </label>
+          <button type="button" style={secondary}
+            onClick={() => { setSearch(""); setPaidFrom(""); setPaidThrough(""); }}
+            disabled={!search.trim() && !paidFrom && !paidThrough}>مسح المرشحات</button>
+        </div>
+        {paymentFilter.error && <p role="alert" style={{ ...quiet, color: "#9b4e22", marginTop: 10 }}>{paymentFilter.error}</p>}
       </section>
       {loading ? (
         <p role="status">جارٍ تحميل الدفعات من دفتر الحساب...</p>
-      ) : !error && filtered.length === 0 ? (
-        <EmptyBox>{search ? "لا توجد دفعات تطابق البحث." : "لا توجد دفعات مسجلة ضمن تفاصيل القراءة الحالية."}</EmptyBox>
-      ) : !error ? (
+      ) : !error && !paymentFilter.error && filtered.length === 0 ? (
+        <EmptyBox>{paymentFilter.active ? "لا توجد دفعات تطابق المرشحات الحالية." : "لا توجد دفعات مسجلة ضمن تفاصيل القراءة الحالية."}</EmptyBox>
+      ) : !error && !paymentFilter.error ? (
         <section style={{ ...card, padding: 0, overflowX: "auto" }}>
           <table style={tableStyle}>
             <thead>
