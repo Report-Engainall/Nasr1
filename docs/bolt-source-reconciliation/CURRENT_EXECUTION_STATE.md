@@ -6072,3 +6072,18 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - P2-owned follow-up: repair the test fixture/assertion to derive a deterministic expected stock baseline after preceding transaction tests, not to mutate balances merely to satisfy a constant. P3 did not edit P2-owned `e2e/**` files.
 - The prior precedence prerequisite is satisfied for the matrix leaf. Next active P3 action is now `AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001`. Preserve the six existing roles and all current assignments; no automatic user-role conversion; no broad grants. Wider DLV-002 stays OPEN.
 - Confirmed server field-exposure source issue remains queued: `fetch_staff_products(uuid)` returns `SETOF public.products` via `SELECT p.*` to staff, and the staff base-price resolver branch returns `base_price`; actual network JSON key-absence tests remain NOT RUN.
+
+
+---
+
+## P3 CHECKPOINT — AUTHORIZATION CAPABILITY CATALOG / LEGACY PARITY — 2026-11-16
+
+- Base main SHA: `3f9cc665002ae2c3eea8b3a2dd77d32abc5c399b`.
+- Exact implementation and test SHA: `8d45dc7ae3b58445a2064540679d53d176e25929`.
+- Added `src/lib/admin-capability-catalog.ts`: versioned `legacy-role-parity-v1` reference catalog. It maps every current `ADMIN_OPERATION_RULES` item to one typed resource/action/sensitivity descriptor while taking labels, limits and allowed roles directly from the existing policy source. It also exposes immutable page/operation snapshots for the six existing roles and explicit default-deny responses for unknown role/page/capability identifiers.
+- Added `src/lib/admin-capability-catalog.test.ts`: six tests verify exact six-role identity, unique and exhaustive operation mapping, role allow-list parity, page snapshot parity, navigation group parity, unknown-input denial and explicit reference-only authority.
+- Updated `.github/workflows/p1-admin-context-verification.yml` push/PR path filters and `tsconfig.p1-typecheck.json` so the catalog and its tests are in the P1 acceptance scope.
+- Exact P1 workflow [43781738666](https://github.com/Report-Engainall/Nasr1/actions/runs/43781738666): **SUCCESS** on exact SHA `8d45dc7ae3b58445a2064540679d53d176e25929`. Vitest **128/128 test files; 932/932 tests** (including the six new catalog parity tests), strict TypeScript **SUCCESS**, production build **SUCCESS**.
+- Scope boundary: this is a source-level legacy parity baseline only. It is deliberately marked `legacy-ui-reference-only`; it does not authorize requests or replace route guards, RPC checks, PostgreSQL permissions or RLS. No role IDs, user assignments, grants, SQL/RPC/RLS, migrations, Auth settings, customer data, finance, inventory, production resources or deployment were changed.
+- Confirmed next security gap: the existing `fetch_staff_products(uuid)` source returns `SETOF public.products` via `SELECT p.*` to staff, while the browser only hides the base-price column. The actual network field projection remains unproven and must be corrected server-side; no frontend-only masking or null placeholder is acceptable.
+- **NEXT_ACTION_ID:** `AUTHZ-STAFF-PRODUCT-PROJECTION-001` — implement a strict role-specific server projection and resolver denial, preserving current admin/manager behavior; then prove actual JSON key absence, same-tenant allow and unauthorized/foreign-scope deny on isolated PostgreSQL 17/Chromium. Keep all six legacy role grants unchanged until separate parity evidence authorizes a migration.
