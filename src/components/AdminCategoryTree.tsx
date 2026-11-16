@@ -343,7 +343,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
                       <button
                         type="button"
                         className="admin-category-link"
-                        aria-label={`الانتقال إلى التصنيف ${item.name}`}
+                        aria-label={`الانتقال إلى ${item.name}`}
                         onClick={() => selectCategory(item.id)}
                       >
                         {item.name}
