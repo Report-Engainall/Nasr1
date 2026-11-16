@@ -87,7 +87,7 @@ function workbookSheets(input: CustomerPaymentHistoryWorkbookInput): Sheet[] {
     ["عدد الحركات المصدرة", input.payments.length],
     ["إجمالي الحركات المحملة في الصفحة", input.loadedCount],
     ["حركات بلا تفاصيل فاتورة مرتبطة", hiddenAmountCount],
-    ["التصفية", input.searchFiltered ? "التصدير يطابق نتائج البحث الحالية" : "لم يطبق بحث على القائمة الحالية"],
+    ["التصفية", input.searchFiltered ? "التصدير يطابق المرشحات الحالية" : "لم تطبق مرشحات على القائمة الحالية"],
     ["حدود السجل", input.detailMayBePartial
       ? "تفاصيل القراءة محدودة بآخر 500 دفعة و200 فاتورة؛ قد توجد حركات أقدم خارج الملف."
       : "الملف يعكس الحركات التي أعادها مصدر كشف الحساب ضمن حدود القراءة الحالية."],
