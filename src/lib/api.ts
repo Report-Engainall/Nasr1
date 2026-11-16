@@ -1361,6 +1361,7 @@ export async function fetchAdminOrdersPage(input: {
   page: number;
   search?: string;
   status?: string;
+  sort?: string;
 }): Promise<AdminOrderPage> {
   const page = input.page;
   const pageSize = ADMIN_ORDER_PAGE_SIZE;

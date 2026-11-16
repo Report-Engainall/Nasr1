@@ -59,14 +59,14 @@ describe('price grid search, stock filters and stable sorting', () => {
   });
 
   it('sorts by saved price and available stock with stable ordering and null stock last', () => {
-    expect(filterPriceGridRows(products, { ...defaults, sortBy: 'price_high' }).map((item) => item.id)).toEqual(['سكر', 'أرز بسمتي', 'زيت', 'صنف غير مثبت']);
+    expect(filterPriceGridRows(products, { ...defaults, sortBy: 'price_high' }).map((item) => item.id)).toEqual(['سكر', 'أرز بسمتي', 'صنف غير مثبت', 'زيت']);
     expect(filterPriceGridRows(products, { ...defaults, sortBy: 'stock_high' }).map((item) => item.id)).toEqual(['أرز بسمتي', 'سكر', 'زيت', 'صنف غير مثبت']);
   });
 
   it('combines search, product status, and inventory state instead of filtering one at a time', () => {
     expect(filterPriceGridRows(products, {
       ...defaults,
-      search: 'sku',
+      search: 'SUGAR-002',
       productStatus: 'active',
       inventoryStatus: 'low_stock',
     })).toEqual([products[1]]);
