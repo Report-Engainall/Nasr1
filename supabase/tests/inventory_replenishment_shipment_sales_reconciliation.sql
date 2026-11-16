@@ -22,6 +22,8 @@ CREATE TABLE public.purchase_orders(id uuid PRIMARY KEY,organization_id uuid NOT
 CREATE TABLE public.purchase_order_items(id uuid PRIMARY KEY,organization_id uuid NOT NULL,purchase_order_id uuid NOT NULL,product_id uuid NOT NULL,unit_snapshot text NOT NULL,quantity_ordered numeric(18,3) NOT NULL,quantity_received numeric(18,3) NOT NULL,created_at timestamptz NOT NULL);
 CREATE TABLE public.purchase_receipts(id uuid PRIMARY KEY,organization_id uuid NOT NULL,purchase_order_id uuid NOT NULL,received_at timestamptz NOT NULL);
 CREATE TABLE public.purchase_receipt_items(id uuid PRIMARY KEY,organization_id uuid NOT NULL,receipt_id uuid NOT NULL,product_id uuid NOT NULL,quantity_received numeric(18,3) NOT NULL);
+CREATE TABLE public.product_unit_conversions(organization_id uuid NOT NULL,product_id uuid NOT NULL,unit_name text NOT NULL,base_units_per_unit integer NOT NULL);
+CREATE UNIQUE INDEX product_unit_conversions_test_unit_unique ON public.product_unit_conversions(organization_id,product_id,pg_catalog.lower(unit_name));
 
 CREATE OR REPLACE FUNCTION auth.uid()
 RETURNS uuid LANGUAGE sql STABLE SET search_path=''
@@ -48,6 +50,7 @@ INSERT INTO public.profiles VALUES
 INSERT INTO public.user_roles VALUES('22222222-2222-4222-8222-222222222222','admin');
 
 \ir ../migrations/20261111233835_inventory_replenishment_shipment_sales_reconciliation.sql
+\ir ../migrations/20261117150000_inventory_replenishment_open_po_unit_normalization.sql
 
 INSERT INTO public.warehouses(id,organization_id,is_active) VALUES
  ('44444444-4444-4444-8444-444444444444','11111111-1111-4111-8111-111111111111',true),
@@ -55,6 +58,8 @@ INSERT INTO public.warehouses(id,organization_id,is_active) VALUES
 INSERT INTO public.products(id,organization_id,status,item_code,unit) VALUES
  ('55555555-5555-4555-8555-555555555555','11111111-1111-4111-8111-111111111111','active','SKU-001','EA'),
  ('55555555-5555-4555-8555-555555555556','12121212-1212-4121-8121-121212121212','active','FOREIGN-001','EA');
+INSERT INTO public.product_unit_conversions(organization_id,product_id,unit_name,base_units_per_unit) VALUES
+ ('11111111-1111-4111-8111-111111111111','55555555-5555-4555-8555-555555555555','CASE',12);
 INSERT INTO public.inventory_balances(product_id,warehouse_id,quantity_available,reorder_point,updated_at)
 VALUES('55555555-5555-4555-8555-555555555555','44444444-4444-4444-8444-444444444444',5,20,now()-interval '2 days');
 
@@ -69,12 +74,14 @@ INSERT INTO public.purchase_orders(id,organization_id,status,submitted_at,update
  ('88888888-8888-4888-8888-888888888888','11111111-1111-4111-8111-111111111111','partially_received',now()-interval '15 days',now()-interval '5 days'),
  ('88888888-8888-4888-8888-888888888889','11111111-1111-4111-8111-111111111111','draft',NULL,now()-interval '2 days'),
  ('88888888-8888-4888-8888-888888888890','11111111-1111-4111-8111-111111111111','cancelled',now()-interval '10 days',now()-interval '9 days'),
- ('88888888-8888-4888-8888-888888888891','11111111-1111-4111-8111-111111111111','submitted',now()-interval '10 days',now()-interval '4 days');
+ ('88888888-8888-4888-8888-888888888891','11111111-1111-4111-8111-111111111111','submitted',now()-interval '10 days',now()-interval '4 days'),
+ ('88888888-8888-4888-8888-888888888892','11111111-1111-4111-8111-111111111111','partially_received',now()-interval '12 days',now()-interval '2 days');
 INSERT INTO public.purchase_order_items(id,organization_id,purchase_order_id,product_id,unit_snapshot,quantity_ordered,quantity_received,created_at) VALUES
  ('99999999-9999-4999-8999-999999999991','11111111-1111-4111-8111-111111111111','88888888-8888-4888-8888-888888888888','55555555-5555-4555-8555-555555555555','EA',15,5,now()-interval '15 days'),
  ('99999999-9999-4999-8999-999999999992','11111111-1111-4111-8111-111111111111','88888888-8888-4888-8888-888888888889','55555555-5555-4555-8555-555555555555','EA',100,0,now()-interval '2 days'),
  ('99999999-9999-4999-8999-999999999993','11111111-1111-4111-8111-111111111111','88888888-8888-4888-8888-888888888890','55555555-5555-4555-8555-555555555555','EA',50,0,now()-interval '10 days'),
- ('99999999-9999-4999-8999-999999999994','11111111-1111-4111-8111-111111111111','88888888-8888-4888-8888-888888888891','55555555-5555-4555-8555-555555555555','EA',5,5,now()-interval '10 days');
+ ('99999999-9999-4999-8999-999999999994','11111111-1111-4111-8111-111111111111','88888888-8888-4888-8888-888888888891','55555555-5555-4555-8555-555555555555','EA',5,5,now()-interval '10 days'),
+ ('99999999-9999-4999-8999-999999999995','11111111-1111-4111-8111-111111111111','88888888-8888-4888-8888-888888888892','55555555-5555-4555-8555-555555555555','CASE',3,1,now()-interval '12 days');
 INSERT INTO public.purchase_receipts(id,organization_id,purchase_order_id,received_at)
 VALUES('AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA','11111111-1111-4111-8111-111111111111','88888888-8888-4888-8888-888888888888',now()-interval '5 days');
 INSERT INTO public.purchase_receipt_items(id,organization_id,receipt_id,product_id,quantity_received)
@@ -104,9 +111,10 @@ BEGIN
      OR v_metric->'soldQuantityWindow'->>'status'<>'VERIFIED' THEN
     RAISE EXCEPTION 'shipment movement timestamp must count an older-created shipped order in the 91-day sales window: %',v_metric;
   END IF;
-  IF (v_metric->'incomingPurchaseQuantity'->>'value')::numeric<>10
-     OR v_metric->'incomingPurchaseQuantity'->>'status'<>'VERIFIED' THEN
-    RAISE EXCEPTION 'only the submitted/partially received matching-UOM remainder must count: %',v_metric->'incomingPurchaseQuantity';
+  IF (v_metric->'incomingPurchaseQuantity'->>'value')::numeric<>34
+     OR v_metric->'incomingPurchaseQuantity'->>'status'<>'VERIFIED'
+     OR v_metric->'incomingPurchaseQuantity'->'lineage'->>'formulaVersion'<>'2' THEN
+    RAISE EXCEPTION '10 EA plus the remaining 2 CASE converted at 12 EA per CASE must equal 34 EA: %',v_metric->'incomingPurchaseQuantity';
   END IF;
   IF (v_metric->'supplierLeadTimeDays'->>'value')::numeric<>10
      OR v_metric->'supplierLeadTimeDays'->>'status'<>'VERIFIED' THEN
@@ -154,11 +162,11 @@ BEGIN
   INSERT INTO public.purchase_orders(id,organization_id,status,submitted_at,updated_at)
   VALUES('EEEEEEEE-EEEE-4EEE-8EEE-EEEEEEEEEEEE','11111111-1111-4111-8111-111111111111','submitted',now()-interval '5 days',now()-interval '1 day');
   INSERT INTO public.purchase_order_items(id,organization_id,purchase_order_id,product_id,unit_snapshot,quantity_ordered,quantity_received,created_at)
-  VALUES('EEEEEEEE-EEEE-4EEE-8EEE-EEEEEEEEEEEF','11111111-1111-4111-8111-111111111111','EEEEEEEE-EEEE-4EEE-8EEE-EEEEEEEEEEEE','55555555-5555-4555-8555-555555555555','CASE',3,0,now()-interval '5 days');
+  VALUES('EEEEEEEE-EEEE-4EEE-8EEE-EEEEEEEEEEEF','11111111-1111-4111-8111-111111111111','EEEEEEEE-EEEE-4EEE-8EEE-EEEEEEEEEEEE','55555555-5555-4555-8555-555555555555','BOX',3,0,now()-interval '5 days');
   v_result:=public.get_inventory_intelligence_aggregate(v_from,v_to,v_as_of);
   v_metric:=v_result->'replenishmentProducts'->0->'incomingPurchaseQuantity';
   IF v_metric->>'status'<>'NEEDS_REVIEW' OR v_metric->'value'<>'null'::jsonb THEN
-    RAISE EXCEPTION 'incoming quantity with UOM mismatch must be withheld: %',v_metric;
+    RAISE EXCEPTION 'incoming quantity with an unknown unit conversion must be withheld: %',v_metric;
   END IF;
 
   -- Unknown/foreign identities are rejected, not silently scoped to an arbitrary profile.
