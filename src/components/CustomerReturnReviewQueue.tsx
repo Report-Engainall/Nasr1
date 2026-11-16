@@ -131,9 +131,9 @@ export function CustomerReturnReviewQueue({ onNotice }: { onNotice: (message: st
     try {
       const result = await fetchCustomerReturnReviewPage({ search: appliedQuery, status: appliedStatus }, cursor);
       if (generation !== requestGeneration.current) return;
-      if (pageIndex > 0 && result.items.length === 0 && result.totalCount > 0) {
-        cursorStack.current = cursorStack.current.slice(0, pageIndex);
-        setPageIndex((current) => Math.max(0, current - 1));
+      if (pageIndex > 0 && result.items.length === 0) {
+        cursorStack.current = result.totalCount > 0 ? cursorStack.current.slice(0, pageIndex) : [null];
+        setPageIndex((current) => Math.max(0, result.totalCount > 0 ? current - 1 : 0));
         return;
       }
       setPage(result);
