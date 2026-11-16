@@ -38,3 +38,14 @@ No fix is claimed yet; this work remains open and must not be hidden with a fron
 - Require both public smoke and local authenticated access-matrix step to complete successfully before advancing the precedence marker.
 - Then start `AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001` without reassigning existing users or widening any permission.
 - Status labels: existing test sources `IMPLEMENTED` / `INTEGRATED`; public UI `TESTED_EXACT_SHA` / `BROWSER_PROVEN`; local admin matrix `NOT RUN`; field-level redaction `NOT IMPLEMENTED`; hosted E2E `BLOCKED_EXTERNAL`.
+
+
+## Updated execution outcome — P2 matrix browser leaf completed — 2026-11-16
+
+- P2 run `43779939064` tested app SHA `1727b5b0a8f5dac1487a76617f447480ff2c2c9f`.
+- Public UI smoke: `SUCCESS`.
+- Authenticated local Supabase/PostgreSQL 17 access matrix: step #42 `SUCCESS`, 2026-11-16 00:33:11–00:33:28 UTC. Source test blob `7da849196d7b2310ce1f033287c0dc2e5bb1dd20`. It proves admin access, manager denial of the role tab/matrix, six canonical legacy roles and full matrix cells, keyboard navigation, 360px/1280px layout and no settings/permission/production writes. Status: `TESTED_EXACT_SHA` / `BROWSER_PROVEN`.
+- Same run's local job ultimately failed at step #43, not step #42: `e2e/admin-category-tree.spec.ts:222` expected fixture stock `100` but actual local on-hand quantity was `105`. The log explicitly shows expected `100`, received `105`. Therefore the matrix leaf is browser-accepted, but the overall P2 run and category-tree/overall proof-verifier are `FAILURE / NOT RUN`; AI prompt gate and final proof verifier were skipped.
+- Before step #43, local PostgreSQL 17 migrations, DB/RPC/storage/security checks, order tenant-isolation Chromium, stock-count and purchase XLSX, checkout replay, returns/credit memo, Onyx export, finance/task print, customer-manager authorization/privacy/audit, device-session revocation and four-tier manager price editor were all successful on the same source SHA.
+- P2 must repair the deterministic test fixture/baseline for stock quantity and rerun the affected acceptance. Do not modify stock data or loosen authorization to make the assertion pass. P3 did not alter P2-owned tests.
+- Precedence marker is now unlocked for the capability catalog because the required public and authenticated admin/denied-role matrix checks passed. Next action: `AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001`. The wider route-based DLV-002 acceptance stays open.
