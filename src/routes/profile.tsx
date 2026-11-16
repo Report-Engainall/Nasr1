@@ -307,7 +307,7 @@ function RecentlyViewedProductsPanel({ profileId }: { profileId: string }) {
 }
 
 export function CustomerAccountProfilePage() {
-  const { user, ready, sessionRevision, signOutOtherSessions, signOutEverywhere } = useAuth();
+  const { user, ready, sessionRevision, signOut, signOutOtherSessions, signOutEverywhere } = useAuth();
   if (!ready) return <main className="storefront" dir="rtl" role="status">جار التحقق من الحساب...</main>;
   if (!user) return <Login />;
 
@@ -317,6 +317,7 @@ export function CustomerAccountProfilePage() {
     <CustomerAccountProfileContent
       key={user.id + ":" + user.profileId + ":" + sessionRevision}
       user={user}
+      signOut={signOut}
       signOutOtherSessions={signOutOtherSessions}
       signOutEverywhere={signOutEverywhere}
     />
@@ -325,19 +326,34 @@ export function CustomerAccountProfilePage() {
 
 type CustomerAccountProfileContentProps = {
   user: NonNullable<ReturnType<typeof useAuth>["user"]>;
+  signOut: () => Promise<void>;
   signOutOtherSessions: () => Promise<void>;
   signOutEverywhere: () => Promise<void>;
 };
 
 function CustomerAccountProfileContent({
   user,
+  signOut,
   signOutOtherSessions,
   signOutEverywhere,
 }: CustomerAccountProfileContentProps) {
   const profileAccessMode = resolveProfileAccessMode(user);
-  const [sessionAction, setSessionAction] = useState<"others" | "global" | null>(null);
+  const [sessionAction, setSessionAction] = useState<"current" | "others" | "global" | null>(null);
   const [sessionError, setSessionError] = useState("");
   const [sessionNotice, setSessionNotice] = useState("");
+
+  async function signOutCurrentDevice() {
+    if (sessionAction) return;
+    setSessionAction("current");
+    setSessionError("");
+    setSessionNotice("");
+    try {
+      await signOut();
+    } catch (cause) {
+      setSessionError(cause instanceof Error ? cause.message : "تعذر تسجيل الخروج من هذا الجهاز.");
+      setSessionAction(null);
+    }
+  }
 
   async function revokeOtherSessions() {
     if (sessionAction) return;
@@ -467,6 +483,15 @@ function CustomerAccountProfileContent({
         {sessionError ? <p role="alert" className="mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{sessionError}</p> : null}
         {sessionNotice ? <p role="status" className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{sessionNotice}</p> : null}
         <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => void signOutCurrentDevice()}
+            disabled={sessionAction !== null}
+          >
+            <LogOut size={16}/>
+            {sessionAction === "current" ? "جارٍ تسجيل الخروج من هذا الجهاز..." : "تسجيل الخروج من هذا الجهاز"}
+          </button>
           <button
             type="button"
             className="btn secondary"
