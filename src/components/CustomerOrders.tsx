@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
+import { ArrowRight, Download, FileText, ListOrdered, Package, Printer, RefreshCw, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
@@ -10,7 +10,7 @@ import { ORDER_STATUS_LABELS, type Order, type OrderItem } from '@/lib/types';
 import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
 import { downloadCustomerOrderWorkbookXlsx } from '@/lib/customer-order-xlsx';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
-import { WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { getOrCreateBoundIdempotencyKey, type BoundIdempotencyKey } from '@/lib/bound-idempotency-key';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
@@ -435,6 +435,7 @@ function MyOrdersInner() {
   return (
     <Shell>
       <WorkspaceSectionHeader eyebrow="حساب العميل" title="طلباتي" description="كل الطلبات المرسلة من حسابك وحالتها الحالية." icon={Package} />
+      <WorkspaceSectionGroup icon={Search} title="البحث وتصنيف الطلبات" description="ابحث برقم الطلب أو ضيّق سجل طلباتك حسب الحالة." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
       <MyOrdersSearch
         value={searchDraft}
         disabled={loading}
@@ -463,6 +464,8 @@ function MyOrdersInner() {
           setStatusFilter(value);
         }}
       />
+      </WorkspaceSectionGroup>
+      <WorkspaceSectionGroup icon={ListOrdered} title="سجل طلباتي" description="الطلبات المحفوظة على حسابك، تفاصيلها، وحالتها الحالية." className="workspace-domain-group" contentClassName="workspace-domain-group__report-content">
       <MyOrdersResults
         data={data}
         loading={loading}
@@ -478,6 +481,7 @@ function MyOrdersInner() {
           setPage(nextPage);
         }}
       />
+      </WorkspaceSectionGroup>
     </Shell>
   );
 }
