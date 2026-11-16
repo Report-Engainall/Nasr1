@@ -100,6 +100,18 @@ describe("observability architecture route is not duplicated in general settings
       if (functionName === "list_authorization_profile_scopes") {
         return { data: [], error: null };
       }
+      if (functionName === "list_authorization_capability_registry") {
+        return {
+          data: [{
+            capability_key: "inventory.balance.adjust",
+            domain: "inventory",
+            scope_kind: "warehouse",
+            sensitivity: "inventory",
+            is_active: true,
+          }],
+          error: null,
+        };
+      }
       return { data: null, error: { message: "Unexpected RPC: " + functionName } };
     });
 
@@ -116,6 +128,10 @@ describe("observability architecture route is not duplicated in general settings
     const scopeButton = managerControls.getByRole("button", { name: "إدارة نطاقات الوصول" });
     expect(scopeButton).toBeEnabled();
     expect(managerControls.getByRole("button", { name: "إدارة المنع الصريح للقدرات" })).toBeEnabled();
+    const simulatorButton = managerControls.getByRole("button", { name: "محاكاة قرار الصلاحية" });
+    expect(simulatorButton).toBeEnabled();
+    fireEvent.click(simulatorButton);
+    expect(await managerControls.findByRole("button", { name: "تقييم القرار" })).toBeEnabled();
     fireEvent.click(scopeButton);
     const scopeType = await screen.findByRole("combobox", { name: "نوع نطاق الوصول لـ موظف المخزن" });
     expect(within(scopeType).getByRole("option", { name: "عميل مسند" })).toBeInTheDocument();
