@@ -1,3 +1,4 @@
+import { WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
@@ -968,7 +969,22 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             )}
 
             <section className="sf-products">
-              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
+              <WorkspaceSectionHeader
+                eyebrow="كتالوج متجر الأغبري"
+                title="المنتجات"
+                description={productsLoading && !products.length
+                  ? 'جار تحميل الكتالوج...'
+                  : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}
+                icon={Package}
+                className="sf-products-heading"
+                actions={
+                  <div className="sf-discovery-links">
+                    <button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button>
+                    <button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button>
+                    <button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button>
+                  </div>
+                }
+              />
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
                 : productsError && !products.length
