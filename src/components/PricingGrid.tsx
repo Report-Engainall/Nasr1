@@ -334,7 +334,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
       <span className="price-grid-filter-count" role="status">{visibleRows.length} من {rows.length} صنفًا</span>
       <button type="button" className="btn outline" onClick={() => void refetch()} disabled={loading || busy} aria-label="تحديث شبكة الأسعار والمخزون"><RefreshCw size={15} /> تحديث</button>
     </div>
-    {formError && <p className="price-grid-error" role="alert">{formError}</p>
+    {formError && <p className="price-grid-error" role="alert">{formError}</p>}
     {preview && <PriceGridPreview preview={preview} />}
     <PriceGridResults
       loading={loading}
