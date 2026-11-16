@@ -1103,3 +1103,71 @@ test("mobile storefront exposes predictive product search in an accessible dialo
   await expect(trigger).toBeFocused();
   expect(pageErrors).toEqual([]);
 });
+
+
+test("storefront product cards use two columns only when mobile width allows it", async ({ page }) => {
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+  await page.goto("/");
+  await expect(page.locator(".sf-header")).toBeVisible();
+
+  const measureGrid = () => page.evaluate(() => {
+    const grid = document.createElement("div");
+    grid.className = "sf-product-grid";
+    grid.setAttribute("data-responsive-grid-acceptance", "true");
+
+    for (let index = 0; index < 4; index += 1) {
+      const card = document.createElement("article");
+      card.className = "sf-product-card";
+
+      const media = document.createElement("div");
+      media.className = "sf-product-media";
+      const image = document.createElement("div");
+      image.className = "sf-product-img";
+      image.textContent = "صورة المنتج";
+      media.append(image);
+
+      const body = document.createElement("div");
+      body.className = "sf-product-body";
+      const title = document.createElement("h3");
+      title.textContent = "زيت نباتي غذائي عالي الجودة عبوة كبيرة";
+      const metadata = document.createElement("p");
+      metadata.textContent = "مواد غذائية بالجملة · SKU-123456";
+      body.append(title, metadata);
+
+      const add = document.createElement("button");
+      add.className = "sf-add-btn";
+      add.textContent = "إضافة إلى السلة";
+      card.append(media, body, add);
+      grid.append(card);
+    }
+
+    document.body.append(grid);
+    const cards = Array.from(grid.children) as HTMLElement[];
+    const firstTop = cards[0]?.getBoundingClientRect().top ?? 0;
+    const firstRowCount = cards.filter((card) =>
+      Math.abs(card.getBoundingClientRect().top - firstTop) < 1,
+    ).length;
+    const overflowingCardBody = cards.some((card) => {
+      const body = card.querySelector<HTMLElement>(".sf-product-body");
+      return Boolean(body && body.scrollWidth > body.clientWidth + 1);
+    });
+    const result = {
+      firstRowCount,
+      gridOverflow: grid.scrollWidth > grid.clientWidth + 1,
+      overflowingCardBody,
+      gridWidth: grid.clientWidth,
+    };
+    grid.remove();
+    return result;
+  });
+
+  for (const [width, expectedColumns] of [[320, 1], [360, 2], [390, 2], [480, 2]] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    const result = await measureGrid();
+    expect(result.firstRowCount, `Expected ${expectedColumns} product column(s) at ${width}px.`).toBe(expectedColumns);
+    expect(result.gridOverflow, `Product grid must not overflow at ${width}px.`).toBe(false);
+    expect(result.overflowingCardBody, `Product details must not overflow their cards at ${width}px.`).toBe(false);
+  }
+});
