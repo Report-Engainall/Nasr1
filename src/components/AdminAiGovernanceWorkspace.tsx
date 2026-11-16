@@ -57,13 +57,6 @@ export function AdminAiGovernanceWorkspace({ onNotice }: Props) {
 
   return (
     <section dir="rtl" className="space-y-4" aria-label="مساحات مركز الذكاء">
-      <header className="space-y-1">
-        <h1 className="text-xl font-bold">مركز الذكاء</h1>
-        <p className="text-sm text-muted-foreground">
-          مساحة موحدة للتشغيل وحوكمة الأوامر وتدقيق الاستخدام، مع إبقاء الصلاحيات لدى الخادم.
-        </p>
-      </header>
-
       <div
         role="tablist"
         aria-label="أقسام مركز الذكاء"
