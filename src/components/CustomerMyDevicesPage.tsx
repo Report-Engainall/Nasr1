@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { supabase } from "@/lib/supabase";
 
 type AssetStatus =
@@ -265,25 +266,15 @@ function CustomerMyDevicesWorkspace() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 lg:px-8" dir="rtl">
-      <header className="rounded-2xl border bg-card p-5 sm:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="rounded-xl bg-primary/10 p-3 text-primary"><Laptop size={25} /></span>
-            <div>
-              <h1 className="text-2xl font-bold">أجهزتي وأصولي</h1>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                سجل أجهزتك المرتبطة بحسابك، مع مصادر الشراء والضمان والتغطية وسجل الصيانة والملكية.
-                هذه الصفحة للعرض فقط؛ تتم طلبات التسجيل والتعديل ونقل الملكية عبر إدارة المتجر.
-              </p>
-            </div>
-          </div>
-          <button type="button" className="btn secondary inline-flex items-center gap-2" onClick={() => void load()} disabled={loading}>
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            {loading ? "جار التحديث..." : "تحديث السجل"}
-          </button>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+      <WorkspaceSectionHeader
+        eyebrow="حساب العميل"
+        title="أجهزتي وأصولي"
+        description="سجل أجهزتك المرتبطة بحسابك، مع مصادر الشراء والضمان والتغطية وسجل الصيانة والملكية. هذه الصفحة للعرض فقط؛ تتم طلبات التسجيل والتعديل ونقل الملكية عبر إدارة المتجر."
+        icon={Laptop}
+        actions={<button type="button" className="btn secondary inline-flex items-center gap-2" onClick={() => void load()} disabled={loading}><RefreshCw size={16} className={loading ? "animate-spin" : ""} />{loading ? "جار التحديث..." : "تحديث السجل"}</button>}
+      />
+      <WorkspaceSectionGroup icon={Search} title="البحث والتصفية" description="اعثر على الأصل المرتبط بحسابك حسب الاسم أو الشركة أو الموديل أو الرقم التسلسلي وحالته." className="customer-assets-filter-group" contentClassName="customer-assets-filter-group__content">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
           <label className="relative block">
             <span className="sr-only">البحث في أجهزتي</span>
             <Search size={17} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -311,7 +302,7 @@ function CustomerMyDevicesWorkspace() {
           <span>{filteredAssets.length} جهاز ظاهر من أصل {assets.length}</span>
           <span className="inline-flex items-center gap-1"><ShieldCheck size={14} /> بيانات الحساب تُحدد بواسطة صلاحيات الخادم</span>
         </div>
-      </header>
+      </WorkspaceSectionGroup>
 
       {error ? (
         <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive" role="alert">
