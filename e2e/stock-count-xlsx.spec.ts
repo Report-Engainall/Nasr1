@@ -30,6 +30,16 @@ async function signIn(page: Page, email: string, password: string) {
   expect(authenticated, "A persisted Supabase session is required before opening the warehouse workspace.").toBe(true);
 }
 
+function normalizeLocalizedQuantity(value: string): number {
+  const western = value
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٬,]/g, "")
+    .replace(/[٫]/g, ".")
+    .trim();
+  return Number(western);
+}
+
 /** Read one stored OOXML ZIP member so the downloaded browser artifact is tested. */
 function readStoredZipEntry(input: Uint8Array, targetPath: string): string {
   const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
@@ -70,6 +80,8 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       await signIn(manager, managerEmail, managerPassword);
       await manager.goto("/admin/stock-count");
       await expect(manager.getByRole("heading", { name: "الجرد الفعلي" })).toBeVisible();
+      await expect(manager.getByText("لا يتوفر لهذا الحساب نطاق نشط لتسوية أرصدة هذا المستودع. اطلب من مسؤول المؤسسة تعيين المستودع ضمن صلاحيات الحساب.")).toBeVisible();
+      await expect(manager.getByRole("region", { name: "تسوية رصيد صنف مستقل" })).toHaveCount(0);
       await expect(manager.getByRole("heading", { name: "لا توجد جلسة جرد مفتوحة" })).toBeVisible();
       await manager.getByPlaceholder("سبب الجرد أو رقم محضر العد").fill(sessionNote);
       await manager.getByRole("button", { name: "بدء جلسة جرد فعلية", exact: true }).click();
@@ -80,8 +92,10 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       const firstRow = rows.first();
       const itemCode = (await firstRow.locator("td").nth(0).innerText()).trim();
       const itemName = (await firstRow.locator("td").nth(1).innerText()).trim();
-      expect(itemCode).not.toBe("");
-      expect(itemName).not.toBe("");
+      const expectedQuantityText = (await firstRow.locator("td").nth(3).innerText()).trim();
+      expect(itemCode).toBe("P2-LOCAL-E2E-001");
+      expect(itemName).toBe("P2 Local E2E Product");
+      expect(normalizeLocalizedQuantity(expectedQuantityText)).toBe(100);
       await firstRow.locator('input[type="number"]').fill("99");
       await firstRow.getByRole("button", { name: "حفظ العد", exact: true }).click();
       await expect(manager.getByRole("status")).toContainText("تم حفظ عدّ " + itemName, { timeout: 20_000 });

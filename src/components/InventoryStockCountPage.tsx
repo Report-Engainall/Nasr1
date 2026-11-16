@@ -4,6 +4,7 @@ import { cancelStockCount, completeStockCount, fetchActiveInventoryWarehouses, f
 import type { ActiveInventoryWarehouse, InventoryStockCountLine, InventoryStockCountSession } from '@/lib/api';
 import { downloadStockCountWorkbookXlsx } from '@/lib/stock-count-xlsx';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { projectStockCountPrintDocument } from '@/lib/stock-count-print';
 import { InventoryBalanceAdjustmentPanel } from '@/components/InventoryBalanceAdjustmentPanel';
 import { OpeningInventoryBaselineApprovalPanel } from '@/components/OpeningInventoryBaselineApprovalPanel';
@@ -71,6 +72,7 @@ function renderStockCountWarehouseOptions(warehouses: ActiveInventoryWarehouse[]
 export function InventoryStockCountPage() {
   const { user } = useAuth();
   const canFinalize = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const [adjustmentAccess, setAdjustmentAccess] = useState<'loading' | 'allowed' | 'denied' | 'unavailable'>('loading');
   const [warehouses, setWarehouses] = useState<ActiveInventoryWarehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
   const [session, setSession] = useState<InventoryStockCountSession | null>(null);
@@ -85,6 +87,32 @@ export function InventoryStockCountPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const beginRequestRef = useRef<{ signature: string; key: string } | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!canFinalize || !warehouseId) {
+      setAdjustmentAccess('denied');
+      return () => { active = false; };
+    }
+    setAdjustmentAccess('loading');
+    void supabase.rpc('current_authorization_decision', {
+      p_capability_key: 'inventory.balance.adjust',
+      p_resource_id: warehouseId,
+    }).then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        setAdjustmentAccess('unavailable');
+        return;
+      }
+      const decision = data && typeof data === 'object' && 'decision' in data
+        ? data.decision
+        : null;
+      setAdjustmentAccess(decision === 'PERMIT' ? 'allowed' : 'denied');
+    }).catch(() => {
+      if (active) setAdjustmentAccess('unavailable');
+    });
+    return () => { active = false; };
+  }, [canFinalize, warehouseId, user?.profileId]);
+
   useEffect(() => {
     let active = true;
     fetchActiveInventoryWarehouses().then((items) => {
@@ -232,7 +260,22 @@ export function InventoryStockCountPage() {
       </div>
       <p className="text-muted">لا تُنشأ أصناف أو أرصدة أو عمليات تاريخية تلقائيًا؛ تبدأ الجلسة من الأرصدة الموجودة في المستودع المحدد فقط.</p>
     </section>
-    {canFinalize && warehouseId && <InventoryBalanceAdjustmentPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />}
+    {canFinalize && warehouseId && (
+      adjustmentAccess === 'allowed' ? (
+        <InventoryBalanceAdjustmentPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />
+      ) : (
+        <section className="panel" aria-label="صلاحية تسوية رصيد الصنف">
+          <h2>تسوية رصيد صنف</h2>
+          {adjustmentAccess === 'loading' ? (
+            <p role="status">جار التحقق من نطاق صلاحية التسوية لهذا المستودع…</p>
+          ) : adjustmentAccess === 'denied' ? (
+            <p role="status">لا يتوفر لهذا الحساب نطاق نشط لتسوية أرصدة هذا المستودع. اطلب من مسؤول المؤسسة تعيين المستودع ضمن صلاحيات الحساب.</p>
+          ) : (
+            <p role="alert">تعذر التحقق من صلاحية التسوية من الخادم؛ لم تُحمّل بيانات الأرصدة.</p>
+          )}
+        </section>
+      )
+    )}
     {user?.roles.includes('admin') && warehouseId && <OpeningInventoryBaselineApprovalPanel warehouseId={warehouseId} warehouseName={warehouses.find((item) => item.id === warehouseId)?.name ?? '—'} />}
     {error && <div className="form-error" role="alert"><AlertTriangle size={16} /> {error}</div>}
     {notice && <div className="data-status success" role="status"><Check size={16} /> {notice}</div>}
