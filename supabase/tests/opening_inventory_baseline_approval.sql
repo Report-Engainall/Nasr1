@@ -195,6 +195,55 @@ BEGIN
 END;
 $admin_acceptance$;
 
+-- Exercise the authenticated database role: even an owner with the capability
+-- may create this immutable snapshot only through the approval RPC.
+SET ROLE authenticated;
+DO $direct_write_denial$
+DECLARE
+  v_approval_insert_denied boolean:=false;
+  v_line_insert_denied boolean:=false;
+BEGIN
+  BEGIN
+    INSERT INTO public.inventory_opening_balance_approvals(
+      organization_id,warehouse_id,source_batch_id,source_marker,status,
+      product_count,total_opening_quantity,approved_by
+    ) VALUES (
+      '11111111-1111-4111-8111-111111111111',
+      '55555555-5555-4555-8555-555555555555',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      'OWNER_AUTHORIZED_OPENING_ESTIMATE_PENDING_PHYSICAL_COUNT',
+      'approved_pending_physical_count',114,3235,
+      '22222222-2222-4222-8222-222222222222'
+    );
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_approval_insert_denied:=true;
+  END;
+
+  BEGIN
+    INSERT INTO public.inventory_opening_balance_approval_lines(
+      approval_id,organization_id,product_id,warehouse_id,opening_movement_id,
+      item_code_snapshot,product_name_snapshot,unit_snapshot,opening_quantity,
+      quantity_on_hand_at_approval,quantity_reserved_at_approval,
+      quantity_available_at_approval,opening_movement_created_at,opening_movement_reason
+    )
+    SELECT approval_id,organization_id,product_id,warehouse_id,opening_movement_id,
+           item_code_snapshot,product_name_snapshot,unit_snapshot,opening_quantity,
+           quantity_on_hand_at_approval,quantity_reserved_at_approval,
+           quantity_available_at_approval,opening_movement_created_at,opening_movement_reason
+      FROM public.inventory_opening_balance_approval_lines
+     ORDER BY item_code_snapshot
+     LIMIT 1;
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_line_insert_denied:=true;
+  END;
+
+  IF NOT v_approval_insert_denied OR NOT v_line_insert_denied THEN
+    RAISE EXCEPTION 'authenticated role bypassed the owner-only opening snapshot command';
+  END IF;
+END;
+$direct_write_denial$;
+RESET ROLE;
+
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333334',false);
 DO $manager_denial$
 DECLARE denied boolean:=false;
