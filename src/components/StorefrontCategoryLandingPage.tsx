@@ -3,7 +3,7 @@ import { ArrowLeft, ChevronLeft, Layers3, RefreshCw } from "lucide-react";
 import { Storefront } from "@/components/Storefront";
 import { fetchCategories } from "@/lib/api";
 import { resolveStorefrontCategorySlug, storefrontCategorySlug } from "@/lib/storefront-slugs";
-import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 import { useFetch } from "@/lib/useFetch";
 
 type StoreCategory = Awaited<ReturnType<typeof fetchCategories>>[number];
@@ -97,13 +97,13 @@ function SubcategoryList({
   const isBrowsingSiblings = Boolean(activeId);
 
   return (
-    <section
-      aria-label={isBrowsingSiblings ? "التصنيفات الشقيقة" : "التصنيفات الفرعية"}
-      style={{ marginBottom: 18 }}
+    <WorkspaceSectionGroup
+      icon={Layers3}
+      title={isBrowsingSiblings ? "تصفح فروع " + parent.name : "التصنيفات الفرعية"}
+      description={isBrowsingSiblings ? "انتقل بين التصنيفات الشقيقة ضمن القسم الأب نفسه." : "التصنيفات التابعة لهذا القسم كما وردت في كتالوج المؤسسة."}
+      className="storefront-subcategory-group"
+      contentClassName="storefront-subcategory-group__content"
     >
-      <h2 style={{ fontSize: 18, marginBottom: 10 }}>
-        {isBrowsingSiblings ? "تصفح فروع " + parent.name : "التصنيفات الفرعية"}
-      </h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,210px),1fr))", gap: 10 }}>
         {categories.map((category) => {
           const isCurrent = category.id === activeId;
@@ -138,7 +138,7 @@ function SubcategoryList({
           );
         })}
       </div>
-    </section>
+    </WorkspaceSectionGroup>
   );
 }
 
