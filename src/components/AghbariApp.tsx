@@ -2319,6 +2319,39 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
     () => fetchAdminOrdersPage({ page, search: debouncedSearch, status: statusFilter, sort: sortBy }),
     [page, debouncedSearch, statusFilter, sortBy],
   );
+  const automaticRefreshInFlight = useRef(false);
+  const refreshOrdersWhileActive = useCallback(async () => {
+    if (
+      loading ||
+      automaticRefreshInFlight.current ||
+      document.visibilityState !== 'visible' ||
+      !navigator.onLine
+    ) return;
+
+    automaticRefreshInFlight.current = true;
+    try {
+      await refetch();
+    } finally {
+      automaticRefreshInFlight.current = false;
+    }
+  }, [loading, refetch]);
+
+  useEffect(() => {
+    const refresh = () => { void refreshOrdersWhileActive(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const interval = window.setInterval(refresh, 45_000);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', refresh);
+    };
+  }, [refreshOrdersWhileActive]);
+
   const rows = data?.items ?? [];
 
   return <>
