@@ -1269,3 +1269,11 @@ button.workspace-section-group__heading { cursor: pointer; }
   .workspace-section-group__content.settings-body,
   .workspace-section-group__content.ai-gateway-group__content { padding: 12px; }
 }
+
+
+/* Inventory stock-count setup shares the workspace section system at desktop and mobile widths. */
+.workspace-section-group.stock-count-group { margin-bottom: 16px; }
+.workspace-section-group__content.stock-count-group__content { padding: 16px; }
+@media (max-width: 600px) {
+  .workspace-section-group__content.stock-count-group__content { padding: 12px; }
+}
