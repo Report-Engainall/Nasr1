@@ -84,9 +84,21 @@ describe("StorefrontProductQuestions", () => {
       moderationStatus: string;
       message: string;
     }>();
+    mocks.fetchMine.mockImplementation(() => mocks.user?.id === customer.id ? [{
+      id: "f1000000-0000-0000-0000-000000000001",
+      questionText: "سؤال خاص بالحساب السابق",
+      answerText: null,
+      status: "pending",
+      moderationNote: null,
+      verifiedPurchase: false,
+      createdAt: "2026-11-13T08:00:00.000Z",
+      updatedAt: "2026-11-13T08:00:00.000Z",
+      answeredAt: null,
+    }] : []);
     mocks.submit.mockReturnValueOnce(staleSubmission.promise);
     const { rerender } = render(<StorefrontProductQuestions productId={productId} />);
     const field = await screen.findByLabelText("سؤالك عن المنتج");
+    expect(await screen.findByText("سؤال خاص بالحساب السابق")).toBeInTheDocument();
     fireEvent.change(field, { target: { value: "هل يناسب الاستخدام اليومي؟" } });
     fireEvent.click(screen.getByRole("button", { name: "إرسال السؤال للمراجعة" }));
     await waitFor(() => expect(mocks.submit).toHaveBeenCalled());
@@ -97,7 +109,8 @@ describe("StorefrontProductQuestions", () => {
       profileId: "d1000000-0000-0000-0000-000000000002",
     };
     rerender(<StorefrontProductQuestions productId={productId} />);
-    expect(await screen.findByText("طرح الأسئلة متاح لحساب العميل المسجّل فقط.")).toBeInTheDocument();
+    expect(await screen.findByLabelText("سؤالك عن المنتج")).toHaveValue("");
+    expect(screen.queryByText("سؤال خاص بالحساب السابق")).not.toBeInTheDocument();
 
     await act(async () => {
       staleSubmission.resolve({
