@@ -96,8 +96,8 @@ BEGIN
     LIMIT p_limit
   )
   SELECT
-    coalesce(
-      pg_catalog.jsonb_agg(
+    coalesce((
+      SELECT pg_catalog.jsonb_agg(
         pg_catalog.jsonb_build_object(
           'id', visible.id,
           'request_number', visible.request_number,
@@ -125,15 +125,14 @@ BEGIN
           ), '[]'::jsonb)
         )
         ORDER BY visible.created_at, visible.id
-      ),
-      '[]'::jsonb
-    ),
+      )
+      FROM visible
+    ), '[]'::jsonb),
     (SELECT pg_catalog.count(*) FROM filtered),
     (SELECT pg_catalog.count(*) > p_limit FROM page),
     (SELECT created_at FROM visible ORDER BY created_at DESC, id DESC LIMIT 1),
     (SELECT id FROM visible ORDER BY created_at DESC, id DESC LIMIT 1)
-  INTO v_items, v_total, v_has_more, v_next_created_at, v_next_id
-  FROM visible;
+  INTO v_items, v_total, v_has_more, v_next_created_at, v_next_id;
 
   IF v_has_more AND (v_next_created_at IS NULL OR v_next_id IS NULL) THEN
     RAISE EXCEPTION USING ERRCODE = '55000', MESSAGE = 'return review page cursor could not be established';
