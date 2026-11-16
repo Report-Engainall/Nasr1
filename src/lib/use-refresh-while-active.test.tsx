@@ -137,7 +137,7 @@ describe('useRefreshWhileActive', () => {
       root?.render(createElement(Probe, { refresh, enabled: false }));
       await Promise.resolve();
     });
-    expect(intervalCallback).toBeNull();
+    expect(clearIntervalSpy).toHaveBeenCalledWith(79);
     expect(refresh).not.toHaveBeenCalled();
   });
 
