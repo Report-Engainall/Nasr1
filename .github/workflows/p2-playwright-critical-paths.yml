@@ -9,6 +9,7 @@ on:
       - "public/**"
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
+      - "scripts/test-authorization-capability-registry.mjs"
       - "scripts/test-product-image-storage.ts"
       - "scripts/prepare-p2-local-storage-migrations.mjs"
       - "scripts/test-local-endpoint-guard.mjs"
