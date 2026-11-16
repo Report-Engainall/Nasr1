@@ -133,6 +133,19 @@ async function main() {
         const noScopeDecision = decodeJson(noScopeRows[0].decision);
         assert.equal(noScopeDecision.decision, "DENY");
         assert.equal(noScopeRows[0].allowed, false);
+
+        // Direct table reads must be denied by RLS until a warehouse is assigned.
+        const unassignedDirectRows = await tx.unsafe(
+          "select warehouse_id::text,product_id::text from public.inventory_balances where warehouse_id=$1::uuid",
+          [fixture.warehouse_id],
+        );
+        assert.equal(unassignedDirectRows.length, 0, "RLS must hide balances for an unassigned warehouse");
+
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "update public.inventory_balances set quantity_on_hand=quantity_on_hand+1 where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id, fixture.warehouse_id],
+        ), "authenticated users cannot mutate inventory balances directly");
+
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.get_inventory_adjustment_balances($1::uuid)",
           [fixture.warehouse_id],
@@ -248,12 +261,24 @@ async function main() {
         assert.equal(assignedDecision.decision, "PERMIT");
         assert.equal(assignedDecisionRows[0].allowed, true);
 
+        const scopedDirectRows = await tx.unsafe(
+          "select warehouse_id::text,product_id::text from public.inventory_balances where warehouse_id=$1::uuid",
+          [fixture.warehouse_id],
+        );
+        assert.ok(scopedDirectRows.length > 0, "RLS must reveal the assigned warehouse balance");
+        assert.ok(scopedDirectRows.every((row) => row.warehouse_id === fixture.warehouse_id));
+
         if (otherWarehouse) {
           const unassignedDecision = decodeJson((await tx.unsafe(
             "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision",
             [otherWarehouse.warehouse_id],
           ))[0].decision);
           assert.equal(unassignedDecision.decision, "DENY", "same-tenant but unassigned warehouse must be denied");
+          const otherDirectRows = await tx.unsafe(
+            "select warehouse_id::text from public.inventory_balances where warehouse_id=$1::uuid",
+            [otherWarehouse.warehouse_id],
+          );
+          assert.equal(otherDirectRows.length, 0, "RLS must hide a second unassigned warehouse");
         }
 
         // An explicit V2 denial must override the scoped manager grant.
