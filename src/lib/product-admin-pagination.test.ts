@@ -36,7 +36,7 @@ describe("buildProductAdminSearchFilter", () => {
 
 
 describe("normalizeProductAdminSearchTerm", () => {
-  it("normalizes bounded Arabic/Latin search terms and removes query syntax", () => {
+  it("normalizes bounded Arabic/Latin terms and removes filter syntax", () => {
     expect(normalizeProductAdminSearchTerm(" أرز Basmati 000125 ")).toBe("أرز Basmati 000125");
     expect(normalizeProductAdminSearchTerm('x),organization_id.eq.anything,*%_"')).toBe("x organization_id.eq.anything _");
     expect(normalizeProductAdminSearchTerm("   ")).toBeNull();
