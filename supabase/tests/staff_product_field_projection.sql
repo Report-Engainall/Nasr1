@@ -5,6 +5,16 @@
 
 \set ON_ERROR_STOP on
 
+DO $version_guard$
+DECLARE
+  v_version integer := pg_catalog.current_setting('server_version_num')::integer;
+BEGIN
+  IF v_version < 170000 OR v_version >= 180000 THEN
+    RAISE EXCEPTION 'This acceptance requires PostgreSQL 17, found server_version_num=%', v_version;
+  END IF;
+END
+$version_guard$;
+
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
