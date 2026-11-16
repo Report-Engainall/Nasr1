@@ -923,6 +923,14 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     () => fetchDashboardLowStockProducts(lowStockCandidates),
     [lowStockCandidatesKey],
   );
+  const refreshDashboard = useCallback(async () => {
+    await Promise.all([refetch(), refetchAlerts(), refetchLowStockProducts()]);
+  }, [refetch, refetchAlerts, refetchLowStockProducts]);
+  useRefreshWhileActive({
+    refresh: refreshDashboard,
+    busy: loading || alertsLoading || lowStockProductsLoading,
+    intervalMs: 45_000,
+  });
   if (loading) return <><Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} /><Loading /></>;
   if (error) return <>
     <Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} />
