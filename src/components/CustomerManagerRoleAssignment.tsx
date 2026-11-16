@@ -1224,15 +1224,18 @@ export function CustomerManagerRoleAssignment({
   const [fallback, setFallback] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError('');
     try {
       const { data, error: rpcError } = await supabase.rpc('list_organization_user_roles');
       if (rpcError) throw rpcError;
       setRows(normalizeOrganizationProfiles(data));
+      return true;
     } catch {
+      setRows([]);
       setError('تعذر تحميل حسابات المؤسسة. تحقق من صلاحيات المدير واتصال الخادم.');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -1309,8 +1312,16 @@ export function CustomerManagerRoleAssignment({
       );
       await load();
     } catch (cause) {
-      if (isRoleRevisionConflict(cause)) await load();
-      setError(roleUpdateErrorMessage(cause));
+      if (isRoleRevisionConflict(cause)) {
+        const refreshed = await load();
+        setError(
+          refreshed
+            ? 'تغيرت أدوار هذا الحساب بعد تحميل القائمة. تم تحديث الأدوار الحالية؛ راجعها ثم أعد المحاولة.'
+            : 'تغيرت أدوار هذا الحساب، وتعذر تحميل النسخة الأحدث. أخفيت القائمة القديمة؛ أعد تحميلها قبل إجراء أي تعديل.',
+        );
+      } else {
+        setError(roleUpdateErrorMessage(cause));
+      }
     } finally {
       setSavingId(null);
     }

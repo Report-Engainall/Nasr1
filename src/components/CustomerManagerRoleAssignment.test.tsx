@@ -61,6 +61,38 @@ describe("CustomerManagerRoleAssignment", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("list_organization_user_roles");
   });
 
+  it("hides a stale role list when the conflict refresh fails and allows a clean retry", async () => {
+    const onNotice = vi.fn();
+    let listCalls = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "list_organization_user_roles") {
+        listCalls += 1;
+        if (listCalls === 1) return { data: [staff], error: null };
+        if (listCalls === 2) return { data: null, error: new Error("temporary network failure") };
+        return { data: [{ ...staff, roles: ["accountant", "staff"] }], error: null };
+      }
+      if (name === "set_organization_user_roles_v2") {
+        return {
+          data: null,
+          error: { code: "40001", message: "role assignment changed since it was loaded; reload the member list and retry" },
+        };
+      }
+      return { data: null, error: new Error("unexpected RPC: " + name) };
+    });
+
+    render(<CustomerManagerRoleAssignment currentProfileId="profile-admin" onNotice={onNotice} />);
+    fireEvent.click(await screen.findByRole("button", { name: "إسناد مسؤول العملاء إلى موظف اختبار" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل النسخة الأحدث");
+    expect(screen.queryByText("موظف اختبار")).not.toBeInTheDocument();
+    expect(onNotice).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+    expect(await screen.findByText("محاسب")).toBeInTheDocument();
+    expect(listCalls).toBe(3);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("reloads a member after a stale-role conflict and never reports the rejected change as successful", async () => {
     const onNotice = vi.fn();
     let listCalls = 0;
