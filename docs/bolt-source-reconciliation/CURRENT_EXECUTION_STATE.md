@@ -6046,3 +6046,14 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - The matrix row is updated with the exact source SHA, evidence boundary and next acceptance action. Detailed checkpoint: `docs/execution/AUTHZ_DLV002_ACCESS_MATRIX_CHROMIUM_CHECKPOINT_2026-11-16.md`.
 - No role policy, user assignment, SQL/RPC/RLS/grant, migration, hosted or production resource, deployment, paid service or secret changed.
 - **Active precedence:** complete public Chromium and authenticated local admin/denied-role acceptance for DLV-002 first. Only then start `AUTHZ-CAPABILITY-CATALOG-AND-LEGACY-PARITY-001`. Architecture V2 remains DOCUMENTED; capability registry, runtime RBAC/ABAC/ReBAC, new role grants and server-side staff price redaction remain NOT IMPLEMENTED / OPEN.
+
+
+---
+
+## P3 authorization V2 evidence checkpoint — 2026-11-16
+
+- Recheck baseline: main HEAD `1727b5b0a8f5dac1487a76617f447480ff2c2c9f`. No application, migration, policy, assignment, production or live integration changes were made in this P3 recheck.
+- DLV-002 remains the active prerequisite. P2 workflow run `43779939064` is executing on exact SHA `1727b5b0a8f5dac1487a76617f447480ff2c2c9f`. Its public Chromium smoke passed; the disposable local Supabase/PostgreSQL 17 stack and migration application passed; 36/54 local job steps were complete with no failed steps at this checkpoint. The finance/task print Chromium step was active. The authenticated admin/denied-role matrix step had not run yet. Do not close DLV-002 or advance the capability-catalog next action until that step passes.
+- Confirmed field-level data exposure path to remediate after DLV-002: `fetch_staff_products(uuid)` returns `SETOF public.products` using `SELECT p.*` and authorizes the `staff` role; the storefront price resolver also includes `staff` in its base-price branch; `src/lib/api.ts` reads/spreads the RPC row. Relevant source blobs: migration `bbfb51654f12f663cf90a5cdfdd96754696a868e`, price RPC migration `4cf7a4bb83802653009200ed55f9149b8072a938`, API `b165dc88926a7dcd90368d94422765dd0c7d46c0`. This is a source-proven exposure; the actual network JSON key assertion is still NOT RUN.
+- Required next remediation: separate server projections for manager/admin vs staff, deny staff-only base-price resolver access, preserve accountant/customer read contracts, and prove actual RPC JSON field absence using isolated PostgreSQL 17/Chromium; no front-end-only masking.
+- Detailed P3 checkpoint: `docs/execution/P3_AUTHORIZATION_V2_EXECUTION_CHECKPOINT_2026-11-16.md`. Existing P2 checkpoint remains owned by P2 and was not edited. Acceptance matrix is unchanged pending exact-SHA browser results.
