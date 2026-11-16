@@ -208,10 +208,10 @@ test("mounted category tree creates a parent and child, persists parent_id, and 
     await manager.getByRole("tab", { name: "الأسعار والمخزون", exact: true }).click();
     const managerCatalog = manager.getByRole("table", { name: "أسعار ومخزون المنتجات المرتبطة مباشرة بالتصنيف" });
     await expect(managerCatalog).toBeVisible({ timeout: 30_000 });
-    const managerProductRow = managerCatalog.getByRole("row", { name: /P2 Local E2E Product/ });
-    await expect(managerProductRow).toBeVisible();
+    const managerCatalogProductRow = managerCatalog.getByRole("row", { name: /P2 Local E2E Product/ });
+    await expect(managerCatalogProductRow).toBeVisible();
     await expect(managerCatalog.getByRole("columnheader", { name: "السعر الأساسي", exact: true })).toBeVisible();
-    const managerProductCells = await managerProductRow.locator("td").allInnerTexts();
+    const managerProductCells = await managerCatalogProductRow.locator("td").allInnerTexts();
     expect(managerProductCells).toHaveLength(7);
     const managerPriceText = managerProductCells[2].trim();
     expect(managerPriceText).not.toBe("");
