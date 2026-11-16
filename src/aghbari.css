@@ -941,3 +941,49 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .admin-product-filters select { width: 100%; min-width: 0; }
   .admin-product-filters__reset { align-self: flex-start; }
 }
+
+
+/* Order board — card-based operational lifecycle with tenant-backed filters. */
+.admin-orders-workspace { display: grid; gap: 12px; direction: rtl; }
+.admin-orders-toolbar { display: grid; grid-template-columns: minmax(220px, 1.3fr) minmax(170px, .7fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid var(--aghbari-border); border-radius: 14px; background: var(--aghbari-surface); }
+.admin-orders-search { min-width: 0; min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--aghbari-border); border-radius: 10px; background: #fff; color: var(--aghbari-text-muted); }
+.admin-orders-search:focus-within { border-color: var(--aghbari-brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--aghbari-brand) 13%, transparent); }
+.admin-orders-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--aghbari-text); font: inherit; font-size: 12px; }
+.admin-orders-status-filter { display: grid; gap: 5px; color: var(--aghbari-text-muted); font-size: 10px; font-weight: 700; }
+.admin-orders-status-filter select { min-height: 42px; width: 100%; padding: 0 10px; border: 1px solid var(--aghbari-border); border-radius: 10px; background: #fff; color: var(--aghbari-text); font: inherit; }
+.admin-orders-toolbar-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-orders-result-meta,.admin-orders-pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--aghbari-text-muted); font-size: 10px; }
+.admin-order-list { display: grid; gap: 11px; }
+.admin-order-card { min-width: 0; display: grid; gap: 13px; padding: 15px; border: 1px solid var(--aghbari-border); border-radius: 15px; background: var(--aghbari-surface); box-shadow: 0 2px 8px rgba(15, 55, 60, .035); }
+.admin-order-card__header,.admin-order-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-order-card__identity { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+.admin-order-card__identity > strong { color: var(--aghbari-brand); font-size: 14px; font-weight: 900; }
+.admin-order-card__customer { min-width: 0; color: var(--aghbari-text); font-size: 12px; font-weight: 800; }
+.admin-order-status { flex: 0 0 auto; padding: 5px 10px; border: 1px solid transparent; border-radius: 999px; font-size: 10px; font-weight: 800; }
+.admin-order-status.progress { color: #087d73; border-color: #b9e6dc; background: #edf9f5; }
+.admin-order-status.returned { color: #9a5b08; border-color: #f1d5a5; background: #fff7e8; }
+.admin-order-status.stopped { color: #a33131; border-color: #f0c4c4; background: #fff1f1; }
+.admin-order-status.unknown { color: #59636a; border-color: #d7dfe2; background: #f4f6f7; }
+.admin-order-progress { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; margin: 0; padding: 5px 0 2px; list-style: none; }
+.admin-order-progress__step { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--aghbari-text-muted); text-align: center; }
+.admin-order-progress__step:not(:last-child)::after { position: absolute; z-index: 0; top: 12px; right: calc(50% + 16px); left: calc(-50% + 16px); height: 2px; content: ""; background: #dce7e8; }
+.admin-order-progress__step.complete:not(:last-child)::after { background: #31a58f; }
+.admin-order-progress__marker { z-index: 1; width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid #d5e1e2; border-radius: 50%; background: #fff; color: #718286; font-size: 10px; font-weight: 800; }
+.admin-order-progress__step.complete .admin-order-progress__marker { border-color: #2d9b86; background: #2d9b86; color: #fff; }
+.admin-order-progress__step.current .admin-order-progress__marker { border: 2px solid var(--aghbari-brand); background: #eaf8f7; color: var(--aghbari-brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--aghbari-brand) 12%, transparent); }
+.admin-order-progress__label { max-width: 100%; color: inherit; font-size: 9px; font-weight: 700; line-height: 1.4; }
+.admin-order-progress__step.current .admin-order-progress__label { color: var(--aghbari-brand); font-weight: 900; }
+.admin-order-progress-message { padding: 10px 12px; border-radius: 9px; font-size: 11px; font-weight: 700; }
+.admin-order-progress-message.returned { border: 1px solid #efd8b1; background: #fff8ed; color: #8a570d; }
+.admin-order-progress-message.stopped { border: 1px solid #edcaca; background: #fff3f3; color: #9e3535; }
+.admin-order-progress-message.unknown { border: 1px solid #d9e0e2; background: #f5f7f8; color: #566269; }
+.admin-order-card__details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.admin-order-card__details > span { min-width: 0; display: grid; gap: 3px; padding: 9px 10px; border-radius: 9px; background: #f5faf9; }
+.admin-order-card__details small { color: var(--aghbari-text-muted); font-size: 9px; }
+.admin-order-card__details strong { overflow-wrap: anywhere; color: var(--aghbari-text); font-size: 11px; font-weight: 800; }
+.admin-order-card__reference { overflow: hidden; color: var(--aghbari-text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-order-card__footer { padding-top: 11px; border-top: 1px solid var(--aghbari-border); }
+.admin-orders-pagination { padding: 8px 2px 2px; }
+@media (max-width: 850px) { .admin-orders-toolbar { grid-template-columns: minmax(0, 1fr) minmax(160px, .8fr); }.admin-orders-toolbar-actions { grid-column: 1 / -1; justify-content: flex-start; } }
+@media (max-width: 560px) { .admin-orders-toolbar { grid-template-columns: 1fr; }.admin-orders-toolbar-actions > button { flex: 1; }.admin-order-card { padding: 12px; }.admin-order-card__header,.admin-order-card__footer { align-items: flex-start; flex-direction: column; }.admin-order-progress { overflow-x: auto; grid-template-columns: repeat(6, minmax(64px, 1fr)); padding-bottom: 7px; }.admin-order-progress__label { font-size: 8px; }.admin-order-card__details { grid-template-columns: repeat(2, minmax(0, 1fr)); }.admin-order-card__footer > button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .admin-order-card,.admin-order-progress__marker { transition: none !important; } }

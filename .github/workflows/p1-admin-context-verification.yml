@@ -240,6 +240,9 @@ on:
       - "src/components/AdminAccessMatrix.tsx"
       - "src/test/admin-access-matrix-ui.test.tsx"
       - "src/lib/api.admin-products-page.test.ts"
+      - "src/lib/admin-order-progress.ts"
+      - "src/lib/admin-order-progress.test.ts"
+      - "src/lib/api.admin-orders-page.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
   pull_request:
     branches:
@@ -459,6 +462,9 @@ on:
       - "src/components/AdminAccessMatrix.tsx"
       - "src/test/admin-access-matrix-ui.test.tsx"
       - "src/lib/api.admin-products-page.test.ts"
+      - "src/lib/admin-order-progress.ts"
+      - "src/lib/admin-order-progress.test.ts"
+      - "src/lib/api.admin-orders-page.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
   workflow_dispatch:
 

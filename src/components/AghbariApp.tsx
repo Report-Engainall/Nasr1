@@ -21,6 +21,7 @@ import { StorefrontProductQuestionModeration } from '@/components/StorefrontProd
 import { archiveAdminCatalogProduct, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { ADMIN_NAV_GROUPS, ADMIN_NAV_PATHS, rolesCanAccessView } from '@/lib/admin-access-matrix';
+import { getAdminOrderProgress } from '@/lib/admin-order-progress';
 import { getVisibleAdminNavigationGroups } from '@/lib/admin-dashboard-groups';
 import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/lib/admin-workspace-search';
 import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
@@ -2301,48 +2302,124 @@ export function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSav
 function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void; onNotice: (message: string) => void }) {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search.trim());
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
   const { data, loading, error, refetch } = useFetch(
-    () => fetchAdminOrdersPage({ page }),
-    [page],
+    () => fetchAdminOrdersPage({ page, search: debouncedSearch, status: statusFilter }),
+    [page, debouncedSearch, statusFilter],
   );
   const rows = data?.items ?? [];
 
   return <>
-    <Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام حتى التسليم" icon={ShoppingCart} />
-    <div className="toolbar">
-      <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
-      <div className="toolbar-actions">
-        <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
-        <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+    <Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام والمراجعة إلى التجهيز والتسليم، مع بقاء اعتماد الحالة داخل تفاصيل الطلب." icon={ShoppingCart} />
+    <section className="admin-orders-workspace" aria-label="إدارة الطلبات">
+      <div className="admin-orders-toolbar">
+        <label className="admin-orders-search" htmlFor="admin-orders-search">
+          <Search size={17} aria-hidden="true" />
+          <input
+            id="admin-orders-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="ابحث برقم الطلب..."
+            aria-label="البحث برقم الطلب"
+            maxLength={80}
+          />
+        </label>
+        <label className="admin-orders-status-filter">
+          <span>حالة الطلب</span>
+          <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} aria-label="تصفية الطلبات حسب الحالة">
+            <option value="all">كل الحالات</option>
+            {ADMIN_ORDER_FILTER_STATUSES.map((status) => (
+              <option key={status} value={status}>{orderLabel(status)}</option>
+            ))}
+          </select>
+        </label>
+        <div className="admin-orders-toolbar-actions">
+          <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
+          <Button variant="secondary" onClick={() => void refetch()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
+        </div>
       </div>
-    </div>
-    <section className="panel table-panel">
-      {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refetch()}>إعادة تحميل الصفحة</Button></> : <TableWrap>
-        <table>
-          <thead><tr><th>رقم الطلب</th><th>العميل</th><th>التاريخ</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th><th /></tr></thead>
-          <tbody>{rows.map((o) => <tr key={o.id}>
-            <td><strong>#{o.order_number}</strong></td>
-            <td>{o.customer?.business_name ?? '—'}</td>
-            <td>{formatDateShort(o.created_at)}</td>
-            <td>{formatNumber(o.total_items)}</td>
-            <td>{formatCurrency(o.total_amount)}</td>
-            <td><span className={`badge ${o.status === 'delivered' ? 'success' : o.status === 'processing' ? 'info' : 'warning'}`}>{orderLabel(o.status)}</span></td>
-            <td><Button variant="outline" onClick={() => onViewDetail(o.id)}>تفاصيل</Button></td>
-          </tr>)}</tbody>
-        </table>
-        {!rows.length && <Empty text="لا توجد طلبات" />}
-      </TableWrap>}
-      <div className="toolbar" style={{ marginTop: 12 }}>
-        <span className="toolbar-note">صفحة {page} — {rows.length} طلب معروض</span>
+
+      <div className="admin-orders-result-meta" aria-live="polite">
+        <span>{data ? formatNumber(rows.length) + ' طلب في الصفحة' : 'قائمة الطلبات'}</span>
+        <span>صفحة {page}{data?.hasNextPage ? ' · توجد نتائج أخرى' : ''}</span>
+      </div>
+
+      <section className="admin-order-list" aria-label="بطاقات الطلبات">
+        {loading ? <Loading /> : error ? <>
+          <ErrorBox message={error} />
+          <Button variant="outline" onClick={() => void refetch()}>إعادة تحميل الطلبات</Button>
+        </> : rows.length === 0 ? <Empty text={debouncedSearch || statusFilter !== 'all' ? "لا توجد طلبات مطابقة لمعايير البحث والتصفية." : "لا توجد طلبات مسجلة."} /> : rows.map((order) => {
+          const progress = getAdminOrderProgress(order.status);
+          return (
+            <article className="admin-order-card" key={order.id}>
+              <div className="admin-order-card__header">
+                <div className="admin-order-card__identity">
+                  <strong dir="ltr">#{order.order_number}</strong>
+                  <span className="admin-order-card__customer">{order.customer?.business_name ?? 'عميل غير متاح'}</span>
+                </div>
+                <span className={"admin-order-status " + progress.kind}>{orderLabel(order.status)}</span>
+              </div>
+
+              {progress.kind === 'progress' ? (
+                <ol className="admin-order-progress" aria-label={"مراحل الطلب " + order.order_number}>
+                  {progress.steps.map((step, index) => (
+                    <li key={step.label} className={"admin-order-progress__step " + step.state} aria-current={step.state === 'current' ? 'step' : undefined}>
+                      <span className="admin-order-progress__marker" aria-hidden="true">{step.state === 'complete' ? '✓' : index + 1}</span>
+                      <span className="admin-order-progress__label">{step.label}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className={"admin-order-progress-message " + progress.kind} role="status">
+                  {progress.message}
+                </div>
+              )}
+
+              <div className="admin-order-card__details">
+                <span><small>تاريخ الطلب</small><strong>{formatDateShort(order.created_at)}</strong></span>
+                <span><small>عدد الأصناف</small><strong>{formatNumber(order.total_items)}</strong></span>
+                <span><small>إجمالي الطلب</small><strong>{formatCurrency(order.total_amount)}</strong></span>
+              </div>
+
+              <div className="admin-order-card__footer">
+                <span className="admin-order-card__reference" title={order.id}>مرجع الطلب · {order.order_number}</span>
+                <Button variant="outline" onClick={() => onViewDetail(order.id)}>تفاصيل الطلب ومراجعته</Button>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <div className="admin-orders-pagination">
+        <span>عرض {formatNumber(rows.length)} من طلبات الصفحة الحالية</span>
         <div className="toolbar-actions">
           <Button variant="outline" disabled={loading || page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>السابق</Button>
           <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
         </div>
       </div>
     </section>
-    {showCreate && <AdminOrderCreationDialog onClose={() => setShowCreate(false)} onNotice={onNotice} onCreated={async () => { await refetch(); }} />}
+    {showCreate && <AdminOrderCreationDialog onClose={() => setShowCreate(false)} onNotice={onNotice} onCreated={async () => { setPage(1); await refetch(); }} />}
   </>;
 }
+
+const ADMIN_ORDER_FILTER_STATUSES = [
+  'new', 'draft', 'pending', 'received', 'reviewing', 'returned',
+  'needs_customer_amendment', 'returned_for_adjustment', 'confirmed', 'approved',
+  'processing', 'preparing', 'prepared', 'shipped', 'dispatched', 'delivered',
+  'cancelled', 'rejected', 'invoiced',
+] as const;
 function orderLabel(status: string) { return ORDER_STATUS_LABELS[status] ?? status; }
 
 const PRICING_SCOPES = new Set(['default', 'all', 'product', 'category']);

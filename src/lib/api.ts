@@ -1349,24 +1349,55 @@ const ADMIN_ORDER_PAGE_SIZE = 40;
 const ADMIN_ORDER_MAX_PAGE = 2500;
 
 /** Bounded staff order list. The unpaged fetchOrders() remains for analytics and detail workflows. */
-export async function fetchAdminOrdersPage(input: { page: number }): Promise<AdminOrderPage> {
+const ADMIN_ORDER_FILTERABLE_STATUSES = new Set([
+  'new', 'draft', 'pending', 'received', 'reviewing', 'returned',
+  'needs_customer_amendment', 'returned_for_adjustment', 'confirmed', 'approved',
+  'processing', 'preparing', 'prepared', 'shipped', 'dispatched', 'delivered',
+  'cancelled', 'rejected', 'invoiced',
+]);
+
+/** Bounded staff order list with tenant-scoped filters applied by PostgreSQL before pagination. */
+export async function fetchAdminOrdersPage(input: {
+  page: number;
+  search?: string;
+  status?: string;
+}): Promise<AdminOrderPage> {
   const page = input.page;
   const pageSize = ADMIN_ORDER_PAGE_SIZE;
   if (!Number.isSafeInteger(page) || page < 1 || page > ADMIN_ORDER_MAX_PAGE) {
     throw new Error('رقم صفحة الطلبات غير صالح.');
   }
 
+  const status = input.status ?? 'all';
+  if (status !== 'all' && !ADMIN_ORDER_FILTERABLE_STATUSES.has(status)) {
+    throw new Error('حالة تصفية الطلبات غير معتمدة.');
+  }
+  const search = typeof input.search === 'string' ? input.search.normalize('NFKC').trim() : '';
+  const hasControlCharacter = [...search].some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127;
+  });
+  if (search.length > 80 || hasControlCharacter || search.includes('%') || search.includes('_') || search.includes('\\')) {
+    throw new Error('عبارة البحث في رقم الطلب غير صالحة أو تحتوي رموزًا غير مسموحة أو تتجاوز 80 حرفًا.');
+  }
+  const searchPattern = search ? '%' + search + '%' : null;
+
   const { organizationId, isStaff } = await getCurrentTenantScope();
   if (!isStaff) throw new Error('صلاحية الموظف مطلوبة لعرض قائمة الطلبات.');
 
   const from = (page - 1) * pageSize;
   const to = from + pageSize;
-  const rawOrders = await readWithRetry(() => supabase
-    .rpc('fetch_staff_orders')
-    .select('id,order_number,customer_id,created_at,total_items,total_amount,status')
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: true })
-    .range(from, to));
+  const rawOrders = await readWithRetry(() => {
+    let query = supabase
+      .rpc('fetch_staff_orders')
+      .select('id,order_number,customer_id,created_at,total_items,total_amount,status');
+    if (status !== 'all') query = query.eq('status', status);
+    if (searchPattern) query = query.ilike('order_number', searchPattern);
+    return query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to);
+  });
 
   if (!Array.isArray(rawOrders) || rawOrders.length > pageSize + 1) {
     throw new Error('أعاد الخادم صفحة طلبات غير صالحة؛ لم تُعرض بيانات جزئية.');
