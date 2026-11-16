@@ -275,6 +275,43 @@ async function main() {
     ) {
       throw new Error("P2 price-grid manager identity/role context is invalid: " + JSON.stringify(managerContext));
     }
+    // Inspect the live database catalog before the first price-grid RPC read.
+    // This identifies stale function/view/trigger SQL instead of masking the underlying migration defect.
+    const priceGridCatalog = await db.unsafe(
+      "select p.proname as function_name, pg_catalog.pg_get_function_identity_arguments(p.oid) as arguments, " +
+      "pg_catalog.pg_get_functiondef(p.oid) as definition " +
+      "from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace " +
+      "where n.nspname='public' and p.prokind in ('f','p') " +
+      "and (p.proname in ('get_admin_product_price_grid','save_product_price_grid') " +
+      "or p.prosrc ilike '%price_wholesale_of_wholesale%' " +
+      "or p.prosrc ilike '%price_wholesale%') order by p.proname,arguments",
+    );
+    const priceGridColumns = await db.unsafe(
+      "select table_name,column_name from information_schema.columns " +
+      "where table_schema='public' and table_name in ('products','product_prices') " +
+      "and column_name ilike '%price%' order by table_name,ordinal_position",
+    );
+    const priceGridViews = await db.unsafe(
+      "select schemaname,viewname,definition from pg_catalog.pg_views " +
+      "where schemaname='public' and (definition ilike '%price_wholesale_of_wholesale%' " +
+      "or definition ilike '%price_wholesale%') order by viewname",
+    );
+    const priceGridTriggers = await db.unsafe(
+      "select c.relname as table_name,t.tgname as trigger_name," +
+      "pg_catalog.pg_get_triggerdef(t.oid) as trigger_definition," +
+      "p.proname as function_name,pg_catalog.pg_get_functiondef(p.oid) as function_definition " +
+      "from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid=t.tgrelid " +
+      "join pg_catalog.pg_namespace n on n.oid=c.relnamespace " +
+      "join pg_catalog.pg_proc p on p.oid=t.tgfoid " +
+      "where n.nspname='public' and c.relname in ('products','product_prices') and not t.tgisinternal " +
+      "order by c.relname,t.tgname",
+    );
+    process.stdout.write("P2_PRICE_GRID_RUNTIME_CATALOG=" + JSON.stringify({
+      functions: priceGridCatalog,
+      columns: priceGridColumns,
+      views: priceGridViews,
+      triggers: priceGridTriggers,
+    }) + "\\n");
     for (const id of ids) original.set(id,await readGrid(manager,id));
     const auditBefore=new Map();
     for (const id of ids) auditBefore.set(id,await auditCount(db,orgId,id));
