@@ -1257,15 +1257,17 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
-    <BulkProductImageUploader
-      loadProducts={fetchProducts}
-      catalogRevision={catalogRevision}
-      canManage={canUploadProductImages}
-      onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
-      onOpenProduct={canManageProductLifecycle ? (product) => { setEditing(product); setModal(true); } : undefined}
-    />
-    <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
+    <WorkspaceSectionGroup icon={SlidersHorizontal} title="أدوات الكتالوج" description="إنشاء المنتجات ومراجعة محتوى المتجر وتحديث بيانات الصور بالجملة." className="workspace-domain-group workspace-domain-group--catalog" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+      <BulkProductImageUploader
+        loadProducts={fetchProducts}
+        catalogRevision={catalogRevision}
+        canManage={canUploadProductImages}
+        onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
+        onOpenProduct={canManageProductLifecycle ? (product) => { setEditing(product); setModal(true); } : undefined}
+      />
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={Package} title="قائمة المنتجات" description="استعرض الأصناف الفعلية، حالتها، أسعارها، توافرها وإجراءات المخزون المسموح بها." className="workspace-domain-group workspace-domain-group--table" contentClassName="workspace-domain-group__table-content"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
@@ -1292,7 +1294,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
           <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
         </div>
       </div>
-    </section>
+    </WorkspaceSectionGroup>
     {modal && <ProductModal product={editing} canManageLifecycle={canManageProductLifecycle} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); void refreshProducts(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {renderTransferModal()}
     {renderThresholdModal()}
@@ -1951,14 +1953,16 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
 
   return <>
     <Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} />
-    <div className="toolbar">
-      <span className="toolbar-note" aria-label="إجمالي نتائج دليل العملاء">{resultSummary}</span>
-      <div className="toolbar-actions">
-        <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
-        {!isCustomerManagerOnly && <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>}
+    <WorkspaceSectionGroup icon={Users} title="أدوات إدارة العملاء" description="تحديث الدليل وإضافة حساب عميل جديد وفق صلاحيات المستخدم." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar">
+        <span className="toolbar-note" aria-label="إجمالي نتائج دليل العملاء">{resultSummary}</span>
+        <div className="toolbar-actions">
+          <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
+          {!isCustomerManagerOnly && <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>}
+        </div>
       </div>
-    </div>
-    <section className="panel table-panel">
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={Users} title="دليل العملاء" description="ملفات العملاء وحالات الاعتماد وشرائح الأسعار والأرصدة التي تسمح الصلاحيات بعرضها." className="workspace-domain-group workspace-domain-group--table" contentClassName="workspace-domain-group__table-content">
       <div className="table-head">
         <h2>دليل العملاء</h2>
         <form className="search-field" onSubmit={(event) => {
@@ -2011,7 +2015,7 @@ export function Customers({ onNotice, initialSearch }: { onNotice: (m: string) =
           <button type="button" className="btn outline" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount} aria-label="صفحة العملاء التالية">التالي</button>
         </nav>}
       </>}
-    </section>
+    </WorkspaceSectionGroup>
     {selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}
     {activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}
     {tierCustomer && <CustomerTierDialog customer={tierCustomer} onClose={() => setTierCustomer(null)} onSaved={() => {
@@ -2237,14 +2241,16 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
 
   return <>
     <Heading eyebrow="المبيعات والعملاء" title="الطلبات" description="متابعة دورة الطلب من الاستلام حتى التسليم" icon={ShoppingCart} />
-    <div className="toolbar">
-      <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
-      <div className="toolbar-actions">
-        <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
-        <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+    <WorkspaceSectionGroup icon={ShoppingCart} title="إجراءات الطلبات" description="إنشاء طلب يدوي وتحديث قائمة الطلبات ضمن نطاق المؤسسة." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar">
+        <span className="toolbar-note">{rows.length} طلب في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span>
+        <div className="toolbar-actions">
+          <Button onClick={() => setShowCreate(true)}><Plus size={17} /> إنشاء طلب يدوي</Button>
+          <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
+        </div>
       </div>
-    </div>
-    <section className="panel table-panel">
+    </WorkspaceSectionGroup>
+    <WorkspaceSectionGroup icon={ShoppingCart} title="قائمة الطلبات" description="الطلبات المحفوظة فعليًا وحالة كل طلب وملخصه، مع فتح التفاصيل من السجل." className="workspace-domain-group workspace-domain-group--table" contentClassName="workspace-domain-group__table-content">
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refetch()}>إعادة تحميل الصفحة</Button></> : <TableWrap>
         <table>
           <thead><tr><th>رقم الطلب</th><th>العميل</th><th>التاريخ</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th><th /></tr></thead>
@@ -2267,7 +2273,7 @@ function Orders({ onViewDetail, onNotice }: { onViewDetail: (id: string) => void
           <Button variant="outline" disabled={loading || !data?.hasNextPage} onClick={() => setPage((current) => current + 1)}>التالي</Button>
         </div>
       </div>
-    </section>
+    </WorkspaceSectionGroup>
     {showCreate && <AdminOrderCreationDialog onClose={() => setShowCreate(false)} onNotice={onNotice} onCreated={async () => { await refetch(); }} />}
   </>;
 }
@@ -2387,7 +2393,7 @@ function Pricing({
         <article className="report-metric"><AlertTriangle size={22} /><span>موقوفة أو بانتظار المراجعة</span><strong>{formatNumber(data?.filter((rule) => !rule.is_active || (rule.requires_approval && !rule.approved_at) || !PRICING_SCOPES.has(rule.scope_type)).length ?? 0)}</strong></article>
       </div>
 
-      <div className="toolbar-actions" role="group" aria-label="مساحات التسعير والعروض" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+      <WorkspaceSectionGroup icon={SlidersHorizontal} title="مساحات التسعير والعروض" description="تنقل بين شبكة الأسعار وقواعد الاحتساب ومحاكاة العميل والحملات." className="workspace-domain-group workspace-domain-group--tabs" contentClassName="workspace-domain-group__tabs">
         {PRICING_WORKSPACE_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -2399,7 +2405,7 @@ function Pricing({
             {tab.label}
           </button>
         ))}
-      </div>
+      </WorkspaceSectionGroup>
 
       <div id="pricing-workspace-panel">
         {activeTab === 'grid' && (
@@ -3047,9 +3053,10 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
   return <>
     <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد"
       description="الاستيراد والتصدير ومصادر البيانات التشغيلية في مساحة واحدة" icon={Database} />
-    <div className="toolbar">
-      <span className="toolbar-note">المصدر المعتمد هو قاعدة بيانات المؤسسة الحالية؛ لا تُنشأ بيانات تجريبية.</span>
-      <div className="toolbar-actions">
+    <WorkspaceSectionGroup icon={Database} title="أدوات إدارة البيانات" description="التصنيفات والاستيراد وسجل الدفعات وتصدير البيانات حسب الصلاحية." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
+      <div className="toolbar">
+        <span className="toolbar-note">المصدر المعتمد هو قاعدة بيانات المؤسسة الحالية؛ لا تُنشأ بيانات تجريبية.</span>
+        <div className="toolbar-actions">
         {rolesCanAccessView(user?.roles ?? [], "categories") && (
           <Button onClick={() => onNavigate('categories')}>
             <Tags size={16} /> إدارة التصنيفات الهرمية
@@ -3070,8 +3077,9 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
             <Download size={16} /> تصدير الطلبات
           </Link>
         )}
+        </div>
       </div>
-    </div>
+    </WorkspaceSectionGroup>
     <section className="panel data-info">
       <Database size={28} />
       <h2>دورة البيانات دون محررات مكررة</h2>
@@ -3079,14 +3087,7 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
       <div className="data-status">مصادر البيانات الحالية — دون بيانات تجريبية</div>
     </section>
     {(user?.isStaff || canManageImports) && (
-      <section className="panel" style={{ marginTop: 16 }} aria-label="مساحات Onyx">
-        <div className="panel-head">
-          <div>
-            <h2>مساحات Onyx</h2>
-            <p>نقطة دخول واحدة لإدارة اللقطات والتحليل ومصالحة أرصدة المخزون.</p>
-          </div>
-          <PackageCheck size={22} />
-        </div>
+      <WorkspaceSectionGroup icon={PackageCheck} title="مساحات Onyx" description="إدارة اللقطات والتحليل ومصالحة أرصدة المخزون من مساحة تشغيل مستقلة." className="workspace-domain-group" contentClassName="workspace-domain-group__content--stacked">
         <div className="toolbar-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {user?.isStaff && (
             <Button variant="outline" onClick={() => setSection('onyx')}>
@@ -3098,7 +3099,7 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
         <p className="report-note" style={{ marginTop: 10 }}>
           قراءة اللقطات والتحليل منفصلان عن المصالحة؛ المعاينة لا تعدّل الرصيد، وأي تطبيق أو تراجع يخضعان لضوابط الخادم وسجل التدقيق.
         </p>
-      </section>
+      </WorkspaceSectionGroup>
     )}
   </>;
 }
