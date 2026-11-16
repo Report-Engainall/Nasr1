@@ -46,7 +46,7 @@ async function readLocalSourceQuantity(): Promise<number> {
   const connectionString = requiredEnv("TEST_DATABASE_URL");
   const database = new URL(connectionString);
   if (!["127.0.0.1", "localhost"].includes(database.hostname) ||
-      !/^\\d+$/.test(database.port) ||
+      !/^\d+$/.test(database.port) ||
       Number(database.port) < 1 || Number(database.port) > 65535) {
     throw new Error("Stock-count XLSX acceptance refuses non-loopback PostgreSQL endpoints.");
   }
