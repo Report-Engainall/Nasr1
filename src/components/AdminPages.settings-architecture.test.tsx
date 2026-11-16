@@ -131,6 +131,9 @@ describe("observability architecture route is not duplicated in general settings
     const simulatorButton = managerControls.getByRole("button", { name: "محاكاة قرار الصلاحية" });
     expect(simulatorButton).toBeEnabled();
     fireEvent.click(simulatorButton);
+    const simulatorWarehouse = await managerControls.findByRole("combobox", { name: "المورد لمحاكاة inventory.balance.adjust" });
+    fireEvent.change(simulatorWarehouse, { target: { value: "warehouse-1" } });
+    expect(simulatorWarehouse).toHaveValue("warehouse-1");
     const evaluateButton = await managerControls.findByRole("button", { name: "تقييم القرار" });
     await waitFor(() => expect(evaluateButton).toBeEnabled());
     fireEvent.click(scopeButton);
