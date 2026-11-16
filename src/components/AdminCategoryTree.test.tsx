@@ -141,7 +141,9 @@ describe("AdminCategoryTree", () => {
 
     expect(await screen.findByRole("heading", { name: child.name })).toBeInTheDocument();
     expect(screen.getByText(new RegExp("المعرّف:"))).toBeInTheDocument();
-    expect(screen.getByText(/التصنيف الرئيسي \/ التصنيف الفرعي/)).toBeInTheDocument();
+    const breadcrumb = screen.getByRole("navigation", { name: "مسار التصنيف" });
+    expect(within(breadcrumb).getByRole("button", { name: "الانتقال إلى التصنيف الرئيسي" })).toBeInTheDocument();
+    expect(within(breadcrumb).getByText(child.name)).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("التصنيف الرئيسي", { selector: "strong" })).toBeInTheDocument();
   });
 
@@ -362,8 +364,8 @@ describe("AdminCategoryTree", () => {
 
     expect(await screen.findByRole("heading", { name: grandchild.name })).toBeInTheDocument();
     const breadcrumb = screen.getByRole("navigation", { name: "مسار التصنيف" });
-    expect(within(breadcrumb).getByRole("button", { name: "الانتقال إلى التصنيف التصنيف الرئيسي" })).toBeInTheDocument();
-    expect(within(breadcrumb).getByRole("button", { name: "الانتقال إلى التصنيف التصنيف الفرعي" })).toBeInTheDocument();
+    expect(within(breadcrumb).getByRole("button", { name: "الانتقال إلى التصنيف الرئيسي" })).toBeInTheDocument();
+    expect(within(breadcrumb).getByRole("button", { name: "الانتقال إلى التصنيف الفرعي" })).toBeInTheDocument();
     expect(within(breadcrumb).getByText(grandchild.name)).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(within(breadcrumb).getByRole("button", {
