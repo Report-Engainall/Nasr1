@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
+      - "supabase/migrations/20261116111000_inventory_adjustment_invariants.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
   pull_request:

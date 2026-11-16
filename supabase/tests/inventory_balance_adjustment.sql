@@ -106,6 +106,7 @@ INSERT INTO public.inventory_balances(product_id,warehouse_id,quantity_on_hand,q
 VALUES('44444444-4444-4444-8444-444444444444','55555555-5555-4555-8555-555555555555',100,15,10);
 
 \ir ../migrations/20261116110000_inventory_balance_adjustment_command.sql
+\ir ../migrations/20261116111000_inventory_adjustment_invariants.sql
 
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',false);
 
@@ -229,6 +230,76 @@ BEGIN
   END IF;
 END;
 $admin_acceptance$;
+
+DO $append_only_and_constraints$
+DECLARE
+  v_adjustment_id uuid;
+  v_update_denied boolean:=false;
+  v_delete_denied boolean:=false;
+  v_reserved_invariant boolean:=false;
+  v_available_invariant boolean:=false;
+BEGIN
+  SELECT id INTO v_adjustment_id
+    FROM public.inventory_adjustments
+   WHERE idempotency_key='inv-adjustment-idempotency-0001';
+
+  BEGIN
+    UPDATE public.inventory_adjustments SET notes='tamper attempt' WHERE id=v_adjustment_id;
+  EXCEPTION WHEN SQLSTATE '55000' THEN v_update_denied:=true;
+  END;
+  BEGIN
+    DELETE FROM public.inventory_adjustments WHERE id=v_adjustment_id;
+  EXCEPTION WHEN SQLSTATE '55000' THEN v_delete_denied:=true;
+  END;
+  IF NOT v_update_denied OR NOT v_delete_denied THEN
+    RAISE EXCEPTION 'append-only adjustment history allowed mutation';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.inventory_adjustments(
+      organization_id,product_id,warehouse_id,
+      previous_quantity_on_hand,new_quantity_on_hand,quantity_delta,
+      reserved_quantity,quantity_available_after,reason,idempotency_key,created_by
+    ) VALUES (
+      '11111111-1111-4111-8111-111111111111',
+      '44444444-4444-4444-8444-444444444444',
+      '55555555-5555-4555-8555-555555555555',
+      0,15,15,20,0,'invalid reserved invariant',
+      'inv-adjustment-invariant-reserved-001',
+      '22222222-2222-4222-8222-222222222222'
+    );
+  EXCEPTION WHEN SQLSTATE '23514' THEN v_reserved_invariant:=true;
+  END;
+  IF NOT v_reserved_invariant THEN
+    RAISE EXCEPTION 'database allowed adjustment target below reserved quantity';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.inventory_adjustments(
+      organization_id,product_id,warehouse_id,
+      previous_quantity_on_hand,new_quantity_on_hand,quantity_delta,
+      reserved_quantity,quantity_available_after,reason,idempotency_key,created_by
+    ) VALUES (
+      '11111111-1111-4111-8111-111111111111',
+      '44444444-4444-4444-8444-444444444444',
+      '55555555-5555-4555-8555-555555555555',
+      100,125,25,15,111,'invalid available invariant',
+      'inv-adjustment-invariant-available-001',
+      '22222222-2222-4222-8222-222222222222'
+    );
+  EXCEPTION WHEN SQLSTATE '23514' THEN v_available_invariant:=true;
+  END;
+  IF NOT v_available_invariant THEN
+    RAISE EXCEPTION 'database allowed inconsistent available quantity snapshot';
+  END IF;
+
+  IF (SELECT count(*) FROM public.inventory_adjustments)<>1 THEN
+    RAISE EXCEPTION 'tamper attempts or invariant failures changed adjustment history';
+  END IF;
+END;
+$append_only_and_constraints$;
+
+
 
 SELECT pg_catalog.set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333335',false);
 DO $staff_denial$
