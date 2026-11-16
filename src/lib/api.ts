@@ -976,6 +976,85 @@ export async function removeProductGalleryImage(productId: string, imageUrl: str
   }
 }
 
+
+export async function reorderProductGalleryImages(productId: string, imageUrls: string[]): Promise<string[]> {
+  if (!isValidProductImageProductId(productId)) {
+    throw new Error("معرّف المنتج غير صالح؛ لم يُغيّر ترتيب المعرض.");
+  }
+  if (!Array.isArray(imageUrls) || imageUrls.length > 8 ||
+      new Set(imageUrls).size !== imageUrls.length) {
+    throw new Error("قائمة ترتيب المعرض يجب أن تحتوي صوراً فريدة بحد أقصى ثماني صور.");
+  }
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error("صلاحية إدارة المنتجات مطلوبة لترتيب الصور.");
+  for (const url of imageUrls) {
+    if (typeof url !== "string" ||
+        !extractOwnedProductImageObjectPath(url, scope.organizationId, productId)) {
+      throw new Error("يتضمن ترتيب المعرض صورة لا تنتمي إلى المنتج والمؤسسة الحالية.");
+    }
+  }
+  const { data, error } = await supabase.rpc("reorder_staff_product_gallery_images", {
+    p_product_id: productId,
+    p_image_urls: imageUrls,
+  });
+  if (error) throw new Error("تعذر حفظ ترتيب المعرض؛ حدّث المنتج قبل إعادة المحاولة.");
+  const result = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : null;
+  if (!result || result.id !== productId || typeof result.changed !== "boolean" ||
+      !Array.isArray(result.image_gallery_urls) ||
+      result.image_gallery_urls.some((url) => typeof url !== "string") ||
+      JSON.stringify(result.image_gallery_urls) !== JSON.stringify(imageUrls)) {
+    throw new Error("لم يؤكد الخادم ترتيب المعرض المطلوب؛ حدّث المنتج لمراجعة الترتيب الحالي.");
+  }
+  return result.image_gallery_urls as string[];
+}
+
+export async function setProductPrimaryFromGallery(
+  productId: string,
+  imageUrl: string,
+  expectedPrimaryImageUrl?: string | null,
+): Promise<{ imageUrl: string; previousImageUrl: string | null; changed: boolean }> {
+  if (!isValidProductImageProductId(productId)) {
+    throw new Error("معرّف المنتج غير صالح؛ لم تتغير الصورة الرئيسية.");
+  }
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error("صلاحية إدارة المنتجات مطلوبة لتغيير الصورة الرئيسية.");
+  const selectedObjectPath = extractOwnedProductImageObjectPath(imageUrl, scope.organizationId, productId);
+  if (!selectedObjectPath) throw new Error("الصورة المختارة ليست ملف WebP تابعاً لهذا المنتج.");
+  if (expectedPrimaryImageUrl &&
+      !extractOwnedProductImageObjectPath(expectedPrimaryImageUrl, scope.organizationId, productId)) {
+    throw new Error("الصورة الرئيسية الحالية ليست ملفاً تابعاً للمؤسسة؛ حدّث بيانات المنتج قبل الترقية.");
+  }
+  const { data, error } = await supabase.rpc("set_staff_product_primary_from_gallery", {
+    p_product_id: productId,
+    p_image_url: imageUrl,
+    p_expected_image_url: expectedPrimaryImageUrl ?? null,
+  });
+  if (error) {
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
+    if (code === "PT409" || code === "40001") {
+      throw new Error("تغيرت صور المنتج منذ فتح المحرر؛ حدّث بيانات المنتج ثم أعد المحاولة.");
+    }
+    throw new Error("تعذر ترقية صورة المعرض إلى الصورة الرئيسية؛ لم تُعتمد العملية.");
+  }
+  const result = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : null;
+  if (!result || result.id !== productId || result.image_url !== imageUrl ||
+      typeof result.changed !== "boolean" ||
+      (result.previous_image_url !== null && typeof result.previous_image_url !== "string")) {
+    throw new Error("لم يؤكد الخادم ترقية الصورة الرئيسية؛ حدّث المنتج لمراجعة حالته.");
+  }
+  return {
+    imageUrl,
+    previousImageUrl: typeof result.previous_image_url === "string" ? result.previous_image_url : null,
+    changed: result.changed,
+  };
+}
+
 export async function removeProductImage(
   productId: string,
   currentImageUrl?: string | null,
