@@ -10,44 +10,49 @@ UPDATE public.authorization_capabilities
 DO $scope_rpc$
 DECLARE
   v_definition text;
+  v_legacy_guard text := 'current_actor_has_capability(''inventory.balance.adjust'')';
+  v_warehouse_guard text := 'current_actor_has_capability(''inventory.balance.adjust'', p_warehouse_id)';
 BEGIN
+  -- The preceding Authorization V2 migration already scopes the read RPC and
+  -- trigger. This migration only fills the command-body gap, then verifies all
+  -- three server entry points remain resource-aware.
   v_definition:=pg_catalog.pg_get_functiondef(
     'public.get_inventory_adjustment_balances(uuid)'::regprocedure
   );
-  IF pg_catalog.position('current_actor_has_capability(''inventory.balance.adjust'')' IN v_definition)=0 THEN
-    RAISE EXCEPTION 'unscoped inventory balance projection guard was not found';
+  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+    v_definition:=pg_catalog.replace(v_definition,v_legacy_guard,v_warehouse_guard);
   END IF;
-  v_definition:=pg_catalog.replace(
-    v_definition,
-    'current_actor_has_capability(''inventory.balance.adjust'')',
-    'current_actor_has_capability(''inventory.balance.adjust'', p_warehouse_id)'
-  );
+  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+    RAISE EXCEPTION 'inventory balance projection still contains an unscoped authorization guard';
+  END IF;
   EXECUTE v_definition;
 
   v_definition:=pg_catalog.pg_get_functiondef(
     'public.adjust_inventory_balance(uuid,uuid,numeric,numeric,text,text,text,text)'::regprocedure
   );
-  IF pg_catalog.position('current_actor_has_capability(''inventory.balance.adjust'')' IN v_definition)=0 THEN
-    RAISE EXCEPTION 'unscoped inventory adjustment guard was not found';
+  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+    v_definition:=pg_catalog.replace(v_definition,v_legacy_guard,v_warehouse_guard);
   END IF;
-  v_definition:=pg_catalog.replace(
-    v_definition,
-    'current_actor_has_capability(''inventory.balance.adjust'')',
-    'current_actor_has_capability(''inventory.balance.adjust'', p_warehouse_id)'
-  );
+  IF pg_catalog.position(v_legacy_guard IN v_definition)>0
+     OR pg_catalog.position('current_actor_has_capability(''inventory.balance.adjust'', p_warehouse_id)' IN v_definition)=0 THEN
+    RAISE EXCEPTION 'inventory adjustment command is not guarded by its submitted warehouse';
+  END IF;
   EXECUTE v_definition;
 
   v_definition:=pg_catalog.pg_get_functiondef(
     'public.guard_inventory_adjustment_capability_v2()'::regprocedure
   );
-  IF pg_catalog.position('current_actor_has_capability(''inventory.balance.adjust'')' IN v_definition)=0 THEN
-    RAISE EXCEPTION 'unscoped adjustment insert trigger guard was not found';
+  IF pg_catalog.position(v_legacy_guard IN v_definition)>0 THEN
+    v_definition:=pg_catalog.replace(
+      v_definition,
+      v_legacy_guard,
+      'current_actor_has_capability(''inventory.balance.adjust'', NEW.warehouse_id)'
+    );
   END IF;
-  v_definition:=pg_catalog.replace(
-    v_definition,
-    'current_actor_has_capability(''inventory.balance.adjust'')',
-    'current_actor_has_capability(''inventory.balance.adjust'', NEW.warehouse_id)'
-  );
+  IF pg_catalog.position(v_legacy_guard IN v_definition)>0
+     OR pg_catalog.position('NEW.warehouse_id' IN v_definition)=0 THEN
+    RAISE EXCEPTION 'inventory adjustment insert trigger is not guarded by NEW.warehouse_id';
+  END IF;
   EXECUTE v_definition;
 END
 $scope_rpc$;
