@@ -1160,6 +1160,8 @@ export function ProductGrid({
         const qty = quantityKnown ? rawAvailableQuantity : 0;
         const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
           ? Number(product.min_order_quantity) : 1;
+        const orderMultiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+          ? Number(product.order_quantity_multiple) : 1;
         const out = quantityKnown && qty <= 0;
         const belowMinimum = quantityKnown && qty > 0 && qty < minimum;
         const liked = wishlist.includes(product.id);
@@ -1204,6 +1206,10 @@ export function ProductGrid({
               {product.name_en ? <small dir="auto" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 500 }}>{product.name_en}</small> : null}
               <p>{product.category?.name ?? 'غير مصنف'} · {product.item_code}</p>
               <small className="sf-product-unit">الوحدة: {product.unit}</small>
+              <small className="sf-product-order-policy">
+                الحد الأدنى للطلب: {formatNumber(minimum)}
+                {orderMultiple > 1 ? ' · مضاعف الطلب: ' + formatNumber(orderMultiple) : ''}
+              </small>
               {product.sku ? <small dir="ltr" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 600, textAlign: 'right' }}>SKU: {product.sku}</small> : null}
               <StorefrontPricePresentation
                 policyValue={priceVisibilityPolicy}

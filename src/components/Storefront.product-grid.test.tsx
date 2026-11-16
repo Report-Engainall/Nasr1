@@ -69,6 +69,31 @@ describe("storefront product card accessibility", () => {
     expect(onAdd).toHaveBeenCalledWith(product);
   });
 
+  it("shows the server-backed minimum and quantity multiple without exposing hidden prices", () => {
+    const policyProduct = {
+      ...product,
+      min_order_quantity: 2,
+      order_quantity_multiple: 2,
+    } as ProductWithInventory;
+    render(
+      <ProductGrid
+        products={[policyProduct]}
+        priceVisibilityPolicy={false}
+        wishlist={[]}
+        compare={[]}
+        emptyTitle="لا توجد منتجات"
+        emptyDescription=""
+        onOpen={vi.fn()}
+        onAdd={vi.fn()}
+        onWishlist={vi.fn()}
+        onCompare={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("الحد الأدنى للطلب: ٢ · مضاعف الطلب: ٢")).toBeInTheDocument();
+    expect(screen.queryByText("السعر غير متاح")).not.toBeInTheDocument();
+  });
+
   it("keeps pressed state and action names specific to the product", () => {
     render(
       <ProductGrid

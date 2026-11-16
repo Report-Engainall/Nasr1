@@ -100,6 +100,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sf-product-body h3 { color: var(--aghbari-text); font-size: 14px; margin: 0 0 4px; }
 .sf-product-body p { color: var(--aghbari-text-muted); font-size: 11px; margin: 0 0 10px; }
 .sf-product-unit { display: inline-flex; width: fit-content; margin: -5px 0 9px; padding: 4px 8px; border: 1px solid var(--aghbari-border); border-radius: 999px; color: var(--aghbari-text-muted); background: var(--aghbari-surface-soft); font-size: 10px; font-weight: 700; }
+.sf-product-order-policy { display: block; margin: -3px 0 9px; color: var(--aghbari-text-muted); font-size: 10px; font-weight: 600; line-height: 1.6; }
 .sf-product-price { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
 .sf-product-price strong { color: var(--aghbari-brand); font-size: 18px; }
 .sf-product-price span { color: var(--aghbari-text-muted); font-size: 11px; }
