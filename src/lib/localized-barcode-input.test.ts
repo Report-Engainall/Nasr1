@@ -26,3 +26,26 @@ describe("normalizeLocalizedBarcodeInput", () => {
     expect(normalizeLocalizedBarcodeInput("  ١٢٣-ABC / ٤٥٦  ")).toBe("123-ABC / 456");
   });
 });
+
+
+describe("resolveSupportedBarcodeFormats", () => {
+  it("keeps only formats the browser reports as supported", async () => {
+    const { resolveSupportedBarcodeFormats } = await import("./localized-barcode-input");
+    expect(resolveSupportedBarcodeFormats(["qr_code", "ean_13", "data_matrix"])).toEqual([
+      "ean_13",
+      "qr_code",
+      "data_matrix",
+    ]);
+  });
+
+  it("uses the supported default set when format discovery is unavailable", async () => {
+    const { DEFAULT_BARCODE_DETECTOR_FORMATS, resolveSupportedBarcodeFormats } =
+      await import("./localized-barcode-input");
+    expect(resolveSupportedBarcodeFormats()).toEqual([...DEFAULT_BARCODE_DETECTOR_FORMATS]);
+  });
+
+  it("returns no camera formats when the browser reports none", async () => {
+    const { resolveSupportedBarcodeFormats } = await import("./localized-barcode-input");
+    expect(resolveSupportedBarcodeFormats([])).toEqual([]);
+  });
+});
