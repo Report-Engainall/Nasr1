@@ -13,6 +13,7 @@ import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendme
 import { getOrCreateBoundIdempotencyKey, type BoundIdempotencyKey } from '@/lib/bound-idempotency-key';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
+const CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS = 45_000;
 
 function normalizeOrderNumberSearch(value: string): string {
   return value.trim()
@@ -502,7 +503,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const templateSaveInFlightRef = useRef(false);
-  const { data, loading, error, refetch } = useFetch(async () => {
+  const { data, loading, error, refreshError, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
       supabase.from('orders').select('id,order_number,customer_id,status,total_items,notes,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,customer_confirmed_at,payment_request_status,delivery_address_snapshot').eq('id', id).maybeSingle(),
       supabase.from('order_items').select('id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity').eq('order_id', id),
@@ -535,6 +536,38 @@ function OrderInvoiceInner({ id }: { id: string }) {
       cancellation,
     };
   }, [id]);
+
+  const automaticRefreshInFlight = useRef(false);
+  const refreshWhileCustomerIsActive = useCallback(async () => {
+    if (
+      automaticRefreshInFlight.current ||
+      document.visibilityState !== 'visible' ||
+      !navigator.onLine
+    ) return;
+
+    automaticRefreshInFlight.current = true;
+    try {
+      await refetch();
+    } finally {
+      automaticRefreshInFlight.current = false;
+    }
+  }, [refetch]);
+
+  useEffect(() => {
+    const refresh = () => { void refreshWhileCustomerIsActive(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const interval = window.setInterval(refresh, CUSTOMER_ORDER_STATUS_POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', refresh);
+    };
+  }, [refreshWhileCustomerIsActive]);
 
   useEffect(() => {
     if (!data?.items) return;
@@ -758,6 +791,14 @@ function OrderInvoiceInner({ id }: { id: string }) {
           background: #fff !important;
         }
       }`}</style>
+      {refreshError ? (
+        <div className="no-print" role="status" aria-live="polite" style={{ marginBottom: 12, padding: 12, border: '1px solid #e4c58b', borderRadius: 10, background: '#fff9ed', color: '#76500f' }}>
+          تعذر تحديث حالة الطلب تلقائيًا. ما تزال آخر حالة مؤكدة من الخادم معروضة.
+          <button type="button" className="sf-link" style={{ marginInlineStart: 8 }} onClick={() => void refetch()}>
+            إعادة المحاولة الآن
+          </button>
+        </div>
+      ) : null}
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
         <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>

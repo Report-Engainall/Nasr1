@@ -228,6 +228,117 @@ describe("customer order detail real route acceptance", () => {
     ]) expect(printable?.textContent).not.toContain(privateValue);
   });
 
+  it("automatically shows management approval without polling while hidden or offline", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: {
+        data: [{
+          id: orderId,
+          order_number: "SO-AUTO-001",
+          customer_id: CUSTOMER.profileId,
+          status: "pending",
+          total_items: 1,
+          notes: null,
+          created_at: "2026-10-28T00:00:00.000Z",
+          quantity_review_required: false,
+          customer_adjustment_note: null,
+          customer_payment_requested_at: null,
+          customer_confirmed_at: null,
+          payment_request_status: "none",
+          delivery_address_snapshot: null,
+        }],
+        error: null,
+      },
+      order_items: {
+        data: [{
+          id: "44444444-4444-4444-8444-444444444444",
+          product_id: "55555555-5555-4555-8555-555555555555",
+          item_code: "SKU-AUTO-001",
+          product_name_snapshot: "صنف الاختبار",
+          unit_snapshot: "علبة",
+          quantity: 1,
+          requested_quantity: 1,
+          approved_quantity: 1,
+        }],
+        error: null,
+      },
+      order_status_history: {
+        data: [{ id: "hist-1", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null }],
+        error: null,
+      },
+      customers: {
+        data: [{ customer_code: "C-AUTO-01", business_name: "شركة الاختبار", contact_name: null }],
+        error: null,
+      },
+    };
+
+    const poller: { callback?: () => void } = {};
+    const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation((handler, delay) => {
+      if (delay === 45_000 && typeof handler === "function") {
+        poller.callback = handler as () => void;
+      }
+      return 901;
+    });
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    const originalOnline = Object.getOwnPropertyDescriptor(navigator, "onLine");
+
+    try {
+      await mountOrderRoute();
+      expect(host?.textContent).toContain("الحالة: بانتظار المراجعة");
+      expect(poller.callback).toBeTypeOf("function");
+
+      const existingOrder = mocks.results.orders.data[0] as Record<string, unknown>;
+      mocks.results.orders.data[0] = { ...existingOrder, status: "confirmed" };
+      mocks.results.order_status_history = {
+        data: [
+          { id: "hist-1", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null },
+          { id: "hist-2", to_status: "confirmed", created_at: "2026-10-28T00:01:00.000Z", notes: null },
+        ],
+        error: null,
+      };
+
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(host?.textContent).toContain("الحالة: بانتظار المراجعة");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(1);
+
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(1);
+
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+      mocks.results.order_items.error = { message: "temporary read failure" };
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(host?.textContent).toContain("الحالة: بانتظار المراجعة");
+      expect(host?.textContent).toContain("تعذر تحديث حالة الطلب تلقائيًا");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(2);
+
+      mocks.results.order_items.error = null;
+      poller.callback?.();
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+      expect(host?.textContent).toContain("الحالة: مؤكد");
+      expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[0]?.querySelector('[aria-label="مكتمل"]')).not.toBeNull();
+      expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[1]?.querySelector('[aria-label="الحالة الحالية"]')).not.toBeNull();
+      expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[2]?.querySelector('[aria-label="لم يكتمل"]')).not.toBeNull();
+      expect(host?.textContent).not.toContain("تعذر تحديث حالة الطلب تلقائيًا");
+      expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(3);
+    } finally {
+      if (originalVisibility) Object.defineProperty(document, "visibilityState", originalVisibility);
+      else Reflect.deleteProperty(document, "visibilityState");
+      if (originalOnline) Object.defineProperty(navigator, "onLine", originalOnline);
+      else Reflect.deleteProperty(navigator, "onLine");
+      intervalSpy.mockRestore();
+    }
+  });
+
   it("re-reads persisted order status when the customer refreshes order details", async () => {
     mocks.user = CUSTOMER;
     const orderId = "33333333-3333-4333-8333-333333333333";
