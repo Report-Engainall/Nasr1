@@ -53,7 +53,6 @@ export function AdminAiGovernanceWorkspace({ onNotice }: Props) {
   // changes from admin to a narrower role, a previously selected privileged tab
   // falls back to the operational center immediately instead of remaining mounted.
   const activeTab = tabs.some((tab) => tab.id === selectedTab) ? selectedTab : "center";
-  const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const panelId = "admin-ai-governance-panel-" + activeTab;
 
   return (
@@ -108,7 +107,6 @@ export function AdminAiGovernanceWorkspace({ onNotice }: Props) {
         {activeTab === "center" ? <AiCenter onNotice={onNotice} /> : null}
         {activeTab === "prompts" && isAdmin ? <PromptGovernancePanel /> : null}
         {activeTab === "audit" && canReadUsageAudit ? <AiUsageAuditPanel /> : null}
-        {!active ? null : null}
       </div>
     </section>
   );
