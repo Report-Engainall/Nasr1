@@ -9,8 +9,19 @@ END;
 $roles$;
 
 CREATE SCHEMA IF NOT EXISTS auth;
-CREATE TABLE public.organizations(id uuid PRIMARY KEY,name text NOT NULL);
-CREATE TABLE public.profiles(id uuid PRIMARY KEY,auth_user_id uuid NOT NULL,organization_id uuid NOT NULL,is_active boolean NOT NULL);
+CREATE TABLE public.organizations(
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.profiles(
+  id uuid PRIMARY KEY,
+  auth_user_id uuid NOT NULL,
+  organization_id uuid NOT NULL,
+  is_active boolean NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE public.user_roles(profile_id uuid NOT NULL,role text NOT NULL,PRIMARY KEY(profile_id,role));
 CREATE TABLE public.products(id uuid PRIMARY KEY,organization_id uuid NOT NULL,status text NOT NULL,item_code text NOT NULL,name text NOT NULL,unit text);
 CREATE TABLE public.warehouses(id uuid PRIMARY KEY,organization_id uuid NOT NULL,name text NOT NULL,code text,is_active boolean NOT NULL DEFAULT true);
@@ -93,8 +104,12 @@ CREATE TABLE public.authorization_profile_denials(
   is_active boolean NOT NULL DEFAULT true,expires_at timestamptz
 );
 CREATE TABLE public.authorization_role_capabilities(
-  role text NOT NULL,capability_key text NOT NULL REFERENCES public.authorization_capabilities(capability_key),
-  grant_source text NOT NULL,PRIMARY KEY(role,capability_key)
+  role text NOT NULL,
+  capability_key text NOT NULL REFERENCES public.authorization_capabilities(capability_key),
+  grant_source text NOT NULL,
+  valid_from timestamptz NOT NULL DEFAULT statement_timestamp(),
+  expires_at timestamptz,
+  PRIMARY KEY(role,capability_key)
 );
 CREATE OR REPLACE FUNCTION public.current_actor_has_capability(p_capability_key text)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
