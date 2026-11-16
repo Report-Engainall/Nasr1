@@ -479,4 +479,19 @@ describe("production intelligence workspace inventory screens", () => {
     expect(screen.getByRole("region", { name: "حوكمة الذكاء ومراجعة التشغيل" })).toBeInTheDocument();
   });
 
+
+  it("mounts the daily decision board before the full decision memory book", async () => {
+    render(<IntelligenceWorkspace />);
+
+    const board = await screen.findByRole("region", { name: "لوحة متابعة القرارات اليومية" });
+    expect(board).toHaveTextContent("تغطية مكتملة");
+    expect(board).toHaveTextContent("لا توجد قرارات محفوظة لعرضها في لوحة المتابعة.");
+
+    const memoryBook = await screen.findByRole("region", { name: "دفتر ذاكرة القرارات والتعلم" });
+    expect(
+      board.compareDocumentPosition(memoryBook) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(mocks.fetchMemoryCollection).toHaveBeenCalledTimes(1);
+  });
+
 });
