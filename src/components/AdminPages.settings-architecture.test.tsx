@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./AdminPages";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 import { ADMIN_NAV_PATHS, roleCanAccessView } from "@/lib/admin-access-matrix";
-import { fireEvent, within } from "@testing-library/react";
+
 
 const supabaseRpc = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase", () => ({
@@ -66,24 +66,41 @@ describe("observability architecture route is not duplicated in general settings
     },
   );
   it("unifies roles, warehouse scopes and explicit denials in one member card", async () => {
-    supabaseRpc.mockResolvedValue({
-      data: [
-        {
-          profile_id: "manager-profile",
-          full_name: "موظف المخزن",
-          email: "warehouse@example.invalid",
-          is_active: true,
-          roles: ["manager"],
-        },
-        {
-          profile_id: "customer-profile",
-          full_name: "عميل منفصل",
-          email: "customer@example.invalid",
-          is_active: true,
-          roles: ["customer"],
-        },
-      ],
-      error: null,
+    supabaseRpc.mockImplementation(async (functionName: string) => {
+      if (functionName === "list_organization_user_roles") {
+        return {
+          data: [
+            {
+              profile_id: "manager-profile",
+              full_name: "موظف المخزن",
+              email: "warehouse@example.invalid",
+              is_active: true,
+              roles: ["manager"],
+            },
+            {
+              profile_id: "customer-profile",
+              full_name: "عميل منفصل",
+              email: "customer@example.invalid",
+              is_active: true,
+              roles: ["customer"],
+            },
+          ],
+          error: null,
+        };
+      }
+      if (functionName === "list_authorization_scope_resources") {
+        return {
+          data: {
+            warehouses: [{ id: "warehouse-1", name: "مستودع صنعاء", code: "WH-01" }],
+            customers: [{ id: "customer-1", name: "عميل تجريبي", code: "CUS-001" }],
+          },
+          error: null,
+        };
+      }
+      if (functionName === "list_authorization_profile_scopes") {
+        return { data: [], error: null };
+      }
+      return { data: null, error: { message: "Unexpected RPC: " + functionName } };
     });
 
     renderForRoles(["admin"]);
@@ -96,8 +113,15 @@ describe("observability architecture route is not duplicated in general settings
     expect(managerCard).not.toBeNull();
     const managerControls = within(managerCard as HTMLElement);
     expect(managerControls.getByRole("checkbox", { name: "مسؤول العملاء" })).toBeInTheDocument();
-    expect(managerControls.getByRole("button", { name: "إدارة نطاقات الوصول" })).toBeEnabled();
+    const scopeButton = managerControls.getByRole("button", { name: "إدارة نطاقات الوصول" });
+    expect(scopeButton).toBeEnabled();
     expect(managerControls.getByRole("button", { name: "إدارة المنع الصريح للقدرات" })).toBeEnabled();
+    fireEvent.click(scopeButton);
+    const scopeType = await screen.findByRole("combobox", { name: "نوع نطاق الوصول لـ موظف المخزن" });
+    expect(within(scopeType).getByRole("option", { name: "عميل مسند" })).toBeInTheDocument();
+    fireEvent.change(scopeType, { target: { value: "assigned_customer" } });
+    expect(await screen.findByRole("combobox", { name: "العميل لإسناده إلى موظف المخزن" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "عميل تجريبي — CUS-001" })).toBeInTheDocument();
 
     const customerCard = screen.getByText("عميل منفصل").closest("article");
     expect(customerCard).not.toBeNull();
