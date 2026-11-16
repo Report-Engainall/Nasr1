@@ -46,8 +46,8 @@ describe("organization admin theme palette", () => {
   it("restores a selected stored preset", () => {
     expect(resolveAdminThemePalette(ADMIN_THEME_PRESETS[1])).toEqual({
       id: "turquoise",
-      primary: "#087f8d",
-      accent: "#0eaa97",
+      primary: "#0b929f",
+      accent: "#27b69f",
     });
   });
 
