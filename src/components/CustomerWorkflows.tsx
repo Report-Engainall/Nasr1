@@ -215,6 +215,7 @@ type Product = {
   name: string;
   item_code: string;
   barcode?: string | null;
+  sku?: string | null;
   unit: string;
   base_price?: number | string | null;
   status?: string;
@@ -284,6 +285,7 @@ function withResolvedProductPrice(
     name?: unknown;
     item_code?: unknown;
     barcode?: unknown;
+    sku?: unknown;
     unit?: unknown;
     status?: unknown;
     image_url?: unknown;
@@ -297,6 +299,7 @@ function withResolvedProductPrice(
     name: typeof product.name === "string" ? product.name : "",
     item_code: typeof product.item_code === "string" ? product.item_code : "",
     barcode: typeof product.barcode === "string" ? product.barcode : null,
+    sku: typeof product.sku === "string" ? product.sku : null,
     unit: typeof product.unit === "string" ? product.unit : "",
     status: typeof product.status === "string" ? product.status : undefined,
     image_url: typeof product.image_url === "string" ? product.image_url : null,
@@ -2342,6 +2345,7 @@ function Barcode() {
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const navigate = useNavigate();
+  const lookupRevisionRef = useRef(0);
   const lookup = useCallback(
     async (raw = value) => {
       const code = normalizeLocalizedBarcodeInput(raw);
@@ -2353,42 +2357,52 @@ function Barcode() {
         setError("الرمز يتجاوز الحد المسموح.");
         return;
       }
+
+      const requestRevision = ++lookupRevisionRef.current;
+      const isCurrentRequest = () => requestRevision === lookupRevisionRef.current;
       setBusy(true);
       setError("");
       setProduct(null);
-      const tenantScope = await getCurrentTenantScope().catch((cause) => {
-        setError(cause instanceof Error ? cause.message : "تعذر تحديد المؤسسة الحالية.");
-        setBusy(false);
-        return null;
-      });
-      if (!tenantScope) return;
-      const { organizationId: orgId } = tenantScope;
-      let r = await supabase
-        .from("products")
-        .select("id,name,item_code,barcode,unit,status")
-        .eq("organization_id", orgId)
-        .eq("status", "active")
-        .eq("barcode", code)
-        .maybeSingle();
-      if (!r.data && !r.error)
-        r = await supabase
+      try {
+        const tenantScope = await getCurrentTenantScope();
+        if (!isCurrentRequest()) return;
+        const { organizationId: orgId } = tenantScope;
+        const productQuery = () => supabase
           .from("products")
-          .select("id,name,item_code,barcode,unit,status")
+          .select("id,name,item_code,barcode,sku,unit,status")
           .eq("organization_id", orgId)
-          .eq("status", "active")
-          .eq("item_code", code)
-          .maybeSingle();
-      if (r.error) setError("تعذر البحث في الكتالوج.");
-      else if (!r.data) setError("لم نعثر على صنف بهذا الرمز.");
-      else {
-        try {
-          const priceMap = await fetchResolvedProductPrices([r.data.id]);
-          setProduct(withResolvedProductPrice(r.data, priceMap.get(r.data.id)) as Product);
-        } catch (priceError) {
-          setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
+          .eq("status", "active");
+
+        let result = await productQuery().eq("barcode", code).maybeSingle();
+        if (!isCurrentRequest()) return;
+        if (!result.data && !result.error) {
+          result = await productQuery().eq("item_code", code).maybeSingle();
+          if (!isCurrentRequest()) return;
         }
+        if (!result.data && !result.error) {
+          result = await productQuery().eq("sku", code).maybeSingle();
+          if (!isCurrentRequest()) return;
+        }
+
+        if (result.error) {
+          setError("تعذر البحث في كتالوج المؤسسة الحالية.");
+          return;
+        }
+        if (!result.data) {
+          setError("لم نعثر على صنف بهذا الباركود أو رمز الصنف أو SKU.");
+          return;
+        }
+
+        const priceMap = await fetchResolvedProductPrices([result.data.id]);
+        if (!isCurrentRequest()) return;
+        setProduct(withResolvedProductPrice(result.data, priceMap.get(result.data.id)) as Product);
+      } catch (cause) {
+        if (isCurrentRequest()) {
+          setError(cause instanceof Error ? cause.message : "تعذر البحث في الكتالوج.");
+        }
+      } finally {
+        if (isCurrentRequest()) setBusy(false);
       }
-      setBusy(false);
     },
     [value],
   );
@@ -2406,18 +2420,41 @@ function Barcode() {
     let frame = 0;
     let video: HTMLVideoElement | null = null;
     type Detector = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>> };
-    type DetectorCtor = new (options: { formats: string[] }) => Detector;
+    type DetectorCtor = {
+      new (options: { formats: string[] }): Detector;
+      getSupportedFormats?: () => Promise<string[]>;
+    };
+    const preferredFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "qr_code"];
 
     const setup = async () => {
       try {
         const BarcodeCtor = (window as unknown as { BarcodeDetector?: DetectorCtor })
           .BarcodeDetector;
         if (!BarcodeCtor) {
-          setCameraError("هذا المتصفح لا يدعم قراءة الباركود بالكاميرا. استخدم الإدخال اليدوي.");
+          setCameraError("هذا المتصفح لا يدعم قراءة الباركود بالكاميرا. استخدم الإدخال اليدوي أو افتح المتجر في متصفح يدعم BarcodeDetector.");
           setScanning(false);
           return;
         }
-        stream = await navigator.mediaDevices.getUserMedia({
+
+        const mediaDevices = navigator.mediaDevices;
+        if (!mediaDevices?.getUserMedia) {
+          setCameraError("الكاميرا غير متاحة في هذا السياق. افتح المتجر عبر HTTPS أو استخدم الإدخال اليدوي.");
+          setScanning(false);
+          return;
+        }
+
+        const supportedFormats = typeof BarcodeCtor.getSupportedFormats === "function"
+          ? await BarcodeCtor.getSupportedFormats()
+          : preferredFormats;
+        if (!active) return;
+        const formats = preferredFormats.filter((format) => supportedFormats.includes(format));
+        if (!formats.length) {
+          setCameraError("الكاميرا متاحة، لكن المتصفح لا يدعم صيغ الباركود المطلوبة. استخدم الإدخال اليدوي.");
+          setScanning(false);
+          return;
+        }
+
+        stream = await mediaDevices.getUserMedia({
           video: { facingMode: { ideal: "environment" } },
           audio: false,
         });
@@ -2428,29 +2465,46 @@ function Barcode() {
         }
         video.srcObject = stream;
         await video.play();
-        const detector = new BarcodeCtor({
-          formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "qr_code"],
-        });
+        if (!active) return;
+
+        const detector = new BarcodeCtor({ formats });
         const scan = async () => {
           if (!active || !video) return;
           try {
             const hits = await detector.detect(video);
-            const detectedCode = hits[0]?.rawValue;
+            // A frame decoded after the scanner was stopped must never trigger a lookup.
+            if (!active || !video) return;
+            const detectedCode = hits.find((hit) =>
+              typeof hit.rawValue === "string" && hit.rawValue.trim().length > 0,
+            )?.rawValue;
             if (detectedCode) {
-              setValue(detectedCode);
+              const normalizedCode = normalizeLocalizedBarcodeInput(detectedCode);
+              setValue(normalizedCode);
               setCameraError("");
               setScanning(false);
-              void lookupRef.current(detectedCode);
+              void lookupRef.current(normalizedCode);
               return;
             }
           } catch {
             // Ignore one unreadable frame and continue scanning.
           }
-          frame = requestAnimationFrame(() => void scan());
+          if (active) frame = requestAnimationFrame(() => void scan());
         };
         void scan();
-      } catch {
-        setCameraError("تعذر فتح الكاميرا. اسمح بالوصول إليها عبر HTTPS أو استخدم الإدخال اليدوي.");
+      } catch (cause) {
+        if (!active) return;
+        const errorName = cause && typeof cause === "object" && "name" in cause
+          ? String((cause as { name?: unknown }).name ?? "")
+          : "";
+        setCameraError(
+          errorName === "NotAllowedError" || errorName === "SecurityError"
+            ? "تم رفض إذن الكاميرا أو أن الصفحة ليست ضمن سياق آمن. اسمح بالوصول عبر HTTPS أو استخدم الإدخال اليدوي."
+            : errorName === "NotFoundError"
+              ? "لم يتم العثور على كاميرا متاحة في هذا الجهاز."
+              : errorName === "NotReadableError"
+                ? "الكاميرا مستخدمة من تطبيق أو تبويب آخر. أغلقه ثم أعد المحاولة."
+                : "تعذر فتح الكاميرا. تحقق من الإذن والاتصال الآمن أو استخدم الإدخال اليدوي.",
+        );
         setScanning(false);
       }
     };
@@ -2538,7 +2592,7 @@ function Barcode() {
           <article style={{ ...card, borderColor: "#a8d8c6" }}>
             <h2 style={{ margin: "0 0 6px" }}>{product.name}</h2>
             <p style={quiet}>
-              رمز الصنف: {product.item_code} · الباركود: {product.barcode ?? "غير مسجل"}
+              رمز الصنف: {product.item_code} · SKU: {product.sku ?? "غير مسجل"} · الباركود: {product.barcode ?? "غير مسجل"}
             </p>
             <strong style={{ fontSize: 22, color: "#087f8d" }}>
               {resolvedProductPriceLabel(product.base_price)}
