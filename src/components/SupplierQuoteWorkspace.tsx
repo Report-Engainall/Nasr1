@@ -19,6 +19,7 @@ import type { PurchaseOrder } from "@/lib/purchase-orders";
 import { projectSupplierQuoteComparisonDocument, type SupplierQuoteComparisonDocument } from "@/lib/supplier-quote-comparison-print";
 import { downloadSupplierQuoteComparisonWorkbookXlsx } from "@/lib/supplier-quote-comparison-xlsx";
 import { SupplierQuoteComparisonPrintSheet } from "@/components/SupplierQuoteComparisonPrintSheet";
+import { WorkspaceSectionGroup } from "@/components/ui/workspace-sections";
 
 type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = { productId: string; quantity: string; unitCost: string };
@@ -236,12 +237,13 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
 
   return (
     <>
-      <section className="panel" dir="rtl" style={{ display: "grid", gap: 14 }}>
-      <header className="panel-head">
-        <div>
-          <h2><ClipboardList size={18} style={{ verticalAlign: "middle", marginInlineEnd: 7 }} /> عروض الموردين ومقارنة الأسعار</h2>
-          <p className="po-muted">سجل عروض الموردين الواردة وقارن تكلفة الصنف ومدة التوريد وشروط الدفع قبل إنشاء أمر الشراء. الأسعار بعملة المنشأة الأساسية، ولا يوجد تحويل عملات تقديري.</p>
-        </div>
+      <WorkspaceSectionGroup
+        icon={ClipboardList}
+        title="عروض الموردين ومقارنة الأسعار"
+        description="سجل عروض الموردين الواردة وقارن تكلفة الصنف ومدة التوريد وشروط الدفع قبل إنشاء أمر الشراء. الأسعار بعملة المنشأة الأساسية، ولا يوجد تحويل عملات تقديري."
+        className="supplier-quote-group"
+        contentClassName="supplier-quote-group__content"
+      >
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
           <button className="btn secondary" type="button" onClick={exportComparison} disabled={loading || busy || quotes.length === 0}>
             <Download size={15} /> تصدير مقارنة Excel
@@ -253,7 +255,6 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
             <RefreshCw size={15} /> تحديث العروض
           </button>
         </div>
-      </header>
 
       {error && <div className="po-error" role="alert"><AlertTriangle size={15} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} />{error}</div>}
       {notice && <div className="po-notice" role="status"><CheckCircle2 size={15} style={{ verticalAlign: "middle", marginInlineEnd: 6 }} />{notice}</div>}
@@ -377,7 +378,7 @@ export function SupplierQuoteWorkspace({ onAwarded }: {
         })}
         {!warehouses.length && <p className="po-muted">لا يوجد مخزن نشط؛ لا يمكن تحويل العرض إلى أمر شراء قبل تهيئة المخزن.</p>}
       </div>
-      </section>
+      </WorkspaceSectionGroup>
       {printDocument && typeof document !== "undefined"
         ? createPortal(<SupplierQuoteComparisonPrintSheet document={printDocument} />, document.body)
         : null}
