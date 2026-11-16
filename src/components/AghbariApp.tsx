@@ -1021,9 +1021,27 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [query, setQuery] = useState(initialSearch ?? '');
   const [debouncedQuery, setDebouncedQuery] = useState(initialSearch?.trim() ?? '');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const categoriesCacheKey = useAdminScopedReadCacheKey('catalog-categories');
+  const {
+    data: categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useFetch(fetchCategories, [], {
+    cacheKey: categoriesCacheKey,
+    staleTimeMs: 15_000,
+    maxAgeMs: 120_000,
+  });
   const { data, loading, error, refetch } = useFetch(
-    () => fetchAdminProductsPage({ page, search: debouncedQuery }),
-    [page, debouncedQuery],
+    () => fetchAdminProductsPage({
+      page,
+      search: debouncedQuery,
+      status: statusFilter,
+      categoryId: categoryFilter === 'all' ? undefined : categoryFilter,
+    }),
+    [page, debouncedQuery, statusFilter, categoryFilter],
   );
   const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
   useEffect(() => { if (initialSearch?.trim()) setQuery(initialSearch); }, [initialSearch]);
@@ -1261,6 +1279,64 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       onUploaded={async (message) => { await refreshProducts(); onNotice(message); }}
       onOpenProduct={canManageProductLifecycle ? (product) => { setEditing(product); setModal(true); } : undefined}
     />
+    <div className="admin-product-filters" role="group" aria-label="تصفية كتالوج المنتجات">
+      <label>
+        <span>حالة المنتج</span>
+        <select
+          aria-label="تصفية حسب حالة المنتج"
+          value={statusFilter}
+          disabled={loading}
+          onChange={(event) => {
+            setPage(1);
+            setStatusFilter(event.target.value as 'all' | 'active' | 'inactive');
+          }}
+        >
+          <option value="all">كل الحالات</option>
+          <option value="active">المنتجات النشطة</option>
+          <option value="inactive">المنتجات المؤرشفة</option>
+        </select>
+      </label>
+      <label>
+        <span>التصنيف</span>
+        <select
+          aria-label="تصفية حسب التصنيف"
+          value={categoryFilter}
+          disabled={categoriesLoading || Boolean(categoriesError) || loading}
+          onChange={(event) => {
+            setPage(1);
+            setCategoryFilter(event.target.value);
+          }}
+        >
+          <option value="all">جميع التصنيفات</option>
+          {(categories ?? []).map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.parent_id ? '— ' : ''}{category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {categoriesLoading && <span className="admin-product-filters__hint" role="status">جار تحميل التصنيفات…</span>}
+      {categoriesError && (
+        <span className="admin-product-filters__error" role="alert">
+          تعذر تحميل التصنيفات؛ أعد المحاولة قبل التصفية حسب التصنيف.
+          <button type="button" onClick={() => void refetchCategories()}>إعادة المحاولة</button>
+        </span>
+      )}
+      {(statusFilter !== 'all' || categoryFilter !== 'all') && (
+        <button
+          type="button"
+          className="admin-product-filters__reset"
+          disabled={loading}
+          onClick={() => {
+            setPage(1);
+            setStatusFilter('all');
+            setCategoryFilter('all');
+          }}
+        >
+          مسح التصفية
+        </button>
+      )}
+    </div>
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
