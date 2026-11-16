@@ -485,7 +485,7 @@ async function main() {
         const makerPost=await expectFailure(
           "cash expense reversal maker cannot post their own counter-entry",
           ()=>postJournal(managerDb,reversals[0].journal_entry_id),
-          /reviewer different from the reversal creator, original creator and original poster/i,
+          /(?:independent checker different from the journal creator|reviewer different from the reversal creator, original creator and original poster)/i,
         );
         assert.equal(makerPost.code,"42501");
         assert.equal((await snapshotExpenseVoidBoundary(raceExpense.expense_id)).completeState,preMakerPost.completeState);
