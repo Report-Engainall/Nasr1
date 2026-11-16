@@ -37,6 +37,7 @@ const SystemHealthScreen = lazy(async () => ({ default: (await import('@/compone
 const ErrorLogScreen = lazy(async () => ({ default: (await import('@/components/admin/operations')).ErrorLogScreen }));
 const ArchitectureScreen = lazy(async () => ({ default: (await import('@/components/admin/operations')).ArchitectureScreen }));
 const EngineStatusScreen = lazy(async () => ({ default: (await import('@/components/admin/operations')).EngineStatusScreen }));
+const AdminAiGovernanceWorkspace = lazy(async () => ({ default: (await import('@/components/AdminAiGovernanceWorkspace')).AdminAiGovernanceWorkspace }));
 
 import {
   AiCenter, Field, Loading, ErrorBox, Empty, Button,
@@ -320,7 +321,7 @@ function AdminWorkspaceContent({
         }}
       />;
     case "ai":
-      return <AiCenter onNotice={onNotice} />;
+      return <AdminAiGovernanceWorkspace onNotice={onNotice} />;
     case "notifications":
       return <Notifications
         onNotice={onNotice}
