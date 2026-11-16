@@ -3,6 +3,7 @@ import { Database, RefreshCw, Scale, X } from "lucide-react";
 import { fetchOnyxSnapshots, type OnyxSnapshotSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { OnyxInventoryReconciliationActions } from "@/components/OnyxInventoryReconciliationActions";
+import { WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 const overlayStyle: CSSProperties = {
   position: "fixed", inset: 0, zIndex: 1500, display: "grid", placeItems: "center",
@@ -50,15 +51,14 @@ function snapshotLabel(snapshot: OnyxSnapshotSummary): string {
 
 function ReconciliationWorkspaceHeader({ onClose }: { onClose: () => void }) {
   return (
-    <header style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-      <div>
-        <h2 id="onyx-reconciliation-workspace-title" style={{ margin: "0 0 6px", fontSize: 21 }}>مصالحة المخزون مع لقطة أونكس المعتمدة</h2>
-        <p style={{ margin: 0, color: "var(--muted-foreground, #64736a)", lineHeight: 1.7, fontSize: 13 }}>
-          المعاينة لا تغيّر الرصيد. التطبيق والتراجع التعويضي يخضعان لفحص الخادم والقفل والصلاحيات وسجل الحركات.
-        </p>
-      </div>
-      <button type="button" onClick={onClose} style={secondaryButtonStyle} aria-label="إغلاق مصالحة مخزون أونكس"><X size={17} /> إغلاق</button>
-    </header>
+    <WorkspaceSectionHeader
+      eyebrow="المخزون والبيانات المستوردة"
+      title="مصالحة المخزون مع لقطة أونكس المعتمدة"
+      titleId="onyx-reconciliation-workspace-title"
+      description="المعاينة لا تغيّر الرصيد. التطبيق والتراجع التعويضي يخضعان لفحص الخادم والقفل والصلاحيات وسجل الحركات."
+      icon={Scale}
+      actions={<button type="button" onClick={onClose} style={secondaryButtonStyle} aria-label="إغلاق مصالحة مخزون أونكس"><X size={17} /> إغلاق</button>}
+    />
   );
 }
 
