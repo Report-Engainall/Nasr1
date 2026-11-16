@@ -51,9 +51,9 @@ INSERT INTO public.products(id,organization_id,name,image_url) VALUES (
 
 INSERT INTO public.product_media(product_id,url,sort_order,is_primary) VALUES
  ('44444444-4444-4444-8444-444444444444',
-  'https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/gallery-1.webp',0,false),
+  'https://storage.example.test/storage/v1/object/public/product-images/12121212-1212-4121-8121-121212121212/44444444-4444-4444-8444-444444444444/foreign.webp',0,false),
  ('44444444-4444-4444-8444-444444444444',
-  'https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/gallery-2.webp',1,false);
+  'https://storage.example.test/storage/v1/object/public/product-images/12121212-1212-4121-8121-121212121212/44444444-4444-4444-8444-444444444444/foreign.webp',1,false);
 
 \ir ../migrations/20261116115000_product_gallery_order_and_primary_promotion.sql
 
@@ -63,8 +63,8 @@ DO $gallery_acceptance$
 DECLARE
   v_product uuid:='44444444-4444-4444-8444-444444444444';
   v_old_primary text:='https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/primary.webp';
-  v_first text:='https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/gallery-1.webp';
-  v_second text:='https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/gallery-2.webp';
+  v_first text:='https://storage.example.test/storage/v1/object/public/product-images/12121212-1212-4121-8121-121212121212/44444444-4444-4444-8444-444444444444/foreign.webp';
+  v_second text:='https://storage.example.test/storage/v1/object/public/product-images/12121212-1212-4121-8121-121212121212/44444444-4444-4444-8444-444444444444/foreign.webp';
   v_result jsonb;
   v_count integer;
   v_error boolean:=false;
@@ -153,8 +153,8 @@ BEGIN
   BEGIN
     PERFORM public.set_staff_product_primary_from_gallery(
       '44444444-4444-4444-8444-444444444444',
-      'https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/gallery-1.webp',
-      'https://storage.example.test/storage/v1/object/public/product-images/11111111-1111-4111-8111-111111111111/44444444-4444-4444-8444-444444444444/gallery-2.webp'
+      'https://storage.example.test/storage/v1/object/public/product-images/12121212-1212-4121-8121-121212121212/44444444-4444-4444-8444-444444444444/foreign.webp',
+      'https://storage.example.test/storage/v1/object/public/product-images/12121212-1212-4121-8121-121212121212/44444444-4444-4444-8444-444444444444/foreign.webp'
     );
   EXCEPTION WHEN SQLSTATE '42501' THEN denied:=true;
   END;
