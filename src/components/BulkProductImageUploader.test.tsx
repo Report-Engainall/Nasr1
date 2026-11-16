@@ -85,7 +85,7 @@ describe("BulkProductImageUploader lazy catalog loading", () => {
 
     expect(toWebp).toHaveBeenCalledTimes(1);
     expect(uploadProductImage).not.toHaveBeenCalled();
-    const progress = screen.getByRole("progressbar");
+    const progress = screen.getByRole("progressbar", { name: "تقدم معالجة ورفع الصور" });
     expect(progress.getAttribute("aria-valuemin")).toBe("0");
     expect(progress.getAttribute("aria-valuemax")).toBe("1");
     expect(progress.getAttribute("aria-valuenow")).toBe("0");
@@ -261,7 +261,7 @@ describe("product image coverage and direct completion", () => {
       null,
     ));
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("تم ربط الصورة الرئيسية بالصنف أرز ناقص بنجاح."));
-    expect(screen.getByText("كل الأصناف المحمّلة لديها صورة رئيسية صالحة.")).toBeInTheDocument();
+    expect(screen.getByText("كل الأصناف المحمّلة لديها صورة رئيسية صالحة.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "رفع كصورة رئيسية للصنف أرز ناقص" })).not.toBeInTheDocument();
 
     // Product opening remains an explicit, separate action from the image upload.
