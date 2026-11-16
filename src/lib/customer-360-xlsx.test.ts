@@ -204,7 +204,7 @@ describe("staff customer 360 XLSX export", () => {
     const workbook = files.get("xl/workbook.xml") ?? "";
     const history = files.get("xl/worksheets/sheet9.xml") ?? "";
     expect(workbook).toContain('sheet name="سجل التواصل"');
-    expect(history).toContain("اتصال");
+    expect(history).toContain("واتساب");
     expect(history).toContain("متابعة طلب الأرز");
     expect(history).toContain("تم الاتفاق على إعادة التواصل غدًا");
     expect(history).toContain("2026-10-30T09:15:00.000Z");
