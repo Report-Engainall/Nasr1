@@ -370,7 +370,7 @@ async function main() {
     const customerTarget=await readGrid(manager,ids[0]);
     await expectFailure("ordinary customer must not write administrative prices",()=>save(customer,[
       payload(ids[0],customerTarget,shift(customerTarget,1)),
-    ]),/pricing\\.edit_draft capability/i);
+    ]),/pricing\.edit_draft capability/i);
 
     // Restore the test-only products to their starting values before the ephemeral DB is destroyed.
     const restore=[];
