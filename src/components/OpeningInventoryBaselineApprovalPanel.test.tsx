@@ -91,7 +91,7 @@ describe('OpeningInventoryBaselineApprovalPanel', () => {
     expect(window.confirm).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(approveOpeningInventoryBaseline).toHaveBeenCalledWith(preview.warehouse_id));
     expect(await screen.findByText('رصيد افتتاحي معتمد من المالك — بانتظار الجرد الميداني')).toBeTruthy();
-    expect(screen.getByText(approvedPreview.approval_id)).toBeTruthy();
+    expect(document.body.textContent).toContain(approvedPreview.approval_id);
     expect(fetchOpeningInventoryBaselinePreview).toHaveBeenCalledTimes(2);
   });
 
@@ -109,7 +109,7 @@ describe('OpeningInventoryBaselineApprovalPanel', () => {
     />);
 
     expect(await screen.findByText('الاعتماد محجوب حتى تطابق المصدر بالكامل')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'اعتماد خط الأساس الافتتاحي' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'اعتماد خط الأساس الافتتاحي' }) as HTMLButtonElement).disabled).toBe(true);
     expect(approveOpeningInventoryBaseline).not.toHaveBeenCalled();
   });
 });

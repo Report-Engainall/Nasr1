@@ -1488,26 +1488,6 @@ export function ProductModal({
         return false;
       }
     }
-    let removed = 0;
-    let uploaded = 0;
-    try {
-      for (const url of galleryRemoveUrls) {
-        await removeProductGalleryImage(savedId, url);
-        removed += 1;
-      }
-      for (const file of galleryFiles) {
-        await uploadProductGalleryImage(savedId, await toWebp(file));
-        uploaded += 1;
-      }
-      return true;
-    } catch (cause) {
-      const detail = cause instanceof Error ? cause.message : 'تعذر تحديث معرض الصور.';
-      onSaved('حُفظت بيانات المنتج؛ اكتمل ' + removed + ' إزالة و' + uploaded + ' رفع من معرض الصور قبل التعذر. حدّث المنتج لمراجعة الحالة الحالية. ' + detail);
-      return false;
-    }
-  }
-
-  async function persistProductImageChanges(savedId: string): Promise<boolean> {
     if (imageFile) {
       try {
         const webp = await toWebp(imageFile);
