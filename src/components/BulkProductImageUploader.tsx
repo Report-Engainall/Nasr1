@@ -5,6 +5,8 @@ import { matchProductImagesByCode, type ProductImageBatchEntry } from "@/lib/pro
 import type { ProductWithInventory } from "@/lib/types";
 
 type UploadResult = {
+  file: File;
+  productId: string;
   fileName: string;
   productName: string;
   placement: "primary" | "gallery";
@@ -137,6 +139,7 @@ export function BulkProductImageUploader({
   const [busy, setBusy] = useState(false);
   const uploadInFlight = useRef(false);
   const [progress, setProgress] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [missingQuery, setMissingQuery] = useState("");
   const [directImageFiles, setDirectImageFiles] = useState<Record<string, File>>({});
@@ -179,6 +182,9 @@ export function BulkProductImageUploader({
     [entries],
   );
   const blockedEntries = entries.filter((entry) => entry.status !== "ready");
+  const retryableEntryCount = readyEntries.filter((entry) =>
+    results.some((result) => result.file === entry.file && !result.ok),
+  ).length;
   const imageCoverage = useMemo(
     () => getProductImageCoverage(products ?? []),
     [products],
@@ -315,6 +321,7 @@ export function BulkProductImageUploader({
     event.currentTarget.value = "";
     setResults([]);
     setProgress(0);
+    setProgressTotal(0);
     if (selected.length > MAX_BATCH_FILES) {
       setFiles([]);
       setSelectionError("يسمح برفع " + MAX_BATCH_FILES + " صورة في الدفعة الواحدة كحد أقصى.");
@@ -346,18 +353,39 @@ export function BulkProductImageUploader({
     // ref lock as the authoritative guard so one selected batch can never start
     // two concurrent storage uploads before the next render commits.
     if (uploadInFlight.current || busy || directUploadBusyId || !catalogReady || readyEntries.length === 0) return;
+
+    // Successful files are immutable batch results. A retry must never upload them
+    // again, even when a product has several gallery images.
+    const nextResults: UploadResult[] = [...results];
+    const previouslyUploaded = new Set(
+      nextResults.filter((result) => result.ok).map((result) => result.file),
+    );
+    const entriesToUpload = readyEntries.filter((entry) => !previouslyUploaded.has(entry.file));
+    if (entriesToUpload.length === 0) return;
+
     uploadInFlight.current = true;
     setBusy(true);
     setProgress(0);
-    setResults([]);
+    setProgressTotal(entriesToUpload.length);
 
-    const nextResults: UploadResult[] = [];
     const primaryLinked = new Map<string, boolean>();
+    for (const result of nextResults) {
+      if (result.ok && result.placement === "primary") {
+        primaryLinked.set(result.productId, true);
+      }
+    }
     let uploadedCount = 0;
 
+    const saveResult = (result: UploadResult) => {
+      const existingIndex = nextResults.findIndex((item) => item.file === result.file);
+      if (existingIndex >= 0) nextResults[existingIndex] = result;
+      else nextResults.push(result);
+      setResults([...nextResults]);
+    };
+
     try {
-      for (let index = 0; index < readyEntries.length; index += 1) {
-        const entry = readyEntries[index];
+      for (let index = 0; index < entriesToUpload.length; index += 1) {
+        const entry = entriesToUpload[index];
         const product = entry.product;
         if (!product) continue;
 
@@ -375,7 +403,9 @@ export function BulkProductImageUploader({
           }
           primaryLinked.set(product.id, true);
           uploadedCount += 1;
-          nextResults.push({
+          saveResult({
+            file: entry.file,
+            productId: product.id,
             fileName: entry.file.name,
             productName: product.name,
             placement,
@@ -383,10 +413,12 @@ export function BulkProductImageUploader({
             message: "تم تحويل الصورة وربطها بالصنف.",
           });
         } catch (cause) {
-          // A failed first image does not prevent the next image for this product
-          // from becoming its primary image. Existing primaries are never replaced.
+          // If an earlier file for this product succeeded as primary, only a
+          // failed later file is retried as gallery; never replace that primary.
           if (hasPrimary) primaryLinked.set(product.id, true);
-          nextResults.push({
+          saveResult({
+            file: entry.file,
+            productId: product.id,
             fileName: entry.file.name,
             productName: product.name,
             placement,
@@ -396,16 +428,14 @@ export function BulkProductImageUploader({
         }
 
         setProgress(index + 1);
-        setResults([...nextResults]);
       }
 
-      setResults(nextResults);
-
+      const totalUploaded = nextResults.filter((result) => result.ok).length;
+      const failedCount = nextResults.filter((result) => !result.ok).length;
       if (uploadedCount > 0) {
-        const failedCount = nextResults.length - uploadedCount;
         await onUploaded(
-          "تم ربط " + uploadedCount + " صورة بنجاح." +
-          (failedCount ? " تعذّر ربط " + failedCount + " صورة؛ راجع تفاصيل الدفعة." : ""),
+          "تم ربط " + totalUploaded + " صورة بنجاح." +
+          (failedCount ? " تعذّر ربط " + failedCount + " صورة؛ أعد محاولة الملفات المتعثرة فقط." : ""),
         );
       }
     } finally {
@@ -565,10 +595,16 @@ export function BulkProductImageUploader({
               </table>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <button type="button" className="btn primary" onClick={() => void uploadMatchedImages()} disabled={busy || !catalogReady || catalogLoading || Boolean(catalogError) || readyEntries.length === 0}>
-                {busy ? "جارٍ رفع الصور " + progress + " / " + readyEntries.length : "رفع الصور المطابقة"}
+              <button type="button" className="btn primary" onClick={() => void uploadMatchedImages()} disabled={busy || !catalogReady || catalogLoading || Boolean(catalogError) || readyEntries.length === 0 || (results.length > 0 && retryableEntryCount === 0)}>
+                {busy
+                  ? "جارٍ رفع الصور " + progress + " / " + progressTotal
+                  : retryableEntryCount > 0
+                    ? "إعادة محاولة الصور الفاشلة (" + retryableEntryCount + ")"
+                    : results.length > 0
+                      ? "اكتمل رفع الصور"
+                      : "رفع الصور المطابقة"}
               </button>
-              <button type="button" className="btn outline" onClick={() => { setFiles([]); setResults([]); setProgress(0); }} disabled={busy}>
+              <button type="button" className="btn outline" onClick={() => { setFiles([]); setResults([]); setProgress(0); setProgressTotal(0); }} disabled={busy}>
                 مسح الدفعة
               </button>
             </div>
@@ -578,9 +614,9 @@ export function BulkProductImageUploader({
                 role="progressbar"
                 aria-label="تقدم معالجة ورفع الصور"
                 aria-valuemin={0}
-                aria-valuemax={readyEntries.length}
+                aria-valuemax={progressTotal || readyEntries.length}
                 aria-valuenow={progress}
-                aria-valuetext={"تمت معالجة " + progress + " من " + readyEntries.length + " صورة"}
+                aria-valuetext={"تمت معالجة " + progress + " من " + (progressTotal || readyEntries.length) + " صورة"}
               >
                 <i aria-hidden="true" style={{ width: Math.round((progress / Math.max(1, readyEntries.length)) * 100) + "%" }} />
               </div>
