@@ -261,12 +261,44 @@ describe("product image coverage and direct completion", () => {
       null,
     ));
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("تم ربط الصورة الرئيسية بالصنف أرز ناقص بنجاح."));
-    expect(screen.getByRole("status").textContent).toContain("كل الأصناف المحمّلة لديها صورة رئيسية صالحة.");
+    expect(screen.getByText("كل الأصناف المحمّلة لديها صورة رئيسية صالحة.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "رفع كصورة رئيسية للصنف أرز ناقص" })).not.toBeInTheDocument();
 
     // Product opening remains an explicit, separate action from the image upload.
     // It is tested with the same catalog entry before its upload in a dedicated render below.
     expect(onOpenProduct).not.toHaveBeenCalled();
+  });
+
+  it("blocks duplicate direct image upload clicks before React commits the busy state", async () => {
+    let resolveConversion: ((image: Blob) => void) | undefined;
+    vi.mocked(toWebp).mockReturnValue(
+      new Promise<Blob>((resolve) => { resolveConversion = resolve; }),
+    );
+    vi.mocked(uploadProductImage).mockResolvedValue("https://cdn.example.test/once.webp");
+    const loadProducts = vi.fn().mockResolvedValue([missingProduct]);
+    const { container } = renderUploader(loadProducts);
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("اختيار صورة رئيسية للصنف أرز ناقص"), {
+      target: { files: [new File(["source"], "rice.webp", { type: "image/webp" })] },
+    });
+    const button = screen.getByRole("button", { name: "رفع كصورة رئيسية للصنف أرز ناقص" });
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(toWebp).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveConversion?.(new Blob(["webp"], { type: "image/webp" }));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(uploadProductImage).toHaveBeenCalledTimes(1));
   });
 
   it("opens the existing product editor from the missing-image queue without duplicating the editor", async () => {

@@ -142,6 +142,7 @@ export function BulkProductImageUploader({
   const [directImageFiles, setDirectImageFiles] = useState<Record<string, File>>({});
   const [directImageErrors, setDirectImageErrors] = useState<Record<string, string>>({});
   const [directUploadBusyId, setDirectUploadBusyId] = useState<string | null>(null);
+  const directUploadInFlight = useRef(false);
 
   const fileChecks = useMemo(
     () => files.map((file) => ({ file, issue: validateProductImageFile(file) })),
@@ -273,33 +274,40 @@ export function BulkProductImageUploader({
 
   async function uploadMissingPrimaryImage(product: ProductWithInventory) {
     const file = directImageFiles[product.id];
-    if (!file || busy || directUploadBusyId || hasPrimaryProductImage(product)) return;
+    if (!file || busy || directUploadBusyId || directUploadInFlight.current || hasPrimaryProductImage(product)) return;
+    directUploadInFlight.current = true;
     setDirectUploadBusyId(product.id);
     setDirectImageErrors((current) => ({ ...current, [product.id]: "" }));
-    let publicUrl: string;
     try {
-      publicUrl = await uploadProductImage(product.id, await toWebp(file), null);
-      if (!/^https:\/\//i.test(publicUrl)) {
+      const publicUrl = await uploadProductImage(product.id, await toWebp(file), null);
+      if (typeof publicUrl !== "string" || !/^https:\/\//i.test(publicUrl)) {
         throw new Error("لم يرجع الخادم رابط صورة رئيسية آمناً.");
+      }
+      setProducts((current) => current?.map((item) =>
+        item.id === product.id ? { ...item, image_url: publicUrl } : item,
+      ) ?? current);
+      setDirectImageFiles((current) => {
+        const next = { ...current };
+        delete next[product.id];
+        return next;
+      });
+      try {
+        await onUploaded("تم ربط الصورة الرئيسية بالصنف " + product.name + " بنجاح.");
+      } catch (cause) {
+        setDirectImageErrors((current) => ({
+          ...current,
+          [product.id]: "تم ربط الصورة بنجاح، لكن تعذر تحديث قائمة الكتالوج: " + errorMessage(cause),
+        }));
       }
     } catch (cause) {
       setDirectImageErrors((current) => ({
         ...current,
         [product.id]: errorMessage(cause),
       }));
+    } finally {
+      directUploadInFlight.current = false;
       setDirectUploadBusyId(null);
-      return;
     }
-    setProducts((current) => current?.map((item) =>
-      item.id === product.id ? { ...item, image_url: publicUrl } : item,
-    ) ?? current);
-    setDirectImageFiles((current) => {
-      const next = { ...current };
-      delete next[product.id];
-      return next;
-    });
-    setDirectUploadBusyId(null);
-    await onUploaded("تم ربط الصورة الرئيسية بالصنف " + product.name + " بنجاح.");
   }
 
   function selectFiles(event: React.ChangeEvent<HTMLInputElement>) {
