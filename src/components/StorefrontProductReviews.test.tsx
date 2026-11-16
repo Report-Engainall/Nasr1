@@ -105,6 +105,51 @@ describe("StorefrontProductReviews", () => {
     expect(await screen.findByText("تم إرسال التقييم للمراجعة قبل النشر")).toBeInTheDocument();
   });
 
+  it("does not show a completed review submission after the authenticated customer changes", async () => {
+    mocks.user = customer;
+    const staleSubmission = deferred<{
+      id: string;
+      moderationStatus: string;
+      message: string;
+    }>();
+    mocks.fetchContext
+      .mockResolvedValueOnce({
+        eligible: true,
+        orderItemId: "e1000000-0000-0000-0000-000000000081",
+        orderNumber: "AGH-2026-081",
+        deliveredAt: "2026-11-12T10:00:00.000Z",
+        review: null,
+      })
+      .mockResolvedValue({
+        eligible: false, orderItemId: null, orderNumber: null, deliveredAt: null, review: null,
+      });
+    mocks.submit.mockReturnValueOnce(staleSubmission.promise);
+
+    const { rerender } = render(<StorefrontProductReviews productId={productId} />);
+    const body = await screen.findByLabelText("تجربتك مع المنتج");
+    fireEvent.change(body, { target: { value: "المنتج مطابق لما طلبته ووصل بحالة جيدة." } });
+    fireEvent.click(screen.getByRole("button", { name: "إرسال التقييم" }));
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalled());
+
+    mocks.user = {
+      ...customer,
+      id: "c1000000-0000-0000-0000-000000000082",
+      profileId: "d1000000-0000-0000-0000-000000000082",
+    };
+    rerender(<StorefrontProductReviews productId={productId} />);
+    expect(await screen.findByText(/يتاح التقييم بعد تسليم طلب/)).toBeInTheDocument();
+
+    await act(async () => {
+      staleSubmission.resolve({
+        id: "b1000000-0000-0000-0000-000000000084",
+        moderationStatus: "pending",
+        message: "نتيجة خاصة بالحساب السابق",
+      });
+      await staleSubmission.promise;
+    });
+    expect(screen.queryByText("نتيجة خاصة بالحساب السابق")).not.toBeInTheDocument();
+  });
+
   it("ignores a late pagination response after navigation to another product", async () => {
     const nextProductId = "a1000000-0000-0000-0000-000000000082";
     const nextProductReview = {
@@ -120,7 +165,7 @@ describe("StorefrontProductReviews", () => {
     const stalePage = deferred<{
       averageRating: number;
       reviewCount: number;
-      items: typeof review[];
+      items: Array<typeof review>;
       hasMore: boolean;
     }>();
     mocks.fetchSummary.mockImplementation((requestedProductId: string, _limit?: number, offset?: number) => {
