@@ -26,6 +26,7 @@ import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { getCurrentTenantScope, supabase } from "@/lib/supabase";
 import { normalizeLocalizedBarcodeInput } from "@/lib/localized-barcode-input";
+import { normalizeLocalizedDecimalInput } from "@/lib/localized-number-input";
 import { formatCurrency, formatDate, formatDateShort, formatNumber } from "@/lib/format";
 import {
   classifyAssistantIntent,
@@ -2760,6 +2761,18 @@ function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: 
     unknown: false,
   };
 }
+type CachedOfflineProduct = ReturnType<typeof sanitizePublicCatalogCache>[number];
+
+function offlineDraftQuantityRules(product: CachedOfflineProduct): { minimum: number; multiple: number; firstValid: number } | null {
+  const minimum = Number(product.min_order_quantity ?? 1);
+  const multiple = Number(product.order_quantity_multiple ?? 1);
+  if (!Number.isSafeInteger(minimum) || minimum < 1 || minimum > 10000 ||
+      !Number.isSafeInteger(multiple) || multiple < 1 || multiple > 10000) return null;
+  const firstValid = Math.ceil(minimum / multiple) * multiple;
+  if (!Number.isSafeInteger(firstValid) || firstValid > 10000) return null;
+  return { minimum, multiple, firstValid };
+}
+
 function Offline() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -2773,6 +2786,8 @@ function Offline() {
   const [cachedProducts, setCachedProducts] = useState<ReturnType<typeof sanitizePublicCatalogCache>>([]);
   const [draftLines, setDraftLines] = useState<ReturnType<typeof loadOfflineCartDraft>>([]);
   const [cartCount, setCartCount] = useState(0);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogQuantityDrafts, setCatalogQuantityDrafts] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
   const refresh = useCallback(() => {
@@ -2878,6 +2893,54 @@ function Offline() {
       window.removeEventListener("offline", off);
     };
   }, [refresh, user?.profileId]);
+  const visibleCachedProducts = useMemo(() => cachedProducts.filter((product) =>
+    product.status === "active" && matchesArabicCatalogSearch(product, catalogSearch),
+  ), [cachedProducts, catalogSearch]);
+
+  function addCachedProductToDraft(product: CachedOfflineProduct) {
+    if (!user?.profileId || product.status !== "active" ||
+        !cachedProducts.some((cachedProduct) => cachedProduct.id === product.id)) {
+      setMessage("تعذر تحديد صنف نشط ضمن كتالوج هذا الحساب؛ لم تُغيّر المسودة.");
+      return;
+    }
+    const rules = offlineDraftQuantityRules(product);
+    if (!rules) {
+      setMessage("تعذر التحقق من الحد الأدنى أو خطوة كمية الصنف؛ لم يُضف إلى المسودة.");
+      return;
+    }
+    const rawQuantity = catalogQuantityDrafts[product.id] ?? String(rules.firstValid);
+    const quantity = Number(normalizeLocalizedDecimalInput(rawQuantity));
+    if (!Number.isSafeInteger(quantity) || quantity < rules.minimum || quantity > 10000 ||
+        quantity % rules.multiple !== 0) {
+      setMessage("أدخل كمية صحيحة لا تقل عن الحد الأدنى وتطابق مضاعف الكمية للصنف.");
+      return;
+    }
+    try {
+      const currentLines = loadOfflineCartDraft(window.localStorage, user.profileId);
+      const currentQuantity = currentLines.find((line) => line.product_id === product.id)?.quantity ?? 0;
+      if (currentQuantity + quantity > 10000) {
+        setMessage("تجاوزت الكمية الإجمالية الحد المحلي الآمن (10,000)؛ لم تُغيّر المسودة.");
+        return;
+      }
+      const merged = mergeOfflineCartDraft(window.localStorage, user.profileId, [
+        { product_id: product.id, quantity },
+      ]);
+      if (!merged) {
+        setMessage("تعذر حفظ الإضافة في مسودة هذا الحساب؛ لم يُرسل أي طلب.");
+        return;
+      }
+      setDraftLines(merged);
+      setCartCount(merged.reduce((sum, line) => sum + line.quantity, 0));
+      setCatalogQuantityDrafts((previous) => ({ ...previous, [product.id]: String(rules.firstValid) }));
+      setMessage(
+        "أُضيف " + product.name + " إلى مسودة السلة بكمية " + formatNumber(quantity) +
+        ". لم يُرسل طلب ولم يُعتمد سعر أو مخزون.",
+      );
+    } catch {
+      setMessage("تعذر إضافة الصنف إلى المسودة المحلية؛ لم يُرسل أي طلب.");
+    }
+  }
+
   async function sync() {
     if (!online || !navigator.onLine) {
       setMessage("لا يوجد اتصال؛ ستظل النسخة المحلية محفوظة.");
@@ -3069,6 +3132,80 @@ function Offline() {
           <p style={{ ...quiet, margin: 0 }}>لا توجد مسودة محفوظة لهذا الحساب على هذا الجهاز.</p>
         )}
         <p style={{ ...quiet, marginBottom: 0 }}>تُحفظ معرّفات الأصناف والكميات فقط؛ الأسعار والمخزون والاعتماد النهائي يعاد التحقق منها عبر الخادم.</p>
+      </section>
+      <section style={{ ...card, display: "grid", gap: 12, marginBottom: 14 }}>
+        <div>
+          <h2 style={{ margin: "0 0 6px", fontSize: 16 }}>الكتالوج المحفوظ</h2>
+          <p style={{ ...quiet, margin: 0 }}>
+            تصفح الأصناف المحفوظة وابنِ مسودة سلة محلية. لا تُعرض الأسعار أو أرصدة المخزون من النسخة المحلية.
+          </p>
+        </div>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ fontWeight: 700 }}>البحث في الكتالوج المحفوظ</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="البحث في الكتالوج المحفوظ"
+              value={catalogSearch}
+              onChange={(event) => setCatalogSearch(event.target.value)}
+              maxLength={100}
+              placeholder="ابحث باسم الصنف أو الرمز أو التصنيف"
+              style={{ flex: "1 1 220px", minWidth: 0, padding: 10, border: "1px solid #cbdad9", borderRadius: 9, background: "#fff", font: "inherit" }}
+            />
+          </div>
+        </label>
+        {visibleCachedProducts.length === 0 ? (
+          <p style={{ ...quiet, margin: 0 }}>
+            {cachedProducts.length === 0
+              ? "لا توجد أصناف محفوظة بعد. اتصل بالخادم ثم حدّث الكتالوج المحلي."
+              : "لا توجد أصناف نشطة تطابق البحث في النسخة المحلية."}
+          </p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 10 }}>
+            {visibleCachedProducts.map((product) => {
+              const rules = offlineDraftQuantityRules(product);
+              const quantityValue = catalogQuantityDrafts[product.id] ?? String(rules?.firstValid ?? 1);
+              return (
+                <article key={product.id} style={{ border: "1px solid #e3ebec", borderRadius: 12, padding: 12, display: "grid", gap: 9, minWidth: 0 }}>
+                  <div>
+                    <strong>{product.name}</strong>
+                    <p style={{ ...quiet, margin: "4px 0 0" }}>
+                      الرمز: {product.item_code || "غير مسجل"} · الوحدة: {product.unit || "غير محددة"}
+                    </p>
+                    {product.category?.name ? (
+                      <p style={{ ...quiet, margin: "3px 0 0" }}>التصنيف: {product.category.name}</p>
+                    ) : null}
+                    <p style={{ ...quiet, margin: "3px 0 0" }}>
+                      الحد الأدنى: {rules ? formatNumber(rules.minimum) : "غير متاح"} · مضاعف الكمية: {rules ? formatNumber(rules.multiple) : "غير متاح"}
+                    </p>
+                  </div>
+                  <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 700 }}>
+                    الكمية المراد إضافتها للمسودة
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      dir="ltr"
+                      maxLength={12}
+                      aria-label={"الكمية لمسودة السلة: " + product.name}
+                      value={quantityValue}
+                      onChange={(event) => setCatalogQuantityDrafts((previous) => ({ ...previous, [product.id]: event.target.value }))}
+                      style={{ width: "100%", boxSizing: "border-box", padding: 9, border: "1px solid #cbdad9", borderRadius: 8, background: "#fff", font: "inherit" }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    style={primary}
+                    disabled={syncing || !rules || !user?.profileId}
+                    onClick={() => addCachedProductToDraft(product)}
+                  >
+                    <Plus size={16} /> إضافة إلى مسودة السلة
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
       <section style={{ ...card, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button style={primary} onClick={() => void sync()} disabled={syncing || !online}>
