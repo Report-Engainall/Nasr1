@@ -112,6 +112,7 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
   const manager = await managerContext.newPage();
   const browserErrors: string[] = [];
   manager.on("pageerror", (error) => browserErrors.push(error.message));
+  let authoritativeQuantity: number | undefined;
 
   try {
     await test.step("manager starts a source-backed count and saves one real line", async () => {
@@ -134,7 +135,7 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       const expectedQuantityText = (await firstRow.locator("td").nth(3).innerText()).trim();
       expect(itemCode).toBe("P2-LOCAL-E2E-001");
       expect(itemName).toBe("P2 Local E2E Product");
-      const authoritativeQuantity = await readLocalSourceQuantity();
+      authoritativeQuantity = await readLocalSourceQuantity();
       expect(normalizeLocalizedQuantity(expectedQuantityText)).toBe(authoritativeQuantity);
       await firstRow.locator('input[type="number"]').fill("99");
       await firstRow.getByRole("button", { name: "حفظ العد", exact: true }).click();
@@ -142,6 +143,9 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
     });
 
     await test.step("manager downloads and parses the actual XLSX", async () => {
+      if (authoritativeQuantity === undefined) {
+        throw new Error("The canonical PostgreSQL source quantity was not captured before XLSX export.");
+      }
       const exportButton = manager.getByRole("button", { name: "تصدير الجرد إلى Excel", exact: true });
       await expect(exportButton).toBeEnabled();
       const downloadPromise = manager.waitForEvent("download");
