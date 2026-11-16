@@ -291,7 +291,7 @@ export function buildSupplierDueDateExceptions(result: CashflowScheduleResult | 
       amount.lineage.formulaId !== "nasr1.supplier-posted-payable-after-settlements" ||
       amount.lineage.formulaVersion !== "1" ||
       !SUPPLIER_INVOICE_UUID.test(invoiceId) ||
-      !/^\\d{4}-\\d{2}-\\d{2}$/.test(entry.dueDate)
+      !/^\d{4}-\d{2}-\d{2}$/.test(entry.dueDate)
     ) return [];
     const dueDate = new Date(entry.dueDate + "T00:00:00.000Z");
     if (!Number.isFinite(dueDate.getTime()) || dueDate.toISOString().slice(0, 10) !== entry.dueDate) return [];
