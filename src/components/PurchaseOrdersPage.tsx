@@ -18,6 +18,7 @@ import { SupplierReturnWorkspace } from '@/components/SupplierReturnWorkspace';
 import { SupplierInvoiceWorkspace } from '@/components/SupplierInvoiceWorkspace';
 import { PurchaseReceiptPrintActions } from '@/components/PurchaseReceiptPrintActions';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
+import { WorkspaceSectionHeader, WorkspaceSectionGroup } from '@/components/ui/workspace-sections';
 import {
   projectPurchaseOrderPrintDocument,
   projectPurchaseOrderPrintResults,
@@ -631,15 +632,20 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId }: { initialPurchase
         .purchase-orders .po-print-document .po-print-total{margin-top:14px;font-weight:700}
       }
     `}</style>
-    <header className="heading">
-      <div className="heading-icon"><PackageCheck size={24}/></div>
-      <div><span>التوريد والمخزون</span><h1>أوامر الشراء والاستلام</h1>
-        <p>مسودة شراء، اعتماد داخلي، استلام جزئي أو كامل، وحركات مخزون قابلة للتدقيق. لا يُزاد الرصيد إلا بعد ترحيل إيصال فعلي؛ لا يُرسل بريد أو رسالة للمورد تلقائيًا.</p>
-      </div>
-    </header>
-    <section className="panel no-print">
-      <div className="panel-head"><div><h2>متابعة التوريد</h2><p>الموردون والمخازن والأصناف من سجلات المؤسسة الحالية. لا توجد بيانات تجريبية.</p></div>
-        <div className="po-actions">
+    <WorkspaceSectionHeader
+      eyebrow="التوريد والمخزون"
+      title="أوامر الشراء والاستلام"
+      description="مسودة شراء، اعتماد داخلي، استلام جزئي أو كامل، وحركات مخزون قابلة للتدقيق. لا يُزاد الرصيد إلا بعد ترحيل إيصال فعلي؛ لا يُرسل بريد أو رسالة للمورد تلقائيًا."
+      icon={PackageCheck}
+    />
+    <WorkspaceSectionGroup
+      icon={Warehouse}
+      title="متابعة التوريد"
+      description="الموردون والمخازن والأصناف من سجلات المؤسسة الحالية؛ لا تُعرض بيانات تجريبية."
+      className="purchase-order-control-group no-print"
+      contentClassName="purchase-order-control-group__content"
+    >
+      <div className="po-actions">
           <button className="btn secondary" type="button" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={16}/> تحديث</button>
           <button className="btn secondary" type="button" onClick={exportVisibleOrders} disabled={loading||busy||!visibleOrders.length}><FileSpreadsheet size={16}/> تصدير نتائج Excel</button>
           <button className="btn outline" type="button" onClick={()=>startPrint('results')} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
@@ -647,7 +653,7 @@ function PurchaseOrdersPageSession({ initialPurchaseOrderId }: { initialPurchase
         </div>
       </div>
       <PurchaseOrderSummary totalOpen={totalOpen} totalDraft={totalDraft} totalReceived={totalReceived} />
-    </section>
+    </WorkspaceSectionGroup>
 
     {error&&<div className="po-error" role="alert"><AlertTriangle size={16} style={{verticalAlign:'middle',marginInlineEnd:6}}/>{error}</div>}
     {notice&&<div className="po-notice" role="status"><CheckCircle2 size={16} style={{verticalAlign:'middle',marginInlineEnd:6}}/>{notice}</div>}
