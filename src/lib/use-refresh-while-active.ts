@@ -41,7 +41,9 @@ export function useRefreshWhileActive({
   useEffect(() => {
     if (!enabled || !Number.isSafeInteger(intervalMs) || intervalMs < 1_000) return;
 
+    let active = true;
     const run = () => {
+      if (!active) return;
       // Workspace callbacks surface their own read errors. Do not create an
       // unhandled rejection from a timer or browser lifecycle event.
       void refreshIfActive().catch(() => undefined);
@@ -55,6 +57,7 @@ export function useRefreshWhileActive({
     window.addEventListener('online', run);
 
     return () => {
+      active = false;
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', run);
