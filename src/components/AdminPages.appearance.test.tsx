@@ -109,7 +109,7 @@ describe("organization appearance settings integration", () => {
     openAppearance(container);
 
     expect(screen.getByRole("status")).toHaveTextContent("المظهر للقراءة فقط");
-    expect(screen.getByRole("button", { name: /أخضر بحري/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /تركواز مشرق/ })).toBeDisabled();
     expect(screen.getByLabelText("اللون الأساسي")).toBeDisabled();
     expect(screen.getByLabelText("لون التمييز")).toBeDisabled();
     expect(screen.getByRole("button", { name: "استعادة الافتراضي" })).toBeDisabled();
