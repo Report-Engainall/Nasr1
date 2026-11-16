@@ -6019,3 +6019,15 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - **IMPLEMENTED_ON_MAIN:** yes. **P1 exact-SHA Vitest / strict TypeScript / production build:** NOT VERIFIED at checkpoint update; combined status returned no entries and the available workflow-run wrapper did not expose push-triggered runs. An empty status list is not a pass. Do not transfer prior SHA evidence.
 - No RPC/migration/RLS/role/data or business calculations changed; no DB call/write, provider egress, deployment, Vercel use, paid service or secrets.
 - Matrix rows `REF-NL-GROWTH-RADAR-READ-001` and `REF-TASK-QUALITY-METRICS-ASSISTANT-001` remain open for their existing independent data/runtime acceptance; this is a source/parser correction only. Overall release remains **NO-GO**.
+
+## P3 CHECKPOINT SUPPLEMENT — Arabic and Persian numeral normalization — 16 NOVEMBER 2026
+
+- This supplement supersedes the earlier P3 query-window checkpoint's code/test SHA; it does not reopen the completed source correction.
+- Final exact source/test SHA: `f5b21f90fd16cb92c5afdf509327a37bcf4d953c`.
+- Additional source commit: `78b17cf73c6d5b47eb22a7f0d8628b127f4b0984`; final regression-test commit: `f5b21f90fd16cb92c5afdf509327a37bcf4d953c`.
+- Final planner blob: `674738a47b3f210af28ca448b21f2d1a0f9b7071`; final regression-test blob: `206c82cdfb23f76b88b1b74176f8b81ea868c980`.
+- `normalizeArabic` now converts Arabic-Indic digits (`٠..٩`) and Persian digits (`۰..۹`) to Western digits before intent/window parsing. The Growth Radar tests now cover `٣٠` and `۶٠`; task-quality refusal also covers `٣٠`.
+- Regression coverage is now 18 new cases plus 2 existing client tests (20 cases total). The earlier two escaped-whitespace defects remain fixed.
+- Final P1 exact-SHA Vitest/strict-TypeScript/build evidence remains **NOT VERIFIED**: combined status has no entries, and the available workflow-run connector exposes pull-request runs only, not push runs. No PASS is claimed.
+- No RPC, migration, RLS, role, database, provider, business calculation, deployment or production data changed. Both matrix acceptance rows remain open for exact-SHA CI and their pre-existing data/runtime acceptance.
+- Updated P3 checkpoint: `docs/execution/P3_NATURAL_LANGUAGE_QUERY_WINDOW_GUARDS_CHECKPOINT_2026-11-16.md`, checkpoint update commit `07a5be7122d4c6b563afc791c661510e9b785d88`.
