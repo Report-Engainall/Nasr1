@@ -7,13 +7,15 @@ DECLARE
   v_mapping record;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.authorization_capabilities WHERE capability_key='inventory.transfer.execute') THEN
+-- This is a distinct V2 capability. The legacy operation identifier is
+-- unique and remains bound to inventory.transfer.create only.
     INSERT INTO public.authorization_capabilities (
       capability_key,domain,resource,action,sensitivity,scope_kind,
       approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active
     )
     SELECT
       'inventory.transfer.execute',c.domain,c.resource,'execute',c.sensitivity,'warehouse',
-      'none',false,'{}'::jsonb,c.legacy_operation_id,true
+      'none',false,'{}'::jsonb,NULL::text,true
     FROM public.authorization_capabilities c
     WHERE c.capability_key='inventory.transfer.create';
   END IF;
