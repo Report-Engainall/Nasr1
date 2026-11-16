@@ -156,6 +156,42 @@ async function main() {
         assert.ok(Array.isArray(scopeList));
         assert.ok(scopeList.some((scope) => scope.scope_id === warehouseScope.scope_id && scope.scope_kind === "warehouse"));
 
+        // Resource picker is tenant-derived and returns a deliberately minimal projection.
+        const resourceCatalog = decodeJson((await tx.unsafe(
+          "select public.list_authorization_scope_resources() as resources",
+        ))[0].resources);
+        assert.ok(Array.isArray(resourceCatalog.warehouses));
+        assert.ok(Array.isArray(resourceCatalog.customers));
+        assert.ok(resourceCatalog.warehouses.some((warehouse) => warehouse.id === fixture.warehouse_id));
+        for (const customer of resourceCatalog.customers) {
+          assert.deepEqual(Object.keys(customer).sort(), ["code", "id", "name"]);
+        }
+        await expectSqlState(tx, "42501", async (sp) => {
+          await applyActor(sp, actors.manager);
+          return sp.unsafe("select public.list_authorization_scope_resources()");
+        }, "non-administrator cannot enumerate organization resources for scope assignment");
+
+        if (resourceCatalog.customers.length > 0) {
+          const assignedCustomerId = resourceCatalog.customers[0].id;
+          const customerScope = decodeJson((await tx.unsafe(
+            "select public.set_authorization_profile_scope($1::uuid,'assigned_customer',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+            [actors.manager.profile_id, assignedCustomerId, "P2 assigned customer scope acceptance"],
+          ))[0].result);
+          assert.equal(customerScope.changed, true);
+          assert.equal(customerScope.scope_kind, "assigned_customer");
+          const customerScopedDecision = decodeJson((await tx.unsafe(
+            "select public.current_authorization_decision('customers.read_basic',$1::uuid) as decision",
+            [assignedCustomerId],
+          ))[0].decision);
+          assert.equal(customerScopedDecision.decision, "DENY",
+            "an assigned customer relationship must not manufacture an absent capability grant");
+          const customerScopeRevoked = decodeJson((await tx.unsafe(
+            "select public.set_authorization_profile_scope($1::uuid,'assigned_customer',$2::uuid,$3::text,NULL::timestamptz,false,1) as result",
+            [actors.manager.profile_id, assignedCustomerId, "P2 customer scope rollback proof"],
+          ))[0].result);
+          assert.equal(customerScopeRevoked.revision, 2);
+        }
+
         await expectSqlState(tx, "40001", () => tx.unsafe(
           "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0)",
           [actors.manager.profile_id, fixture.warehouse_id, "Stale warehouse scope write"],
