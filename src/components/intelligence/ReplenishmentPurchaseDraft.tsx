@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, LoaderCircle, ShoppingCart } from "lucide-react";
 import {
   createPurchaseOrder,
@@ -25,9 +25,11 @@ const formatQty = (value: number) => new Intl.NumberFormat("ar-YE", { maximumFra
 
 export function ReplenishmentPurchaseDraft({
   recommendations,
+  idempotencyKeys,
   onClose,
 }: {
   recommendations: ReplenishmentRecommendation[];
+  idempotencyKeys: Map<string, string>;
   onClose: () => void;
 }) {
   const { user } = useAuth();
@@ -44,8 +46,6 @@ export function ReplenishmentPurchaseDraft({
   const [notice, setNotice] = useState("");
   const [blocked, setBlocked] = useState<string[]>([]);
   const [createdOrder, setCreatedOrder] = useState<PurchaseOrder | null>(null);
-  // Preserve one server idempotency key for each exact draft payload during this dialog session.
-  const idempotencyKeys = useRef(new Map<string, string>());
 
   const load = useCallback(async () => {
     if (!canManage) { setLoading(false); setError("تتطلب هذه العملية صلاحية المدير أو مدير المؤسسة."); return; }
@@ -155,10 +155,10 @@ export function ReplenishmentPurchaseDraft({
         .sort((left, right) => left.product_id.localeCompare(right.product_id)),
       notes: purchaseNotes,
     });
-    let idempotencyKey = idempotencyKeys.current.get(fingerprint);
+    let idempotencyKey = idempotencyKeys.get(fingerprint);
     if (!idempotencyKey) {
       idempotencyKey = "replenishment-" + globalThis.crypto.randomUUID().replace(/-/g, "");
-      idempotencyKeys.current.set(fingerprint, idempotencyKey);
+      idempotencyKeys.set(fingerprint, idempotencyKey);
     }
 
     setBusy(true); setError(""); setNotice("");
