@@ -99,6 +99,7 @@ describe("public catalog privacy and tenant query contract", () => {
       organizationId: ORGANIZATION_ID,
       warehouseId: WAREHOUSE_ID,
       isStaff: false,
+      canViewInternalProductPrices: false,
     });
   });
 
@@ -139,27 +140,31 @@ describe("public catalog privacy and tenant query contract", () => {
     expect(mocks.from).toHaveBeenCalledTimes(3);
   });
 
-  it("loads sensitive staff product fields through the tenant-bound RPC", async () => {
+  it("loads only the operational staff product allowlist without exposing financial fields", async () => {
     mocks.getStorefrontDataScope.mockResolvedValueOnce({
       organizationId: ORGANIZATION_ID,
       warehouseId: WAREHOUSE_ID,
       isStaff: true,
+      canViewInternalProductPrices: false,
     });
     mocks.rpc.mockResolvedValueOnce({
       data: [{
         id: "staff-product-1",
-        organization_id: ORGANIZATION_ID,
         category_id: null,
         name: "Staff product",
+        name_en: null,
         item_code: "STAFF-1",
+        sku: null,
         barcode: null,
         description: null,
         unit: "unit",
-        base_price: 200,
-        cost_price: 120,
+        min_order_quantity: 1,
+        order_quantity_multiple: 1,
         min_stock: 4,
         status: "active",
         image_url: null,
+        is_featured: false,
+        sort_order: 1,
         created_at: "2026-01-01T00:00:00Z",
       }],
       error: null,
@@ -168,9 +173,13 @@ describe("public catalog privacy and tenant query contract", () => {
     const rows = await fetchProducts();
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].base_price).toBe(200);
-    expect(rows[0].cost_price).toBe(120);
-    expect(mocks.rpc).toHaveBeenCalledWith("fetch_staff_products", { p_product_id: null });
+    expect(rows[0]).toMatchObject({ id: "staff-product-1", name: "Staff product", min_stock: 4 });
+    expect(rows[0]).not.toHaveProperty("base_price");
+    expect(rows[0]).not.toHaveProperty("cost_price");
+    expect(rows[0]).not.toHaveProperty("price_wholesale");
+    expect(rows[0]).not.toHaveProperty("margin");
+    expect(rows[0]).not.toHaveProperty("display_price");
+    expect(mocks.rpc).toHaveBeenCalledWith("fetch_staff_catalog_products", { p_product_id: null });
     expect(mocks.queries.some((query) => query.table === "products")).toBe(false);
   });
 
@@ -343,11 +352,12 @@ describe("public catalog privacy and tenant query contract", () => {
       organizationId: OTHER_ORGANIZATION_ID,
       warehouseId: WAREHOUSE_ID,
       isStaff: true,
+      canViewInternalProductPrices: false,
     });
 
     await expect(fetchProducts()).resolves.toEqual([]);
 
-    expect(mocks.rpc).toHaveBeenCalledWith("fetch_staff_products", { p_product_id: null });
+    expect(mocks.rpc).toHaveBeenCalledWith("fetch_staff_catalog_products", { p_product_id: null });
     expect(mocks.queries.some((query) => query.table === "products")).toBe(false);
     expect(queryFor("inventory_balances").columns).toBe("*");
     expect(queryFor("inventory_balances").filters).toContainEqual({

@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getCurrentTenantScope: vi.fn(), rpc: vi.fn(),
+  getCurrentTenantScope: vi.fn(),
+  getStorefrontDataScope: vi.fn(),
+  rpc: vi.fn(),
   rpcResult: { data: [] as Array<Record<string, unknown>>, error: null as { message: string } | null },
   saveResult: { data: null as Record<string, unknown> | null, error: null as { message: string } | null },
 }));
 vi.mock("@/lib/supabase", () => ({
-  supabase: { rpc: mocks.rpc }, getCurrentTenantScope: mocks.getCurrentTenantScope,
+  supabase: { rpc: mocks.rpc },
+  getCurrentTenantScope: mocks.getCurrentTenantScope,
+  getStorefrontDataScope: mocks.getStorefrontDataScope,
 }));
 import { createProduct, updateProduct } from "@/lib/api";
 
@@ -29,6 +33,12 @@ describe("product write result verification", () => {
     mocks.rpcResult = { data: [PRODUCT], error: null };
     mocks.saveResult = { data: { id: PRODUCT_ID, status: "active", created: false }, error: null };
     mocks.getCurrentTenantScope.mockResolvedValue({ organizationId: ORGANIZATION_ID, isStaff: true });
+    mocks.getStorefrontDataScope.mockResolvedValue({
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: true,
+      canViewInternalProductPrices: true,
+    });
     mocks.rpc.mockImplementation(async (name: string, args: { p_product_id?: string | null }) => {
       if (name === "fetch_staff_products") {
         return { data: mocks.rpcResult.data.filter(product => product.id === args.p_product_id), error: mocks.rpcResult.error };
@@ -38,7 +48,7 @@ describe("product write result verification", () => {
     });
   });
 
-  it("creates through the atomic catalog RPC and verifies the saved product through the staff read RPC", async () => {
+  it("creates through the atomic catalog RPC and verifies the saved product through the privileged manager product read RPC", async () => {
     mocks.saveResult = { data: { id: PRODUCT_ID, status: "active", created: true }, error: null };
     await expect(createProduct(NEW_PRODUCT)).resolves.toMatchObject(PRODUCT);
     expect(mocks.rpc).toHaveBeenNthCalledWith(1, "save_admin_product_with_metadata", {

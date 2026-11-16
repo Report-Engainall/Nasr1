@@ -11926,6 +11926,28 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      fetch_staff_catalog_products: {
+        Args: { p_product_id?: string | null }
+        Returns: {
+          barcode: string | null
+          category_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_featured: boolean
+          item_code: string
+          min_order_quantity: number
+          min_stock: number | null
+          name: string
+          name_en: string | null
+          order_quantity_multiple: number
+          sku: string | null
+          sort_order: number
+          status: string
+          unit: string
+        }[]
+      }
       fetch_staff_receivables_aging: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: Json
