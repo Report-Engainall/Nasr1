@@ -326,14 +326,20 @@ function WarehouseScopePanel({
       if (rpcError) throw rpcError;
       const result = data as {
         changed?: unknown;
+        scope_id?: unknown;
         scope_resource_id?: unknown;
         revision?: unknown;
         is_active?: unknown;
       } | null;
+      const confirmedIdempotentReplay = Boolean(
+        result && result.changed === false && existing &&
+        result.scope_id === existing.scope_id &&
+        result.revision === existing.revision
+      );
       if (
         !result ||
         typeof result.changed !== 'boolean' ||
-        result.scope_resource_id !== warehouseId ||
+        (result.scope_resource_id !== warehouseId && !confirmedIdempotentReplay) ||
         !Number.isSafeInteger(result.revision) ||
         result.is_active !== active
       ) {
@@ -346,10 +352,11 @@ function WarehouseScopePanel({
       await load();
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : '';
-      setError(detail.includes('scope revision changed')
+      const message = detail.includes('scope revision changed')
         ? 'تغير النطاق بواسطة مسؤول آخر. أُعيد تحميل الإصدار الحالي؛ راجع الحالة قبل المحاولة.'
-        : detail || 'رفض الخادم تغيير نطاق المستودع أو تعذر تأكيده.');
+        : detail || 'رفض الخادم تغيير نطاق المستودع أو تعذر تأكيده.';
       await load();
+      setError(message);
     } finally {
       setSavingResourceId(null);
     }
