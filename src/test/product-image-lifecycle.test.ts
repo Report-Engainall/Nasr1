@@ -202,8 +202,8 @@ describe("product image lifecycle", () => {
   });
 
   it("reorders only the exact current-tenant gallery image set through the server command", async () => {
-    const first = "https://storage.example.test/storage/v1/object/public/product-images/" + ORGANIZATION_ID + "/" + PRODUCT_ID + "/first.webp";
-    const second = "https://storage.example.test/storage/v1/object/public/product-images/" + ORGANIZATION_ID + "/" + PRODUCT_ID + "/second.webp";
+    const first = "https://storage.example.test/storage/v1/object/public/product-images/" + ORGANIZATION_ID + "/" + PRODUCT_ID + "/b2000000-0000-4000-8000-000000000001.webp";
+    const second = "https://storage.example.test/storage/v1/object/public/product-images/" + ORGANIZATION_ID + "/" + PRODUCT_ID + "/b2000000-0000-4000-8000-000000000002.webp";
     mocks.rpc.mockResolvedValue({
       data: { id: PRODUCT_ID, changed: true, image_gallery_urls: [second, first] },
       error: null,
