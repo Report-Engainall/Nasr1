@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from "@/components/ui/workspace-sections";
 
 export function CustomerAccountPasswordPage() {
   const { user, ready, sessionRevision } = useAuth();
@@ -78,20 +79,15 @@ function CustomerAccountPasswordWorkspace({
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6" dir="rtl">
-      <header className="mb-5 rounded-2xl border bg-card p-5 sm:p-7">
-        <Link to="/" className="text-sm text-primary hover:underline">العودة إلى المتجر</Link>
-        <div className="mt-4 flex items-start gap-3">
-          <span className="rounded-xl bg-primary/10 p-3 text-primary"><KeyRound size={24}/></span>
-          <div>
-            <h1 className="text-2xl font-bold">تغيير كلمة المرور</h1>
-            <p className="mt-2 text-sm leading-7 text-muted-foreground">
-              تحديث كلمة مرور جلسة الحساب الحالية عبر خدمة المصادقة. لا تُحفظ كلمة المرور في ملف العميل أو في قاعدة بيانات المتجر.
-            </p>
-          </div>
-        </div>
-      </header>
+      <WorkspaceSectionHeader
+        eyebrow="الحساب والأمان"
+        title="تغيير كلمة المرور"
+        description="تحديث كلمة مرور جلسة الحساب الحالية عبر خدمة المصادقة. لا تُحفظ كلمة المرور في ملف العميل أو في قاعدة بيانات المتجر."
+        icon={KeyRound}
+        actions={<Link to="/" className="sf-back-link">العودة إلى المتجر</Link>}
+      />
 
-      <section className="rounded-2xl border bg-card p-5 sm:p-7">
+      <WorkspaceSectionGroup icon={ShieldCheck} title="بيانات الدخول" description="إدارة كلمة المرور للحساب المصادق عليه حاليًا دون تخزينها في سجلات المتجر." className="customer-password-group" contentClassName="customer-password-group__content">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
           <div>
             <strong className="block">الحساب الحالي</strong>
@@ -153,7 +149,7 @@ function CustomerAccountPasswordWorkspace({
             <a href="/forgot-password" className="text-sm text-primary hover:underline">استخدام استعادة كلمة المرور بدلاً من ذلك</a>
           </div>
         </form>
-      </section>
+      </WorkspaceSectionGroup>
     </main>
   );
 }
