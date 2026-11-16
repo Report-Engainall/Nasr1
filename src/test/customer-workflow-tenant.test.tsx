@@ -531,6 +531,98 @@ describe("customer quote workspace tenant boundary", () => {
     expect(syncedSafe[0].inventory).not.toHaveProperty("reorder_point");
   });
 
+  it("browses the scoped offline catalog and adds localized quantities to the profile draft without prices", async () => {
+    const sugarId = "f2222222-2222-4222-8222-222222222222";
+    const riceId = "f3333333-3333-4333-8333-333333333333";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    const keys = offlineCatalogCacheKeys(PROFILE_ID)!;
+    const serverScope = {
+      profileId: PROFILE_ID,
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
+    };
+    window.localStorage.setItem(keys.scopeKey, offlineCatalogScopeFingerprint(serverScope));
+    window.localStorage.setItem(keys.lastServerSyncKey, new Date().toISOString());
+    window.localStorage.setItem(keys.catalogKey, JSON.stringify([
+      {
+        id: sugarId,
+        name: "مواد تموينية",
+        item_code: "000125",
+        barcode: "628000125",
+        unit: "كرتون",
+        status: "active",
+        min_order_quantity: 1,
+        order_quantity_multiple: 1,
+        base_price: 1200,
+        cost_price: 800,
+        category: { id: "c1111111-1111-4111-8111-111111111111", name: "السكر" },
+      },
+      {
+        id: riceId,
+        name: "أرز بسمتي",
+        item_code: "000126",
+        unit: "كيس",
+        status: "active",
+        min_order_quantity: 2,
+        order_quantity_multiple: 2,
+        retail_price: 900,
+        category: { id: "c2222222-2222-4222-8222-222222222222", name: "الأرز" },
+      },
+    ]));
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+
+    await mountQuoteWorkspace("/offline");
+
+    expect(host?.textContent).toContain("الكتالوج المحفوظ");
+    expect(host?.textContent).toContain("مواد تموينية");
+    expect(host?.textContent).toContain("أرز بسمتي");
+    expect(host?.textContent).not.toContain("1200");
+    expect(host?.textContent).not.toContain("900");
+
+    const search = host?.querySelector<HTMLInputElement>('[aria-label="البحث في الكتالوج المحفوظ"]');
+    expect(search).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(search, "سكر");
+      search?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(host?.textContent).toContain("مواد تموينية");
+    expect(host?.textContent).not.toContain("أرز بسمتي");
+
+    const quantity = host?.querySelector<HTMLInputElement>('[aria-label="الكمية لمسودة السلة: مواد تموينية"]');
+    expect(quantity).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(quantity, "٢");
+      quantity?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const addButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("إضافة إلى مسودة السلة"),
+    );
+    expect(addButton).toBeDefined();
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const cartKey = "aghbari:cart:v2:customer:" + encodeURIComponent(PROFILE_ID);
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: sugarId, quantity: 2 },
+    ]);
+    expect(host?.textContent).toContain("أُضيف مواد تموينية");
+    expect(host?.textContent).toContain("لم يُرسل طلب ولم يُعتمد سعر أو مخزون");
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(mocks.fetchResolvedProductPrices).not.toHaveBeenCalled();
+  });
+
   it("shows invoice prices in the customer preview only from the scoped invoice RPC", async () => {
     const invoiceId = "22222222-2222-4222-8222-222222222222";
     mocks.user = {
