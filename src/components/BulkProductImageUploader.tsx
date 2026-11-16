@@ -103,7 +103,7 @@ export function buildMissingProductImagesCsv(
     product.category?.name ?? "",
     String(Array.isArray(product.image_gallery_urls) ? product.image_gallery_urls.length : 0),
   ]);
-  return "\\uFEFF" + [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\\r\\n");
+  return "\uFEFF" + [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
 function matchStatusLabel(entry: ProductImageBatchEntry<File>): string {

@@ -225,7 +225,7 @@ describe("product image coverage and direct completion", () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain("'=1+1");
     expect(csv).toContain("'+SUM(A1:A2)");
-    expect(csv.split("\\r\\n")).toHaveLength(3);
+    expect(csv.split("\r\n")).toHaveLength(3);
   });
 
   it("uploads a selected image directly as the primary image for a product with no primary image", async () => {
