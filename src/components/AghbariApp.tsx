@@ -40,7 +40,7 @@ const EngineStatusScreen = lazy(async () => ({ default: (await import('@/compone
 const AdminAiGovernanceWorkspace = lazy(async () => ({ default: (await import('@/components/AdminAiGovernanceWorkspace')).AdminAiGovernanceWorkspace }));
 
 import {
-  AiCenter, Field, Loading, ErrorBox, Empty, Button,
+  Field, Loading, ErrorBox, Empty, Button,
   TableWrap, Modal, Notifications, OrderDetail, SettingsPage, Suppliers,
 } from '@/components/AdminPages';
 const OperationsCenter = lazy(async () => ({ default: (await import('@/components/OperationsCenter')).OperationsCenter }));
