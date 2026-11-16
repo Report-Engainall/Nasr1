@@ -2630,6 +2630,142 @@ export async function cancelStockCount(sessionId: string, reason: string): Promi
   return data as { session_id: string; status: string; reason: string };
 }
 
+
+export type InventoryAdjustmentBalance = {
+  product_id: string;
+  item_code: string;
+  product_name: string;
+  unit: string | null;
+  warehouse_id: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  last_movement_at: string | null;
+  updated_at: string;
+};
+
+export type InventoryAdjustmentResult = {
+  adjustment_id: string;
+  product_id: string;
+  warehouse_id: string;
+  previous_quantity_on_hand: number;
+  new_quantity_on_hand: number;
+  quantity_delta: number;
+  reserved_quantity: number;
+  quantity_available_after: number;
+  idempotent_replay: boolean;
+};
+
+export async function fetchInventoryAdjustmentBalances(warehouseId: string): Promise<InventoryAdjustmentBalance[]> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('get_inventory_adjustment_balances', { p_warehouse_id: warehouseId });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يؤكد الخادم تحميل أرصدة التسوية.');
+  }
+  const payload = data as Record<string, unknown>;
+  if (payload.warehouse_id !== warehouseId || !Array.isArray(payload.items)) {
+    throw new Error('إسقاط أرصدة التسوية غير مطابق للمستودع المحدد.');
+  }
+  return payload.items.map((value): InventoryAdjustmentBalance => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('أعاد الخادم صنفاً غير صالح في قائمة التسوية.');
+    }
+    const item = value as Record<string, unknown>;
+    const quantityOnHand = Number(item.quantity_on_hand);
+    const quantityReserved = Number(item.quantity_reserved);
+    const quantityAvailable = Number(item.quantity_available);
+    if (
+      typeof item.product_id !== 'string' || typeof item.item_code !== 'string' ||
+      typeof item.product_name !== 'string' || typeof item.warehouse_id !== 'string' ||
+      item.warehouse_id !== warehouseId ||
+      !Number.isFinite(quantityOnHand) || !Number.isFinite(quantityReserved) ||
+      !Number.isFinite(quantityAvailable)
+    ) {
+      throw new Error('بيانات رصيد الصنف المسترجعة غير مكتملة أو غير صالحة.');
+    }
+    return {
+      product_id: item.product_id,
+      item_code: item.item_code,
+      product_name: item.product_name,
+      unit: typeof item.unit === 'string' ? item.unit : null,
+      warehouse_id: item.warehouse_id,
+      quantity_on_hand: quantityOnHand,
+      quantity_reserved: quantityReserved,
+      quantity_available: quantityAvailable,
+      last_movement_at: typeof item.last_movement_at === 'string' ? item.last_movement_at : null,
+      updated_at: typeof item.updated_at === 'string' ? item.updated_at : '',
+    };
+  });
+}
+
+export async function adjustInventoryBalance(input: {
+  productId: string;
+  warehouseId: string;
+  expectedQuantity: number;
+  newQuantity: number;
+  reason: string;
+  reference?: string;
+  notes?: string;
+  idempotencyKey: string;
+}): Promise<InventoryAdjustmentResult> {
+  assertStockCountId(input.productId, 'معرّف الصنف');
+  assertStockCountId(input.warehouseId, 'معرّف المستودع');
+  const quantityValid = (value: number) =>
+    Number.isFinite(value) && value >= 0 && value <= 999999999999.999 &&
+    Number.isSafeInteger(Math.round(value * 1000)) && Math.round(value * 1000) === value * 1000;
+  if (!quantityValid(input.expectedQuantity) || !quantityValid(input.newQuantity)) {
+    throw new Error('الرصيد يجب أن يكون غير سالب وبحد أقصى ثلاث منازل عشرية.');
+  }
+  const reason = input.reason.trim();
+  const reference = input.reference?.trim() ?? '';
+  const notes = input.notes?.trim() ?? '';
+  if (!reason || reason.length > 1000 || reference.length > 200 || notes.length > 1000) {
+    throw new Error('السبب مطلوب؛ المرجع لا يتجاوز 200 حرف والملاحظات 1000 حرف.');
+  }
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(input.idempotencyKey)) {
+    throw new Error('مفتاح منع تكرار التسوية غير صالح.');
+  }
+  const { data, error } = await supabase.rpc('adjust_inventory_balance', {
+    p_product_id: input.productId,
+    p_warehouse_id: input.warehouseId,
+    p_expected_quantity: input.expectedQuantity,
+    p_new_quantity: input.newQuantity,
+    p_reason: reason,
+    p_reference: reference || null,
+    p_notes: notes || null,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يؤكد الخادم نتيجة تسوية الرصيد.');
+  }
+  const result = data as Record<string, unknown>;
+  const numericFields = [
+    'previous_quantity_on_hand','new_quantity_on_hand','quantity_delta',
+    'reserved_quantity','quantity_available_after',
+  ] as const;
+  if (
+    typeof result.adjustment_id !== 'string' ||
+    result.product_id !== input.productId || result.warehouse_id !== input.warehouseId ||
+    numericFields.some((field) => !Number.isFinite(Number(result[field]))) ||
+    typeof result.idempotent_replay !== 'boolean'
+  ) {
+    throw new Error('نتيجة تسوية الرصيد المسترجعة غير مكتملة.');
+  }
+  return {
+    adjustment_id: result.adjustment_id,
+    product_id: input.productId,
+    warehouse_id: input.warehouseId,
+    previous_quantity_on_hand: Number(result.previous_quantity_on_hand),
+    new_quantity_on_hand: Number(result.new_quantity_on_hand),
+    quantity_delta: Number(result.quantity_delta),
+    reserved_quantity: Number(result.reserved_quantity),
+    quantity_available_after: Number(result.quantity_available_after),
+    idempotent_replay: result.idempotent_replay,
+  };
+}
+
 export type InventoryReorderPointSnapshot = {
   reorder_point: number | null;
   quantity_available: number;
