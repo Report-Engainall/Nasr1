@@ -19,8 +19,8 @@ export type AdminOrderProgress =
 const ORDER_STATUS_STEP: Readonly<Record<string, number>> = {
   new: 0,
   draft: 0,
-  pending: 0,
-  received: 0,
+  pending: 1,
+  received: 1,
   reviewing: 1,
   confirmed: 2,
   approved: 2,

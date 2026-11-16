@@ -2,13 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { getAdminOrderProgress } from './admin-order-progress';
 
 describe('admin order progress presentation', () => {
-  it('projects a pending order at the receipt step without marking later steps complete', () => {
-    const result = getAdminOrderProgress('pending');
-    expect(result.kind).toBe('progress');
-    if (result.kind !== 'progress') return;
-    expect(result.currentStep).toBe(0);
-    expect(result.steps.map((step) => step.state)).toEqual([
+  it('projects a new order at receipt and a submitted pending order at review', () => {
+    const created = getAdminOrderProgress('new');
+    expect(created.kind).toBe('progress');
+    if (created.kind !== 'progress') return;
+    expect(created.currentStep).toBe(0);
+    expect(created.steps.map((step) => step.state)).toEqual([
       'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming',
+    ]);
+
+    const submitted = getAdminOrderProgress('pending');
+    expect(submitted.kind).toBe('progress');
+    if (submitted.kind !== 'progress') return;
+    expect(submitted.currentStep).toBe(1);
+    expect(submitted.steps.map((step) => step.state)).toEqual([
+      'complete', 'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming',
     ]);
   });
 
