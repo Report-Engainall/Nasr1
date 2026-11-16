@@ -9,7 +9,7 @@ import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './cu
 import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
 import { rankDashboardLowStockCandidates, type DashboardLowStockCandidate } from './dashboard-low-stock';
-import { buildProductAdminSearchFilter, isValidProductAdminCategoryId } from './product-admin-pagination';
+import { normalizeProductAdminSearchTerm, isValidProductAdminCategoryId } from './product-admin-pagination';
 import { getImportJobsPageBounds } from './import-job-pagination';
 import { calculateBusinessInventoryValue } from './business-inventory-valuation';
 import { summarizeDashboardOrders } from './dashboard-metrics';
@@ -439,146 +439,47 @@ export async function fetchAdminProductOptions(input: {
   const scope = await getStorefrontDataScope();
   if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة خيارات المنتجات.');
 
-  const rawSearch = (input.search ?? '').trim();
-  const searchFilter = buildProductAdminSearchFilter(rawSearch);
-  if (rawSearch && !searchFilter) {
-    return { rows: [], page, pageSize, hasNextPage: false };
+  const rawSearch = input.search ?? '';
+  const search = normalizeProductAdminSearchTerm(rawSearch);
+  if (rawSearch.trim() && !search) return { items: [], page, pageSize, hasNextPage: false };
+
+  const response = await readWithRetry(() => supabase.rpc('get_admin_products_page', {
+    p_page: page,
+    p_page_size: pageSize,
+    p_search: search,
+    p_active_only: input.activeOnly ?? false,
+    p_category_id: input.categoryId ?? null,
+  }));
+  if (response === null || typeof response !== 'object' || Array.isArray(response)) {
+    throw new Error('لم يؤكد الخادم صفحة منتجات الإدارة.');
   }
-
-  let query = readStaffProducts(scope, null)
-    .select('id,name,item_code,status')
-    .order('name', { ascending: true })
-    .order('id', { ascending: true });
-  if (input.activeOnly) query = query.eq('status', 'active');
-  if (searchFilter) query = query.or(searchFilter);
-
-  const from = (page - 1) * pageSize;
-  const data = await readWithRetry(() => query.range(from, from + pageSize));
-  if (!Array.isArray(data) || data.length > pageSize + 1) {
-    throw new Error('لم يؤكد الخادم صفحة خيارات المنتجات.');
+  const pagePayload = response as Record<string, unknown>;
+  const rawItems = pagePayload.items;
+  if (!Array.isArray(rawItems) || rawItems.length > pageSize ||
+      pagePayload.page !== page || pagePayload.page_size !== pageSize ||
+      typeof pagePayload.has_next_page !== 'boolean') {
+    throw new Error('أعاد الخادم صفحة منتجات إدارة غير مكتملة أو خارج حدود الصفحة.');
   }
-
-  const hasNextPage = data.length > pageSize;
-  const rows: AdminProductOption[] = [];
-  const ids = new Set<string>();
-  for (const value of data.slice(0, pageSize) as Array<Record<string, unknown>>) {
-    if (
-      typeof value.id !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) ||
-      ids.has(value.id) ||
-      typeof value.name !== 'string' ||
-      typeof value.item_code !== 'string' ||
-      typeof value.status !== 'string' ||
-      (input.activeOnly && value.status !== 'active')
-    ) {
-      throw new Error('أعاد الخادم خيار منتج غير مكتمل أو مكرر؛ لم يتم عرضه.');
-    }
-    ids.add(value.id);
-    rows.push({ id: value.id, name: value.name, item_code: value.item_code });
-  }
-
-  return { rows, page, pageSize, hasNextPage };
-}
-
-/** Targeted lookup that preserves an existing product-scoped pricing rule outside page one. */
-export async function fetchAdminProductOptionById(productId: string): Promise<AdminProductOption | null> {
-  const normalizedId = typeof productId === 'string' ? productId.trim().toLowerCase() : '';
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalizedId)) {
-    throw new Error('معرّف المنتج المرتبط بقاعدة التسعير غير صالح.');
-  }
-  const scope = await getStorefrontDataScope();
-  if (!scope.isStaff) throw new Error('صلاحية الموظف مطلوبة لقراءة المنتج المرتبط بقاعدة التسعير.');
-
-  const row = await readWithRetry(() => readStaffProducts(scope, normalizedId)
-    .select('id,name,item_code,status')
-    .limit(1)
-    .maybeSingle());
-
-  if (row === null) return null;
-  if (
-    typeof row !== 'object' ||
-    Array.isArray(row) ||
-    (row as Record<string, unknown>).id !== normalizedId ||
-    typeof (row as Record<string, unknown>).name !== 'string' ||
-    typeof (row as Record<string, unknown>).item_code !== 'string' ||
-    typeof (row as Record<string, unknown>).status !== 'string'
-  ) {
-    throw new Error('لم يؤكد الخادم المنتج المرتبط بقاعدة التسعير الحالية.');
-  }
-  const value = row as Record<string, unknown>;
-  return { id: normalizedId, name: value.name as string, item_code: value.item_code as string };
-}
-
-export type AdminProductPage = {
-  items: ProductWithInventory[];
-  page: number;
-  pageSize: number;
-  hasNextPage: boolean;
-};
-
-const ADMIN_PRODUCT_PAGE_SIZE = 40;
-const ADMIN_PRODUCT_MAX_PAGE = 2500;
-const PRODUCT_ADMIN_PAGE_COLUMNS =
-  'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,base_price,min_stock,created_at,min_order_quantity,order_quantity_multiple,is_featured,sort_order';
-const STAFF_PRODUCT_ADMIN_PAGE_COLUMNS =
-  'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,min_stock,created_at,min_order_quantity,order_quantity_multiple,is_featured,sort_order';
-
-/**
- * Bounded, tenant-scoped staff catalog read for the product-management table.
- * The full fetchProducts() reader remains available to storefront and bulk-image
- * matching; this method is intentionally limited to one deterministic page.
- */
-export async function fetchAdminProductsPage(input: {
-  page: number;
-  search?: string;
-  activeOnly?: boolean;
-  categoryId?: string;
-}): Promise<AdminProductPage> {
-  const page = input.page;
-  const pageSize = ADMIN_PRODUCT_PAGE_SIZE;
-  if (!Number.isSafeInteger(page) || page < 1 || page > ADMIN_PRODUCT_MAX_PAGE) {
-    throw new Error('رقم صفحة المنتجات غير صالح.');
-  }
-  if (input.categoryId !== undefined && !isValidProductAdminCategoryId(input.categoryId)) {
-    throw new Error('معرّف التصنيف غير صالح لعرض الكتالوج.');
-  }
-
-  const scope = await getStorefrontDataScope();
-  if (!scope.isStaff) {
-    throw new Error('لا تملك صلاحية قراءة كتالوج الإدارة.');
-  }
-
-  const rawSearch = (input.search ?? '').trim();
-  const searchFilter = buildProductAdminSearchFilter(rawSearch);
-  if (rawSearch && !searchFilter) {
-    return { items: [], page, pageSize, hasNextPage: false };
-  }
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize; // inclusive: one extra row proves whether another page exists.
-
-  let productQuery = readStaffProducts(scope, null)
-    .select(scope.canViewInternalProductPrices ? PRODUCT_ADMIN_PAGE_COLUMNS : STAFF_PRODUCT_ADMIN_PAGE_COLUMNS)
-    .order('name', { ascending: true })
-    .order('id', { ascending: true });
-
-  if (input.categoryId) productQuery = productQuery.eq('category_id', input.categoryId);
-  if (input.activeOnly) productQuery = productQuery.eq('status', 'active');
-  const filteredProductQuery = searchFilter
-    ? productQuery.or(searchFilter)
-    : productQuery;
-
-  const rawProducts = await readWithRetry(() => filteredProductQuery.range(from, to));
-  if (!Array.isArray(rawProducts) || rawProducts.length > pageSize + 1) {
-    throw new Error('أعاد الخادم صفحة منتجات غير صالحة؛ لم يتم عرض بيانات جزئية.');
-  }
-
-  const hasNextPage = rawProducts.length > pageSize;
-  const pageRows: Array<Record<string, unknown>> = rawProducts.slice(0, pageSize).map((row) => {
-    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+  const hasNextPage = pagePayload.has_next_page;
+  const pageRows: Array<Record<string, unknown>> = rawItems.map((value) => {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('أعاد الخادم صف منتج غير صالح؛ أُوقف العرض لمنع قراءة بيانات غير موثوقة.');
     }
-    return Object.fromEntries(Object.entries(row));
+    const row = Object.fromEntries(Object.entries(value as Record<string, unknown>));
+    const forbiddenFields = [
+      'cost_price', 'purchase_cost', 'unit_cost', 'retail_price', 'wholesale_price',
+      'price_retail', 'price_wholesale', 'price_wholesale_of_wholesale', 'margin', 'margin_amount',
+    ];
+    if (forbiddenFields.some((field) => Object.prototype.hasOwnProperty.call(row, field))) {
+      throw new Error('أعاد الخادم حقولًا مالية خارج إسقاط صفحة المنتجات المسموح.');
+    }
+    const hasBasePrice = Object.prototype.hasOwnProperty.call(row, 'base_price');
+    if (scope.canViewInternalProductPrices ? !hasBasePrice : hasBasePrice) {
+      throw new Error('إسقاط السعر الأساسي لا يطابق صلاحية الدور الحالية؛ أُوقف عرض الصفحة.');
+    }
+    return row;
   });
+
   const productIds = pageRows.map((row) => {
     if (
       typeof row.id !== 'string' ||

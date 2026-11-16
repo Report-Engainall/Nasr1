@@ -12088,6 +12088,16 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: Json
       }
+      get_admin_products_page: {
+        Args: {
+          p_active_only?: boolean
+          p_category_id?: string | null
+          p_page?: number
+          p_page_size?: number
+          p_search?: string | null
+        }
+        Returns: Json
+      }
       get_current_tenant_context: { Args: never; Returns: Json }
       get_customer_account_statement: { Args: never; Returns: Json }
       get_customer_cart: { Args: never; Returns: Json }

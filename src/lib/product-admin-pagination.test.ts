@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildProductAdminSearchFilter, isValidProductAdminCategoryId } from "./product-admin-pagination";
+import { buildProductAdminSearchFilter, isValidProductAdminCategoryId, normalizeProductAdminSearchTerm } from "./product-admin-pagination";
 
 describe("buildProductAdminSearchFilter", () => {
   it("searches Arabic and Latin text across the four supported product identifiers", () => {
@@ -34,6 +34,16 @@ describe("buildProductAdminSearchFilter", () => {
   });
 });
 
+
+describe("normalizeProductAdminSearchTerm", () => {
+  it("normalizes bounded Arabic/Latin search terms and removes query syntax", () => {
+    expect(normalizeProductAdminSearchTerm(" أرز Basmati 000125 ")).toBe("أرز Basmati 000125");
+    expect(normalizeProductAdminSearchTerm('x),organization_id.eq.anything,*%_"')).toBe("x organization_id.eq.anything _");
+    expect(normalizeProductAdminSearchTerm("   ")).toBeNull();
+    expect(normalizeProductAdminSearchTerm("(),%*")).toBeNull();
+    expect(() => normalizeProductAdminSearchTerm("a".repeat(101))).toThrow("طويلة جدًا");
+  });
+});
 
 describe("isValidProductAdminCategoryId", () => {
   it("accepts a canonical category UUID", () => {

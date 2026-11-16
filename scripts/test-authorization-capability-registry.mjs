@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
 function requiredEnv(name) {
@@ -207,6 +208,73 @@ async function main() {
   // P2 acceptance: approval-gated pricing proposals and the guarded manager edit path.
   const staff=actors.get("staff");
   const accountant=actors.get("accountant");
+ 
+  // P2 acceptance: database-side product pagination and field-level price projection.
+  const adminPageIds=Array.from({length:4},()=>randomUUID());
+  const adminPagePrefix="P2-ADMIN-PAGE-"+process.pid+"-"+Date.now();
+  const pageFixtures=[
+    ["P2 Admin Page Fixture 001",adminPagePrefix+"-001","active"],
+    ["P2 Admin Page Fixture 002",adminPagePrefix+"-002","active"],
+    ["P2 Admin Page Fixture 003",adminPagePrefix+"-003","active"],
+    ["P2 Admin Page Fixture 004",adminPagePrefix+"-004","inactive"],
+  ];
+  try {
+    for(let index=0;index<pageFixtures.length;index+=1) {
+      const fixture=pageFixtures[index];
+      await db.unsafe(
+        "insert into public.products(id,organization_id,category_id,name,item_code,barcode,description,unit,base_price,cost_price,min_stock,status) "+
+        "values($1::uuid,$2::uuid,NULL,$3::text,$4::text,NULL,$5::text,'carton',38500,19000,0,$6::text)",
+        [adminPageIds[index],org,fixture[0],fixture[1],"P2 isolated SQL pagination fixture",fixture[2]]
+      );
+    }
+    const readAdminProductPage=async(actor,page,activeOnly=false)=> {
+      const rows=await withActor(db,actor,tx=>tx.unsafe(
+        "select public.get_admin_products_page($1::integer,$2::integer,$3::text,$4::boolean,NULL::uuid) as page",
+        [page,2,adminPagePrefix,activeOnly]
+      ));
+      const payload=typeof rows[0]?.page==="string"?JSON.parse(rows[0].page):rows[0]?.page;
+      assert.ok(payload&&typeof payload==="object"&&!Array.isArray(payload),"admin product page RPC must return a JSON page envelope");
+      assert.equal(payload.page,page);
+      assert.equal(payload.page_size,2);
+      assert.ok(Array.isArray(payload.items));
+      assert.ok(payload.items.length<=2,"PostgreSQL must return no more than the requested page size");
+      assert.equal(typeof payload.has_next_page,"boolean");
+      return payload;
+    };
+    const managerPageOne=await readAdminProductPage(manager,1,false);
+    const managerPageTwo=await readAdminProductPage(manager,2,false);
+    assert.equal(managerPageOne.items.length,2);
+    assert.equal(managerPageOne.has_next_page,true,"four matching rows must expose a second page");
+    assert.equal(managerPageTwo.items.length,2);
+    assert.equal(managerPageTwo.has_next_page,false);
+    const managerActivePage=await readAdminProductPage(manager,1,true);
+    assert.equal(managerActivePage.items.length,2);
+    assert.equal(managerActivePage.has_next_page,true,"active filtering must run before pagination");
+    for(const row of [...managerPageOne.items,...managerPageTwo.items]) {
+      assert.equal(Object.hasOwn(row,"base_price"),true,"authorized manager JSON must include permitted base_price");
+      assert.equal(Object.hasOwn(row,"cost_price"),false,"page RPC must not include product cost");
+      assert.equal(Object.hasOwn(row,"margin"),false,"page RPC must not include margins");
+    }
+    const staffPage=await readAdminProductPage(staff,1,false);
+    assert.equal(staffPage.items.length,2);
+    for(const row of staffPage.items) {
+      assert.equal(Object.hasOwn(row,"base_price"),false,"staff JSON must omit the base-price key completely");
+      assert.equal(Object.hasOwn(row,"cost_price"),false);
+      assert.equal(Object.hasOwn(row,"margin"),false);
+    }
+    await assert.rejects(
+      ()=>withActor(db,accountant,tx=>tx.unsafe(
+        "select public.get_admin_products_page(1,2,$1::text,false,NULL::uuid)",[adminPagePrefix]
+      )),
+      error=>error&&String(error.code)==="42501",
+      "accountant without storefront-staff role must not read product administration pages"
+    );
+  } finally {
+    await db.unsafe(
+      "delete from public.products where id=any($1::uuid[]) and organization_id=$2::uuid",
+      [adminPageIds,org]
+    );
+  }
   const pricingInsertSql =
     "insert into public.pricing_rules("+
     "organization_id,name,scope_type,scope_value,base_type,base_source,adjustment_type,"+

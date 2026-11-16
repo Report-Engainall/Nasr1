@@ -2,30 +2,25 @@ const SEARCH_FIELDS = ["name", "item_code", "sku", "barcode"] as const;
 const MAX_SEARCH_LENGTH = 100;
 
 /**
- * Build a PostgREST .or() filter from a bounded product search term.
- * Only letters, numbers, spaces and SKU-safe punctuation survive; syntax
- * delimiters, wildcards and quotes supplied by a user are never interpolated.
+ * Normalize a bounded product search term before it reaches the database.
+ * Only letters, numbers, spaces and SKU-safe punctuation survive.
  */
-export function buildProductAdminSearchFilter(value: string): string | null {
-  if (typeof value !== "string") {
-    throw new Error("قيمة البحث عن الصنف غير صالحة.");
-  }
-
+export function normalizeProductAdminSearchTerm(value: string): string | null {
+  if (typeof value !== "string") throw new Error("قيمة البحث عن الصنف غير صالحة.");
   const normalized = value.normalize("NFKC").trim();
-  if (normalized.length > MAX_SEARCH_LENGTH) {
-    throw new Error("عبارة البحث طويلة جدًا؛ الحد الأقصى 100 حرف.");
-  }
-
+  if (normalized.length > MAX_SEARCH_LENGTH) throw new Error("عبارة البحث طويلة جدًا؛ الحد الأقصى 100 حرف.");
   const safe = normalized
-    .replace(/[^\p{L}\p{N}\s._/-]/gu, " ")
-    .replace(/\s+/gu, " ")
+    .replace(/[^\\p{L}\\p{N}\\s._/-]/gu, " ")
+    .replace(/\\s+/gu, " ")
     .trim();
+  return safe || null;
+}
 
+/** Compatibility helper for the existing PostgREST option selectors. */
+export function buildProductAdminSearchFilter(value: string): string | null {
+  const safe = normalizeProductAdminSearchTerm(value);
   if (!safe) return null;
-
-  // '_' is a SQL LIKE single-character wildcard; escape it so item-code search
-  // remains literal while the surrounding '*' are PostgREST's contains pattern.
-  const pattern = "*" + safe.replace(/_/gu, "\\_") + "*";
+  const pattern = "*" + safe.replace(/_/gu, "\\\\_") + "*";
   return SEARCH_FIELDS.map((field) => field + ".ilike." + pattern).join(",");
 }
 
