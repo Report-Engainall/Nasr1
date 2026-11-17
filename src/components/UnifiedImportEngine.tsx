@@ -675,7 +675,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           if (!/^[0-9]{1,7}(?:\.0+)?$/.test(factorText)) {
             parsed.errors.push("معامل التحويل يجب أن يكون عددًا صحيحًا موجبًا؛ لا تُقبل الكسور.");
           }
-          if (baseFlag && !["true", "false", "1", "0", "yes", "no", "y", "n", "نعم", "لا"].includes(baseFlag)) {
+          if (baseFlag && !["true", "false", "1", "0", "yes", "no", "y", "n", "نعم", "لا", "نعم، وحدة أساسية"].includes(baseFlag)) {
             parsed.errors.push("قيمة is_base_unit غير مفهومة؛ استخدم نعم/لا أو true/false.");
           }
           if (itemCode && unitCode) {
@@ -1230,7 +1230,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       try {
         const result = await applyOnyxProductUnitSnapshot(snapshot.id);
         const summary = "اكتمل اعتماد وحدات الأصناف: " + formatNumber(result.units_created) +
-          " وحدة جديدة، " + formatNumber(result.units_updated) + " تحويل محدّث، " +
+          " وحدة جديدة، " + formatNumber(result.units_updated) + " تحويل محدّث، " + formatNumber(result.units_unchanged) + " دون تغيير، " +
           formatNumber(result.base_unit_rows_skipped) + " صف وحدة أساسية مستبعد، و" +
           formatNumber(result.rejected) + " صف مرفوض. " +
           (result.metadata_rows_pending_review ? formatNumber(result.metadata_rows_pending_review) + " صفًا لديه أسعار/خصائص وحدة تنتظر مراجعة مستقلة." : "");
