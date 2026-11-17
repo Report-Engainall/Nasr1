@@ -210,3 +210,95 @@ export async function fetchCustomerServiceDeskPage(input: {
     nextCursor,
   };
 }
+
+export const CUSTOMER_SERVICE_DESK_REPORT_MAX_CASES = 5000;
+
+/**
+ * Reads every page for one filter set before a report is created.
+ * It fails closed on incomplete pages, repeated cursors, duplicate case IDs,
+ * or result sets larger than the bounded export limit; callers never receive
+ * a silently truncated report.
+ */
+export async function fetchAllCustomerServiceDeskCases(input: {
+  filters: CustomerServiceDeskFilters;
+  limit?: number;
+  maxCases?: number;
+}): Promise<CustomerServiceDeskPage> {
+  const limit = input.limit ?? 100;
+  const maxCases = input.maxCases ?? CUSTOMER_SERVICE_DESK_REPORT_MAX_CASES;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error("حجم صفحة التقرير غير صالح.");
+  }
+  if (!Number.isSafeInteger(maxCases) || maxCases < 1 || maxCases > CUSTOMER_SERVICE_DESK_REPORT_MAX_CASES) {
+    throw new Error("حد الحالات المسموح لاستخراج التقرير غير صالح.");
+  }
+
+  const items: CustomerServiceDeskCase[] = [];
+  const seenCaseIds = new Set<string>();
+  const seenCursorKeys = new Set<string>();
+  let cursor: CustomerServiceDeskCursor | null = null;
+  let latestSummary: CustomerServiceDeskSummary | null = null;
+
+  while (true) {
+    const page = await fetchCustomerServiceDeskPage({ filters: input.filters, cursor, limit });
+    if (page.items.length > limit) {
+      throw new Error("تجاوز الخادم حجم صفحة تقرير خدمة العملاء؛ أوقف التصدير.");
+    }
+    if (page.hasMore && page.items.length !== limit) {
+      throw new Error("أعاد الخادم صفحة غير مكتملة مع الإشارة إلى وجود صفحات لاحقة؛ أوقف التصدير.");
+    }
+    if (page.hasMore && page.items.length === 0) {
+      throw new Error("تعذر إحراز تقدم أثناء تحميل صفحات تقرير خدمة العملاء.");
+    }
+
+    for (const item of page.items) {
+      const id = item.case_id.toLowerCase();
+      if (seenCaseIds.has(id)) {
+        throw new Error("تكررت حالة بين صفحات التقرير؛ أوقف التصدير لمنع ملف غير مكتمل.");
+      }
+      if (items.length >= maxCases) {
+        throw new Error("يتجاوز التقرير الحد الآمن البالغ " + maxCases.toLocaleString("ar-YE") +
+          " حالة. قلّص المرشحات قبل التصدير؛ لم يُنشأ ملف جزئي.");
+      }
+      seenCaseIds.add(id);
+      items.push(item);
+    }
+
+    latestSummary = page.summary;
+    if (!page.hasMore) {
+      if (page.nextCursor !== null) {
+        throw new Error("أعاد الخادم مؤشراً إضافياً رغم اكتمال التقرير؛ أوقف التصدير.");
+      }
+      return {
+        items,
+        summary: latestSummary,
+        hasMore: false,
+        nextCursor: null,
+      };
+    }
+
+    const next = page.nextCursor;
+    const lastItem = page.items[page.items.length - 1];
+    if (!next || !lastItem || next.id.toLowerCase() !== lastItem.case_id.toLowerCase() ||
+        Date.parse(next.createdAt) !== Date.parse(lastItem.created_at)) {
+      throw new Error("لا يطابق مؤشر الصفحة التالية آخر حالة مسترجعة؛ أوقف التصدير.");
+    }
+
+    const nextKey = next.createdAt + "|" + next.id.toLowerCase();
+    if (seenCursorKeys.has(nextKey)) {
+      throw new Error("كرر الخادم مؤشر الصفحات؛ أوقف التصدير لمنع حلقة لا نهائية.");
+    }
+    seenCursorKeys.add(nextKey);
+
+    if (cursor) {
+      const nextTime = Date.parse(next.createdAt);
+      const previousTime = Date.parse(cursor.createdAt);
+      const movesBackward = nextTime < previousTime ||
+        (nextTime === previousTime && next.id.toLowerCase() < cursor.id.toLowerCase());
+      if (!movesBackward) {
+        throw new Error("لم يتقدم مؤشر تقرير خدمة العملاء إلى الصفحة الأقدم؛ أوقف التصدير.");
+      }
+    }
+    cursor = next;
+  }
+}
