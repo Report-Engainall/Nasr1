@@ -1147,7 +1147,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       id: "observation:" + metric.id,
       statement: metric.value === null
         ? "المؤشر " + metric.key + ": القيمة غير متاحة"
-        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unit),
+        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unitOfMeasure ?? metric.unit),
       kind: "OBSERVATION" as const,
       metricIds: [metric.id],
       boundaries: metric.warnings,
