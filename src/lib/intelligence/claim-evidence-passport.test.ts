@@ -165,6 +165,29 @@ describe("claim evidence passports", () => {
     expect(built[0].sourceRecords.map((item) => item.source.name)).toContain("causal_studies");
   });
 
+  it("rejects a metric marked verified when its referenced source record is not verified", () => {
+    const unverifiedSource = record("invoice-1", "customer_invoices", { status: "UNVERIFIED" });
+    const built = buildClaimEvidencePassports(
+      passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [unverifiedSource]),
+      [oneMetricClaim()],
+    );
+    expect(built[0].status).toBe("UNVERIFIED");
+    expect(built[0].boundaries).toContain("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
+  });
+
+  it("only publishes a confidence score when its supporting source is verified and linked", () => {
+    const built = buildClaimEvidencePassports(
+      passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [record("invoice-1", "customer_invoices")]),
+      [{
+        ...oneMetricClaim(),
+        confidence: { value: 0.93, basis: "server-sourced validation record", evidenceIds: ["invoice-1"] },
+      }],
+    );
+    expect(built[0].confidence).toBe(0.93);
+    expect(built[0].confidenceBasis).toBe("server-sourced validation record");
+    expect(built[0].evidenceIds).toContain("invoice-1");
+  });
+
   it("withholds an unsourced confidence score and refuses missing metrics", () => {
     const built = buildClaimEvidencePassports(
       passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [record("invoice-1", "customer_invoices")]),
