@@ -128,6 +128,8 @@ on:
       - "src/lib/customer-interaction-filter.ts"
       - "src/lib/customer-interaction-filter.test.ts"
       - "src/components/intelligence/EvidencePassport.test.tsx"
+      - "src/lib/intelligence/claim-evidence-passport.ts"
+      - "src/lib/intelligence/claim-evidence-passport.test.ts"
       - "src/components/AdminPages.tsx"
       - "src/components/AdminPages.settings-architecture.test.tsx"
       - "src/components/AdminPages.observability.test.tsx"
