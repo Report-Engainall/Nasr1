@@ -4,24 +4,34 @@ import { useAuth } from "@/lib/auth";
 import { CustomerOrderPricingPresentation } from "@/components/CustomerOrderPricingPresentation";
 import { resolveCustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
 import { retryRead } from "@/lib/retry";
+import { isCheckoutAuthorizationDenied } from "@/lib/checkout-errors";
 
 export type CustomerOrderPricingPreviewItem = {
   product_id: string;
   quantity: number;
 };
 export type CustomerOrderPricingSurface = "cart" | "orders";
+export type CustomerOrderPricingPreviewStatus =
+  | "loading"
+  | "ready"
+  | "hidden"
+  | "error"
+  | "auth-required"
+  | "permission-denied";
 
 type PreviewAttempt =
   | { signature: string; status: "loading" }
   | { signature: string; status: "ready"; payload: unknown }
   | { signature: string; status: "hidden" }
   | { signature: string; status: "error" }
-  | { signature: string; status: "auth-required" };
+  | { signature: string; status: "auth-required" }
+  | { signature: string; status: "permission-denied" };
 
 type PreviewResult =
   | { status: "ready"; payload: unknown }
   | { status: "hidden" }
-  | { status: "error" };
+  | { status: "error" }
+  | { status: "permission-denied" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -69,8 +79,10 @@ async function fetchPreviewResult(
       return { status: "hidden" };
     }
     return { status: "error" };
-  } catch {
-    return { status: "error" };
+  } catch (cause) {
+    return isCheckoutAuthorizationDenied(cause)
+      ? { status: "permission-denied" }
+      : { status: "error" };
   }
 }
 
@@ -78,24 +90,33 @@ function PreviewStatusMessage({
   status,
   onRetry,
 }: {
-  status: "loading" | "auth-required" | "hidden" | "error";
+  status: CustomerOrderPricingPreviewStatus;
   onRetry: () => void;
 }) {
   if (status === "loading") {
-    return <p role="status">جار جلب مراجعة الأسعار من الخادم؛ لم تُعرض أي مبالغ محلية.</p>;
+    return <p role="status">جار جلب مراجعة الأسعار من الخادم؛ لن تُعرض أي مبالغ قبل اكتمال التحقق.</p>;
   }
   if (status === "auth-required") {
     return <p role="status">سجّل الدخول أولًا؛ لن تُعرض الأسعار دون معاينة خادمية مرتبطة بحسابك.</p>;
   }
   if (status === "hidden") {
-    return <p role="status">لم يسمح إعداد الخادم بعرض الأسعار على هذه الشاشة؛ لم تُعرض أي مبالغ.</p>;
+    return <p role="status">إعدادات المتجر لا تسمح بعرض الأسعار في هذه الشاشة. لم تُعرض أي مبالغ، وسيظل اعتماد السعر النهائي من الخادم.</p>;
+  }
+  if (status === "permission-denied") {
+    return (
+      <div className="sf-order-pricing-denied" role="alert">
+        <strong>حسابك لا يملك صلاحية إنشاء طلب عميل حاليًا.</strong>
+        <p>لم تُعرض الأسعار ولم يُرسل الطلب. اطلب من مسؤول المنشأة مراجعة اعتماد حساب العميل أو دور العضو المشتري، ثم أعد فتح صفحة إتمام الطلب.</p>
+      </div>
+    );
   }
 
   return (
-    <div role="alert">
-      تعذر التحقق من أسعار هذه الشاشة من الخادم؛ تم إخفاء المبالغ. أعد المحاولة.
-      <button type="button" className="sf-btn-secondary" style={{ marginInlineStart: 10 }} onClick={onRetry}>
-        إعادة المحاولة
+    <div className="sf-order-pricing-error" role="alert">
+      <strong>تعذّر الاتصال بمعاينة الأسعار.</strong>
+      <p>لم نستخدم أسعارًا محلية أو تقديرية. أعد التحقق قبل إرسال الطلب.</p>
+      <button type="button" className="sf-btn-secondary" onClick={onRetry}>
+        إعادة التحقق من الأسعار
       </button>
     </div>
   );
@@ -117,26 +138,18 @@ function PreviewAttemptView({
   onRetry: () => void;
 }) {
   const current = attempt?.signature === signature ? attempt : null;
-  const wrapperStyle = {
-    marginTop: 12,
-    padding: 12,
-    border: "1px solid #d8e6e8",
-    borderRadius: 10,
-    background: "#f8fbfc",
-    color: "#344b52",
-  } as const;
 
   if (!current || current.status !== "ready") {
     const status = current?.status ?? "loading";
     return (
-      <div style={wrapperStyle}>
+      <div className="sf-order-pricing-state">
         <PreviewStatusMessage status={status} onRetry={onRetry} />
       </div>
     );
   }
 
   return (
-    <div style={wrapperStyle}>
+    <div className="sf-order-pricing-ready">
       <CustomerOrderPricingPresentation
         policyValue={policyValue}
         serverPayload={current.payload}
@@ -148,20 +161,22 @@ function PreviewAttemptView({
 }
 
 /**
- * Fetches a tenant/tier-aware price preview from the server for one customer surface.
- * No price is derived from catalog data in the browser. False/malformed policy values,
- * stale payloads, denied RPCs and malformed server responses all fail closed.
+ * Loads an exact tenant/tier/promotion price preview from the server.
+ * Monetary values are never calculated or recovered from catalogue data in the browser.
+ * Explicit authorization denials are surfaced separately from transient transport errors.
  */
 export function CustomerOrderPricingPreview({
   items,
   policyValue,
   surface,
   title,
+  onStatusChange,
 }: {
   items: readonly CustomerOrderPricingPreviewItem[];
   policyValue: unknown;
   surface: CustomerOrderPricingSurface;
   title: string;
+  onStatusChange?: (status: CustomerOrderPricingPreviewStatus) => void;
 }) {
   const { user } = useAuth();
   const [retry, setRetry] = useState(0);
@@ -177,6 +192,15 @@ export function CustomerOrderPricingPreview({
     isStaff: user?.isStaff === true,
   });
   const requestSignature = surface + ":" + signature + ":" + identitySignature;
+  const currentAttempt = attempt?.signature === requestSignature ? attempt : null;
+  const reportedStatus: CustomerOrderPricingPreviewStatus =
+    policyValue !== true || items.length === 0
+      ? "hidden"
+      : currentAttempt?.status ?? "loading";
+
+  useEffect(() => {
+    onStatusChange?.(reportedStatus);
+  }, [reportedStatus, onStatusChange]);
 
   useEffect(() => {
     let active = true;
