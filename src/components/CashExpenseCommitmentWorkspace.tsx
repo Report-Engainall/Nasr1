@@ -65,13 +65,13 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
  const load=useCallback(async()=>{
   const current=++generation.current;
   if(!ready||!canManage){setItems([]);setAccounts([]);setLoading(false);return;}
-  setLoading(true);setError("");
+  setLoading(true);setError("");setAccountLoadError("");setEvidenceLoadError("");
   try{
    const [rows,accountRows]=await Promise.all([
     supabase.rpc("fetch_cash_expense_commitments",{p_limit:100,p_offset:0}),
     supabase.rpc("fetch_general_ledger",{p_from:null,p_to:null,p_account_id:null,p_limit:1,p_offset:0}),
    ]);
-   if(rows.error)throw rows.error;if(accountRows.error)throw accountRows.error;
+   if(rows.error)throw rows.error;
    const parsed=parseItems(rows.data);
    if(!isObject(accountRows.data)||!Array.isArray(accountRows.data.accounts))
     throw new Error("تعذر التحقق من إسقاط الحسابات المعتمد في دفتر الأستاذ.");
@@ -90,6 +90,7 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
   finally{if(current===generation.current)setLoading(false);}
  },[ready,canManage,user?.id,user?.profileId,sessionRevision]);
  useEffect(()=>{void load();return()=>{generation.current++;};},[load]);
+ useEffect(()=>{setSignedUrls({});},[sessionRevision,user?.profileId]);
  function idempotencyKey(name:string,id:string,payload:unknown){
   const fingerprint=JSON.stringify(payload),key=name+":"+id,old=keys.current.get(key);
   if(!old||old.fingerprint!==fingerprint){const next={fingerprint,key:uuid()};keys.current.set(key,next);return next.key;}

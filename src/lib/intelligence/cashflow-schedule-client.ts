@@ -529,11 +529,17 @@ export function parseOperatingExpenseCommitmentScheduleResponse(
   for (const item of raw.entries) {
     const row = record(item);
     const amount = parseAmount(row?.amount, request.asOf, evidenceIds);
-    if (!row || !nonEmptyString(row.id, 180) || entryIds.has(row.id) ||
-        row.direction !== "OUTFLOW" || !isoDay(row.dueDate) || !amount ||
-        amount.key !== "cashflow.operating_expense_commitment" ||
+    if (!row || !nonEmptyString(row.id, 180) ||
+        !row.id.startsWith("cash-expense-commitment-outflow:") || entryIds.has(row.id) ||
+        row.direction !== "OUTFLOW" || !isoDay(row.dueDate) ||
+        row.dueDate < request.period.from || row.dueDate > request.period.to ||
+        !amount || amount.key !== "cashflow.operating_expense_commitment" ||
+        amount.status !== "VERIFIED" || amount.completeness !== "COMPLETE" || amount.quality !== "ACCEPTABLE" ||
+        (request.currency !== null && request.currency !== undefined && amount.currency !== request.currency) ||
         amount.lineage.formulaId !== "nasr1.approved-operating-expense-commitment" ||
-        amount.lineage.formulaVersion !== "1") return null;
+        amount.lineage.formulaVersion !== "1" ||
+        !amount.lineage.evidenceIds.some(id => id.startsWith("cash-expense-commitment:")) ||
+        !amount.lineage.evidenceIds.some(id => id.startsWith("cash-expense-commitment-evidence:"))) return null;
     entryIds.add(row.id);
     entries.push({ id: row.id, direction: "OUTFLOW", dueDate: row.dueDate, amount });
   }

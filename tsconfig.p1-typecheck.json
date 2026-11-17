@@ -13,6 +13,11 @@
     "src/test/ai-gateway-logic.test.ts",
     "src/test/password-reset-route-security.test.ts",
     "src/components/CustomerWorkflows.tsx",
+    "src/components/CashExpenseCommitmentWorkspace.tsx",
+    "src/lib/cash-expense-commitments.ts",
+    "src/lib/cash-expense-commitments.test.ts",
+    "src/lib/intelligence/cashflow-schedule-client.ts",
+    "src/lib/intelligence/cashflow-schedule-client.operating-commitments.test.ts"
     "src/components/CustomerServiceSlaPolicyPanel.tsx",
     "src/components/CustomerServiceSlaPolicyPanel.test.tsx",
     "src/lib/customer-service-cases.ts",
