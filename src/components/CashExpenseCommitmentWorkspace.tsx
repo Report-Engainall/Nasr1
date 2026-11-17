@@ -50,7 +50,6 @@ function parseItems(value:unknown):Commitment[]{
   return {id:raw.id,commitment_number:raw.commitment_number,category:raw.category,description:raw.description,
    amount:raw.amount,currency:raw.currency,payment_method:raw.payment_method as Commitment["payment_method"],
    due_date:raw.due_date,status:raw.status as CommitmentStatus,created_by_profile_id:raw.created_by_profile_id,
-   rejection_reason:raw.rejection_reason as string|null,rejected_by_profile_id:raw.rejected_by_profile_id as string|null,
    payment_cash_expense_id:raw.payment_cash_expense_id as string|null,journal_entry_id:raw.journal_entry_id as string|null,
    journal_status:raw.journal_status as Commitment["journal_status"],evidence_count:raw.evidence_count};
  });
