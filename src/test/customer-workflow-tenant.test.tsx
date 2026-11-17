@@ -224,6 +224,7 @@ describe("customer quote workspace tenant boundary", () => {
       await Promise.resolve();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    return router;
   }
 
   it("requires an authenticated user before loading customer quote or catalog data", async () => {
@@ -889,4 +890,113 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("تعذر تحميل نطاق المؤسسة من الخادم.");
     expect(mocks.from).not.toHaveBeenCalled();
   });
+
+  it("keeps barcode scanning open for multiple products and merges repeat scans by each product's order multiple", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+
+    const firstProductId = "f4444444-4444-4444-8444-444444444444";
+    const secondProductId = "f5555555-5555-4555-8555-555555555555";
+    const firstProduct = {
+      id: firstProductId,
+      name: "سكر أبيض",
+      item_code: "000125",
+      barcode: "628000125",
+      sku: "SUGAR-125",
+      unit: "كرتون",
+      min_order_quantity: 2,
+      order_quantity_multiple: 2,
+      status: "active",
+    };
+    const secondProduct = {
+      id: secondProductId,
+      name: "أرز بسمتي",
+      item_code: "RICE-126",
+      barcode: "628000126",
+      sku: "RICE-126",
+      unit: "كيس",
+      min_order_quantity: 1,
+      order_quantity_multiple: 1,
+      status: "active",
+    };
+    mocks.responses.products = [firstProduct];
+
+    const router = await mountQuoteWorkspace("/barcode");
+    const barcodeInput = host?.querySelector<HTMLInputElement>('[aria-label="رقم الباركود"]');
+    expect(barcodeInput).not.toBeNull();
+
+    const searchBarcode = async (barcode: string) => {
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(barcodeInput, barcode);
+        barcodeInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const searchButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("بحث"),
+      );
+      expect(searchButton).toBeDefined();
+      await act(async () => {
+        searchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+
+    const addScannedProduct = async (name: string) => {
+      expect(host?.textContent).toContain(name);
+      const addButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("أضف إلى السلة"),
+      );
+      expect(addButton).toBeDefined();
+      await act(async () => {
+        addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(router.state.location.pathname).toBe("/barcode");
+      expect(host?.textContent).toContain("مسح صنف آخر");
+    };
+
+    await searchBarcode("٦٢٨٠٠٠١٢٥");
+    await addScannedProduct("سكر أبيض");
+
+    const cartKey = "aghbari:cart:v2:customer:" + encodeURIComponent(PROFILE_ID);
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 2 },
+    ]);
+
+    mocks.responses.products = [secondProduct];
+    await searchBarcode("٦٢٨٠٠٠١٢٦");
+    await addScannedProduct("أرز بسمتي");
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 2 },
+      { product_id: secondProductId, quantity: 1 },
+    ]);
+
+    // Re-scanning the first product adds its own server-defined multiple; units are never aggregated.
+    mocks.responses.products = [firstProduct];
+    await searchBarcode("٦٢٨٠٠٠١٢٥");
+    await addScannedProduct("سكر أبيض");
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 4 },
+      { product_id: secondProductId, quantity: 1 },
+    ]);
+    expect(host?.textContent).toContain("2 أصناف");
+    expect(host?.textContent).not.toContain("إجمالي 5 وحدة");
+
+    const openCartButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("فتح سلة المشتريات"),
+    );
+    expect(openCartButton).toBeDefined();
+    await act(async () => {
+      openCartButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(router.state.location.pathname).toBe("/cart");
+  });
+
 });
