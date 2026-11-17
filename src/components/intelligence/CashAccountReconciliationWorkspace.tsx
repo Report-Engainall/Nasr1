@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   createBankStatement,
@@ -16,6 +16,12 @@ import {
   type CashEvidenceKind,
   type CashReconciliationWorkspace,
 } from "@/lib/finance-cash-account-reconciliation";
+import { getOrCreateBoundIdempotencyKey } from "@/lib/bound-idempotency-key";
+import {
+  getOrCreatePendingBankStatementLine,
+  normalizeFinanceAmountInput,
+  type PendingBankStatementLine,
+} from "@/lib/finance-cash-reconciliation-idempotency";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const fmt = (value: string, currency: string) => value + " " + currency;
@@ -47,8 +53,11 @@ export function CashAccountReconciliationWorkspace() {
   const [reviewReason, setReviewReason] = useState("");
   const [candidates, setCandidates] = useState<Record<string, BankMatchCandidate[]>>({});
   const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({});
+  // Keep retry keys until the write and its follow-up refresh are both confirmed.
+  const openingIdempotencyKeys = useRef(new Map<string, string>());
+  const pendingStatementLines = useRef(new Map<string, PendingBankStatementLine>());
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
       const next = await fetchCashReconciliationWorkspace();
@@ -59,9 +68,11 @@ export function CashAccountReconciliationWorkspace() {
         item.id === current && !item.isVoided && item.latestRun?.outcome !== "VERIFIED")
         ? current : next.statements.find((item) => !item.isVoided && item.latestRun?.outcome !== "VERIFIED")?.id ?? "");
       setError("");
+      return true;
     } catch (cause) {
       setError(errorMessage(cause));
       setWorkspace(null);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -88,7 +99,9 @@ export function CashAccountReconciliationWorkspace() {
     setNotice("");
     try {
       const result = await action();
-      await refresh();
+      // Do not release an idempotency key until the server write and the follow-up
+      // workspace read are both confirmed. The write may already have committed.
+      if (!await refresh()) return undefined;
       setNotice(typeof success === "function" ? success(result) : success);
       return result;
     } catch (cause) {
@@ -113,17 +126,43 @@ export function CashAccountReconciliationWorkspace() {
   async function submitOpening(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!mappingId || !openingEvidenceId || !openingDate || !openingAmount.trim()) return;
-    await perform(async () => {
-      await submitCashOpeningBalance({
+    const normalizedAmount = normalizeFinanceAmountInput(openingAmount);
+    if (!normalizedAmount) {
+      setError("أدخل مبلغاً صحيحاً بحد أقصى منزلتين عشريتين و16 رقماً قبل الفاصلة.");
+      return;
+    }
+
+    const fingerprint = JSON.stringify({
+      mappingId,
+      evidenceId: openingEvidenceId,
+      asOfDate: openingDate,
+      openingBalance: normalizedAmount,
+    });
+    const storedKey = openingIdempotencyKeys.current.get(fingerprint);
+    const boundKey = getOrCreateBoundIdempotencyKey(
+      storedKey ? { fingerprint, key: storedKey } : null,
+      fingerprint,
+      () => globalThis.crypto.randomUUID(),
+    );
+    openingIdempotencyKeys.current.set(fingerprint, boundKey.key);
+
+    const result = await perform(
+      () => submitCashOpeningBalance({
         mappingId,
         evidenceId: openingEvidenceId,
         asOfDate: openingDate,
-        openingBalance: openingAmount.trim(),
-        idempotencyKey: crypto.randomUUID(),
-      });
+        openingBalance: normalizedAmount,
+        idempotencyKey: boundKey.key,
+      }),
+      (saved) => saved.replayed
+        ? "استُعيد طلب الرصيد الافتتاحي نفسه بعد إعادة المحاولة؛ لم يُنشأ طلب مكرر."
+        : "تم تسجيل مقترح الرصيد الافتتاحي؛ ينتظر مراجعة شخص آخر ومطابقة دفتر الأستاذ.",
+    );
+    if (result) {
+      openingIdempotencyKeys.current.delete(fingerprint);
       setOpeningAmount("");
       setOpeningEvidenceId("");
-    }, "تم تسجيل مقترح الرصيد الافتتاحي؛ ينتظر مراجعة شخص آخر ومطابقة دفتر الأستاذ.");
+    }
   }
 
   async function reviewOpening(proposalId: string, decision: "approved" | "rejected") {
@@ -154,20 +193,49 @@ export function CashAccountReconciliationWorkspace() {
   async function addStatementLine(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedStatement || selectedStatement.isVoided || selectedStatement.latestRun?.outcome === "VERIFIED") return;
-    await perform(async () => {
-      await recordBankStatementLine({
-        statementId: selectedStatement.id,
-        lineNumber: selectedStatement.lineCount + 1,
-        transactionDate: lineDate,
-        externalReference: lineReference.trim(),
-        description: lineDescription.trim(),
-        signedAmount: lineAmount.trim(),
-        idempotencyKey: crypto.randomUUID(),
-      });
+    const signedAmount = normalizeFinanceAmountInput(lineAmount);
+    if (!signedAmount || signedAmount === "0.00") {
+      setError("أدخل مبلغ حركة غير صفري بحد أقصى منزلتين عشريتين و16 رقماً قبل الفاصلة.");
+      return;
+    }
+
+    const payload = {
+      statementId: selectedStatement.id,
+      transactionDate: lineDate,
+      externalReference: lineReference.trim(),
+      description: lineDescription.trim(),
+      signedAmount,
+    };
+    let pending: PendingBankStatementLine;
+    try {
+      pending = getOrCreatePendingBankStatementLine(
+        pendingStatementLines.current,
+        payload,
+        selectedStatement.lineCount + 1,
+        () => globalThis.crypto.randomUUID(),
+      );
+    } catch (cause) {
+      setError(errorMessage(cause));
+      return;
+    }
+    pendingStatementLines.current.set(pending.fingerprint, pending);
+
+    const result = await perform(
+      () => recordBankStatementLine({
+        ...payload,
+        lineNumber: pending.lineNumber,
+        idempotencyKey: pending.idempotencyKey,
+      }),
+      (saved) => saved.replayed
+        ? "استُعيد سطر كشف البنك نفسه بعد إعادة المحاولة؛ لم تُنشأ حركة مكررة."
+        : "تم حفظ حركة كشف البنك دون إنشاء قيد محاسبي.",
+    );
+    if (result) {
+      pendingStatementLines.current.delete(pending.fingerprint);
       setLineReference("");
       setLineDescription("");
       setLineAmount("");
-    }, "تم حفظ حركة كشف البنك دون إنشاء قيد محاسبي.");
+    }
   }
 
   async function loadCandidates(statementId: string, lineId: string) {

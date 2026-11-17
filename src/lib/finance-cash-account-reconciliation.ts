@@ -426,7 +426,12 @@ export async function submitCashOpeningBalance(input: {
     p_idempotency_key: input.idempotencyKey,
   });
   if (error) throw error;
-  return uuid(object(data, "تأكيد طلب الرصيد").proposal_id, "طلب الرصيد");
+  const row = object(data, "تأكيد طلب الرصيد");
+  if (typeof row.replayed !== "boolean") throw new Error("حالة إعادة طلب الرصيد غير صالحة.");
+  return {
+    proposalId: uuid(row.proposal_id, "طلب الرصيد"),
+    replayed: row.replayed,
+  };
 }
 export async function reviewCashOpeningBalance(input: { proposalId: string; decision: OpeningDecision; reason: string }) {
   const { data, error } = await supabase.rpc("review_finance_cash_opening_balance", {
@@ -472,7 +477,12 @@ export async function recordBankStatementLine(input: {
     p_description: input.description, p_signed_amount: input.signedAmount, p_idempotency_key: input.idempotencyKey,
   });
   if (error) throw error;
-  return uuid(object(data, "تأكيد سطر كشف البنك").line_id, "سطر الكشف");
+  const row = object(data, "تأكيد سطر كشف البنك");
+  if (typeof row.replayed !== "boolean") throw new Error("حالة إعادة سطر كشف البنك غير صالحة.");
+  return {
+    lineId: uuid(row.line_id, "سطر الكشف"),
+    replayed: row.replayed,
+  };
 }
 export async function fetchBankMatchCandidates(statementId: string, lineId: string): Promise<BankMatchCandidate[]> {
   const { data, error } = await supabase.rpc("fetch_finance_bank_statement_match_candidates", {
