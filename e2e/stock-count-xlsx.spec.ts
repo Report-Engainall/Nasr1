@@ -78,6 +78,87 @@ async function readLocalSourceQuantity(): Promise<number> {
   }
 }
 
+/** Read the movement ledger count for the exact local tenant/product/warehouse fixture. */
+async function readLocalSourceMovementCount(): Promise<number> {
+  const connectionString = requiredEnv("TEST_DATABASE_URL");
+  const database = new URL(connectionString);
+  if (!["127.0.0.1", "localhost"].includes(database.hostname) ||
+      !/^\\d+$/.test(database.port) ||
+      Number(database.port) < 1 || Number(database.port) > 65535) {
+    throw new Error("Stock-count movement acceptance refuses non-loopback PostgreSQL endpoints.");
+  }
+  const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  try {
+    const rows = await db.unsafe(
+      "select count(*)::integer as movement_count " +
+      "from public.inventory_movements movement " +
+      "join public.products product on product.id=movement.product_id " +
+      "where movement.product_id=$1::uuid and movement.warehouse_id=$2::uuid " +
+      "and product.organization_id=$3::uuid and product.item_code=$4",
+      [
+        requiredEnv("E2E_PRODUCT_ID"),
+        requiredEnv("E2E_PURCHASE_WAREHOUSE_ID"),
+        requiredEnv("E2E_PURCHASE_ORGANIZATION_ID"),
+        requiredEnv("E2E_PURCHASE_ITEM_CODE"),
+      ],
+    );
+    if (rows.length !== 1) throw new Error("The exact local inventory movement scope was not resolved.");
+    return Number(rows[0].movement_count);
+  } finally {
+    await db.end({ timeout: 3 });
+  }
+}
+
+/** Verify the cancelled session and its append-only cancellation audit from local PostgreSQL. */
+async function readLocalStockCountCancellation(sessionNote: string): Promise<{
+  id: string;
+  status: string;
+  cancellationReason: string | null;
+  cancelledBy: string | null;
+  auditCount: number;
+  auditedReason: string | null;
+  auditActorId: string | null;
+}> {
+  const connectionString = requiredEnv("TEST_DATABASE_URL");
+  const database = new URL(connectionString);
+  if (!["127.0.0.1", "localhost"].includes(database.hostname) ||
+      !/^\\d+$/.test(database.port) ||
+      Number(database.port) < 1 || Number(database.port) > 65535) {
+    throw new Error("Stock-count cancellation acceptance refuses non-loopback PostgreSQL endpoints.");
+  }
+  const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  try {
+    const rows = await db.unsafe(
+      "select session.id::text as id, session.status, session.cancellation_reason, " +
+      "session.cancelled_by::text as cancelled_by, count(audit.entity_id)::integer as audit_count, " +
+      "max(audit.new_value->>'reason') as audited_reason, max(audit.actor_id::text) as audit_actor_id " +
+      "from public.stock_count_sessions session " +
+      "left join public.audit_logs audit on audit.organization_id=session.organization_id " +
+      "and audit.entity_type='stock_count_session' and audit.entity_id=session.id " +
+      "and audit.action='inventory.stock_count.cancelled' " +
+      "where session.organization_id=$1::uuid and session.warehouse_id=$2::uuid and session.notes=$3 " +
+      "group by session.id, session.status, session.cancellation_reason, session.cancelled_by",
+      [
+        requiredEnv("E2E_PURCHASE_ORGANIZATION_ID"),
+        requiredEnv("E2E_PURCHASE_WAREHOUSE_ID"),
+        sessionNote,
+      ],
+    );
+    if (rows.length !== 1) throw new Error("The exact cancelled stock-count session was not found.");
+    return {
+      id: String(rows[0].id),
+      status: String(rows[0].status),
+      cancellationReason: rows[0].cancellation_reason == null ? null : String(rows[0].cancellation_reason),
+      cancelledBy: rows[0].cancelled_by == null ? null : String(rows[0].cancelled_by),
+      auditCount: Number(rows[0].audit_count),
+      auditedReason: rows[0].audited_reason == null ? null : String(rows[0].audited_reason),
+      auditActorId: rows[0].audit_actor_id == null ? null : String(rows[0].audit_actor_id),
+    };
+  } finally {
+    await db.end({ timeout: 3 });
+  }
+}
+
 /** Read one stored OOXML ZIP member so the downloaded browser artifact is tested. */
 function readStoredZipEntry(input: Uint8Array, targetPath: string): string {
   const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
@@ -113,6 +194,8 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
   const browserErrors: string[] = [];
   manager.on("pageerror", (error) => browserErrors.push(error.message));
   let authoritativeQuantity: number | undefined;
+  let authoritativeMovementCount: number | undefined;
+  const cancellationReason = "إلغاء جلسة اختبار تصدير الجرد؛ لم يتم اعتماد أي فرق.";
 
   try {
     await test.step("manager starts a source-backed count and saves one real line", async () => {
@@ -136,6 +219,7 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       expect(itemCode).toBe("P2-LOCAL-E2E-001");
       expect(itemName).toBe("P2 Local E2E Product");
       authoritativeQuantity = await readLocalSourceQuantity();
+      authoritativeMovementCount = await readLocalSourceMovementCount();
       expect(normalizeLocalizedQuantity(expectedQuantityText)).toBe(authoritativeQuantity);
       await firstRow.locator('input').fill("٩٩");
       await firstRow.getByRole("button", { name: "حفظ العد", exact: true }).click();
@@ -202,7 +286,7 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
     });
 
     await test.step("manager cancels the test snapshot without applying inventory movements", async () => {
-      await manager.getByLabel("سبب إلغاء الجلسة").fill("إلغاء جلسة اختبار تصدير الجرد؛ لم يتم اعتماد أي فرق.");
+      await manager.getByLabel("سبب إلغاء الجلسة").fill(cancellationReason);
       const dialogPromise = manager.waitForEvent("dialog").then(async (dialog) => {
         expect(dialog.type()).toBe("confirm");
         expect(dialog.message()).toContain("إلغاء الجلسة دون تطبيق أي فرق");
@@ -218,6 +302,19 @@ test("warehouse manager downloads the saved stock-count snapshot XLSX with no in
       await expect(manager.locator(".data-status.success[role=\"status\"]"))
         .toContainText("أُلغيت الجلسة وسُجل السبب في التدقيق.", { timeout: 20_000 });
       await expect(manager.getByRole("heading", { name: "لا توجد جلسة جرد مفتوحة" })).toBeVisible();
+
+      const cancelled = await readLocalStockCountCancellation(sessionNote);
+      expect(cancelled.status).toBe("cancelled");
+      expect(cancelled.cancellationReason).toBe(cancellationReason);
+      expect(cancelled.cancelledBy).toBeTruthy();
+      expect(cancelled.auditCount).toBe(1);
+      expect(cancelled.auditedReason).toBe(cancellationReason);
+      expect(cancelled.auditActorId).toBe(cancelled.cancelledBy);
+      if (authoritativeQuantity === undefined || authoritativeMovementCount === undefined) {
+        throw new Error("The authoritative stock baseline was not captured before cancellation.");
+      }
+      expect(await readLocalSourceQuantity()).toBe(authoritativeQuantity);
+      expect(await readLocalSourceMovementCount()).toBe(authoritativeMovementCount);
     });
   } finally {
     await managerContext.close();
