@@ -318,7 +318,7 @@ export function buildClaimEvidencePassports(
       status = "UNVERIFIED";
       boundaries.push(metricMissing ? "CLAIM_METRIC_SOURCE_MISSING_OR_AMBIGUOUS" : "CLAIM_EVIDENCE_SOURCE_MISSING_OR_AMBIGUOUS");
     }
-    if (metrics.some((metric) => !metricEvidenceIsValid(metric, passport, recordsById, duplicateEvidenceIds))) {
+    if (metrics.some((metric) => metric.status === "VERIFIED" && !metricEvidenceIsValid(metric, passport, recordsById, duplicateEvidenceIds))) {
       status = "UNVERIFIED";
       boundaries.push("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
     }
