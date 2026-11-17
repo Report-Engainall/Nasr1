@@ -102,6 +102,13 @@ async function approve(client, id, reason, key) {
   );
   return asJson(rows[0].result);
 }
+async function cancel(client, id, reason, key) {
+  const rows = await client.unsafe(
+    "select public.cancel_cash_expense_commitment($1::uuid,$2::text,$3::uuid) as result",
+    [id,reason,key],
+  );
+  return asJson(rows[0].result);
+}
 async function recordPayment(client, id, paymentDate, key) {
   const rows = await client.unsafe(
     "select public.record_cash_expense_commitment_payment($1::uuid,$2::date,$3::uuid) as result",
@@ -200,6 +207,45 @@ async function main() {
     assert.equal((await approve(adminDb,yer.id,"مستند إيجار موثق وفاتورة مستحقة",approvalKey)).replayed,true);
     await expectCode("approval idem key rejects changed reason",
       ()=>approve(adminDb,yer.id,"سبب مختلف للطلب نفسه",approvalKey),"23505");
+
+    const cancelledPayload={...yerPayload,category:"Cancelled facility",description:"Facility lease option cancelled before approval",
+      amount:"17.25",reference:"P2-COMMIT-CANCEL-"+suffix};
+    const cancelled=await createCommitment(managerDb,cancelledPayload,randomUUID());
+    assert.equal(cancelled.status,"pending_approval");
+    await expectCode("commitment creator cannot self-cancel",
+      ()=>cancel(managerDb,cancelled.id,"رفض ذاتي للإلغاء",randomUUID()),"42501");
+    await expectCode("accountant cannot cancel a finance commitment",
+      ()=>cancel(accountantDb,cancelled.id,"إلغاء محاسبي غير مخول",randomUUID()),"42501");
+    const cancellationKey=randomUUID(),cancellationReason="تم إلغاء الاتفاق قبل بدء الخدمة";
+    const cancelledResult=await cancel(adminDb,cancelled.id,cancellationReason,cancellationKey);
+    assert.equal(cancelledResult.status,"cancelled");
+    assert.equal(cancelledResult.replayed,false);
+    assert.equal((await cancel(adminDb,cancelled.id,cancellationReason,cancellationKey)).replayed,true);
+    await expectCode("cancellation idempotency rejects a changed reason",
+      ()=>cancel(adminDb,cancelled.id,"سبب إلغاء مختلف للطلب نفسه",cancellationKey),"23505");
+    const cancelledRow=await db.unsafe(
+      "select status,cancelled_by_profile_id::text as cancelled_by,cancellation_reason " +
+      "from public.cash_expense_commitments where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId,cancelled.id],
+    );
+    assert.equal(cancelledRow[0].status,"cancelled");
+    assert.equal(cancelledRow[0].cancelled_by,admin.id);
+    assert.equal(cancelledRow[0].cancellation_reason,cancellationReason);
+    const cancelledEvents=await db.unsafe(
+      "select event_type from public.cash_expense_commitment_events " +
+      "where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
+      [organizationId,cancelled.id],
+    );
+    assert.deepEqual(cancelledEvents.map(x=>x.event_type),["CREATED","CANCELLED"]);
+    const cancelledAudit=await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and action='finance.cash_expense_commitment.cancelled' and entity_type='cash_expense_commitment' and entity_id=$2::uuid",
+      [organizationId,cancelled.id],
+    );
+    assert.equal(cancelledAudit[0].count,1,"cancellation appends one immutable audit record");
+    const cancelledSchedule=await schedule(adminDb,today,dueDate,"YER");
+    assert.ok(!cancelledSchedule.entries.some((entry)=>entry.id==="cash-expense-commitment-outflow:"+cancelled.id),
+      "a cancelled commitment must never become a forecast cash outflow");
 
     // A second-currency commitment is separately filtered. No rate conversion is performed.
     const usdPayload={...yerPayload,category:"Equipment",description:"Imported equipment service fee",amount:"40.25",
