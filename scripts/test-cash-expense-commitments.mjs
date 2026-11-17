@@ -109,8 +109,7 @@ async function recordPayment(client, id, paymentDate, key) {
   );
   return asJson(rows[0].result);
 }
-async function schedule(client, from, to, currency) {
-  const asOf = new Date().toISOString();
+async function schedule(client, from, to, currency, asOf = new Date().toISOString()) {
   const rows = await client.unsafe(
     "select public.fetch_cash_expense_commitment_cashflow_schedule($1::date,$2::date,$3::timestamptz,$4::text) as result",
     [from,to,asOf,currency],
@@ -219,6 +218,18 @@ async function main() {
     assert.equal(usdSchedule.entries.length,1);
     assert.equal(usdSchedule.entries[0].amount.value,"40.25");
     assert.equal(usdSchedule.entries[0].amount.currency,"USD");
+
+    // A newly uploaded source file must not be injected into an earlier as-of snapshot.
+    const evidenceSnapshotAsOf=new Date(Date.now()-1500).toISOString();
+    const lateEvidence=await uploadEvidence(managerToken,yer.id,"image/png");
+    await registerEvidence(managerDb,yer.id,lateEvidence);
+    const staleSnapshot=await schedule(adminDb,from,to,"YER",evidenceSnapshotAsOf);
+    assert.equal(staleSnapshot.status,"PARTIAL","evidence attached after asOf must invalidate the snapshot");
+    assert.equal(staleSnapshot.completeness,"PARTIAL");
+    assert.ok(staleSnapshot.changedAfterAsOfCount>=1);
+    assert.equal(staleSnapshot.entries.length,1,"the pre-as-of source remains visible but the snapshot is not complete");
+    assert.equal(staleSnapshot.evidenceRecords.filter((e)=>e.id.startsWith("cash-expense-commitment-evidence:")).length,1,
+      "the evidence passport must not include the post-as-of attachment");
 
     const paymentKey=randomUUID();
     const paid=await recordPayment(accountantDb,yer.id,today,paymentKey);
