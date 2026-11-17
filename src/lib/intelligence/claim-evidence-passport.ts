@@ -140,6 +140,35 @@ function domainOf(record: EvidenceRecord): ClaimDomain {
   return "UNKNOWN";
 }
 
+function metricEvidenceIsValid(
+  metric: MetricSnapshot,
+  passport: EvidencePassport,
+  recordsById: Map<string, EvidenceRecord>,
+  duplicateEvidenceIds: Set<string>,
+): boolean {
+  const ids = metric.lineage?.evidenceIds ?? [];
+  if (metric.status !== "VERIFIED" || metric.completeness !== "COMPLETE" ||
+      metric.quality !== "ACCEPTABLE" || metric.value === null ||
+      metric.asOf !== passport.asOf || !validTime(metric.asOf) ||
+      !validTime(metric.lineage?.calculatedAt ?? "") ||
+      !metric.lineage?.formulaId.trim() || !metric.lineage?.formulaVersion.trim() ||
+      !ids.length || new Set(ids).size !== ids.length ||
+      ids.some((id) => duplicateEvidenceIds.has(id))) return false;
+  const sources = ids.map((id) => recordsById.get(id));
+  if (sources.some((source) => !source)) return false;
+  return (sources as EvidenceRecord[]).every((source) =>
+    source.status === "VERIFIED" &&
+    source.completeness === "COMPLETE" &&
+    source.quality === "ACCEPTABLE" &&
+    source.asOf === metric.asOf &&
+    validTime(source.sourceTimestamp) &&
+    Date.parse(source.sourceTimestamp) <= Date.parse(metric.asOf) &&
+    (!metric.period || samePeriod(source.period, metric.period)) &&
+    ((metric.unit !== "CURRENCY" && metric.unit !== "CURRENCY_PER_UNIT") ||
+      (Boolean(metric.currency?.trim()) && source.currency === metric.currency))
+  );
+}
+
 function validClaimConfidence(
   confidence: ClaimConfidence | null | undefined,
   metrics: MetricSnapshot[],
@@ -283,6 +312,10 @@ export function buildClaimEvidencePassports(
     if (metricMissing || evidenceMissing) {
       status = "UNVERIFIED";
       boundaries.push(metricMissing ? "CLAIM_METRIC_SOURCE_MISSING_OR_AMBIGUOUS" : "CLAIM_EVIDENCE_SOURCE_MISSING_OR_AMBIGUOUS");
+    }
+    if (metrics.some((metric) => !metricEvidenceIsValid(metric, passport, recordsById, duplicateEvidenceIds))) {
+      status = "UNVERIFIED";
+      boundaries.push("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
     }
     if (metrics.some((metric) => metrics[0] && !samePeriod(metric.period, metrics[0].period))) {
       status = atLeastReview(status);
