@@ -92,6 +92,26 @@ async function main() {
       const command = [candidateId, snapshot.ruleId, snapshot.ruleVersion, actor.profile_id,
         snapshot.expectedOutcome, "قبول قاعدة بيانات محلي داخل معاملة ستُلغى بالكامل.",
         JSON.stringify(snapshot), idempotencyKey];
+      // Diagnose the common snapshot rejection before exercising the authenticated RPC.
+      await tx.unsafe("reset role");
+      const snapshotDiagnostic = await tx.unsafe(
+        "select public._is_valid_decision_candidate_snapshot($1::jsonb,$2::text,$3::text,$4::text,$5::text) as snapshot_valid, " +
+        "exists(select 1 from public.profiles p join public.user_roles r on r.profile_id=p.id where p.id=$6::uuid and p.organization_id=$7::uuid and p.is_active=true and r.role in ('admin','manager','staff','accountant','warehouse','purchasing','sales')) as owner_valid, " +
+        "pg_catalog.char_length($8::text) as idempotency_key_length, " +
+        "jsonb_typeof($1::jsonb->'proof') as proof_type, " +
+        "jsonb_typeof($1::jsonb->'impact') as impact_type, " +
+        "jsonb_typeof($1::jsonb->'proof'->'evidenceIds') as evidence_ids_type, " +
+        "jsonb_typeof($1::jsonb->'proof'->'metricKeys') as metric_keys_type, " +
+        "jsonb_typeof($1::jsonb->'proof'->'formulaVersions') as formula_versions_type",
+        [JSON.stringify(snapshot), snapshot.candidateId, snapshot.ruleId, snapshot.ruleVersion,
+          snapshot.expectedOutcome, actor.profile_id, actor.organization_id, idempotencyKey],
+      );
+      if (!snapshotDiagnostic[0].snapshot_valid || !snapshotDiagnostic[0].owner_valid ||
+          snapshotDiagnostic[0].idempotency_key_length < 1 || snapshotDiagnostic[0].idempotency_key_length > 100) {
+        throw new Error("Decision snapshot acceptance fixture rejected: " + JSON.stringify(snapshotDiagnostic[0]));
+      }
+      await tx.unsafe("set local role authenticated");
+
       const create = async (payload) => {
         const rows = await tx.unsafe(
           "select public.create_decision_outcome_proposal_with_snapshot(" +
