@@ -13,6 +13,24 @@ const formatQuantity = (value: number | null) =>
     ? '—'
     : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(value);
 
+function openingBaselineErrorMessage(cause: unknown, fallback: string): string {
+  const raw = cause instanceof Error
+    ? cause.message
+    : cause && typeof cause === 'object' && 'message' in cause && typeof cause.message === 'string'
+      ? cause.message
+      : '';
+  if (/verified organization owner identity and approval capability are required/i.test(raw)) {
+    return 'لا يمكن عرض أو اعتماد خط الأساس: لم تُسجّل هوية مالك المؤسسة بشكل موثوق بعد. يجب ربط ملف المالك الصحيح عبر قناة التهيئة الخادمية الموثوقة؛ لا تُمنح هذه الصلاحية تلقائياً لأي مدير.';
+  }
+  if (/opening inventory baseline does not match the exact owner-authorized source set/i.test(raw)) {
+    return 'حُجب الاعتماد لأن مجموعة حركات الافتتاح والأرصدة لا تطابق المصدر المعتمد بالكامل. راجع الأصناف والحركات المفقودة أو المكررة والكميات غير الصالحة، دون تعديل الأرصدة تلقائياً.';
+  }
+  if (/warehouse is unavailable in the active organization/i.test(raw)) {
+    return 'المستودع غير متاح أو غير مفعل ضمن المؤسسة النشطة؛ اختر مستودعاً تابعاً للمؤسسة نفسها ثم حدّث المعاينة.';
+  }
+  return raw || fallback;
+}
+
 function formatDate(value: string | null): string {
   if (!value) return '—';
   const parsed = new Date(value);
@@ -46,7 +64,7 @@ export function OpeningInventoryBaselineApprovalPanel({
       setPreview(result);
     } catch (cause) {
       setPreview(null);
-      setError(cause instanceof Error ? cause.message : 'تعذر تحميل معاينة الرصيد الافتتاحي.');
+      setError(openingBaselineErrorMessage(cause, 'تعذر تحميل معاينة الرصيد الافتتاحي.'));
     } finally {
       setLoading(false);
     }
@@ -97,7 +115,7 @@ export function OpeningInventoryBaselineApprovalPanel({
       );
       await reload();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'تعذر اعتماد خط الأساس الافتتاحي.');
+      setError(openingBaselineErrorMessage(cause, 'تعذر اعتماد خط الأساس الافتتاحي.'));
     } finally {
       setBusy(false);
     }
