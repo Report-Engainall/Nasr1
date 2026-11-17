@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, Download, FileSpreadsheet, FileText, PackageCheck, RefreshCw, ShieldCheck } from "lucide-react";
-import { ONYX_PRO_DATASETS, type OnyxProDataset } from "@/lib/onyx-pro-schema";
+import { ONYX_PRO_DATASETS, buildOnyxProHeaderCsv, type OnyxProDataset } from "@/lib/onyx-pro-schema";
 import {
   buildOnyxProWorkbook,
   onyxProDatasetCsvFilename,
   onyxProWorkbookFilename,
   ONYX_PRO_WORKBOOK_MIME,
 } from "@/lib/onyx-pro-workbook";
-import { buildOnyxProHeaderCsv } from "@/lib/onyx-pro-schema";
 
 type Props = {
   onBack: () => void;
   onOpenImport: () => void;
+  canManageImports: boolean;
   onOpenSnapshots: () => void;
 };
 
