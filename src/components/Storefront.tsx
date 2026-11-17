@@ -1097,9 +1097,8 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         {view === 'cart' && (!cartRestored ? (
           <section className="sf-cart-page">
             <h2>سلة المشتريات</h2>
-            <div className="sf-empty" role={productsError ? 'alert' : 'status'}>
-              <span>{productsLoading ? 'جار استعادة السلة المحلية...' : productsError ? 'تعذر استعادة تفاصيل السلة من الكتالوج الحالي.' : 'جار استعادة السلة...'}</span>
-              {productsError && <><small>{productsError}</small><button type="button" className="sf-btn-secondary" onClick={() => void refetchProducts()}>إعادة المحاولة</button></>}
+            <div className="sf-empty" role="status">
+              <span>جار استعادة السلة المحفوظة...</span>
             </div>
           </section>
         ) : (
