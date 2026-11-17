@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ONYX_ORDER_COLUMNS } from "@/lib/onyx-export";
-import { detectImportDatasetKind, normalizeHeader, resolveImportProfileMapping } from "@/lib/unified-import";
+import { detectImportDatasetKind, normalizeHeader, normalizeOnyxStockBalanceHeader, resolveImportProfileMapping } from "@/lib/unified-import";
 
 describe("default Onyx and bulk business import headers", () => {
   it("maps every one of the 27 official Onyx order-template column labels", () => {
@@ -117,6 +117,21 @@ describe("default Onyx and bulk business import headers", () => {
     for (const [sheetName, headers, expectedKind] of sheets) {
       expect(detectImportDatasetKind(headers).kind, sheetName).toBe(expectedKind);
     }
+  });
+
+  it("maps official StockBalances headers into the protected reconciliation contract", () => {
+    expect(normalizeOnyxStockBalanceHeader("product_code")).toBe("item_code");
+    expect(normalizeOnyxStockBalanceHeader("quantity_on_hand")).toBe("quantity");
+    expect(detectImportDatasetKind(["product_code", "warehouse_code", "quantity_on_hand", "as_of_date"]).kind)
+      .toBe("inventory");
+    expect(resolveImportProfileMapping(
+      "inventory",
+      ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      "warehouse_item_key",
+    )).toEqual({
+      requiredColumns: ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      matchingKey: "warehouse_item_key",
+    });
   });
 
   it("preserves the active product profile rules for product files", () => {
