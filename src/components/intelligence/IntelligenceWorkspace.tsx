@@ -1866,7 +1866,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
               <EvidencePassport
                 passport={claimEvidenceSourcePassport}
                 claims={claimEvidencePassports}
-                state={loading ? "loading" : evidencePassport ? (evidencePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
+                state={loading ? "loading" : claimEvidenceSourcePassport ? (claimEvidenceSourcePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
                 errorMessage={result && !result.ok ? result.message : undefined}
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
