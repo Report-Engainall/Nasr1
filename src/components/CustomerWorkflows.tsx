@@ -55,6 +55,11 @@ import { downloadCustomerAccountStatementWorkbookXlsx } from "@/lib/customer-acc
 import { downloadReceivablesAgingWorkbookXlsx } from "@/lib/receivables-aging-xlsx";
 import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { downloadCustomerQuoteWorkbookXlsx } from "@/lib/customer-quote-xlsx";
+import {
+  appendUniqueCustomerQuoteProducts,
+  customerQuoteProductPageHasMore,
+  CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE,
+} from "@/lib/customer-quote-product-pagination";
 import { downloadCustomerInvoiceWorkbookXlsx } from "@/lib/customer-invoice-xlsx";
 import { downloadCustomerPaymentHistoryWorkbookXlsx } from "@/lib/customer-payment-history-xlsx";
 import { filterCustomerPaymentHistory } from "@/lib/customer-payment-history-filter";
@@ -1646,6 +1651,9 @@ export function QuoteWorkspacePage() {
 }
 function Quotes() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [nextProductsOffset, setNextProductsOffset] = useState(0);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quoteItems, setQuoteItems] = useState<Record<string, QuoteLine[]>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -1676,7 +1684,8 @@ function Quotes() {
         .eq("organization_id", orgId)
         .eq("status", "active")
         .order("name")
-        .limit(500),
+        .order("id")
+        .range(0, CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE - 1),
       supabase
         .from("sales_quotes")
         .select("id,quote_number,status,notes,response_note,created_at,quoted_at,valid_until")
@@ -1685,15 +1694,22 @@ function Quotes() {
         .order("id", { ascending: false })
         .limit(50),
     ]);
-    if (p.error || q.error)
+    if (p.error || q.error) {
+      setHasMoreProducts(false);
+      setNextProductsOffset(0);
+      setProducts([]);
       setError("تعذر تحميل المنتجات أو عروض الأسعار. تحقق من نشر ترحيل قاعدة البيانات.");
-    else {
+    } else {
       try {
         const rows = (p.data ?? []) as Array<{ id: string; [key: string]: unknown }>;
         const priceMap = await fetchResolvedProductPrices(rows.map((row) => row.id));
         setProducts(rows.map((row) => withResolvedProductPrice(row, priceMap.get(row.id))) as Product[]);
+        setHasMoreProducts(customerQuoteProductPageHasMore(rows, CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE));
+        setNextProductsOffset(rows.length);
       } catch (priceError) {
         setProducts([]);
+        setHasMoreProducts(false);
+        setNextProductsOffset(0);
         setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
       }
       const quoteRows = (q.data ?? []) as Quote[];
@@ -1789,6 +1805,44 @@ function Quotes() {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل العروض الأقدم.");
     } finally {
       setLoadingMoreQuotes(false);
+    }
+  }
+
+  async function loadMoreProducts() {
+    if (loadingMoreProducts || !hasMoreProducts || loading || busy) return;
+    const offset = nextProductsOffset;
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      setError("تعذر التحقق من موضع صفحة الأصناف التالية.");
+      return;
+    }
+
+    setLoadingMoreProducts(true);
+    setError("");
+    try {
+      const { organizationId } = await getCurrentTenantScope();
+      const { data, error: productsError } = await supabase
+        .from("products")
+        .select("id,name,item_code,barcode,unit,status")
+        .eq("organization_id", organizationId)
+        .eq("status", "active")
+        .order("name")
+        .order("id")
+        .range(offset, offset + CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE - 1);
+      if (productsError) throw new Error("تعذر تحميل صفحة الأصناف التالية من المؤسسة الحالية.");
+
+      const rows = (data ?? []) as Array<{ id: string; [key: string]: unknown }>;
+      if (rows.some((row) => typeof row.id !== "string" || row.id.length === 0)) {
+        throw new Error("أعاد الخادم صنفًا دون معرّف صالح؛ لم تُضف الصفحة.");
+      }
+      const priceMap = await fetchResolvedProductPrices(rows.map((row) => row.id));
+      const page = rows.map((row) => withResolvedProductPrice(row, priceMap.get(row.id))) as Product[];
+      setProducts((current) => appendUniqueCustomerQuoteProducts(current, page));
+      setNextProductsOffset(offset + rows.length);
+      setHasMoreProducts(customerQuoteProductPageHasMore(rows, CUSTOMER_QUOTE_PRODUCT_PAGE_SIZE));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل أصناف إضافية.");
+    } finally {
+      setLoadingMoreProducts(false);
     }
   }
 
@@ -1925,6 +1979,31 @@ function Quotes() {
             ))}
           </div>
         )}
+        {products.length > 0 && (
+          <p role="status" aria-live="polite" style={quiet}>
+            تم تحميل {formatNumber(products.length)} صنفًا من الكتالوج
+          </p>
+        )}
+        {!loading && query.trim() && visible.length === 0 && hasMoreProducts && (
+          <p role="status" style={quiet}>لم يظهر الصنف في الدفعة الحالية؛ حمّل دفعة أخرى لمتابعة البحث في الكتالوج.</p>
+        )}
+        {!loading && query.trim() && visible.length === 0 && !hasMoreProducts && products.length > 0 && (
+          <p role="status" style={quiet}>لا توجد أصناف تطابق البحث في الكتالوج النشط.</p>
+        )}
+        {hasMoreProducts && (
+          <button
+            type="button"
+            style={secondary}
+            disabled={loadingMoreProducts || loading || busy}
+            onClick={() => void loadMoreProducts()}
+          >
+            <RefreshCw size={16} />
+            {loadingMoreProducts ? "جارٍ تحميل أصناف إضافية..." : "تحميل 100 صنف إضافي"}
+          </button>
+        )}
+        {!loading && products.length > 0 && !hasMoreProducts && (
+          <p role="status" style={quiet}>تم تحميل جميع الأصناف النشطة المتاحة في كتالوج مؤسستك.</p>
+        )}
         <label>
           ملاحظات
           <textarea
@@ -1935,7 +2014,7 @@ function Quotes() {
             placeholder="الكميات الشهرية أو موعد التوريد المطلوب"
           />
         </label>
-        <button style={primary} type="submit" disabled={busy || loading}>
+        <button style={primary} type="submit" disabled={busy || loading || loadingMoreProducts}>
           <Send size={16} />
           {busy ? "جارٍ الإرسال..." : "إرسال طلب عرض سعر"}
         </button>
