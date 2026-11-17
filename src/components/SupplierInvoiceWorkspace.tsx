@@ -26,6 +26,7 @@ import {
 import { projectSupplierInvoiceAccountingPrintDocument, type SupplierInvoiceAccountingPrintDocument } from "@/lib/supplier-invoice-accounting-print";
 import { SupplierInvoiceAccountingPrintSheet } from "@/components/SupplierInvoiceAccountingPrintSheet";
 import { downloadSupplierInvoiceAccountingWorkbookXlsx } from "@/lib/supplier-invoice-accounting-xlsx";
+import { filterSupplierInvoicePage, type SupplierInvoiceWorkspaceStatusFilter } from "@/lib/supplier-invoice-workspace-filters";
 
 type WorkspaceMode = "capture" | "review";
 type InvoiceLineDraft = { quantity: string; unitCost: string; lineTotal: string };
@@ -109,6 +110,8 @@ export function SupplierInvoiceWorkspace({ mode, accounts = [], onRefresh, purch
   const [orderedQuantitiesError, setOrderedQuantitiesError] = useState("");
   const [purchaseOrderId, setPurchaseOrderId] = useState("");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [invoiceQuery, setInvoiceQuery] = useState("");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<SupplierInvoiceWorkspaceStatusFilter>("all");
   const [offset, setOffset] = useState(0);
   const [lineDrafts, setLineDrafts] = useState<Record<string, InvoiceLineDraft>>({});
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -464,10 +467,19 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     ),
     [workspace?.receivableLines, isCapture, purchaseOrderId],
   );
-  const selectedInvoice = useMemo(
-    () => workspace?.invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null,
-    [workspace?.invoices, selectedInvoiceId],
+  const invoiceRows = workspace?.invoices ?? [];
+  const filteredInvoiceRows = useMemo(
+    () => filterSupplierInvoicePage(invoiceRows, invoiceQuery, invoiceStatusFilter),
+    [invoiceRows, invoiceQuery, invoiceStatusFilter],
   );
+  const selectedInvoice = useMemo(
+    () => filteredInvoiceRows.find((invoice) => invoice.id === selectedInvoiceId) ?? null,
+    [filteredInvoiceRows, selectedInvoiceId],
+  );
+  useEffect(() => {
+    if (selectedInvoiceId && filteredInvoiceRows.some((invoice) => invoice.id === selectedInvoiceId)) return;
+    setSelectedInvoiceId(filteredInvoiceRows[0]?.id ?? null);
+  }, [filteredInvoiceRows, selectedInvoiceId]);
   const selectedDueDate = selectedInvoice
     ? dueDateRows.find((item) => item.invoiceId === selectedInvoice.id) ?? null
     : null;
@@ -722,7 +734,6 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     return <section dir="rtl" style={cardStyle}><h3 style={{ margin: 0 }}>صلاحية مالية مطلوبة</h3><p style={mutedStyle}>تتطلب مطابقة فواتير الموردين دور مدير أو مسؤول أو محاسب؛ يفرض الخادم الصلاحية نفسها.</p></section>;
   }
 
-  const invoiceRows = workspace?.invoices ?? [];
   const activeTaxAccounts = accounts.filter((account) =>
     account.is_active && (account.account_type === "asset" || account.account_type === "expense")
   );
@@ -835,13 +846,47 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
       <section style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div><h3 style={{ margin: 0 }}>سجل فواتير الموردين</h3><p style={mutedStyle}>تظهر المستندات المسجلة فقط، مع سجل القرار وحالة معالجة الضريبة.</p></div>
-          <span style={{ ...mutedStyle, whiteSpace: "nowrap" }}>{workspace?.invoiceCount ?? 0} مستند</span>
+          <span style={{ ...mutedStyle, whiteSpace: "nowrap" }}>{workspace?.invoiceCount ?? 0} مستند في السجل</span>
         </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", alignItems: "end", gap: 10 }}>
+          <label style={{ display: "grid", gap: 5 }}>
+            البحث في فواتير الصفحة الحالية
+            <input type="search" aria-label="بحث فواتير المورد" maxLength={120}
+              placeholder="رقم الفاتورة أو المورد أو أمر الشراء"
+              value={invoiceQuery} onChange={(event) => setInvoiceQuery(event.target.value)}
+              disabled={loading} style={fieldStyle} />
+          </label>
+          <label style={{ display: "grid", gap: 5 }}>
+            حالة المطابقة
+            <select aria-label="تصفية حالة مطابقة فواتير المورد" value={invoiceStatusFilter}
+              onChange={(event) => setInvoiceStatusFilter(event.target.value as SupplierInvoiceWorkspaceStatusFilter)}
+              disabled={loading} style={fieldStyle}>
+              <option value="all">جميع الحالات</option>
+              <option value="matched">مطابقة سعرية</option>
+              <option value="variance_pending">فرق سعر بانتظار مراجعة</option>
+              <option value="variance_approved">فرق السعر معتمد</option>
+              <option value="variance_rejected">فرق السعر مرفوض</option>
+            </select>
+          </label>
+          <button type="button" className="btn secondary"
+            onClick={() => { setInvoiceQuery(""); setInvoiceStatusFilter("all"); }}
+            disabled={loading || (!invoiceQuery.trim() && invoiceStatusFilter === "all")}>
+            مسح البحث والتصفية
+          </button>
+        </div>
+        <p role="status" aria-live="polite" style={mutedStyle}>
+          نتائج الصفحة: {filteredInvoiceRows.length} من {invoiceRows.length} · إجمالي السجل: {workspace?.invoiceCount ?? 0}
+        </p>
+        <p style={mutedStyle}>البحث والتصفية يطبقان على الصفحة الحالية فقط؛ استخدم السابق والتالي للوصول إلى بقية صفحات السجل.</p>
         {loading ? <p role="status" style={mutedStyle}>جار تحميل سجل الفواتير...</p> : invoiceRows.length === 0 ? (
           <p style={mutedStyle}>لا توجد فواتير موردين مسجلة ضمن نطاق العرض الحالي.</p>
+        ) : filteredInvoiceRows.length === 0 ? (
+          <p role="status" style={{ ...mutedStyle, padding: 12, borderRadius: 8, background: "var(--muted, #f3f6f8)" }}>
+            لا توجد فواتير مطابقة لعبارة البحث وحالة المطابقة في هذه الصفحة.
+          </p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
-            {invoiceRows.map((invoice) => <button key={invoice.id} type="button" onClick={() => setSelectedInvoiceId(invoice.id)}
+            {filteredInvoiceRows.map((invoice) => <button key={invoice.id} type="button" onClick={() => setSelectedInvoiceId(invoice.id)}
               aria-pressed={selectedInvoiceId === invoice.id}
               style={{ textAlign: "right", width: "100%", minWidth: 0, border: "1px solid var(--border, #d6dfe4)", borderRadius: 10, padding: 12, background: selectedInvoiceId === invoice.id ? "var(--muted, #f3f6f8)" : "var(--card, #fff)", color: "inherit", cursor: "pointer" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -855,7 +900,7 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button type="button" className="btn secondary" disabled={loading || offset <= 0} onClick={() => { const next = Math.max(0, offset - 25); setOffset(next); void load(next); }}>السابق</button>
-          <span style={mutedStyle}>عرض {workspace ? workspace.offset + 1 : 0}–{workspace ? workspace.offset + invoiceRows.length : 0}</span>
+          <span style={mutedStyle}>عرض {workspace && workspace.invoiceCount > 0 ? workspace.offset + 1 : 0}–{workspace ? workspace.offset + invoiceRows.length : 0} من {workspace?.invoiceCount ?? 0}</span>
           <button type="button" className="btn secondary" disabled={loading || !workspace?.hasMore} onClick={() => { const next = offset + 25; setOffset(next); void load(next); }}>التالي</button>
         </div>
       </section>
