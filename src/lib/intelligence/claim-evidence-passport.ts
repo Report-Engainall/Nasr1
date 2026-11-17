@@ -321,7 +321,7 @@ export function buildClaimEvidencePassports(
       confidence = draft.causalStudy.confidence;
       confidenceBasis = draft.causalStudy.confidenceBasis.trim();
     } else if (draft.confidence) {
-      if (validConfidence(draft.confidence.value) && draft.confidence.basis.trim()) {
+      if (confidenceIsVerified) {
         confidence = draft.confidence.value;
         confidenceBasis = draft.confidence.basis.trim();
       } else {
