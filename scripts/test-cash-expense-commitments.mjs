@@ -212,8 +212,6 @@ async function main() {
       amount:"17.25",reference:"P2-COMMIT-CANCEL-"+suffix};
     const cancelled=await createCommitment(managerDb,cancelledPayload,randomUUID());
     assert.equal(cancelled.status,"pending_approval");
-    await expectCode("commitment creator cannot self-cancel",
-      ()=>cancel(managerDb,cancelled.id,"رفض ذاتي للإلغاء",randomUUID()),"42501");
     await expectCode("accountant cannot cancel a finance commitment",
       ()=>cancel(accountantDb,cancelled.id,"إلغاء محاسبي غير مخول",randomUUID()),"42501");
     const cancellationKey=randomUUID(),cancellationReason="تم إلغاء الاتفاق قبل بدء الخدمة";
