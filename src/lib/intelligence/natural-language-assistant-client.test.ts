@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { rpc, invoke } = vi.hoisted(() => ({
+const { rpc, invoke, fetchBusinessHealth } = vi.hoisted(() => ({
   rpc: vi.fn(),
   invoke: vi.fn(),
+  fetchBusinessHealth: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -10,6 +11,9 @@ vi.mock("@/integrations/supabase/client", () => ({
     rpc,
     functions: { invoke },
   },
+}));
+vi.mock("./business-health-assistant-client", () => ({
+  fetchBusinessHealthAssistantSummary: fetchBusinessHealth,
 }));
 
 import { runNaturalLanguageAssistantQuery } from "./natural-language-assistant-client";
@@ -19,6 +23,7 @@ describe("natural-language assistant local execution when model providers are un
   beforeEach(() => {
     rpc.mockReset();
     invoke.mockReset();
+    fetchBusinessHealth.mockReset();
     // The gateway represents all configured model providers as unavailable.
     // A supported local business query must not depend on this external path.
     invoke.mockRejectedValue(new Error("all configured AI model providers are unavailable"));
@@ -125,5 +130,69 @@ describe("Arabic assistant query-window guardrails", () => {
     expect(plan.status).toBe("READY");
     if (plan.status !== "READY") throw new Error("Expected a current task-quality plan.");
     expect(plan.sourceRpc).toBe("fetch_operational_task_quality_metrics");
+  });
+});
+
+describe("Arabic business-health assistant routing", () => {
+  beforeEach(() => {
+    rpc.mockReset();
+    invoke.mockReset();
+    fetchBusinessHealth.mockReset();
+    invoke.mockRejectedValue(new Error("AI providers unavailable"));
+  });
+
+  it("routes a supported Arabic business-health query through the deterministic local source engine", async () => {
+    const asOf = "2026-11-17T12:00:00.000Z";
+    const map = { asOf, status: "PARTIAL", supplierPostedPayableActivityTrend: { status: "NOT_COMPARABLE" } };
+    fetchBusinessHealth.mockResolvedValue({
+      ok: true,
+      data: {
+        state: "PARTIAL",
+        answer: "أُنشئت خريطة جزئية من المصادر المتاحة.",
+        map,
+        sources: {},
+      },
+    });
+
+    const response = await runNaturalLanguageAssistantQuery("خريطة صحة الأعمال");
+
+    expect(fetchBusinessHealth).toHaveBeenCalledTimes(1);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(response).toMatchObject({
+      status: "RESULT",
+      plan: { status: "READY", intent: "BUSINESS_HEALTH_OVERVIEW" },
+      result: {
+        kind: "BUSINESS_HEALTH",
+        state: "PARTIAL",
+        sourceRpc: "get_inventory_intelligence_aggregate",
+        asOf,
+        map,
+      },
+    });
+  });
+
+  it("returns the finance source denial without attempting an AI-provider bypass", async () => {
+    fetchBusinessHealth.mockResolvedValue({
+      ok: false,
+      status: "DENIED",
+      message: "finance source denied",
+    });
+
+    const response = await runNaturalLanguageAssistantQuery("صحة الأعمال");
+
+    expect(response).toEqual({ status: "DENIED", message: "finance source denied" });
+    expect(fetchBusinessHealth).toHaveBeenCalledTimes(1);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("does not reinterpret a historical period as the current business-health snapshot", async () => {
+    const response = await runNaturalLanguageAssistantQuery("خريطة صحة الأعمال بين تاريخ 2026-01-01 و2026-01-31");
+
+    expect(response.status).toBe("UNSUPPORTED");
+    expect(fetchBusinessHealth).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

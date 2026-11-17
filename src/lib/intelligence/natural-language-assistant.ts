@@ -572,9 +572,13 @@ export interface NaturalLanguageBusinessHealthResult {
  map:BusinessHealthMapResult;
  sources:{
   inventory:{status:"READY";asOf:string;period:{from:string;to:string};totalProducts:number;returnedProducts:number};
-  cashflow:{status:"READY";asOf:string;period:{from:string;to:string};scheduleStatus:string;completeness:string;warnings:string[]}
+  cashflow:
+   |{status:"READY";asOf:string;period:{from:string;to:string};scheduleStatus:string;completeness:string;warnings:string[]}
+   |{status:"PARTIAL";asOf:string;period:{from:string;to:string};scheduleStatus:string;completeness:string;warnings:string[];message:string}
    |{status:"UNAVAILABLE";message:string};
-  retention:{status:"READY";asOf:string;period:{from:string;to:string};populationComplete:boolean;customerCount:number|null}
+  retention:
+   |{status:"READY";asOf:string;period:{from:string;to:string};populationComplete:true;customerCount:number}
+   |{status:"PARTIAL";asOf:string;period:{from:string;to:string};populationComplete:false;customerCount:number|null;message:string}
    |{status:"UNAVAILABLE";message:string};
  };
 }

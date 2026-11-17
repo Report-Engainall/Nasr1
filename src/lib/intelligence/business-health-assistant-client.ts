@@ -2,6 +2,7 @@ import { createCashflowScheduleRequest, fetchCashflowSchedule } from "./cashflow
 import type { CashflowScheduleSnapshot } from "./cashflow-schedule-client";
 import { createInventoryIntelligencePeriod, fetchInventoryIntelligence } from "./inventory-intelligence-client";
 import { fetchCustomerRetentionAggregate } from "./customer-retention-client";
+import type { CustomerRetentionReport } from "./customer-retention";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "./business-health-map";
 import { buildCashflowForecast } from "./cashflow-forecast";
 import { buildDeadStockReport } from "./dead-stock";
@@ -11,10 +12,6 @@ import type { MetricSnapshot } from "./types";
 import { fetchProductRevenueConcentration } from "./product-revenue-concentration-client";
 import { fetchSupplierPostedPayableActivity } from "./supplier-posted-payable-activity-client";
 
-export type BusinessHealthAssistantSource =
-  | { status: "READY"; asOf: string; period: { from: string; to: string } }
-  | { status: "UNAVAILABLE"; message: string };
-
 export interface BusinessHealthAssistantSources {
   inventory: {
     status: "READY";
@@ -23,19 +20,14 @@ export interface BusinessHealthAssistantSources {
     totalProducts: number;
     returnedProducts: number;
   };
-  cashflow: BusinessHealthAssistantSource & {
-    status: "READY";
-    period: { from: string; to: string };
-    scheduleStatus: string;
-    completeness: string;
-    warnings: string[];
-  } | { status: "UNAVAILABLE"; message: string };
-  retention: BusinessHealthAssistantSource & {
-    status: "READY";
-    period: { from: string; to: string };
-    populationComplete: boolean;
-    customerCount: number | null;
-  } | { status: "UNAVAILABLE"; message: string };
+  cashflow:
+    | { status: "READY"; asOf: string; period: { from: string; to: string }; scheduleStatus: string; completeness: string; warnings: string[] }
+    | { status: "PARTIAL"; asOf: string; period: { from: string; to: string }; scheduleStatus: string; completeness: string; warnings: string[]; message: string }
+    | { status: "UNAVAILABLE"; message: string };
+  retention:
+    | { status: "READY"; asOf: string; period: { from: string; to: string }; populationComplete: true; customerCount: number }
+    | { status: "PARTIAL"; asOf: string; period: { from: string; to: string }; populationComplete: false; customerCount: number | null; message: string }
+    | { status: "UNAVAILABLE"; message: string };
   productRevenueConcentration:
     | { status: "READY"; invoiceCount: number; currencyCount: number; completePopulation: boolean; asOf: string }
     | { status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
@@ -97,6 +89,70 @@ function metricSnapshots(data: CashflowScheduleSnapshot): MetricSnapshot[] {
     warnings: [],
   }));
   return [...scheduled, ...collections];
+}
+
+export function mapBusinessHealthCashflowSource(
+  data: CashflowScheduleSnapshot,
+): BusinessHealthAssistantSources["cashflow"] {
+  const complete = data.status === "OK" &&
+    data.completeness === "COMPLETE" &&
+    data.quality === "ACCEPTABLE" &&
+    data.schedule.status === "VERIFIED" &&
+    data.schedule.completeness === "COMPLETE" &&
+    data.schedule.quality === "ACCEPTABLE";
+  const common = {
+    asOf: data.asOf,
+    period: data.period,
+    scheduleStatus: data.schedule.status,
+    completeness: data.completeness,
+    warnings: data.warnings,
+  };
+  return complete
+    ? { status: "READY", ...common }
+    : {
+        status: "PARTIAL",
+        ...common,
+        message: "جدول التدفق النقدي أُعيد من المصدر لكنه غير مكتمل أو يحتاج مراجعة؛ لا يُعامل كقراءة مكتملة.",
+      };
+}
+
+export function mapBusinessHealthRetentionSource(
+  data: CustomerRetentionReport,
+): BusinessHealthAssistantSources["retention"] {
+  const total = data.population.total;
+  const complete = data.status === "VERIFIED" &&
+    typeof total === "number" && Number.isSafeInteger(total) && total >= 0;
+  return complete
+    ? {
+        status: "READY",
+        asOf: data.asOf,
+        period: data.period,
+        populationComplete: true,
+        customerCount: total,
+      }
+    : {
+        status: "PARTIAL",
+        asOf: data.asOf,
+        period: data.period,
+        populationComplete: false,
+        customerCount: total,
+        message: "مجتمع العملاء أو مؤشرات الاحتفاظ غير مكتملة؛ حُجبت صفة الاكتمال.",
+      };
+}
+
+export function areBusinessHealthAssistantSourcesComplete(
+  sources: BusinessHealthAssistantSources,
+  mapStatus: string,
+): boolean {
+  return sources.inventory.status === "READY" &&
+    sources.cashflow.status === "READY" &&
+    sources.retention.status === "READY" &&
+    sources.productRevenueConcentration.status === "READY" &&
+    sources.productRevenueConcentration.completePopulation &&
+    sources.supplierPostedPayableActivity.sourceStatus === "READY" &&
+    sources.supplierPostedPayableActivity.resultStatus === "VERIFIED" &&
+    sources.supplierPostedPayableActivity.completeSourceAggregation &&
+    mapStatus === "VERIFIED";
 }
 
 function buildCashflow(data: CashflowScheduleSnapshot) {
@@ -278,23 +334,10 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
         returnedProducts: inventory.data.returnedProducts,
       },
       cashflow: cashflow.ok
-        ? {
-            status: "READY",
-            asOf: cashflow.data.asOf,
-            period: cashflow.data.period,
-            scheduleStatus: cashflow.data.schedule.status,
-            completeness: cashflow.data.completeness,
-            warnings: cashflow.data.warnings,
-          }
+        ? mapBusinessHealthCashflowSource(cashflow.data)
         : { status: "UNAVAILABLE", message: cashflow.message },
       retention: retention.ok
-        ? {
-            status: "READY",
-            asOf: retention.data.asOf,
-            period: retention.data.period,
-            populationComplete: retention.data.status === "VERIFIED" && retention.data.population.total !== null,
-            customerCount: retention.data.population.total,
-          }
+        ? mapBusinessHealthRetentionSource(retention.data)
         : { status: "UNAVAILABLE", message: retention.message },
       productRevenueConcentration: productRevenueConcentration.ok
         ? {
@@ -319,16 +362,7 @@ export async function fetchBusinessHealthAssistantSummary(now = new Date()): Pro
           }
         : { sourceStatus: supplierPostedPayableActivity.status, message: supplierPostedPayableActivity.message },
     };
-    const allSourcesReady =
-      sources.inventory.status === "READY" &&
-      sources.cashflow.status === "READY" &&
-      sources.retention.status === "READY" &&
-      sources.productRevenueConcentration.status === "READY" &&
-      sources.productRevenueConcentration.completePopulation &&
-      sources.supplierPostedPayableActivity.sourceStatus === "READY" &&
-      sources.supplierPostedPayableActivity.resultStatus === "VERIFIED" &&
-      sources.supplierPostedPayableActivity.completeSourceAggregation &&
-      map.supplierPostedPayableActivityTrend.status === "VERIFIED";
+    const allSourcesReady = areBusinessHealthAssistantSourcesComplete(sources, map.status);
     const state = allSourcesReady && map.status === "VERIFIED" ? "READY" : "PARTIAL";
     const answer = state === "READY"
       ? "اكتملت قراءة مصادر خريطة صحة الأعمال عند " + map.asOf + "؛ عُرضت المؤشرات المثبتة فقط، مع إبقاء العملات منفصلة ومنع جمع المكونات المتداخلة."
