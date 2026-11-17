@@ -3,10 +3,10 @@
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
-    CREATE ROLE anon NOLOGIN;
+    EXECUTE 'CREATE ROLE anon NOLOGIN';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
-    CREATE ROLE authenticated NOLOGIN;
+    EXECUTE 'CREATE ROLE authenticated NOLOGIN';
   END IF;
 END;
 $roles$;
@@ -115,6 +115,15 @@ BEGIN
   END;
 
   PERFORM pg_catalog.set_config('nasr.test.auth_uid', '33333333-3333-4333-8333-333333333333', true);
+  PERFORM pg_catalog.set_config('nasr.test.profile_id', '66666666-6666-4666-8666-666666666666', true);
+  BEGIN
+    PERFORM public.ensure_onyx_stock_balance_import_profile();
+    RAISE EXCEPTION 'mismatched auth user and profile unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+
+  PERFORM pg_catalog.set_config('nasr.test.auth_uid', '33333333-3333-4333-8333-333333333333', true);
   PERFORM pg_catalog.set_config('nasr.test.profile_id', '22222222-2222-4222-8222-222222222222', true);
   v_admin_id := public.ensure_onyx_stock_balance_import_profile();
   v_admin_replay := public.ensure_onyx_stock_balance_import_profile();
@@ -131,7 +140,7 @@ BEGIN
      OR v_profile.matching_key <> 'warehouse_item_key'
      OR v_profile.required_columns <> '["item_code","quantity","warehouse_code","as_of_date"]'::jsonb
      OR v_profile.status <> 'active'
-     OR v_profile.created_by <> '22222222-2222-4222-8222-222222222222' THEN
+     OR v_profile.created_by IS DISTINCT FROM '22222222-2222-4222-8222-222222222222' THEN
     RAISE EXCEPTION 'created stock-balance profile does not match the reconciliation contract';
   END IF;
 
