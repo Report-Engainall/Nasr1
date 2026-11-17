@@ -1996,7 +1996,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     void (async () => {
       try {
         const { data, error: rpcError } = await supabase.rpc('validate_checkout_cart', { p_items: checkoutItems });
-        if (rpcError) throw new Error(rpcError.message || 'تعذر التحقق من أصناف السلة وسياسة التسعير');
+        if (rpcError) throw rpcError;
         const payload = data as { valid?: unknown; items?: unknown; item_count?: unknown; currency?: unknown; pricing_verified?: unknown } | null;
         if (!payload || payload.valid !== true || payload.pricing_verified !== true || !Array.isArray(payload.items) ||
           payload.items.length === 0 || Number(payload.item_count) !== payload.items.length) {
@@ -2017,7 +2017,9 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
           pricing_verified: true,
         });
       } catch (e) {
-        if (active) setPreviewError(e instanceof Error ? e.message : 'تعذر التحقق من الأسعار الحالية');
+        if (active) setPreviewError(isCheckoutAuthorizationDenied(e)
+          ? 'الحساب الحالي لا يملك صلاحية التحقق من سلة العملاء في هذه المنشأة. استخدم حساب مشتري معتمدًا أو راجع مسؤول المنشأة.'
+          : e instanceof Error ? e.message : 'تعذر التحقق من السلة الحالية');
       } finally {
         if (active) setPreviewLoading(false);
       }
@@ -2296,7 +2298,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
 
           <div className="sf-checkout-actions">
             <button className="sf-btn-secondary" onClick={onBack} disabled={submitting || ambiguousSubmit}>العودة إلى السلة</button>
-            <button className="sf-btn-primary" onClick={submit} disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation || pricePreviewPending || ambiguousSubmit || recoveringAttempt}>
+            <button className="sf-btn-primary" onClick={submit} disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation || pricePreviewPending}>
               {submitting ? 'جارٍ إرسال الطلب...' : previewLoading ? 'جارٍ التحقق من السلة...' : deliveryAddressesLoading ? 'جارٍ تحميل العناوين...' : ambiguousSubmit || recoveringAttempt ? 'إعادة تأكيد المحاولة نفسها' : pricePreviewPending ? 'جارٍ تجهيز مراجعة الفاتورة...' : 'اعتماد الطلب وإرساله'}
             </button>
           </div>
