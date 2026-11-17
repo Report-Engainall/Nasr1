@@ -199,7 +199,9 @@ function OnyxSnapshotAnalyticsView({ analytics, rows, selectedId, isInventorySto
           <h2>توزيع حالة الصفوف</h2>
           <OnyxStatusDistribution distribution={analytics.status_distribution} />
         </article>
-        <OnyxReconciliationPanel selectedId={selectedId} detailLoading={detailLoading} reconciling={reconciling} reconciliation={reconciliation} reconciliationError={reconciliationError} onReconcile={onReconcile} />
+        {!isInventoryStockSnapshot && (
+          <OnyxReconciliationPanel selectedId={selectedId} detailLoading={detailLoading} reconciling={reconciling} reconciliation={reconciliation} reconciliationError={reconciliationError} onReconcile={onReconcile} />
+        )}
       </section>
       {isInventoryStockSnapshot && <OnyxInventoryReconciliationActions snapshotId={selectedId} />}
       <OnyxTopItemsPanel items={analytics.top_items} />
