@@ -1002,7 +1002,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         }
         if (detection.kind === "products" || detection.kind === "customers" || detection.kind === "product_units") {
           detectedImportKind = detection.kind;
-          if (detection.kind !== "product_units") setApplicationKind(detectedImportKind);
+          if (detectedImportKind === "products" || detectedImportKind === "customers") setApplicationKind(detectedImportKind);
         }
       }
       if (detectedImportKind !== "products" && !canRollbackImport) {
