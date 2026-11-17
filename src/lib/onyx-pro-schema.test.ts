@@ -41,13 +41,19 @@ describe("Onyx Pro complete exchange field contract", () => {
     ]);
   });
 
-  it("maps each canonical field and Arabic heading to its stable identifier", () => {
+  it("maps each canonical field and Arabic heading in its own dataset context", () => {
     for (const dataset of ONYX_PRO_DATASETS) {
+      const synonyms = getOnyxProHeaderSynonyms(dataset.id);
       for (const field of dataset.fields) {
-        expect(ONYX_PRO_HEADER_SYNONYMS[field.field]).toBe(field.field);
-        expect(ONYX_PRO_HEADER_SYNONYMS[field.header]).toBe(field.field);
+        expect(synonyms[field.field]).toBe(field.field);
+        expect(synonyms[field.header]).toBe(field.field);
       }
     }
+  });
+
+  it("omits ambiguous global aliases instead of choosing a wrong entity field", () => {
+    expect(ONYX_PRO_HEADER_SYNONYMS["رقم الصنف"]).toBeUndefined();
+    expect(ONYX_PRO_HEADER_SYNONYMS["البيان"]).toBeUndefined();
   });
 
   it("creates a UTF-8 BOM CSV header template for each dataset", () => {
