@@ -90,7 +90,7 @@ describe("price-grid CSV/XLSX export-import contract", () => {
       "121.00",
       "130.00",
       "40.125",
-      "2.5",
+      "2.500",
       "37.625",
       "12",
       "2",
