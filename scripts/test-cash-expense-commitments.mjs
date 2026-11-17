@@ -102,6 +102,13 @@ async function approve(client, id, reason, key) {
   );
   return asJson(rows[0].result);
 }
+async function reject(client, id, reason, key) {
+  const rows = await client.unsafe(
+    "select public.reject_cash_expense_commitment($1::uuid,$2::text,$3::uuid) as result",
+    [id,reason,key],
+  );
+  return asJson(rows[0].result);
+}
 async function recordPayment(client, id, paymentDate, key) {
   const rows = await client.unsafe(
     "select public.record_cash_expense_commitment_payment($1::uuid,$2::date,$3::uuid) as result",
@@ -148,6 +155,13 @@ async function main() {
       setIdentity(accountantDb,accountant.auth_user_id,accountant.email),
       setIdentity(customerDb,customer.auth_user_id,customer.email),
     ]);
+
+    const invalidDueDate=new Date();
+    invalidDueDate.setUTCFullYear(invalidDueDate.getUTCFullYear()+11);
+    await expectCode("database rejects an operating commitment beyond ten years",
+      ()=>createCommitment(managerDb,{category:"Date guard",description:"Out-of-horizon operating expense",amount:"1.00",
+        currency:"YER",payment_method:"cash",reference:"P2-COMMIT-DATE-GUARD-"+randomUUID().slice(0,8),
+        due_date:invalidDueDate.toISOString().slice(0,10)},randomUUID()),"22023");
     const [managerToken, adminToken] = await Promise.all([
       signIn(managerEmail,requiredEnv("E2E_MANAGER_PASSWORD")),
       signIn(adminEmail,requiredEnv("E2E_DEVICE_ADMIN_PASSWORD")),
@@ -191,6 +205,48 @@ async function main() {
     assert.equal((await approve(adminDb,yer.id,"مستند إيجار موثق وفاتورة مستحقة",approvalKey)).replayed,true);
     await expectCode("approval idem key rejects changed reason",
       ()=>approve(adminDb,yer.id,"سبب مختلف للطلب نفسه",approvalKey),"23505");
+
+    const rejectedPayload={...yerPayload,category:"Rejected source",description:"Maintenance request rejected after document review",
+      amount:"17.25",reference:"P2-COMMIT-REJECT-"+suffix};
+    const rejected=await createCommitment(managerDb,rejectedPayload,randomUUID());
+    assert.equal(rejected.status,"pending_approval");
+    const rejectedEvidence=await uploadEvidence(managerToken,rejected.id);
+    await registerEvidence(managerDb,rejected.id,rejectedEvidence);
+    await expectCode("creator cannot reject own commitment",
+      ()=>reject(managerDb,rejected.id,"رفض ذاتي غير مسموح",randomUUID()),"42501");
+    await expectCode("accountant cannot reject commitments",
+      ()=>reject(accountantDb,rejected.id,"رفض محاسب غير مخول",randomUUID()),"42501");
+    const rejectionKey=randomUUID(),rejectionReason="المستند لا يطابق المبلغ المعتمد للمراجعة";
+    const rejectedResult=await reject(adminDb,rejected.id,rejectionReason,rejectionKey);
+    assert.equal(rejectedResult.status,"rejected");
+    assert.equal(rejectedResult.replayed,false);
+    assert.equal((await reject(adminDb,rejected.id,rejectionReason,rejectionKey)).replayed,true);
+    await expectCode("rejection idempotency rejects a changed reason",
+      ()=>reject(adminDb,rejected.id,"سبب رفض مختلف للطلب نفسه",rejectionKey),"23505");
+    const rejectedRow=await db.unsafe(
+      "select status,rejected_by_profile_id::text as rejected_by,rejection_reason " +
+      "from public.cash_expense_commitments where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId,rejected.id],
+    );
+    assert.equal(rejectedRow[0].status,"rejected");
+    assert.equal(rejectedRow[0].rejected_by,admin.id);
+    assert.equal(rejectedRow[0].rejection_reason,rejectionReason);
+    const rejectedEvents=await db.unsafe(
+      "select event_type from public.cash_expense_commitment_events " +
+      "where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
+      [organizationId,rejected.id],
+    );
+    assert.deepEqual(rejectedEvents.map(x=>x.event_type),["CREATED","EVIDENCE_ATTACHED","REJECTED"]);
+    const rejectedAudit=await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and action='finance.cash_expense_commitment.rejected' and entity_type='cash_expense_commitment' and entity_id=$2::uuid",
+      [organizationId,rejected.id],
+    );
+    assert.equal(rejectedAudit[0].count,1,"rejection appends one immutable audit record");
+    const list=await adminDb.unsafe("select public.fetch_cash_expense_commitments(100,0) as result");
+    const listedRejected=asJson(list[0].result).items.find(x=>x.id===rejected.id);
+    assert.equal(listedRejected.status,"rejected");
+    assert.equal(listedRejected.rejection_reason,rejectionReason);
 
     // A second-currency commitment is separately filtered. No rate conversion is performed.
     const usdPayload={...yerPayload,category:"Equipment",description:"Imported equipment service fee",amount:"40.25",
@@ -281,7 +337,7 @@ async function main() {
       "select event_type from public.cash_expense_commitment_events where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
       [organizationId,yer.id],
     );
-    assert.deepEqual(events.map(x=>x.event_type),["CREATED","EVIDENCE_ATTACHED","APPROVED","PAYMENT_RECORDED","SETTLED"]);
+    assert.deepEqual(events.map(x=>x.event_type),["CREATED","EVIDENCE_ATTACHED","APPROVED","EVIDENCE_ATTACHED","PAYMENT_RECORDED","SETTLED"]);
     const audit=await db.unsafe(
       "select action,actor_id::text from public.audit_logs where organization_id=$1::uuid and entity_type='cash_expense_commitment' and entity_id=$2::uuid order by id",
       [organizationId,yer.id],
@@ -300,7 +356,7 @@ async function main() {
     assert.ok(!denied.ok,"Storage upload to a path without a same-tenant pending commitment must be denied");
     process.stdout.write(
       "PASS PostgreSQL 17 operating expense commitment acceptance: real local Storage upload and tenant path denial; " +
-      "evidence-gated maker/checker; exact-cent and immutable append-only lifecycle; idempotency/replay/conflict; " +
+      "evidence-gated maker/checker and audited rejection; database due-date horizon; exact-cent and immutable append-only lifecycle; idempotency/replay/conflict; " +
       "same-currency YER/USD separation and blocked FX payment; verified 90-day outflow lineage; payment-awaiting-journal PARTIAL; " +
       "balanced cash-expense source journal; independent posting-triggered settlement; source audit/event trail.\n",
     );
