@@ -971,7 +971,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
   }, [data, cashflowMetrics, cashOpeningForSnapshot]);
   const claimEvidenceSourcePassport = useMemo<EvidencePassportData | null>(() => {
     if (!evidencePassport) return null;
-    if (!inventoryData || inventoryData.asOf !== evidencePassport.asOf) return evidencePassport;
+    if (!inventoryData) return evidencePassport;
     const candidateMetrics: MetricSnapshot[] = [
       ...inventoryData.deadStockProducts.flatMap((product) => [
         product.availableQuantity,
