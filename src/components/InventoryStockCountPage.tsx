@@ -6,6 +6,7 @@ import { downloadStockCountWorkbookXlsx } from '@/lib/stock-count-xlsx';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { projectStockCountPrintDocument } from '@/lib/stock-count-print';
+import { parseLocalizedQuantityInput } from '@/lib/localized-number-input';
 import { InventoryBalanceAdjustmentPanel } from '@/components/InventoryBalanceAdjustmentPanel';
 import { OpeningInventoryBaselineApprovalPanel } from '@/components/OpeningInventoryBaselineApprovalPanel';
 const q = (v: number | null | undefined) => v == null || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(Number(v));
@@ -27,7 +28,7 @@ function StockCountLineRow({
   onDraftChange: (productId: string, value: string) => void;
   onSave: (line: InventoryStockCountLine) => void;
 }) {
-  const parsed = draft.trim() === "" ? null : Number(draft);
+  const parsed = parseLocalizedQuantityInput(draft);
   const delta = parsed === null || !Number.isFinite(parsed) ? line.variance : parsed - line.expected_quantity;
   const formattedDelta = delta == null || !Number.isFinite(delta) ? "—" : (delta > 0 ? "+" : "") + q(delta);
   const saveLabel = saving ? "جار الحفظ…" : line.counted_quantity === null ? "حفظ العد" : "تحديث العد";
@@ -41,12 +42,13 @@ function StockCountLineRow({
       <td>{q(line.expected_reserved_quantity)}</td>
       <td>
         <input
-          type="number"
-          min="0"
-          max="999999999999.999"
-          step="0.001"
+          type="text"
+          inputMode="decimal"
+          dir="ltr"
+          autoComplete="off"
           value={draft}
           aria-label={"الكمية المعدودة " + line.product_name}
+          aria-describedby="stock-count-quantity-input-hint"
           onChange={(event) => onDraftChange(line.product_id, event.target.value)}
           disabled={busy}
         />
@@ -169,8 +171,8 @@ export function InventoryStockCountPage() {
   async function save(line: InventoryStockCountLine) {
     const raw = drafts[line.product_id];
     if (raw === undefined || raw.trim() === '') { setError('أدخل العد الفعلي للصنف؛ الصفر قيمة صالحة.'); return; }
-    const value = Number(raw);
-    if (!Number.isFinite(value) || value < 0 || value > 999999999999.999 || !Number.isSafeInteger(Math.round(value * 1000)) || Math.round(value * 1000) !== value * 1000) { setError('الكمية يجب أن تكون غير سالبة وبحد أقصى ثلاث منازل عشرية.'); return; }
+    const value = parseLocalizedQuantityInput(raw);
+    if (value === null) { setError('الكمية يجب أن تكون غير سالبة وبحد أقصى ثلاث منازل عشرية، وبفواصل آلاف صحيحة.'); return; }
     if (!session || savingLine) return;
     setSavingLine(line.product_id); setError(''); setNotice('');
     try {
@@ -289,6 +291,7 @@ export function InventoryStockCountPage() {
       <div className="panel-head"><div><h2>جلسة الجرد المفتوحة</h2><p className="text-muted">بدأت: {new Date(session.started_at).toLocaleString('ar-YE')}</p></div><span className="badge warning">بانتظار الاعتماد</span></div>
       <div className="report-grid"><article className="report-metric"><span>أصناف اللقطة</span><strong>{q(session.total_lines)}</strong></article><article className="report-metric"><span>تم حفظ عدها</span><strong>{q(counted)} / {q(lines.length)}</strong></article><article className="report-metric"><span>صافي الفروقات المسجلة</span><strong>{q(netVariance)}</strong></article></div>
       <p className="text-muted">رصيد اللقطة يمثل كمية النظام عند البداية. إذا تغيرت الأرصدة أو الحجوزات بعد اللقطة، سيرفض الخادم الإقفال بدل الكتابة فوق حركة أحدث.</p>
+      <p id="stock-count-quantity-input-hint" className="text-muted">يمكن إدخال الكميات بالأرقام العربية أو الإنجليزية؛ الفاصل العشري ٫ أو النقطة، وفواصل الآلاف المقبولة فقط عند تجميع ثلاث خانات.</p>
       <div style={{ overflowX: 'auto' }}><table><thead><tr><th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>رصيد اللقطة</th><th>محجوز</th><th>العد الفعلي</th><th>الفرق</th><th className="stock-count-no-print">حفظ</th></tr></thead><tbody>
         {lines.map((line) => (
           <StockCountLineRow

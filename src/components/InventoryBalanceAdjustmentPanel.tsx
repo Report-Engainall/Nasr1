@@ -1,50 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { adjustInventoryBalance, fetchInventoryAdjustmentBalances } from '@/lib/api';
 import type { InventoryAdjustmentBalance } from '@/lib/api';
+import { parseLocalizedQuantityInput } from '@/lib/localized-number-input';
 
 const formatQuantity = (value: number) =>
   new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(value);
-
-function parseInventoryQuantityDraft(value: string): number | null {
-  let normalized = value.trim();
-  if (!normalized) return null;
-
-  normalized = normalized
-    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
-
-  const decimalSeparators = normalized.match(/[.٫]/g) ?? [];
-  if (decimalSeparators.length > 1) return null;
-  const decimalIndex = Math.max(normalized.indexOf('.'), normalized.indexOf('٫'));
-  let integerPart = decimalIndex < 0 ? normalized : normalized.slice(0, decimalIndex);
-  const fractionPart = decimalIndex < 0 ? undefined : normalized.slice(decimalIndex + 1);
-
-  const groupSeparator = integerPart.includes('٬') ? '٬' : integerPart.includes(',') ? ',' : null;
-  if (groupSeparator) {
-    const groups = integerPart.split(groupSeparator);
-    if (
-      integerPart.includes(groupSeparator === '٬' ? ',' : '٬') ||
-      !/^\d{1,3}$/.test(groups[0]) ||
-      groups.slice(1).some((group) => !/^\d{3}$/.test(group))
-    ) return null;
-    integerPart = groups.join('');
-  }
-
-  if (!integerPart && fractionPart !== undefined) integerPart = '0';
-  if (!/^\d+$/.test(integerPart)) return null;
-  if (fractionPart !== undefined && !/^\d{0,3}$/.test(fractionPart)) return null;
-
-  const parsed = Number(integerPart + (fractionPart === undefined ? '' : '.' + fractionPart));
-  if (
-    !Number.isFinite(parsed) ||
-    parsed < 0 ||
-    parsed > 999999999999.999 ||
-    !Number.isSafeInteger(Math.round(parsed * 1000)) ||
-    Math.abs(Math.round(parsed * 1000) / 1000 - parsed) >= 1e-9
-  ) return null;
-
-  return parsed;
-}
 
 function normalizeSearch(value: string): string {
   return value.normalize('NFKD')
@@ -122,7 +82,7 @@ export function InventoryBalanceAdjustmentPanel({ warehouseId, warehouseName }: 
   const selected = items.find((item) => item.product_id === selectedProductId) ?? null;
   const filteredItems = useMemo(() => filterInventoryItems(items, search), [items, search]);
 
-  const parsedNewQuantity = parseInventoryQuantityDraft(newQuantity);
+  const parsedNewQuantity = parseLocalizedQuantityInput(newQuantity);
   const validNewQuantity = parsedNewQuantity !== null;
   const delta = selected && parsedNewQuantity !== null ? parsedNewQuantity - selected.quantity_on_hand : null;
   const belowReserved = Boolean(selected && parsedNewQuantity !== null && parsedNewQuantity < selected.quantity_reserved);
