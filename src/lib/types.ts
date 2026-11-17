@@ -1,3 +1,5 @@
+import type { StorefrontArtworkKey } from "./storefront-artwork";
+
 export interface Category {
   id: string;
   name: string;

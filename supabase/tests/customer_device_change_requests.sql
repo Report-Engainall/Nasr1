@@ -158,7 +158,7 @@ INSERT INTO auth.sessions(id,user_id,created_at,not_after,user_agent) VALUES
  ('b4000000-0000-4000-8000-000000000002','b2000000-0000-4000-8000-000000000002',now(),NULL,'Customer B new device'),
  ('b5000000-0000-4000-8000-000000000001','b2000000-0000-4000-8000-000000000001',now(),NULL,'Admin B browser');
 
-\ir ../migrations/20261117180000_customer_device_change_requests.sql
+\ir ../migrations/20261117181000_customer_device_change_requests.sql
 
 -- Customer A submits from the new device. Creation must not revoke the old devices.
 SELECT pg_catalog.set_config('request.jwt.claim.sub','a2000000-0000-4000-8000-000000000003',false);

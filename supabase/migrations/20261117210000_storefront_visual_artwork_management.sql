@@ -1,5 +1,22 @@
 BEGIN;
 
+ALTER TABLE public.categories
+  ADD COLUMN IF NOT EXISTS icon text;
+
+DO $block$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid='public.categories'::regclass
+      AND conname='categories_storefront_artwork_key_check'
+  ) THEN
+    ALTER TABLE public.categories
+      ADD CONSTRAINT categories_storefront_artwork_key_check
+      CHECK (icon IS NULL OR icon IN ('food','beverage','cleaning','personal-care','electrical','tools','stationery','general'));
+  END IF;
+END
+$block$;
+
 ALTER TABLE public.storefront_announcements
   ADD COLUMN IF NOT EXISTS visual_key text NOT NULL DEFAULT 'general';
 
