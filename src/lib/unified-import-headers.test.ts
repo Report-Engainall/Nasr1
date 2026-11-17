@@ -103,6 +103,22 @@ describe("default Onyx and bulk business import headers", () => {
     expect(detectImportDatasetKind(["document_date", "amount", "notes"]).kind).toBe("unknown");
   });
 
+  it("classifies the supported and deferred sheets in one Onyx workbook independently", () => {
+    const sheets: Array<[string, string[], string]> = [
+      ["Products", ["product_code", "product_name", "base_unit_name", "price_retail"], "products"],
+      ["Customers", ["customer_code", "business_name", "phone"], "customers"],
+      ["StockBalances", ["product_code", "warehouse_code", "quantity_on_hand", "as_of_date"], "inventory"],
+      ["PriceLists", ["price_list_code", "price_list_name", "currency_code"], "pricing"],
+      ["PriceListLines", ["price_list_code", "product_code", "unit_price", "currency_code"], "pricing"],
+      ["Orders", ["order_number", "customer_code", "order_date"], "orders"],
+      ["OrderLines", ["order_number", "product_code", "quantity"], "orders"],
+      ["StockMovements", ["movement_id", "product_code", "quantity", "transaction_date"], "inventory"],
+    ];
+    for (const [sheetName, headers, expectedKind] of sheets) {
+      expect(detectImportDatasetKind(headers).kind, sheetName).toBe(expectedKind);
+    }
+  });
+
   it("preserves the active product profile rules for product files", () => {
     expect(resolveImportProfileMapping("products", ["item_code", "unit"], "item_code"))
       .toEqual({ requiredColumns: ["item_code", "unit"], matchingKey: "item_code" });
