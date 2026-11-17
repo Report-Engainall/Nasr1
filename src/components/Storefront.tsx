@@ -2179,7 +2179,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
       <header className="sf-checkout-hero">
         <div className="sf-checkout-hero-copy">
           <span className="sf-checkout-eyebrow"><Check size={14} /> مراجعة آمنة قبل الإرسال</span>
-          <h2>مراجعة الطلب وإتمام الشراء</h2>
+          <h2>إتمام الطلب</h2>
           <p>تأكد من بيانات التواصل والتوصيل، وراجع فاتورة الأصناف قبل اعتماد طلبك.</p>
         </div>
         <ol className="sf-checkout-steps" aria-label="خطوات إتمام الطلب">

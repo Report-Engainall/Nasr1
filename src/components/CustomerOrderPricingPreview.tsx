@@ -100,7 +100,7 @@ function PreviewStatusMessage({
     return <p role="status">سجّل الدخول أولًا؛ لن تُعرض الأسعار دون معاينة خادمية مرتبطة بحسابك.</p>;
   }
   if (status === "hidden") {
-    return <p role="status">إعدادات المتجر لا تسمح بعرض الأسعار في هذه الشاشة. لم تُعرض أي مبالغ، وسيظل اعتماد السعر النهائي من الخادم.</p>;
+    return <p role="status">لم يسمح إعداد الخادم بعرض الأسعار في هذه الشاشة. لم تُعرض أي مبالغ، وسيظل اعتماد السعر النهائي من الخادم.</p>;
   }
   if (status === "permission-denied") {
     return (
@@ -114,9 +114,9 @@ function PreviewStatusMessage({
   return (
     <div className="sf-order-pricing-error" role="alert">
       <strong>تعذّر الاتصال بمعاينة الأسعار.</strong>
-      <p>لم نستخدم أسعارًا محلية أو تقديرية. أعد التحقق قبل إرسال الطلب.</p>
+      <p>تم إخفاء المبالغ؛ لم نستخدم أسعارًا محلية أو تقديرية. أعد التحقق قبل إرسال الطلب.</p>
       <button type="button" className="sf-btn-secondary" onClick={onRetry}>
-        إعادة التحقق من الأسعار
+        إعادة المحاولة
       </button>
     </div>
   );
