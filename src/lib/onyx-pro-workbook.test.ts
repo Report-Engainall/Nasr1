@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ONYX_PRO_DATASETS } from "./onyx-pro-schema";
+import { ONYX_PRO_DATASETS, getOnyxProHeaders } from "./onyx-pro-schema";
+import { parseXlsxFirstWorksheet } from "./unified-import";
 import {
   buildOnyxProWorkbook,
   onyxProDatasetCsvFilename,
@@ -29,6 +30,17 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     for (let index = 1; index <= ONYX_PRO_DATASETS.length; index += 1) {
       expect(findAscii(bytes, "xl/worksheets/sheet" + index + ".xml")).toBe(true);
     }
+  });
+
+  it("round-trips the first generated sheet through the existing XLSX import parser", async () => {
+    const bytes = buildOnyxProWorkbook(["products", "customers"]);
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    const rows: string[][] = [];
+    const parsed = await parseXlsxFirstWorksheet(new Blob([buffer]), (values) => rows.push(values));
+    expect(parsed.worksheetName).toBe("Products");
+    expect(rows[0]).toEqual(getOnyxProHeaders("products"));
+    expect(parsed.rowCount).toBe(1);
   });
 
   it("supports a selected subset without silently adding unrequested sheets", () => {
