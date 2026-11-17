@@ -4240,3 +4240,73 @@ export async function manageCustomerInteractionFollowUp(input: {
     replayed: row.replayed,
   };
 }
+
+
+// ─── Warehouse-scoped inventory batch traceability ────────────────────────
+export type InventoryBatchProductOption = { product_id: string; item_code: string; product_name: string; unit: string | null };
+export type InventoryBatchLot = {
+  id: string; batch_number: string | null; expiry_date: string | null; received_at: string;
+  quantity_on_hand: number; quantity_reserved: number; quantity_available: number;
+  source_type: 'legacy_unattributed' | 'purchase_receipt' | 'unattributed_balance_increase' | 'inventory_transfer';
+  expired: boolean;
+};
+export type InventoryBatchStockSnapshot = {
+  product_id: string; warehouse_id: string; quantity_on_hand: number; quantity_reserved: number;
+  quantity_available: number; lots: InventoryBatchLot[]; as_of: string;
+};
+function isInventoryBatchRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function parseInventoryBatchAmount(value: unknown): number {
+  const amount = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN;
+  if (!Number.isFinite(amount) || amount < 0 || amount > 999999999999.999) throw new Error('أعاد الخادم كمية دفعة غير صالحة.');
+  return amount;
+}
+export async function fetchInventoryBatchProducts(warehouseId: string): Promise<InventoryBatchProductOption[]> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('list_inventory_batch_products', { p_warehouse_id: warehouseId });
+  if (error) throw error;
+  if (!isInventoryBatchRecord(data) || !Array.isArray(data.items)) throw new Error('قائمة أصناف تتبع الدفعات غير صالحة.');
+  return data.items.map((row): InventoryBatchProductOption => {
+    if (!isInventoryBatchRecord(row) || typeof row.product_id !== 'string' || !stockCountUuid.test(row.product_id)
+        || typeof row.item_code !== 'string' || typeof row.product_name !== 'string'
+        || !(row.unit === null || typeof row.unit === 'string')) throw new Error('هوية صنف الدفعة غير صالحة.');
+    return { product_id: row.product_id, item_code: row.item_code, product_name: row.product_name, unit: row.unit };
+  });
+}
+export async function fetchInventoryBatchStock(productId: string, warehouseId: string): Promise<InventoryBatchStockSnapshot> {
+  assertStockCountId(productId, 'معرّف الصنف'); assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('list_inventory_batch_stock', { p_product_id: productId, p_warehouse_id: warehouseId });
+  if (error) throw error;
+  if (!isInventoryBatchRecord(data) || data.product_id !== productId || data.warehouse_id !== warehouseId
+      || !Array.isArray(data.lots) || typeof data.as_of !== 'string' || Number.isNaN(Date.parse(data.as_of))) {
+    throw new Error('لم يؤكد الخادم هوية لقطة تتبع الدفعات.');
+  }
+  const allowedSources = ['legacy_unattributed','purchase_receipt','unattributed_balance_increase','inventory_transfer'] as const;
+  const lots = data.lots.map((row): InventoryBatchLot => {
+    if (!isInventoryBatchRecord(row) || typeof row.id !== 'string' || !stockCountUuid.test(row.id)
+        || typeof row.received_at !== 'string' || Number.isNaN(Date.parse(row.received_at))
+        || !allowedSources.includes(row.source_type as typeof allowedSources[number]) || typeof row.expired !== 'boolean'
+        || !(row.batch_number === null || typeof row.batch_number === 'string')
+        || !(row.expiry_date === null || (typeof row.expiry_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.expiry_date)))) {
+      throw new Error('أعاد الخادم بيانات دفعة أو صلاحية غير صالحة.');
+    }
+    return {
+      id: row.id, batch_number: row.batch_number as string | null, expiry_date: row.expiry_date as string | null,
+      received_at: row.received_at, quantity_on_hand: parseInventoryBatchAmount(row.quantity_on_hand),
+      quantity_reserved: parseInventoryBatchAmount(row.quantity_reserved),
+      quantity_available: parseInventoryBatchAmount(row.quantity_available),
+      source_type: row.source_type as InventoryBatchLot['source_type'], expired: row.expired,
+    };
+  });
+  const quantity_on_hand = parseInventoryBatchAmount(data.quantity_on_hand);
+  const quantity_reserved = parseInventoryBatchAmount(data.quantity_reserved);
+  const quantity_available = parseInventoryBatchAmount(data.quantity_available);
+  const lotsOnHand = lots.reduce((sum, lot) => sum + lot.quantity_on_hand, 0);
+  const lotsReserved = lots.reduce((sum, lot) => sum + lot.quantity_reserved, 0);
+  if (Math.abs(lotsOnHand-quantity_on_hand)>0.001 || Math.abs(lotsReserved-quantity_reserved)>0.001
+      || Math.abs(quantity_on_hand-quantity_reserved-quantity_available)>0.001) {
+    throw new Error('لا يتطابق مجموع الدفعات مع رصيد المستودع؛ أوقف عرض التتبع وراجع سلامة المخزون.');
+  }
+  return { product_id: productId, warehouse_id: warehouseId, quantity_on_hand, quantity_reserved, quantity_available, lots, as_of: data.as_of };
+}
