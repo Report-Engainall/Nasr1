@@ -113,6 +113,7 @@ on:
       - "src/components/CashExpenseJournalLinker.tsx"
       - "scripts/test-cash-expense-journal-posting.mjs"
       - "src/components/CashExpenseCommitmentWorkspace.tsx"
+      - "src/components/CashExpenseCommitmentWorkspace.test.tsx"
       - "src/lib/cash-expense-commitments.ts"
       - "src/lib/cash-expense-commitments.test.ts"
       - "src/lib/intelligence/cashflow-schedule-client.ts"

@@ -40,3 +40,31 @@ export function isCommitmentEvidenceReviewable(input:{
   Number.isInteger(accessible)&&Number.isInteger(reviewed)&&input.expectedCount>0&&
   input.loadedCount===input.expectedCount&&accessible===input.expectedCount&&reviewed===input.expectedCount;
 }
+
+export type CashExpenseCommitmentStatus =
+ | "pending_approval" | "approved" | "rejected" | "cancelled" | "payment_recorded" | "settled";
+const COMMITMENT_STATUSES = new Set<string>([
+ "pending_approval","approved","rejected","cancelled","payment_recorded","settled"
+]);
+export function isCashExpenseCommitmentStatus(value:unknown):value is CashExpenseCommitmentStatus {
+ return typeof value==="string"&&COMMITMENT_STATUSES.has(value);
+}
+export type CommitmentRejection = {
+ rejected_by_profile_id:string; rejected_at:string; rejection_reason:string;
+};
+export function parseCommitmentRejectionMetadata(
+ status:CashExpenseCommitmentStatus,
+ value:{rejected_by_profile_id:unknown;rejected_at:unknown;rejection_reason:unknown}
+):CommitmentRejection|null {
+ const {rejected_by_profile_id:actor,rejected_at:at,rejection_reason:reason}=value;
+ if(status!=="rejected"){
+  if(actor===null&&at===null&&reason===null)return null;
+  throw new Error("لا يجوز إرفاق بيانات رفض بحالة التزام غير مرفوض.");
+ }
+ if(typeof actor!=="string"||!UUID.test(actor)||
+  typeof at!=="string"||!Number.isFinite(Date.parse(at))||
+  typeof reason!=="string"||reason.trim().length<3||reason.trim().length>500){
+  throw new Error("بيانات قرار رفض الالتزام غير مكتملة أو غير متطابقة مع الحالة.");
+ }
+ return {rejected_by_profile_id:actor,rejected_at:at,rejection_reason:reason};
+}
