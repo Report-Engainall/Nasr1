@@ -69,6 +69,26 @@ describe("storefront product card accessibility", () => {
     expect(onAdd).toHaveBeenCalledWith(product);
   });
 
+  it("shows an explicit category-aware illustration when no original image is linked", () => {
+    render(
+      <ProductGrid
+        products={[{ ...product, image_url: null, description: "مواد غذائية" } as ProductWithInventory]}
+        priceVisibilityPolicy={false}
+        wishlist={[]}
+        compare={[]}
+        emptyTitle="لا توجد منتجات"
+        emptyDescription=""
+        onOpen={vi.fn()}
+        onAdd={vi.fn()}
+        onWishlist={vi.fn()}
+        onCompare={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "رسم توضيحي مؤقت للمنتج رز بسمتي قابل للوصول" }))
+      .toHaveAttribute("data-placeholder-variant", "food");
+    expect(screen.getByText("صورة توضيحية مؤقتة")).toBeInTheDocument();
+  });
+
   it("shows the server-backed minimum and quantity multiple without exposing hidden prices", () => {
     const policyProduct = {
       ...product,

@@ -4,11 +4,15 @@ import type {
   MouseEvent as ReactMouseEvent,
   TouchEvent as ReactTouchEvent,
 } from "react";
-import { ChevronLeft, ChevronRight, Package, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ProductPlaceholderArtwork } from "@/components/ProductPlaceholderArtwork";
 
 type ProductMediaGalleryProps = {
   productName: string;
   imageUrls: readonly string[];
+  productDescription?: string | null;
+  categoryName?: string | null;
+  productCode?: string | null;
 };
 
 const SWIPE_THRESHOLD = 40;
@@ -26,7 +30,13 @@ function normalizeImageUrls(imageUrls: readonly string[]): string[] {
  * thumbnail rail and accessible lightbox. Displays existing public image URLs;
  * it does not upload or persist media.
  */
-export function ProductMediaGallery({ productName, imageUrls }: ProductMediaGalleryProps) {
+export function ProductMediaGallery({
+  productName,
+  imageUrls,
+  productDescription,
+  categoryName,
+  productCode,
+}: ProductMediaGalleryProps) {
   const images = normalizeImageUrls(imageUrls);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -136,9 +146,15 @@ export function ProductMediaGallery({ productName, imageUrls }: ProductMediaGall
 
   if (images.length === 0) {
     return (
-      <div className="sf-product-media-empty" aria-label="لا توجد صور متاحة للمنتج">
-        <Package size={72} aria-hidden="true" />
-        <span>لا توجد صور متاحة</span>
+      <div className="sf-product-media-empty" aria-label="لا توجد صورة أصلية مسجلة لهذا المنتج">
+        <ProductPlaceholderArtwork
+          productName={productName}
+          description={productDescription}
+          categoryName={categoryName}
+        />
+        <span className="sr-only">
+          الرسم مؤقت فقط وليس صورة أصلية. رمز الصنف: {productCode || "غير محدد"}.
+        </span>
       </div>
     );
   }

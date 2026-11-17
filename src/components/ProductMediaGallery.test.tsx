@@ -97,3 +97,21 @@ describe("ProductMediaGallery", () => {
     expect(within(dialog).queryByRole("button", { name: "الصورة التالية" })).not.toBeInTheDocument();
   });
 });
+
+
+describe("ProductMediaGallery missing-image fallback", () => {
+  it("shows a clearly labelled product illustration when no original image is linked", () => {
+    render(
+      <ProductMediaGallery
+        productName="رز بسمتي"
+        productDescription="كيس أرز"
+        categoryName="المواد الغذائية"
+        productCode="RICE-01"
+        imageUrls={[]}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "رسم توضيحي مؤقت للمنتج رز بسمتي" })).toBeInTheDocument();
+    expect(screen.getByText("صورة توضيحية مؤقتة")).toBeInTheDocument();
+    expect(screen.getByText(/رمز الصنف: RICE-01/)).toBeInTheDocument();
+  });
+});

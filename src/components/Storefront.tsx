@@ -14,6 +14,7 @@ import { StorefrontPricePresentation } from '@/components/StorefrontPricePresent
 import { ProductComparison } from '@/components/store/ProductComparison';
 import { CartQuantityControl } from '@/components/store/CartQuantityControl';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
+import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
@@ -51,6 +52,10 @@ function pendingCartProduct(productId: string): ProductWithInventory {
     category_id: null, brand_id: null, unit: 'وحدة', description: null, image_url: null, is_active: false, is_featured: false,
     sort_order: 0, stock_quantity: 0, reserved_quantity: 0, min_stock_level: 0, status: 'pending',
   };
+}
+
+function isSafeStorefrontImageUrl(value: unknown): value is string {
+  return typeof value === "string" && value.trim() === value && /^https:\/\//i.test(value);
 }
 
 function nextOrderQuantity(currentQuantity: number, minimum: number, multiple: number): number {
@@ -1167,6 +1172,7 @@ export function ProductGrid({
         const belowMinimum = quantityKnown && qty > 0 && qty < minimum;
         const liked = wishlist.includes(product.id);
         const compared = compare.includes(product.id);
+        const imageUrl = isSafeStorefrontImageUrl(product.image_url) ? product.image_url : null;
 
         return (
           <article className="sf-product-card" key={product.id}>
@@ -1177,9 +1183,14 @@ export function ProductGrid({
                 aria-label={`عرض تفاصيل ${product.name}`}
                 onClick={() => onOpen(product)}
               >
-                {product.image_url
-                  ? <img src={product.image_url} alt="" loading="lazy" decoding="async" />
-                  : <Package size={36} aria-hidden="true" />}
+                {imageUrl
+                  ? <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+                  : <ProductPlaceholderArtwork
+                      productName={product.name}
+                      description={product.description}
+                      categoryName={product.category?.name}
+                      compact
+                    />}
               </button>
               <div className="sf-card-actions" role="group" aria-label={`إجراءات ${product.name}`}>
                 <button
@@ -1285,7 +1296,7 @@ export function ProductDetail({
   const galleryUrls = Array.from(new Set([
     product.image_url,
     ...(Array.isArray(product.image_gallery_urls) ? product.image_gallery_urls : []),
-  ].filter((url): url is string => typeof url === 'string' && /^https:\/\//i.test(url))));
+  ].filter((url): url is string => isSafeStorefrontImageUrl(url))));
   const [alternateUnits, setAlternateUnits] = useState<ProductAlternateUnit[]>([]);
   const [alternateUnitsLoading, setAlternateUnitsLoading] = useState(true);
   const [alternateUnitsError, setAlternateUnitsError] = useState('');
@@ -1440,6 +1451,9 @@ export function ProductDetail({
           <ProductMediaGallery
             key={product.id}
             productName={product.name}
+            productDescription={product.description}
+            categoryName={product.category?.name}
+            productCode={product.item_code}
             imageUrls={galleryUrls}
           />
           <span className="sf-detail-code">
@@ -1591,9 +1605,14 @@ export function ProductDetail({
                 aria-label={'عرض تفاصيل ' + relatedProduct.name}
               >
                 <span className="sf-related-image">
-                  {relatedProduct.image_url
+                  {isSafeStorefrontImageUrl(relatedProduct.image_url)
                     ? <img src={relatedProduct.image_url} alt="" loading="lazy" decoding="async" />
-                    : <Package size={30} aria-hidden="true" />}
+                    : <ProductPlaceholderArtwork
+                        productName={relatedProduct.name}
+                        description={relatedProduct.description}
+                        categoryName={relatedProduct.category?.name}
+                        compact
+                      />}
                 </span>
                 <strong>{relatedProduct.name}</strong>
                 <small><bdi>{relatedProduct.item_code}</bdi></small>
