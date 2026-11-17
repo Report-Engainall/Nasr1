@@ -21,8 +21,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: onyx-product-unit-import-postgres-${{ github.ref }}
-  cancel-in-progress: true
+  group: onyx-product-unit-import-postgres-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   postgres-product-unit-import-acceptance:
