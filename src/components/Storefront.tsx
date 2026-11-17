@@ -594,10 +594,19 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       if (cancelled) return;
       const byId = new Map(resolvedProducts.map((product) => [product.id, product]));
       const unresolvedIds = productIds.filter((productId) => !byId.has(productId));
-      setCart((previous) => previous.map((item) => ({
-        ...item,
-        product: byId.get(item.product.id) ?? pendingCartProduct(item.product.id),
-      })));
+      // Product hydration is metadata-only, not a customer mutation. Do not bump
+      // cartMutationRevisionRef or the parallel remote-cart read could mistake this
+      // response for a user edit and skip merging the saved server cart.
+      setCartState((current) => {
+        if (current.storageKey !== cartStorageKey) return current;
+        return {
+          ...current,
+          items: current.items.map((item) => ({
+            ...item,
+            product: byId.get(item.product.id) ?? pendingCartProduct(item.product.id),
+          })),
+        };
+      });
       setCartProductDetailsState({ key: requestKey, loading: false, error: null, unresolvedIds });
     }).catch((cause) => {
       if (cancelled) return;
