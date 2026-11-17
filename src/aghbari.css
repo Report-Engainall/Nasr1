@@ -998,3 +998,746 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .price-grid-filter-count { align-self: center; color: var(--muted-foreground, #64748b); font-size: 10px; font-weight: 700; white-space: nowrap; }
 @media (max-width: 1050px) { .price-grid-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }.price-grid-filter-search { grid-column: span 2; } }
 @media (max-width: 600px) { .price-grid-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }.price-grid-filter-search { grid-column: 1 / -1; }.price-grid-filters > button { width: 100%; }.price-grid-filter-count { white-space: normal; } }
+
+/* NASR1 shared workspace visual language — turquoise, pale cyan and grouped navigation. */
+.workspace-section-heading {
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 20px;
+  padding: 16px 19px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 74%, var(--aghbari-surface));
+  box-shadow: 0 5px 16px rgba(18, 91, 105, .035);
+}
+.workspace-section-heading .heading-icon,
+.workspace-section-heading__icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 14%, var(--aghbari-border));
+  border-radius: 50%;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-surface);
+  box-shadow: 0 3px 10px rgba(15, 75, 88, .06);
+}
+.workspace-section-heading__copy { min-width: 0; }
+.workspace-section-heading > div > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--aghbari-brand);
+  font-size: 10px;
+  font-weight: 850;
+}
+.workspace-section-heading h1 {
+  margin: 2px 0 3px;
+  color: var(--aghbari-text);
+  font-size: clamp(19px, 2.2vw, 25px);
+  line-height: 1.35;
+  letter-spacing: -.015em;
+}
+.workspace-section-heading p {
+  margin: 0;
+  color: var(--aghbari-text-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.workspace-section-heading__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+.workspace-section-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 17px;
+  background: var(--aghbari-surface);
+  box-shadow: 0 4px 14px rgba(15, 75, 88, .035);
+}
+.workspace-section-group__heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-width: 0;
+  min-height: 70px;
+  padding: 13px 15px;
+  border: 0;
+  border-bottom: 1px solid var(--aghbari-border);
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 76%, var(--aghbari-surface));
+  color: var(--aghbari-text);
+  text-align: right;
+}
+button.workspace-section-group__heading { cursor: pointer; }
+.workspace-section-group__heading:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--aghbari-brand) 28%, white);
+  outline-offset: -3px;
+}
+.workspace-section-group__icon {
+  display: grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 15%, var(--aghbari-border));
+  border-radius: 50%;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-surface);
+}
+.workspace-section-group__copy { display: block; min-width: 0; }
+.workspace-section-group__copy .workspace-section-group__title {
+  display: block;
+  color: var(--aghbari-text);
+  font-size: 12px;
+  font-weight: 850;
+}
+.workspace-section-group__copy small {
+  display: block;
+  margin-top: 3px;
+  color: var(--aghbari-text-muted);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.workspace-section-group__content { min-width: 0; padding: 12px; }
+.workspace-section-heading__actions .btn,
+.workspace-section-group__content button {
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+.workspace-section-group__content button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--aghbari-brand) 25%, white);
+  outline-offset: 2px;
+}
+.admin-group-cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+.admin-group-card--executive { --admin-group-accent: #087f8d; }
+.admin-group-card--sales { --admin-group-accent: #087eab; }
+.admin-group-card--catalog { --admin-group-accent: #0b927f; }
+.admin-group-card--supply { --admin-group-accent: #278b98; }
+.admin-group-card--operations { --admin-group-accent: #357b99; }
+.admin-group-card--administration { --admin-group-accent: #386c83; }
+.admin-group-card__heading {
+  min-height: 74px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 76%, var(--aghbari-surface));
+}
+.admin-group-card__heading:hover {
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 92%, var(--aghbari-surface));
+}
+.admin-group-card__icon {
+  border-radius: 50%;
+  background: var(--aghbari-surface);
+}
+.admin-group-card__links {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.admin-group-card__links button {
+  min-height: 40px;
+  border-color: color-mix(in srgb, var(--aghbari-brand) 12%, var(--aghbari-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 86%, var(--aghbari-surface));
+  padding-inline: 11px;
+}
+.admin-group-card__links button:hover {
+  border-color: var(--admin-group-accent);
+  background: var(--aghbari-surface);
+  color: var(--admin-group-accent);
+  transform: translateY(-1px);
+}
+.admin-group-card__links button > svg:first-child {
+  display: grid;
+  flex: 0 0 auto;
+  width: 25px;
+  height: 25px;
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--aghbari-surface);
+  color: var(--admin-group-accent);
+}
+.admin-group-landing__hero {
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 76%, var(--aghbari-surface));
+}
+.admin-group-landing__icon {
+  border: 1px solid var(--aghbari-border);
+  border-radius: 50%;
+  background: var(--aghbari-surface);
+}
+.admin-group-landing__item {
+  min-height: 70px;
+  border-color: color-mix(in srgb, var(--aghbari-brand) 14%, var(--aghbari-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 80%, var(--aghbari-surface));
+}
+.admin-group-landing__item:hover {
+  border-color: var(--aghbari-brand);
+  background: var(--aghbari-surface);
+}
+.sidebar nav { align-content: start; gap: 9px; }
+.admin-nav-group {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 9px 8px 10px;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 15px;
+  background: var(--aghbari-surface);
+}
+.admin-nav-group-title {
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--aghbari-brand);
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 80%, var(--aghbari-surface));
+  font-size: 10px;
+  font-weight: 850;
+}
+.sidebar nav .admin-nav-group > button {
+  min-height: 39px;
+  border-radius: 999px;
+  padding-inline: 9px;
+  gap: 9px;
+}
+.sidebar nav .admin-nav-group > button > svg {
+  flex: 0 0 28px;
+  width: 16px;
+  height: 16px;
+  padding: 6px;
+  border-radius: 50%;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-brand-soft);
+}
+.sidebar nav .admin-nav-group > button.active > svg {
+  color: var(--aghbari-brand);
+  background: rgba(255,255,255,.94);
+}
+.sidebar nav .admin-nav-group > button.active {
+  color: var(--aghbari-on-brand-surface);
+  background: var(--aghbari-brand-surface);
+  box-shadow: 0 5px 12px color-mix(in srgb, var(--aghbari-brand) 20%, transparent);
+}
+@media (max-width: 1200px) {
+  .admin-group-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .workspace-section-heading { padding: 14px; }
+}
+@media (max-width: 800px) {
+  .admin-group-cards { grid-template-columns: 1fr; gap: 11px; }
+}
+@media (max-width: 600px) {
+  .workspace-section-heading {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 14px;
+  }
+  .workspace-section-heading .heading-icon { width: 41px; height: 41px; flex-basis: 41px; }
+  .workspace-section-heading h1 { font-size: 18px; }
+  .workspace-section-heading p { font-size: 10px; }
+  .workspace-section-heading__actions { flex-basis: 100%; margin-inline-start: 0; }
+  .workspace-section-group__heading { min-height: 62px; padding: 10px 12px; }
+  .admin-group-card__links { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; }
+}
+@media (max-width: 380px) {
+  .admin-group-card__links { grid-template-columns: 1fr; }
+  .admin-group-landing__item { border-radius: 14px; }
+}
+
+.sf-products-heading { margin-bottom: 16px; }
+.sf-products-heading .sf-discovery-links { margin-inline-start: auto; }
+
+/* Shared action shelf beneath every administration page heading. */
+.workspace-section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  margin: -7px 0 18px;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 12%, var(--aghbari-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 72%, var(--aghbari-surface));
+}
+.workspace-section-toolbar .toolbar-note {
+  color: var(--aghbari-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.workspace-section-toolbar .toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.workspace-section-toolbar .btn {
+  min-height: 35px;
+  border-radius: 999px;
+}
+@media (max-width: 600px) {
+  .workspace-section-toolbar { align-items: stretch; padding: 9px; }
+  .workspace-section-toolbar .toolbar-actions { width: 100%; }
+  .workspace-section-toolbar .toolbar-actions > * { flex: 1 1 auto; }
+}
+
+/* Shared section headers for the operational panels used across all modules. */
+.panel-head {
+  min-height: 64px;
+  align-items: center;
+  margin: 12px 12px 14px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-bottom: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 76%, var(--aghbari-surface));
+}
+.panel-head > div { min-width: 0; }
+.panel-head h2 {
+  color: var(--aghbari-text);
+  font-size: 13px;
+  font-weight: 850;
+}
+.panel-head p {
+  color: var(--aghbari-text-muted);
+  margin: 3px 0 0;
+  font-size: 10px;
+  line-height: 1.65;
+}
+.panel-head > svg:last-child {
+  display: block;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-radius: 50%;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-surface);
+}
+.panel-head .btn { border-radius: 999px; }
+.admin-category-tree__header {
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 76%, var(--aghbari-surface));
+}
+.admin-category-tree__header > span {
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 13%, var(--aghbari-border));
+  border-radius: 50%;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-surface);
+}
+.admin-category-tree__row.is-selected {
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 92%, var(--aghbari-surface));
+}
+.admin-category-tree__expand,
+.admin-category-tree__select,
+.admin-category-search {
+  border-radius: 999px;
+}
+.ai-tabs { flex-wrap: wrap; }
+.ai-tabs button {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 78%, var(--aghbari-surface));
+}
+.ai-tabs button.active {
+  color: var(--aghbari-on-brand-surface);
+  background: var(--aghbari-brand-surface);
+}
+@media (max-width: 600px) {
+  .panel-head {
+    margin: 8px 8px 12px;
+    padding: 9px 10px;
+    gap: 8px;
+  }
+  .panel-head > svg:last-child { width: 35px; height: 35px; flex-basis: 35px; padding: 8px; }
+}
+
+
+/* Keep page-header copy measurable and give mobile actions their own wrapped row. */
+.workspace-section-heading__copy {
+  flex: 1 1 0%;
+}
+@media (max-width: 600px) {
+  .workspace-section-heading {
+    flex-wrap: wrap;
+  }
+  .workspace-section-heading__copy {
+    flex: 1 1 0%;
+  }
+  .workspace-section-heading__actions {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+
+/* Settings and AI configuration use the same reusable section hierarchy as the rest of Nasr1. */
+.workspace-section-group.settings-panel { margin-bottom: 16px; }
+.workspace-section-group__content.settings-body { padding: 20px; }
+.workspace-section-group__content.ai-gateway-group__content { display: grid; gap: 14px; padding: 16px; }
+@media (max-width: 600px) {
+  .workspace-section-group__content.settings-body,
+  .workspace-section-group__content.ai-gateway-group__content { padding: 12px; }
+}
+
+
+/* Inventory stock-count setup shares the workspace section system at desktop and mobile widths. */
+.workspace-section-group.stock-count-group { margin-bottom: 16px; }
+.workspace-section-group__content.stock-count-group__content { padding: 16px; }
+@media (max-width: 600px) {
+  .workspace-section-group__content.stock-count-group__content { padding: 12px; }
+}
+
+
+/* Consistent section → category → tool hierarchy for operational workspaces. */
+.workspace-domain-group { margin-block: 14px; }
+.workspace-domain-group__content--stacked {
+  display: grid;
+  gap: 12px;
+}
+.workspace-domain-group__table-content {
+  padding: 0;
+}
+.workspace-domain-group__table-content > .table-head {
+  padding: 14px 16px;
+}
+.workspace-domain-group__table-content > .toolbar {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--aghbari-border);
+}
+.workspace-domain-group__tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+.workspace-domain-group__tabs > button {
+  min-height: 38px;
+  padding-inline: 16px;
+  border-radius: 999px;
+}
+@media (max-width: 600px) {
+  .workspace-domain-group__content--stacked > .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .workspace-domain-group__table-content > .table-head {
+    padding: 12px;
+  }
+  .workspace-domain-group__table-content > .toolbar {
+    padding: 10px 12px;
+  }
+  .workspace-domain-group__tabs {
+    padding: 10px;
+  }
+  .workspace-domain-group__tabs > button {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
+
+
+/* Customer storefront category, subcategory, and promotion cards use the same hierarchy. */
+.workspace-section-group.storefront-category-group,
+.workspace-section-group.storefront-offer-group { height: 100%; }
+.workspace-section-group__content.storefront-category-group__content,
+.workspace-section-group__content.storefront-offer-group__content { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 100%; padding: 16px; }
+.storefront-offer-group__status { display: inline-flex; align-items: center; gap: 7px; color: var(--aghbari-brand); font-size: 12px; font-weight: 800; }
+.workspace-section-group.storefront-subcategory-group { margin-bottom: 18px; }
+.workspace-section-group__content.storefront-subcategory-group__content { padding: 12px; }
+@media (max-width: 600px) {
+  .workspace-section-group__content.storefront-category-group__content,
+  .workspace-section-group__content.storefront-offer-group__content { padding: 12px; }
+}
+
+
+/* Customer storefront: group real catalog filters and account destinations in the same visual language. */
+.sf-category-group,
+.sf-business-tools-group {
+  max-width: 1400px;
+  margin: 0 auto 12px;
+}
+.sf-category-group .workspace-section-group__content {
+  padding: 4px 10px;
+}
+.sf-category-group .sf-cats {
+  max-width: none;
+  margin: 0;
+  padding: 9px 8px;
+}
+.sf-category-group .sf-cats button {
+  min-height: 36px;
+  border-color: color-mix(in srgb, var(--aghbari-brand) 14%, var(--aghbari-border));
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 65%, white);
+  color: var(--aghbari-text);
+}
+.sf-category-group .sf-cats button.active {
+  background: var(--aghbari-brand-surface);
+  color: var(--aghbari-on-brand-surface);
+  border-color: var(--aghbari-brand);
+}
+.sf-business-tools-group .workspace-section-group__content {
+  padding: 10px 14px 13px;
+}
+.sf-business-tool-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sf-business-tool-links a {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border: 1px solid color-mix(in srgb, var(--aghbari-brand) 15%, var(--aghbari-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aghbari-brand-soft) 62%, white);
+  color: var(--aghbari-text);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.sf-business-tool-links a:hover,
+.sf-business-tool-links a:focus-visible {
+  color: var(--aghbari-brand);
+  background: var(--aghbari-brand-soft);
+  border-color: var(--aghbari-brand);
+}
+.sf-business-tool-links a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--aghbari-brand) 25%, white);
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .sf-category-group,
+  .sf-business-tools-group {
+    margin-inline: 10px;
+  }
+  .sf-category-group .sf-cats {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+  .sf-category-group .sf-cats button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .sf-business-tool-links {
+    justify-content: stretch;
+  }
+  .sf-business-tool-links a {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
+
+
+/* Executive reporting pages: named operational domains without flattening report panels. */
+.workspace-domain-group__report-content {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+.workspace-domain-group__report-content > .panel {
+  min-width: 0;
+  margin: 0 !important;
+}
+.workspace-domain-group__report-content > .report-hero {
+  margin: 0;
+}
+.workspace-domain-group__report-content > .report-grid {
+  margin-bottom: 0;
+}
+@media (max-width: 600px) {
+  .workspace-domain-group__report-content {
+    gap: 10px;
+    padding: 10px;
+  }
+  .workspace-domain-group__report-content > .report-hero {
+    padding: 16px;
+    border-radius: 14px;
+  }
+}
+
+
+/* Customer advanced search uses the shared section hierarchy rather than a detached form card. */
+.advanced-storefront-search-group {
+  margin-top: 14px;
+}
+.advanced-storefront-search-group__content {
+  padding: 18px;
+}
+.advanced-storefront-search-form {
+  min-width: 0;
+}
+.advanced-storefront-search-form label {
+  color: var(--aghbari-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+.advanced-storefront-search-form input:not([type="checkbox"]),
+.advanced-storefront-search-form select {
+  min-height: 42px;
+  color: var(--aghbari-text);
+  background: var(--aghbari-surface-soft);
+  border-color: var(--aghbari-border) !important;
+  border-radius: 11px !important;
+  font: inherit;
+}
+.advanced-storefront-search-form input:focus-visible,
+.advanced-storefront-search-form select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--aghbari-brand) 22%, white);
+  outline-offset: 1px;
+}
+.advanced-storefront-search-form button[type="submit"] {
+  min-height: 42px;
+  border-radius: 999px;
+}
+@media (max-width: 600px) {
+  .advanced-storefront-search-group__content { padding: 12px; }
+}
+
+
+/* AI center follows the same category-first workspace hierarchy. */
+.ai-operations-group,
+.ai-output-group {
+  margin-block: 14px;
+}
+.ai-operations-group__content,
+.ai-output-group__content {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+.ai-operations-group__content > *,
+.ai-output-group__content > * {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .ai-operations-group__content,
+  .ai-output-group__content {
+    gap: 10px;
+    padding: 10px;
+  }
+}
+
+
+/* Keep the latest main storefront return action and server-backed product filters. */
+.store-return {
+  height: 37px;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 10px;
+  background: var(--aghbari-surface);
+  color: var(--aghbari-brand);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.store-return:hover {
+  border-color: var(--aghbari-brand);
+  background: var(--aghbari-brand-soft);
+}
+.store-return:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--aghbari-brand) 30%, white);
+  outline-offset: 2px;
+}
+
+/* Real server-backed catalog filters — grouped with the same turquoise system. */
+.workspace-domain-group--filters .workspace-domain-group__content--stacked {
+  gap: 0;
+}
+.admin-product-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 13px;
+  background: var(--aghbari-surface);
+}
+.admin-product-filters > label {
+  display: grid;
+  gap: 5px;
+  min-width: min(210px, 100%);
+  color: var(--aghbari-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+.admin-product-filters select {
+  min-width: 190px;
+  height: 38px;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 9px;
+  padding: 0 10px;
+  color: var(--aghbari-text);
+  background: var(--background);
+  font: inherit;
+}
+.admin-product-filters select:disabled { opacity: .6; cursor: not-allowed; }
+.admin-product-filters__hint,
+.admin-product-filters__error {
+  color: var(--aghbari-text-muted);
+  font-size: 10px;
+}
+.admin-product-filters__error {
+  color: #b42332;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-product-filters__error button {
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  padding: 4px 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+}
+.admin-product-filters__reset {
+  min-height: 36px;
+  border: 1px solid var(--aghbari-border);
+  border-radius: 9px;
+  padding: 0 12px;
+  color: var(--aghbari-brand);
+  background: var(--aghbari-brand-soft);
+  font-size: 10px;
+  font-weight: 800;
+}
+.admin-product-filters__reset:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 800px) {
+  .store-return {
+    width: 38px;
+    min-width: 38px;
+    justify-content: center;
+    padding: 0;
+  }
+  .store-return span { display: none; }
+  .admin-product-filters { align-items: stretch; flex-direction: column; }
+  .admin-product-filters > label,
+  .admin-product-filters select { width: 100%; min-width: 0; }
+  .admin-product-filters__reset { align-self: flex-start; }
+}

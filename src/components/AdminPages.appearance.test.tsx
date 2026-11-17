@@ -47,6 +47,7 @@ function renderForRoles(roles: string[], onNotice = vi.fn()) {
 function openAppearance(container: HTMLElement) {
   fireEvent.click(screen.getByRole("button", { name: "المظهر" }));
   expect(container.querySelector('[aria-label="إعداد مظهر المؤسسة"]')).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "ألوان النظام" })).toBeInTheDocument();
 }
 
 describe("organization appearance settings integration", () => {
@@ -67,7 +68,7 @@ describe("organization appearance settings integration", () => {
     const { container, onNotice } = renderForRoles(["manager"]);
     openAppearance(container);
 
-    const turquoise = screen.getByRole("button", { name: /أخضر بحري/ });
+    const turquoise = screen.getByRole("button", { name: /تركواز مشرق/ });
     fireEvent.click(turquoise);
 
     expect(turquoise).toHaveAttribute("aria-pressed", "true");
@@ -78,7 +79,7 @@ describe("organization appearance settings integration", () => {
     await waitFor(() => {
       expect(mocks.updateSetting).toHaveBeenCalledWith(
         "theme_palette",
-        { id: "turquoise", primary: "#087f8d", accent: "#0eaa97" },
+        { id: "turquoise", primary: "#0b929f", accent: "#27b69f" },
         "appearance",
       );
     });
@@ -109,7 +110,7 @@ describe("organization appearance settings integration", () => {
     openAppearance(container);
 
     expect(screen.getByRole("status")).toHaveTextContent("المظهر للقراءة فقط");
-    expect(screen.getByRole("button", { name: /أخضر بحري/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /تركواز مشرق/ })).toBeDisabled();
     expect(screen.getByLabelText("اللون الأساسي")).toBeDisabled();
     expect(screen.getByLabelText("لون التمييز")).toBeDisabled();
     expect(screen.getByRole("button", { name: "استعادة الافتراضي" })).toBeDisabled();
