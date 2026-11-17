@@ -110,6 +110,21 @@ async function main() {
   ))[0]?.id;
   assert.ok(targetWarehouse,"owner-boundary acceptance requires an active local test warehouse");
 
+  const ownerPrivileges=await db.unsafe(
+    "select has_table_privilege('authenticated','public.organization_owner_bindings','SELECT') as authenticated_read,"+
+    "has_table_privilege('service_role','public.organization_owner_bindings','SELECT') as service_role_direct_read,"+
+    "has_function_privilege('authenticated','public.bind_organization_owner(uuid,uuid,text)','EXECUTE') as authenticated_bind,"+
+    "has_function_privilege('service_role','public.bind_organization_owner(uuid,uuid,text)','EXECUTE') as service_role_bind,"+
+    "has_function_privilege('authenticated','public.current_actor_is_organization_owner()','EXECUTE') as authenticated_owner_check"
+  );
+  assert.deepEqual(ownerPrivileges[0],{
+    authenticated_read:false,
+    service_role_direct_read:false,
+    authenticated_bind:false,
+    service_role_bind:true,
+    authenticated_owner_check:true
+  },"owner records must be hidden; only service-role RPC can bind while authenticated users can read only their boolean identity result");
+
   const baselineAdminDecision=await decision(db,ownerAdmin,"inventory.opening_balance.approve");
   assert.equal(baselineAdminDecision.decision,"PERMIT",
     "the existing baseline capability must remain explicit and distinct from owner identity");
@@ -141,6 +156,14 @@ async function main() {
     )),
     error=>error&&String(error.code)==="42501",
     "an administrator without a verified owner binding cannot preview owner-only approval"
+  );
+  await assert.rejects(
+    ()=>withActor(db,ownerAdmin,tx=>tx.unsafe(
+      "select public.approve_opening_inventory_baseline($1::uuid)",
+      [targetWarehouse]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "an administrator without a verified owner binding cannot approve the opening baseline"
   );
 
   const bound=await withServiceRole(db,tx=>tx.unsafe(
@@ -189,6 +212,13 @@ async function main() {
     error=>error&&String(error.code)==="42501",
     "a revoked owner cannot preview or approve the baseline"
   );
+  await assert.rejects(
+    ()=>withActor(db,ownerAdmin,tx=>tx.unsafe(
+      "select public.approve_opening_inventory_baseline($1::uuid)",[targetWarehouse]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "a revoked owner cannot execute the baseline approval command"
+  );
   const rebound=await withServiceRole(db,tx=>tx.unsafe(
     "select public.bind_organization_owner($1::uuid,$2::uuid,$3::text) as result",
     [org,ownerAdmin.profile_id,"P2 isolated local owner re-provisioning after revocation"]
@@ -203,6 +233,16 @@ async function main() {
   );
   assert.deepEqual(ownerHistory[0],{total:2,active:1},
     "owner changes must preserve a single active binding and immutable historical rows");
+  const ownerAudit=await db.unsafe(
+    "select action,count(*)::integer as count from public.audit_logs "+
+    "where organization_id=$1::uuid and entity_type='organization_owner_binding' "+
+    "and action in ('organization.owner.bound','organization.owner.revoked') group by action order by action",
+    [org]
+  );
+  assert.deepEqual(ownerAudit.map(row=>[row.action,row.count]),[
+    ["organization.owner.bound",2],
+    ["organization.owner.revoked",1]
+  ],"service-role owner binding and revocation must be independently audited");
 
   const expectedPairs=[
    ["admin","pricing.edit_draft"],["manager","pricing.edit_draft"],
