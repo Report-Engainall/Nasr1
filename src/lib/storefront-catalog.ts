@@ -91,7 +91,6 @@ export function parseStorefrontCartProductDetailsRow(value: unknown): ProductWit
   };
 }
 
-export async function fetchStorefrontCatalogPage(
 export async function fetchStorefrontCatalogPage(input: {
   search: string;
   categoryId: string | null;
