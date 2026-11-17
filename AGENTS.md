@@ -24,8 +24,9 @@ Only acceptance matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPT
 
 ## Database and security invariants
 
-- Only Supabase project `aghbari-commerce-nasr1`, ref `tfdwtuwkdddnzgyhcoyy`, URL `https://tfdwtuwkdddnzgyhcoyy.supabase.co` is approved.
-- The retired `aghbari-commerce` project, ref `mrcyqezbhpncuvaehwgf`, must never be used. Never create a new Supabase project, Bolt Database or Lovable Cloud.
+- **Supabase target identity is currently disputed and must not be inferred from this file, project name, account membership, or ACTIVE_HEALTHY status.** Do not run remote SQL, inspect/apply migrations, deploy functions, or mutate any Supabase project until the exact project ref used by the running Aghbari Commerce application is independently confirmed from its effective runtime configuration or explicitly confirmed by the owner.
+- A project listed in Supabase or named `aghbari-commerce-nasr1` is not proof that the storefront/admin screens use it. Record the verified ref and URL in this file only after matching the application runtime target; never copy credentials or publish keys into documentation.
+- Never create a new Supabase project, Bolt Database or Lovable Cloud. Keep database work local/isolated until the correct remote target is established.
 - Never reset, drop, truncate, seed or broadly reinitialize production. Never replay a migration already present in `supabase_migrations.schema_migrations`.
 - Before DDL, compare the live migration ledger and exact archive source; test additive SQL on isolated PostgreSQL 17 first. Preserve RLS, least privilege, tenant scope, immutable audit, idempotency and failure atomicity.
 - First-admin provisioning requires owner-approved email/name and a trusted server-only path. Never invent credentials, allow client self-promotion, or place a service-role key in browser variables or Git.

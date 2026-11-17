@@ -1,4 +1,26 @@
-# ACTIVE EXECUTION CONTROL — SINGLE OWNER / NO BOLT — 2026-11-17
+# ACTIVE EXECUTION CONTROL — DATABASE TARGET DISPUTED — 2026-11-17
+
+## IMMEDIATE SAFETY CORRECTION
+
+- Current repository: `Report-Engainall/Nasr1`, branch `main`.
+- Current observed main HEAD at checkpoint refresh: `bf9e595149418e75deeed0864bed7b09e2594566`.
+- The owner has explicitly rejected the assumption that Supabase ref `tfdwtuwkdddnzgyhcoyy` is the database used by the running Aghbari Commerce application.
+- **All prior remote-database findings obtained by querying ref `tfdwtuwkdddnzgyhcoyy` are RETRACTED / NOT APPLICABLE UNTIL TARGET IDENTITY IS PROVEN.** This includes the claimed live tenant RPC field gap, missing publication-readiness RPC, 60 missing migrations, two live-only migration entries, and any conclusions drawn from the queried project schema.
+- Supabase account listing showed `tfdwtuwkdddnzgyhcoyy` as an active project called `aghbari-commerce-nasr1`; that proves only that the project exists and is active, not that the application uses it. The retired `mrcyqezbhpncuvaehwgf` listed in older documentation is inactive, and it must not be assumed to be the correct target either.
+- No remote database DDL, data write, migration, function deployment, reset, or production mutation was performed in this investigation. The Supabase calls against `tfdwtuwkdddnzgyhcoyy` were read-only metadata/SQL reads.
+- Local GitHub Actions acceptance used isolated ephemeral PostgreSQL/Supabase only; its results do not identify or prove the hosted application database.
+- Earlier P1 pass on `e92393dd1392c09994b0b29c108754ec13d112a7` and partial local P2 acceptance are exact-SHA source/local evidence only. Do not transfer them to current HEAD `bf9e595149418e75deeed0864bed7b09e2594566` or use them to claim the live screens are fixed.
+- The backward-compatible tenant parser and inventory replay guard remain source changes on main; their value for the affected running application is unverified until the actual DB target is confirmed.
+
+## NEXT_ACTION — VERIFY THE REAL APPLICATION DATABASE BEFORE ANY REMOTE DB WORK
+
+1. Establish the effective `VITE_SUPABASE_URL` / Supabase project ref used by the running Aghbari Commerce deployment or the exact preview/runtime exhibiting the errors. Use a trustworthy read-only runtime/configuration source; do not guess from Supabase project names or the repository's former hard-coded ref.
+2. Compare that exact ref with Supabase project metadata. If effective runtime configuration cannot be read without a prohibited/paid host operation, ask the owner for the project ref; do not inspect or modify a substitute project.
+3. Only after ref equality is proven, re-run a minimal read-only identity check: project ref/URL, migration ledger head, `get_current_tenant_context()` definition and the exact RPCs called by the four failing screens. Do not perform a broad migration inventory first.
+4. Then trace each screen's actual failing request and fix the real contract mismatch on the current main SHA. Keep production unchanged absent explicit authorization.
+
+---
+
 
 ## CURRENT CHECKPOINT — TENANT SCOPE / DATABASE CONTRACT DRIFT
 
