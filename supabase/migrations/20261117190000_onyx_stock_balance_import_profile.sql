@@ -40,7 +40,7 @@ BEGIN
      AND ip.profile_name = 'Onyx Pro Stock Balances'
      AND ip.report_type = 'inventory_stock'
      AND ip.matching_key = 'warehouse_item_key'
-     AND ip.required_columns = '["item_code","quantity","warehouse_code"]'::jsonb
+     AND ip.required_columns = '["item_code","quantity","warehouse_code","as_of_date"]'::jsonb
      AND ip.status = 'active'
    ORDER BY ip.version DESC
    LIMIT 1;
@@ -61,10 +61,10 @@ BEGIN
     date_rules, is_full_dataset, status, created_by, published_at
   ) VALUES (
     v_org, 'Onyx Pro Stock Balances', 'inventory_stock', 'onyx_pro', v_next_version,
-    '["item_code","quantity","warehouse_code"]'::jsonb,
-    '["as_of_date","branch_code","location_code","base_unit_code","quantity_reserved","quantity_available","quantity_incoming","quantity_damaged","quantity_in_transit","opening_quantity","opening_cost","average_unit_cost","total_stock_value","currency_code","external_id","external_code","notes"]'::jsonb,
+    '["item_code","quantity","warehouse_code","as_of_date"]'::jsonb,
+    '["branch_code","location_code","quantity_reserved","quantity_available","quantity_incoming","quantity_damaged","quantity_in_transit","opening_quantity","opening_cost","average_unit_cost","total_stock_value","currency_code","external_id","external_code","notes"]'::jsonb,
     '[]'::jsonb, '{}'::jsonb, '[]'::jsonb,
-    '[{"field":"quantity","rule":"numeric","message":"كمية الرصيد يجب أن تكون رقمًا صالحًا."},{"field":"quantity","rule":"min","value":0,"message":"كمية الرصيد لا يمكن أن تكون سالبة."}]'::jsonb,
+    '[{"field":"quantity","rule":"numeric","message":"كمية الرصيد يجب أن تكون رقمًا صالحًا."},{"field":"quantity","rule":"min","value":0,"message":"كمية الرصيد لا يمكن أن تكون سالبة."},{"field":"as_of_date","rule":"required","message":"تاريخ لقطة الرصيد مطلوب."}]'::jsonb,
     'warehouse_item_key', 'manual_review', '{}'::jsonb, false,
     'active', v_actor, pg_catalog.now()
   )
