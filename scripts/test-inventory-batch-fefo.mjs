@@ -35,6 +35,12 @@ async function main(){
  const ds=(await db.unsafe("select to_char((now() at time zone 'UTC')::date+10,'YYYY-MM-DD') e,to_char((now() at time zone 'UTC')::date+30,'YYYY-MM-DD') l"))[0];
  const suffix=randomUUID().replaceAll("-","").slice(0,10).toUpperCase();
  const early=await receipt(manager,"FEFO-EARLY-"+suffix,ds.e),late=await receipt(manager,"FEFO-LATE-"+suffix,ds.l);
+ const expiredBatchId=randomUUID(),expiredBatch="FEFO-EXPIRED-"+suffix;
+ const expiredDate=(await db.unsafe("select to_char((now() at time zone 'UTC')::date-1,'YYYY-MM-DD') d"))[0].d;
+ await db.unsafe("insert into public.inventory_batches(id,organization_id,product_id,warehouse_id,batch_number,expiry_date,received_at,quantity_on_hand,quantity_reserved,source_type,source_reference_type) values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6::date,now(),1,0,'unattributed_balance_increase','fefo_acceptance_expired_fixture')",[expiredBatchId,org,product,warehouse,expiredBatch,expiredDate]);
+ const expiredBalance=(await db.unsafe("update public.inventory_balances set quantity_on_hand=quantity_on_hand+1,last_movement_at=now(),updated_at=now() where product_id=$1::uuid and warehouse_id=$2::uuid returning quantity_available",[product,warehouse]))[0];
+ assert.ok(expiredBalance);
+ await db.unsafe("insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,inventory_batch_id) values($1::uuid,$2::uuid,'inventory_adjustment',1,$3,'fefo_acceptance',null,'Temporary expired-lot fixture for PostgreSQL 17 acceptance',$4::uuid,$5::uuid)",[product,warehouse,expiredBalance.quantity_available,manager.id,expiredBatchId]);
  const lotRows=await db.unsafe("select batch_number,expiry_date::text from public.inventory_batches where receipt_id in ($1::uuid,$2::uuid) order by expiry_date,id",[early.receiptId,late.receiptId]);
  assert.equal(lotRows.length,2);assert.equal(lotRows[0].batch_number,early.batch);assert.equal(lotRows[1].batch_number,late.batch);
  await as(manager);const print=await rpc("select public.get_purchase_receipt_print_data($1::uuid) result",[early.receiptId]);
@@ -61,7 +67,9 @@ async function main(){
  assert.equal(rel.length,1);assert.equal(rel[0].id,res2.id);
  const restored=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r from public.inventory_batches where id=$1::uuid",[res2.id]))[0];
  assert.equal(Number(restored.h),1);assert.equal(Number(restored.r),0);
- await as(manager);const trace=await rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]);assert.equal(trace.product_id,product);assert.ok(trace.lots.some(x=>x.batch_number===late.batch));
+ const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<$1::date expired from public.inventory_batches where id=$2::uuid",[expiredDate,expiredBatchId]))[0];
+ assert.equal(expiredState.expired,true);assert.equal(Number(expiredState.h),1);assert.equal(Number(expiredState.r),0);
+ await as(manager);const trace=await rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]);assert.equal(trace.product_id,product);assert.ok(trace.lots.some(x=>x.batch_number===late.batch));assert.ok(trace.lots.some(x=>x.batch_number===expiredBatch&&x.expired===true));
  await as(customer);
  await assert.rejects(()=>db.unsafe("select * from public.inventory_batches limit 1"),/permission denied/i);
  await assert.rejects(()=>rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]),/inventory\.read_balance capability|warehouse assignment/i);
