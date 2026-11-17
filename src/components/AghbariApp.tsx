@@ -3219,6 +3219,7 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
     return <OnyxProExchangeWorkspace
       onBack={() => setSection('home')}
       onOpenImport={() => setSection('import')}
+      canManageImports={canManageImports}
       onOpenSnapshots={() => setSection('onyx')}
     />;
   }
