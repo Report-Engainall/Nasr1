@@ -25,7 +25,7 @@ export function CustomerAssetsPanel({customerId}:{customerId:string}){
  const [transferAsset,setTransferAsset]=useState<Asset|null>(null),[newOwner,setNewOwner]=useState(""),[transferReason,setTransferReason]=useState(""),[transferReference,setTransferReference]=useState("");
  const [replacementAsset,setReplacementAsset]=useState<Asset|null>(null),[replacementRequestKey,setReplacementRequestKey]=useState("");
  const [form,setForm]=useState({name:"",manufacturer:"",model:"",serial:"",product:"",order:"",invoice:"",purchaseDate:"",purchaseEvidence:"",warrantyProvider:"",warrantyRef:"",warrantyEvidence:"",warrantyStart:"",warrantyEnd:"",coverageRef:"",coverageStart:"",coverageEnd:"",notes:"",reason:""});
- const set=(key:keyof typeof form,value:string)=>setForm(old=>({...old,[key]:value}));
+ const set=(key:keyof typeof form,value:string)=>{setForm(old=>({...old,[key]:value}));if(replacementAsset)setReplacementRequestKey(createReplacementRequestKey());};
  const load=useCallback(async()=>{setLoading(true);setError("");try{
   const scope=await getCurrentTenantScope();setOrgId(scope.organizationId);
   const [a,p,o,i,c]=await Promise.all([
