@@ -51,7 +51,11 @@ type DuplicatePrompt = {
   worksheetName: string | null;
 };
 
-async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Promise<{
+async function readImportFileHeaders(
+  file: File,
+  extension: "csv" | "xlsx",
+  preferredWorksheetNames: readonly string[] = ["Products"],
+): Promise<{
   headers: string[];
   worksheetName: string | null;
   worksheetNames: string[];
@@ -84,7 +88,7 @@ async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Pro
   } else {
     try {
       await parseXlsxFirstWorksheet(file, captureFirstRow, {
-        preferredWorksheetNames: ["Products"],
+        preferredWorksheetNames,
         onWorksheetSelected: (selectedName, visibleNames) => {
           worksheetName = selectedName;
           worksheetNames = visibleNames;
@@ -784,7 +788,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       let detectedImportKind: "products" | "customers" = applicationKind;
       let selectedWorksheetName: string | null = null;
       if (extension === "csv" || extension === "xlsx") {
-        const headerRead = await readImportFileHeaders(file, extension);
+        const headerRead = await readImportFileHeaders(
+          file,
+          extension,
+          applicationKind === "customers" ? ["Customers"] : ["Products"],
+        );
         const sourceHeaders = headerRead.headers;
         selectedWorksheetName = headerRead.worksheetName;
         if (extension === "xlsx" && headerRead.worksheetNames.length > 1 && selectedWorksheetName) {
@@ -1098,7 +1106,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         <section className="panel import-upload-panel">
           <div className="import-upload-icon"><Upload size={26} /></div>
           <h2>رفع ملف للمعالجة</h2>
-          <p>يدعم CSV وملفات XLSX الجدولية (الورقة المرئية الأولى). صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي؛ لا تُخترع بيانات غير مستخرجة.</p>
+          <p>يدعم CSV وXLSX. في المصنف متعدد الأوراق يختار ورقة Products أو Customers بحسب نوع الاستيراد، ثم يعالج الورقة المختارة فقط. صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي.</p>
           <div className="form-grid">
             <label className="form-field"><span>نوع البيانات في الملف</span>
               <select value={applicationKind} disabled={stage !== null || Boolean(duplicatePrompt)}
