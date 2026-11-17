@@ -2522,6 +2522,7 @@ function Barcode() {
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState("");
   const [cameraError, setCameraError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -2543,6 +2544,7 @@ function Barcode() {
       const isCurrentRequest = () => requestRevision === lookupRevisionRef.current;
       setBusy(true);
       setError("");
+      setNotice("");
       setProduct(null);
       try {
         const tenantScope = await getCurrentTenantScope();
@@ -2719,7 +2721,16 @@ function Barcode() {
         setError("تعذر حفظ الصنف في السلة المعزولة لهذا الحساب.");
         return;
       }
-      void navigate({ to: "/" });
+      setError("");
+      setCameraError("");
+      setNotice(
+        "أُضيف " + product.name + " بكمية " + formatNumber(quantityToAdd) + " " + product.unit +
+        " إلى مسودة السلة المحلية. تحتوي المسودة الآن " + formatNumber(merged.length) +
+        " أصناف؛ الأسعار والتوفر والطلب النهائي لا تعتمد إلا بعد التحقق من الخادم.",
+      );
+      setProduct(null);
+      setValue("");
+      setScanning(false);
     } catch {
       setError("تعذر حفظ الصنف في السلة على هذا الجهاز.");
     }
@@ -2731,6 +2742,27 @@ function Barcode() {
     >
       {error && <ErrorBox message={error} />}
       {cameraError && <ErrorBox message={cameraError} />}
+      {notice && (
+        <section role="status" style={{ ...card, display: "grid", gap: 10, borderColor: "#a8d8c6" }}>
+          <p style={{ margin: 0, lineHeight: 1.8 }}>{notice}</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              type="button"
+              style={primary}
+              onClick={() => {
+                setNotice("");
+                setCameraError("");
+                setScanning(true);
+              }}
+            >
+              <ScanLine size={16} /> مسح صنف آخر
+            </button>
+            <button type="button" style={secondary} onClick={() => void navigate({ to: "/cart" })}>
+              <ShoppingCart size={16} /> فتح سلة المشتريات
+            </button>
+          </div>
+        </section>
+      )}
       <section style={{ ...card, display: "grid", gap: 12 }}>
         <form
           onSubmit={(e) => {
