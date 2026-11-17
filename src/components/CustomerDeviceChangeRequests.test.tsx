@@ -120,11 +120,13 @@ describe("customer device change request workflow", () => {
 
   it("reuses the exact idempotency key when a network failure is retried with the unchanged customer payload", async () => {
     let attempts = 0;
+    const rows: ReturnType<typeof customerRequest>[] = [];
     mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "fetch_my_customer_device_change_requests") return { data: { items: [] }, error: null };
+      if (name === "fetch_my_customer_device_change_requests") return { data: { items: rows }, error: null };
       if (name === "request_customer_device_change") {
         attempts += 1;
         if (attempts === 1) return { data: null, error: { message: "network interrupted" } };
+        rows.push(customerRequest());
         return {
           data: { id: REQUEST_ID, status: "pending_approval", created_at: CREATED_AT, requested_device: "Android · Chrome", replayed: false },
           error: null,
