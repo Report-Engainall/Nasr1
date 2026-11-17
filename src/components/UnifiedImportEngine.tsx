@@ -782,10 +782,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       setStage("detecting");
       const extension = file.name.split(".").pop()?.toLocaleLowerCase("en") ?? "";
       let detectedImportKind: "products" | "customers" = applicationKind;
+      let selectedWorksheetName: string | null = null;
       if (extension === "csv" || extension === "xlsx") {
         const headerRead = await readImportFileHeaders(file, extension);
         const sourceHeaders = headerRead.headers;
-        const selectedWorksheetName = headerRead.worksheetName;
+        selectedWorksheetName = headerRead.worksheetName;
         if (extension === "xlsx" && headerRead.worksheetNames.length > 1 && selectedWorksheetName) {
           const otherSheets = headerRead.worksheetNames.filter((name) => name !== selectedWorksheetName);
           setStatusMessage(
