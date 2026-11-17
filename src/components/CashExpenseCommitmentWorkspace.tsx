@@ -77,15 +77,18 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
   }
   setLoading(true);setError("");setAccountLoadError("");setEvidenceLoadError("");
   try{
-   const [rows,accountRows]=await Promise.all([
+   const [rowsResult,accountsResult]=await Promise.allSettled([
     supabase.rpc("fetch_cash_expense_commitments",{p_limit:100,p_offset:0}),
     supabase.rpc("fetch_general_ledger",{p_from:null,p_to:null,p_account_id:null,p_limit:1,p_offset:0}),
    ]);
+   if(rowsResult.status==="rejected")throw rowsResult.reason;
+   const rows=rowsResult.value;
    if(rows.error)throw rows.error;
    const parsed=parseItems(rows.data);
    const found:Account[]=[],seen=new Set<string>();
    let accountsError="";
-   if(accountRows.error||!isObject(accountRows.data)||!Array.isArray(accountRows.data.accounts)){
+   const accountRows=accountsResult.status==="fulfilled"?accountsResult.value:null;
+   if(accountsResult.status==="rejected"||!accountRows||accountRows.error||!isObject(accountRows.data)||!Array.isArray(accountRows.data.accounts)){
     accountsError="تعذر تحميل إسقاط الحسابات المحاسبية لهذا الدور؛ تبقى الالتزامات مقروءة، وتتعطل خيارات إنشاء القيود فقط.";
    }else{
     try{

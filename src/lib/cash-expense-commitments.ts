@@ -32,10 +32,10 @@ export function canAttachCommitmentEvidence(input:{status:string;creatorProfileI
   Number.isInteger(input.evidenceCount)&&input.evidenceCount>=0&&input.evidenceCount<10;
 }
 export function isCommitmentEvidenceReviewable(input:{
- expectedCount:number;loadedCount:number;loadFailed:boolean;accessibleCount?:number;reviewedCount?:number
+ expectedCount:number;loadedCount:number;loadFailed:boolean;accessibleCount:number;reviewedCount:number
 }):boolean{
- const accessible=input.accessibleCount??input.loadedCount;
- const reviewed=input.reviewedCount??accessible;
+ const accessible=input.accessibleCount;
+ const reviewed=input.reviewedCount;
  return !input.loadFailed&&Number.isInteger(input.expectedCount)&&Number.isInteger(input.loadedCount)&&
   Number.isInteger(accessible)&&Number.isInteger(reviewed)&&input.expectedCount>0&&
   input.loadedCount===input.expectedCount&&accessible===input.expectedCount&&reviewed===input.expectedCount;
