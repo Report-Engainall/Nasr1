@@ -147,7 +147,7 @@ export function ProductPlaceholderArtwork({
   const palette = PALETTES[variant];
   const style: CSSProperties = {
     position: "relative", display: "block", width: "100%", height: "100%",
-    minHeight: compact ? 132 : 250, overflow: "hidden", borderRadius: "inherit",
+    minHeight: compact ? 56 : 250, overflow: "hidden", borderRadius: "inherit",
     background: palette.background,
   };
 
@@ -155,7 +155,7 @@ export function ProductPlaceholderArtwork({
     <div role="img" aria-label={accessibleLabel ?? ("رسم توضيحي مؤقت للمنتج " + productName)}
       data-placeholder-variant={variant} style={style}>
       <svg aria-hidden="true" viewBox="0 0 480 360" width="100%" height="100%"
-        preserveAspectRatio="xMidYMid meet" style={{ display: "block", minHeight: compact ? 132 : 250 }}>
+        preserveAspectRatio="xMidYMid meet" style={{ display: "block", minHeight: compact ? 56 : 250 }}>
         <rect width="480" height="360" fill={palette.background}/>
         <circle cx="64" cy="58" r="88" fill={palette.secondary} opacity=".22"/>
         <circle cx="426" cy="315" r="112" fill={palette.accent} opacity=".13"/>

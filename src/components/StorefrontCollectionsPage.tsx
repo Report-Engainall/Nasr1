@@ -85,7 +85,7 @@ function CategoryBranchLink({ parent, category, count }: {
       }}
     >
       <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <span style={{ width: 64, height: 48, flex: "0 0 auto", overflow: "hidden", borderRadius: 7 }}>
+        <span style={{ width: 64, height: 56, flex: "0 0 auto", overflow: "hidden", borderRadius: 7 }}>
           <ProductPlaceholderArtwork productName={category.name} variantOverride={normalizeStorefrontArtworkKey(category.icon, resolveProductPlaceholderVariant({ productName: category.name }))}
             compact caption="تصنيف" accessibleLabel={"رسم توضيحي للتصنيف " + category.name} />
         </span>

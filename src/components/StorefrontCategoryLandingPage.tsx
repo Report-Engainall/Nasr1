@@ -153,7 +153,7 @@ function SubcategoryList({
               }}
             >
               <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-                <span style={{ width: 62, height: 48, overflow: "hidden", borderRadius: 7 }}>
+                <span style={{ width: 62, height: 56, overflow: "hidden", borderRadius: 7 }}>
                   <ProductPlaceholderArtwork productName={category.name} variantOverride={normalizeStorefrontArtworkKey(category.icon, resolveProductPlaceholderVariant({ productName: category.name }))}
                     compact caption="تصنيف" accessibleLabel={"رسم توضيحي للتصنيف " + category.name} />
                 </span>
