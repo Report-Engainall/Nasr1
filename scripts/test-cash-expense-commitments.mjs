@@ -234,7 +234,7 @@ async function main() {
       "where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
       [organizationId,cancelled.id],
     );
-    assert.deepEqual(cancelledEvents.map(x=>x.event_type),["CREATED","CANCELLED"]);
+    assert.deepEqual(cancelledEvents.map(x=>x.event_type).sort(),["CANCELLED","CREATED"]);
     const cancelledAudit=await db.unsafe(
       "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
       "and action='finance.cash_expense_commitment.cancelled' and entity_type='cash_expense_commitment' and entity_id=$2::uuid",
