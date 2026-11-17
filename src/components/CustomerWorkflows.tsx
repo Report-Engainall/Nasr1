@@ -2721,14 +2721,12 @@ function Barcode() {
         setError("تعذر حفظ الصنف في السلة المعزولة لهذا الحساب.");
         return;
       }
-      const totalUnits = merged.reduce((sum, line) => sum + line.quantity, 0);
       setError("");
       setCameraError("");
       setNotice(
         "أُضيف " + product.name + " بكمية " + formatNumber(quantityToAdd) + " " + product.unit +
         " إلى مسودة السلة المحلية. تحتوي المسودة الآن " + formatNumber(merged.length) +
-        " أصناف بإجمالي " + formatNumber(totalUnits) +
-        " وحدة؛ السعر والمخزون والطلب النهائي يعاد التحقق منها عبر الخادم.",
+        " أصناف؛ الأسعار والتوفر والطلب النهائي لا تعتمد إلا بعد التحقق من الخادم.",
       );
       setProduct(null);
       setValue("");
@@ -2758,8 +2756,8 @@ function Barcode() {
             >
               <ScanLine size={16} /> مسح صنف آخر
             </button>
-            <button type="button" style={secondary} onClick={() => void navigate({ to: "/" })}>
-              <ShoppingCart size={16} /> فتح المتجر والسلة
+            <button type="button" style={secondary} onClick={() => void navigate({ to: "/cart" })}>
+              <ShoppingCart size={16} /> فتح سلة المشتريات
             </button>
           </div>
         </section>
