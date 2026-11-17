@@ -133,6 +133,26 @@ describe("CustomerAssetsPanel atomic replacement", () => {
     expect(replayPayload.p_old_asset_id).toBe(OLD_ASSET_ID);
   });
 
+  it("blocks replacement submission when secure idempotency-key rotation fails", async () => {
+    const randomUUID = vi.fn()
+      .mockReturnValueOnce("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+      .mockImplementation(() => { throw new Error("secure random source failed"); });
+    vi.stubGlobal("crypto", { randomUUID });
+
+    render(<CustomerAssetsPanel customerId={CUSTOMER_ID} />);
+    await screen.findByText("حاسوب مكتبي");
+    fireEvent.click(screen.getByRole("button", { name: "استبدال الجهاز" }));
+
+    fireEvent.change(screen.getByLabelText("سبب الاستبدال *"), {
+      target: { value: "تلف الجهاز السابق واستبداله" },
+    });
+    expect(await screen.findByText("secure random source failed")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "تأكيد استبدال الجهاز" }));
+    expect(await screen.findByText("تعذر إنشاء مفتاح آمن لعملية الاستبدال؛ لا يمكن إرسال الطلب دون مفتاح موثوق.")).toBeInTheDocument();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("does not expose replacement for a terminal asset or in the generic event picker", async () => {
     configureTables("replaced");
     render(<CustomerAssetsPanel customerId={CUSTOMER_ID} />);
