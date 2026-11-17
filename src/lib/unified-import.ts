@@ -241,6 +241,13 @@ const LEGACY_DEFAULT_SYNONYMS: Record<string, string> = {
   "الكود": "item_code",
   "item_code": "item_code",
   "product_code": "item_code",
+  "base_unit_name": "unit",
+  "الوحدة الأساسية": "unit",
+  "اسم الوحدة الأساسية": "unit",
+  "quantity_on_hand": "quantity",
+  "رصيد المخزون": "quantity",
+  "quantity_reserved": "reserved_quantity",
+  "quantity_available": "available_quantity",
   "sku": "item_code",
   "code": "item_code",
   "اسم الصنف": "product_name",
@@ -1249,10 +1256,19 @@ function parseXlsxCellValue(
  * Reads the first visible XLSX worksheet and emits rows incrementally to the consumer.
  * The raw archive and accumulated data rows are never retained; inflated XML is strictly bounded.
  */
+export type XlsxWorksheetSelectionOptions = {
+  /** Exact, case-insensitive worksheet names to prefer, in priority order. */
+  preferredWorksheetNames?: readonly string[];
+  /** Called once after visible worksheet names have been read and the target selected. */
+  onWorksheetSelected?: (worksheetName: string, visibleWorksheetNames: string[]) => void;
+};
+
+/** Reads one selected visible XLSX worksheet. Preferred names make multi-tab exports deterministic. */
 export async function parseXlsxFirstWorksheet(
   file: Blob,
   onRow: (values: string[]) => void | Promise<void>,
-): Promise<{ rowCount: number; worksheetName: string }> {
+  options: XlsxWorksheetSelectionOptions = {},
+): Promise<{ rowCount: number; worksheetName: string; worksheetNames: string[] }> {
   if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > MAX_IMPORT_FILE_BYTES) {
     throw new Error('حجم ملف XLSX يجب أن يكون بين 1 بايت و100MB.');
   }
@@ -1345,7 +1361,7 @@ export async function parseXlsxFirstWorksheet(
   const date1904 = ['1', 'true'].includes((xlsxAttribute(workbookProperties, 'date1904') ?? '').toLowerCase());
   const sheetsXml = /<sheets\b[^>]*>([\s\S]*?)<\/sheets\s*>/i.exec(workbookXml)?.[1] ?? '';
   const sheetPattern = /<sheet\b([^>]*?)\/?\s*>/g;
-  let sheet: { name: string; relationshipId: string } | null = null;
+  const visibleSheets: Array<{ name: string; relationshipId: string }> = [];
   let match: RegExpExecArray | null;
   while ((match = sheetPattern.exec(sheetsXml))) {
     const attributes = match[1];
@@ -1353,9 +1369,17 @@ export async function parseXlsxFirstWorksheet(
     if (state === 'hidden' || state === 'veryHidden') continue;
     const name = xlsxAttribute(attributes, 'name') ?? 'Sheet';
     const relationshipId = xlsxAttribute(attributes, 'r:id');
-    if (relationshipId) { sheet = { name, relationshipId }; break; }
+    if (relationshipId) visibleSheets.push({ name, relationshipId });
   }
-  if (!sheet) throw new Error('لم يعثر ملف XLSX على ورقة عمل مرئية قابلة للقراءة.');
+  if (visibleSheets.length === 0) throw new Error('لم يعثر ملف XLSX على ورقة عمل مرئية قابلة للقراءة.');
+  const preferredNames = (options.preferredWorksheetNames ?? []).map((name) => name.trim().toLocaleLowerCase('en')).filter(Boolean);
+  const sheet = preferredNames.length > 0
+    ? preferredNames.map((name) => visibleSheets.find((candidate) => candidate.name.trim().toLocaleLowerCase('en') === name))
+      .find((candidate): candidate is { name: string; relationshipId: string } => Boolean(candidate))
+      ?? visibleSheets[0]
+    : visibleSheets[0];
+  const worksheetNames = visibleSheets.map((item) => item.name);
+  options.onWorksheetSelected?.(sheet.name, worksheetNames);
   const relationshipPattern = /<Relationship\b([^>]*?)\/?\s*>/g;
   let target: string | null = null;
   while ((match = relationshipPattern.exec(relsXml))) {
@@ -1395,6 +1419,6 @@ export async function parseXlsxFirstWorksheet(
     }
     await onRow(Array.from({ length: values.length }, (_value, index) => values[index] ?? ''));
   }
-  if (rowCount === 0) throw new Error('ورقة XLSX الأولى فارغة أو لا تحتوي على صفوف جدولية.');
-  return { rowCount, worksheetName: sheet.name };
+  if (rowCount === 0) throw new Error('ورقة XLSX المحددة فارغة أو لا تحتوي على صفوف جدولية.');
+  return { rowCount, worksheetName: sheet.name, worksheetNames };
 }
