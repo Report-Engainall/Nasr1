@@ -21,6 +21,7 @@ export type ClaimDomain =
 export interface ClaimConfidence {
   value: number;
   basis: string;
+  evidenceIds: string[];
 }
 
 export interface CausalStudyEvidence {
@@ -139,6 +140,30 @@ function domainOf(record: EvidenceRecord): ClaimDomain {
   return "UNKNOWN";
 }
 
+function validClaimConfidence(
+  confidence: ClaimConfidence | null | undefined,
+  metrics: MetricSnapshot[],
+  passport: EvidencePassport,
+  recordsById: Map<string, EvidenceRecord>,
+  duplicateEvidenceIds: Set<string>,
+): boolean {
+  if (!confidence || !validConfidence(confidence.value) || !confidence.basis.trim() ||
+      !confidence.evidenceIds.length || new Set(confidence.evidenceIds).size !== confidence.evidenceIds.length ||
+      confidence.evidenceIds.some((id) => duplicateEvidenceIds.has(id))) return false;
+  const sources = confidence.evidenceIds.map((id) => recordsById.get(id));
+  if (sources.some((source) => !source)) return false;
+  const first = metrics[0];
+  return (sources as EvidenceRecord[]).every((source) =>
+    source.status === "VERIFIED" &&
+    source.completeness === "COMPLETE" &&
+    source.quality === "ACCEPTABLE" &&
+    source.asOf === passport.asOf &&
+    validTime(source.sourceTimestamp) &&
+    Date.parse(source.sourceTimestamp) <= Date.parse(passport.asOf) &&
+    (!first || samePeriod(source.period, first.period))
+  );
+}
+
 function validCausalStudy(
   draft: ClaimDraft,
   metrics: MetricSnapshot[],
@@ -219,7 +244,15 @@ export function buildClaimEvidencePassports(
     const metricReferencesDuplicated = requestedMetricIds.length !== draft.metricIds.length;
     const metrics = requestedMetricIds.map((id) => metricById.get(id)).filter((metric): metric is MetricSnapshot => Boolean(metric));
     const metricMissing = metrics.length !== requestedMetricIds.length || requestedMetricIds.some((id) => duplicateMetricIds.has(id));
-    const evidenceIds = unique(metrics.flatMap((metric) => metric.lineage.evidenceIds));
+    const primaryEvidenceIds = unique([
+      ...metrics.flatMap((metric) => metric.lineage.evidenceIds),
+      ...(draft.kind === "CAUSE" ? (draft.causalStudy?.evidenceIds ?? []) : []),
+    ]);
+    const confidenceIsVerified = validClaimConfidence(draft.confidence, metrics, passport, recordsById, duplicateEvidenceIds);
+    const evidenceIds = unique([
+      ...primaryEvidenceIds,
+      ...(confidenceIsVerified ? (draft.confidence?.evidenceIds ?? []) : []),
+    ]);
     const sourceRecords = evidenceIds
       .map((id) => recordsById.get(id))
       .filter((record): record is EvidenceRecord => Boolean(record));
@@ -232,8 +265,9 @@ export function buildClaimEvidencePassports(
         formulaId: metric.lineage.formulaId,
         formulaVersion: metric.lineage.formulaVersion,
       }));
-    const knownDomains = unique(sourceRecords.map(domainOf).filter((domain) => domain !== "UNKNOWN")) as ClaimDomain[];
-    const unmappedSources = sourceRecords.filter((record) => domainOf(record) === "UNKNOWN");
+    const domainSources = sourceRecords.filter((record) => record.source.kind !== "CAUSAL_STUDY");
+    const knownDomains = unique(domainSources.map(domainOf).filter((domain) => domain !== "UNKNOWN")) as ClaimDomain[];
+    const unmappedSources = domainSources.filter((record) => domainOf(record) === "UNKNOWN");
     const domains = knownDomains.length ? knownDomains : sourceRecords.length ? ["UNKNOWN" as const] : [];
     const crossDomainReviewRequired = knownDomains.length > 1 ||
       (knownDomains.length > 0 && unmappedSources.length > 0);
