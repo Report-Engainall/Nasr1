@@ -134,6 +134,19 @@ describe("default Onyx and bulk business import headers", () => {
     });
   });
 
+  it("detects ProductUnits sheets separately from product catalog rows", () => {
+    expect(detectImportDatasetKind(["product_code", "unit_code", "unit_name", "conversion_factor"]).kind)
+      .toBe("product_units");
+    expect(resolveImportProfileMapping(
+      "product_units",
+      ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      "product_unit_key",
+    )).toEqual({
+      requiredColumns: ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      matchingKey: "product_unit_key",
+    });
+  });
+
   it("preserves the active product profile rules for product files", () => {
     expect(resolveImportProfileMapping("products", ["item_code", "unit"], "item_code"))
       .toEqual({ requiredColumns: ["item_code", "unit"], matchingKey: "item_code" });
