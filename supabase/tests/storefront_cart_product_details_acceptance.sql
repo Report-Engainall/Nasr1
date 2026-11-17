@@ -118,7 +118,7 @@ INSERT INTO public.inventory_balances(id, product_id, warehouse_id, quantity_ava
   ('a3000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', 12),
   ('b3000000-0000-4000-8000-000000000002', 'b2000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000002', 99);
 
-\ir ../migrations/20261117172000_storefront_cart_product_details.sql
+\ir ../migrations/20261117173000_storefront_cart_product_details.sql
 
 SET app.public_org_id = 'a0000000-0000-4000-8000-000000000001';
 SET app.public_warehouse_id = 'a1000000-0000-4000-8000-000000000001';
