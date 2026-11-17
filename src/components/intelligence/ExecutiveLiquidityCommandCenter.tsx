@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { createDecisionOutcomeProposal } from "@/lib/intelligence/decision-outcome-client";
+import { fetchCashReconciliationWorkspace, type CashReconciliationWorkspace } from "@/lib/finance-cash-account-reconciliation";
+import { getVerifiedCashAccountPosition } from "@/lib/intelligence/cash-account-balance-evidence";
 import { fetchExecutiveCustomerReceivableAging, type CustomerReceivableAgingItem, type CustomerReceivableAgingResult } from "@/lib/intelligence/customer-receivable-aging-client";
 import { buildCustomerReceivableCollectionCandidateId, compareCustomerReceivableAgingRows } from "@/lib/intelligence/customer-receivable-aging-ranking";
 import { RefreshCw } from "lucide-react";
@@ -63,33 +65,87 @@ function CashCountSection({ snapshot }: { snapshot: ExecutiveLiquiditySnapshot }
   );
 }
 
-function CashAccountsSection({ snapshot }: { snapshot: ExecutiveLiquiditySnapshot }) {
+function CashAccountsSection({
+  snapshot,
+  reconciliationWorkspace,
+  reconciliationLoading,
+  reconciliationUnavailable,
+}: {
+  snapshot: ExecutiveLiquiditySnapshot;
+  reconciliationWorkspace: CashReconciliationWorkspace | null;
+  reconciliationLoading: boolean;
+  reconciliationUnavailable: boolean;
+}) {
   return (
     <section className="rounded-xl border p-3 space-y-2">
       <div>
         <h3 className="font-semibold">حسابات الصندوق والبنوك حسب العملة</h3>
-        <p className="text-xs text-muted-foreground">الحسابات المسجلة في إعدادات تسوية الموردين. لا يظهر رصيد متاح دون رصيد افتتاحي وكشف/مطابقة مصرفية مثبتة.</p>
+        <p className="text-xs text-muted-foreground">
+          نعرض آخر رصيد افتتاحي معتمد وآخر إقفال مصرفي متصالح كقيم مؤرخة. لا نعرض أياً منهما كرصد حالي قبل احتساب الحركات اللاحقة كاملة.
+        </p>
       </div>
       {snapshot.cashAccounts.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead><tr className="border-b text-right text-xs text-muted-foreground">
-              <th className="p-2">الحساب</th><th className="p-2">النوع</th><th className="p-2">العملة</th><th className="p-2">الرصيد الحالي</th><th className="p-2">المصدر</th>
+              <th className="p-2">الحساب</th><th className="p-2">النوع</th><th className="p-2">العملة</th>
+              <th className="p-2">الرصيد الحالي</th><th className="p-2">آخر افتتاحي معتمد</th>
+              <th className="p-2">آخر إقفال بنكي متصالح</th><th className="p-2">مصدر الحساب</th>
             </tr></thead>
             <tbody>
-              {snapshot.cashAccounts.map((account) => (
-                <tr key={account.accountId + ":" + account.currency} className="border-b last:border-0">
-                  <td className="p-2">{account.displayName} · {account.accountCode}</td>
-                  <td className="p-2">{account.settlementKind === "cash" ? "صندوق" : "بنك"}</td>
-                  <td className="p-2">{account.currency}</td>
-                  <td className="p-2">غير متاح · <EvidenceStatusLabel status={account.balanceStatus} /></td>
-                  <td className="p-2 text-xs">{account.sourceName}</td>
-                </tr>
-              ))}
+              {snapshot.cashAccounts.map((account) => {
+                const mappings = reconciliationWorkspace?.accounts.filter((item) =>
+                  item.accountId === account.accountId && item.currency === account.currency
+                ) ?? [];
+                const mapping = mappings.length === 1 ? mappings[0] : null;
+                const position = mapping && reconciliationWorkspace
+                  ? getVerifiedCashAccountPosition(reconciliationWorkspace, mapping.id)
+                  : null;
+                const opening = position?.opening;
+                const bankClosing = position?.bankClosing;
+                return (
+                  <tr key={account.accountId + ":" + account.currency} className="border-b last:border-0 align-top">
+                    <td className="p-2">{account.displayName}<div className="text-xs text-muted-foreground">{account.accountCode} · {account.accountName}</div></td>
+                    <td className="p-2">{account.settlementKind === "cash" ? "صندوق" : account.settlementKind === "bank" ? "بنك" : "غير مصنف"}</td>
+                    <td className="p-2">{account.currency}</td>
+                    <td className="p-2">غير متاح<div className="text-xs text-muted-foreground">لا يُستنتج من الرصيد الافتتاحي وحده</div></td>
+                    <td className="p-2">
+                      {opening?.status === "VERIFIED" && opening.amount !== null ? (
+                        <>
+                          <strong>{amount(opening.amount, account.currency)}</strong>
+                          <div className="text-xs text-muted-foreground">في {opening.asOfDate}</div>
+                          <div className="text-xs text-muted-foreground">إثبات: {opening.evidenceId}</div>
+                        </>
+                      ) : reconciliationLoading ? "جارٍ قراءة الإثباتات…" :
+                        reconciliationUnavailable ? "تعذر قراءة سجل الإثباتات" :
+                          mappings.length > 1 ? "أكثر من ربط محاسبي؛ يلزم مراجعة" :
+                            opening?.status === "NEEDS_REVIEW" ? "قيد المراجعة؛ لم يُعرض المبلغ" : "لا يوجد افتتاحي معتمد لهذا الحساب"}
+                    </td>
+                    <td className="p-2">
+                      {account.settlementKind !== "bank" ? "غير منطبق" :
+                        bankClosing?.status === "VERIFIED" && bankClosing.closingBalance !== null ? (
+                          <>
+                            <strong>{amount(bankClosing.closingBalance, account.currency)}</strong>
+                            <div className="text-xs text-muted-foreground">إقفال {bankClosing.periodTo}</div>
+                            <div className="text-xs text-muted-foreground">الكشف: {bankClosing.statementReference}</div>
+                            <div className="text-xs text-muted-foreground">سطور مطابقة: {bankClosing.matchedLineCount}</div>
+                          </>
+                        ) : reconciliationLoading ? "جارٍ قراءة كشوف البنك…" :
+                          reconciliationUnavailable ? "تعذر قراءة سجل المطابقة" :
+                            mappings.length > 1 ? "أكثر من ربط محاسبي؛ يلزم مراجعة" :
+                              bankClosing?.status === "NEEDS_REVIEW" ? "الكشف الأخير غير متصالح بالكامل" : "لا يوجد كشف متصالح"}
+                    </td>
+                    <td className="p-2 text-xs text-muted-foreground">{account.sourceName}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      ) : <p className="text-sm text-muted-foreground">لا توجد حسابات تسوية نقدية/مصرفية مفعّلة في إعدادات حسابات الموردين.</p>}
+      ) : <p className="text-sm text-muted-foreground">لا توجد حسابات صندوق أو بنك مفعلة.</p>}
+      {reconciliationUnavailable ? (
+        <p role="status" className="text-xs text-muted-foreground">لم يتم عرض أرصدة بديلة؛ تعذر الوصول إلى سجل الرصيد الافتتاحي ومطابقة البنك.</p>
+      ) : null}
     </section>
   );
 }
@@ -337,6 +393,9 @@ export function ExecutiveLiquidityCommandCenter({ refreshKey = 0, onDecisionSave
   const [result, setResult] = useState<ExecutiveLiquidityFetchResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [manualRefreshKey, setManualRefreshKey] = useState(0);
+  const [reconciliationWorkspace, setReconciliationWorkspace] = useState<CashReconciliationWorkspace | null>(null);
+  const [reconciliationLoading, setReconciliationLoading] = useState(true);
+  const [reconciliationUnavailable, setReconciliationUnavailable] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -354,6 +413,25 @@ export function ExecutiveLiquidityCommandCenter({ refreshKey = 0, onDecisionSave
         if (active) setResult({ ok: false, status: "UNAVAILABLE", message: "تعذر تحميل مركز القيادة المالية." });
       })
       .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [refreshKey, manualRefreshKey]);
+
+  useEffect(() => {
+    let active = true;
+    setReconciliationLoading(true);
+    setReconciliationWorkspace(null);
+    setReconciliationUnavailable(false);
+    void fetchCashReconciliationWorkspace()
+      .then((value) => {
+        if (!active) return;
+        setReconciliationWorkspace(value);
+      })
+      .catch(() => {
+        if (!active) return;
+        setReconciliationWorkspace(null);
+        setReconciliationUnavailable(true);
+      })
+      .finally(() => { if (active) setReconciliationLoading(false); });
     return () => { active = false; };
   }, [refreshKey, manualRefreshKey]);
 
@@ -390,7 +468,7 @@ export function ExecutiveLiquidityCommandCenter({ refreshKey = 0, onDecisionSave
         <>
           <div className="grid gap-3 xl:grid-cols-2">
             <CashCountSection snapshot={snapshot} />
-            <CashAccountsSection snapshot={snapshot} />
+            <CashAccountsSection snapshot={snapshot} reconciliationWorkspace={reconciliationWorkspace} reconciliationLoading={reconciliationLoading} reconciliationUnavailable={reconciliationUnavailable} />
           </div>
           <CashMovementsSection snapshot={snapshot} />
           <div className="grid gap-3 xl:grid-cols-2">

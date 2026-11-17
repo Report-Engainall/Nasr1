@@ -117,6 +117,8 @@
     "src/lib/intelligence/cashflow-forecast.ts",
     "src/components/intelligence/IntelligenceWorkspace.tsx",
     "src/components/intelligence/ExecutiveLiquidityCommandCenter.tsx",
+    "src/lib/intelligence/cash-account-balance-evidence.test.ts",
+    "src/lib/intelligence/cash-account-balance-evidence.ts",
     "src/lib/intelligence/customer-receivable-aging-client.ts",
     "src/lib/intelligence/customer-receivable-aging-client.test.ts",
     "src/lib/intelligence/customer-receivable-aging-ranking.ts",
