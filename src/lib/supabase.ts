@@ -69,14 +69,6 @@ export async function getCurrentTenantScope(options: { forceRefresh?: boolean } 
 
     return parseCurrentTenantScopePayload(data);
 
-    return {
-      profileId: payload.profile_id,
-      organizationId: payload.organization_id,
-      warehouseId: payload.warehouse_id,
-      isStaff: payload.is_staff,
-      canManageCustomers: payload.can_manage_customers === true,
-      canViewInternalProductPrices: payload.can_view_internal_product_prices === true,
-    };
   })();
 
   tenantScopeCache = { userId, pending };
