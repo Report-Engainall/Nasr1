@@ -228,7 +228,7 @@ function normalizeHeaderToken(value: string): string {
     .trim();
 }
 
-export const DEFAULT_SYNONYMS: Record<string, string> = {
+const LEGACY_DEFAULT_SYNONYMS: Record<string, string> = {
   // Product identity and Onyx item columns.
   "رقم الصنف": "item_code",
   "الصنف": "item_code",
@@ -396,6 +396,13 @@ export const DEFAULT_SYNONYMS: Record<string, string> = {
   "supplier": "supplier_code",
   "supplier_code": "supplier_code",
   ...Object.fromEntries(Object.entries(ONYX_PRO_HEADER_SYNONYMS).filter(([header]) => !["البيان", "product_code"].includes(header))),\n};
+export const DEFAULT_SYNONYMS: Record<string, string> = {
+  ...LEGACY_DEFAULT_SYNONYMS,
+  ...Object.fromEntries(Object.entries(ONYX_PRO_HEADER_SYNONYMS).filter(([header, canonical]) =>
+    !Object.prototype.hasOwnProperty.call(LEGACY_DEFAULT_SYNONYMS, header) ||
+    LEGACY_DEFAULT_SYNONYMS[header] === canonical,
+  )),
+};
 
 const NORMALIZED_DEFAULT_SYNONYMS = new Map(
   Object.entries(DEFAULT_SYNONYMS).map(([key, canonical]) => [normalizeHeaderToken(key), canonical]),
@@ -474,7 +481,7 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   if (hasCustomerCode) {
     return { kind: "customers", matchedFields: ["customer_code", ...customerDetails] };
   }
-  if (hasInventoryMarkers && productDetails.length === 0) {
+  if (set.has("movement_id") || set.has("external_movement_id") || set.has("movement_type")) {\n    return { kind: "inventory", matchedFields: inventoryDetails };\n  }\n  if (hasInventoryMarkers && productDetails.filter((field) => field !== "barcode").length === 0) {
     return { kind: "inventory", matchedFields: inventoryDetails };
   }
   if (hasItemCode && productDetails.length > 0) {
