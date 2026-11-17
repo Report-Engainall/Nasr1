@@ -316,8 +316,9 @@ async function main() {
     const rejectionReason="المستند لا يثبت الالتزام المالي المطلوب";
     await expectCode("a commitment cannot be rejected before source evidence is registered",
       ()=>reject(adminDb,rejected.id,rejectionReason,randomUUID()),"22023");
-    const rejectedEvidence=await uploadEvidence(managerToken,rejected.id);
-    await registerEvidence(managerDb,rejected.id,rejectedEvidence);
+    const rejectedEvidenceUpload=await uploadEvidence(managerToken,rejected.id);
+    const rejectedEvidence=await registerEvidence(managerDb,rejected.id,rejectedEvidenceUpload);
+    assert.equal(typeof rejectedEvidence.id,"string","registered rejected-commitment evidence must expose its persisted evidence id");
     await expectCode("commitment creator cannot reject their own request",
       ()=>reject(managerDb,rejected.id,rejectionReason,randomUUID()),"42501");
     await expectCode("accountant cannot reject an expense commitment",
@@ -325,7 +326,7 @@ async function main() {
     const rejectionKey=randomUUID();
     await expectCode("direct rejection RPC rejects an unreviewed source document",
       ()=>reject(adminDb,rejected.id,rejectionReason,rejectionKey),"22023");
-    const rejectionReview=await reviewEvidence(adminDb,rejected.id,rejectedEvidence.id,rejectedEvidence.sha,randomUUID());
+    const rejectionReview=await reviewEvidence(adminDb,rejected.id,rejectedEvidence.id,rejectedEvidenceUpload.sha,randomUUID());
     assert.equal(rejectionReview.reviewed_by_profile_id,admin.id);
     const rejectedResult=await reject(adminDb,rejected.id,rejectionReason,rejectionKey);
     assert.equal(rejectedResult.status,"rejected");
