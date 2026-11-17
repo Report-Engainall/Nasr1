@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EvidencePassport as PassportData } from "@/lib/intelligence/types";
+import type { ClaimEvidencePassport } from "@/lib/intelligence/claim-evidence-passport";
 import { EvidencePassport } from "./EvidencePassport";
 
 const passport: PassportData = {
@@ -110,6 +111,50 @@ describe("EvidencePassport", () => {
 
     expect(screen.getByText("يحتاج مراجعة")).toBeInTheDocument();
     expect(screen.getAllByText(/general_ledger/).length).toBeGreaterThan(1);
+  });
+
+  it("shows claim classification, refuses unproven causes and requires cross-domain review", () => {
+    const claim: ClaimEvidencePassport = {
+      id: "claim-cross-domain",
+      statement: "هل نقص المخزون سبب تأخر التحصيل؟",
+      requestedKind: "CAUSE",
+      classification: "DRIVER",
+      causalStatus: "NOT_ESTABLISHED",
+      status: "NEEDS_REVIEW",
+      metricIds: ["metric-cash"],
+      evidenceIds: ["ledger:cash-1", "stock:row-1"],
+      metrics: [passport.metrics[0]],
+      sourceRecords: [
+        passport.evidenceRecords[0],
+        {
+          id: "stock:row-1",
+          source: { kind: "TABLE", name: "inventory_balances", recordId: "stock-row-1", version: "1" },
+          sourceTimestamp: "2026-11-01T00:45:00.000Z",
+          asOf: passport.asOf,
+          period: null,
+          status: "VERIFIED",
+          completeness: "COMPLETE",
+          quality: "ACCEPTABLE",
+          warnings: [],
+        },
+      ],
+      formulas: [{ metricId: "metric-cash", formulaId: "cash.available", formulaVersion: "1.0.0" }],
+      domains: ["FINANCE", "INVENTORY"],
+      crossDomainReviewRequired: true,
+      reviewTags: ["CROSS-DOMAIN REVIEW REQUIRED"],
+      confidence: null,
+      confidenceBasis: null,
+      boundaries: ["CAUSE_NOT_ESTABLISHED_DRIVER_ONLY"],
+      rawDrilldown: "SOURCE_REFERENCE_ONLY",
+    };
+    render(<EvidencePassport passport={passport} claims={[claim]} />);
+    const card = screen.getByTestId("claim-evidence-card");
+    expect(card).toHaveTextContent("محرك أو عامل مرتبط");
+    expect(card).toHaveTextContent("السبب غير مثبت");
+    expect(card).toHaveTextContent("CROSS-DOMAIN REVIEW REQUIRED");
+    expect(card).toHaveTextContent("غير محددة من مصدر معتمد");
+    expect(card).toHaveTextContent("inventory_balances");
+    expect(card).toHaveTextContent("لا يجلب حمولة الصفوف الخام");
   });
 
   it("does not render a fabricated source list when the passport has no evidence records", () => {

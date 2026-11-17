@@ -417,6 +417,11 @@ describe("production intelligence workspace inventory screens", () => {
     expect(liquidity).toHaveTextContent("غير متاح");
 
     expect(await screen.findByRole("heading", { name: "جواز الأدلة" })).toBeInTheDocument();
+    const claims = screen.getByRole("region", { name: "جوازات أدلة الادعاءات" });
+    expect(within(claims).getAllByTestId("claim-evidence-card").length).toBeGreaterThan(0);
+    expect(claims).toHaveTextContent("مشاهدة / ادعاء وصفي");
+    expect(claims).toHaveTextContent("محرك أو عامل مرتبط");
+    expect(claims).toHaveTextContent("لا توجد حالياً دراسة سببية مستقلة مقبولة");
     const forecast = screen.getByRole("region", { name: "توقع التدفق النقدي" });
     expect(forecast.textContent).toMatch(/(?:٣٧٥|375)/);
     expect(forecast).toHaveTextContent("الرصيد المتوقع");

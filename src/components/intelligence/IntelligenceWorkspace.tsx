@@ -10,6 +10,7 @@ import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 import { buildApprovedCashOpeningBalances } from "@/lib/intelligence/cash-opening-balance";
 import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
 import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
+import { buildClaimEvidencePassports } from "@/lib/intelligence/claim-evidence-passport";
 import { buildBusinessHealthMap, type BusinessHealthMapResult } from "@/lib/intelligence/business-health-map";
 import { buildDecisionMemoryBook } from "@/lib/intelligence/decision-memory";
 import { fetchCustomerRetentionWorkspaceAggregate, type CustomerRetentionAggregateResult } from "@/lib/intelligence/customer-retention-client";
@@ -1007,6 +1008,29 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       return decisions.candidates.map((decision) => ({ decision, proof, candidateId: candidateIdFor(proof.currency, proof.period) }));
     });
   }, [data, evidencePassport]);
+  const claimEvidencePassports = useMemo(() => {
+    if (!evidencePassport) return [];
+    const observations = evidencePassport.metrics.map((metric) => ({
+      id: "observation:" + metric.id,
+      statement: metric.value === null
+        ? "المؤشر " + metric.key + ": القيمة غير متاحة"
+        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unit),
+      kind: "OBSERVATION" as const,
+      metricIds: [metric.id],
+      boundaries: metric.warnings,
+    }));
+    const drivers = evidenceBackedActions.map(({ decision }) => ({
+      id: "driver:" + decision.id,
+      statement: decision.what + ": " + decision.why,
+      kind: "DRIVER" as const,
+      metricIds: evidencePassport.metrics
+        .filter((metric) => decision.proof.metricKeys.includes(metric.key) && metric.asOf === decision.proof.asOf)
+        .map((metric) => metric.id),
+      boundaries: ["هذا المحرك يفسر تفعيل قاعدة القرار فقط؛ لا يثبت سبب تغير النتيجة."],
+    }));
+    return buildClaimEvidencePassports(evidencePassport, [...observations, ...drivers]);
+  }, [evidencePassport, evidenceBackedActions]);
+
   const liquiditySnapshot = useMemo(() => {
     if (!data?.evidenceRecords.length || !data.measurementMetrics.length) return null;
     const currencies = data.measurementMetrics.map((proof) => ({
@@ -1790,6 +1814,7 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             <div className="grid gap-3 lg:grid-cols-2">
               <EvidencePassport
                 passport={evidencePassport}
+                claims={claimEvidencePassports}
                 state={loading ? "loading" : evidencePassport ? (evidencePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
                 errorMessage={result && !result.ok ? result.message : undefined}
                 onRetry={() => setRefreshKey((value) => value + 1)}
