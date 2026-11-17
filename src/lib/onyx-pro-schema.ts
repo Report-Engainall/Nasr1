@@ -288,7 +288,8 @@ export function getOnyxProHeaderSynonyms(datasetId: string): Record<string, stri
 const onyxHeaderCandidates = new Map<string, Set<string>>();
 for (const dataset of ONYX_PRO_DATASETS) {
   for (const field of dataset.fields) {
-    for (const alias of [field.header, field.field]) {\n      if (alias === "البيان") continue;
+    for (const alias of [field.header, field.field]) {
+      if (alias === "البيان") continue;
       const candidates = onyxHeaderCandidates.get(alias) ?? new Set<string>();
       candidates.add(field.field);
       onyxHeaderCandidates.set(alias, candidates);
