@@ -180,10 +180,11 @@ function OnyxForecastPanel({ analytics }: { analytics: OnyxSnapshotAnalytics }) 
   );
 }
 
-function OnyxSnapshotAnalyticsView({ analytics, rows, selectedId, detailLoading, reconciling, reconciliation, reconciliationError, onReconcile }: {
+function OnyxSnapshotAnalyticsView({ analytics, rows, selectedId, isInventoryStockSnapshot, detailLoading, reconciling, reconciliation, reconciliationError, onReconcile }: {
   analytics: OnyxSnapshotAnalytics;
   rows: OnyxSnapshotRow[];
   selectedId: string;
+  isInventoryStockSnapshot: boolean;
   detailLoading: boolean;
   reconciling: boolean;
   reconciliation: ReconciliationResult | null;
@@ -200,7 +201,7 @@ function OnyxSnapshotAnalyticsView({ analytics, rows, selectedId, detailLoading,
         </article>
         <OnyxReconciliationPanel selectedId={selectedId} detailLoading={detailLoading} reconciling={reconciling} reconciliation={reconciliation} reconciliationError={reconciliationError} onReconcile={onReconcile} />
       </section>
-      <OnyxInventoryReconciliationActions snapshotId={selectedId} />
+      {isInventoryStockSnapshot && <OnyxInventoryReconciliationActions snapshotId={selectedId} />}
       <OnyxTopItemsPanel items={analytics.top_items} />
       <OnyxSourceRowsPanel rows={rows} />
       <OnyxForecastPanel analytics={analytics} />
@@ -390,6 +391,7 @@ export function OnyxSnapshotCenter({ onBack }: { onBack?: () => void }) {
               analytics={analytics}
               rows={rows}
               selectedId={selectedId}
+              isInventoryStockSnapshot={selected?.report_type === "inventory_stock"}
               detailLoading={detailLoading}
               reconciling={reconciling}
               reconciliation={reconciliation}
