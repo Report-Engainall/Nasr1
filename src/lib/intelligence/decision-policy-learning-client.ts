@@ -146,6 +146,7 @@ function parseCandidate(value: unknown): DecisionPolicyLearningCandidate | null 
   const raw = record(value);
   const snapshot = record(raw?.candidateSnapshot);
   const history = Array.isArray(raw?.history) ? raw.history.map(parseEvent) : null;
+  const sourceDecisionIds = snapshot?.sourceDecisionIds;
   if (!raw || !snapshot || !UUID.test(String(raw.id ?? "")) ||
       !string(raw.ruleId, 150) || !string(raw.baseProfileVersion, 80) ||
       !Number.isInteger(raw.candidateVersion) || (raw.candidateVersion as number) < 2 ||
@@ -169,24 +170,24 @@ function parseCandidate(value: unknown): DecisionPolicyLearningCandidate | null 
       snapshot.ruleId !== raw.ruleId ||
       snapshot.baseProfileVersion !== raw.baseProfileVersion ||
       snapshot.candidateVersion !== raw.candidateVersion ||
-      !Array.isArray(snapshot.sourceDecisionIds) || snapshot.sourceDecisionIds.length < 1 ||
-      snapshot.sourceDecisionIds.length > 100 ||
-      snapshot.sourceDecisionIds.some(id => typeof id !== "string" || !UUID.test(id)) ||
+      !Array.isArray(sourceDecisionIds) || sourceDecisionIds.length < 1 ||
+      sourceDecisionIds.length > 100 ||
+      sourceDecisionIds.some(id => typeof id !== "string" || !UUID.test(id)) ||
       !Array.isArray(snapshot.sourceMemorySnapshots) ||
-      snapshot.sourceMemorySnapshots.length !== snapshot.sourceDecisionIds.length ||
+      snapshot.sourceMemorySnapshots.length !== sourceDecisionIds.length ||
       snapshot.sourceMemorySnapshots.some((item, index) => {
         const source = record(item);
         return !source || !UUID.test(String(source.decisionId ?? "")) ||
-          source.decisionId !== snapshot.sourceDecisionIds[index] ||
+          source.decisionId !== sourceDecisionIds[index] ||
           !UUID.test(String(source.snapshotId ?? "")) ||
           !Number.isInteger(source.version) || (source.version as number) < 1 ||
           !iso(source.capturedAt);
       }) ||
-      new Set(snapshot.sourceDecisionIds).size !== snapshot.sourceDecisionIds.length ||
-      !Array.isArray(snapshot.observations) || snapshot.observations.length !== snapshot.sourceDecisionIds.length ||
-      snapshot.observations.some((item,index)=>!validObservation(item,snapshot.sourceDecisionIds[index])) ||
+      new Set(sourceDecisionIds).size !== sourceDecisionIds.length ||
+      !Array.isArray(snapshot.observations) || snapshot.observations.length !== sourceDecisionIds.length ||
+      snapshot.observations.some((item,index)=>!validObservation(item,sourceDecisionIds[index])) ||
       !record(snapshot.metricContext) ||
-      !validCalibration(snapshot.calibration,snapshot.sourceDecisionIds.length) ||
+      !validCalibration(snapshot.calibration,sourceDecisionIds.length) ||
       !validEvidenceIds(snapshot.evidenceIds) ||
       new Set(snapshot.evidenceIds).size !== snapshot.evidenceIds.length ||
       !Array.isArray(snapshot.lessons) || snapshot.lessons.length < 1 ||
