@@ -603,20 +603,25 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         if (quality) setQualityPreview(quality.result());
       };
 
+      const seenStockWarehouseItems = new Set<string>();
       const consumeRow = async (values: string[]) => {
         if (cancelRef.current) return;
         if (!headers) {
           if (values.length > MAX_IMPORT_COLUMNS) throw new Error("عدد الأعمدة يتجاوز الحد الأقصى " + MAX_IMPORT_COLUMNS);
           headers = values.map((value) => {
             const canonical = normalizeHeader(value, profileSynonyms);
+            const stockCanonical = selectedImportKind === "inventory"
+              ? normalizeOnyxStockBalanceHeader(canonical)
+              : canonical;
             const rawKey = normalizeSynonymSource(value);
-            return ignoredColumns.has(canonical) || ignoredColumns.has(rawKey) ? "" : canonical;
+            return ignoredColumns.has(stockCanonical) || ignoredColumns.has(canonical) || ignoredColumns.has(rawKey) ? "" : stockCanonical;
           });
           if (!headers.length || headers.every((value) => !value)) throw new Error("صف العناوين فارغ؛ يلزم تعيين الأعمدة يدويًا.");
           if (new Set(headers.filter(Boolean)).size !== headers.filter(Boolean).length) {
             throw new Error("يوجد أكثر من عنوان يتحول إلى العمود نفسه بعد التطبيع؛ راجع قاموس المرادفات.");
           }
-          const requiredHeaderSet = new Set([...requiredColumns, matchingKey]);
+          const sourceMatchingKey = selectedImportKind === "inventory" ? "item_code" : matchingKey;
+          const requiredHeaderSet = new Set([...requiredColumns, sourceMatchingKey]);
           const missingRequiredHeaders = [...requiredHeaderSet].filter((field) => !headers!.includes(field));
           if (missingRequiredHeaders.length > 0) {
             throw new Error("الملف يفتقد أعمدة إلزامية للملف التعريفي الحالي: " + missingRequiredHeaders.join("، ") + ". صحح صف العناوين أو اختر ملفًا تعريفيًا مطابقًا؛ لم يتم اعتماد أي بيانات.");
@@ -628,8 +633,32 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         if (values.length > MAX_IMPORT_COLUMNS) throw new Error("صف البيانات تجاوز حد الأعمدة.");
         if (dataRows >= MAX_IMPORT_ROWS) throw new Error("تجاوز الملف الحد الأقصى " + MAX_IMPORT_ROWS + " صف.");
         dataRows += 1;
-        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, matchingKey, requiredColumns);
+        const sourceMatchingKey = selectedImportKind === "inventory" ? "item_code" : matchingKey;
+        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, sourceMatchingKey, requiredColumns);
         const parsed: ParsedImportRow = applyImportProfileRules(baseRow, transformations, validations);
+        if (selectedImportKind === "inventory") {
+          const itemCode = String(parsed.data.item_code ?? "").trim();
+          const warehouseCode = String(parsed.data.warehouse_code ?? "").trim();
+          const asOfDate = String(parsed.data.as_of_date ?? "").trim();
+          const unsupportedGranularity = ["unit_code", "base_unit_code", "batch_number", "lot_number", "serial_number"]
+            .filter((field) => String(parsed.data[field] ?? "").trim() !== "");
+          if (!asOfDate) {
+            parsed.errors.push("تاريخ الرصيد as_of_date مطلوب لتوثيق وقت لقطة المخزون.");
+          }
+          if (unsupportedGranularity.length) {
+            parsed.errors.push("لا يمكن تسوية هذا الصف لأن المصالحة الحالية لا تدعم وحدات أو دفعات/تشغيلات/أرقامًا تسلسلية مستقلة: " + unsupportedGranularity.join("، "));
+          }
+          if (itemCode && warehouseCode) {
+            const identity = warehouseCode.toLocaleUpperCase("en") + "::" + itemCode.toLocaleUpperCase("en");
+            if (seenStockWarehouseItems.has(identity)) {
+              parsed.errors.push("يوجد تكرار للصنف نفسه داخل المخزن نفسه؛ اجمع الرصيد في صف واحد قبل الاستيراد.");
+            } else {
+              seenStockWarehouseItems.add(identity);
+            }
+            parsed.data.warehouse_item_key = identity;
+          }
+          if (parsed.errors.length) parsed.status = "rejected";
+        }
         quality?.add(parsed);
         // Already-verified upload chunks have their structured rows committed before their
         // manifest checkpoint. Reparse those bytes locally to rebuild CSV/quality state, but
@@ -816,7 +845,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       const worksheet = worksheets[index];
       const selectedProfileForFile = worksheet.applicationKind === "customers"
         ? await ensureCustomerImportProfile()
-        : activeProfileId;
+        : worksheet.applicationKind === "inventory"
+          ? await ensureOnyxStockBalanceImportProfile()
+          : activeProfileId;
       const duplicate = await findImportDuplicate(fileHash, selectedProfileForFile, periodKey.trim() || null) as DuplicateResult;
       if (duplicate.duplicate) {
         setDuplicatePrompt({
@@ -840,12 +871,13 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       }
     }
     const importedNames = worksheets.map((sheet) => sheet.worksheetName);
+    const inventoryIncluded = worksheets.some((sheet) => sheet.applicationKind === "inventory");
     const unsupportedText = unsupportedWorksheetNames.length
       ? " الأوراق التي لم تُرحّل لعدم وجود مسار اعتماد مطابق: " + unsupportedWorksheetNames.join("، ") + "."
       : " لم توجد أوراق إضافية خارج مسارات الاستيراد المدعومة.";
     setStage("complete");
-    setStatusMessage("اكتملت معالجة أوراق الأصناف والعملاء: " + importedNames.join("، ") + "." + unsupportedText +
-      " تُعتمد كل لقطة على حدة من مركز اللقطات بعد مراجعتها.");
+    setStatusMessage("اكتملت معالجة أوراق المصنف: " + importedNames.join("، ") + "." + unsupportedText +
+      (inventoryIncluded ? " لقطة StockBalances أصبحت جاهزة لمعاينة المخزن ثم اعتماد تسويتها من مركز لقطات أونكس؛ لم تُعدّل الأرصدة أثناء الرفع." : " تُعتمد كل لقطة على حدة من مركز اللقطات بعد مراجعتها."));
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -875,21 +907,26 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         const workbookSheets = await readImportWorkbookSheets(file);
         const supportedWorksheets: ImportWorkbookSheet[] = [];
         const unsupportedWorksheetNames: string[] = [];
-        const supportedKinds = new Map<"products" | "customers", string[]>();
+        const supportedKinds = new Map<"products" | "customers" | "inventory", string[]>();
         for (const sheet of workbookSheets) {
           const detection = detectImportDatasetKind(sheet.headers);
-          if (detection.kind === "products" || detection.kind === "customers") {
-            supportedWorksheets.push({ worksheetName: sheet.worksheetName, applicationKind: detection.kind });
-            const names = supportedKinds.get(detection.kind) ?? [];
+          const normalizedStockHeaders = sheet.headers.map(normalizeOnyxStockBalanceHeader);
+          const isStockBalancesSheet = sheet.worksheetName.trim().toLocaleLowerCase("en") === "stockbalances" &&
+            ["item_code", "warehouse_code", "quantity", "as_of_date"].every((field) => normalizedStockHeaders.includes(field));
+          const applicationKind = detection.kind === "inventory" && isStockBalancesSheet ? "inventory" : detection.kind;
+          if (applicationKind === "products" || applicationKind === "customers" || applicationKind === "inventory") {
+            supportedWorksheets.push({ worksheetName: sheet.worksheetName, applicationKind });
+            const names = supportedKinds.get(applicationKind) ?? [];
             names.push(sheet.worksheetName);
-            supportedKinds.set(detection.kind, names);
+            supportedKinds.set(applicationKind, names);
           } else {
             unsupportedWorksheetNames.push(sheet.worksheetName + " (" + detection.kind + ")");
           }
         }
         for (const [kind, names] of supportedKinds) {
           if (names.length > 1) {
-            throw new Error("يحتوي المصنف على أكثر من ورقة " + (kind === "products" ? "أصناف" : "عملاء") +
+            const kindLabel = kind === "products" ? "أصناف" : kind === "customers" ? "عملاء" : "أرصدة مخزون";
+            throw new Error("يحتوي المصنف على أكثر من ورقة " + kindLabel +
               " (" + names.join("، ") + "). اجمع كل مجموعة في ورقة واحدة بمفتاحها الفريد قبل الاستيراد؛ لم تُنشأ أي دفعة.");
           }
         }
@@ -897,8 +934,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           throw new Error("لم يعثر المصنف على ورقة أصناف أو عملاء قابلة للاستيراد. الأوراق المكتشفة: " +
             unsupportedWorksheetNames.join("، ") + ". لم تُنشأ أي دفعة أو تتغير بيانات.");
         }
-        if (supportedWorksheets.some((sheet) => sheet.applicationKind === "customers") && !canRollbackImport) {
-          throw new Error("يحتوي المصنف على ورقة عملاء؛ استيراد العملاء متاح للمدير أو المدير العام فقط. لم يبدأ أي استيراد.");
+        if (supportedWorksheets.some((sheet) => sheet.applicationKind !== "products") && !canRollbackImport) {
+          throw new Error("يحتوي المصنف على ورقة عملاء أو أرصدة مخزون؛ يلزم حساب مدير/مدير عام. لم يبدأ أي استيراد.");
         }
         await processWorkbookSheets(file, fileHash, supportedWorksheets, unsupportedWorksheetNames);
         return;
@@ -1208,7 +1245,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         <section className="panel import-upload-panel">
           <div className="import-upload-icon"><Upload size={26} /></div>
           <h2>رفع ملف للمعالجة</h2>
-          <p>يدعم CSV وXLSX. يقرأ مصنف Excel متعدد الأوراق ويكشف نوع كل ورقة تلقائيًا، ثم يعالج أوراق الأصناف والعملاء في دفعات منفصلة مرتبطة ببصمة الملف. أوراق المخزون والتسعير والطلبات تُعرّف وتُعرض كغير مرحّلة حتى يكتمل مسار اعتمادها الأصلي؛ لا تُكتب في جداول غير مناسبة.</p>
+          <p>يدعم CSV وXLSX. يقرأ مصنف Excel متعدد الأوراق ويعالج الأصناف والعملاء، كما يجهّز ورقة StockBalances كلقطة مخزون مستقلة. لقطة المخزون لا تغيّر الأرصدة عند الرفع؛ يجب معاينة كل مخزن ثم تطبيق المصالحة المعتمدة من مركز لقطات أونكس. وحدات الأصناف والدفعات وحركات المخزون وقوائم الأسعار والطلبات تبقى غير مرحّلة حتى تتوفر أوامر اعتمادها المخصصة.</p>
           <div className="form-grid">
             <label className="form-field"><span>نوع البيانات في الملف</span>
               <select value={applicationKind} disabled={stage !== null || Boolean(duplicatePrompt)}
@@ -1219,7 +1256,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                 <option value="products">أصناف المنتجات</option>
                 <option value="customers" disabled={!canRollbackImport}>دليل العملاء</option>
               </select>
-              <small>يُستخدم الاختيار اليدوي لملفات CSV غير المعروفة فقط. مصنف XLSX يُصنف ورقةً بورقة، ويُحدد نوع اللقطة من سجل الدفعة المصدر.</small><small>في المصنف الواحد تُرحّل ورقة أصناف واحدة وورقة عملاء واحدة كدفعتين مستقلتين. تكرار أكثر من ورقة لنفس النوع يوقف الملف بدل دمج صفوف غير متجانسة. أرصدة المخزون وقوائم الأسعار والطلبات لا تُعتمد حتى تمر بمساراتها التشغيلية المخصصة.</small>
+              <small>يُستخدم الاختيار اليدوي لملفات CSV غير المعروفة فقط. مصنف XLSX يُصنف ورقةً بورقة، ويُحدد نوع اللقطة من سجل الدفعة المصدر.</small><small>في المصنف الواحد تُرحّل ورقة واحدة لكل نوع: أصناف، عملاء، وStockBalances. لقطة المخزون تتطلب product_code وwarehouse_code وquantity_on_hand وas_of_date؛ وتُرفض صفوف الوحدات/الدفعات/التشغيلات/الأرقام التسلسلية لأن المصالحة الحالية تعتمد كمية الوحدة الأساسية المجمعة لكل صنف ومخزن. لا يعتمد رفع المخزون الرصيد مباشرة.</small>
             </label>
             <label className="form-field"><span>مصدر البيانات</span>
               <select value={sourceSystem} disabled={stage !== null || Boolean(duplicatePrompt)} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
