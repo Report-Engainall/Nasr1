@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach,describe,expect,it,vi } from 'vitest';
-import { fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { afterEach } from 'vitest';
+afterEach(cleanup);
 const mocks=vi.hoisted(()=>({products:vi.fn(),stock:vi.fn()}));
 vi.mock('@/lib/api',()=>({fetchInventoryBatchProducts:mocks.products,fetchInventoryBatchStock:mocks.stock}));
 import { InventoryBatchTracePanel } from './InventoryBatchTracePanel';
