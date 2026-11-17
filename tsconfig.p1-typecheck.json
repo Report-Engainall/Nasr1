@@ -21,6 +21,8 @@
     "src/components/CustomerServiceSlaPolicyPanel.tsx",
     "src/components/CustomerServiceSlaPolicyPanel.test.tsx",
     "src/lib/customer-service-cases.ts",
+    "src/components/CustomerAssetsPanel.tsx",
+    "src/components/CustomerAssetsPanel.replacement.test.tsx",
     "src/components/CustomerNotificationCenter.tsx",
     "src/components/CustomerServiceDesk.tsx",
     "src/components/CustomerServicePortal.tsx",
