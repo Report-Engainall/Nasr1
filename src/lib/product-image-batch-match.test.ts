@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchProductImagesByCode, productImageItemCodeFromFilename } from "./product-image-batch-match";
+import { getProductImageDisplayStatus, matchProductImagesByCode, productImageItemCodeFromFilename } from "./product-image-batch-match";
 
 const file = (name: string) => ({ name });
 
@@ -16,6 +16,32 @@ const product = (overrides: Partial<{
   image_url: null,
   image_gallery_urls: [],
   ...overrides,
+});
+
+describe("product image display status", () => {
+  it("distinguishes missing primary images and counts only unique safe gallery URLs", () => {
+    expect(getProductImageDisplayStatus(null, [
+      "https://cdn.example.test/one.webp",
+      "https://cdn.example.test/one.webp",
+      "http://legacy.example.test/two.jpg",
+      "javascript:alert(1)",
+      "https://cdn.example.test/two.webp",
+    ])).toEqual({
+      hasPrimary: false,
+      galleryCount: 2,
+      totalCount: 2,
+    });
+  });
+
+  it("counts a valid primary image separately from additional gallery images", () => {
+    expect(getProductImageDisplayStatus("https://cdn.example.test/primary.webp", [
+      "https://cdn.example.test/side.webp",
+    ])).toEqual({
+      hasPrimary: true,
+      galleryCount: 1,
+      totalCount: 2,
+    });
+  });
 });
 
 describe("product image filename matching", () => {

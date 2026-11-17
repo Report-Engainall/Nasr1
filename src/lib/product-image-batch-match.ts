@@ -34,6 +34,30 @@ export function hasSafePrimaryProductImageUrl(value: unknown): boolean {
   return typeof value === "string" && /^https:\/\//i.test(value.trim());
 }
 
+export type ProductImageDisplayStatus = {
+  hasPrimary: boolean;
+  galleryCount: number;
+  totalCount: number;
+};
+
+/** Counts only distinct HTTPS media references returned for this product. */
+export function getProductImageDisplayStatus(
+  primaryImageUrl: unknown,
+  galleryImageUrls: readonly unknown[] | null | undefined,
+): ProductImageDisplayStatus {
+  const hasPrimary = hasSafePrimaryProductImageUrl(primaryImageUrl);
+  const galleryCount = new Set(
+    (Array.isArray(galleryImageUrls) ? galleryImageUrls : [])
+      .filter((url): url is string => typeof url === "string" && /^https:\/\//i.test(url.trim()))
+      .map((url) => url.trim()),
+  ).size;
+  return {
+    hasPrimary,
+    galleryCount,
+    totalCount: galleryCount + (hasPrimary ? 1 : 0),
+  };
+}
+
 /** Uses the exact item code first. Numbered suffixes such as SKU__2 or SKU (2) are fallback aliases only. */
 export function productImageItemCodeFromFilename(fileName: string): string | null {
   const basename = fileName.replace(/^.*[\\/]/, "").trim();

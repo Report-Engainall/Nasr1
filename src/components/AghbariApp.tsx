@@ -70,6 +70,7 @@ const UnifiedOnyxAnalysisPanel = lazy(async () => ({ default: (await import('@/c
 const ExecutiveStoreAnalytics = lazy(async () => ({ default: (await import('@/components/ExecutiveStoreAnalytics')).ExecutiveStoreAnalytics }));
 const PromotionManager = lazy(async () => ({ default: (await import('@/components/PromotionManager')).PromotionManager }));
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
+import { getProductImageDisplayStatus } from '@/lib/product-image-batch-match';
 import { PendingProductGalleryFiles } from '@/components/PendingProductGalleryFiles';
 const BulkProductImageUploader = lazy(async () => ({ default: (await import('@/components/BulkProductImageUploader')).BulkProductImageUploader }));
 import { validateCustomerInput } from '@/lib/customer-input';
@@ -1349,14 +1350,37 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
     </div>
     <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز أو SKU أو الباركود..." /></label></div>
       {loading ? <Loading /> : error ? <><ErrorBox message={error} /><Button variant="outline" onClick={() => void refreshProducts()}>إعادة تحميل الصفحة</Button></> : <TableWrap><table>
-        <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
+        <thead><tr><th>المنتج</th><th>الصور</th><th>الرمز</th><th>التصنيف</th><th>حالة المنتج</th><th>السعر</th><th>المتاح</th><th>حالة المخزون</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
           const qty = p.inventory?.quantity_available;
           const reorderPoint = p.inventory?.reorder_point ?? p.min_stock_level;
           const stockStatus = getInventoryAvailabilityStatus(qty, reorderPoint);
           const low = stockStatus === 'low';
+          const imageStatus = getProductImageDisplayStatus(p.image_url, p.image_gallery_urls);
+          const primaryImageUrl = imageStatus.hasPrimary && typeof p.image_url === 'string' ? p.image_url.trim() : null;
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td><td><code>{p.item_code}</code>{p.sku && <small>SKU: {p.sku}</small>}{p.barcode && <small>باركود: {p.barcode}</small>}</td><td>{p.category?.name ?? 'غير مصنف'}</td><td><span className={'badge ' + (p.status === 'inactive' ? 'warning' : p.status === 'active' ? 'success' : 'info')}>{p.status === 'inactive' ? 'مؤرشف' : p.status === 'active' ? 'نشط' : 'غير محدد'}</span></td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td>
+            <td>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 132 }}>
+                {primaryImageUrl ? (
+                  <img src={primaryImageUrl} alt={'الصورة الرئيسية للصنف ' + p.name}
+                    loading="lazy" decoding="async" width={48} height={48}
+                    style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border, #dbe3e8)', background: 'var(--surface, #fff)' }} />
+                ) : (
+                  <span role="img" aria-label={'لا توجد صورة رئيسية للصنف ' + p.name}
+                    style={{ width: 48, height: 48, display: 'grid', placeItems: 'center', borderRadius: 8, border: '1px dashed var(--border, #dbe3e8)', color: 'var(--muted-foreground, #64748b)' }}>
+                    <Package size={18} aria-hidden="true" />
+                  </span>
+                )}
+                <span style={{ display: 'grid', gap: 4 }}>
+                  <span className={'badge ' + (imageStatus.hasPrimary ? 'success' : 'warning')}>
+                    {imageStatus.hasPrimary ? 'صورة رئيسية' : 'بلا صورة رئيسية'}
+                  </span>
+                  <small>{imageStatus.galleryCount.toLocaleString('ar-YE')} صور إضافية</small>
+                </span>
+              </div>
+            </td>
+            <td><code>{p.item_code}</code>{p.sku && <small>SKU: {p.sku}</small>}{p.barcode && <small>باركود: {p.barcode}</small>}</td><td>{p.category?.name ?? 'غير مصنف'}</td><td><span className={'badge ' + (p.status === 'inactive' ? 'warning' : p.status === 'active' ? 'success' : 'info')}>{p.status === 'inactive' ? 'مؤرشف' : p.status === 'active' ? 'نشط' : 'غير محدد'}</span></td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
             <td><span className={'badge ' + (stockStatus === 'unknown' ? 'info' : low ? 'warning' : 'success')}>{stockStatus === 'unknown' ? 'غير متاح' : low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions">

@@ -151,6 +151,19 @@ export function BulkProductImageUploader({
     () => files.map((file) => ({ file, issue: validateProductImageFile(file) })),
     [files],
   );
+  const directPreviewUrls = useMemo(() => {
+    const urls = new Map<string, string>();
+    if (typeof URL.createObjectURL !== "function") return urls;
+    for (const [productId, file] of Object.entries(directImageFiles)) {
+      urls.set(productId, URL.createObjectURL(file));
+    }
+    return urls;
+  }, [directImageFiles]);
+  useEffect(() => () => {
+    if (typeof URL.revokeObjectURL === "function") {
+      for (const url of directPreviewUrls.values()) URL.revokeObjectURL(url);
+    }
+  }, [directPreviewUrls]);
   const invalidFiles = fileChecks.filter((item) => item.issue);
   const validFiles = fileChecks.filter((item) => !item.issue).map((item) => item.file);
   const previewUrls = useMemo(() => {
@@ -525,6 +538,33 @@ export function BulkProductImageUploader({
                           </button>
                         )}
                       </div>
+                      {directImageFiles[product.id] && (
+                        <div className="privacy-note" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          {directPreviewUrls.has(product.id) ? (
+                            <img
+                              src={directPreviewUrls.get(product.id)}
+                              alt={"معاينة الصورة المختارة للصنف " + product.name}
+                              width={88}
+                              height={88}
+                              decoding="async"
+                              style={{ width: 88, height: 88, objectFit: "contain", borderRadius: 8, border: "1px solid var(--border, #dbe3e8)", background: "var(--surface, #fff)" }}
+                            />
+                          ) : (
+                            <span role="img" aria-label={"معاينة غير متاحة للصنف " + product.name}>معاينة غير متاحة</span>
+                          )}
+                          <span style={{ display: "grid", gap: 4, minWidth: 0 }}>
+                            <strong>معاينة الصورة قبل الرفع</strong>
+                            <small dir="auto" style={{ overflowWrap: "anywhere" }}>
+                              {directImageFiles[product.id].name} · {formatProductImageFileSize(directImageFiles[product.id].size)}
+                            </small>
+                          </span>
+                          <button type="button" className="btn ghost"
+                            disabled={busy || directUploadBusyId === product.id}
+                            onClick={() => chooseMissingPrimaryImage(product.id, null)}>
+                            إلغاء اختيار الصورة
+                          </button>
+                        </div>
+                      )}
                       {directImageErrors[product.id] && <div className="form-error" role="alert">{directImageErrors[product.id]}</div>}
                     </article>
                   ))}

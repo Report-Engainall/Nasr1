@@ -33,7 +33,16 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-afterEach(() => cleanup());
+const originalCreateObjectURL = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+const originalRevokeObjectURL = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
+
+afterEach(() => {
+  cleanup();
+  if (originalCreateObjectURL) Object.defineProperty(URL, "createObjectURL", originalCreateObjectURL);
+  else Reflect.deleteProperty(URL, "createObjectURL");
+  if (originalRevokeObjectURL) Object.defineProperty(URL, "revokeObjectURL", originalRevokeObjectURL);
+  else Reflect.deleteProperty(URL, "revokeObjectURL");
+});
 
 function renderUploader(loadProducts: () => Promise<ProductWithInventory[]>, catalogRevision = 0) {
   return render(
@@ -289,6 +298,39 @@ describe("product image coverage and direct completion", () => {
     expect(csv).toContain("'=1+1");
     expect(csv).toContain("'+SUM(A1:A2)");
     expect(csv.split("\r\n")).toHaveLength(3);
+  });
+
+  it("previews the locally selected primary image before any upload begins", async () => {
+    const previewUrl = "blob:http://localhost/product-preview";
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => previewUrl),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
+    const loadProducts = vi.fn().mockResolvedValue([missingProduct]);
+    const { container } = renderUploader(loadProducts);
+    const details = container.querySelector("details");
+    expect(details).not.toBeNull();
+    details!.open = true;
+    fireEvent(details!, new Event("toggle", { bubbles: true }));
+    await waitFor(() => expect(loadProducts).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("اختيار صورة رئيسية للصنف أرز ناقص"), {
+      target: { files: [new File(["source"], "rice-original.jpg", { type: "image/jpeg" })] },
+    });
+
+    const preview = await screen.findByRole("img", {
+      name: "معاينة الصورة المختارة للصنف أرز ناقص",
+    });
+    expect(preview.getAttribute("src")).toBe(previewUrl);
+    expect(screen.getByText("معاينة الصورة قبل الرفع")).toBeTruthy();
+    expect(screen.getByText(/rice-original\.jpg/)).toBeTruthy();
+    expect(uploadProductImage).not.toHaveBeenCalled();
   });
 
   it("uploads a selected image directly as the primary image for a product with no primary image", async () => {
