@@ -236,12 +236,13 @@ BEGIN
 
   IF NEW.metadata IS NULL
      OR pg_catalog.jsonb_typeof(NEW.metadata) IS DISTINCT FROM 'object'
-     OR coalesce(NEW.metadata ->> 'request_key', '') !~ '^[A-Za-z0-9_-]{16,128}
-
-     OR coalesce(NEW.metadata ->> 'request_fingerprint', '') !~ '^[0-9a-f]{32}
-
-     OR coalesce(NEW.metadata ->> 'new_asset_id', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}
-
+     OR pg_catalog.char_length(coalesce(NEW.metadata ->> 'request_key', '')) NOT BETWEEN 16 AND 128
+     OR coalesce(NEW.metadata ->> 'request_key', '') ~ '[^A-Za-z0-9_-]'
+     OR pg_catalog.char_length(coalesce(NEW.metadata ->> 'request_fingerprint', '')) <> 32
+     OR coalesce(NEW.metadata ->> 'request_fingerprint', '') ~ '[^0-9a-f]'
+     OR pg_catalog.char_length(coalesce(NEW.metadata ->> 'new_asset_id', '')) <> 36
+     OR coalesce(NEW.metadata ->> 'new_asset_id', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+     OR NEW.old_status IS NULL
      OR NEW.old_status NOT IN ('active', 'under_maintenance', 'under_repair')
      OR NEW.new_status IS DISTINCT FROM 'replaced'
      OR NEW.actor_profile_id IS NULL THEN
