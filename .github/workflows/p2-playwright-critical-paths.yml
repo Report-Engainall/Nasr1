@@ -633,10 +633,10 @@ jobs:
         run: node scripts/test-cash-expense-journal-posting.mjs
       - name: Test source-backed operating expense commitments, Storage evidence, maker/checker and forecast settlement on PostgreSQL 17
         run: node scripts/test-cash-expense-commitments.mjs
+      - name: Test purchase receipt source-linked accounting draft, independent posting and restrictions
+        run: node scripts/test-purchase-receipt-accounting.mjs
       - name: Test verified business-health supplier payable activity authorization, reconciliation and read-only behavior on PostgreSQL 17
         run: node scripts/test-business-health-supplier-payable-activity.mjs
-      - name: Test purchase receipt source-linked accounting draft and restrictions
-        run: node scripts/test-purchase-receipt-accounting.mjs
       - name: Test verified storefront product review lifecycle and tenant isolation
         run: node scripts/test-storefront-product-reviews.mjs
       - name: Test storefront product questions, moderation and tenant isolation

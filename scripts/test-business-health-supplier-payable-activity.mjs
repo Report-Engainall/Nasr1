@@ -19,6 +19,9 @@ const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
 const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
 const managerEmail = requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
 const customerEmail = requiredEnv("E2E_EMAIL").toLowerCase();
+const expectedJournalId = requiredEnv("E2E_BUSINESS_HEALTH_POSTED_RECEIPT_JOURNAL_ID");
+const expectedReceiptAmount = requiredEnv("E2E_BUSINESS_HEALTH_POSTED_RECEIPT_AMOUNT");
+const expectedReceiptCurrency = requiredEnv("E2E_BUSINESS_HEALTH_POSTED_RECEIPT_CURRENCY");
 validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
@@ -157,8 +160,27 @@ async function main() {
     const from = fromDate.toISOString().slice(0,10);
     const asOf = new Date().toISOString();
     const before = await sideEffectCounts();
+    const linkedPostedJournal = await db.unsafe(
+      "select e.status,e.source_type,posting.source_amount::text as source_amount,posting.source_currency " +
+      "from public.accounting_journal_entries e join public.purchase_receipt_accounting_postings posting " +
+      "on posting.organization_id=e.organization_id and posting.journal_entry_id=e.id " +
+      "where e.organization_id=$1::uuid and e.id=$2::uuid",
+      [organizationId,expectedJournalId],
+    );
+    assert.equal(linkedPostedJournal.length,1,"the source fixture must be linked to one journal");
+    assert.equal(linkedPostedJournal[0].status,"posted");
+    assert.equal(linkedPostedJournal[0].source_type,"purchase_receipt");
+    assert.equal(linkedPostedJournal[0].source_amount,expectedReceiptAmount);
+    assert.equal(linkedPostedJournal[0].source_currency,expectedReceiptCurrency);
+
     const payload = await readActivity(managerDb, from, to, asOf);
     await validatePayload(payload, { from, to, asOf });
+    const observedCurrency = payload.currencies.find(row=>row.currency===expectedReceiptCurrency);
+    assert.ok(observedCurrency,"the newly posted source-linked receipt must appear in its currency rollup");
+    assert.equal(observedCurrency.status,"VERIFIED");
+    assert.ok(minorUnits(observedCurrency.grossPayableCreditAmount)>=minorUnits(expectedReceiptAmount),
+      "the source-linked payable credit must be present in the read-only aggregate");
+    assert.ok(observedCurrency.sourceEntryCount>=1);
 
     await expectCode("same-tenant non-finance customer cannot read supplier payable activity",
       () => readActivity(customerDb, from, to, asOf), "42501");
