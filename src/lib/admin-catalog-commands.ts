@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { isStorefrontArtworkKey, type StorefrontArtworkKey } from './storefront-artwork';
 
 export type AdminCatalogPayload = {
   name: string;
@@ -145,6 +146,22 @@ export async function createAdminCatalogCategory(nameInput: string, parentId: st
   });
   if (error) throw error;
   return data as { id: string; name: string; created: boolean };
+}
+
+export async function setAdminCatalogCategoryArtwork(id: string, artworkKey: StorefrontArtworkKey) {
+  if (!UUID.test(id)) throw new Error('معرّف التصنيف غير صالح.');
+  if (!isStorefrontArtworkKey(artworkKey)) throw new Error('اختيار الرسم التوضيحي غير مدعوم.');
+  const { data, error } = await supabase.rpc('set_admin_catalog_category_artwork', {
+    p_category_id: id,
+    p_artwork_key: artworkKey,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || typeof data.id !== 'string'
+    || data.id.toLowerCase() !== id.toLowerCase() || data.artwork_key !== artworkKey
+    || typeof data.changed !== 'boolean') {
+    throw new Error('لم يؤكد الخادم حفظ رسم التصنيف.');
+  }
+  return data as { id: string; artwork_key: StorefrontArtworkKey; changed: boolean };
 }
 
 export async function archiveAdminCatalogCategory(id: string) {

@@ -1,4 +1,5 @@
 import type { Category } from './types';
+import { isStorefrontArtworkKey } from './storefront-artwork';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PUBLIC_CATEGORY_FIELDS = new Set([
@@ -8,6 +9,7 @@ const PUBLIC_CATEGORY_FIELDS = new Set([
   'parent_id',
   'sort_order',
   'is_active',
+  'icon',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,7 +44,8 @@ export function parsePublicStorefrontCategories(value: unknown): Category[] {
         (typeof entry.parent_id !== 'string' || !UUID_PATTERN.test(entry.parent_id))) ||
       typeof entry.sort_order !== 'number' ||
       !Number.isSafeInteger(entry.sort_order) ||
-      entry.is_active !== true
+      entry.is_active !== true ||
+      (entry.icon != null && !isStorefrontArtworkKey(entry.icon))
     ) {
       throw new Error(`بيانات التصنيف العام رقم ${index + 1} غير مكتملة أو غير صالحة.`);
     }
@@ -55,7 +58,7 @@ export function parsePublicStorefrontCategories(value: unknown): Category[] {
       parent_id: entry.parent_id,
       sort_order: entry.sort_order,
       is_active: true,
-      icon: null,
+      icon: isStorefrontArtworkKey(entry.icon) ? entry.icon : null,
     };
   });
 }

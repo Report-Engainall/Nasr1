@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Layers3, RefreshCw, Tags } from "lucide-react";
+import { ArrowLeft, RefreshCw, Tags } from "lucide-react";
 import { fetchCategories, fetchProducts } from "@/lib/api";
 import { groupStorefrontCategories } from "@/lib/storefront-category-groups";
+import { ProductPlaceholderArtwork, resolveProductPlaceholderVariant } from "@/components/ProductPlaceholderArtwork";
+import { normalizeStorefrontArtworkKey } from "@/lib/storefront-artwork";
 import { storefrontCategorySlug } from "@/lib/storefront-slugs";
 import { useFetch } from "@/lib/useFetch";
 
@@ -83,7 +85,10 @@ function CategoryBranchLink({ parent, category, count }: {
       }}
     >
       <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <Layers3 size={16} aria-hidden="true" />
+        <span style={{ width: 64, height: 48, flex: "0 0 auto", overflow: "hidden", borderRadius: 7 }}>
+          <ProductPlaceholderArtwork productName={category.name} variantOverride={normalizeStorefrontArtworkKey(category.icon, resolveProductPlaceholderVariant({ productName: category.name }))}
+            compact caption="تصنيف" accessibleLabel={"رسم توضيحي للتصنيف " + category.name} />
+        </span>
         <span>{category.name}</span>
       </span>
       <span style={{ flex: "0 0 auto", fontSize: 12, color: "#64777b", fontWeight: 500 }}>
@@ -111,9 +116,12 @@ function CollectionCard({
 
   return (
     <article style={{ border: "1px solid #dce9e8", background: "#fff", borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-        <Layers3 size={22} color="#087f8d" aria-hidden="true" />
-        <h2 style={{ fontSize: 18, margin: 0 }}>{category.name}</h2>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+        <div style={{ width: 100, height: 76, flex: "0 0 auto", overflow: "hidden", borderRadius: 10 }}>
+          <ProductPlaceholderArtwork productName={category.name} variantOverride={normalizeStorefrontArtworkKey(category.icon, resolveProductPlaceholderVariant({ productName: category.name }))}
+            compact caption="رسم تصنيفي" accessibleLabel={"رسم توضيحي للتصنيف " + category.name} />
+        </div>
+        <div><h2 style={{ fontSize: 18, margin: 0 }}>{category.name}</h2><small style={{ color: "#71868a" }}>رسم قابل للتعديل من الإدارة</small></div>
       </div>
       <p style={{ margin: 0, color: "#526b70" }}>
         {category.description || "تصنيف منظم لأصناف الكتالوج المنشور."}
@@ -167,6 +175,10 @@ function AdditionalCategoryCard({
 
   return (
     <article style={{ border: "1px solid #e2e8e8", background: "#fbfdfd", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <div style={{ height: 74, maxWidth: 148, overflow: "hidden", borderRadius: 9 }}>
+        <ProductPlaceholderArtwork productName={category.name} variantOverride={normalizeStorefrontArtworkKey(category.icon, resolveProductPlaceholderVariant({ productName: category.name }))}
+          compact caption="رسم تصنيفي" accessibleLabel={"رسم توضيحي للتصنيف " + category.name} />
+      </div>
       <strong>{category.name}</strong>
       <small style={{ color: "#64777b" }}>
         {parent ? "فرع ضمن " + parent.name : category.parent_id ? "فرع ذو علاقة أب غير متاحة" : "تصنيف مستقل"}

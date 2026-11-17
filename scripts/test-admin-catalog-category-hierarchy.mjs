@@ -194,6 +194,72 @@ async function main() {
       setClaims(customer, customerClaims),
     ]);
 
+    // Storefront artwork changes are tenant-scoped, allowlisted and audited.
+    const artworkCategoryId = await createCategory(managerA, "P2-ARTWORK-CATEGORY-" + suffix);
+    const artworkSaveRows = await managerA.unsafe(
+      "select public.set_admin_catalog_category_artwork($1::uuid,$2::text) as result",
+      [artworkCategoryId, "food"],
+    );
+    const artworkResult = asJson(artworkSaveRows[0]?.result);
+    assert.deepEqual(artworkResult, { id: artworkCategoryId, artwork_key: "food", changed: true });
+    const artworkRows = await db.unsafe(
+      "select icon from public.categories where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId, artworkCategoryId],
+    );
+    assert.equal(artworkRows.length, 1);
+    assert.equal(artworkRows[0].icon, "food", "the category artwork selection must be persisted on the tenant category row");
+    const artworkAuditRows = await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and action='catalog.category_artwork_changed' and entity_type='category' and entity_id=$2::uuid",
+      [organizationId, artworkCategoryId],
+    );
+    assert.equal(artworkAuditRows[0].count, 1, "category artwork update must produce exactly one audit event");
+    await expectSqlState(
+      "ordinary customer cannot change a category illustration",
+      () => customer.unsafe("select public.set_admin_catalog_category_artwork($1::uuid,'beverage')", [artworkCategoryId]),
+      "42501",
+    );
+    await expectSqlState(
+      "manager cannot save an unrecognized category illustration key",
+      () => managerA.unsafe("select public.set_admin_catalog_category_artwork($1::uuid,'https://untrusted.invalid/fake.svg')", [artworkCategoryId]),
+      "22023",
+    );
+
+    // Announcement artwork is persisted through the same audited tenant command, not client-only state.
+    const announcementSaveRows = await managerA.unsafe(
+      "select public.save_storefront_announcement(NULL::uuid,$1::text,$2::text,NULL::text,$3::text,100,true," +
+      "NULL::timestamptz,NULL::timestamptz,'all'::text,$4::text) as id",
+      ["P2 artwork acceptance " + suffix, "Ephemeral local artwork acceptance", "#B99347", "beverage"],
+    );
+    const announcementId = announcementSaveRows[0]?.id;
+    assert.ok(typeof announcementId === "string" && /^[0-9a-f-]{36}$/i.test(announcementId), "announcement save RPC must return its persisted UUID");
+    const announcementRows = await db.unsafe(
+      "select id::text,visual_key,title from public.storefront_announcements where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId, announcementId],
+    );
+    assert.equal(announcementRows.length, 1);
+    assert.equal(announcementRows[0].visual_key, "beverage");
+    const adminAnnouncementRows = await managerA.unsafe(
+      "select id::text,visual_key from public.get_admin_storefront_announcements() where id=$1::uuid",
+      [announcementId],
+    );
+    assert.equal(adminAnnouncementRows.length, 1);
+    assert.equal(adminAnnouncementRows[0].visual_key, "beverage", "admin read contract must return the saved artwork key");
+    const announcementAuditRows = await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and action='storefront_announcement.created' and entity_type='storefront_announcement' and entity_id=$2::uuid",
+      [organizationId, announcementId],
+    );
+    assert.equal(announcementAuditRows[0].count, 1, "announcement art must be included in the normal audit event");
+    await expectSqlState(
+      "ordinary customer cannot create a storefront announcement or choose its artwork",
+      () => customer.unsafe(
+        "select public.save_storefront_announcement(NULL::uuid,'customer denied',NULL::text,NULL::text,'#B99347',100,true," +
+        "NULL::timestamptz,NULL::timestamptz,'all'::text,'food'::text)",
+      ),
+      "42501",
+    );
+
     // AUTHZ: customer role cannot create or archive catalog categories.
     const customerCategoryId = randomUUID();
     await expectSqlState(
@@ -317,6 +383,11 @@ async function main() {
       () => archiveCategory(managerA, foreignCategoryId),
       "P0002",
     );
+    await expectSqlState(
+      "manager cannot edit artwork on another tenant's category",
+      () => managerA.unsafe("select public.set_admin_catalog_category_artwork($1::uuid,'food')", [foreignCategoryId]),
+      "P0002",
+    );
     const foreignState = await db.unsafe(
       "select organization_id::text,is_active,parent_id::text from public.categories where id=$1::uuid",
       [foreignCategoryId],
@@ -404,7 +475,7 @@ async function main() {
     );
 
     process.stdout.write(
-      "PASS category hierarchy PostgreSQL 17 acceptance: direct-child denial; transitive-grandchild denial; descendant active-product denial; inactive-product preservation; tenant-scoped RPC denial; create/archive lock race; product-save/archive lock race; cycle-safe recursive traversal; ordinary-customer role denial\n",
+      "PASS category hierarchy PostgreSQL 17 acceptance: direct-child denial; transitive-grandchild denial; descendant active-product denial; inactive-product preservation; tenant-scoped RPC denial; create/archive lock race; product-save/archive lock race; cycle-safe recursive traversal; ordinary-customer role denial; category and announcement artwork persistence, audit, enum validation and role/tenant denial\n",
     );
   } finally {
     await lockDb.end({ timeout: 5 }).catch(() => {});

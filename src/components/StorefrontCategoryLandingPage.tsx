@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ChevronLeft, Layers3, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronLeft, RefreshCw } from "lucide-react";
 import { Storefront } from "@/components/Storefront";
 import { fetchCategories } from "@/lib/api";
 import { resolveStorefrontCategorySlug, storefrontCategorySlug } from "@/lib/storefront-slugs";
+import { ProductPlaceholderArtwork, resolveProductPlaceholderVariant } from "@/components/ProductPlaceholderArtwork";
+import { normalizeStorefrontArtworkKey } from "@/lib/storefront-artwork";
 import { useFetch } from "@/lib/useFetch";
 
 type StoreCategory = Awaited<ReturnType<typeof fetchCategories>>[number];
@@ -88,7 +90,13 @@ function CategoryPageHeader({
         <p style={{ margin: "12px 0 3px", color: "#64777b", fontSize: 13 }}>
           {isSubcategory ? "فرع من " + parent.name : "تصنيف المنتجات"}
         </p>
-        <h1 style={{ fontSize: 27, margin: "0 0 6px" }}>{active.name}</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+          <div style={{ width: 108, height: 84, flex: "0 0 auto", overflow: "hidden", borderRadius: 12 }}>
+            <ProductPlaceholderArtwork productName={active.name} variantOverride={normalizeStorefrontArtworkKey(active.icon, resolveProductPlaceholderVariant({ productName: active.name }))}
+              compact caption="رسم تصنيفي" accessibleLabel={"رسم توضيحي للتصنيف " + active.name} />
+          </div>
+          <h1 style={{ fontSize: 27, margin: 0 }}>{active.name}</h1>
+        </div>
         <p style={{ margin: 0, color: "#526b70" }}>
           تُحمّل الأصناف المنشورة لهذا التصنيف من الكتالوج المرقّم.
         </p>
@@ -145,7 +153,10 @@ function SubcategoryList({
               }}
             >
               <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-                <Layers3 size={18} aria-hidden="true" />
+                <span style={{ width: 62, height: 48, overflow: "hidden", borderRadius: 7 }}>
+                  <ProductPlaceholderArtwork productName={category.name} variantOverride={normalizeStorefrontArtworkKey(category.icon, resolveProductPlaceholderVariant({ productName: category.name }))}
+                    compact caption="تصنيف" accessibleLabel={"رسم توضيحي للتصنيف " + category.name} />
+                </span>
                 <span>{category.name}</span>
               </span>
               {isCurrent ? (

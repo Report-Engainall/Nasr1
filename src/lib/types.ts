@@ -122,7 +122,7 @@ export interface PromotionInput {
 }
 export interface Banner { id: string; title: string; content: string | null; link: string | null; color: string; priority: number; is_active: boolean; start_date: string | null; end_date: string | null; audience: string }
 export type StorefrontAnnouncementAudience = 'all' | 'customers' | 'staff'
-export interface StorefrontAnnouncement { id: string; title: string; content: string | null; href: string | null; color: string; priority: number; starts_at: string | null; ends_at: string | null; audience: StorefrontAnnouncementAudience; is_active: boolean; created_at?: string; updated_at?: string }
+export interface StorefrontAnnouncement { id: string; title: string; content: string | null; href: string | null; color: string; priority: number; visual_key?: StorefrontArtworkKey; starts_at: string | null; ends_at: string | null; audience: StorefrontAnnouncementAudience; is_active: boolean; created_at?: string; updated_at?: string }
 export type StorefrontAnnouncementInput = Omit<StorefrontAnnouncement, 'id' | 'created_at' | 'updated_at'> & { id: string | null }
 export interface Setting { key: string; value: string; category: string }
 
