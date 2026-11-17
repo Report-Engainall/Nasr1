@@ -43,6 +43,21 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     expect(parsed.rowCount).toBe(1);
   });
 
+  it("selects the Products worksheet by name when it is not the first visible tab", async () => {
+    const bytes = buildOnyxProWorkbook(["orders", "products", "stock_balances"]);
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    const rows: string[][] = [];
+    const parsed = await parseXlsxFirstWorksheet(
+      new Blob([buffer]),
+      (values) => rows.push(values),
+      { preferredWorksheetNames: ["Products"] },
+    );
+    expect(parsed.worksheetNames).toEqual(["Orders", "Products", "StockBalances"]);
+    expect(parsed.worksheetName).toBe("Products");
+    expect(rows[0]).toEqual(getOnyxProHeaders("products"));
+  });
+
   it("supports a selected subset without silently adding unrequested sheets", () => {
     const bytes = buildOnyxProWorkbook(["customers", "price_list_lines"]);
     expect(findAscii(bytes, 'name="Customers"')).toBe(true);
