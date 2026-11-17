@@ -277,17 +277,22 @@ async function main() {
     assert.equal(usdSchedule.entries[0].amount.value,"40.25");
     assert.equal(usdSchedule.entries[0].amount.currency,"USD");
 
-    // A newly uploaded source file must not be injected into an earlier as-of snapshot.
+    // A commitment and its source evidence created after asOf must invalidate a historical snapshot
+    // without modifying the already approved commitment or rewriting its evidence history.
     const evidenceSnapshotAsOf=new Date(Date.now()-1500).toISOString();
-    const lateEvidence=await uploadEvidence(managerToken,yer.id,"image/png");
-    await registerEvidence(managerDb,yer.id,lateEvidence);
+    const snapshotCommitment=await createCommitment(managerDb,{
+      ...yerPayload,category:"Post-snapshot request",description:"New maintenance request created after snapshot",
+      amount:"12.00",reference:"P2-COMMIT-ASOF-"+suffix,
+    },randomUUID());
+    const lateEvidence=await uploadEvidence(managerToken,snapshotCommitment.id,"image/png");
+    await registerEvidence(managerDb,snapshotCommitment.id,lateEvidence);
     const staleSnapshot=await schedule(adminDb,from,to,"YER",evidenceSnapshotAsOf);
-    assert.equal(staleSnapshot.status,"PARTIAL","evidence attached after asOf must invalidate the snapshot");
+    assert.equal(staleSnapshot.status,"PARTIAL","a new post-as-of commitment must invalidate the snapshot");
     assert.equal(staleSnapshot.completeness,"PARTIAL");
     assert.ok(staleSnapshot.changedAfterAsOfCount>=1);
-    assert.equal(staleSnapshot.entries.length,1,"the pre-as-of source remains visible but the snapshot is not complete");
+    assert.equal(staleSnapshot.entries.length,1,"the previously approved source remains visible but the snapshot is not complete");
     assert.equal(staleSnapshot.evidenceRecords.filter((e)=>e.id.startsWith("cash-expense-commitment-evidence:")).length,1,
-      "the evidence passport must not include the post-as-of attachment");
+      "the evidence passport contains only the pre-as-of approved source evidence");
 
     const paymentKey=randomUUID();
     const paid=await recordPayment(accountantDb,yer.id,today,paymentKey);
@@ -339,7 +344,7 @@ async function main() {
       "select event_type from public.cash_expense_commitment_events where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
       [organizationId,yer.id],
     );
-    assert.deepEqual(events.map(x=>x.event_type),["CREATED","EVIDENCE_ATTACHED","APPROVED","EVIDENCE_ATTACHED","PAYMENT_RECORDED","SETTLED"]);
+    assert.deepEqual(events.map(x=>x.event_type),["CREATED","EVIDENCE_ATTACHED","APPROVED","PAYMENT_RECORDED","SETTLED"]);
     const audit=await db.unsafe(
       "select action,actor_id::text from public.audit_logs where organization_id=$1::uuid and entity_type='cash_expense_commitment' and entity_id=$2::uuid order by id",
       [organizationId,yer.id],
