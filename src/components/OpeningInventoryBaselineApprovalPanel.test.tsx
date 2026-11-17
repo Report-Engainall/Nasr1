@@ -112,6 +112,22 @@ describe('OpeningInventoryBaselineApprovalPanel', () => {
     expect(approveOpeningInventoryBaseline).not.toHaveBeenCalled();
   });
 
+  it('translates the backend source-integrity denial without hiding its cause', async () => {
+    vi.mocked(fetchOpeningInventoryBaselinePreview).mockRejectedValue({
+      code: '22023',
+      message: 'opening inventory baseline does not match the exact owner-authorized source set; review preview metrics before approval',
+    });
+    render(<OpeningInventoryBaselineApprovalPanel
+      warehouseId={preview.warehouse_id}
+      warehouseName="المستودع الرئيسي"
+    />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'حُجب الاعتماد لأن مجموعة حركات الافتتاح والأرصدة لا تطابق المصدر المعتمد بالكامل',
+    );
+    expect(approveOpeningInventoryBaseline).not.toHaveBeenCalled();
+  });
+
   it('refuses to offer approval when the source count or quantity does not match the owner batch', async () => {
     vi.mocked(fetchOpeningInventoryBaselinePreview).mockResolvedValue({
       ...preview,
