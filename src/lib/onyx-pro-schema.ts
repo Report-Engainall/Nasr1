@@ -272,12 +272,32 @@ export const ONYX_PRO_DATASET_BY_ID = Object.fromEntries(
   ONYX_PRO_DATASETS.map((dataset) => [dataset.id, dataset]),
 ) as Record<string, OnyxProDataset>;
 
+export function getOnyxProHeaderSynonyms(datasetId: string): Record<string, string> {
+  const dataset = ONYX_PRO_DATASET_BY_ID[datasetId];
+  if (!dataset) throw new Error("نوع بيانات أونكس غير معروف.");
+  return Object.fromEntries(dataset.fields.flatMap((field) => [
+    [field.header, field.field] as const,
+    [field.field, field.field] as const,
+  ]));
+}
+
+/**
+ * Global aliases include only headings with one unambiguous canonical meaning.
+ * Dataset-specific mapping remains available above for names such as "رقم الصنف".
+ */
+const onyxHeaderCandidates = new Map<string, Set<string>>();
+for (const dataset of ONYX_PRO_DATASETS) {
+  for (const field of dataset.fields) {
+    for (const alias of [field.header, field.field]) {
+      const candidates = onyxHeaderCandidates.get(alias) ?? new Set<string>();
+      candidates.add(field.field);
+      onyxHeaderCandidates.set(alias, candidates);
+    }
+  }
+}
 export const ONYX_PRO_HEADER_SYNONYMS: Record<string, string> = Object.fromEntries(
-  ONYX_PRO_DATASETS.flatMap((dataset) =>
-    dataset.fields.flatMap((field) => [
-      [field.header, field.field] as const,
-      [field.field, field.field] as const,
-    ]),
+  [...onyxHeaderCandidates.entries()].flatMap(([alias, candidates]) =>
+    candidates.size === 1 ? [[alias, [...candidates][0]]] : [],
   ),
 );
 
