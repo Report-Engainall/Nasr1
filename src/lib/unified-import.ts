@@ -463,11 +463,15 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   const hasPricingMarkers = set.has("price_list_code") || set.has("price_line_id") ||
     (set.has("price_level_code") && set.has("unit_price"));
 
+  if (hasOrderNumber && (hasCustomerCode || hasItemCode || set.has("order_date"))) {
+    return { kind: "orders", matchedFields: fields.filter((field) =>
+      ["order_number", "external_order_number", "order_id", "customer_code", "item_code"].includes(field),
+    ) };
+  }
   if (hasItemCode && hasCustomerCode) {
     return { kind: "ambiguous", matchedFields: ["item_code", "customer_code"] };
   }
-  if ((hasOrderNumber && (hasCustomerCode || hasItemCode || set.has("order_date"))) ||
-      (hasItemCode && hasOrderLineMarkers)) {
+  if (hasItemCode && hasOrderLineMarkers) {
     return { kind: "orders", matchedFields: fields.filter((field) =>
       ["order_number", "external_order_number", "order_id", "customer_code", "item_code",
         "quotation_number", "beneficiary_id", "reserve_quantities", "discount_1", "discount_2", "discount_3"].includes(field),
