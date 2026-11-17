@@ -160,13 +160,16 @@ describe("claim evidence passports", () => {
       confidence: 0.82,
       confidenceBasis: "registered causal study",
     });
+    expect(built[0].evidenceIds).toContain("causal-1");
+    expect(built[0].crossDomainReviewRequired).toBe(false);
+    expect(built[0].sourceRecords.map((item) => item.source.name)).toContain("causal_studies");
   });
 
   it("withholds an unsourced confidence score and refuses missing metrics", () => {
     const built = buildClaimEvidencePassports(
       passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [record("invoice-1", "customer_invoices")]),
       [
-        { ...oneMetricClaim(), confidence: { value: 0.94, basis: "" } },
+        { ...oneMetricClaim(), confidence: { value: 0.94, basis: "reported by the model only", evidenceIds: [] } },
         { id: "missing", statement: "ادعاء بلا مصدر", kind: "OBSERVATION", metricIds: ["unknown"] },
       ],
     );
