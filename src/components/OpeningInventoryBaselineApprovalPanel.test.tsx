@@ -95,6 +95,23 @@ describe('OpeningInventoryBaselineApprovalPanel', () => {
     expect(fetchOpeningInventoryBaselinePreview).toHaveBeenCalledTimes(2);
   });
 
+  it('explains that owner approval must be provisioned when an admin has no verified owner binding', async () => {
+    vi.mocked(fetchOpeningInventoryBaselinePreview).mockRejectedValue({
+      code: '42501',
+      message: 'verified organization owner identity and approval capability are required',
+    });
+    render(<OpeningInventoryBaselineApprovalPanel
+      warehouseId={preview.warehouse_id}
+      warehouseName="المستودع الرئيسي"
+    />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'لم تُسجّل هوية مالك المؤسسة بشكل موثوق بعد',
+    );
+    expect(screen.queryByRole('button', { name: 'اعتماد خط الأساس الافتتاحي' })).toBeNull();
+    expect(approveOpeningInventoryBaseline).not.toHaveBeenCalled();
+  });
+
   it('refuses to offer approval when the source count or quantity does not match the owner batch', async () => {
     vi.mocked(fetchOpeningInventoryBaselinePreview).mockResolvedValue({
       ...preview,
