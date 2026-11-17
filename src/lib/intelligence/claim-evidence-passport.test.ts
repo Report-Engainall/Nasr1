@@ -175,6 +175,20 @@ describe("claim evidence passports", () => {
     expect(built[0].boundaries).toContain("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
   });
 
+  it("refuses verified quantity claims when the source unit of measure is missing", () => {
+    const quantityMetric = metric("quantity-1", "inventory.available_to_promise", "stock-1", {
+      unit: "QUANTITY",
+      currency: undefined,
+      unitOfMeasure: undefined,
+    });
+    const built = buildClaimEvidencePassports(
+      passport([quantityMetric], [record("stock-1", "inventory_balances", { currency: undefined })]),
+      [{ id: "quantity-claim", statement: "الكمية المتاحة", kind: "OBSERVATION", metricIds: ["quantity-1"] }],
+    );
+    expect(built[0].status).toBe("UNVERIFIED");
+    expect(built[0].boundaries).toContain("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
+  });
+
   it("only publishes a confidence score when its supporting source is verified and linked", () => {
     const built = buildClaimEvidencePassports(
       passport([metric("metric-1", "receivable.outstanding", "invoice-1")], [record("invoice-1", "customer_invoices")]),
