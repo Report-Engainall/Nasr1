@@ -58,7 +58,7 @@ BEGIN
       pg_catalog.jsonb_build_object(
         'id', product.id,
         'category_id', product.category_id,
-        'brand_id', product.brand_id,
+        'brand_id', NULL,
         'name', product.name,
         'name_en', product.name_en,
         'item_code', product.item_code,
