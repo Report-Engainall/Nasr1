@@ -156,12 +156,13 @@ export async function setAdminCatalogCategoryArtwork(id: string, artworkKey: Sto
     p_artwork_key: artworkKey,
   });
   if (error) throw error;
-  if (!data || typeof data !== 'object' || typeof data.id !== 'string'
-    || data.id.toLowerCase() !== id.toLowerCase() || data.artwork_key !== artworkKey
-    || typeof data.changed !== 'boolean') {
+  const payload = data as Record<string, unknown> | null;
+  if (!payload || typeof payload.id !== 'string'
+    || payload.id.toLowerCase() !== id.toLowerCase() || payload.artwork_key !== artworkKey
+    || typeof payload.changed !== 'boolean') {
     throw new Error('لم يؤكد الخادم حفظ رسم التصنيف.');
   }
-  return data as { id: string; artwork_key: StorefrontArtworkKey; changed: boolean };
+  return payload as unknown as { id: string; artwork_key: StorefrontArtworkKey; changed: boolean };
 }
 
 export async function archiveAdminCatalogCategory(id: string) {
