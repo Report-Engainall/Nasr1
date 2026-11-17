@@ -656,13 +656,17 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       for (const item of cart) {
         quantities.set(item.product.id, Math.max(quantities.get(item.product.id) ?? 0, item.quantity));
       }
-      const existingProducts = new Map(cart.map((item) => [item.product.id, item.product]));
       const catalogueProducts = new Map(products.map((product) => [product.id, product]));
-      const merged = [...quantities.entries()].map(([productId, quantity]) => ({
-        product: catalogueProducts.get(productId) ?? existingProducts.get(productId) ?? pendingCartProduct(productId),
-        quantity,
-      }));
-      setCart(merged);
+      // Resolve product objects against the latest cart state at commit time.
+      // The independent cart-product lookup may finish while the account-cart read is in flight;
+      // never replace those hydrated rows with placeholders captured by this effect's stale closure.
+      setCart((currentItems) => {
+        const existingProducts = new Map(currentItems.map((item) => [item.product.id, item.product]));
+        return [...quantities.entries()].map(([productId, quantity]) => ({
+          product: catalogueProducts.get(productId) ?? existingProducts.get(productId) ?? pendingCartProduct(productId),
+          quantity,
+        }));
+      });
       setCustomerCartHydratedFor(persistentCartProfileId);
       setCustomerCartSyncState('pending');
     }).catch(() => {
