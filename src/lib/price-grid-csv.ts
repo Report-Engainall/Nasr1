@@ -1,5 +1,11 @@
 import type { ProductPriceGridRow } from '@/lib/api';
 
+/**
+ * Stable spreadsheet contract shared by CSV and XLSX:
+ * A = sequence, B = item code, C = name, D = unit, E = reserved blank,
+ * F onward = saved prices, then read-only stock and category values.
+ * Never export the internal database ID as a customer-facing spreadsheet column.
+ */
 export const PRICE_GRID_EXPORT_HEADERS = [
   'م',
   'كود الصنف',
