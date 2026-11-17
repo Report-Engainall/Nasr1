@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DecisionMemoryBook } from "./DecisionMemoryBook";
 import type { DecisionMemoryBookResult } from "@/lib/intelligence/decision-memory";
 import type {
   DecisionPolicyLearningCandidate,
   DecisionPolicyLearningEvent,
 } from "@/lib/intelligence/decision-policy-learning-client";
+
+afterEach(() => {
+  cleanup();
+});
 
 const { suggestions, fetchCandidates, createCandidate, commandCandidate } = vi.hoisted(() => ({
   suggestions: vi.fn(),
@@ -195,7 +199,10 @@ describe("DecisionMemoryBook outcome learning controls", () => {
     fireEvent.click(button);
 
     await screen.findByText(/حُفظ مرشح جديد من الأدلة المصدرية/);
-    expect(createCandidate).toHaveBeenCalledWith({ decisionIds: [decisionId] });
+    expect(createCandidate).toHaveBeenCalledWith(expect.objectContaining({
+      decisionIds: [decisionId],
+      idempotencyKey: expect.any(String),
+    }));
     expect(await screen.findByText("Candidate v2 · cashflow.collection.followup")).toBeInTheDocument();
     expect(screen.getByText(/Profile الأساسي: 1.0.0/)).toBeInTheDocument();
     const evidenceToggle=screen.getByText(/عرض القياسات المتوقعة والفعلية والأدلة/);
