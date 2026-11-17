@@ -1,15 +1,15 @@
-\\set ON_ERROR_STOP on
+\set ON_ERROR_STOP on
 
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
-    CREATE ROLE anon NOLOGIN;
+    EXECUTE 'CREATE ROLE anon NOLOGIN';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
-    CREATE ROLE authenticated NOLOGIN;
+    EXECUTE 'CREATE ROLE authenticated NOLOGIN';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'service_role') THEN
-    CREATE ROLE service_role NOLOGIN;
+    EXECUTE 'CREATE ROLE service_role NOLOGIN';
   END IF;
 END;
 $roles$;
@@ -128,8 +128,8 @@ INSERT INTO public.user_roles (profile_id, role) VALUES
   ('66666666-6666-4666-8666-666666666666', 'staff'),
   ('88888888-8888-4888-8888-888888888888', 'admin');
 
-\\ir ../migrations/20261106113000_product_alternate_unit_conversions.sql
-\\ir ../migrations/20261117193000_onyx_product_unit_import.sql
+\ir ../migrations/20261106113000_product_alternate_unit_conversions.sql
+\ir ../migrations/20261117193000_onyx_product_unit_import.sql
 
 DO $acceptance$
 DECLARE
