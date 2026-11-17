@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 
-type CommitmentStatus = "pending_approval" | "approved" | "cancelled" | "payment_recorded" | "settled";
+type CommitmentStatus = "pending_approval" | "approved" | "rejected" | "cancelled" | "payment_recorded" | "settled";
 type Commitment = {
   id:string; commitment_number:string; category:string; description:string; amount:string; currency:string;
   payment_method:"cash"|"transfer"|"card"|"other"; due_date:string; status:CommitmentStatus;
-  created_by_profile_id:string; payment_cash_expense_id:string|null; journal_entry_id:string|null;
+  created_by_profile_id:string; rejection_reason:string|null; rejected_by_profile_id:string|null;
+  payment_cash_expense_id:string|null; journal_entry_id:string|null;
   journal_status:"draft"|"posted"|"void"|null; evidence_count:number;
 };
 type Account = {id:string;code:string;name:string;account_type:"asset"|"expense"};
@@ -21,7 +22,7 @@ const styles={
 };
 const bucket="cash-expense-commitment-evidence";
 const methods={cash:"نقداً",transfer:"تحويل",card:"بطاقة",other:"أخرى"};
-const statuses:Record<CommitmentStatus,string>={pending_approval:"بانتظار اعتماد مستقل",approved:"معتمد — التزام مؤرخ",cancelled:"ملغى",payment_recorded:"سداد مسجل — ينتظر القيد",settled:"مسوّى بقيد مرحّل"};
+const statuses:Record<CommitmentStatus,string>={pending_approval:"بانتظار اعتماد مستقل",approved:"معتمد — التزام مؤرخ",rejected:"مرفوض",cancelled:"ملغى",payment_recorded:"سداد مسجل — ينتظر القيد",settled:"مسوّى بقيد مرحّل"};
 function isObject(x:unknown):x is Record<string,unknown>{return typeof x==="object"&&x!==null&&!Array.isArray(x);}
 function uuid(){return crypto.randomUUID();}
 function validAmount(x:string){return /^\d{1,14}(?:\.\d{1,2})?$/.test(x)&&Number.isFinite(Number(x))&&Number(x)>0;}
@@ -37,8 +38,10 @@ function parseItems(value:unknown):Commitment[]{
    typeof raw.currency!=="string"||!/^[A-Z]{3}$/.test(raw.currency)||
    !["cash","transfer","card","other"].includes(String(raw.payment_method))||
    typeof raw.due_date!=="string"||
-   !["pending_approval","approved","cancelled","payment_recorded","settled"].includes(String(raw.status))||
+   !["pending_approval","approved","rejected","cancelled","payment_recorded","settled"].includes(String(raw.status))||
    typeof raw.created_by_profile_id!=="string"||
+   (raw.rejection_reason!==null&&typeof raw.rejection_reason!=="string")||
+   (raw.rejected_by_profile_id!==null&&typeof raw.rejected_by_profile_id!=="string")||
    (raw.payment_cash_expense_id!==null&&typeof raw.payment_cash_expense_id!=="string")||
    (raw.journal_entry_id!==null&&typeof raw.journal_entry_id!=="string")||
    (raw.journal_status!==null&&!["draft","posted","void"].includes(String(raw.journal_status)))||
@@ -48,6 +51,7 @@ function parseItems(value:unknown):Commitment[]{
   return {id:raw.id,commitment_number:raw.commitment_number,category:raw.category,description:raw.description,
    amount:raw.amount,currency:raw.currency,payment_method:raw.payment_method as Commitment["payment_method"],
    due_date:raw.due_date,status:raw.status as CommitmentStatus,created_by_profile_id:raw.created_by_profile_id,
+   rejection_reason:raw.rejection_reason as string|null,rejected_by_profile_id:raw.rejected_by_profile_id as string|null,
    payment_cash_expense_id:raw.payment_cash_expense_id as string|null,journal_entry_id:raw.journal_entry_id as string|null,
    journal_status:raw.journal_status as Commitment["journal_status"],evidence_count:raw.evidence_count};
  });
@@ -143,6 +147,9 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
  async function approve(item:Commitment){const reason=window.prompt("سبب اعتماد الالتزام والمصدر:", "");if(reason===null)return;
   if(reason.trim().length<3||reason.trim().length>500){setError("سبب الاعتماد 3–500 حرف.");return;}
   await action("approve",item,{reason:reason.trim()},"approve_cash_expense_commitment",{p_commitment_id:item.id,p_reason:reason.trim()});}
+ async function reject(item:Commitment){const reason=window.prompt("سبب رفض الالتزام والمستند:", "");if(reason===null)return;
+  if(reason.trim().length<3||reason.trim().length>500){setError("سبب الرفض 3–500 حرف.");return;}
+  await action("reject",item,{reason:reason.trim()},"reject_cash_expense_commitment",{p_commitment_id:item.id,p_reason:reason.trim()});}
  async function cancel(item:Commitment){const reason=window.prompt("سبب الإلغاء (5 أحرف على الأقل):","");if(reason===null)return;
   if(reason.trim().length<5||reason.trim().length>500){setError("سبب الإلغاء 5–500 حرف.");return;}
   await action("cancel",item,{reason:reason.trim()},"cancel_cash_expense_commitment",{p_commitment_id:item.id,p_reason:reason.trim()});}
@@ -189,8 +196,10 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
      <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><div><strong>#{item.commitment_number} — {item.category}</strong><p style={styles.muted}>{item.description}</p></div>
       <strong>{(() => { const [whole,fraction="00"]=item.amount.split("."); return BigInt(whole).toLocaleString("ar-YE")+"."+fraction.padEnd(2,"0")+" "+item.currency; })()}<small style={{display:"block",fontWeight:400}}>الاستحقاق: {item.due_date}</small></strong></div>
      <p style={styles.muted}>{statuses[item.status]} · مرفقات: {item.evidence_count} · القيد: {item.journal_status??"غير منشأ"}</p>
+     {item.status==="rejected"?<p style={styles.muted}>سبب الرفض: {item.rejection_reason??"مسجل في سجل التدقيق."}</p>:null}
      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       {canReview&&item.status==="pending_approval"&&!isCreator?<button style={styles.primary} disabled={working||item.evidence_count===0} onClick={()=>void approve(item)}>اعتماد مستقل مع السبب</button>:null}
+      {canReview&&item.status==="pending_approval"&&!isCreator?<button style={styles.button} disabled={working||item.evidence_count===0} onClick={()=>void reject(item)}>رفض مع حفظ السبب</button>:null}
       {canReview&&["pending_approval","approved"].includes(item.status)?<button style={styles.button} disabled={working} onClick={()=>void cancel(item)}>إلغاء مع السبب</button>:null}
       {item.status==="approved"&&item.currency==="YER"?<button style={styles.button} disabled={working} onClick={()=>void pay(item)}>تسجيل السداد الفعلي</button>:null}
       {item.status==="approved"&&item.currency!=="YER"?<span style={styles.muted}>السداد الأجنبي متوقف حتى اعتماد FX.</span>:null}
