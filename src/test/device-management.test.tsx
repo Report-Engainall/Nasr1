@@ -19,6 +19,10 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: mocks.useAuth }));
+// This unit suite covers organization sessions; the customer device-request panel has its own test surface.
+vi.mock("@/components/CustomerDeviceChangeRequests", () => ({
+  AdminCustomerDeviceChangeRequests: () => null,
+}));
 
 import { DeviceManagement } from '@/components/DeviceManagement';
 
