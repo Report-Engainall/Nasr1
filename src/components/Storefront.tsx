@@ -1239,16 +1239,19 @@ function StorefrontProductCardPurchase({
 
   return (
     <div className="sf-card-purchase" style={{ display: 'grid', gap: 8, padding: '0 12px 12px' }}>
-      {quantityKnown && !out && !belowMinimum ? (
-        <CartQuantityControl
-          productName={product.name}
-          quantity={quantity}
-          minimum={minimum}
-          multiple={multiple}
-          available={product.inventory?.quantity_available}
-          onCommit={setQuantity}
-        />
-      ) : null}
+      <CartQuantityControl
+        productName={product.name}
+        quantity={quantity}
+        minimum={minimum}
+        multiple={multiple}
+        available={quantityKnown ? product.inventory?.quantity_available : undefined}
+        onCommit={setQuantity}
+      />
+      {!quantityKnown && (
+        <small role="note" style={{ color: "#7b6b3c", fontSize: 11, lineHeight: 1.6 }}>
+          حدد الكمية المطلوبة؛ وستبقى الإضافة متوقفة حتى يتم التحقق من المخزون.
+        </small>
+      )}
       <button
         type="button"
         className="sf-add-btn"
