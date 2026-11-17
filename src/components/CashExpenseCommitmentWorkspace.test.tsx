@@ -56,7 +56,7 @@ beforeEach(()=>{
  installData();
  vi.stubGlobal("crypto",{randomUUID:()=>"66666666-6666-4666-8666-666666666666"});
 });
-afterEach(()=>{cleanup();vi.unstubAllGlobals();});
+afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe("CashExpenseCommitmentWorkspace rejection lifecycle",()=>{
  it("requires every source document to be opened and reviewed before independent rejection",async()=>{

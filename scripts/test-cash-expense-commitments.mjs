@@ -109,6 +109,13 @@ async function cancel(client, id, reason, key) {
   );
   return asJson(rows[0].result);
 }
+async function reject(client, id, reason, key) {
+  const rows = await client.unsafe(
+    "select public.reject_cash_expense_commitment($1::uuid,$2::text,$3::uuid) as result",
+    [id,reason,key],
+  );
+  return asJson(rows[0].result);
+}
 async function recordPayment(client, id, paymentDate, key) {
   const rows = await client.unsafe(
     "select public.record_cash_expense_commitment_payment($1::uuid,$2::date,$3::uuid) as result",
@@ -245,6 +252,54 @@ async function main() {
     assert.ok(!cancelledSchedule.entries.some((entry)=>entry.id==="cash-expense-commitment-outflow:"+cancelled.id),
       "a cancelled commitment must never become a forecast cash outflow");
 
+    // Rejection is an independent maker/checker transition; it requires evidence, reason,
+    // tenant-scoped reviewer authority and an idempotency key, and never enters cashflow.
+    const rejectedPayload={...yerPayload,category:"Rejected facility",description:"Facility option rejected after document review",
+      amount:"19.50",reference:"P2-COMMIT-REJECT-"+suffix};
+    const rejected=await createCommitment(managerDb,rejectedPayload,randomUUID());
+    assert.equal(rejected.status,"pending_approval");
+    const rejectionReason="المستند لا يثبت الالتزام المالي المطلوب";
+    await expectCode("a commitment cannot be rejected before source evidence is registered",
+      ()=>reject(adminDb,rejected.id,rejectionReason,randomUUID()),"22023");
+    const rejectedEvidence=await uploadEvidence(managerToken,rejected.id);
+    await registerEvidence(managerDb,rejected.id,rejectedEvidence);
+    await expectCode("commitment creator cannot reject their own request",
+      ()=>reject(managerDb,rejected.id,rejectionReason,randomUUID()),"42501");
+    await expectCode("accountant cannot reject an expense commitment",
+      ()=>reject(accountantDb,rejected.id,rejectionReason,randomUUID()),"42501");
+    const rejectionKey=randomUUID();
+    const rejectedResult=await reject(adminDb,rejected.id,rejectionReason,rejectionKey);
+    assert.equal(rejectedResult.status,"rejected");
+    assert.equal(rejectedResult.replayed,false);
+    assert.equal((await reject(adminDb,rejected.id,rejectionReason,rejectionKey)).replayed,true,
+      "an exact rejection retry must return the original audited decision");
+    await expectCode("rejection idempotency rejects a changed reason",
+      ()=>reject(adminDb,rejected.id,"سبب رفض مختلف للطلب نفسه",rejectionKey),"23505");
+    const rejectedRow=await db.unsafe(
+      "select status,rejected_by_profile_id::text as rejected_by,rejected_at,rejection_reason " +
+      "from public.cash_expense_commitments where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId,rejected.id],
+    );
+    assert.equal(rejectedRow[0].status,"rejected");
+    assert.equal(rejectedRow[0].rejected_by,admin.id);
+    assert.ok(rejectedRow[0].rejected_at);
+    assert.equal(rejectedRow[0].rejection_reason,rejectionReason);
+    const rejectedEvents=await db.unsafe(
+      "select event_type from public.cash_expense_commitment_events " +
+      "where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
+      [organizationId,rejected.id],
+    );
+    assert.deepEqual(rejectedEvents.map(x=>x.event_type).sort(),["CREATED","EVIDENCE_ATTACHED","REJECTED"]);
+    const rejectedAudit=await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and action='finance.cash_expense_commitment.rejected' and entity_type='cash_expense_commitment' and entity_id=$2::uuid",
+      [organizationId,rejected.id],
+    );
+    assert.equal(rejectedAudit[0].count,1,"rejection appends one immutable audit record");
+    const rejectedSchedule=await schedule(adminDb,today,dueDate,"YER");
+    assert.ok(!rejectedSchedule.entries.some((entry)=>entry.id==="cash-expense-commitment-outflow:"+rejected.id),
+      "a rejected commitment must never become a forecast cash outflow");
+
     // A second-currency commitment is separately filtered. No rate conversion is performed.
     const usdPayload={...yerPayload,category:"Equipment",description:"Imported equipment service fee",amount:"40.25",
       currency:"USD",reference:"P2-COMMIT-USD-"+suffix};
@@ -358,7 +413,7 @@ async function main() {
     assert.ok(!denied.ok,"Storage upload to a path without a same-tenant pending commitment must be denied");
     process.stdout.write(
       "PASS PostgreSQL 17 operating expense commitment acceptance: real local Storage upload and tenant path denial; " +
-      "evidence-gated maker/checker and audited rejection; database due-date horizon; exact-cent and immutable append-only lifecycle; idempotency/replay/conflict; " +
+      "evidence-gated maker/checker with independently authorized rejection, missing-evidence denial, rejection replay/conflict and append-only audit; database due-date horizon; exact-cent and immutable append-only lifecycle; idempotency/replay/conflict; " +
       "same-currency YER/USD separation and blocked FX payment; verified 90-day outflow lineage; payment-awaiting-journal PARTIAL; " +
       "balanced cash-expense source journal; independent posting-triggered settlement; source audit/event trail.\n",
     );
