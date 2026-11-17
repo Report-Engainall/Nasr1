@@ -577,7 +577,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       quantity,
     }));
     setCart(restored);
-  }, [authReady, products, cartStorageKey, cartRestored, user?.profileId]);  }, [products, cartStorageKey, cartRestored, productsLoading, productsError, user?.profileId]);
+  }, [authReady, products, cartStorageKey, cartRestored, user?.profileId]);
 
   useEffect(() => {
     if (!cartRestored || typeof window === 'undefined') return;
