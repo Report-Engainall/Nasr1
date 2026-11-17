@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ user: mocks.user, ready: true, sessionRevision: 1 }),
 }));
+vi.mock("@tanstack/react-router", () => ({
+  useLocation: () => ({ searchStr: window.location.search }),
+}));
 vi.mock("@/components/AdminPages", () => ({
   Button: ({ children, onClick, disabled }: { children?: ReactNode; onClick?: () => void; disabled?: boolean }) =>
     <button type="button" onClick={onClick} disabled={disabled}>{children}</button>,
@@ -46,6 +49,7 @@ import { CustomerServiceDesk } from "@/components/CustomerServiceDesk";
 import { CustomerServicePortal } from "@/components/CustomerServicePortal";
 
 const CASE_CODE = "CASE-A1B2C3D4E5";
+const SECOND_CASE_CODE = "CASE-0F1E2D3C4B";
 const emptyDeskPage = {
   items: [],
   summary: {
@@ -93,6 +97,43 @@ describe("customer service case deep-link screens", () => {
     }));
     expect(screen.getByPlaceholderText(/ابحث برقم الحالة/)).toHaveValue(CASE_CODE);
     expect(screen.getByRole("status")).toHaveTextContent(CASE_CODE);
+  });
+
+  it("switches the staff desk to a second linked case without remounting", async () => {
+    window.history.replaceState({}, "", "/admin/service-desk?caseCode=" + CASE_CODE);
+    const view = render(<CustomerServiceDesk onNotice={vi.fn()} onOpenTask={vi.fn()} />);
+    await waitFor(() => expect(mocks.fetchDeskPage).toHaveBeenCalledWith({
+      filters: expect.objectContaining({ status: "all", search: CASE_CODE }),
+      limit: 50,
+    }));
+
+    window.history.replaceState({}, "", "/admin/service-desk?caseCode=" + SECOND_CASE_CODE);
+    view.rerender(<CustomerServiceDesk onNotice={vi.fn()} onOpenTask={vi.fn()} />);
+
+    await waitFor(() => expect(mocks.fetchDeskPage).toHaveBeenLastCalledWith({
+      filters: expect.objectContaining({ status: "all", search: SECOND_CASE_CODE }),
+      limit: 50,
+    }));
+    expect(screen.getByPlaceholderText(/ابحث برقم الحالة/)).toHaveValue(SECOND_CASE_CODE);
+    expect(screen.getByRole("status")).toHaveTextContent(SECOND_CASE_CODE);
+  });
+
+  it("switches the customer portal to a second linked case without remounting", async () => {
+    mocks.user = { id: "customer-user-1", profileId: "customer-profile-1", isStaff: false, roles: ["customer"] };
+    window.history.replaceState({}, "", "/service-cases?caseCode=" + CASE_CODE);
+    const view = render(<CustomerServicePortal />);
+    await waitFor(() => expect(mocks.fetchPortalPage).toHaveBeenCalledWith(expect.objectContaining({ search: CASE_CODE })));
+
+    window.history.replaceState({}, "", "/service-cases?caseCode=" + SECOND_CASE_CODE);
+    view.rerender(<CustomerServicePortal />);
+
+    await waitFor(() => expect(mocks.fetchPortalPage).toHaveBeenLastCalledWith(expect.objectContaining({
+      search: SECOND_CASE_CODE,
+      status: null,
+      caseType: null,
+    })));
+    expect(screen.getByPlaceholderText(/رقم الحالة أو كلمة من المحادثة/)).toHaveValue(SECOND_CASE_CODE);
+    expect(screen.getByRole("status")).toHaveTextContent(SECOND_CASE_CODE);
   });
 
   it("loads only the signed-in customer's matching case in the customer portal", async () => {
