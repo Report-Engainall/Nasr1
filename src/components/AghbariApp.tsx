@@ -89,6 +89,8 @@ import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type StoreProductActivityReport } from '@/lib/product-activity-report';
 import { adminRecordContextStorageKey, previousAdminRecordContextStorageKey, getAdminRecordContextStorage, readAdminRecordContext, writeAdminRecordContext, LEGACY_ADMIN_RECORD_CONTEXT_KEY, type AdminRecordContextData } from '@/lib/admin-record-context';
 
+import { WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
+
 export type AdminView = 'dashboard' | 'products' | 'categories' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence' | 'service-desk' | 'system-health' | 'error-log' | 'architecture' | 'engine-status';
 export type AdminAppProps = { initialView?: AdminView };
 type View = AdminView;
@@ -1018,7 +1020,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
 function Sparkline() { return <svg className="sparkline" viewBox="0 0 160 52" aria-hidden="true"><path d="M2 42 C25 43 25 28 43 31 S65 42 79 27 S104 25 114 17 S139 24 158 6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>; }
 
 function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string; title: string; description: string; icon: IconType }) {
-  return <div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>;
+  return <WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />;
 }
 
 function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; initialSearch?: string }) {
