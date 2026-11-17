@@ -86,16 +86,19 @@ describe("supplier payable concentration trend", () => {
   });
 
   it.each([
-    ["different as-of snapshots", snapshot(currentPeriod), { ...snapshot(baselinePeriod), asOf: "2026-11-17T11:59:59.000Z" }],
-    ["overlapping periods", snapshot({ from: "2026-08-01", to: "2026-10-31" }), snapshot({ from: "2026-05-01", to: "2026-08-01" })],
-    ["wrong financial net", snapshot(currentPeriod, [row("YER", { netPayableMovementAmount: 874.99 })]), snapshot(baselinePeriod)],
-    ["wrong concentration ratio", snapshot(currentPeriod, [row("YER", { top5GrossPayableCreditPercent: 80.01 })]), snapshot(baselinePeriod)],
-    ["duplicate currency", snapshot(currentPeriod, [row("YER"), row("YER", { sourceEntryCount: 9, supplierCount: 6 })]), snapshot(baselinePeriod)],
-  ])("fails closed for %s", (_name, current, baseline) => {
-    const result = buildSupplierPayableConcentrationTrend(current, baseline);
+    ["wrong financial net", snapshot(currentPeriod, [row("YER", { netPayableMovementAmount: 874.99 })]), "SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"],
+    ["wrong concentration ratio", snapshot(currentPeriod, [row("YER", { top5GrossPayableCreditPercent: 80.01 })]), "SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"],
+    ["duplicate currency", snapshot(currentPeriod, [row("YER"), row("YER", { sourceEntryCount: 9, supplierCount: 6 })]), "SUPPLIER_TREND_SOURCE_CONTRACT_INVALID"],
+    ["different as-of snapshots", { ...snapshot(currentPeriod), asOf: "2026-11-17T11:59:59.000Z" }, "SUPPLIER_TREND_AS_OF_MISMATCH"],
+    ["overlapping periods", snapshot({ from: "2026-05-01", to: "2026-08-01" }), "SUPPLIER_TREND_PERIODS_NOT_ADJACENT_AND_EQUAL"],
+  ])("fails closed for %s", (_name, changedCurrent, warning) => {
+    const result = buildSupplierPayableConcentrationTrend(
+      changedCurrent as SupplierPostedPayableActivitySnapshot,
+      snapshot(baselinePeriod),
+    );
     expect(result.status).toBe("NOT_COMPARABLE");
     expect(result.comparisons).toEqual([]);
-    expect(result.warnings).toContain("SUPPLIER_TREND_SOURCE_CONTRACT_INVALID");
+    expect(result.warnings).toContain(warning);
   });
 
   it("does not calculate a delta when the previous period is empty", () => {
