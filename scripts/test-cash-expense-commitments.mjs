@@ -158,10 +158,12 @@ async function main() {
 
     const invalidDueDate=new Date();
     invalidDueDate.setUTCFullYear(invalidDueDate.getUTCFullYear()+11);
-    await expectCode("database rejects an operating commitment beyond ten years",
-      ()=>createCommitment(managerDb,{category:"Date guard",description:"Out-of-horizon operating expense",amount:"1.00",
-        currency:"YER",payment_method:"cash",reference:"P2-COMMIT-DATE-GUARD-"+randomUUID().slice(0,8),
-        due_date:invalidDueDate.toISOString().slice(0,10)},randomUUID()),"22023");
+    await expectCode("PostgreSQL due-date trigger rejects a commitment more than ten years ahead",
+      ()=>db.unsafe(
+        "insert into public.cash_expense_commitments(organization_id,category,description,amount,currency,payment_method,due_date,idempotency_key,payload_fingerprint,created_by_profile_id) " +
+        "values($1::uuid,'Date guard','Out-of-horizon operating expense',1.00,'YER','cash',$2::date,$3::uuid,md5('due-date-guard'),$4::uuid)",
+        [organizationId,invalidDueDate.toISOString().slice(0,10),randomUUID(),manager.id],
+      ),"22023");
     const [managerToken, adminToken] = await Promise.all([
       signIn(managerEmail,requiredEnv("E2E_MANAGER_PASSWORD")),
       signIn(adminEmail,requiredEnv("E2E_DEVICE_ADMIN_PASSWORD")),
