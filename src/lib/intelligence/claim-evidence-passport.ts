@@ -169,6 +169,7 @@ function metricEvidenceIsValid(
     validTime(source.sourceTimestamp) &&
     Date.parse(source.sourceTimestamp) <= Date.parse(metric.asOf) &&
     (!metric.period || samePeriod(source.period, metric.period)) &&
+    (metric.unit !== "QUANTITY" || Boolean(metric.unitOfMeasure?.trim())) &&
     ((metric.unit !== "CURRENCY" && metric.unit !== "CURRENCY_PER_UNIT") ||
       (Boolean(metric.currency?.trim()) && source.currency === metric.currency))
   );
