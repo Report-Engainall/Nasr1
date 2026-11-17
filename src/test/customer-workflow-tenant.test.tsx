@@ -947,7 +947,15 @@ describe("customer quote workspace tenant boundary", () => {
     expect(router.state.location.pathname).toBe("/barcode");
     expect(host?.textContent).toContain("أُضيف سكر أبيض");
     expect(host?.textContent).toContain("مسح صنف آخر");
-    expect(host?.textContent).toContain("فتح المتجر والسلة");
+    const openCartButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("فتح سلة المشتريات"),
+    );
+    expect(openCartButton).toBeDefined();
+    await act(async () => {
+      openCartButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(router.state.location.pathname).toBe("/cart");
   });
 
 });
