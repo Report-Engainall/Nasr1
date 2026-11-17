@@ -396,14 +396,42 @@ async function main() {
 
     // A commitment and its source evidence created after asOf must invalidate a historical snapshot
     // without modifying the already approved commitment or rewriting its evidence history.
-    const evidenceSnapshotAsOf=new Date(Date.now()-1500).toISOString();
+    const snapshotClock=await db.unsafe("select clock_timestamp() as snapshot_at");
+    const evidenceSnapshotAsOf=snapshotClock[0].snapshot_at;
+    const priorSnapshotSource=await db.unsafe(
+      "select c.status,c.due_date::text as due_date, " +
+      "(c.created_at<=$2::timestamptz) as created_before_snapshot, " +
+      "(c.updated_at<=$2::timestamptz) as updated_before_snapshot, " +
+      "exists(select 1 from public.cash_expense_commitment_evidence e where e.organization_id=c.organization_id " +
+      "and e.commitment_id=c.id and e.created_at<=$2::timestamptz) as evidence_before_snapshot " +
+      "from public.cash_expense_commitments c where c.organization_id=$1::uuid and c.id=$3::uuid",
+      [organizationId,evidenceSnapshotAsOf,yer.id],
+    );
+    assert.equal(priorSnapshotSource[0]?.status,"approved");
+    assert.equal(priorSnapshotSource[0]?.created_before_snapshot,true);
+    assert.equal(priorSnapshotSource[0]?.updated_before_snapshot,true);
+    assert.equal(priorSnapshotSource[0]?.evidence_before_snapshot,true);
     const snapshotCommitment=await createCommitment(managerDb,{
       ...yerPayload,category:"Post-snapshot request",description:"New maintenance request created after snapshot",
       amount:"12.00",reference:"P2-COMMIT-ASOF-"+suffix,
     },randomUUID());
+    const snapshotCreated=await db.unsafe(
+      "select created_at>$2::timestamptz as created_after_snapshot from public.cash_expense_commitments " +
+      "where organization_id=$1::uuid and id=$3::uuid",
+      [organizationId,evidenceSnapshotAsOf,snapshotCommitment.id],
+    );
+    assert.equal(snapshotCreated[0]?.created_after_snapshot,true,"the new fixture must be created after the database-issued snapshot clock");
     const lateEvidence=await uploadEvidence(managerToken,snapshotCommitment.id,"image/png");
     await registerEvidence(managerDb,snapshotCommitment.id,lateEvidence);
     const staleSnapshot=await schedule(adminDb,from,to,"YER",evidenceSnapshotAsOf);
+    process.stdout.write("Cashflow as-of fixture evidence: " + JSON.stringify({
+      snapshot_at: evidenceSnapshotAsOf instanceof Date ? evidenceSnapshotAsOf.toISOString() : evidenceSnapshotAsOf,
+      prior_source: priorSnapshotSource[0],
+      new_source_created_after_snapshot: snapshotCreated[0]?.created_after_snapshot,
+      schedule_status: staleSnapshot.status,
+      changed_after_as_of: staleSnapshot.changedAfterAsOfCount,
+      entries: staleSnapshot.entries.length,
+    }) + "\\n");
     assert.equal(staleSnapshot.status,"PARTIAL","a new post-as-of commitment must invalidate the snapshot");
     assert.equal(staleSnapshot.completeness,"PARTIAL");
     assert.ok(staleSnapshot.changedAfterAsOfCount>=1);
