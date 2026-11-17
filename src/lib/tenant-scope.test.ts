@@ -67,4 +67,23 @@ describe('parseCurrentTenantScopePayload', () => {
       warehouse_id: 'warehouse',
     })).toThrow('نطاق مؤسسة غير صالح');
   });
+  it("accepts the active authenticated staff scope contract with an assigned warehouse", () => {
+    const liveScope = {
+      ...base,
+      profile_id: "ce1144a9-4715-49cf-be13-0db6afae14b6",
+      organization_id: "a0000000-0000-0000-0000-000000000001",
+      warehouse_id: "9643f4a2-8fbc-418a-9ab5-4be197a1cb20",
+      is_staff: true,
+      can_manage_customers: true,
+    };
+    expect(parseCurrentTenantScopePayload(liveScope)).toEqual({
+      profileId: liveScope.profile_id,
+      organizationId: liveScope.organization_id,
+      warehouseId: liveScope.warehouse_id,
+      isStaff: true,
+      canManageCustomers: true,
+      canViewInternalProductPrices: false,
+    });
+  });
+
 });
