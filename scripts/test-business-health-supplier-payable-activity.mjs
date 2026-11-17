@@ -120,8 +120,9 @@ async function validatePayload(payload, expected) {
       assert.ok(gross > 0n);
       assert.ok(top5 >= 0n && top5 <= gross);
       assert.ok(Number.isFinite(row.top5GrossPayableCreditPercent));
-      const expectedPercent = Math.round(Number(top5) / Number(gross) * 10000) / 100;
-      assert.equal(row.top5GrossPayableCreditPercent, expectedPercent);
+      const expectedPercentHundredths = (top5 * 20000n + gross) / (2n * gross);
+      assert.equal(minorUnits(row.top5GrossPayableCreditPercent), expectedPercentHundredths,
+        "top-five percentage must match PostgreSQL half-up rounding to two decimal places without float arithmetic");
     } else {
       assert.equal(gross, 0n);
       assert.equal(top5, 0n);
