@@ -97,7 +97,7 @@ export function buildPriceGridXlsx(rows: readonly ProductPriceGridRow[]): Blob {
       const ref=columnName(colIndex)+(rowIndex+1);
       if (value === null) return textCell(ref,'');
       if (typeof value !== 'number') return textCell(ref,value);
-      const decimals = colIndex >= 9 && colIndex <= 11 ? 3 : colIndex >= 12 ? 0 : 2;
+      const decimals = colIndex === 0 || colIndex >= 12 ? 0 : colIndex >= 9 ? 3 : 2;
       const allowNegativeStock = colIndex >= 9 && colIndex <= 11;
       return numberCell(ref,value,decimals,allowNegativeStock);
     }).join('');
