@@ -149,11 +149,12 @@ describe("storefront product card accessibility", () => {
     expect(screen.getByRole("button", { name: "إزالة رز بسمتي قابل للوصول من المقارنة" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("does not report missing inventory evidence as confirmed out of stock or allow an unchecked add", () => {
+  it("keeps the quantity selector visible when inventory evidence is missing but blocks adding", () => {
     const productWithoutInventory = {
       ...product,
       inventory: undefined,
     } as unknown as ProductWithInventory;
+    const onAdd = vi.fn();
 
     render(
       <ProductGrid
@@ -164,7 +165,7 @@ describe("storefront product card accessibility", () => {
         emptyTitle="لا توجد منتجات"
         emptyDescription=""
         onOpen={vi.fn()}
-        onAdd={vi.fn()}
+        onAdd={onAdd}
         onWishlist={vi.fn()}
         onCompare={vi.fn()}
       />,
@@ -172,11 +173,21 @@ describe("storefront product card accessibility", () => {
 
     expect(screen.getByText("لم يتم التحقق من المخزون")).toBeInTheDocument();
     expect(screen.queryByText("نفد المخزون")).toBeNull();
+    const quantityInput = screen.getByRole("textbox", {
+      name: "كمية رز بسمتي قابل للوصول",
+    });
+    expect(quantityInput).toHaveValue("1");
+    fireEvent.change(quantityInput, { target: { value: "5" } });
+    fireEvent.blur(quantityInput);
+    expect(quantityInput).toHaveValue("5");
+
     const addButton = screen.getByRole("button", {
       name: "إضافة رز بسمتي قابل للوصول إلى السلة",
     });
     expect(addButton).toBeDisabled();
     expect(addButton).toHaveTextContent("التوفر غير مؤكد");
+    fireEvent.click(addButton);
+    expect(onAdd).not.toHaveBeenCalled();
   });
 
   it("continues to report out of stock for an authoritative zero balance", () => {
