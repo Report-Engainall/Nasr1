@@ -32,6 +32,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
+import { canUseCustomerCheckout, customerOrderRejectionMessage, isDefinitiveCustomerOrderRejection } from '@/lib/customer-checkout';
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
@@ -135,6 +136,7 @@ function describeCustomerCartSyncState(state: string, isOnline: boolean): string
 
 function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: StorefrontProps) {
   const { user, ready: authReady } = useAuth();
+  const customerCheckoutAllowed = canUseCustomerCheckout(user);
   const effectiveRoles = Array.isArray(user?.roles) ? [...user.roles].sort() : [];
   const storefrontIdentityKey = JSON.stringify({
     authReady,
@@ -1172,13 +1174,19 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                   );
                 })}
               </div>
-              {cartProductDetailsReady ? (
+              {cartProductDetailsReady && customerCheckoutAllowed ? (
                 <CustomerOrderPricingPreview
                   items={cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity }))}
                   policyValue={settings?.show_price_in_cart}
                   surface="cart"
                   title="ملخص أسعار السلة"
                 />
+              ) : cartProductDetailsReady ? (
+                <div className="sf-checkout-access-note" role="note">
+                  {user?.isStaff
+                    ? "حساب الإدارة لا يستخدم معاينة أسعار العميل. سجّل الدخول بحساب عميل معتمد لمراجعة أسعارك."
+                    : "تظهر معاينة الأسعار بعد تسجيل الدخول بحساب عميل معتمد."}
+                </div>
               ) : null}
               {settings?.show_price_in_cart !== true && <div role="note" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>سيُراجع الطلب ويُعتمد من جهة الإدارة. إظهار الأسعار والإجماليات معطّل في إعدادات المتجر لهذه الشاشة.</div>}
               <div className="sf-cart-actions">
@@ -1198,7 +1206,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           </div></section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
-        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
+        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} customerCheckoutAllowed={customerCheckoutAllowed} staffSession={user?.isStaff === true} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
           // A committed order must become a durable route, not transient checkout component state.
           // Replace checkout so browser Back cannot reopen a completed submission form.
           setCart([]);
@@ -1903,7 +1911,7 @@ function readStoredCheckoutAttempt(profileId: string | undefined): StoredCheckou
   }
 }
 
-function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
+function Checkout({ cart, priceVisibilityPolicy, customerCheckoutAllowed, staffSession, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; customerCheckoutAllowed: boolean; staffSession: boolean; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
   const { user } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState('');
@@ -1932,6 +1940,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
   const [submitting, setSubmitting] = useState(false);
   const [ambiguousSubmit, setAmbiguousSubmit] = useState(false);
   const [recoveringAttempt, setRecoveringAttempt] = useState(() => Boolean(readStoredCheckoutAttempt(user?.profileId)));
+  const [checkoutStep, setCheckoutStep] = useState<'details' | 'review'>('details');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -1971,6 +1980,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     setPreviewLoading(true);
     setPreviewError('');
     setCartValidation(null);
+    setCheckoutStep('details');
     void (async () => {
       try {
         const { data, error: rpcError } = await supabase.rpc('validate_checkout_cart', { p_items: checkoutItems });
@@ -2047,10 +2057,48 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     return key;
   }
 
+  function beginInvoiceReview() {
+    setError('');
+    if (name.trim().length < 2 || phone.trim().length < 6) {
+      setError('أدخل الاسم الكامل ورقم هاتف صحيحًا قبل مراجعة الطلب.');
+      return;
+    }
+    if (previewLoading || !cartValidation) {
+      setError('لا يمكن فتح المعاينة قبل اكتمال تحقق الخادم من أصناف السلة.');
+      return;
+    }
+    if (hasConflictingPendingAttempt()) return;
+    setCheckoutStep('review');
+  }
+
+  function clearRejectedCheckoutAttempt(key: string) {
+    const storageKey = checkoutAttemptStorageKey(user?.profileId);
+    try {
+      const raw = storageKey ? window.sessionStorage.getItem(storageKey) : null;
+      const saved = JSON.parse(raw || 'null') as { key?: unknown } | null;
+      if (storageKey && saved?.key === key) window.sessionStorage.removeItem(storageKey);
+    } catch {
+      // The in-memory key is still cleared for this definite server rejection.
+    }
+    if (idempotencyRef.current?.key === key) idempotencyRef.current = null;
+    setAmbiguousSubmit(false);
+    setRecoveringAttempt(false);
+  }
+
   async function submit() {
     // Button disabled state updates after React commits; guard the same-tick duplicate event too.
     if (submitInFlightRef.current) return;
-    if (!user) { setError('سجّل الدخول أو أنشئ حساباً لإتمام الطلب'); return; }
+    if (!customerCheckoutAllowed) {
+      setError(staffSession
+        ? 'هذا حساب إدارة وليس حساب عميل. لم يُرسل أي طلب؛ استخدم حساب عميل معتمد للشراء، أو أنشئ الطلب من مسار الإدارة.'
+        : 'يلزم تسجيل الدخول بحساب عميل معتمد لإرسال الطلب.');
+      return;
+    }
+    if (checkoutStep !== 'review') {
+      setError('راجع الفاتورة وبيانات التوصيل أولًا، ثم أكد الإرسال من شاشة المراجعة.');
+      return;
+    }
+    if (!user) { setError('سجّل الدخول بحساب عميل لإتمام الطلب.'); return; }
     if (name.trim().length < 2 || phone.trim().length < 6) { setError('الاسم ورقم الهاتف مطلوبان'); return; }
     if (previewLoading || !cartValidation) { setError('لا يمكن تسجيل الطلب حتى ينجح التحقق من أصناف السلة وسياسة التسعير. أعد المحاولة.'); return; }
     if (hasConflictingPendingAttempt()) return;
@@ -2081,6 +2129,13 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
         _payment_terms: paymentTerms, _idempotency_key: requestKey,
         _delivery_address_id: deliveryAddressId || null,
       });
+      if (rpcError && isDefinitiveCustomerOrderRejection(rpcError)) {
+        // A SQL authorization/validation exception rolls back its transaction.
+        // Release only this rejected key; keep keys for timeouts, 5xx and replay conflicts.
+        clearRejectedCheckoutAttempt(requestKey);
+        setError(customerOrderRejectionMessage(rpcError));
+        return;
+      }
       const result = data as { id?: unknown; order_number?: unknown; status?: unknown } | null;
       if (rpcError || !result || typeof result.id !== 'string' || !result.id || typeof result.order_number !== 'string' || !result.order_number ||
         'total_amount' in result || 'unit_price' in result || 'line_total' in result) {
@@ -2116,73 +2171,237 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
 
   return (
     <section className="sf-checkout">
-      <h2>إتمام الطلب</h2>
+      <header className="sf-checkout-heading">
+        <div>
+          <span className="sf-checkout-kicker">متجر الأغبري · تجربة شراء آمنة</span>
+          <h2>إتمام الطلب</h2>
+          <p>أدخل بياناتك أولًا، ثم راجع تفاصيل الطلب قبل إرساله. لا يُنشأ الطلب بمجرد فتح هذه الشاشة.</p>
+        </div>
+      </header>
+      <ol className="sf-checkout-stepper" aria-label="خطوات إتمام الطلب">
+        <li className={checkoutStep === 'details' ? 'is-current' : 'is-complete'} aria-current={checkoutStep === 'details' ? 'step' : undefined}>
+          <span className="sf-checkout-step-number">1</span>
+          <span>بيانات الطلب</span>
+        </li>
+        <li className={checkoutStep === 'review' ? 'is-current' : ''} aria-current={checkoutStep === 'review' ? 'step' : undefined}>
+          <span className="sf-checkout-step-number">2</span>
+          <span>مراجعة الفاتورة</span>
+        </li>
+      </ol>
+
       <div className="sf-checkout-layout">
         <div className="sf-checkout-form">
-          <label className="sf-form-field"><span>الاسم الكامل *</span><input value={name} disabled={submitting || ambiguousSubmit} onChange={(e) => setName(e.target.value)} placeholder="اسمك الكامل" /></label>
-          <label className="sf-form-field"><span>رقم الهاتف *</span><input value={phone} disabled={submitting || ambiguousSubmit} onChange={(e) => setPhone(e.target.value)} placeholder="7XX XXX XXX" /></label>
-          <label className="sf-form-field"><span>اسم المنشأة</span><input value={business} disabled={submitting || ambiguousSubmit} onChange={(e) => setBusiness(e.target.value)} placeholder="اسم المتجر أو الشركة" /></label>
+          {checkoutStep === 'details' ? (
+            <>
+              <label className="sf-form-field">
+                <span>الاسم الكامل *</span>
+                <input autoComplete="name" value={name} disabled={submitting || ambiguousSubmit} onChange={(e) => setName(e.target.value)} placeholder="اسمك الكامل" />
+              </label>
+              <label className="sf-form-field">
+                <span>رقم الهاتف *</span>
+                <input autoComplete="tel" inputMode="tel" value={phone} disabled={submitting || ambiguousSubmit} onChange={(e) => setPhone(e.target.value)} placeholder="7XX XXX XXX" />
+              </label>
+              <label className="sf-form-field">
+                <span>اسم المنشأة</span>
+                <input autoComplete="organization" value={business} disabled={submitting || ambiguousSubmit} onChange={(e) => setBusiness(e.target.value)} placeholder="اسم المتجر أو الشركة" />
+              </label>
 
-          <div className="sf-form-field">
-            <label htmlFor="checkout-delivery-address"><span>عنوان التوصيل</span></label>
-            <select
-              id="checkout-delivery-address"
-              value={deliveryAddressId}
-              onChange={(event) => setDeliveryAddressId(event.target.value)}
-              disabled={deliveryAddressesLoading || submitting || ambiguousSubmit}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: '1px solid #d8e8e8', borderRadius: 10, background: '#fff', color: '#18383c' }}
-            >
-              <option value="">بدون عنوان محفوظ — سأؤكد تفاصيل التوصيل لاحقًا</option>
-              {deliveryAddresses.map((address) => (
-                <option key={address.id} value={address.id}>
-                  {address.label} — {address.city} — {address.address_line1}
-                </option>
-              ))}
-            </select>
-            {deliveryAddressesLoading && <small role="status" style={{ display: 'block', marginTop: 6 }}>جارٍ تحميل عناوينك المحفوظة...</small>}
-            {deliveryAddressesError && <div className="sf-form-error" role="alert" style={{ marginTop: 8 }}>
-              {deliveryAddressesError}
-              <button className="sf-link" type="button" onClick={() => setDeliveryAddressRetry((n) => n + 1)}>إعادة المحاولة</button>
-            </div>}
-            {!deliveryAddressesLoading && deliveryAddresses.length === 0 && (
-              <p style={{ color: '#71868a', lineHeight: 1.7, margin: '7px 0 0' }}>
-                لا يوجد عنوان محفوظ. يمكنك إتمام الطلب دون ربط عنوان، أو <Link to="/addresses" className="sf-link">إضافة عنوان توصيل</Link>.
-              </p>
-            )}
-            {selectedDeliveryAddress && (
-              <div role="note" style={{ marginTop: 8, padding: 10, borderRadius: 9, background: '#f2f7f8', color: '#536b70', lineHeight: 1.7 }}>
-                سيحفظ الطلب نسخة ثابتة من العنوان المحدد. تعديل دفتر العناوين لاحقًا لن يغير وجهة هذا الطلب.
+              <div className="sf-form-field">
+                <label htmlFor="checkout-delivery-address"><span>عنوان التوصيل</span></label>
+                <select
+                  id="checkout-delivery-address"
+                  value={deliveryAddressId}
+                  onChange={(event) => setDeliveryAddressId(event.target.value)}
+                  disabled={deliveryAddressesLoading || submitting || ambiguousSubmit}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: '1px solid #d8e8e8', borderRadius: 10, background: '#fff', color: '#18383c' }}
+                >
+                  <option value="">بدون عنوان محفوظ — سأؤكد تفاصيل التوصيل لاحقًا</option>
+                  {deliveryAddresses.map((address) => (
+                    <option key={address.id} value={address.id}>
+                      {address.label} — {address.city} — {address.address_line1}
+                    </option>
+                  ))}
+                </select>
+                {deliveryAddressesLoading && <small role="status" style={{ display: 'block', marginTop: 6 }}>جارٍ تحميل عناوينك المحفوظة...</small>}
+                {deliveryAddressesError && <div className="sf-form-error" role="alert" style={{ marginTop: 8 }}>
+                  {deliveryAddressesError}
+                  <button className="sf-link" type="button" onClick={() => setDeliveryAddressRetry((n) => n + 1)}>إعادة المحاولة</button>
+                </div>}
+                {!deliveryAddressesLoading && deliveryAddresses.length === 0 && (
+                  <p style={{ color: '#71868a', lineHeight: 1.7, margin: '7px 0 0' }}>
+                    لا يوجد عنوان محفوظ. يمكنك إتمام الطلب دون ربط عنوان، أو <Link to="/addresses" className="sf-link">إضافة عنوان توصيل</Link>.
+                  </p>
+                )}
+                {selectedDeliveryAddress && (
+                  <div role="note" style={{ marginTop: 8, padding: 10, borderRadius: 9, background: '#f2f7f8', color: '#536b70', lineHeight: 1.7 }}>
+                    سيحفظ الطلب نسخة ثابتة من العنوان المحدد. تعديل دفتر العناوين لاحقًا لن يغير وجهة هذا الطلب.
+                  </div>
+                )}
               </div>
+
+              <fieldset className="sf-form-field sf-checkout-payment">
+                <legend>شروط الدفع</legend>
+                <label><input type="radio" name="paymentTerms" value="cash_on_delivery" checked={paymentTerms === 'cash_on_delivery'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('cash_on_delivery')} /> الدفع عند الاستلام</label>
+                <label><input type="radio" name="paymentTerms" value="credit" checked={paymentTerms === 'credit'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('credit')} /> الدفع الآجل وفق حد الائتمان المعتمد</label>
+                <small>يتحقق الخادم من اعتماد حسابك وحد الائتمان قبل قبول الدفع الآجل.</small>
+              </fieldset>
+              <label className="sf-form-field">
+                <span>ملاحظات على الطلب</span>
+                <textarea value={notes} disabled={submitting || ambiguousSubmit} onChange={(e) => setNotes(e.target.value)} placeholder="أي ملاحظات على الطلب..." />
+              </label>
+            </>
+          ) : (
+            <section className="sf-invoice-preview" aria-labelledby="checkout-invoice-title">
+              <header className="sf-invoice-preview-head">
+                <div>
+                  <span className="sf-invoice-brand">إنجاز · متجر الأغبري</span>
+                  <h3 id="checkout-invoice-title">معاينة الفاتورة قبل الإرسال</h3>
+                  <p>راجع الأصناف والكميات والبيانات. هذه معاينة للطلب وليست فاتورة نهائية أو إثبات سداد.</p>
+                </div>
+                <span className="sf-invoice-status">بانتظار تأكيدك</span>
+              </header>
+
+              <dl className="sf-invoice-meta">
+                <div><dt>اسم العميل</dt><dd>{name.trim() || '—'}</dd></div>
+                <div><dt>رقم الهاتف</dt><dd><bdi>{phone.trim() || '—'}</bdi></dd></div>
+                <div><dt>المنشأة</dt><dd>{business.trim() || '—'}</dd></div>
+                <div><dt>شروط الدفع</dt><dd>{paymentTerms === 'credit' ? 'الدفع الآجل وفق حد الائتمان المعتمد' : 'الدفع عند الاستلام'}</dd></div>
+                <div className="sf-invoice-meta-wide">
+                  <dt>عنوان التوصيل</dt>
+                  <dd>{selectedDeliveryAddress
+                    ? [selectedDeliveryAddress.label, selectedDeliveryAddress.city, selectedDeliveryAddress.address_line1].filter(Boolean).join(' — ')
+                    : 'لم يُحدد عنوان محفوظ؛ تُستكمل تفاصيل التوصيل عند التنسيق'}</dd>
+                </div>
+                <div className="sf-invoice-meta-wide">
+                  <dt>ملاحظات</dt>
+                  <dd>{notes.trim() || 'لا توجد ملاحظات'}</dd>
+                </div>
+              </dl>
+
+              <div className="sf-invoice-lines-wrap">
+                <table className="sf-invoice-lines">
+                  <thead>
+                    <tr>
+                      <th scope="col">الصنف</th>
+                      <th scope="col">رمز الصنف</th>
+                      <th scope="col">الوحدة</th>
+                      <th scope="col">الكمية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(cartValidation?.items ?? []).map((line) => (
+                      <tr key={line.product_id}>
+                        <td>{line.name}</td>
+                        <td><bdi>{line.item_code || '—'}</bdi></td>
+                        <td>{line.unit}</td>
+                        <td>{formatNumber(Number(line.quantity))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="sf-invoice-disclaimer">
+                سيعيد الخادم التحقق من الأصناف والكميات والسياسات والأسعار المسموح بعرضها عند الإرسال. لا يُعتمد أي سعر أو إجمالي محسوب داخل المتصفح.
+              </p>
+
+              {!customerCheckoutAllowed && (
+                <div className="sf-checkout-access-note" role="alert">
+                  <strong>{staffSession ? 'هذه جلسة إدارة وليست جلسة عميل.' : 'يتطلب إرسال الطلب حساب عميل معتمدًا.'}</strong>
+                  <span>
+                    {staffSession
+                      ? 'يمكنك مراجعة الأصناف، لكن مسار شراء العميل لا يقبل طلبات حسابات الإدارة. استخدم حساب عميل معتمد، أو أنشئ طلبًا من مسار الإدارة.'
+                      : 'سجّل الدخول بحساب عميل معتمد وعضوية شراء فعالة قبل إرسال الطلب. لم يُرسل أي طلب.'}
+                  </span>
+                  {!user && <Link to="/login" className="sf-link">تسجيل الدخول بحساب عميل</Link>}
+                </div>
+              )}
+            </section>
+          )}
+
+          {recoveringAttempt && !ambiguousSubmit && (
+            <p className="sf-form-error" role="status">
+              توجد محاولة سابقة لم يصل تأكيدها. أدخل بياناتها نفسها ثم راجعها لإعادة المحاولة الآمنة؛ لا تغيّر محتواها قبل حسمها.
+            </p>
+          )}
+          {previewError && (
+            <div className="sf-form-error" role="alert">
+              {previewError}
+              <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق</button>
+            </div>
+          )}
+          {error && <div className="sf-form-error" role="alert" aria-live="assertive">{error}</div>}
+          {ambiguousSubmit && (
+            <p role="status">
+              لم يصل تأكيد نهائي بعد. بيانات الطلب ومفتاح المحاولة مقفلان لمنع التكرار؛ أعد إرسال الطلب نفسه أو <Link to="/orders" className="sf-link">تحقق من طلباتي</Link>.
+            </p>
+          )}
+
+          <div className="sf-checkout-actions">
+            {checkoutStep === 'details' ? (
+              <>
+                <button className="sf-btn-secondary" onClick={onBack} disabled={submitting || ambiguousSubmit}>رجوع إلى السلة</button>
+                <button
+                  className="sf-btn-primary"
+                  type="button"
+                  onClick={beginInvoiceReview}
+                  disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation || ambiguousSubmit}
+                >
+                  معاينة الفاتورة
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="sf-btn-secondary" type="button" onClick={() => setCheckoutStep('details')} disabled={submitting || ambiguousSubmit}>تعديل البيانات</button>
+                <button
+                  className="sf-btn-primary"
+                  type="button"
+                  onClick={submit}
+                  disabled={!customerCheckoutAllowed || submitting || previewLoading || !cartValidation || deliveryAddressesLoading}
+                >
+                  {submitting ? 'جار إرسال الطلب...' : ambiguousSubmit || recoveringAttempt ? 'إعادة محاولة تأكيد الطلب نفسه' : 'تأكيد وإرسال الطلب'}
+                </button>
+              </>
             )}
           </div>
-          <fieldset className="sf-form-field" style={{ border: '1px solid #d8e8e8', borderRadius: 12, padding: 12, margin: 0 }}><legend style={{ padding: '0 6px', fontWeight: 800 }}>شروط الدفع</legend>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}><input type="radio" name="paymentTerms" value="cash_on_delivery" checked={paymentTerms === 'cash_on_delivery'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('cash_on_delivery')} /> الدفع عند الاستلام</label>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="paymentTerms" value="credit" checked={paymentTerms === 'credit'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('credit')} /> الدفع الآجل وفق حد الائتمان المعتمد</label>
-            <small style={{ color: '#71868a' }}>يتحقق الخادم من اعتماد حسابك وحد الائتمان عند اختيار الدفع الآجل.</small>
-          </fieldset>
-          <label className="sf-form-field"><span>ملاحظات</span><textarea value={notes} disabled={submitting || ambiguousSubmit} onChange={(e) => setNotes(e.target.value)} placeholder="أي ملاحظات على الطلب..." /></label>
-          {recoveringAttempt && !ambiguousSubmit && <p className="sf-form-error" role="status">توجد محاولة طلب سابقة لم يصل تأكيدها بعد. أدخل بيانات الطلب نفسها لإعادة المحاولة؛ لا تُنشئ طلبًا جديدًا قبل حسمها.</p>}
-          {previewError && <div className="sf-form-error" role="alert">{previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق</button></div>}
-          {error && <div className="sf-form-error" role="alert" aria-live="assertive">{error}</div>}
-          {ambiguousSubmit && <p role="status">بيانات الطلب مقفلة لحماية المحاولة غير المحسومة. أعد إرسال الطلب نفسه أو <Link to="/orders" className="sf-link">افتح طلباتي للتحقق من ظهور الطلب</Link>. سيبقى مفتاح المحاولة محفوظًا أثناء التحقق.</p>}
-          <div className="sf-checkout-actions"><button className="sf-btn-secondary" onClick={onBack} disabled={submitting || ambiguousSubmit}>رجوع</button><button className="sf-btn-primary" onClick={submit} disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation}>{submitting ? 'جار الإرسال...' : previewLoading ? 'جارٍ التحقق من السلة...' : deliveryAddressesLoading ? 'جارٍ تحميل عناوين التوصيل...' : ambiguousSubmit || recoveringAttempt ? 'إعادة محاولة تأكيد الطلب نفسه' : 'تأكيد الطلب'}</button></div>
         </div>
+
         <aside className="sf-checkout-summary">
-          <h3>ملخص الطلب</h3>
-          {previewLoading && <p role="status">جارٍ التحقق من الأصناف وسياسة التسعير من الخادم...</p>}
-          {cartValidation ? cartValidation.items.map((line) => <div className="sf-summary-row" key={line.product_id}><span>{line.name}</span><small>الكمية: {formatNumber(Number(line.quantity))} {line.unit}</small></div>)
-            : !previewLoading && cart.map((i) => <div className="sf-summary-row" key={i.product.id}><span>{i.product.name}</span><small>الكمية: {formatNumber(i.quantity)} {i.product.unit}</small></div>)}
-          <CustomerOrderPricingPreview
-            items={checkoutItems}
-            policyValue={priceVisibilityPolicy}
-            surface="orders"
-            title="مراجعة أسعار الطلب"
-          />
-          {priceVisibilityPolicy !== true && <div role="note" style={{ padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70', lineHeight: 1.8 }}>
-            الأسعار والإجماليات مخفية في مراجعة الطلب حسب إعدادات المتجر. بعد مراجعة الإدارة سيظهر إشعار حالة الطلب وتعليمات السداد عند الحاجة.
-          </div>}
-          {cartValidation && <small style={{ color: '#71868a', lineHeight: 1.7 }}>تحقق الخادم من الأصناف وسياسة التسعير. تُعرض مبالغ المراجعة فقط إذا أجازها إعداد الخادم ومعاينة الأسعار المطابقة لهذه الشاشة؛ ويعيد الخادم حساب المبلغ داخل معاملة إنشاء الطلب.</small>}
-          {!cartValidation && !previewLoading && <small style={{ color: '#9b2626', lineHeight: 1.7 }}>لن يُرسل الطلب حتى ينجح التحقق من السلة وسياسة التسعير في الخادم.</small>}
+          <h3>{checkoutStep === 'review' ? 'ملخص المعاينة' : 'ملخص الطلب'}</h3>
+          {previewLoading && <p role="status">جارٍ التحقق من الأصناف والكميات من الخادم...</p>}
+          {cartValidation
+            ? cartValidation.items.map((line) => (
+              <div className="sf-summary-row" key={line.product_id}>
+                <span>{line.name}</span>
+                <small>الكمية: {formatNumber(Number(line.quantity))} {line.unit}</small>
+              </div>
+            ))
+            : !previewLoading && cart.map((item) => (
+              <div className="sf-summary-row" key={item.product.id}>
+                <span>{item.product.name}</span>
+                <small>الكمية: {formatNumber(item.quantity)} {item.product.unit}</small>
+              </div>
+            ))}
+          {checkoutStep === 'review' && customerCheckoutAllowed && (
+            <CustomerOrderPricingPreview
+              items={checkoutItems}
+              policyValue={priceVisibilityPolicy}
+              surface="orders"
+              title="مراجعة أسعار الطلب"
+            />
+          )}
+          {checkoutStep === 'review' && customerCheckoutAllowed && priceVisibilityPolicy !== true && (
+            <div className="sf-checkout-access-note" role="note">
+              الأسعار والإجماليات مخفية وفق إعدادات المتجر؛ ستبقى مراجعة الأصناف والكميات متاحة، ويعيد الخادم احتساب المبالغ داخل معاملة إنشاء الطلب.
+            </div>
+          )}
+          {checkoutStep === 'details' && (
+            <p className="sf-checkout-summary-note">
+              ستظهر معاينة مستقلة للطلب قبل الإرسال، بما في ذلك بيانات العميل والعنوان وشروط الدفع والأصناف والكميات.
+            </p>
+          )}
+          {cartValidation && <small className="sf-checkout-trust-note">تحقق الخادم من الأصناف والكميات. لا تُعرض المبالغ إلا إذا سمحت سياسة الخادم ومعاينة أسعار حساب العميل بذلك.</small>}
+          {!cartValidation && !previewLoading && <small className="sf-checkout-trust-note is-error">لن يُرسل الطلب قبل نجاح تحقق الخادم من أصناف السلة.</small>}
         </aside>
       </div>
     </section>
