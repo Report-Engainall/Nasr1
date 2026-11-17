@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useLocation } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle, BellRing, CalendarClock, ClipboardList, Download, Filter,
@@ -19,6 +20,7 @@ import {
 import { projectCustomerServiceDeskPrintDocument, type CustomerServiceDeskPrintDocument } from "@/lib/customer-service-desk-print";
 import { downloadCustomerServiceDeskWorkbookXlsx } from "@/lib/customer-service-desk-xlsx";
 import { CustomerServiceDeskPrintSheet } from "@/components/CustomerServiceDeskPrintSheet";
+import { getCustomerServiceCaseCodeFromSearch } from "@/lib/customer-service-notification-link";
 import {
   fetchCustomerServiceDeskPage,
   type CustomerServiceAssignmentFilter,
@@ -240,9 +242,20 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
   onOpenTask: (taskId: string) => void;
 }) {
   const { user } = useAuth();
+  const location = useLocation();
+  const linkedCaseCode = getCustomerServiceCaseCodeFromSearch(location.searchStr);
   const canManage = Boolean(user?.roles.some(role => role === "admin" || role === "manager"));
-  const [filters, setFilters] = useState<CustomerServiceDeskFilters>(defaultFilters);
-  const [searchDraft, setSearchDraft] = useState("");
+  const [filters, setFilters] = useState<CustomerServiceDeskFilters>(() => linkedCaseCode
+    ? { ...defaultFilters, status: "all", search: linkedCaseCode }
+    : defaultFilters);
+  const [searchDraft, setSearchDraft] = useState(linkedCaseCode);
+  useEffect(() => {
+    if (!linkedCaseCode) return;
+    setSearchDraft(linkedCaseCode);
+    setFilters(current => current.status === "all" && current.search === linkedCaseCode
+      ? current
+      : { ...defaultFilters, status: "all", search: linkedCaseCode });
+  }, [linkedCaseCode]);
   const [items, setItems] = useState<CustomerServiceDeskCase[]>([]);
   const [summary, setSummary] = useState<CustomerServiceDeskSummary>(emptySummary);
   const [cursor, setCursor] = useState<CustomerServiceDeskCursor | null>(null);
@@ -404,6 +417,11 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
     </div>
 
     {canManage ? <CustomerServiceSlaPolicyPanel canManage={canManage} /> : null}
+    {linkedCaseCode && filters.search === linkedCaseCode && (
+      <p role="status" className="customer-service-desk-linked-case">
+        تم فتح الحالة {linkedCaseCode} من التنبيهات. يمكنك مسح البحث للعودة إلى بقية الحالات.
+      </p>
+    )}
 
     <section className="customer-service-desk-filters">
       <div className="customer-service-desk-filter-heading"><Filter size={16} /><strong>تصفية طابور الحالات</strong><span>ملخص المؤشرات يعرض كامل الحالات المفتوحة في المؤسسة</span></div>
