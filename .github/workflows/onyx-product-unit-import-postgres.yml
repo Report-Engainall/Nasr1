@@ -1,0 +1,55 @@
+name: Onyx ProductUnits PostgreSQL 17 Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261106113000_product_alternate_unit_conversions.sql"
+      - "supabase/migrations/20261117193000_onyx_product_unit_import.sql"
+      - "supabase/tests/onyx_product_unit_import_acceptance.sql"
+      - ".github/workflows/onyx-product-unit-import-postgres.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261106113000_product_alternate_unit_conversions.sql"
+      - "supabase/migrations/20261117193000_onyx_product_unit_import.sql"
+      - "supabase/tests/onyx_product_unit_import_acceptance.sql"
+      - ".github/workflows/onyx-product-unit-import-postgres.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onyx-product-unit-import-postgres-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-product-unit-import-acceptance:
+    name: PostgreSQL 17 ProductUnits import, merge, replay and authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Verify ProductUnits profile, apply command, conversion merge and replay
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/onyx_product_unit_import_acceptance.sql
