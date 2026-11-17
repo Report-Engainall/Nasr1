@@ -599,17 +599,21 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     void fetchStorefrontCartProductDetails(productIds).then((resolvedProducts) => {
       if (cancelled) return;
       const byId = new Map(resolvedProducts.map((product) => [product.id, product]));
+      const requestedIds = new Set(productIds);
       const unresolvedIds = productIds.filter((productId) => !byId.has(productId));
-      // Resolve only the product rows included in this response. Do not advance the
-      // user-edit revision and do not replace newer rows merged from the account cart
-      // while this independent lookup was in flight.
+      // Resolve only rows requested by this response. Keep unrelated newer rows from
+      // account-cart hydration intact, and flag any requested product that is no longer
+      // active so it is visible and removable rather than silently retained as purchasable.
       setCartState((current) => {
         const previous = current.storageKey === cartStorageKey ? current.items : [];
         return {
           storageKey: cartStorageKey,
           items: previous.map((item) => {
             const resolvedProduct = byId.get(item.product.id);
-            return resolvedProduct ? { ...item, product: resolvedProduct } : item;
+            if (resolvedProduct) return { ...item, product: resolvedProduct };
+            return requestedIds.has(item.product.id)
+              ? { ...item, product: pendingCartProduct(item.product.id) }
+              : item;
           }),
         };
       });
