@@ -435,6 +435,39 @@ test("cart and checkout ignore browser-stored money without an authorized server
       return;
     }
 
+    if (path === "/rest/v1/rpc/get_storefront_cart_product_details") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          items: [{
+            id: productId,
+            category_id: null,
+            brand_id: null,
+            name: "أرز اختبار",
+            name_en: null,
+            item_code: "SKU-001",
+            sku: null,
+            barcode: null,
+            unit: "كرتون",
+            description: "اختبار إخفاء مبالغ التخزين المحلي",
+            image_url: null,
+            is_active: true,
+            is_featured: false,
+            sort_order: 1,
+            status: "active",
+            created_at: "2026-01-01T00:00:00Z",
+            display_price: null,
+            min_order_quantity: 1,
+            order_quantity_multiple: 1,
+            inventory: { product_id: productId, quantity_available: 3 },
+          }],
+        }),
+      });
+      return;
+    }
+
     if (path === "/rest/v1/rpc/get_public_storefront_settings") {
       await route.fulfill({
         status: 200,
