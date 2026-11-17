@@ -6,6 +6,7 @@ import {
   ONYX_PRO_HEADER_SYNONYMS,
   buildOnyxProHeaderCsv,
   getOnyxProHeaders,
+  getOnyxProHeaderSynonyms,
 } from "./onyx-pro-schema";
 
 describe("Onyx Pro complete exchange field contract", () => {
