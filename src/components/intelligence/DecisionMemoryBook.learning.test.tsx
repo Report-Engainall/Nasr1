@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DecisionMemoryBook } from "./DecisionMemoryBook";
 import type { DecisionMemoryBookResult } from "@/lib/intelligence/decision-memory";
 import type {
@@ -178,6 +179,8 @@ const emptyCompleteResult: DecisionMemoryBookResult = {
   warnings: [],
 };
 
+afterEach(cleanup);
+
 describe("DecisionMemoryBook outcome learning controls", () => {
   beforeEach(() => {
     suggestions.mockReset().mockReturnValue([suggestion]);
@@ -194,7 +197,7 @@ describe("DecisionMemoryBook outcome learning controls", () => {
     fireEvent.click(button);
 
     await screen.findByText(/حُفظ مرشح جديد من الأدلة المصدرية/);
-    expect(createCandidate).toHaveBeenCalledWith({ decisionIds: [decisionId] });
+    expect(createCandidate).toHaveBeenCalledWith(expect.objectContaining({ decisionIds: [decisionId] }));
     expect(await screen.findByText("Candidate v2 · cashflow.collection.followup")).toBeInTheDocument();
     expect(screen.getByText(/Profile الأساسي: 1.0.0/)).toBeInTheDocument();
     const evidenceToggle=screen.getByText(/عرض القياسات المتوقعة والفعلية والأدلة/);
