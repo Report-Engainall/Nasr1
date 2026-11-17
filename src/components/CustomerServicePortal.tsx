@@ -1,4 +1,5 @@
 import { useCallback,useEffect,useRef,useState,type FormEvent } from "react";
+import { useLocation } from "@tanstack/react-router";
 import { AlertCircle,CheckCircle2,Clock3,Headphones,MessageCircle,Plus,RefreshCw,Send,ShieldCheck } from "lucide-react";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
@@ -37,9 +38,10 @@ function PortalCaseCard({item,canReply,onReply}:{item:CustomerServicePortalCase;
 }
 
 function Workspace(){
+ const location=useLocation();
+ const linkedCaseCode=getCustomerServiceCaseCodeFromSearch(location.searchStr);
  const[company,setCompany]=useState(""),[canCreate,setCanCreate]=useState(false),[canReply,setCanReply]=useState(false),[cases,setCases]=useState<CustomerServicePortalCase[]>([]);
  const[totalCount,setTotalCount]=useState(0),[page,setPage]=useState(0),[hasMore,setHasMore]=useState(false);
- const[linkedCaseCode]=useState(()=>getCustomerServiceCaseCodeFromSearch(typeof window==="undefined"?"":window.location.search));
  const[searchDraft,setSearchDraft]=useState(linkedCaseCode),[appliedSearch,setAppliedSearch]=useState(linkedCaseCode);
  const[statusDraft,setStatusDraft]=useState(""),[appliedStatus,setAppliedStatus]=useState<CustomerServiceCaseStatus|null>(null);
  const[typeDraft,setTypeDraft]=useState(""),[appliedType,setAppliedType]=useState<CustomerServiceCaseType|null>(null);
@@ -47,6 +49,15 @@ function Workspace(){
  const[draft,setDraft]=useState(initialDraft),[requestKey,setRequestKey]=useState(()=>newCustomerServicePortalRequestKey());
  const requestId=useRef(0);
  const cursorStack=useRef<Array<CustomerServicePortalCursor|null>>([null]);
+ useEffect(()=>{
+  if(!linkedCaseCode)return;
+  cursorStack.current=[null];
+  setPage(0);
+  setSearchDraft(linkedCaseCode);
+  setAppliedSearch(linkedCaseCode);
+  setStatusDraft("");setAppliedStatus(null);
+  setTypeDraft("");setAppliedType(null);
+ },[linkedCaseCode]);
  const load=useCallback(async()=>{
   const id=++requestId.current,cursor=cursorStack.current[page]??null;
   if(page>0&&!cursor){setError("مؤشر صفحة حالات الخدمة غير متاح؛ أعد إلى الصفحة الأولى.");setLoading(false);return;}
