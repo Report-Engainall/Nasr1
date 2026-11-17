@@ -23,6 +23,7 @@ import { CustomerServiceDeskPrintSheet } from "@/components/CustomerServiceDeskP
 import { getCustomerServiceCaseCodeFromSearch } from "@/lib/customer-service-notification-link";
 import {
   fetchCustomerServiceDeskPage,
+  fetchAllCustomerServiceDeskCases,
   type CustomerServiceAssignmentFilter,
   type CustomerServiceDeskCase,
   type CustomerServiceDeskCursor,
@@ -265,6 +266,7 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
   const [error, setError] = useState("");
   const [assignees, setAssignees] = useState<OperationalTaskAssignee[]>([]);
   const [printDocument, setPrintDocument] = useState<CustomerServiceDeskPrintDocument | null>(null);
+  const [reportAction, setReportAction] = useState<"excel" | "print" | null>(null);
 
   const loadFirstPage = useCallback(async () => {
     setLoading(true);
@@ -333,7 +335,7 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
   }, [printDocument]);
 
   async function loadMore() {
-    if (!cursor || loadingMore) return;
+    if (!cursor || loadingMore || reportAction !== null) return;
     setLoadingMore(true);
     try {
       const page = await fetchCustomerServiceDeskPage({ filters, cursor, limit: 50 });
@@ -361,33 +363,51 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
 
   const activeCases = items.filter(item => isActive(item.status));
 
-  function createReportDocument(): CustomerServiceDeskPrintDocument {
-    return projectCustomerServiceDeskPrintDocument({ items, summary, filters, hasMore });
+  async function createCompleteReportDocument(): Promise<CustomerServiceDeskPrintDocument> {
+    const complete = await fetchAllCustomerServiceDeskCases({ filters, limit: 100 });
+    if (complete.items.length === 0) {
+      throw new Error("لا توجد حالات ضمن المرشحات الحالية لإنشاء التقرير.");
+    }
+    return projectCustomerServiceDeskPrintDocument({
+      items: complete.items,
+      summary: complete.summary,
+      filters,
+      hasMore: false,
+    });
   }
-  function exportServiceDeskReport() {
+  async function exportServiceDeskReport() {
+    if (!canManage || reportAction !== null) return;
     setError("");
-    if (!canManage) return;
     if (loading || items.length === 0) {
       setError("حمّل بيانات طابور خدمة العملاء قبل استخراج التقرير.");
       return;
     }
+    setReportAction("excel");
     try {
-      downloadCustomerServiceDeskWorkbookXlsx(createReportDocument());
+      const document = await createCompleteReportDocument();
+      downloadCustomerServiceDeskWorkbookXlsx(document);
+      onNotice("تم استخراج التقرير الكامل: " + document.loadedCount.toLocaleString("ar-YE") + " حالة مطابقة للمرشحات.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف Excel لطابور خدمة العملاء.");
+    } finally {
+      setReportAction(null);
     }
   }
-  function printServiceDeskReport() {
+  async function printServiceDeskReport() {
+    if (!canManage || reportAction !== null) return;
     setError("");
-    if (!canManage) return;
     if (loading || items.length === 0 || typeof window === "undefined" || typeof window.print !== "function") {
       setError("لا تتوفر لقطة بيانات صالحة أو وظيفة الطباعة في هذه البيئة.");
       return;
     }
+    setReportAction("print");
     try {
-      setPrintDocument(createReportDocument());
+      const document = await createCompleteReportDocument();
+      setPrintDocument(document);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تجهيز تقرير طباعة خدمة العملاء.");
+    } finally {
+      setReportAction(null);
     }
   }
 
@@ -401,10 +421,14 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         {canManage && <>
-          <Button variant="secondary" disabled={loading || items.length === 0} onClick={exportServiceDeskReport}><Download size={15} /> تصدير Excel</Button>
-          <Button variant="secondary" disabled={loading || items.length === 0} onClick={printServiceDeskReport}><Printer size={15} /> طباعة / PDF</Button>
+          <Button variant="secondary" disabled={loading || items.length === 0 || reportAction !== null} onClick={() => { void exportServiceDeskReport(); }}>
+            <Download size={15} /> {reportAction === "excel" ? "جارٍ تحميل كل الصفحات..." : "تصدير Excel كامل"}
+          </Button>
+          <Button variant="secondary" disabled={loading || items.length === 0 || reportAction !== null} onClick={() => { void printServiceDeskReport(); }}>
+            <Printer size={15} /> {reportAction === "print" ? "جارٍ تجهيز التقرير..." : "طباعة / PDF كامل"}
+          </Button>
         </>}
-        <Button variant="secondary" disabled={loading} onClick={() => { void loadFirstPage(); }}><RefreshCw size={16} /> تحديث الطابور</Button>
+        <Button variant="secondary" disabled={loading || reportAction !== null} onClick={() => { void loadFirstPage(); }}><RefreshCw size={16} /> تحديث الطابور</Button>
       </div>
     </header>
 
@@ -426,37 +450,41 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
     <section className="customer-service-desk-filters">
       <div className="customer-service-desk-filter-heading"><Filter size={16} /><strong>تصفية طابور الحالات</strong><span>ملخص المؤشرات يعرض كامل الحالات المفتوحة في المؤسسة</span></div>
       <form className="customer-service-desk-search" onSubmit={applySearch}>
-        <label><Search size={16} /><input value={searchDraft} onChange={event => setSearchDraft(event.target.value)}
+        <label><Search size={16} /><input value={searchDraft} disabled={reportAction !== null} onChange={event => setSearchDraft(event.target.value)}
           placeholder="ابحث برقم الحالة أو موضوعها أو اسم العميل أو كوده" maxLength={160} /></label>
-        <Button disabled={loading}>بحث</Button>
+        <Button disabled={loading || reportAction !== null}>بحث</Button>
       </form>
       <div className="customer-service-desk-filter-grid">
         <label><span>سير الحالة</span>
-          <select value={filters.status} onChange={event => updateFilter("status",event.target.value as CustomerServiceQueueStatus)}>
+          <select value={filters.status} disabled={reportAction !== null} onChange={event => updateFilter("status",event.target.value as CustomerServiceQueueStatus)}>
             <option value="active">الحالات النشطة</option><option value="all">كل الحالات</option>
             <option value="open">مفتوحة</option><option value="in_progress">قيد المعالجة</option>
             <option value="waiting_customer">بانتظار العميل</option><option value="resolved">تم الحل</option><option value="closed">مغلقة</option>
           </select>
         </label>
         <label><span>الأولوية</span>
-          <select value={filters.priority} onChange={event => updateFilter("priority",event.target.value as CustomerServiceCasePriority | "all")}>
+          <select value={filters.priority} disabled={reportAction !== null} onChange={event => updateFilter("priority",event.target.value as CustomerServiceCasePriority | "all")}>
             <option value="all">كل الأولويات</option><option value="urgent">عاجلة</option><option value="high">عالية</option>
             <option value="medium">متوسطة</option><option value="low">منخفضة</option>
           </select>
         </label>
         <label><span>الإسناد</span>
-          <select value={filters.assignment} onChange={event => updateFilter("assignment",event.target.value as CustomerServiceAssignmentFilter)}>
+          <select value={filters.assignment} disabled={reportAction !== null} onChange={event => updateFilter("assignment",event.target.value as CustomerServiceAssignmentFilter)}>
             <option value="all">الكل</option><option value="assigned">مسندة إلى موظف</option><option value="unassigned">غير مسندة</option>
           </select>
         </label>
         <label className="customer-service-desk-overdue-filter">
-          <input type="checkbox" checked={filters.overdueOnly} onChange={event => updateFilter("overdueOnly",event.target.checked)} />
+          <input type="checkbox" checked={filters.overdueOnly} disabled={reportAction !== null} onChange={event => updateFilter("overdueOnly",event.target.checked)} />
           <span>المتأخرة فقط</span>
         </label>
       </div>
     </section>
 
     {error && <ErrorBox message={error} />}
+    {reportAction !== null && <p className="customer-service-desk-report-progress" role="status" aria-live="polite">
+      جار تحميل جميع صفحات النتائج المطابقة قبل إنشاء {reportAction === "excel" ? "ملف Excel" : "نسخة الطباعة"}.
+      لا يُنشأ تقرير جزئي، والحد الآمن للتقرير ٥٬٠٠٠ حالة.
+    </p>}
     <div className="customer-service-desk-results-heading">
       <div><h2>الحالات</h2><span>المعروض {items.length.toLocaleString("ar-YE")} · نشطة في هذه الصفحة {activeCases.length.toLocaleString("ar-YE")}</span></div>
       {canManage && <span><Users size={15} /> أدوات الإسناد والتصعيد متاحة للمديرين</span>}
@@ -468,7 +496,7 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
         assignees={assignees} onRefresh={loadFirstPage} onOpenTask={onOpenTask} onNotice={onNotice} />)}
     </div>}
     {hasMore && <div className="customer-service-desk-more">
-      <Button variant="secondary" disabled={loadingMore || loading} onClick={() => { void loadMore(); }}>
+      <Button variant="secondary" disabled={loadingMore || loading || reportAction !== null} onClick={() => { void loadMore(); }}>
         {loadingMore ? "جارٍ تحميل المزيد…" : "تحميل الحالات الأقدم"}
       </Button>
     </div>}
