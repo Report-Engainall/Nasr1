@@ -10,6 +10,14 @@ on:
       - "src/components/StorefrontProductQuestions.test.tsx"
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
+      - "scripts/test-cash-expense-commitments.mjs"
+      - "src/components/CashExpenseCommitmentWorkspace.tsx"
+      - "src/components/CashExpenseCommitmentWorkspace.test.tsx"
+      - "src/lib/cash-expense-commitments.ts"
+      - "src/lib/cash-expense-commitments.test.ts"
+      - "src/lib/intelligence/cashflow-schedule-client.ts"
+      - "src/lib/intelligence/cashflow-schedule-client.operating-commitments.test.ts"
+      - "src/components/intelligence/CashflowForecastCard.tsx"
       - "scripts/seed-p2-local-playwright.mjs"
       - "scripts/prepare-p2-local-storage-migrations.mjs"
       - "supabase/migrations/**"
@@ -26,6 +34,14 @@ on:
       - "src/components/StorefrontProductQuestions.test.tsx"
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
+      - "scripts/test-cash-expense-commitments.mjs"
+      - "src/components/CashExpenseCommitmentWorkspace.tsx"
+      - "src/components/CashExpenseCommitmentWorkspace.test.tsx"
+      - "src/lib/cash-expense-commitments.ts"
+      - "src/lib/cash-expense-commitments.test.ts"
+      - "src/lib/intelligence/cashflow-schedule-client.ts"
+      - "src/lib/intelligence/cashflow-schedule-client.operating-commitments.test.ts"
+      - "src/components/intelligence/CashflowForecastCard.tsx"
       - "scripts/seed-p2-local-playwright.mjs"
       - "scripts/prepare-p2-local-storage-migrations.mjs"
       - "supabase/migrations/**"
@@ -171,6 +187,9 @@ jobs:
 
       - name: Accept customer product questions, moderation, privacy and tenant isolation
         run: node scripts/test-storefront-product-questions.mjs
+
+      - name: Accept finance commitment source review, maker-checker and journal posting
+        run: node scripts/test-cash-expense-commitments.mjs
 
       - name: Record exact-SHA proof boundary
         if: always()
