@@ -754,6 +754,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       if (extension === "csv" || extension === "xlsx") {
         const sourceHeaders = await readImportFileHeaders(file, extension);
         const detection = detectImportDatasetKind(sourceHeaders);
+        if (detection.kind === "orders") {
+          throw new Error("تم التعرف على ملف طلبات أونكس. لا يمكن تمريره إلى اعتماد الأصناف أو العملاء؛ يلزم ربط رأس الطلب وتفاصيله والتحقق من العميل والأصناف وحالة المستند قبل أي كتابة. لم تُنشأ دفعة ولم تتغير الطلبات.");
+        }
+        if (detection.kind === "pricing") {
+          throw new Error("تم التعرف على ملف قوائم/أسعار أونكس. لا يمكن تمريره إلى اعتماد كتالوج الأصناف؛ يلزم التحقق من قائمة الأسعار والعملة والوحدة وفترة السريان قبل تحديث الأسعار. لم تُنشأ دفعة ولم تتغير الأسعار.");
+        }
         if (detection.kind === "inventory") {
           throw new Error("اكتشف النظام ملف أرصدة مخزون مستقلًا (" + detection.matchedFields.join("، ") +
             "). لم تُنشأ دفعة أصناف ولم يُعدّل أي رصيد؛ لا يُعتمد المخزون حتى يكتمل مسار المطابقة والتسوية الآمنة.");
