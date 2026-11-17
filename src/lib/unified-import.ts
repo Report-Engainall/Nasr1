@@ -395,7 +395,8 @@ const LEGACY_DEFAULT_SYNONYMS: Record<string, string> = {
   "رقم المورد": "supplier_code",
   "supplier": "supplier_code",
   "supplier_code": "supplier_code",
-  ...Object.fromEntries(Object.entries(ONYX_PRO_HEADER_SYNONYMS).filter(([header]) => !["البيان", "product_code"].includes(header))),\n};
+};
+
 export const DEFAULT_SYNONYMS: Record<string, string> = {
   ...LEGACY_DEFAULT_SYNONYMS,
   ...Object.fromEntries(Object.entries(ONYX_PRO_HEADER_SYNONYMS).filter(([header, canonical]) =>
@@ -432,7 +433,7 @@ export type ImportDatasetDetection = {
 export function detectImportDatasetKind(headers: readonly string[]): ImportDatasetDetection {
   const fields = [...new Set(headers
     .filter((header): header is string => typeof header === "string")
-    .map((header) => normalizeHeader(header.replace(/^\\uFEFF/, "")))
+    .map((header) => normalizeHeader(header.replace(/^\uFEFF/, "")))
     .filter(Boolean))].sort();
   const set = new Set(fields);
   const hasItemCode = set.has("item_code");
@@ -481,7 +482,10 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   if (hasCustomerCode) {
     return { kind: "customers", matchedFields: ["customer_code", ...customerDetails] };
   }
-  if (set.has("movement_id") || set.has("external_movement_id") || set.has("movement_type")) {\n    return { kind: "inventory", matchedFields: inventoryDetails };\n  }\n  if (hasInventoryMarkers && productDetails.filter((field) => field !== "barcode").length === 0) {
+  if (set.has("movement_id") || set.has("external_movement_id") || set.has("movement_type")) {
+    return { kind: "inventory", matchedFields: inventoryDetails };
+  }
+  if (hasInventoryMarkers && productDetails.filter((field) => field !== "barcode").length === 0) {
     return { kind: "inventory", matchedFields: inventoryDetails };
   }
   if (hasItemCode && productDetails.length > 0) {
@@ -492,7 +496,8 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   }
   return { kind: "unknown", matchedFields: fields };
 }
-\nexport type ParsedImportRow = {
+
+export type ParsedImportRow = {
   row_number: number;
   data: Record<string, unknown>;
   status: 'valid' | 'warning' | 'rejected';
