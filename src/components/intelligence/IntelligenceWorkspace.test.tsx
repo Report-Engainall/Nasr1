@@ -422,6 +422,8 @@ describe("production intelligence workspace inventory screens", () => {
     expect(claims).toHaveTextContent("مشاهدة / ادعاء وصفي");
     expect(claims).toHaveTextContent("محرك أو عامل مرتبط");
     expect(claims).toHaveTextContent("لا توجد حالياً دراسة سببية مستقلة مقبولة");
+    expect(await within(claims).findByText(/قراءة مشتركة لمؤشر التحصيلات المجدولة/)).toBeInTheDocument();
+    expect(claims).toHaveTextContent("CROSS-DOMAIN REVIEW REQUIRED");
     const forecast = screen.getByRole("region", { name: "توقع التدفق النقدي" });
     expect(forecast.textContent).toMatch(/(?:٣٧٥|375)/);
     expect(forecast).toHaveTextContent("الرصيد المتوقع");

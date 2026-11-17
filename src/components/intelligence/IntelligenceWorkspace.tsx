@@ -150,7 +150,7 @@ const collectionFollowupRules: DecisionRule[] = [{
   expectedOutcome: "تسجيل المتابعة ونتيجة التحصيل من مستندات المؤسسة.",
 }];
 
-type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof | null; candidateId: string };
+type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof | null; candidateId: string; metricIds: string[] };
 
 type DecisionTransitionOptions = {
   reason?: string;
@@ -969,6 +969,42 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
       metrics: [...cashflowMetrics, ...cashOpeningForSnapshot.metrics],
     });
   }, [data, cashflowMetrics, cashOpeningForSnapshot]);
+  const claimEvidenceSourcePassport = useMemo<EvidencePassportData | null>(() => {
+    if (!evidencePassport) return null;
+    if (!inventoryData) return evidencePassport;
+    const candidateMetrics: MetricSnapshot[] = [
+      ...inventoryData.deadStockProducts.flatMap((product) => [
+        product.availableQuantity,
+        product.unitCost,
+        product.soldQuantityWindow,
+        product.averageInventoryWindow,
+      ].filter((metric): metric is MetricSnapshot => metric !== null)),
+      ...inventoryData.replenishmentProducts.flatMap((product) => [
+        product.availableToPromise,
+        product.reorderPoint,
+        product.soldQuantityWindow,
+        product.supplierLeadTimeDays,
+        product.incomingPurchaseQuantity,
+        product.minimumOrderQuantity ?? null,
+        product.orderMultiple ?? null,
+      ].filter((metric): metric is MetricSnapshot => metric !== null)),
+    ];
+    const metricsById = new Map<string, MetricSnapshot>();
+    const conflictingMetrics: MetricSnapshot[] = [];
+    for (const metric of candidateMetrics) {
+      const previous = metricsById.get(metric.id);
+      if (!previous) metricsById.set(metric.id, metric);
+      else if (JSON.stringify(previous) !== JSON.stringify(metric)) conflictingMetrics.push(metric);
+    }
+    return buildEvidencePassport({
+      id: "intelligence-claim-evidence:" + evidencePassport.asOf,
+      generatedAt: evidencePassport.generatedAt,
+      asOf: evidencePassport.asOf,
+      evidenceRecords: [...evidencePassport.evidenceRecords, ...inventoryData.evidenceRecords],
+      metrics: [...evidencePassport.metrics, ...metricsById.values(), ...conflictingMetrics],
+    });
+  }, [evidencePassport, inventoryData]);
+
   const cashflowForecast = useMemo(() => {
     if (!data) return null;
     const metricsById = new Map(cashflowMetrics.map((metric) => [metric.id, metric]));
@@ -1005,32 +1041,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         metrics: [metric],
         rules: collectionFollowupRules,
       });
-      return decisions.candidates.map((decision) => ({ decision, proof, candidateId: candidateIdFor(proof.currency, proof.period) }));
+      return decisions.candidates.map((decision) => ({ decision, proof, candidateId: candidateIdFor(proof.currency, proof.period), metricIds: [metric.id] }));
     });
   }, [data, evidencePassport]);
-  const claimEvidencePassports = useMemo(() => {
-    if (!evidencePassport) return [];
-    const observations = evidencePassport.metrics.map((metric) => ({
-      id: "observation:" + metric.id,
-      statement: metric.value === null
-        ? "المؤشر " + metric.key + ": القيمة غير متاحة"
-        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unit),
-      kind: "OBSERVATION" as const,
-      metricIds: [metric.id],
-      boundaries: metric.warnings,
-    }));
-    const drivers = evidenceBackedActions.map(({ decision }) => ({
-      id: "driver:" + decision.id,
-      statement: decision.what + ": " + decision.why,
-      kind: "DRIVER" as const,
-      metricIds: evidencePassport.metrics
-        .filter((metric) => decision.proof.metricKeys.includes(metric.key) && metric.asOf === decision.proof.asOf)
-        .map((metric) => metric.id),
-      boundaries: ["هذا المحرك يفسر تفعيل قاعدة القرار فقط؛ لا يثبت سبب تغير النتيجة."],
-    }));
-    return buildClaimEvidencePassports(evidencePassport, [...observations, ...drivers]);
-  }, [evidencePassport, evidenceBackedActions]);
-
   const liquiditySnapshot = useMemo(() => {
     if (!data?.evidenceRecords.length || !data.measurementMetrics.length) return null;
     const currencies = data.measurementMetrics.map((proof) => ({
@@ -1124,9 +1137,47 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
         expectedOutcome:"خفض المخزون الراكد ومنع شراء مكرر حتى مراجعة الطلب والاستهلاك.",
         createdAt:deadStockReport.asOf,expiresAt:null,
       };
-      return [{ decision, proof:null, candidateId:id }];
+      return [{ decision, proof:null, candidateId:id, metricIds: sourceMetricIds }];
     });
   }, [inventoryData, deadStockReport]);
+
+  const claimEvidencePassports = useMemo(() => {
+    if (!claimEvidenceSourcePassport) return [];
+    const observations = claimEvidenceSourcePassport.metrics.map((metric) => ({
+      id: "observation:" + metric.id,
+      statement: metric.value === null
+        ? "المؤشر " + metric.key + ": القيمة غير متاحة"
+        : "المؤشر " + metric.key + ": " + String(metric.value) + " " + (metric.currency ?? metric.unitOfMeasure ?? metric.unit),
+      kind: "OBSERVATION" as const,
+      metricIds: [metric.id],
+      boundaries: metric.warnings,
+    }));
+    const actions = [...evidenceBackedActions, ...stockDecisionActions];
+    const drivers = actions.flatMap(({ decision, metricIds }) => {
+      const linkedMetricIds = metricIds.filter((id) => claimEvidenceSourcePassport.metrics.some((metric) => metric.id === id));
+      return linkedMetricIds.length ? [{
+        id: "driver:" + decision.id,
+        statement: decision.what + ": " + decision.why,
+        kind: "DRIVER" as const,
+        metricIds: linkedMetricIds,
+        boundaries: ["المحرك يشرح إشارة تشغيلية أو شرط تفعيل قرار؛ لا يثبت وحده سبب النتيجة."],
+      }] : [];
+    });
+    const financeMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
+      metric.key === "cashflow.expected_collections" && metric.status !== "UNAVAILABLE",
+    );
+    const inventoryMetric = claimEvidenceSourcePassport.metrics.find((metric) =>
+      metric.key === "inventory.available_to_promise" && metric.status !== "UNAVAILABLE",
+    );
+    const crossDomainObservation = financeMetric && inventoryMetric ? [{
+      id: "cross-domain-observation:" + claimEvidenceSourcePassport.asOf,
+      statement: "قراءة مشتركة لمؤشر التحصيلات المجدولة ومؤشر توفر المخزون في لقطة واحدة؛ تزامن المؤشرين لا يثبت علاقة سببية بينهما.",
+      kind: "OBSERVATION" as const,
+      metricIds: [financeMetric.id, inventoryMetric.id],
+      boundaries: ["يجب مراجعة اختلاف نطاق الفترة والعملات ومصادر المجال قبل تفسير العلاقة أو اتخاذ قرار مشترك."],
+    }] : [];
+    return buildClaimEvidencePassports(claimEvidenceSourcePassport, [...observations, ...drivers, ...crossDomainObservation]);
+  }, [claimEvidenceSourcePassport, evidenceBackedActions, stockDecisionActions]);
 
   const dailyDecisionActions = useMemo(() => [...evidenceBackedActions, ...stockDecisionActions]
     .sort((left,right) => right.decision.priorityScore-left.decision.priorityScore ||
@@ -1813,9 +1864,9 @@ export function IntelligenceWorkspace({ onOpenRecord, onOpenShiftItem, onOpenSup
             <p className="report-note">تعرض لوحة القيادة أعلاه الحركات الفعلية والالتزامات المثبتة والذمم كلّاً حسب عملته. تعرض هذه البطاقة التحصيلات المدينة المجدولة فقط؛ لا يوجد رصيد افتتاحي موثق أو جدول مكتمل لمواعيد دفع التزامات الموردين والمصروفات المستقبلية، ولذلك تبقى الأرصدة المتوقعة وصافي السيولة محجوبة. لا تُستبدل الذمم برصيد نقدي، ولا يُفترض أن غياب الحركة يساوي صفراً.</p>
             <div className="grid gap-3 lg:grid-cols-2">
               <EvidencePassport
-                passport={evidencePassport}
+                passport={claimEvidenceSourcePassport}
                 claims={claimEvidencePassports}
-                state={loading ? "loading" : evidencePassport ? (evidencePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
+                state={loading ? "loading" : claimEvidenceSourcePassport ? (claimEvidenceSourcePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
                 errorMessage={result && !result.ok ? result.message : undefined}
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />

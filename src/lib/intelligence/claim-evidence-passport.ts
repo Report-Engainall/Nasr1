@@ -81,6 +81,10 @@ const SOURCE_DOMAIN: Record<string, ClaimDomain> = {
   finance_cash_opening_balances: "FINANCE",
   finance_bank_reconciliations: "FINANCE",
   inventory_balances: "INVENTORY",
+  "inventory.current_balances": "INVENTORY",
+  "inventory.movement_history": "INVENTORY",
+  "orders.completed_sales_quantity": "COMMERCE",
+  "purchase_orders.remaining_quantity": "PROCUREMENT",
   inventory_movements: "INVENTORY",
   stock_movements: "INVENTORY",
   stock_count_lines: "INVENTORY",
@@ -127,16 +131,17 @@ function samePeriod(left: EvidencePeriod | null, right: EvidencePeriod | null): 
 
 function domainOf(record: EvidenceRecord): ClaimDomain {
   const name = record.source.name.trim().toLowerCase();
-  const mapped = SOURCE_DOMAIN[name];
+  const normalized = name.replace(/[^a-z0-9_]/g, "_");
+  const mapped = SOURCE_DOMAIN[name] ?? SOURCE_DOMAIN[normalized];
   if (mapped) return mapped;
-  if (/(^|_)(inventory|stock|warehouse)(_|$)/.test(name)) return "INVENTORY";
-  if (/(^|_)(purchase_order|supplier|procurement)(_|$)/.test(name)) return "PROCUREMENT";
-  if (/(^|_)(invoice|payment|ledger|cash|bank|receivable|payable)(_|$)/.test(name)) return "FINANCE";
-  if (/(^|_)(customer|retention|support|service)(_|$)/.test(name)) return "CUSTOMER";
-  if (/(^|_)(order|checkout|commerce|cart)(_|$)/.test(name)) return "COMMERCE";
-  if (/(^|_)(product|catalog|category)(_|$)/.test(name)) return "CATALOG";
-  if (/(^|_)ai(_|$)/.test(name)) return "AI";
-  if (/(^|_)(system|probe|queue|job)(_|$)/.test(name)) return "SYSTEM";
+  if (/(^|_)(inventory|stock|warehouse)(_|$)/.test(normalized)) return "INVENTORY";
+  if (/(^|_)(purchase_order|supplier|procurement)(_|$)/.test(normalized)) return "PROCUREMENT";
+  if (/(^|_)(invoice|payment|ledger|cash|bank|receivable|payable)(_|$)/.test(normalized)) return "FINANCE";
+  if (/(^|_)(customer|retention|support|service)(_|$)/.test(normalized)) return "CUSTOMER";
+  if (/(^|_)(order|checkout|commerce|cart)(_|$)/.test(normalized)) return "COMMERCE";
+  if (/(^|_)(product|catalog|category)(_|$)/.test(normalized)) return "CATALOG";
+  if (/(^|_)ai(_|$)/.test(normalized)) return "AI";
+  if (/(^|_)(system|probe|queue|job)(_|$)/.test(normalized)) return "SYSTEM";
   return "UNKNOWN";
 }
 
@@ -164,6 +169,7 @@ function metricEvidenceIsValid(
     validTime(source.sourceTimestamp) &&
     Date.parse(source.sourceTimestamp) <= Date.parse(metric.asOf) &&
     (!metric.period || samePeriod(source.period, metric.period)) &&
+    (metric.unit !== "QUANTITY" || Boolean(metric.unitOfMeasure?.trim())) &&
     ((metric.unit !== "CURRENCY" && metric.unit !== "CURRENCY_PER_UNIT") ||
       (Boolean(metric.currency?.trim()) && source.currency === metric.currency))
   );
@@ -313,7 +319,7 @@ export function buildClaimEvidencePassports(
       status = "UNVERIFIED";
       boundaries.push(metricMissing ? "CLAIM_METRIC_SOURCE_MISSING_OR_AMBIGUOUS" : "CLAIM_EVIDENCE_SOURCE_MISSING_OR_AMBIGUOUS");
     }
-    if (metrics.some((metric) => !metricEvidenceIsValid(metric, passport, recordsById, duplicateEvidenceIds))) {
+    if (metrics.some((metric) => metric.status === "VERIFIED" && !metricEvidenceIsValid(metric, passport, recordsById, duplicateEvidenceIds))) {
       status = "UNVERIFIED";
       boundaries.push("CLAIM_SOURCE_INTEGRITY_NOT_VERIFIED");
     }
