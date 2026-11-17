@@ -151,9 +151,9 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImport
       <section className="panel" style={{ display: "grid", gap: 10 }}>
         <div className="panel-head"><div><h2>المسارات التشغيلية الموجودة</h2><p>تُستخدم المحركات الموجودة ولا تنشأ مسارات بيانات موازية.</p></div><PackageCheck size={22} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
-          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد المرحلي متاح عبر محرك البيانات الحالي، مع مراجعة اللقطة والاعتماد وفق صلاحيات الخادم.</p></div>
-          <div><strong>المخزون</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>ملفات الأرصدة تُراجع كلقطات مصدر وتدخل مسار المطابقة والتسوية؛ لا تتحول إلى رصيد حي بمجرد رفعها.</p></div>
-          <div><strong>الطلبات والتسعيرات</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>قوالبها ورؤوسها معرفة ومصنفة، لكن اعتماد ملفات الاستيراد لهذه الأنواع غير مفعل في محرك اللقطات الحالي.</p></div>
+          <div><strong>الأصناف والعملاء</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>الاستيراد المرحلي متاح مع مراجعة اللقطة والاعتماد بصلاحيات الخادم؛ تصدير كامل السجلات بهذين النوعين غير مربوط بعد بهذه الشاشة.</p></div>
+          <div><strong>المخزون</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>توجد لقطات المصدر ومصالحة الأرصدة والجرد، لكن ملف الرصيد لا يُرحّل مباشرة ولا يوجد تصدير شامل للأرصدة من هذه الشاشة.</p></div>
+          <div><strong>الطلبات والتسعيرات</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>تصدير الطلبات الحالي متاح من مركز التصدير وتصدير الطلب المفرد؛ استيراد الطلبات وتبادل سجلات قوائم الأسعار الفعلية غير مربوطين بعد.</p></div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {canManageImports && <button type="button" className="btn primary" onClick={onOpenImport}><RefreshCw size={15} /> فتح استيراد الأصناف والعملاء</button>}
