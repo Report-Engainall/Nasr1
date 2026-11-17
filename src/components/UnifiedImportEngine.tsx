@@ -39,6 +39,10 @@ type DuplicateResult = {
   jobs: Array<ImportJob & { upload_session_id?: string | null }>;
   snapshots: Array<{ id: string; status: string; snapshot_version: number }>;
 };
+type ImportWorkbookSheet = {
+  worksheetName: string;
+  applicationKind: "products" | "customers";
+};
 type DuplicatePrompt = {
   file: File;
   fileHash: string;
@@ -49,6 +53,8 @@ type DuplicatePrompt = {
   duplicate: DuplicateResult;
   applicationKind: "products" | "customers";
   worksheetName: string | null;
+  remainingWorksheets: ImportWorkbookSheet[];
+  unsupportedWorksheetNames: string[];
 };
 
 async function readImportFileHeaders(
@@ -108,6 +114,25 @@ async function readImportFileHeaders(
     worksheetName,
     worksheetNames,
   };
+}
+
+async function readImportWorkbookSheets(file: File): Promise<Array<{ worksheetName: string; headers: string[] }>> {
+  const first = await readImportFileHeaders(file, "xlsx", ["Products"]);
+  const worksheetNames = first.worksheetNames;
+  if (worksheetNames.length === 0 || worksheetNames.length > 12) {
+    throw new Error("عدد أوراق مصنف أونكس غير صالح؛ الحد الأعلى 12 ورقة مرئية.");
+  }
+  const sheets: Array<{ worksheetName: string; headers: string[] }> = [];
+  for (const worksheetName of worksheetNames) {
+    const selected = worksheetName === first.worksheetName
+      ? first
+      : await readImportFileHeaders(file, "xlsx", [worksheetName]);
+    if (selected.worksheetName !== worksheetName) {
+      throw new Error("تعذر تثبيت ورقة " + worksheetName + " أثناء قراءة عناوين المصنف؛ أوقفنا الاستيراد.");
+    }
+    sheets.push({ worksheetName, headers: selected.headers });
+  }
+  return sheets;
 }
 
 function unsupportedImportFormatDetails(extension: string): {
@@ -338,7 +363,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     requestedImportKind?: "products" | "customers",
     requestedWorksheetName?: string | null,
   ) {
-    if (runningRef.current) return;
+    if (runningRef.current) return false;
     runningRef.current = true;
     pausedRef.current = false;
     cancelRef.current = false;
@@ -357,7 +382,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     if (selectedImportKind === "customers" && !canRollbackImport) {
       setErrorMessage("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       runningRef.current = false;
-      return;
+      return false;
     }
     setApplicationKind(selectedImportKind);
     const storedImportSummary = existingJob?.error_summary && typeof existingJob.error_summary === "object"
@@ -435,7 +460,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setStage(null);
         setStatusMessage(unsupported.statusMessage);
         await refetch();
-        return;
+        return false;
       }
 
       const currentProfiles = await fetchImportProfiles();
@@ -703,7 +728,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         await refetch();
         setStage(null);
         setStatusMessage("ألغيت الدفعة. لم تُحفظ بيانات الملف الخام.");
-        return;
+        return false;
       }
 
       if (extension === "csv") {
@@ -752,6 +777,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       }
       await refetch();
       onNotice(result.status === "completed" ? "اكتمل الاستيراد بجودة " + result.data_quality_score + "/100" : "انتهت الدفعة بالحالة: " + result.status);
+      return ["completed", "completed_with_warnings", "manual_review"].includes(result.status) && Boolean(result.snapshot_id);
     } catch (cause) {
       await handleImportFailure(
         cause,
@@ -759,11 +785,76 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         processingConfigFingerprint,
         checkpointFingerprintPersisted,
       );
+      return false;
     } finally {
       runningRef.current = false;
       pausedRef.current = false;
       setPaused(false);
     }
+  }
+
+  async function processWorkbookSheets(
+    file: File,
+    fileHash: string,
+    worksheets: ImportWorkbookSheet[],
+    unsupportedWorksheetNames: string[],
+  ): Promise<void> {
+    for (let index = 0; index < worksheets.length; index += 1) {
+      const worksheet = worksheets[index];
+      const selectedProfileForFile = worksheet.applicationKind === "customers"
+        ? await ensureCustomerImportProfile()
+        : activeProfileId;
+      const duplicate = await findImportDuplicate(
+        fileHash,
+        selectedProfileForFile,
+        periodKey.trim() || null,
+      ) as DuplicateResult;
+      if (duplicate.duplicate) {
+        setDuplicatePrompt({
+          file,
+          fileHash,
+          profileId: selectedProfileForFile,
+          periodKey: periodKey.trim() || null,
+          sourceSystem,
+          externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
+          duplicate,
+          applicationKind: worksheet.applicationKind,
+          worksheetName: worksheet.worksheetName,
+          remainingWorksheets: worksheets.slice(index + 1),
+          unsupportedWorksheetNames,
+        });
+        setStage(null);
+        setStatusMessage("توقف المصنف عند ورقة " + worksheet.worksheetName + " لاكتشاف نسخة سابقة؛ لم تُستكمل الأوراق التالية قبل قرارك.");
+        return;
+      }
+
+      const processed = await processFile(
+        file,
+        fileHash,
+        "new_version",
+        undefined,
+        selectedProfileForFile,
+        periodKey.trim() || null,
+        sourceSystem,
+        sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
+        worksheet.applicationKind,
+        worksheet.worksheetName,
+      );
+      if (!processed) {
+        setStatusMessage("توقف المصنف عند ورقة " + worksheet.worksheetName + " بسبب فشل المعالجة أو رفض الجودة. لم نتابع الأوراق التالية حتى لا تختلط النتائج.");
+        return;
+      }
+    }
+
+    const importedNames = worksheets.map((sheet) => sheet.worksheetName);
+    const unsupportedText = unsupportedWorksheetNames.length
+      ? " الأوراق التي لم تُرحّل لعدم وجود مسار اعتماد مطابق: " + unsupportedWorksheetNames.join("، ") + "."
+      : " لم توجد أوراق إضافية خارج مسارات الاستيراد المدعومة.";
+    setStage("complete");
+    setStatusMessage(
+      "اكتملت معالجة أوراق الأصناف والعملاء: " + importedNames.join("، ") + "." + unsupportedText +
+      " تُعتمد كل لقطة على حدة من مركز اللقطات بعد مراجعتها.",
+    );
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -789,43 +880,57 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       });
       setStage("detecting");
       const extension = file.name.split(".").pop()?.toLocaleLowerCase("en") ?? "";
+      if (extension === "xlsx") {
+        const workbookSheets = await readImportWorkbookSheets(file);
+        const supportedWorksheets: ImportWorkbookSheet[] = [];
+        const unsupportedWorksheetNames: string[] = [];
+        const supportedKinds = new Map<"products" | "customers", string[]>();
+        for (const sheet of workbookSheets) {
+          const detection = detectImportDatasetKind(sheet.headers);
+          if (detection.kind === "products" || detection.kind === "customers") {
+            supportedWorksheets.push({
+              worksheetName: sheet.worksheetName,
+              applicationKind: detection.kind,
+            });
+            const names = supportedKinds.get(detection.kind) ?? [];
+            names.push(sheet.worksheetName);
+            supportedKinds.set(detection.kind, names);
+          } else {
+            unsupportedWorksheetNames.push(
+              sheet.worksheetName + " (" + detection.kind + ")",
+            );
+          }
+        }
+        for (const [kind, names] of supportedKinds) {
+          if (names.length > 1) {
+            throw new Error("يحتوي المصنف على أكثر من ورقة " + (kind === "products" ? "أصناف" : "عملاء") +
+              " (" + names.join("، ") + "). اجمع كل مجموعة في ورقة واحدة بمفتاحها الفريد قبل الاستيراد؛ لم تُنشأ أي دفعة.");
+          }
+        }
+        if (supportedWorksheets.length === 0) {
+          throw new Error("لم يعثر المصنف على ورقة أصناف أو عملاء قابلة للاستيراد. الأوراق المكتشفة: " +
+            unsupportedWorksheetNames.join("، ") + ". لم تُنشأ أي دفعة أو تتغير بيانات.");
+        }
+        if (supportedWorksheets.some((sheet) => sheet.applicationKind === "customers") && !canRollbackImport) {
+          throw new Error("يحتوي المصنف على ورقة عملاء؛ استيراد العملاء متاح للمدير أو المدير العام فقط. لم يبدأ أي استيراد.");
+        }
+        await processWorkbookSheets(file, fileHash, supportedWorksheets, unsupportedWorksheetNames);
+        return;
+      }
+
       let detectedImportKind: "products" | "customers" = applicationKind;
       let selectedWorksheetName: string | null = null;
-      if (extension === "csv" || extension === "xlsx") {
-        const headerRead = await readImportFileHeaders(
-          file,
-          extension,
-          applicationKind === "customers" ? ["Customers"] : ["Products"],
-        );
-        const sourceHeaders = headerRead.headers;
-        selectedWorksheetName = headerRead.worksheetName;
-        if (extension === "xlsx" && headerRead.worksheetNames.length > 1 && selectedWorksheetName) {
-          const otherSheets = headerRead.worksheetNames.filter((name) => name !== selectedWorksheetName);
-          setStatusMessage(
-            "تم اختيار ورقة " + selectedWorksheetName + " تلقائياً من ملف Excel. هذا المسار يعالج الورقة المختارة فقط؛ الأوراق الأخرى (" +
-            otherSheets.join("، ") + ") لم تُرحّل في هذه العملية.",
-          );
+      if (extension === "csv") {
+        const headerRead = await readImportFileHeaders(file, extension);
+        const detection = detectImportDatasetKind(headerRead.headers);
+        if (detection.kind === "orders" || detection.kind === "pricing" || detection.kind === "inventory" || detection.kind === "ambiguous") {
+          throw new Error("هذا الملف من نوع " + detection.kind + " ولا يملك مسار اعتماد من نوع " + applicationKind +
+            ". لم تُنشأ دفعة ولم تتغير بيانات التشغيل.");
         }
-        const detection = detectImportDatasetKind(sourceHeaders);
-        if (detection.kind === "orders") {
-          throw new Error("تم التعرف على ملف طلبات أونكس. لا يمكن تمريره إلى اعتماد الأصناف أو العملاء؛ يلزم ربط رأس الطلب وتفاصيله والتحقق من العميل والأصناف وحالة المستند قبل أي كتابة. لم تُنشأ دفعة ولم تتغير الطلبات.");
-        }
-        if (detection.kind === "pricing") {
-          throw new Error("تم التعرف على ملف قوائم/أسعار أونكس. لا يمكن تمريره إلى اعتماد كتالوج الأصناف؛ يلزم التحقق من قائمة الأسعار والعملة والوحدة وفترة السريان قبل تحديث الأسعار. لم تُنشأ دفعة ولم تتغير الأسعار.");
-        }
-        if (detection.kind === "inventory") {
-          throw new Error("اكتشف النظام ملف أرصدة مخزون مستقلًا (" + detection.matchedFields.join("، ") +
-            "). لم تُنشأ دفعة أصناف ولم يُعدّل أي رصيد؛ لا يُعتمد المخزون حتى يكتمل مسار المطابقة والتسوية الآمنة.");
-        }
-        if (detection.kind === "ambiguous") {
-          throw new Error("رؤوس الملف تجمع أكثر من نوع بيانات (" + detection.matchedFields.join("، ") +
-            "). افصل الأصناف والعملاء والمخزون في ملفات مستقلة؛ لم تُنشأ دفعة ولم تُحفظ صفوف.");
-        }
+        selectedWorksheetName = null;
         if (detection.kind === "products" || detection.kind === "customers") {
           detectedImportKind = detection.kind;
           setApplicationKind(detectedImportKind);
-        } else {
-          setStatusMessage("لم تكفِ رؤوس الملف لإثبات نوعه؛ سيُستخدم اختيار النوع اليدوي الحالي، وتظل قواعد الأعمدة الإلزامية نافذة.");
         }
       }
       if (detectedImportKind === "customers" && !canRollbackImport) {
@@ -846,6 +951,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           duplicate,
           applicationKind: detectedImportKind,
           worksheetName: selectedWorksheetName,
+          remainingWorksheets: [],
+          unsupportedWorksheetNames: [],
         });
         setStage(null);
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
@@ -865,9 +972,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     const pending = duplicatePrompt;
     setDuplicatePrompt(null);
     if (action === "ignore") {
-      setStatusMessage("لم يُنشأ استيراد جديد؛ احتفظ النظام بالنسخة السابقة دون تعديل.");
+      setStatusMessage("تم تجاوز ورقة " + (pending.worksheetName ?? "CSV") + " دون تعديل النسخة السابقة.");
+      await processWorkbookSheets(pending.file, pending.fileHash, pending.remainingWorksheets, pending.unsupportedWorksheetNames);
       return;
     }
+    let processed = false;
     if (action === "resume") {
       const openJob = pending.duplicate.jobs.find((item) =>
         ["staging", "uploading", "failed"].includes(item.status) && Boolean(item.upload_session_id),
@@ -876,18 +985,22 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setErrorMessage("لا توجد دفعة غير مكتملة قابلة للاستئناف لهذا الملف.");
         return;
       }
-      await processFile(
+      processed = await processFile(
         pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey,
         openJob.source_system ?? pending.sourceSystem,
         openJob.external_source_reference ?? pending.externalSourceReference,
         pending.applicationKind,
         pending.worksheetName,
       );
-      return;
+    } else {
+      processed = await processFile(
+        pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
+        pending.sourceSystem, pending.externalSourceReference, pending.applicationKind, pending.worksheetName,
+      );
     }
-    await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
-      pending.sourceSystem, pending.externalSourceReference, pending.applicationKind, pending.worksheetName);
-  }
+    if (processed) {
+      await processWorkbookSheets(pending.file, pending.fileHash, pending.remainingWorksheets, pending.unsupportedWorksheetNames);
+    }  }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
     const file = event.target.files?.[0];
@@ -1110,7 +1223,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         <section className="panel import-upload-panel">
           <div className="import-upload-icon"><Upload size={26} /></div>
           <h2>رفع ملف للمعالجة</h2>
-          <p>يدعم CSV وXLSX. في المصنف متعدد الأوراق يختار ورقة Products أو Customers بحسب نوع الاستيراد، ثم يعالج الورقة المختارة فقط. صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي.</p>
+          <p>يدعم CSV وXLSX. يقرأ مصنف Excel متعدد الأوراق ويكشف نوع كل ورقة تلقائيًا، ثم يعالج أوراق الأصناف والعملاء في دفعات منفصلة مترابطة ببصمة الملف. أوراق المخزون والتسعير والطلبات تُعرّف وتُعرض كغير مرحّلة حتى يكتمل مسار اعتمادها الأصلي؛ لا تُكتب في جداول غير مناسبة.</p>
           <div className="form-grid">
             <label className="form-field"><span>نوع البيانات في الملف</span>
               <select value={applicationKind} disabled={stage !== null || Boolean(duplicatePrompt)}
@@ -1121,9 +1234,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                 <option value="products">أصناف المنتجات</option>
                 <option value="customers" disabled={!canRollbackImport}>دليل العملاء</option>
               </select>
-              <small>اختيار النوع أعلاه يخص ملفات الرفع الجديدة فقط؛ نوع اللقطة يُحدد من دفعة المصدر الأصلية. اللقطات التي لا يمكن إثبات نوعها لن تكون قابلة للاعتماد.</small><small>يُكتشف نوع CSV/XLSX من الرؤوس قبل إنشاء الدفعة؛ ملفات المخزون المستقلة والملفات المختلطة تُرفض دون حفظ صفوف. {applicationKind === "customers"
-                ? "يُستخدم ملف عملاء مستقل ومفتاح رقم العميل؛ تُتجاهل فئة المصدر ويحدد المدير فئة العميل لاحقاً."
-                : "ملف الأصناف يستخدم رقم الصنف ومواصفات وأسعار الفئات الثلاث."}</small>
+              <small>يُستخدم الاختيار اليدوي لملفات CSV غير المعروفة فقط. مصنف XLSX يُصنف ورقةً بورقة، ويُحدد نوع اللقطة من سجل الدفعة المصدر.</small><small>في المصنف الواحد تُرحّل ورقة أصناف واحدة وورقة عملاء واحدة كدفعتين مستقلتين. تكرار أكثر من ورقة لنفس النوع يوقف الملف بدل دمج صفوف غير متجانسة. أرصدة المخزون وقوائم الأسعار والطلبات لا تُعتمد حتى تمر بمساراتها التشغيلية المخصصة.</small>
             </label>
             <label className="form-field"><span>مصدر البيانات</span>
               <select value={sourceSystem} disabled={stage !== null || Boolean(duplicatePrompt)} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
