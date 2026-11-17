@@ -1,6 +1,6 @@
 /* Aghbari offline shell. Financial data, auth responses and Supabase traffic are never cached. */
-const CACHE_NAME = 'aghbari-shell-v6';
-const SHELL = ['/', '/manifest.webmanifest', '/icons/injaz-icon.svg', '/brand/injaz-logo.svg'];
+const CACHE_NAME = 'aghbari-shell-v7';
+const SHELL = ['/', '/manifest.webmanifest', '/favicon.ico', '/icons/injaz-icon.svg', '/brand/injaz-logo.svg'];
 
 const STATIC_ASSET_MIME_POLICIES = [
   { extension: /\.js$/i, types: ['application/javascript', 'text/javascript', 'application/ecmascript', 'text/ecmascript', 'application/x-javascript'] },
