@@ -4,6 +4,7 @@ import type {
   EvidenceStatus,
   MetricSnapshot,
 } from "@/lib/intelligence/types";
+import type { ClaimEvidencePassport } from "@/lib/intelligence/claim-evidence-passport";
 
 export type EvidencePassportState = "loading" | "empty" | "error" | "unavailable" | "ready";
 
@@ -12,6 +13,7 @@ export interface EvidencePassportProps {
   state?: EvidencePassportState;
   errorMessage?: string;
   onRetry?: () => void;
+  claims?: ClaimEvidencePassport[];
 }
 
 const labels: Record<EvidenceStatus, string> = {
@@ -177,7 +179,104 @@ function EvidenceRecordList({ records }: { records: EvidenceRecord[] }) {
   );
 }
 
-function EvidencePassportContent({ passport }: { passport: PassportData }) {
+const claimKindLabels = {
+  OBSERVATION: "مشاهدة / ادعاء وصفي",
+  DRIVER: "محرك أو عامل مرتبط",
+  CAUSE: "سبب مثبت بدراسة مستقلة",
+} as const;
+
+function ClaimEvidenceCard({ claim }: { claim: ClaimEvidencePassport }) {
+  return (
+    <article data-testid="claim-evidence-card" className="rounded-lg border p-3">
+      <header className="flex flex-wrap items-start justify-between gap-2">
+        <strong className="text-sm">{claim.statement}</strong>
+        <span className="rounded-full border px-2 py-1 text-xs">
+          {claimKindLabels[claim.classification]} · {labels[claim.status]}
+        </span>
+      </header>
+      {claim.requestedKind === "CAUSE" && claim.causalStatus !== "PROVEN" ? (
+        <p className="mt-2 rounded-md border p-2 text-xs">
+          السبب غير مثبت؛ صُنّف هذا الادعاء كعامل مرتبط فقط، ولا يجوز عرضه كسبب مؤكد.
+        </p>
+      ) : null}
+      {claim.classification === "DRIVER" ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          المحرك يصف إشارة أو عاملاً مرتبطاً بتفعيل القاعدة، ولا يثبت أن هذا العامل سبّب النتيجة.
+        </p>
+      ) : null}
+      <dl className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+        <div><dt className="text-muted-foreground">المجالات</dt><dd>{claim.domains.join(" · ") || "غير محددة"}</dd></div>
+        <div><dt className="text-muted-foreground">الثقة</dt><dd>{claim.confidence === null ? "غير محددة من مصدر معتمد" : (claim.confidence * 100).toFixed(1) + "% · " + (claim.confidenceBasis ?? "")}</dd></div>
+        <div><dt className="text-muted-foreground">المؤشرات</dt><dd>{claim.metricIds.join("، ") || "لا توجد مؤشرات"}</dd></div>
+        <div><dt className="text-muted-foreground">الأدلة المرتبطة</dt><dd>{claim.evidenceIds.join("، ") || "لا توجد أدلة"}</dd></div>
+      </dl>
+      {claim.crossDomainReviewRequired ? (
+        <p role="note" className="mt-2 rounded-md border p-2 text-xs font-semibold">
+          CROSS-DOMAIN REVIEW REQUIRED — يلزم اعتماد مراجعة المجالات المتقاطعة قبل اعتماد الاستنتاج.
+        </p>
+      ) : null}
+      {claim.formulas.length ? (
+        <div className="mt-2 text-xs">
+          <strong>الصيغة الحسابية</strong>
+          <ul className="mt-1 list-disc ps-5">
+            {claim.formulas.map((formula) => (
+              <li key={formula.metricId}>{formula.metricId}: {formula.formulaId}@{formula.formulaVersion}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">لم تُسجل صيغة حساب موثقة لهذا الادعاء.</p>
+      )}
+      <details className="mt-3 rounded-lg border p-3 text-xs">
+        <summary className="cursor-pointer font-semibold">تفاصيل جواز دليل الادعاء</summary>
+        <p className="mt-2">حالة السببية: {claim.causalStatus}</p>
+        <p>معرّفات الأدلة: {claim.evidenceIds.join("، ") || "لا يوجد"}</p>
+        <ul className="mt-2 space-y-2">
+          {claim.sourceRecords.map((record) => (
+            <li key={record.id} className="rounded-md bg-muted/40 p-2">
+              <p className="font-semibold">{record.source.name} · {record.source.kind}</p>
+              <p>المعرّف المرجعي: {record.source.recordId ?? "غير متاح"} · النسخة: {record.source.version ?? "غير محددة"}</p>
+              <p>وقت المصدر: {record.sourceTimestamp} · As of: {record.asOf}</p>
+              <p>الفترة: {record.period ? record.period.from + " — " + record.period.to : "غير محددة"} · العملة: {record.currency ?? "غير متاحة"}</p>
+              <p>الحالة: {labels[record.status]} · الاكتمال: {record.completeness} · الجودة: {record.quality}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-muted-foreground">
+          هذا Drill-down يعرض المعرّفات المرجعية المصرّح بها فقط؛ لا يجلب حمولة الصفوف الخام ولا يتجاوز صلاحيات المصدر.
+        </p>
+        {claim.boundaries.length ? (
+          <div className="mt-2">
+            <strong>حدود الاستنتاج</strong>
+            <ul className="mt-1 list-disc ps-5">{claim.boundaries.map((item) => <li key={item}>{item}</li>)}</ul>
+          </div>
+        ) : null}
+      </details>
+    </article>
+  );
+}
+
+function ClaimEvidenceList({ claims }: { claims: ClaimEvidencePassport[] }) {
+  const provenCauseCount = claims.filter((claim) => claim.classification === "CAUSE" && claim.causalStatus === "PROVEN").length;
+  return (
+    <section aria-label="جوازات أدلة الادعاءات" className="mt-4 border-t pt-3">
+      <h4 className="text-sm font-semibold">ادعاءات التقرير وجوازات أدلتها</h4>
+      <p className="mt-1 text-xs text-muted-foreground">
+        مشاهدة المؤشر ومحرك القرار لا يساويان إثبات السبب؛ لا تُقبل السببية إلا بدراسة مستقلة موثقة ومراجعة.
+      </p>
+      {claims.length ? (
+        <div className="mt-3 space-y-2">{claims.map((claim) => <ClaimEvidenceCard key={claim.id} claim={claim} />)}</div>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">لا توجد ادعاءات مربوطة بأدلة ضمن اللقطة الحالية.</p>
+      )}
+      {provenCauseCount === 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">لا توجد حالياً دراسة سببية مستقلة مقبولة؛ لا يُعرض أي محرك أو ارتباط كسبب مثبت.</p>
+      ) : null}
+    </section>
+  );
+}
+
+function EvidencePassportContent({ passport, claims }: { passport: PassportData; claims: ClaimEvidencePassport[] }) {
   return (
     <section dir="rtl" className="rounded-xl border p-4 text-card-foreground">
       <header className="flex flex-wrap justify-between gap-2">
@@ -188,6 +287,7 @@ function EvidencePassportContent({ passport }: { passport: PassportData }) {
         As of: {passport.asOf} · الاكتمال: {passport.completeness}
       </p>
       <EvidenceMetricList metrics={passport.metrics} evidenceRecords={passport.evidenceRecords} />
+      <ClaimEvidenceList claims={claims} />
       {passport.warnings.length ? <p className="mt-3 rounded-lg border p-3 text-xs">تحذيرات جواز الأدلة: {passport.warnings.join("، ")}</p> : null}
       <EvidenceRecordList records={passport.evidenceRecords} />
     </section>
@@ -199,6 +299,7 @@ export function EvidencePassport({
   state = "ready",
   errorMessage = "تعذر تحميل سجل الأدلة.",
   onRetry,
+  claims = [],
 }: EvidencePassportProps) {
   if (state !== "ready") {
     return <EvidencePassportStatePanel state={state} errorMessage={errorMessage} onRetry={onRetry} />;
@@ -206,5 +307,5 @@ export function EvidencePassport({
   if (!passport) {
     return <section role="status" dir="rtl" className="rounded-xl border p-4 text-sm">سجل الأدلة غير متوفر.</section>;
   }
-  return <EvidencePassportContent passport={passport} />;
+  return <EvidencePassportContent passport={passport} claims={claims} />;
 }
