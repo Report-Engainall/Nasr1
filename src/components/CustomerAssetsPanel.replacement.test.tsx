@@ -154,6 +154,14 @@ describe("CustomerAssetsPanel atomic replacement", () => {
   });
 
   it("rotates the idempotency key when replacement details change after an ambiguous failure", async () => {
+    const randomUUID = vi.fn()
+      .mockReturnValueOnce("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+      .mockReturnValueOnce("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+      .mockReturnValueOnce("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+      .mockReturnValueOnce("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
+      .mockReturnValueOnce("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+    vi.stubGlobal("crypto", { randomUUID });
+
     mocks.rpc
       .mockResolvedValueOnce({ data: null, error: { message: "network response was lost" } })
       .mockResolvedValueOnce({
