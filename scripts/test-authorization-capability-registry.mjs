@@ -639,10 +639,10 @@ async function main() {
    "non-admin members cannot inspect private explicit denial history"
   );
   const before=await db.unsafe("select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='authorization.capability.explicit_deny.changed' and entity_id=$2::uuid",[org,deny[0].result.denial_id]);
-  const replay=await withActor(db,admin,tx=>tx.unsafe(
+  const denialReplay =await withActor(db,admin,tx=>tx.unsafe(
    "select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',$2::text,NULL::timestamptz,true) as result",
    [manager.profile_id,"Temporary authorization acceptance denial"]));
-  assert.equal(replay[0].result.changed,false,"same deny replay must be idempotent");
+  assert.equal(denialReplay[0].result.changed,false,"same deny replay must be idempotent");
   const after=await db.unsafe("select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='authorization.capability.explicit_deny.changed' and entity_id=$2::uuid",[org,deny[0].result.denial_id]);
   assert.equal(after[0].count,before[0].count,"idempotent replay must not duplicate audit");
   await withActor(db,admin,tx=>tx.unsafe("select public.set_authorization_profile_denial($1::uuid,'pricing.edit_draft',NULL,NULL::timestamptz,false)",[manager.profile_id]));
