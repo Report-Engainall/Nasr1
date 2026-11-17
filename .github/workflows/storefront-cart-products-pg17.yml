@@ -1,0 +1,59 @@
+name: Storefront Cart Product Lookup PostgreSQL 17
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261117172000_storefront_cart_product_details.sql"
+      - "supabase/tests/storefront_cart_product_details_acceptance.sql"
+      - ".github/workflows/storefront-cart-products-pg17.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261117172000_storefront_cart_product_details.sql"
+      - "supabase/tests/storefront_cart_product_details_acceptance.sql"
+      - ".github/workflows/storefront-cart-products-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storefront-cart-products-pg17-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  cart-product-lookup:
+    name: Cart lookup tenant/privacy acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact tested source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Prove public projection, tenant isolation and bounded cart lookup
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
+            --file supabase/tests/storefront_cart_product_details_acceptance.sql
