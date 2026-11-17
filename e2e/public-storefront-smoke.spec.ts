@@ -106,6 +106,91 @@ test("the storefront header cart button opens the real cart route", async ({ pag
   expect(pageErrors, "Opening the cart must not produce uncaught browser errors.").toEqual([]);
 });
 
+test("the cart restores its own products and exposes quantity controls without loading the full catalogue", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const requestedRpcs: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  const productId = "a1000000-0000-4000-8000-000000000071";
+  await page.addInitScript(({ cartKey, id }) => {
+    window.localStorage.setItem(cartKey, JSON.stringify([{ product_id: id, quantity: 4 }]));
+  }, { cartKey: "aghbari:cart:v2:guest", id: productId });
+
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+  };
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 200, headers });
+      return;
+    }
+    const rpcName = url.pathname.split("/").pop() ?? "";
+    requestedRpcs.push(rpcName);
+    const payloads: Record<string, unknown> = {
+      get_public_storefront_categories: [],
+      get_public_storefront_settings: { show_price_in_cart: false },
+      get_storefront_promotions: [],
+      get_storefront_announcements: [],
+      get_storefront_cart_product_details: {
+        items: [{
+          id: productId,
+          category_id: null,
+          brand_id: null,
+          name: "أرز بسمتي",
+          name_en: null,
+          item_code: "RICE-CART-071",
+          sku: null,
+          barcode: null,
+          unit: "كيس",
+          description: null,
+          image_url: null,
+          is_active: true,
+          is_featured: false,
+          sort_order: 0,
+          min_order_quantity: 2,
+          order_quantity_multiple: 2,
+          status: "active",
+          created_at: "2026-11-17T00:00:00Z",
+          display_price: null,
+          inventory: { product_id: productId, quantity_available: 12 },
+        }],
+      },
+    };
+    if (!(rpcName in payloads)) {
+      await route.fulfill({ status: 500, contentType: "application/json", headers, body: JSON.stringify({ message: "Unexpected storefront RPC: " + rpcName }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers,
+      body: JSON.stringify(payloads[rpcName]),
+    });
+  });
+
+  await page.goto("/cart");
+  await expect(page.getByRole("heading", { name: "سلة المشتريات", exact: true })).toBeVisible();
+  await expect(page.getByText("أرز بسمتي", { exact: true })).toBeVisible();
+  const quantity = page.getByRole("textbox", { name: "كمية أرز بسمتي" });
+  await expect(quantity).toHaveValue("4");
+
+  await page.getByRole("button", { name: "زيادة كمية أرز بسمتي" }).click();
+  await expect(quantity).toHaveValue("6");
+  await quantity.fill("٨");
+  await quantity.press("Enter");
+  await expect(quantity).toHaveValue("8");
+
+  expect(requestedRpcs).toContain("get_storefront_cart_product_details");
+  expect(requestedRpcs).not.toContain("get_storefront_catalog_page");
+  expect(requestedRpcs).not.toContain("get_storefront_product_prices");
+  expect(pageErrors, "Restoring and editing the cart must not produce uncaught browser errors.").toEqual([]);
+});
+
+
 test("subcategory deep link renders the child category screen", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -346,6 +431,39 @@ test("cart and checkout ignore browser-stored money without an authorized server
         contentType: "application/json",
         headers,
         body: JSON.stringify({ organization_id: organizationId, warehouse_id: null }),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/get_storefront_cart_product_details") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          items: [{
+            id: productId,
+            category_id: null,
+            brand_id: null,
+            name: "أرز اختبار",
+            name_en: null,
+            item_code: "SKU-001",
+            sku: null,
+            barcode: null,
+            unit: "كرتون",
+            description: "اختبار إخفاء مبالغ التخزين المحلي",
+            image_url: null,
+            is_active: true,
+            is_featured: false,
+            sort_order: 1,
+            status: "active",
+            created_at: "2026-01-01T00:00:00Z",
+            display_price: null,
+            min_order_quantity: 1,
+            order_quantity_multiple: 1,
+            inventory: { product_id: productId, quantity_available: 3 },
+          }],
+        }),
       });
       return;
     }
