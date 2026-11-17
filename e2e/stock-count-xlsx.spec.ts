@@ -83,7 +83,7 @@ async function readLocalSourceMovementCount(): Promise<number> {
   const connectionString = requiredEnv("TEST_DATABASE_URL");
   const database = new URL(connectionString);
   if (!["127.0.0.1", "localhost"].includes(database.hostname) ||
-      !/^\\d+$/.test(database.port) ||
+      !/^\d+$/.test(database.port) ||
       Number(database.port) < 1 || Number(database.port) > 65535) {
     throw new Error("Stock-count movement acceptance refuses non-loopback PostgreSQL endpoints.");
   }
@@ -122,7 +122,7 @@ async function readLocalStockCountCancellation(sessionNote: string): Promise<{
   const connectionString = requiredEnv("TEST_DATABASE_URL");
   const database = new URL(connectionString);
   if (!["127.0.0.1", "localhost"].includes(database.hostname) ||
-      !/^\\d+$/.test(database.port) ||
+      !/^\d+$/.test(database.port) ||
       Number(database.port) < 1 || Number(database.port) > 65535) {
     throw new Error("Stock-count cancellation acceptance refuses non-loopback PostgreSQL endpoints.");
   }
