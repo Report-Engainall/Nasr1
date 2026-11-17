@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "supabase/migrations/20261117180000_customer_device_change_requests.sql"
+      - "supabase/migrations/20261117181000_customer_device_change_requests.sql"
       - "supabase/tests/customer_device_change_requests.sql"
       - ".github/workflows/customer-device-change-requests-pg17.yml"
       - "src/components/CustomerDeviceChangeRequests.tsx"
@@ -14,7 +14,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "supabase/migrations/20261117180000_customer_device_change_requests.sql"
+      - "supabase/migrations/20261117181000_customer_device_change_requests.sql"
       - "supabase/tests/customer_device_change_requests.sql"
       - ".github/workflows/customer-device-change-requests-pg17.yml"
       - "src/components/CustomerDeviceChangeRequests.tsx"
