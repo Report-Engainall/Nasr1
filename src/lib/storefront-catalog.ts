@@ -21,7 +21,7 @@ function finiteNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(result) ? result : fallback;
 }
 
-function parseProduct(value: unknown): ProductWithInventory {
+export function parseStorefrontCatalogProduct(value: unknown): ProductWithInventory {
   const row = asRecord(value);
   if (!row || typeof row.id !== 'string' || !row.id
       || typeof row.name !== 'string' || typeof row.item_code !== 'string'
@@ -127,7 +127,7 @@ export async function fetchStorefrontCatalogPage(input: {
     throw new Error('استجابة صفحة الكتالوج غير صالحة؛ لم تُعرض نتائج غير مؤكدة.');
   }
 
-  const items = payload.items.map(parseProduct);
+  const items = payload.items.map(parseStorefrontCatalogProduct);
   const totalCount = finiteNumber(payload.total_count, Number.NaN);
   const totalPages = finiteNumber(payload.total_pages, Number.NaN);
   const resolvedPage = finiteNumber(payload.page, Number.NaN);

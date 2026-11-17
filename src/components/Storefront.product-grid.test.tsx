@@ -66,7 +66,42 @@ describe("storefront product card accessibility", () => {
     expect(onOpen).toHaveBeenCalledWith(product);
     expect(onWishlist).toHaveBeenCalledWith(productId);
     expect(onCompare).toHaveBeenCalledWith(productId);
-    expect(onAdd).toHaveBeenCalledWith(product);
+    expect(onAdd).toHaveBeenCalledWith(product, 1);
+  });
+
+  it("lets customers choose a valid quantity inside the product card before adding it", () => {
+    const onAdd = vi.fn();
+    const policyProduct = {
+      ...product,
+      min_order_quantity: 2,
+      order_quantity_multiple: 2,
+    } as ProductWithInventory;
+    render(
+      <ProductGrid
+        products={[policyProduct]}
+        priceVisibilityPolicy={false}
+        wishlist={[]}
+        compare={[]}
+        emptyTitle="لا توجد منتجات"
+        emptyDescription=""
+        onOpen={vi.fn()}
+        onAdd={onAdd}
+        onWishlist={vi.fn()}
+        onCompare={vi.fn()}
+      />,
+    );
+
+    const quantity = screen.getByRole("textbox", { name: "كمية رز بسمتي قابل للوصول" });
+    expect(quantity).toHaveValue("2");
+    fireEvent.click(screen.getByRole("button", { name: "زيادة كمية رز بسمتي قابل للوصول" }));
+    expect(quantity).toHaveValue("4");
+
+    fireEvent.change(quantity, { target: { value: "٦" } });
+    fireEvent.blur(quantity);
+    expect(quantity).toHaveValue("6");
+    fireEvent.click(screen.getByRole("button", { name: "إضافة رز بسمتي قابل للوصول إلى السلة" }));
+
+    expect(onAdd).toHaveBeenCalledWith(policyProduct, 6);
   });
 
   it("shows the server-backed minimum and quantity multiple without exposing hidden prices", () => {
