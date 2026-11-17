@@ -39,7 +39,7 @@ export function InventoryBatchTracePanel({warehouseId,warehouseName}:{warehouseI
   <header style={{display:'flex',gap:10,justifyContent:'space-between',flexWrap:'wrap',alignItems:'center'}}>
    <div><h2 style={{margin:0}}><Boxes size={18} style={{verticalAlign:'middle',marginInlineEnd:7}}/> تتبع دفعات المخزون</h2>
     <p className="text-muted" style={{margin:'4px 0 0'}}>المستودع: {warehouseName} · ترتيب حسب الأقدم انتهاءً (FEFO)</p></div>
-   <button className="btn outline" type="button" onClick={()=>setRetry(v=>v+1)} disabled={loadingProducts||loadingLots}><RefreshCw size={15}/> تحديث</button>
+   <button className="btn outline" type="button" aria-label="إعادة محاولة تحميل الدفعات" onClick={()=>setRetry(v=>v+1)} disabled={loadingProducts||loadingLots}><RefreshCw size={15}/> تحديث</button>
   </header>
   {error&&<p role="alert" style={{margin:0,color:'#b42318'}}><AlertTriangle size={15} style={{verticalAlign:'middle',marginInlineEnd:6}}/>{error}</p>}
   {loadingProducts?<p role="status">جار تحميل أصناف المستودع…</p>:products.length===0?
