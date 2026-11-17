@@ -260,11 +260,14 @@ export function CashAccountReconciliationWorkspace() {
     if (!selected) return;
     const [journalEntryId, lineNumber] = selected.split(":");
     await perform(async () => {
-      await matchBankStatementLine({
+      const result = await matchBankStatementLine({
         statementId, lineId, journalEntryId, journalLineNumber: Number(lineNumber),
       });
       setCandidates((current) => ({ ...current, [lineId]: [] }));
-    }, "تم ربط حركة الكشف بقيد الأستاذ المرحّل المطابق.");
+      return result;
+    }, (result) => result.replayed
+      ? "المطابقة نفسها محفوظة مسبقاً؛ تأكد الخادم من النتيجة دون إنشاء سجل أو تدقيق مكرر."
+      : "تم ربط حركة الكشف بقيد الأستاذ المرحّل المطابق.");
   }
 
   async function finalizeStatement(statementId: string) {
