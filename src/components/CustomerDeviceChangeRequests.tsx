@@ -162,15 +162,29 @@ export function CustomerDeviceChangeRequestsPanel() {
       if (result.error) throw new Error(result.error.message || "رفض الخادم إنشاء طلب تغيير الجهاز.");
       if (!isRecord(result.data) || typeof result.data.id !== "string" ||
         result.data.status !== "pending_approval" ||
-        typeof result.data.replayed !== "boolean") {
+        typeof result.data.replayed !== "boolean" ||
+        !validDate(result.data.created_at) ||
+        !(result.data.requested_device === null || typeof result.data.requested_device === "string")) {
         throw new Error("لم يرجع الخادم تأكيداً صالحاً لطلب تغيير الجهاز.");
       }
+      const savedRequest: CustomerRequest = {
+        id: result.data.id,
+        status: "pending_approval",
+        reason: cleaned,
+        review_reason: null,
+        created_at: result.data.created_at,
+        reviewed_at: null,
+        requested_device: result.data.requested_device,
+      };
       requestKey.current = null;
+      setItems((current) => [
+        savedRequest,
+        ...current.filter((item) => item.id !== savedRequest.id),
+      ]);
       setReason("");
       setNotice(result.data.replayed
         ? "هذا الطلب سبق تسجيله؛ لم يُنشأ طلب مكرر."
         : "سُجل الطلب من جلسة هذا الجهاز. لم يُفصل أي جهاز بعد؛ تنتظر العملية موافقة الإدارة.");
-      await load();
     } catch (cause) {
       await load();
       setError(cause instanceof Error ? cause.message : "تعذر إرسال طلب تغيير الجهاز.");
