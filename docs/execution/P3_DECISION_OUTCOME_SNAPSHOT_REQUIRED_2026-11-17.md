@@ -31,6 +31,18 @@
 - Opening inventory 3,235 remains an owner-authorized estimate pending physical stock count; it must not be treated as field-confirmed ATP.
 - Product images remain 0/114 until original supplier/package images and approved SKU mapping are available.
 
+## P3 continuation — Outcome Learning — 2026-11-17
+
+- Functional implementation commit: `c34c573c7ce3639682129268bd1f3a4be97dcf55`.
+- Source/UX validation follow-up: `796b68d39625c74a7dcf71875c0934127fb37204`.
+- Current main at checkpoint: `6761bf4d8eea949632866d7aa8e46358e7b99086`, descendant of the follow-up through unrelated supplier-trend and barcode commits. The P3 implementation paths remain unchanged.
+- Added tenant-scoped `decision_policy_learning_candidates` and append-only `decision_policy_learning_events`; secure RPCs create from measured decision IDs and verified memory/evidence, then support `DRAFT → IN_REVIEW → APPROVED/REJECTED` with optimistic versioning, idempotency and maker-checker.
+- Candidate snapshots pin the base rule/profile version, expected and actual measurements, period/currency/unit/formula, calculation results, evidence references and exact decision-memory snapshot IDs/versions. A later corrected memory version produces a new candidate version; prior candidate and source snapshots remain unchanged.
+- The saved Candidate screen displays the expected/actual values, variance, evidence references, formula and period, source-memory version and append-only actor/reason history. Approval explicitly remains review-only; no active Profile/rule, finance or inventory write is triggered.
+- P2 PG17 acceptance script creates order/invoice/decision/measurement and memory fixtures inside a rollback-only transaction. It covers v2 creation, source replay, maker-checker, role denial, trigger-based snapshot/event immutability, approval, memory correction to v2 and a subsequent Candidate v3.
+- Exact implementation SHA verification: P1 run [43998092975](https://github.com/Report-Engainall/Nasr1/actions/runs/43998092975) — `QUEUED`; P2 run [43998092915](https://github.com/Report-Engainall/Nasr1/actions/runs/43998092915) — `QUEUED`. Neither is PASS. The storefront feedback run [43998092793](https://github.com/Report-Engainall/Nasr1/actions/runs/43998092793) is unrelated to this P3 acceptance.
+- No local PostgreSQL acceptance has been run in this session; the rollback-only PG17 script is committed to the P2 workflow. No hosted database migration, production write, deployment, Vercel usage or live provider integration was performed.
+
 ## Next action
 
-Resolve P1/P2 runs 43983285125 and 43983285142 on the exact implementation SHA; repair only failures on that same code path. Then continue the financial schedule gap with a source-backed, maker-checker approved operating-expense commitment lifecycle; do not reuse actual posted cash expenses as forecast commitments.
+Resolve the P1/P2 runs against exact implementation SHA `796b68d39625c74a7dcf71875c0934127fb37204`. If either fails, repair only the failing Outcome Learning path and re-run against the new exact SHA. After acceptance, resume the separate P3 financial schedule gap using source-backed, maker-checker approved operating-expense commitments; never re-label posted expenses as future commitments.
