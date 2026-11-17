@@ -4,7 +4,7 @@
  */
 import { ONYX_PRO_HEADER_SYNONYMS } from "./onyx-pro-schema";
 
-export type ImportDatasetKind = "products" | "customers" | "inventory";
+export type ImportDatasetKind = "products" | "customers" | "inventory" | "product_units";
 
 export type ImportProfileMapping = {
   requiredColumns: string[];
@@ -30,6 +30,14 @@ export function resolveImportProfileMapping(
         ? [...configuredRequiredColumns]
         : ["item_code", "quantity", "warehouse_code", "as_of_date"],
       matchingKey: configuredMatchingKey?.trim() || "warehouse_item_key",
+    };
+  }
+  if (kind === "product_units") {
+    return {
+      requiredColumns: configuredRequiredColumns?.length
+        ? [...configuredRequiredColumns]
+        : ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      matchingKey: configuredMatchingKey?.trim() || "product_unit_key",
     };
   }
   return {
@@ -484,6 +492,7 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   ].some((field) => set.has(field));
   const hasPricingMarkers = set.has("price_list_code") || set.has("price_line_id") ||
     (set.has("price_level_code") && set.has("unit_price"));
+  const hasProductUnitMarkers = set.has("unit_code") && set.has("unit_name") && set.has("conversion_factor");
 
   if (hasOrderNumber && (hasCustomerCode || hasItemCode || set.has("order_date"))) {
     return { kind: "orders", matchedFields: fields.filter((field) =>
@@ -498,6 +507,9 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
       ["order_number", "external_order_number", "order_id", "customer_code", "item_code",
         "quotation_number", "beneficiary_id", "reserve_quantities", "discount_1", "discount_2", "discount_3"].includes(field),
     ) };
+  }
+  if (hasItemCode && hasProductUnitMarkers && !hasWarehouse && !hasPricingMarkers) {
+    return { kind: "product_units", matchedFields: ["item_code", "unit_code", "unit_name", "conversion_factor"] };
   }
   if (hasPricingMarkers) {
     return { kind: "pricing", matchedFields: fields.filter((field) =>
