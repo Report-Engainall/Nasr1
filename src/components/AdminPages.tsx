@@ -35,6 +35,7 @@ import { StorefrontArtworkPicker } from '@/components/StorefrontArtworkPicker';
 import { normalizeStorefrontArtworkKey, type StorefrontArtworkKey } from '@/lib/storefront-artwork';
 import { MemberAuthorizationAccessControls } from '@/components/CustomerManagerRoleAssignment';
 import { AdminAccessMatrix } from '@/components/AdminAccessMatrix';
+import { WorkspaceSectionGroup, WorkspaceSectionHeader } from '@/components/ui/workspace-sections';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
 import { AiGatewayOperationsPanel } from '@/components/intelligence';
 import {
@@ -1669,14 +1670,16 @@ function OrganizationRoleManagement({ currentProfileId, onNotice }: { currentPro
   </SettingsPanel>;
 }
 
-function SettingsPanel({ title, children }: { title: string; children: React.ReactNode }) { return <section className="panel settings-panel"><div className="panel-head"><div><h2>{title}</h2></div></div><div className="settings-body">{children}</div></section>; }
+function SettingsPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <WorkspaceSectionGroup icon={Settings} title={title} className="settings-panel" contentClassName="settings-body">{children}</WorkspaceSectionGroup>;
+}
 function SettingInput({ label, value, onSave, saving }: { label: string; value: string; onSave: (v: string) => void; saving: boolean }) { const [v, setV] = useState(value); useEffect(() => setV(value), [value]); return <div className="setting-row"><label><span>{label}</span><input value={v} onChange={(e) => setV(e.target.value)} /></label><Button variant="outline" onClick={() => onSave(v)} disabled={saving}>حفظ</Button></div>; }
 function SettingToggle({ label, value, onSave, saving }: { label: string; value: boolean; onSave: (v: boolean) => void; saving: boolean }) { return <div className="setting-row"><div className="setting-label"><span>{label}</span><label className="switch"><input type="checkbox" checked={value} onChange={(e) => onSave(e.target.checked)} disabled={saving} /><span /></label></div></div>; }
 function SettingColor({ label, value, onSave, saving }: { label: string; value: string; onSave: (v: string) => void; saving: boolean }) { return <div className="setting-row"><label><span>{label}</span><input type="color" value={value} onChange={(e) => onSave(e.target.value)} disabled={saving} /></label></div>; }
 
 // ─── Shared components ───
 export function AdminPage({ eyebrow, title, description, icon: Icon, note, toolbar, children }: { eyebrow: string; title: string; description: string; icon: IconType; note: string; toolbar?: React.ReactNode; children: React.ReactNode }) {
-  return <><div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>{(note || toolbar) && <div className="toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
+  return <><WorkspaceSectionHeader eyebrow={eyebrow} title={title} description={description} icon={Icon} />{(note || toolbar) && <div className="toolbar workspace-section-toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
 }
 export function Loading() { return <div className="loading"><RefreshCw size={20} className="spin" /> جار تحميل البيانات...</div>; }
 export function ErrorBox({ message }: { message: string }) { return <div className="error-box" role="alert"><AlertTriangle size={19} /> تعذر تحميل البيانات. {message}</div>; }
