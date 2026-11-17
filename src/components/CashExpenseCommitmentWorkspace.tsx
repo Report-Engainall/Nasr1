@@ -69,18 +69,23 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
   try{
    const [rows,accountRows]=await Promise.all([
     supabase.rpc("fetch_cash_expense_commitments",{p_limit:100,p_offset:0}),
-    supabase.from("accounting_accounts").select("id,code,name,account_type").eq("is_active",true).order("code"),
+    supabase.rpc("fetch_general_ledger",{p_from:null,p_to:null,p_account_id:null,p_limit:1,p_offset:0}),
    ]);
    if(rows.error)throw rows.error;if(accountRows.error)throw accountRows.error;
-   const parsed=parseItems(rows.data),found:Account[]=[];
-   for(const raw of accountRows.data??[])if(raw&&typeof raw.id==="string"&&typeof raw.code==="string"&&
-    typeof raw.name==="string"&&(raw.account_type==="asset"||raw.account_type==="expense")){
-     found.push({id:raw.id,code:raw.code,name:raw.name,account_type:raw.account_type});
+   const parsed=parseItems(rows.data);
+   if(!isObject(accountRows.data)||!Array.isArray(accountRows.data.accounts))
+    throw new Error("تعذر التحقق من إسقاط الحسابات المعتمد في دفتر الأستاذ.");
+   const found:Account[]=[],seen=new Set<string>();
+   for(const raw of accountRows.data.accounts)if(raw&&isObject(raw)&&typeof raw.id==="string"&&
+    typeof raw.code==="string"&&typeof raw.name==="string"&&raw.is_active===true&&
+    (raw.account_type==="asset"||raw.account_type==="expense")){
+     if(seen.has(raw.id))throw new Error("أعاد دفتر الأستاذ حساباً مكرراً.");
+     seen.add(raw.id);found.push({id:raw.id,code:raw.code,name:raw.name,account_type:raw.account_type});
     }
    if(current!==generation.current)return;
    setItems(parsed);setAccounts(found);
-   setExpenseAccount(x=>x||found.find(a=>a.account_type==="expense")?.id||"");
-   setSettlementAccount(x=>x||found.find(a=>a.account_type==="asset")?.id||"");
+   setExpenseAccount(x=>found.some(a=>a.id===x&&a.account_type==="expense")?x:found.find(a=>a.account_type==="expense")?.id||"");
+   setSettlementAccount(x=>found.some(a=>a.id===x&&a.account_type==="asset")?x:found.find(a=>a.id===x&&a.account_type==="asset")?.id||"");
   }catch(e){if(current===generation.current){setItems([]);setError(e instanceof Error?e.message:"تعذر تحميل الالتزامات.");}}
   finally{if(current===generation.current)setLoading(false);}
  },[ready,canManage,user?.id,user?.profileId,sessionRevision]);
@@ -181,7 +186,7 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
    {items.map(item=>{const isCreator=user?.profileId===item.created_by_profile_id,working=busy?.startsWith(item.id+":")??false;
     return <article key={item.id} style={{border:"1px solid var(--border,#d7e0e5)",borderRadius:9,padding:11,display:"grid",gap:8}}>
      <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><div><strong>#{item.commitment_number} — {item.category}</strong><p style={styles.muted}>{item.description}</p></div>
-      <strong>{Number(item.amount).toLocaleString("ar-YE",{minimumFractionDigits:2,maximumFractionDigits:2})} {item.currency}<small style={{display:"block",fontWeight:400}}>الاستحقاق: {item.due_date}</small></strong></div>
+      <strong>{(() => { const [whole,fraction="00"]=item.amount.split("."); return BigInt(whole).toLocaleString("ar-YE")+"."+fraction.padEnd(2,"0")+" "+item.currency; })()}<small style={{display:"block",fontWeight:400}}>الاستحقاق: {item.due_date}</small></strong></div>
      <p style={styles.muted}>{statuses[item.status]} · مرفقات: {item.evidence_count} · القيد: {item.journal_status??"غير منشأ"}</p>
      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       {canReview&&item.status==="pending_approval"&&!isCreator?<button style={styles.primary} disabled={working||item.evidence_count===0} onClick={()=>void approve(item)}>اعتماد مستقل مع السبب</button>:null}
