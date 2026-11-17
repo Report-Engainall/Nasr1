@@ -127,7 +127,7 @@ describe("public catalog privacy and tenant query contract", () => {
     });
 
     const categories = queryFor("categories");
-    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active");
+    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active,icon");
     expect(categories.columns).not.toMatch(/description|created_at/i);
     expect(categories.filters).toContainEqual({
       column: "organization_id",
@@ -370,13 +370,13 @@ describe("public catalog privacy and tenant query contract", () => {
 
   it("returns only active public categories through the dedicated category fetcher", async () => {
     mocks.responses.categories = {
-      data: [{ id: "category-1", name: "Public category", code: "PUB", parent_id: null, sort_order: 1, is_active: true }],
+      data: [{ id: "category-1", name: "Public category", code: "PUB", parent_id: null, sort_order: 1, is_active: true, icon: "food" }],
       error: null,
     } as never;
     await expect(fetchCategories()).resolves.toEqual(mocks.responses.categories.data);
 
     const categories = queryFor("categories");
-    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active");
+    expect(categories.columns).toBe("id,name,code,parent_id,sort_order,is_active,icon");
     expect(categories.columns).not.toMatch(/description|created_at/i);
     expect(categories.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
     expect(categories.filters).toContainEqual({ column: "is_active", value: true });
