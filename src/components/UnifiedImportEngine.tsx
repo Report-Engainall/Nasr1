@@ -48,11 +48,22 @@ type DuplicatePrompt = {
   externalSourceReference: string | null;
   duplicate: DuplicateResult;
   applicationKind: "products" | "customers";
+  worksheetName: string | null;
 };
 
-async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Promise<string[]> {
+async function readImportFileHeaders(
+  file: File,
+  extension: "csv" | "xlsx",
+  preferredWorksheetNames: readonly string[] = ["Products"],
+): Promise<{
+  headers: string[];
+  worksheetName: string | null;
+  worksheetNames: string[];
+}> {
   const capturedHeaderRows: string[][] = [];
   const headerCaptured = Symbol("first-import-header-row");
+  let worksheetName: string | null = null;
+  let worksheetNames: string[] = [];
   const captureFirstRow = (values: string[]) => {
     if (capturedHeaderRows.length === 0) {
       capturedHeaderRows.push(values);
@@ -76,7 +87,13 @@ async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Pro
     }
   } else {
     try {
-      await parseXlsxFirstWorksheet(file, captureFirstRow);
+      await parseXlsxFirstWorksheet(file, captureFirstRow, {
+        preferredWorksheetNames,
+        onWorksheetSelected: (selectedName, visibleNames) => {
+          worksheetName = selectedName;
+          worksheetNames = visibleNames;
+        },
+      });
     } catch (cause) {
       if (cause !== headerCaptured) throw cause;
     }
@@ -86,7 +103,11 @@ async function readImportFileHeaders(file: File, extension: "csv" | "xlsx"): Pro
   if (!headers || headers.length === 0 || headers.every((value) => !String(value ?? "").trim())) {
     throw new Error("تعذر قراءة صف العناوين من الملف؛ لم تُنشأ دفعة استيراد.");
   }
-  return headers.map((value, index) => index === 0 ? value.replace(/^\uFEFF/, "") : value);
+  return {
+    headers: headers.map((value, index) => index === 0 ? value.replace(/^\uFEFF/, "") : value),
+    worksheetName,
+    worksheetNames,
+  };
 }
 
 function unsupportedImportFormatDetails(extension: string): {
@@ -315,6 +336,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       ? (existingJob.external_source_reference ?? null)
       : selectedSource === "manual" ? null : externalSourceReference.trim() || null,
     requestedImportKind?: "products" | "customers",
+    requestedWorksheetName?: string | null,
   ) {
     if (runningRef.current) return;
     runningRef.current = true;
@@ -338,6 +360,17 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       return;
     }
     setApplicationKind(selectedImportKind);
+    const storedImportSummary = existingJob?.error_summary && typeof existingJob.error_summary === "object"
+      ? existingJob.error_summary as Record<string, unknown>
+      : null;
+    const storedWorksheetName = typeof storedImportSummary?.worksheet_name === "string"
+      ? storedImportSummary.worksheet_name
+      : null;
+    const isXlsxImport = file.name.toLocaleLowerCase("en").endsWith(".xlsx");
+    const defaultWorksheetName = isXlsxImport
+      ? selectedImportKind === "customers" ? "Customers" : "Products"
+      : null;
+    const selectedWorksheetName = requestedWorksheetName ?? storedWorksheetName ?? defaultWorksheetName;
     const importJobType = selectedImportKind === "customers" ? "unified_import_customers" : "unified_import_products";
     let job: ImportJob | null = existingJob ?? null;
     let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; external_source_reference: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
@@ -443,6 +476,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       const matchingKey = importMapping.matchingKey;
       const processingConfig = {
         importKind: selectedImportKind,
+        worksheetName: selectedWorksheetName,
         profileId: selectedProfile,
         profileVersion: profile?.version ?? null,
         reportType: profile?.report_type ?? null,
@@ -575,6 +609,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
 
       let processedBytes = 0;
       let xlsxWorksheetName: string | null = null;
+      let xlsxWorksheetNames: string[] = [];
       if (extension === "csv") {
         const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_BYTES);
         for (let chunkNumber = 0; chunkNumber < totalChunks; chunkNumber += 1) {
@@ -625,8 +660,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
             setProcessed(dataRows);
             setProgress(Math.min(70, 18 + Math.round((worksheetRows / (MAX_IMPORT_ROWS + 1)) * 52)));
           }
+        }, {
+          preferredWorksheetNames: selectedWorksheetName ? [selectedWorksheetName] : undefined,
         });
         xlsxWorksheetName = workbook.worksheetName;
+        xlsxWorksheetNames = workbook.worksheetNames;
         if (cancelRef.current) {
           setProcessed(dataRows);
         } else {
@@ -691,8 +729,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           period_key: selectedPeriod,
           source_system: selectedSource,
           external_source_reference: selectedExternalSourceReference,
-          parser: extension === "csv" ? "streaming-csv" : "xlsx-first-visible-sheet",
+          parser: extension === "csv" ? "streaming-csv" : "xlsx-selected-worksheet",
           worksheet_name: xlsxWorksheetName,
+          worksheet_names: xlsxWorksheetNames,
           processing_chunk_rows: PROCESSING_CHUNK_ROWS,
           upload_chunk_bytes: UPLOAD_CHUNK_BYTES,
         },
@@ -751,9 +790,29 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       setStage("detecting");
       const extension = file.name.split(".").pop()?.toLocaleLowerCase("en") ?? "";
       let detectedImportKind: "products" | "customers" = applicationKind;
+      let selectedWorksheetName: string | null = null;
       if (extension === "csv" || extension === "xlsx") {
-        const sourceHeaders = await readImportFileHeaders(file, extension);
+        const headerRead = await readImportFileHeaders(
+          file,
+          extension,
+          applicationKind === "customers" ? ["Customers"] : ["Products"],
+        );
+        const sourceHeaders = headerRead.headers;
+        selectedWorksheetName = headerRead.worksheetName;
+        if (extension === "xlsx" && headerRead.worksheetNames.length > 1 && selectedWorksheetName) {
+          const otherSheets = headerRead.worksheetNames.filter((name) => name !== selectedWorksheetName);
+          setStatusMessage(
+            "تم اختيار ورقة " + selectedWorksheetName + " تلقائياً من ملف Excel. هذا المسار يعالج الورقة المختارة فقط؛ الأوراق الأخرى (" +
+            otherSheets.join("، ") + ") لم تُرحّل في هذه العملية.",
+          );
+        }
         const detection = detectImportDatasetKind(sourceHeaders);
+        if (detection.kind === "orders") {
+          throw new Error("تم التعرف على ملف طلبات أونكس. لا يمكن تمريره إلى اعتماد الأصناف أو العملاء؛ يلزم ربط رأس الطلب وتفاصيله والتحقق من العميل والأصناف وحالة المستند قبل أي كتابة. لم تُنشأ دفعة ولم تتغير الطلبات.");
+        }
+        if (detection.kind === "pricing") {
+          throw new Error("تم التعرف على ملف قوائم/أسعار أونكس. لا يمكن تمريره إلى اعتماد كتالوج الأصناف؛ يلزم التحقق من قائمة الأسعار والعملة والوحدة وفترة السريان قبل تحديث الأسعار. لم تُنشأ دفعة ولم تتغير الأسعار.");
+        }
         if (detection.kind === "inventory") {
           throw new Error("اكتشف النظام ملف أرصدة مخزون مستقلًا (" + detection.matchedFields.join("، ") +
             "). لم تُنشأ دفعة أصناف ولم يُعدّل أي رصيد؛ لا يُعتمد المخزون حتى يكتمل مسار المطابقة والتسوية الآمنة.");
@@ -786,13 +845,15 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
           duplicate,
           applicationKind: detectedImportKind,
+          worksheetName: selectedWorksheetName,
         });
         setStage(null);
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
         return;
       }
       await processFile(file, fileHash, "new_version", undefined, selectedProfileForFile, periodKey.trim() || null, sourceSystem,
-        sourceSystem === "manual" ? null : externalSourceReference.trim() || null, detectedImportKind);
+        sourceSystem === "manual" ? null : externalSourceReference.trim() || null, detectedImportKind,
+        selectedWorksheetName);
     } catch (cause) {
       setStage(null);
       setErrorMessage(cause instanceof Error ? cause.message : "تعذر قراءة بصمة الملف.");
@@ -820,11 +881,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         openJob.source_system ?? pending.sourceSystem,
         openJob.external_source_reference ?? pending.externalSourceReference,
         pending.applicationKind,
+        pending.worksheetName,
       );
       return;
     }
     await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
-      pending.sourceSystem, pending.externalSourceReference, pending.applicationKind);
+      pending.sourceSystem, pending.externalSourceReference, pending.applicationKind, pending.worksheetName);
   }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
@@ -1048,7 +1110,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         <section className="panel import-upload-panel">
           <div className="import-upload-icon"><Upload size={26} /></div>
           <h2>رفع ملف للمعالجة</h2>
-          <p>يدعم CSV وملفات XLSX الجدولية (الورقة المرئية الأولى). صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي؛ لا تُخترع بيانات غير مستخرجة.</p>
+          <p>يدعم CSV وXLSX. في المصنف متعدد الأوراق يختار ورقة Products أو Customers بحسب نوع الاستيراد، ثم يعالج الورقة المختارة فقط. صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي.</p>
           <div className="form-grid">
             <label className="form-field"><span>نوع البيانات في الملف</span>
               <select value={applicationKind} disabled={stage !== null || Boolean(duplicatePrompt)}

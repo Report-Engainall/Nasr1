@@ -28,6 +28,11 @@ describe("default Onyx and bulk business import headers", () => {
       ["البريد الالكتروني", "email"],
       ["العنوان", "address"],
       ["الرقم الضريبي", "tax_number"],
+      ["base_unit_name", "unit"],
+      ["اسم الوحدة الأساسية", "unit"],
+      ["quantity_on_hand", "quantity"],
+      ["quantity_reserved", "reserved_quantity"],
+      ["quantity_available", "available_quantity"],
     ];
     for (const [header, canonical] of pairs) {
       expect(normalizeHeader(header), header).toBe(canonical);
@@ -53,10 +58,30 @@ describe("default Onyx and bulk business import headers", () => {
   it("detects product files from Arabic/English item identity and product descriptors", () => {
     expect(detectImportDatasetKind(["رقم الصنف", "اسم الصنف", "الوحدة", "سعر التجزئة"]).kind).toBe("products");
     expect(detectImportDatasetKind(["item_code", "product_name", "unit", "price_retail"]).kind).toBe("products");
+    expect(detectImportDatasetKind(["product_code", "product_name", "base_unit_name", "price_retail"]).kind).toBe("products");
   });
 
   it("detects customer master files without trusting a source tier", () => {
     expect(detectImportDatasetKind(["رقم العميل", "اسم المؤسسة", "رقم الجوال", "فئة العميل"]).kind).toBe("customers");
+  });
+
+  it("detects order headers and the legacy 27-column Onyx order detail layout separately from products", () => {
+    expect(detectImportDatasetKind(["رقم الطلب", "رقم العميل", "رقم الصنف", "اسم الصنف"]).kind).toBe("orders");
+    expect(detectImportDatasetKind([...ONYX_ORDER_COLUMNS]).kind).toBe("orders");
+  });
+
+  it("detects price lists and price lines separately from product catalog rows", () => {
+    expect(normalizeHeader("كود قائمة الأسعار")).toBe("price_list_code");
+    expect(normalizeHeader("سعر الوحدة")).toBe("unit_price");
+    expect(detectImportDatasetKind(["كود قائمة الأسعار", "رقم الصنف", "الوحدة", "سعر الوحدة", "العملة"]).kind).toBe("pricing");
+  });
+
+  it("adds non-conflicting Onyx field names without changing legacy ambiguous headers", () => {
+    expect(normalizeHeader("رقم الطلب")).toBe("order_number");
+    expect(normalizeHeader("كود المخزن")).toBe("warehouse_code");
+    expect(normalizeHeader("رقم الصنف")).toBe("item_code");
+    expect(normalizeHeader("البيان")).toBe("description");
+    expect(normalizeHeader("product_code")).toBe("item_code");
   });
 
   it("detects inventory-only sheets before they can enter the product apply path", () => {

@@ -2,6 +2,8 @@
  * Shared deterministic primitives for every import source.
  * Raw files are streamed and never persisted; callers persist metadata and normalized rows only.
  */
+import { ONYX_PRO_HEADER_SYNONYMS } from "./onyx-pro-schema";
+
 export type ImportDatasetKind = "products" | "customers";
 
 export type ImportProfileMapping = {
@@ -228,7 +230,7 @@ function normalizeHeaderToken(value: string): string {
     .trim();
 }
 
-export const DEFAULT_SYNONYMS: Record<string, string> = {
+const LEGACY_DEFAULT_SYNONYMS: Record<string, string> = {
   // Product identity and Onyx item columns.
   "رقم الصنف": "item_code",
   "الصنف": "item_code",
@@ -239,6 +241,12 @@ export const DEFAULT_SYNONYMS: Record<string, string> = {
   "الكود": "item_code",
   "item_code": "item_code",
   "product_code": "item_code",
+  "base_unit_name": "unit",
+  "اسم الوحدة الأساسية": "unit",
+  "quantity_on_hand": "quantity",
+  "رصيد المخزون": "quantity",
+  "quantity_reserved": "reserved_quantity",
+  "quantity_available": "available_quantity",
   "sku": "item_code",
   "code": "item_code",
   "اسم الصنف": "product_name",
@@ -397,6 +405,14 @@ export const DEFAULT_SYNONYMS: Record<string, string> = {
   "supplier_code": "supplier_code",
 };
 
+export const DEFAULT_SYNONYMS: Record<string, string> = {
+  ...LEGACY_DEFAULT_SYNONYMS,
+  ...Object.fromEntries(Object.entries(ONYX_PRO_HEADER_SYNONYMS).filter(([header, canonical]) =>
+    !Object.prototype.hasOwnProperty.call(LEGACY_DEFAULT_SYNONYMS, header) ||
+    LEGACY_DEFAULT_SYNONYMS[header] === canonical,
+  )),
+};
+
 const NORMALIZED_DEFAULT_SYNONYMS = new Map(
   Object.entries(DEFAULT_SYNONYMS).map(([key, canonical]) => [normalizeHeaderToken(key), canonical]),
 );
@@ -415,17 +431,13 @@ export function normalizeHeader(value: string, synonyms: Record<string, string> 
 
 
 
-export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "ambiguous" | "unknown";
+export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "orders" | "pricing" | "ambiguous" | "unknown";
 export type ImportDatasetDetection = {
   kind: ImportDatasetDetectionKind;
   matchedFields: string[];
 };
 
-/**
- * Classifies a dataset from its normalized header row before an import job is created.
- * Mixed identifiers fail closed. A stock-only sheet is inventory, not a product catalog;
- * a product sheet may still include warehouse and quantity columns.
- */
+/** Routes complete exchange files before staging so unsupported entities cannot be misapplied. */
 export function detectImportDatasetKind(headers: readonly string[]): ImportDatasetDetection {
   const fields = [...new Set(headers
     .filter((header): header is string => typeof header === "string")
@@ -445,13 +457,36 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   ].filter((field) => set.has(field));
   const inventoryDetails = [
     "warehouse_code", "warehouse_name", "quantity", "available_quantity", "reserved_quantity",
-    "batch_number", "expiry_date",
+    "batch_number", "expiry_date", "movement_id", "movement_type",
   ].filter((field) => set.has(field));
   const hasInventoryMarkers = hasWarehouse || hasQuantity ||
-    set.has("reserved_quantity") || set.has("batch_number") || set.has("expiry_date");
+    set.has("reserved_quantity") || set.has("batch_number") || set.has("expiry_date") ||
+    set.has("movement_id") || set.has("external_movement_id") || set.has("movement_type");
+  const hasOrderNumber = set.has("order_number") || set.has("external_order_number") || set.has("order_id");
+  const hasOrderLineMarkers = [
+    "quotation_number", "beneficiary_id", "reserve_quantities", "discount_1", "discount_2", "discount_3",
+  ].some((field) => set.has(field));
+  const hasPricingMarkers = set.has("price_list_code") || set.has("price_line_id") ||
+    (set.has("price_level_code") && set.has("unit_price"));
 
+  if (hasOrderNumber && (hasCustomerCode || hasItemCode || set.has("order_date"))) {
+    return { kind: "orders", matchedFields: fields.filter((field) =>
+      ["order_number", "external_order_number", "order_id", "customer_code", "item_code"].includes(field),
+    ) };
+  }
   if (hasItemCode && hasCustomerCode) {
     return { kind: "ambiguous", matchedFields: ["item_code", "customer_code"] };
+  }
+  if (hasItemCode && hasOrderLineMarkers) {
+    return { kind: "orders", matchedFields: fields.filter((field) =>
+      ["order_number", "external_order_number", "order_id", "customer_code", "item_code",
+        "quotation_number", "beneficiary_id", "reserve_quantities", "discount_1", "discount_2", "discount_3"].includes(field),
+    ) };
+  }
+  if (hasPricingMarkers) {
+    return { kind: "pricing", matchedFields: fields.filter((field) =>
+      ["price_list_code", "price_line_id", "price_level_code", "product_code", "unit_price", "currency_code"].includes(field),
+    ) };
   }
   if (hasCustomerCode && hasInventoryMarkers) {
     return { kind: "ambiguous", matchedFields: ["customer_code", ...inventoryDetails] };
@@ -459,7 +494,10 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   if (hasCustomerCode) {
     return { kind: "customers", matchedFields: ["customer_code", ...customerDetails] };
   }
-  if (hasInventoryMarkers && productDetails.length === 0) {
+  if (set.has("movement_id") || set.has("external_movement_id") || set.has("movement_type")) {
+    return { kind: "inventory", matchedFields: inventoryDetails };
+  }
+  if (hasInventoryMarkers && productDetails.filter((field) => field !== "barcode").length === 0) {
     return { kind: "inventory", matchedFields: inventoryDetails };
   }
   if (hasItemCode && productDetails.length > 0) {
@@ -1214,13 +1252,22 @@ function parseXlsxCellValue(
 }
 
 /**
- * Reads the first visible XLSX worksheet and emits rows incrementally to the consumer.
+ * Reads a selected visible XLSX worksheet and emits rows incrementally to the consumer.
  * The raw archive and accumulated data rows are never retained; inflated XML is strictly bounded.
  */
+export type XlsxWorksheetSelectionOptions = {
+  /** Exact, case-insensitive worksheet names to prefer, in priority order. */
+  preferredWorksheetNames?: readonly string[];
+  /** Called once after visible worksheet names have been read and the target selected. */
+  onWorksheetSelected?: (worksheetName: string, visibleWorksheetNames: string[]) => void;
+};
+
+/** Reads one selected visible XLSX worksheet. Preferred names make multi-tab exports deterministic. */
 export async function parseXlsxFirstWorksheet(
   file: Blob,
   onRow: (values: string[]) => void | Promise<void>,
-): Promise<{ rowCount: number; worksheetName: string }> {
+  options: XlsxWorksheetSelectionOptions = {},
+): Promise<{ rowCount: number; worksheetName: string; worksheetNames: string[] }> {
   if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > MAX_IMPORT_FILE_BYTES) {
     throw new Error('حجم ملف XLSX يجب أن يكون بين 1 بايت و100MB.');
   }
@@ -1313,7 +1360,7 @@ export async function parseXlsxFirstWorksheet(
   const date1904 = ['1', 'true'].includes((xlsxAttribute(workbookProperties, 'date1904') ?? '').toLowerCase());
   const sheetsXml = /<sheets\b[^>]*>([\s\S]*?)<\/sheets\s*>/i.exec(workbookXml)?.[1] ?? '';
   const sheetPattern = /<sheet\b([^>]*?)\/?\s*>/g;
-  let sheet: { name: string; relationshipId: string } | null = null;
+  const visibleSheets: Array<{ name: string; relationshipId: string }> = [];
   let match: RegExpExecArray | null;
   while ((match = sheetPattern.exec(sheetsXml))) {
     const attributes = match[1];
@@ -1321,9 +1368,17 @@ export async function parseXlsxFirstWorksheet(
     if (state === 'hidden' || state === 'veryHidden') continue;
     const name = xlsxAttribute(attributes, 'name') ?? 'Sheet';
     const relationshipId = xlsxAttribute(attributes, 'r:id');
-    if (relationshipId) { sheet = { name, relationshipId }; break; }
+    if (relationshipId) visibleSheets.push({ name, relationshipId });
   }
-  if (!sheet) throw new Error('لم يعثر ملف XLSX على ورقة عمل مرئية قابلة للقراءة.');
+  if (visibleSheets.length === 0) throw new Error('لم يعثر ملف XLSX على ورقة عمل مرئية قابلة للقراءة.');
+  const preferredNames = (options.preferredWorksheetNames ?? []).map((name) => name.trim().toLocaleLowerCase('en')).filter(Boolean);
+  const sheet = preferredNames.length > 0
+    ? preferredNames.map((name) => visibleSheets.find((candidate) => candidate.name.trim().toLocaleLowerCase('en') === name))
+      .find((candidate): candidate is { name: string; relationshipId: string } => Boolean(candidate))
+      ?? visibleSheets[0]
+    : visibleSheets[0];
+  const worksheetNames = visibleSheets.map((item) => item.name);
+  options.onWorksheetSelected?.(sheet.name, worksheetNames);
   const relationshipPattern = /<Relationship\b([^>]*?)\/?\s*>/g;
   let target: string | null = null;
   while ((match = relationshipPattern.exec(relsXml))) {
@@ -1363,6 +1418,6 @@ export async function parseXlsxFirstWorksheet(
     }
     await onRow(Array.from({ length: values.length }, (_value, index) => values[index] ?? ''));
   }
-  if (rowCount === 0) throw new Error('ورقة XLSX الأولى فارغة أو لا تحتوي على صفوف جدولية.');
-  return { rowCount, worksheetName: sheet.name };
+  if (rowCount === 0) throw new Error('ورقة XLSX المحددة فارغة أو لا تحتوي على صفوف جدولية.');
+  return { rowCount, worksheetName: sheet.name, worksheetNames };
 }
