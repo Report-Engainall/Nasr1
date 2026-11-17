@@ -15,6 +15,7 @@ import { ProductComparison } from '@/components/store/ProductComparison';
 import { CartQuantityControl } from '@/components/store/CartQuantityControl';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
+import { normalizeStorefrontArtworkKey } from '@/lib/storefront-artwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
 import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
@@ -966,6 +967,10 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           <>
             <section className="sf-hero" style={{ background: `linear-gradient(120deg, ${(settings?.theme_primary as string) ?? '#087f8d'}, ${(settings?.theme_accent as string) ?? '#0eaa97'})` }}>
               <div><span className="sf-hero-kicker">عرض خاص</span><h1>{(settings?.hero_title as string) ?? 'الأغبري — موردك الموثوق'}</h1><p>{(settings?.hero_subtitle as string) ?? 'مواد غذائية بالجملة بأسعار تنافسية وتوصيل سريع'}</p></div>
+              <div className="sf-hero-art" style={{ width: 'clamp(112px, 20%, 190px)', height: 126, flex: '0 0 auto', overflow: 'hidden', borderRadius: 14 }}>
+                <ProductPlaceholderArtwork productName="بانر متجر الأغبري" variantOverride={normalizeStorefrontArtworkKey(settings?.hero_artwork)}
+                  compact caption="رسم توضيحي للواجهة" accessibleLabel="رسم توضيحي مؤقت لبانر متجر الأغبري" />
+              </div>
               <div className="sf-hero-badge"><Package size={28} /><div><strong>{productsLoading && !products.length ? '…' : formatNumber(catalogCount)}</strong><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج' : 'منتج في الكتالوج'}</span></div></div>
             </section>
 

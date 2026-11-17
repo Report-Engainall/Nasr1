@@ -14,6 +14,7 @@ import { getImportJobsPageBounds } from './import-job-pagination';
 import { calculateBusinessInventoryValue } from './business-inventory-valuation';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
+import { isStorefrontArtworkKey } from './storefront-artwork';
 import { resolveOnyxSnapshotImportKind, type OnyxSnapshotImportKind } from './onyx-snapshot-import-kind';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { extractOwnedProductImageObjectPath } from './product-image-security';
@@ -286,7 +287,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     retryRead(async () => {
       let query = supabase
         .from('categories')
-        .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
+        .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active,icon')
         .eq('organization_id', orgId);
       // Categories can contain internal descriptions; expose only storefront fields and active
       // categories to non-staff clients. Keep the full scoped projection for staff maintenance.
@@ -1130,7 +1131,7 @@ export async function fetchCategories(): Promise<Category[]> {
   const data = await retryRead(async () => {
     let query = supabase
       .from('categories')
-      .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
+      .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active,icon')
       .eq('organization_id', orgId);
     if (!isStaff) query = query.eq('is_active', true);
     const { data, error } = await query.order('sort_order');
@@ -2394,6 +2395,7 @@ function parseStorefrontAnnouncementRows(data: unknown, management: boolean): St
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('أعاد الخادم سجل إعلان غير صالح.');
     const row = value as Record<string, unknown>;
     const audience = row.audience, content = row.content, href = row.href;
+    const visualKey = row.visual_key == null ? "general" : row.visual_key;
     const timestamp = (value: unknown): string | null => {
       if (value == null) return null;
       if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw new Error('تاريخ إعلان غير صالح.');
@@ -2406,6 +2408,7 @@ function parseStorefrontAnnouncementRows(data: unknown, management: boolean): St
       !(href == null || typeof href === 'string') ||
       (typeof href === 'string' && (!safeHref(href) || href.length > 500)) ||
       typeof row.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(row.color) ||
+      !isStorefrontArtworkKey(visualKey) ||
       typeof row.priority !== 'number' || !Number.isInteger(row.priority) ||
       !['all', 'customers', 'staff'].includes(String(audience)) ||
       (management && typeof row.is_active !== 'boolean')) {
@@ -2413,7 +2416,7 @@ function parseStorefrontAnnouncementRows(data: unknown, management: boolean): St
     }
     return {
       id: row.id, title: row.title, content: content as string | null, href: (href ?? null) as string | null,
-      color: row.color, priority: row.priority, starts_at: timestamp(row.starts_at), ends_at: timestamp(row.ends_at),
+      color: row.color, priority: row.priority, visual_key: visualKey, starts_at: timestamp(row.starts_at), ends_at: timestamp(row.ends_at),
       audience: audience as StorefrontAnnouncement['audience'],
       is_active: management ? row.is_active as boolean : true,
       created_at: typeof row.created_at === 'string' ? row.created_at : undefined,
@@ -2437,6 +2440,7 @@ export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementIn
     p_announcement_id: input.id, p_title: input.title, p_content: input.content, p_href: input.href,
     p_color: input.color, p_priority: input.priority, p_is_active: input.is_active,
     p_starts_at: input.starts_at, p_ends_at: input.ends_at, p_audience: input.audience,
+    p_visual_key: input.visual_key ?? 'general',
   });
   if (result.error) throw new Error('تعذر حفظ إعلان المتجر: ' + result.error.message);
   if (typeof result.data !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.data)) {
@@ -4239,4 +4243,74 @@ export async function manageCustomerInteractionFollowUp(input: {
     createdAt: row.created_at,
     replayed: row.replayed,
   };
+}
+
+
+// ─── Warehouse-scoped inventory batch traceability ────────────────────────
+export type InventoryBatchProductOption = { product_id: string; item_code: string; product_name: string; unit: string | null };
+export type InventoryBatchLot = {
+  id: string; batch_number: string | null; expiry_date: string | null; received_at: string;
+  quantity_on_hand: number; quantity_reserved: number; quantity_available: number;
+  source_type: 'legacy_unattributed' | 'purchase_receipt' | 'unattributed_balance_increase' | 'inventory_transfer';
+  expired: boolean;
+};
+export type InventoryBatchStockSnapshot = {
+  product_id: string; warehouse_id: string; quantity_on_hand: number; quantity_reserved: number;
+  quantity_available: number; lots: InventoryBatchLot[]; as_of: string;
+};
+function isInventoryBatchRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function parseInventoryBatchAmount(value: unknown): number {
+  const amount = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN;
+  if (!Number.isFinite(amount) || amount < 0 || amount > 999999999999.999) throw new Error('أعاد الخادم كمية دفعة غير صالحة.');
+  return amount;
+}
+export async function fetchInventoryBatchProducts(warehouseId: string): Promise<InventoryBatchProductOption[]> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('list_inventory_batch_products', { p_warehouse_id: warehouseId });
+  if (error) throw error;
+  if (!isInventoryBatchRecord(data) || !Array.isArray(data.items)) throw new Error('قائمة أصناف تتبع الدفعات غير صالحة.');
+  return data.items.map((row): InventoryBatchProductOption => {
+    if (!isInventoryBatchRecord(row) || typeof row.product_id !== 'string' || !stockCountUuid.test(row.product_id)
+        || typeof row.item_code !== 'string' || typeof row.product_name !== 'string'
+        || !(row.unit === null || typeof row.unit === 'string')) throw new Error('هوية صنف الدفعة غير صالحة.');
+    return { product_id: row.product_id, item_code: row.item_code, product_name: row.product_name, unit: row.unit };
+  });
+}
+export async function fetchInventoryBatchStock(productId: string, warehouseId: string): Promise<InventoryBatchStockSnapshot> {
+  assertStockCountId(productId, 'معرّف الصنف'); assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.rpc('list_inventory_batch_stock', { p_product_id: productId, p_warehouse_id: warehouseId });
+  if (error) throw error;
+  if (!isInventoryBatchRecord(data) || data.product_id !== productId || data.warehouse_id !== warehouseId
+      || !Array.isArray(data.lots) || typeof data.as_of !== 'string' || Number.isNaN(Date.parse(data.as_of))) {
+    throw new Error('لم يؤكد الخادم هوية لقطة تتبع الدفعات.');
+  }
+  const allowedSources = ['legacy_unattributed','purchase_receipt','unattributed_balance_increase','inventory_transfer'] as const;
+  const lots = data.lots.map((row): InventoryBatchLot => {
+    if (!isInventoryBatchRecord(row) || typeof row.id !== 'string' || !stockCountUuid.test(row.id)
+        || typeof row.received_at !== 'string' || Number.isNaN(Date.parse(row.received_at))
+        || !allowedSources.includes(row.source_type as typeof allowedSources[number]) || typeof row.expired !== 'boolean'
+        || !(row.batch_number === null || typeof row.batch_number === 'string')
+        || !(row.expiry_date === null || (typeof row.expiry_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.expiry_date)))) {
+      throw new Error('أعاد الخادم بيانات دفعة أو صلاحية غير صالحة.');
+    }
+    return {
+      id: row.id, batch_number: row.batch_number as string | null, expiry_date: row.expiry_date as string | null,
+      received_at: row.received_at, quantity_on_hand: parseInventoryBatchAmount(row.quantity_on_hand),
+      quantity_reserved: parseInventoryBatchAmount(row.quantity_reserved),
+      quantity_available: parseInventoryBatchAmount(row.quantity_available),
+      source_type: row.source_type as InventoryBatchLot['source_type'], expired: row.expired,
+    };
+  });
+  const quantity_on_hand = parseInventoryBatchAmount(data.quantity_on_hand);
+  const quantity_reserved = parseInventoryBatchAmount(data.quantity_reserved);
+  const quantity_available = parseInventoryBatchAmount(data.quantity_available);
+  const lotsOnHand = lots.reduce((sum, lot) => sum + lot.quantity_on_hand, 0);
+  const lotsReserved = lots.reduce((sum, lot) => sum + lot.quantity_reserved, 0);
+  if (Math.abs(lotsOnHand-quantity_on_hand)>0.001 || Math.abs(lotsReserved-quantity_reserved)>0.001
+      || Math.abs(quantity_on_hand-quantity_reserved-quantity_available)>0.001) {
+    throw new Error('لا يتطابق مجموع الدفعات مع رصيد المستودع؛ أوقف عرض التتبع وراجع سلامة المخزون.');
+  }
+  return { product_id: productId, warehouse_id: warehouseId, quantity_on_hand, quantity_reserved, quantity_available, lots, as_of: data.as_of };
 }

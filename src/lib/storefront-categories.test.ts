@@ -24,6 +24,11 @@ describe('parsePublicStorefrontCategories', () => {
     }]);
   });
 
+  it('keeps a validated illustration key in the public category projection', () => {
+    expect(parsePublicStorefrontCategories([{ ...validCategory, icon: 'food' }])[0].icon).toBe('food');
+    expect(() => parsePublicStorefrontCategories([{ ...validCategory, icon: 'javascript:alert(1)' }])).toThrow();
+  });
+
   it('returns an empty list for an empty public catalog', () => {
     expect(parsePublicStorefrontCategories([])).toEqual([]);
   });

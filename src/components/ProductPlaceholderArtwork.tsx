@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { isStorefrontArtworkKey, type StorefrontArtworkKey } from "@/lib/storefront-artwork";
 
 export type ProductPlaceholderVariant =
   | "food" | "beverage" | "cleaning" | "personal-care"
@@ -9,6 +10,9 @@ type Props = {
   description?: string | null;
   categoryName?: string | null;
   compact?: boolean;
+  variantOverride?: StorefrontArtworkKey;
+  caption?: string;
+  accessibleLabel?: string;
 };
 
 type Palette = { background: string; primary: string; secondary: string; accent: string; ink: string };
@@ -47,7 +51,9 @@ export function resolveProductPlaceholderVariant(input: {
   productName: string;
   description?: string | null;
   categoryName?: string | null;
+  variantOverride?: StorefrontArtworkKey;
 }): ProductPlaceholderVariant {
+  if (isStorefrontArtworkKey(input.variantOverride)) return input.variantOverride;
   const searchable = normalizeProductText(
     [input.categoryName, input.productName, input.description].filter(Boolean).join(" "),
   );
@@ -133,8 +139,11 @@ function IllustrationShape({ variant, palette }: { variant: ProductPlaceholderVa
 }
 
 /** Original local illustration. It is a labelled display fallback, never saved as product media. */
-export function ProductPlaceholderArtwork({ productName, description, categoryName, compact = false }: Props) {
-  const variant = resolveProductPlaceholderVariant({ productName, description, categoryName });
+export function ProductPlaceholderArtwork({
+  productName, description, categoryName, compact = false,
+  variantOverride, caption = "صورة توضيحية مؤقتة", accessibleLabel,
+}: Props) {
+  const variant = resolveProductPlaceholderVariant({ productName, description, categoryName, variantOverride });
   const palette = PALETTES[variant];
   const style: CSSProperties = {
     position: "relative", display: "block", width: "100%", height: "100%",
@@ -143,7 +152,7 @@ export function ProductPlaceholderArtwork({ productName, description, categoryNa
   };
 
   return (
-    <div role="img" aria-label={"رسم توضيحي مؤقت للمنتج " + productName}
+    <div role="img" aria-label={accessibleLabel ?? ("رسم توضيحي مؤقت للمنتج " + productName)}
       data-placeholder-variant={variant} style={style}>
       <svg aria-hidden="true" viewBox="0 0 480 360" width="100%" height="100%"
         preserveAspectRatio="xMidYMid meet" style={{ display: "block", minHeight: compact ? 132 : 250 }}>
@@ -161,7 +170,7 @@ export function ProductPlaceholderArtwork({ productName, description, categoryNa
         border: "1px solid rgba(255,255,255,.72)", borderRadius: 999, color: palette.ink,
         background: "rgba(255,255,255,.88)", fontSize: 10, fontWeight: 800,
         lineHeight: 1.3, whiteSpace: "nowrap",
-      }}>صورة توضيحية مؤقتة</span>
+      }}>{caption}</span>
     </div>
   );
 }

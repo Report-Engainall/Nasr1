@@ -31,6 +31,8 @@ import { downloadAdminSalesOrderWorkbookXlsx } from '@/lib/admin-sales-order-xls
 import type { LucideIcon } from 'lucide-react';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { StorefrontArtworkPicker } from '@/components/StorefrontArtworkPicker';
+import { normalizeStorefrontArtworkKey, type StorefrontArtworkKey } from '@/lib/storefront-artwork';
 import { MemberAuthorizationAccessControls } from '@/components/CustomerManagerRoleAssignment';
 import { AdminAccessMatrix } from '@/components/AdminAccessMatrix';
 import { CustomerOrderAmendmentHistory } from '@/components/CustomerOrderAmendmentHistory';
@@ -1264,6 +1266,9 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
         <SettingsPanel title="إعدادات المتجر">
           <SettingInput label="عنوان البانر" value={(map.hero_title as string) ?? ''} onSave={(v) => save('hero_title', v, 'storefront')} saving={saving} />
           <SettingInput label="نص البانر الفرعي" value={(map.hero_subtitle as string) ?? ''} onSave={(v) => save('hero_subtitle', v, 'storefront')} saving={saving} />
+          {canManageStorefrontContent && <StorefrontArtworkPicker label="الرسم التوضيحي لبانر المتجر"
+            value={normalizeStorefrontArtworkKey(map.hero_artwork)} previewName="بانر متجر الأغبري" disabled={saving}
+            onChange={(value) => void save('hero_artwork', value, 'storefront')} />}
           <SettingToggle label="شريط العرض المتحرك" value={(map.ticker_enabled as boolean) ?? true} onSave={(v) => save('ticker_enabled', v, 'storefront')} saving={saving} />
           <SettingToggle label="إظهار المنتجات النافدة" value={(map.show_out_of_stock as boolean) ?? true} onSave={(v) => save('show_out_of_stock', v, 'storefront')} saving={saving} />
         </SettingsPanel>
@@ -1343,10 +1348,11 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
 
 type AnnouncementDraft = {
   id: string | null; title: string; content: string; href: string; color: string; priority: string;
+  visualKey: StorefrontArtworkKey;
   isActive: boolean; startsAt: string; endsAt: string; audience: StorefrontAnnouncementAudience;
 };
 function newAnnouncementDraft(): AnnouncementDraft {
-  return { id: null, title: '', content: '', href: '', color: '#B99347', priority: '100', isActive: true, startsAt: '', endsAt: '', audience: 'all' };
+  return { id: null, title: '', content: '', href: '', color: '#B99347', priority: '100', visualKey: 'general', isActive: true, startsAt: '', endsAt: '', audience: 'all' };
 }
 function announcementDateInput(value: string | null | undefined): string {
   if (!value) return '';
@@ -1370,7 +1376,8 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
 
   function editAnnouncement(row: StorefrontAnnouncement) {
     setDraft({ id: row.id, title: row.title, content: row.content ?? '', href: row.href ?? '', color: row.color,
-      priority: String(row.priority), isActive: row.is_active, startsAt: announcementDateInput(row.starts_at),
+      priority: String(row.priority), visualKey: normalizeStorefrontArtworkKey(row.visual_key),
+      isActive: row.is_active, startsAt: announcementDateInput(row.starts_at),
       endsAt: announcementDateInput(row.ends_at), audience: row.audience });
     setFormError('');
     setFormOpen(true);
@@ -1392,7 +1399,7 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
       setSaving(true);
       await persist({ id: draft.id, title: draft.title.trim(), content: draft.content.trim() || null,
         href: draft.href.trim() || null, color: draft.color, priority, is_active: draft.isActive,
-        starts_at: startsAt, ends_at: endsAt, audience: draft.audience });
+        starts_at: startsAt, ends_at: endsAt, audience: draft.audience, visual_key: draft.visualKey });
       cancelForm(); onNotice('تم حفظ الإعلان وتسجيل التغيير في سجل التدقيق.');
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'تعذر حفظ الإعلان.');
@@ -1402,7 +1409,8 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
     setBusyId(row.id);
     try {
       await persist({ id: row.id, title: row.title, content: row.content, href: row.href, color: row.color,
-        priority: row.priority, is_active: !row.is_active, starts_at: row.starts_at, ends_at: row.ends_at, audience: row.audience });
+        priority: row.priority, is_active: !row.is_active, starts_at: row.starts_at, ends_at: row.ends_at,
+        audience: row.audience, visual_key: row.visual_key });
       onNotice(row.is_active ? 'تم تعطيل الإعلان.' : 'تم تفعيل الإعلان وفق فترة النشر المحددة.');
     } catch (cause) { onNotice(cause instanceof Error ? cause.message : 'تعذر تغيير حالة الإعلان.'); }
     finally { setBusyId(null); }
@@ -1422,6 +1430,9 @@ function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: strin
         <label>عنوان الإعلان <input required maxLength={120} value={draft.title} onChange={(event) => setDraft((p) => ({ ...p, title: event.target.value }))} /></label>
         <label>النص المختصر <textarea maxLength={600} rows={3} value={draft.content} onChange={(event) => setDraft((p) => ({ ...p, content: event.target.value }))} /></label>
         <label>الرابط الداخلي أو HTTPS <input maxLength={500} placeholder="/products أو https://example.com" value={draft.href} onChange={(event) => setDraft((p) => ({ ...p, href: event.target.value }))} /></label>
+        <StorefrontArtworkPicker label="الرسم التوضيحي للإعلان" value={draft.visualKey}
+          onChange={(value) => setDraft((p) => ({ ...p, visualKey: value }))}
+          previewName={draft.title || "إعلان متجر الأغبري"} disabled={saving} />
         <div className="sf-announcement-form-grid">
           <label>لون التمييز <input type="color" value={draft.color} onChange={(event) => setDraft((p) => ({ ...p, color: event.target.value }))} /></label>
           <label>الأولوية <input type="number" min={0} max={10000} step={1} required value={draft.priority} onChange={(event) => setDraft((p) => ({ ...p, priority: event.target.value }))} /></label>

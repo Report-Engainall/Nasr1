@@ -3,7 +3,9 @@ import { AlertTriangle, Check, ChevronDown, ChevronLeft, FolderTree, LoaderCircl
 import { fetchAdminProductsPage, fetchCategories } from '@/lib/api';
 import { formatCurrency, formatNumber } from '@/lib/format';
 import { projectAdminCategoryCatalogMetrics } from '@/lib/admin-category-catalog';
-import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory } from '@/lib/admin-catalog-commands';
+import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory, restoreAdminCatalogCategory, setAdminCatalogCategoryArtwork } from '@/lib/admin-catalog-commands';
+import { StorefrontArtworkPicker } from '@/components/StorefrontArtworkPicker';
+import { normalizeStorefrontArtworkKey, type StorefrontArtworkKey } from '@/lib/storefront-artwork';
 import { fetchAdminCategoryProducts, type AdminCategoryProductRow } from '@/lib/admin-category-products';
 import { buildAdminCategoryTree, filterAdminCategoryTree, getAdminCategoryAncestorIds, getAdminCategoryPath, type AdminCategoryTreeNode } from '@/lib/admin-category-tree';
 import type { Category, ProductWithInventory } from '@/lib/types';
@@ -77,6 +79,8 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   const [creating, setCreating] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [artworkDraft, setArtworkDraft] = useState<StorefrontArtworkKey>('general');
+  const [artworkSaving, setArtworkSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [products, setProducts] = useState<AdminCategoryProductRow[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -193,6 +197,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   }, [tab, selected?.id, catalogPage, catalogRetry]);
 
   useEffect(() => { setRenameDraft(selected?.name ?? ''); }, [selected?.id, selected?.name]);
+  useEffect(() => { setArtworkDraft(normalizeStorefrontArtworkKey(selected?.icon)); }, [selected?.id, selected?.icon]);
 
   function toggleExpanded(id: string) {
     setExpandedIds((current) => {
@@ -249,6 +254,23 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       onNotice(cause instanceof Error ? cause.message : 'تعذر تعديل التصنيف');
     } finally {
       setRenaming(false);
+    }
+  }
+
+  async function saveCategoryArtwork() {
+    if (!canManage || !selected || selected.is_active === false || artworkSaving) return;
+    setArtworkSaving(true);
+    try {
+      const result = await setAdminCatalogCategoryArtwork(selected.id, artworkDraft);
+      if (result.id !== selected.id || result.artwork_key !== artworkDraft || typeof result.changed !== 'boolean') {
+        throw new Error('لم يؤكد الخادم حفظ الرسم التوضيحي للتصنيف.');
+      }
+      await load();
+      onNotice(result.changed ? 'تم حفظ رسم التصنيف وتحديث ظهوره في المتجر.' : 'رسم التصنيف مضبوط بالفعل على الاختيار نفسه.');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر حفظ رسم التصنيف.');
+    } finally {
+      setArtworkSaving(false);
     }
   }
 
@@ -372,6 +394,13 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
             <p>المعرّف: <code dir="ltr">{selected.id}</code></p>
             {selected.description && <p>{selected.description}</p>}
             {selected.parent_id && <button type="button" className="admin-category-link" onClick={() => selectCategory(selected.parent_id)}>الانتقال إلى الأب</button>}
+            {canManage && selected.is_active !== false && <section className="panel" aria-label="رسم التصنيف التوضيحي" style={{ display: 'grid', gap: 10, padding: 12 }}>
+              <StorefrontArtworkPicker label="الرسم التوضيحي الذي يظهر للتصنيف في المتجر" value={artworkDraft}
+                onChange={setArtworkDraft} previewName={selected.name} disabled={artworkSaving} />
+              <div><button type="button" className="btn outline" onClick={() => void saveCategoryArtwork()} disabled={artworkSaving}>
+                {artworkSaving ? 'جار حفظ الرسم…' : 'حفظ رسم التصنيف'}
+              </button></div>
+            </section>}
             {selected.is_active !== false && canManage && <button type="button" className="btn outline" onClick={() => setCreateParent(selected.id)}><Plus size={15}/> إضافة فرع تحت هذا الأب</button>}
             {canManage && selected.is_active !== false && <form className="admin-category-rename" onSubmit={renameCategory}>
               <label>تعديل الاسم<input value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} maxLength={100} required /></label>
