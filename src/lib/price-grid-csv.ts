@@ -1,11 +1,11 @@
 import type { ProductPriceGridRow } from '@/lib/api';
 
 export const PRICE_GRID_EXPORT_HEADERS = [
-  'معرف الصنف',
+  'م',
   'كود الصنف',
   'اسم الصنف',
   'الوحدة',
-  'الحالة',
+  '',
   'السعر الأساسي',
   'جملة الجملة',
   'الجملة',
@@ -55,13 +55,13 @@ function csvCell(value: string | number | boolean | null | CsvFormattedNumber): 
  */
 export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string {
   const output = [PRICE_GRID_EXPORT_HEADERS.map(csvCell).join(',')];
-  for (const row of rows) {
+  for (const [rowIndex, row] of rows.entries()) {
     const values: (string | number | boolean | null | CsvFormattedNumber)[] = [
-      row.id,
+      rowIndex + 1,
       row.item_code,
       row.name,
       row.unit,
-      row.is_active ? 'نشط' : 'موقوف',
+      '',
       formattedNumber(row.base_price, 2, 'base_price'),
       formattedNumber(row.price_wholesale_of_wholesale, 2, 'price_wholesale_of_wholesale'),
       formattedNumber(row.price_wholesale, 2, 'price_wholesale'),

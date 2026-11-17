@@ -828,6 +828,9 @@ export class StreamingCsvParser {
     for (; cursor < this.pending.length; cursor += 1) {
       const char = this.pending[cursor];
       const next = this.pending[cursor + 1];
+      // A CR at the end of a non-final chunk may be the first half of CRLF.
+      // Keep it pending until the next chunk so the pair is consumed as one row delimiter.
+      if (char === '\r' && next === undefined && !final && !this.quoted) break;
       if (char === '"' && cursor + 1 === this.pending.length && !final) break;
       if (char === '"' && this.quoted && next === '"') {
         if (!this.currentCellExceeded) {
