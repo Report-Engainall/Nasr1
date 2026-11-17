@@ -1217,9 +1217,15 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       <footer className="sf-footer">
         <div className="sf-footer-inner">
           <div className="sf-footer-brand"><img src="/icons/injaz-icon.svg" alt="" width={24} height={24} /> <strong>إنجاز</strong><span>{(settings?.store_name as string) ?? 'متجر الأغبري'}</span></div>
-          <div className="sf-footer-info"><Phone size={15} /> {(settings?.store_phone as string) || 'رقم الهاتف غير مهيأ'}</div>
-          <div className="sf-footer-info"><Mail size={15} /> {(settings?.store_email as string) || 'البريد الإلكتروني غير مهيأ'}</div>
-          <div className="sf-footer-info"><MapPin size={15} /> {(settings?.store_address as string) || 'عنوان المتجر غير مهيأ'}</div>
+          {typeof settings?.store_phone === 'string' && settings.store_phone.trim() && (
+            <div className="sf-footer-info"><Phone size={15} /> <bdi>{settings.store_phone.trim()}</bdi></div>
+          )}
+          {typeof settings?.store_email === 'string' && settings.store_email.trim() && (
+            <div className="sf-footer-info"><Mail size={15} /> <bdi>{settings.store_email.trim()}</bdi></div>
+          )}
+          {typeof settings?.store_address === 'string' && settings.store_address.trim() && (
+            <div className="sf-footer-info"><MapPin size={15} /> {settings.store_address.trim()}</div>
+          )}
           <Link to="/help" className="sf-footer-info">مركز المساعدة</Link>
         </div>
       </footer>
@@ -1945,7 +1951,7 @@ function Checkout({ cart, priceVisibilityPolicy, customerCheckoutAllowed, staffS
 
   useEffect(() => {
     let active = true;
-    if (!user?.profileId) {
+    if (!user?.profileId || !customerCheckoutAllowed) {
       setDeliveryAddresses([]);
       setDeliveryAddressId('');
       setDeliveryAddressesLoading(false);
@@ -1973,7 +1979,7 @@ function Checkout({ cart, priceVisibilityPolicy, customerCheckoutAllowed, staffS
     });
 
     return () => { active = false; };
-  }, [user?.profileId, deliveryAddressRetry]);
+  }, [user?.profileId, customerCheckoutAllowed, deliveryAddressRetry]);
 
   useEffect(() => {
     let active = true;
