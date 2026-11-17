@@ -455,7 +455,7 @@ export function normalizeHeader(value: string, synonyms: Record<string, string> 
 
 
 
-export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "orders" | "pricing" | "ambiguous" | "unknown";
+export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "product_units" | "orders" | "pricing" | "ambiguous" | "unknown";
 export type ImportDatasetDetection = {
   kind: ImportDatasetDetectionKind;
   matchedFields: string[];
