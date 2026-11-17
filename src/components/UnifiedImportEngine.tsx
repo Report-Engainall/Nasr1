@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
-  applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, ensureCustomerImportProfile, failImportJobSafely, fetchCentralSynonyms,
+  applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, ensureCustomerImportProfile, ensureOnyxStockBalanceImportProfile, failImportJobSafely, fetchCentralSynonyms,
   fetchImportJobsPage, fetchImportProfiles, fetchOnyxSnapshots, fetchOnyxSnapshotRows, rollbackImportSnapshot,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
   type AdminImportApplicationResult, type ImportRowErrorDetail, type OnyxSnapshotSummary, type OnyxSnapshotRow,
@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/auth";
 import { formatNumber } from "@/lib/format";
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/components/AdminPages";
 import {
-  DataQualityAccumulator, detectImportDatasetKind, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS,
+  DataQualityAccumulator, detectImportDatasetKind, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS, normalizeOnyxStockBalanceHeader,
   PROCESSING_CHUNK_ROWS, UPLOAD_CHUNK_BYTES, IncrementalSha256, StreamingCsvParser, hashFileSha256,
   applyImportProfileRules, normalizeHeader, parseXlsxFirstWorksheet, resolveImportProfileMapping, shouldPersistParsedImportRow, stableJsonStringify, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
   type ParsedImportRow, type QualityResult,
@@ -41,7 +41,7 @@ type DuplicateResult = {
 };
 type ImportWorkbookSheet = {
   worksheetName: string;
-  applicationKind: "products" | "customers";
+  applicationKind: "products" | "customers" | "inventory";
 };
 type DuplicatePrompt = {
   file: File;
@@ -51,7 +51,7 @@ type DuplicatePrompt = {
   sourceSystem: string;
   externalSourceReference: string | null;
   duplicate: DuplicateResult;
-  applicationKind: "products" | "customers";
+  applicationKind: "products" | "customers" | "inventory";
   worksheetName: string | null;
   remainingWorksheets: ImportWorkbookSheet[];
   unsupportedWorksheetNames: string[];
@@ -360,7 +360,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     selectedExternalSourceReference: string | null = existingJob
       ? (existingJob.external_source_reference ?? null)
       : selectedSource === "manual" ? null : externalSourceReference.trim() || null,
-    requestedImportKind?: "products" | "customers",
+    requestedImportKind?: "products" | "customers" | "inventory",
     requestedWorksheetName?: string | null,
   ): Promise<boolean> {
     if (runningRef.current) return false;
@@ -373,18 +373,22 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     setProgress(10);
     setProcessed(0);
     setQualityPreview(null);
-    const selectedImportKind: "products" | "customers" =
+    const selectedImportKind: "products" | "customers" | "inventory" =
       existingJob?.job_type === "unified_import_customers"
         ? "customers"
-        : existingJob?.job_type === "unified_import_products" || existingJob?.job_type === "unified_import"
-          ? "products"
-          : requestedImportKind ?? applicationKind;
-    if (selectedImportKind === "customers" && !canRollbackImport) {
-      setErrorMessage("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
+        : existingJob?.job_type === "inventory"
+          ? "inventory"
+          : existingJob?.job_type === "unified_import_products" || existingJob?.job_type === "unified_import"
+            ? "products"
+            : requestedImportKind ?? applicationKind;
+    if (selectedImportKind !== "products" && !canRollbackImport) {
+      setErrorMessage(selectedImportKind === "inventory"
+        ? "استيراد أرصدة المخزون متاح للمدير أو المدير العام فقط."
+        : "استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       runningRef.current = false;
       return false;
     }
-    setApplicationKind(selectedImportKind);
+    if (selectedImportKind !== "inventory") setApplicationKind(selectedImportKind);
     const storedImportSummary = existingJob?.error_summary && typeof existingJob.error_summary === "object"
       ? existingJob.error_summary as Record<string, unknown>
       : null;
@@ -393,10 +397,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       : null;
     const isXlsxImport = file.name.toLocaleLowerCase("en").endsWith(".xlsx");
     const defaultWorksheetName = isXlsxImport
-      ? selectedImportKind === "customers" ? "Customers" : "Products"
+      ? selectedImportKind === "inventory" ? "StockBalances" : selectedImportKind === "customers" ? "Customers" : "Products"
       : null;
     const selectedWorksheetName = requestedWorksheetName ?? storedWorksheetName ?? defaultWorksheetName;
-    const importJobType = selectedImportKind === "customers" ? "unified_import_customers" : "unified_import_products";
+    const importJobType = selectedImportKind === "inventory"
+      ? "inventory"
+      : selectedImportKind === "customers" ? "unified_import_customers" : "unified_import_products";
     let job: ImportJob | null = existingJob ?? null;
     let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; external_source_reference: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
     let processingConfigFingerprint: string | null = null;
@@ -409,6 +415,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           throw new Error("ملف العملاء التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف العملاء قبل الاستئناف.");
         }
         selectedProfile = customerProfileId;
+      } else if (selectedImportKind === "inventory") {
+        const stockProfileId = await ensureOnyxStockBalanceImportProfile();
+        if (selectedProfile && selectedProfile !== stockProfileId) {
+          throw new Error("ملف أرصدة أونكس التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف الأرصدة قبل الاستئناف.");
+        }
+        selectedProfile = stockProfileId;
       }
       if (!job) {
         const { data: authSessionData, error: authSessionError } = await supabase.auth.getSession();
