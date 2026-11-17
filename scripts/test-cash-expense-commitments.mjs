@@ -249,6 +249,9 @@ async function main() {
     const listedRejected=asJson(list[0].result).items.find(x=>x.id===rejected.id);
     assert.equal(listedRejected.status,"rejected");
     assert.equal(listedRejected.rejection_reason,rejectionReason);
+    const rejectedForecast=await schedule(adminDb,today,dueDate,"YER");
+    assert.ok(!rejectedForecast.entries.some((entry)=>entry.id==="cash-expense-commitment-outflow:"+rejected.id),
+      "a rejected commitment must never become a forecast cash outflow");
 
     // A second-currency commitment is separately filtered. No rate conversion is performed.
     const usdPayload={...yerPayload,category:"Equipment",description:"Imported equipment service fee",amount:"40.25",
