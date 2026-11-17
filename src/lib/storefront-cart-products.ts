@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { parseStorefrontCatalogProduct } from '@/lib/storefront-catalog';
+import { parseStorefrontCartProductDetailsRow } from '@/lib/storefront-catalog';
 import type { ProductWithInventory } from '@/lib/types';
 
 const PRODUCT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,7 +35,7 @@ export function parseStorefrontCartProductDetails(
       throw new Error('أعاد الخادم صنفًا مكررًا ضمن تفاصيل السلة.');
     }
     seen.add(id);
-    return parseStorefrontCatalogProduct(row);
+    return parseStorefrontCartProductDetailsRow(row);
   });
 }
 
