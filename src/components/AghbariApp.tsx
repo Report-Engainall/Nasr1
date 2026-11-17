@@ -65,6 +65,7 @@ const InventoryTransferHistoryPage = lazy(async () => ({ default: (await import(
 const PurchaseOrdersPage = lazy(async () => ({ default: (await import('@/components/PurchaseOrdersPage')).PurchaseOrdersPage }));
 const UnifiedImportEngine = lazy(async () => ({ default: (await import('@/components/UnifiedImportEngine')).UnifiedImportEngine }));
 const OnyxSnapshotCenter = lazy(async () => ({ default: (await import('@/components/OnyxSnapshotCenter')).OnyxSnapshotCenter }));
+const OnyxProExchangeWorkspace = lazy(async () => ({ default: (await import('@/components/OnyxProExchangeWorkspace')).OnyxProExchangeWorkspace }));
 const OnyxInventoryReconciliationWorkspace = lazy(async () => ({ default: (await import('@/components/OnyxInventoryReconciliationWorkspace')).OnyxInventoryReconciliationWorkspace }));
 const UnifiedOnyxAnalysisPanel = lazy(async () => ({ default: (await import('@/components/UnifiedOnyxAnalysisPanel')).UnifiedOnyxAnalysisPanel }));
 const ExecutiveStoreAnalytics = lazy(async () => ({ default: (await import('@/components/ExecutiveStoreAnalytics')).ExecutiveStoreAnalytics }));
@@ -3190,7 +3191,7 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
 }) {
   const { user } = useAuth();
   const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const [section, setSection] = useState<'home' | 'import' | 'import-history' | 'onyx'>('home');
+  const [section, setSection] = useState<'home' | 'import' | 'import-history' | 'onyx' | 'onyx-exchange'>('home');
 
   useEffect(() => {
     if (initialImportJobId && canManageImports) setSection('import');
@@ -3214,6 +3215,14 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
     return <OnyxSnapshotCenter onBack={() => setSection('home')} />;
   }
 
+  if (section === 'onyx-exchange' && user?.isStaff) {
+    return <OnyxProExchangeWorkspace
+      onBack={() => setSection('home')}
+      onOpenImport={() => setSection('import')}
+      onOpenSnapshots={() => setSection('onyx')}
+    />;
+  }
+
   return <>
     <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد"
       description="الاستيراد والتصدير ومصادر البيانات التشغيلية في مساحة واحدة" icon={Database} />
@@ -3233,6 +3242,11 @@ function DataCenter({ onNotice, onNavigate, initialImportJobId }: {
         {canManageImports && (
           <Button variant="outline" onClick={() => setSection('import-history')}>
             <ClipboardList size={16} /> سجل دفعات الاستيراد
+          </Button>
+        )}
+        {user?.isStaff && (
+          <Button variant="outline" onClick={() => setSection('onyx-exchange')}>
+            <FileText size={16} /> تعريف وتبادل أونكس برو
           </Button>
         )}
         {rolesCanAccessView(user?.roles ?? [], "data") && (
