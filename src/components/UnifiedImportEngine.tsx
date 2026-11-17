@@ -9,6 +9,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { projectOnyxSnapshotPreviewRow } from "@/lib/onyx-snapshot-preview";
 import { buildOnyxWarehouseItemKey, validateOnyxStockBalanceRow } from "@/lib/onyx-stock-balance-import";
+import { buildOnyxProductUnitKey, validateOnyxProductUnitRow } from "@/lib/onyx-product-unit-import";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
 import { useAuth } from "@/lib/auth";
@@ -670,16 +671,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           const itemCode = String(parsed.data.item_code ?? "").trim();
           const unitCode = String(parsed.data.unit_code ?? "").trim();
           const unitName = String(parsed.data.unit_name ?? "").trim();
-          const factorText = String(parsed.data.conversion_factor ?? "").trim();
-          const baseFlag = String(parsed.data.is_base_unit ?? "").trim().toLocaleLowerCase("en");
-          if (!/^[0-9]{1,7}(?:\.0+)?$/.test(factorText)) {
-            parsed.errors.push("معامل التحويل يجب أن يكون عددًا صحيحًا موجبًا؛ لا تُقبل الكسور.");
-          }
-          if (baseFlag && !["true", "false", "1", "0", "yes", "no", "y", "n", "نعم", "لا", "نعم، وحدة أساسية"].includes(baseFlag)) {
-            parsed.errors.push("قيمة is_base_unit غير مفهومة؛ استخدم نعم/لا أو true/false.");
-          }
+          parsed.errors.push(...validateOnyxProductUnitRow(parsed.data));
           if (itemCode && unitCode) {
-            const identity = itemCode.toLocaleUpperCase("en") + "::" + unitCode.toLocaleUpperCase("en");
+            const identity = buildOnyxProductUnitKey(itemCode, unitCode);
             if (seenProductUnitKeys.has(identity)) {
               parsed.errors.push("كود الوحدة مكرر للصنف نفسه داخل ورقة ProductUnits.");
             } else {
