@@ -245,6 +245,8 @@ on:
       - "src/components/CustomerAccountPasswordPage.tsx"
       - "src/lib/api.ts"
       - "src/lib/supabase.ts"
+      - "src/lib/tenant-scope.ts"
+      - "src/lib/tenant-scope.test.ts"
       - "src/lib/data-center.ts"
       - "src/lib/storefront-categories.ts"
       - "src/lib/storefront-categories.test.ts"

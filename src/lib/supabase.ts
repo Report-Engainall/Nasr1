@@ -17,22 +17,10 @@ export type CurrentTenantScope = {
 
 export type StorefrontDataScope = Pick<CurrentTenantScope, 'organizationId' | 'warehouseId' | 'isStaff' | 'canViewInternalProductPrices'>;
 
-type TenantScopePayload = {
-  profile_id?: unknown;
-  organization_id?: unknown;
-  warehouse_id?: unknown;
-  is_staff?: unknown;
-  can_manage_customers?: unknown;
-  can_view_internal_product_prices?: unknown;
-};
+import { parseCurrentTenantScopePayload } from './tenant-scope';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let tenantScopeCache: { userId: string; pending: Promise<CurrentTenantScope> } | undefined;
 let tenantScopeAuthListenerRegistered = false;
-
-function isUuid(value: unknown): value is string {
-  return typeof value === 'string' && UUID_PATTERN.test(value);
-}
 
 /**
  * PostgREST can briefly retain an older function cache during a schema deployment.
@@ -79,19 +67,7 @@ export async function getCurrentTenantScope(options: { forceRefresh?: boolean } 
       throw new Error('تعذر تحميل نطاق المؤسسة من الخادم: ' + error.message);
     }
 
-    const payload = data as TenantScopePayload | null;
-    if (
-      !payload ||
-      !isUuid(payload.profile_id) ||
-      !isUuid(payload.organization_id) ||
-      (payload.warehouse_id !== null && !isUuid(payload.warehouse_id)) ||
-      typeof payload.is_staff !== 'boolean' ||
-      (payload.can_manage_customers !== undefined && typeof payload.can_manage_customers !== 'boolean') ||
-      typeof payload.can_view_internal_product_prices !== 'boolean' ||
-      (payload.can_view_internal_product_prices === true && payload.is_staff !== true)
-    ) {
-      throw new Error('أعاد الخادم نطاق مؤسسة غير صالح؛ تم إيقاف العملية لحماية البيانات.');
-    }
+    return parseCurrentTenantScopePayload(data);
 
     return {
       profileId: payload.profile_id,
