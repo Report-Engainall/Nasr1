@@ -7,11 +7,12 @@ import { useAuth } from '@/lib/auth';
 import { Login } from '@/components/Login';
 import { formatDate } from '@/lib/format';
 import type { Notification } from '@/lib/types';
+import { getCustomerServiceCaseCodeFromNotification } from '@/lib/customer-service-notification-link';
 
 function notificationDestination(notification: Notification, isStaff: boolean): 'order' | 'task' | 'service-case' | null {
   if (notification.entity_type === 'order' && typeof notification.entity_id === 'string') return 'order';
   if (isStaff && notification.entity_type === 'ai_task' && typeof notification.entity_id === 'string') return 'task';
-  if (notification.entity_type === 'customer_service_case' && typeof notification.entity_id === 'string') return 'service-case';
+  if (notification.entity_type === 'customer_service_case' && typeof notification.entity_id === 'string' && getCustomerServiceCaseCodeFromNotification(notification)) return 'service-case';
   return null;
 }
 
@@ -174,8 +175,13 @@ function CustomerNotificationWorkspace() {
         await navigate({ to: '/orders/$id', params: { id: notification.entity_id } });
       } else if (destination === 'task') {
         await navigate({ to: '/admin/tasks' });
-      } else {
-        await navigate({ to: user?.isStaff ? '/admin/service-desk' : '/service-cases' });
+      } else if (destination === 'service-case') {
+        const caseCode = getCustomerServiceCaseCodeFromNotification(notification);
+        if (!caseCode) throw new Error('لا يحتوي التنبيه على رقم حالة صالح لفتحها.');
+        await navigate({
+          to: user?.isStaff ? '/admin/service-desk' : '/service-cases',
+          search: { caseCode } as never,
+        });
       }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'تعذر فتح العنصر المرتبط بالتنبيه.');
