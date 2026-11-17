@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
   saveDecisionMemorySnapshot,
 } from "@/lib/intelligence/decision-memory-client";
 import { buildDecisionPolicyReviewSuggestions, searchSimilarDecisionMemory } from "@/lib/intelligence/decision-memory";
+import {
+  commandDecisionPolicyLearningCandidate,
+  createDecisionPolicyLearningCandidate,
+  fetchDecisionPolicyLearningCandidates,
+  type DecisionPolicyLearningCandidate,
+  type DecisionPolicyLearningEventType,
+} from "@/lib/intelligence/decision-policy-learning-client";
 import type {
   DecisionMemoryBookResult,
   DecisionMemoryRecord,
@@ -307,11 +314,127 @@ function DecisionMemoryCard({record,onRetry}:{record:DecisionMemoryRecord;onRetr
   </article>;
 }
 const DECISION_MEMORY_DISPLAY_PAGE_SIZE = 25;
+const learningStateLabels = {
+  DRAFT: "مسودة محفوظة",
+  IN_REVIEW: "قيد المراجعة المستقلة",
+  APPROVED: "مرشح معتمد — غير مفعّل",
+  REJECTED: "مرشح مرفوض",
+} as const;
 
 export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionMemoryBookProps){
   const [precedentTargetId,setPrecedentTargetId]=useState("");
   const [precedentQuery,setPrecedentQuery]=useState("");
   const [recordPage,setRecordPage]=useState(0);
+  const [learningCandidates,setLearningCandidates]=useState<DecisionPolicyLearningCandidate[]>([]);
+  const [learningLoading,setLearningLoading]=useState(true);
+  const [learningLoadError,setLearningLoadError]=useState("");
+  const [learningBusy,setLearningBusy]=useState("");
+  const [learningReason,setLearningReason]=useState<Record<string,string>>({});
+  const [learningCreateKeys,setLearningCreateKeys]=useState<Record<string,string>>({});
+  const [learningCommandKeys,setLearningCommandKeys]=useState<Record<string,string>>({});
+  const [learningActionMessage,setLearningActionMessage]=useState("");
+  const [learningActionError,setLearningActionError]=useState(false);
+  const [learningRefreshKey,setLearningRefreshKey]=useState(0);
+
+  useEffect(()=>{
+    let active=true;
+    setLearningLoading(true);
+    void fetchDecisionPolicyLearningCandidates(50,0).then(response=>{
+      if(!active)return;
+      if(response.ok){
+        setLearningCandidates(response.items);
+        setLearningLoadError("");
+      }else{
+        setLearningCandidates([]);
+        setLearningLoadError(response.message);
+      }
+      setLearningLoading(false);
+    }).catch(()=>{
+      if(!active)return;
+      setLearningCandidates([]);
+      setLearningLoadError("تعذر تحميل المرشحات المحفوظة.");
+      setLearningLoading(false);
+    });
+    return ()=>{active=false;};
+  },[learningRefreshKey]);
+
+  async function createLearningCandidate(suggestion:ReturnType<typeof buildDecisionPolicyReviewSuggestions>[number]){
+    const eligible=result?.status==="VERIFIED"&&result.loadedCount===result.totalCount&&
+      suggestion.observations.length>0&&suggestion.observations.length<=100;
+    if(!eligible){
+      setLearningActionMessage("لا يمكن إنشاء المرشح من سجل جزئي أو من أكثر من 100 قرار؛ أكمل تغطية المصدر أولاً.");
+      setLearningActionError(true);
+      return;
+    }
+    const idempotencyKey=learningCreateKeys[suggestion.id]??crypto.randomUUID();
+    if(!learningCreateKeys[suggestion.id])setLearningCreateKeys(current=>({...current,[suggestion.id]:idempotencyKey}));
+    setLearningBusy("create:"+suggestion.id);
+    setLearningActionMessage("");
+    try{
+      const response=await createDecisionPolicyLearningCandidate({
+        decisionIds:suggestion.observations.map(observation=>observation.decisionId),
+        idempotencyKey,
+      });
+      if(!response.ok){
+        setLearningActionMessage(response.message);
+        setLearningActionError(true);
+        return;
+      }
+      setLearningCreateKeys(current=>{const next={...current};delete next[suggestion.id];return next;});
+      setLearningCandidates(current=>[
+        response.candidate,
+        ...current.filter(candidate=>candidate.id!==response.candidate.id),
+      ]);
+      setLearningActionMessage(response.duplicate
+        ?"هذا المصدر مرتبط مسبقاً بالمرشح المحفوظ؛ لم يُنشأ إصدار مكرر."
+        :"حُفظ مرشح جديد من الأدلة المصدرية، وأصبح في انتظار الإرسال للمراجعة.");
+      setLearningActionError(false);
+    }finally{
+      setLearningBusy("");
+    }
+  }
+
+  async function transitionLearningCandidate(
+    candidate:DecisionPolicyLearningCandidate,
+    eventType:Exclude<DecisionPolicyLearningEventType,"CREATE">,
+  ){
+    const reason=(learningReason[candidate.id]??"").trim();
+    if(reason.length<3){
+      setLearningActionMessage("اكتب سبباً واضحاً من 3 أحرف على الأقل قبل تغيير حالة المرشح.");
+      setLearningActionError(true);
+      return;
+    }
+    const commandKey=candidate.id+":"+eventType;
+    const idempotencyKey=learningCommandKeys[commandKey]??crypto.randomUUID();
+    if(!learningCommandKeys[commandKey])setLearningCommandKeys(current=>({...current,[commandKey]:idempotencyKey}));
+    setLearningBusy(commandKey);
+    setLearningActionMessage("");
+    try{
+      const response=await commandDecisionPolicyLearningCandidate({
+        candidateId:candidate.id,
+        expectedVersion:candidate.version,
+        eventType,
+        reason,
+        idempotencyKey,
+      });
+      if(!response.ok){
+        setLearningActionMessage(response.message);
+        setLearningActionError(true);
+        return;
+      }
+      setLearningCommandKeys(current=>{const next={...current};delete next[commandKey];return next;});
+      setLearningCandidates(current=>current.map(item=>item.id===response.candidate.id?response.candidate:item));
+      setLearningReason(current=>({...current,[candidate.id]:""}));
+      setLearningActionMessage(eventType==="SUBMIT_FOR_REVIEW"
+        ?"أُرسل المرشح للمراجعة المستقلة."
+        :eventType==="APPROVE"
+          ?"اعتمد المرشح للمراجعة فقط؛ لم يتغير Profile v1 ولم تُفعّل أي قاعدة."
+          :"رُفض المرشح وحُفظ سبب الرفض في سجل الأحداث.");
+      setLearningActionError(false);
+    }finally{
+      setLearningBusy("");
+    }
+  }
   const pageCount=Math.max(1,Math.ceil((result?.records.length??0)/DECISION_MEMORY_DISPLAY_PAGE_SIZE));
   const currentPage=Math.min(recordPage,pageCount-1);
   const pageRecords=result?.records.slice(
@@ -384,6 +507,63 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         <p className="mt-1 text-xs text-muted-foreground">مسودات مراجعة مشتقة فقط من قرارات مقاسة وذاكرة مكتملة ودروس راجعها المستخدم وقياسات متوافقة ذات أدلة. لا تُعدّل القواعد أو الأسعار أو حدود الائتمان أو المخزون، ولا تفترض أن التوصية سببت النتيجة.</p>
         {result.totalCount>result.loadedCount?<p className="text-xs text-amber-700">هذه المسودات مشتقة من القرارات المحملة فقط ({result.loadedCount} من {result.totalCount}) وليست مراجعة شاملة لكل التاريخ.</p>:null}
       </div>
+      <div className="space-y-2" aria-label="مرشحو التعلم المحفوظون">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold">دورة Candidate v2 — المراجعة والاعتماد</h4>
+          <span className="text-xs text-muted-foreground">{learningCandidates.length} مرشحاً محمّلاً</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          تحفظ هذه الدورة إصداراً مرشحاً منفصلاً من Profile الحالي (قاعدة {learningCandidates[0]?.baseProfileVersion??policyReviewSuggestions[0]?.ruleVersion??"غير محددة"}) دون تعديل الإصدار الأساسي. الاعتماد يسجل قرار المراجع فقط؛ لا يبدّل القاعدة النشطة ولا يشغّل أثراً مالياً أو مخزونياً.
+        </p>
+        {learningLoading?<p className="text-xs text-muted-foreground">جارٍ تحميل المرشحين المحفوظين من الخادم…</p>:null}
+        {learningLoadError?<div className="space-y-2">
+          <p role="alert" className="text-xs text-destructive">{learningLoadError}</p>
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs" disabled={learningLoading||learningBusy!==""} onClick={()=>setLearningRefreshKey(value=>value+1)}>إعادة تحميل المرشحات</button>
+        </div>:null}
+        {learningCandidates.map(candidate=>{
+          const snapshot=candidate.candidateSnapshot;
+          const context=snapshot.metricContext as {metricKey?:string;unit?:string;currency?:string|null;period?:{from?:string;to?:string}}|undefined;
+          const sampleCount=Array.isArray(snapshot.observations)?snapshot.observations.length:0;
+          const busy=learningBusy.startsWith(candidate.id+":");
+          return <article key={candidate.id} className="space-y-2 rounded-lg border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <strong className="text-sm">Candidate v{candidate.candidateVersion} · {candidate.ruleId}</strong>
+              <span className="text-xs">{learningStateLabels[candidate.state]}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Profile الأساسي: {candidate.baseProfileVersion} · {context?.metricKey??"مؤشر غير محدد"} · {context?.currency??context?.unit??"وحدة غير محددة"} · {context?.period?.from??"—"} — {context?.period?.to??"—"} · عينة مثبتة: {sampleCount}
+            </p>
+            <p className="text-xs">الدروس: {Array.isArray(snapshot.lessons)?snapshot.lessons.join("؛ "):"غير متاحة"}</p>
+            <p className="text-xs text-muted-foreground">سجل الأحداث: {candidate.history.map(event=>event.type==="CREATE"?"إنشاء":event.type==="SUBMIT_FOR_REVIEW"?"إرسال للمراجعة":event.type==="APPROVE"?"اعتماد":"رفض").join(" ← ")}</p>
+            {candidate.reviewReason?<p className="text-xs">سبب المراجعة: {candidate.reviewReason}</p>:null}
+            {candidate.state==="DRAFT"||candidate.state==="IN_REVIEW"?<>
+              <label className="block space-y-1 text-xs">
+                سبب الإجراء (إلزامي)
+                <textarea
+                  className="w-full rounded-lg border bg-background p-2"
+                  rows={2}
+                  maxLength={2000}
+                  value={learningReason[candidate.id]??""}
+                  onChange={event=>setLearningReason(current=>({...current,[candidate.id]:event.target.value}))}
+                  placeholder={candidate.state==="DRAFT"?"سبب الإرسال للمراجعة":"مبرر الاعتماد أو الرفض"}
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {candidate.state==="DRAFT"
+                  ?<button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button>
+                  :<>
+                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"APPROVE")}>اعتماد Candidate</button>
+                    <button type="button" className="rounded-lg border px-3 py-2 text-xs font-medium" disabled={busy||learningBusy!==""} onClick={()=>void transitionLearningCandidate(candidate,"REJECT")}>رفض Candidate</button>
+                  </>}
+              </div>
+            </>:null}
+            {candidate.state==="APPROVED"?<p className="text-xs text-muted-foreground">معتمد للمراجعة فقط — Profile {candidate.baseProfileVersion} ما زال كما هو، والمرشح غير نشط.</p>:null}
+          </article>;
+        })}
+        {!learningLoading&&!learningLoadError&&!learningCandidates.length
+          ?<p className="text-xs text-muted-foreground">لا توجد مرشحات محفوظة بعد.</p>:null}
+        {learningActionMessage?<p role={learningActionError?"alert":"status"} className={learningActionError?"text-xs text-destructive":"text-xs text-emerald-700"}>{learningActionMessage}</p>:null}
+      </div>
       {policyReviewSuggestions.length?<div className="space-y-2">
         <p className="text-xs text-muted-foreground">عدد مسودات المراجعة: {policyReviewSuggestions.length}</p>
         {policyReviewSuggestions.slice(0,8).map(suggestion=><article key={suggestion.id} className="rounded-lg border p-3 space-y-2">
@@ -416,6 +596,17 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
           </div>
           <p className="text-xs"><strong>الإجراء المقترح للمراجعة:</strong> {suggestion.reviewInstruction}</p>
           <p className="text-xs text-muted-foreground">الأدلة المحفوظة: <EvidenceReferences ids={suggestion.evidenceIds}/></p>
+          <button
+            type="button"
+            className="rounded-lg border px-3 py-2 text-xs font-medium"
+            disabled={learningBusy!==""||learningLoading||result.status!=="VERIFIED"||result.loadedCount!==result.totalCount||suggestion.observations.length<1||suggestion.observations.length>100}
+            onClick={()=>void createLearningCandidate(suggestion)}
+          >
+            {learningBusy==="create:"+suggestion.id?"جارٍ الحفظ…":"إنشاء Candidate v2 من الأدلة"}
+          </button>
+          {(result.status!=="VERIFIED"||result.loadedCount!==result.totalCount)
+            ?<p className="text-xs text-amber-700">يُحجب الإنشاء حتى اكتمال قراءة كامل سجل القرارات وذاكرته.</p>:null}
+          {suggestion.observations.length>100?<p className="text-xs text-amber-700">تتجاوز العينة حد 100 قرار لعملية واحدة؛ لن يُرسل طلب مبتور.</p>:null}
         </article>)}
         {policyReviewSuggestions.length>8?<p className="text-xs text-muted-foreground">تُعرض أول 8 مسودات من أصل {policyReviewSuggestions.length}؛ البقية محسوبة ولم تُحذف.</p>:null}
       </div>:<p className="text-sm text-muted-foreground">لا توجد مسودات مراجعة مستوفية الشروط ضمن القرارات المحملة حالياً. لا تُنشأ من قرارات غير مقاسة أو ذاكرة ناقصة أو نتائج بلا دليل.</p>}
