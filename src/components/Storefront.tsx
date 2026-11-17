@@ -2313,12 +2313,12 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
             {previewLoading && <p className="sf-checkout-hint" role="status">جارٍ التحقق من الأصناف والكميات من الخادم...</p>}
             {cartValidation ? cartValidation.items.map((line) => (
               <div className="sf-summary-row" key={line.product_id}>
-                <span>{line.name}<small>رمز الصنف: {line.item_code || '—'}</small></span>
+                <span><b>{line.name}</b><small>رمز الصنف: {line.item_code || '—'}</small></span>
                 <strong>{formatNumber(Number(line.quantity))} {line.unit}</strong>
               </div>
             )) : !previewLoading && cart.map((item) => (
               <div className="sf-summary-row" key={item.product.id}>
-                <span>{item.product.name}<small>بانتظار التحقق من الخادم</small></span>
+                <span><b>{item.product.name}</b><small>بانتظار التحقق من الخادم</small></span>
                 <strong>{formatNumber(item.quantity)} {item.product.unit}</strong>
               </div>
             ))}
