@@ -38,7 +38,6 @@ CREATE TABLE public.products (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   category_id uuid,
-  brand_id uuid,
   name text NOT NULL,
   name_en text,
   item_code text NOT NULL,
