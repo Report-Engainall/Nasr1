@@ -444,14 +444,24 @@ describe("production intelligence workspace inventory screens", () => {
       candidateSnapshot: expect.objectContaining({
         schemaVersion: "1.0.0",
         candidateId: "cashflow.expected_collections:YER:2026-10-31:2026-11-30",
-        priority: "P3",
-        priorityScore: 100,
-        impact: null,
-        impactStatus: "WITHHELD",
+        priority: "P2",
+        priorityScore: 200,
+        impact: expect.objectContaining({
+          value: 375,
+          unit: "CURRENCY",
+          currency: "YER",
+          formulaId: "cashflow.expected-collection-impact",
+          formulaVersion: "1.0.0",
+          sourceMetricIds: ["metric:cashflow.expected-collections:YER:2026-10-31:2026-11-30"],
+        }),
+        impactStatus: "CALCULATED",
         proof: expect.objectContaining({
           evidenceIds: ["invoice:invoice-1", "payment:payment-1"],
           metricKeys: ["cashflow.expected_collections"],
-          formulaVersions: ["nasr1.receivables-outstanding@1"],
+          formulaVersions: expect.arrayContaining([
+            "nasr1.receivables-outstanding@1",
+            "cashflow.expected-collection-impact@1.0.0",
+          ]),
         }),
       }),
     })));

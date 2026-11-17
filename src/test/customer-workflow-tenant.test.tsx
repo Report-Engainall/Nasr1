@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
     columns?: string;
     filters: Array<{ column: string; value: unknown }>;
     orderBy?: string;
+    range?: { from: number; to: number };
   }>,
 }));
 
@@ -90,6 +91,10 @@ function makeQuery(table: string) {
       return query;
     },
     limit(_limit: number) {
+      return query;
+    },
+    range(from: number, to: number) {
+      record.range = { from, to };
       return query;
     },
     maybeSingle() {
@@ -248,6 +253,7 @@ describe("customer quote workspace tenant boundary", () => {
 
     const productQuery = queryFor("products");
     expect(productQuery.columns).toBe("id,name,item_code,barcode,unit,status");
+    expect(productQuery.range).toEqual({ from: 0, to: 99 });
     expect(productQuery.columns).not.toMatch(/base_price|cost_price|retail_price|wholesale_price|purchase_cost/i);
     expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
     expect(productQuery.filters).toContainEqual({
@@ -304,7 +310,7 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("Rice");
     expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
     const products = queryFor("products");
-    expect(products.columns).toBe("id,name,item_code,barcode,sku,unit,status");
+    expect(products.columns).toBe("id,name,item_code,barcode,sku,unit,min_order_quantity,order_quantity_multiple,status");
     expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
     expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
     expect(products.filters).toContainEqual({ column: "status", value: "active" });

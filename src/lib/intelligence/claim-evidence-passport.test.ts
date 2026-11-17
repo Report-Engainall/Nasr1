@@ -108,7 +108,7 @@ describe("claim evidence passports", () => {
       passport(
         [
           metric("metric-1", "receivable.outstanding", "invoice-1"),
-          metric("metric-2", "inventory.on_hand", "stock-1", { unit: "QUANTITY", currency: undefined }),
+          metric("metric-2", "inventory.on_hand", "stock-1", { unit: "QUANTITY", unitOfMeasure: "وحدة", currency: undefined }),
         ],
         [record("invoice-1", "customer_invoices"), record("stock-1", "inventory_balances", { currency: undefined })],
       ),
