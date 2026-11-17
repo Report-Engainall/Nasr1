@@ -28,6 +28,11 @@ describe("default Onyx and bulk business import headers", () => {
       ["البريد الالكتروني", "email"],
       ["العنوان", "address"],
       ["الرقم الضريبي", "tax_number"],
+      ["base_unit_name", "unit"],
+      ["اسم الوحدة الأساسية", "unit"],
+      ["quantity_on_hand", "quantity"],
+      ["quantity_reserved", "reserved_quantity"],
+      ["quantity_available", "available_quantity"],
     ];
     for (const [header, canonical] of pairs) {
       expect(normalizeHeader(header), header).toBe(canonical);
@@ -53,6 +58,7 @@ describe("default Onyx and bulk business import headers", () => {
   it("detects product files from Arabic/English item identity and product descriptors", () => {
     expect(detectImportDatasetKind(["رقم الصنف", "اسم الصنف", "الوحدة", "سعر التجزئة"]).kind).toBe("products");
     expect(detectImportDatasetKind(["item_code", "product_name", "unit", "price_retail"]).kind).toBe("products");
+    expect(detectImportDatasetKind(["product_code", "product_name", "base_unit_name", "price_retail"]).kind).toBe("products");
   });
 
   it("detects customer master files without trusting a source tier", () => {
