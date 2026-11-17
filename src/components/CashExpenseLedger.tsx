@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { formatDateShort } from "@/lib/format";
 import { validateCashExpenseInput, type CashExpenseDraft } from "@/lib/cash-expense-input";
 import { downloadCashExpenseWorkbookXlsx } from "@/lib/cash-expense-xlsx";
+import { CashExpenseCommitmentWorkspace } from "@/components/CashExpenseCommitmentWorkspace";
 
 type ExpenseStatus = "posted" | "void";
 type ExpenseItem = {
@@ -501,6 +502,7 @@ export function CashExpenseLedger() {
         onRefresh={() => void load()}
       />
       <CashExpenseFeedback notice={notice} error={error} />
+      <CashExpenseCommitmentWorkspace onRefresh={load} />
       <CashExpenseEntryForm draft={draft} saving={saving} onDraftChange={updateDraft} onSubmit={submit} />
       <CashExpenseFilters
         draft={filterDraft}

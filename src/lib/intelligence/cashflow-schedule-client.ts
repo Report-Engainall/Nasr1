@@ -486,6 +486,124 @@ export function parseSupplierPayableScheduleResponse(
   };
 }
 
+export interface OperatingExpenseCommitmentScheduleSlice {
+  status: "OK" | "PARTIAL";
+  completeness: IntelligenceCompleteness;
+  quality: IntelligenceQuality;
+  entries: CashflowScheduleRow[];
+  evidenceRecords: EvidenceRecord[];
+  warnings: string[];
+}
+
+export function parseOperatingExpenseCommitmentScheduleResponse(
+  value: unknown,
+  request: IntelligenceAggregateRequest,
+): OperatingExpenseCommitmentScheduleSlice | null {
+  const raw = record(value);
+  const period = record(raw?.period);
+  const rawWarnings = warnings(raw?.warnings);
+  const rawEvidence = raw?.evidenceRecords;
+  const pending = safeCount(raw?.pendingApprovalCount);
+  const overdue = safeCount(raw?.overdueApprovedCount);
+  const awaitingJournal = safeCount(raw?.paymentAwaitingJournalCount);
+  const missingEvidence = safeCount(raw?.missingEvidenceCount);
+  const changedAfterAsOf = safeCount(raw?.changedAfterAsOfCount);
+  if (!raw || (raw.status !== "OK" && raw.status !== "PARTIAL") ||
+      raw.sideEffects !== "NONE" || raw.asOf !== request.asOf ||
+      !period || period.from !== request.period.from || period.to !== request.period.to ||
+      (raw.currency !== null && raw.currency !== request.currency && raw.currency !== undefined) ||
+      !Array.isArray(raw.entries) || raw.entries.length > 10000 ||
+      !Array.isArray(rawEvidence) || rawEvidence.length > 20000 || !rawWarnings ||
+      pending === null || overdue === null || awaitingJournal === null ||
+      missingEvidence === null || changedAfterAsOf === null) return null;
+  const evidence = rawEvidence.map((item) => parseEvidenceRecord(item, request.asOf));
+  if (evidence.some((item) => item === null)) return null;
+  const evidenceRecords = evidence as EvidenceRecord[];
+  const evidenceIds = new Set<string>();
+  for (const item of evidenceRecords) {
+    if (evidenceIds.has(item.id)) return null;
+    evidenceIds.add(item.id);
+  }
+  const entries: CashflowScheduleRow[] = [];
+  const entryIds = new Set<string>();
+  for (const item of raw.entries) {
+    const row = record(item);
+    const amount = parseAmount(row?.amount, request.asOf, evidenceIds);
+    if (!row || !nonEmptyString(row.id, 180) || entryIds.has(row.id) ||
+        row.direction !== "OUTFLOW" || !isoDay(row.dueDate) || !amount ||
+        amount.key !== "cashflow.operating_expense_commitment" ||
+        amount.lineage.formulaId !== "nasr1.approved-operating-expense-commitment" ||
+        amount.lineage.formulaVersion !== "1") return null;
+    entryIds.add(row.id);
+    entries.push({ id: row.id, direction: "OUTFLOW", dueDate: row.dueDate, amount });
+  }
+  const complete = raw.status === "OK" && raw.completeness === "COMPLETE" &&
+    raw.quality === "ACCEPTABLE" && pending === 0 && overdue === 0 &&
+    awaitingJournal === 0 && missingEvidence === 0 && changedAfterAsOf === 0;
+  if (!complete && (raw.completeness !== "PARTIAL" || raw.quality !== "WARNINGS")) return null;
+  return {
+    status: complete ? "OK" : "PARTIAL",
+    completeness: complete ? "COMPLETE" : "PARTIAL",
+    quality: complete ? "ACCEPTABLE" : "WARNINGS",
+    entries, evidenceRecords, warnings: rawWarnings,
+  };
+}
+
+function combineOperatingExpenseCommitmentOutflows(
+  base: CashflowScheduleResult,
+  slice: OperatingExpenseCommitmentScheduleSlice | null,
+): CashflowScheduleResult {
+  if (!base.ok) return base;
+  if (!slice) return {
+    ok: true,
+    data: {
+      ...base.data, status: "PARTIAL", completeness: "PARTIAL", quality: "WARNINGS",
+      schedule: {
+        ...base.data.schedule,
+        status: base.data.schedule.status === "UNVERIFIED" ? "UNVERIFIED" : "NEEDS_REVIEW",
+        completeness: "PARTIAL", quality: "WARNINGS",
+        warnings: [...base.data.schedule.warnings,
+          "Operating expense commitment schedule is unavailable; zero outflows are not assumed."],
+      },
+      warnings: [...base.data.warnings, "OPERATING_EXPENSE_COMMITMENT_SOURCE_UNAVAILABLE"],
+    },
+  };
+  const entries = [...base.data.schedule.entries, ...slice.entries];
+  const entryIds = new Set<string>();
+  for (const entry of entries) {
+    if (entryIds.has(entry.id)) return combineOperatingExpenseCommitmentOutflows(base, null);
+    entryIds.add(entry.id);
+  }
+  const evidenceRecords = [...base.data.evidenceRecords, ...slice.evidenceRecords];
+  const evidenceIds = new Set<string>();
+  for (const evidence of evidenceRecords) {
+    if (evidenceIds.has(evidence.id)) return combineOperatingExpenseCommitmentOutflows(base, null);
+    evidenceIds.add(evidence.id);
+  }
+  const complete = base.data.schedule.status === "VERIFIED" &&
+    base.data.schedule.completeness === "COMPLETE" &&
+    base.data.schedule.quality === "ACCEPTABLE" && slice.status === "OK";
+  return {
+    ok: true,
+    data: {
+      ...base.data,
+      status: complete ? "OK" : "PARTIAL",
+      completeness: complete ? "COMPLETE" : "PARTIAL",
+      quality: complete ? "ACCEPTABLE" : "WARNINGS",
+      evidenceRecords,
+      schedule: {
+        status: complete ? "VERIFIED" :
+          (base.data.schedule.status === "UNVERIFIED" ? "UNVERIFIED" : "NEEDS_REVIEW"),
+        completeness: complete ? "COMPLETE" : "PARTIAL",
+        quality: complete ? "ACCEPTABLE" : "WARNINGS",
+        entries,
+        warnings: [...base.data.schedule.warnings, ...slice.warnings],
+      },
+      warnings: [...base.data.warnings, ...slice.warnings],
+    },
+  };
+}
+
 function combineSupplierOutflows(
   base: CashflowScheduleResult,
   slice: SupplierPayableScheduleSlice | null,
@@ -565,6 +683,7 @@ export async function fetchCashflowSchedule(
     }
     const base = parseCashflowScheduleResponse(data, request);
     if (!base.ok) return base;
+    let withSupplier: CashflowScheduleResult;
     try {
       const supplier = await supabase.rpc("fetch_supplier_payable_cashflow_schedule", {
         p_from: request.period.from,
@@ -572,10 +691,26 @@ export async function fetchCashflowSchedule(
         p_as_of: request.asOf,
         p_currency: request.currency ?? null,
       });
-      if (supplier.error) return combineSupplierOutflows(base, null);
-      return combineSupplierOutflows(base, parseSupplierPayableScheduleResponse(supplier.data, request));
+      withSupplier = supplier.error
+        ? combineSupplierOutflows(base, null)
+        : combineSupplierOutflows(base, parseSupplierPayableScheduleResponse(supplier.data, request));
     } catch {
-      return combineSupplierOutflows(base, null);
+      withSupplier = combineSupplierOutflows(base, null);
+    }
+    if (!withSupplier.ok) return withSupplier;
+    try {
+      const operating = await supabase.rpc("fetch_cash_expense_commitment_cashflow_schedule", {
+        p_from: request.period.from,
+        p_to: request.period.to,
+        p_as_of: request.asOf,
+        p_currency: request.currency ?? null,
+      });
+      if (operating.error) return combineOperatingExpenseCommitmentOutflows(withSupplier, null);
+      return combineOperatingExpenseCommitmentOutflows(
+        withSupplier, parseOperatingExpenseCommitmentScheduleResponse(operating.data, request),
+      );
+    } catch {
+      return combineOperatingExpenseCommitmentOutflows(withSupplier, null);
     }
   } catch {
     return { ok: false, status: "UNAVAILABLE", message: "تعذر الاتصال بخدمة التدفق النقدي؛ لم تُعرض أرقام تقديرية." };

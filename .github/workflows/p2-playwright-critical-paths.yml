@@ -18,6 +18,7 @@ on:
       - "scripts/test-price-grid-atomicity.mjs"
       - "scripts/test-admin-catalog-category-hierarchy.mjs"
       - "scripts/test-cash-expense-journal-posting.mjs"
+      - "scripts/test-cash-expense-commitments.mjs"
       - "scripts/test-purchase-receipt-accounting.mjs"
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
@@ -618,6 +619,8 @@ jobs:
         run: node scripts/test-admin-catalog-category-hierarchy.mjs
       - name: Test cash-expense source posting, idempotency and void/post concurrency
         run: node scripts/test-cash-expense-journal-posting.mjs
+      - name: Test source-backed operating expense commitments, Storage evidence, maker/checker and forecast settlement on PostgreSQL 17
+        run: node scripts/test-cash-expense-commitments.mjs
       - name: Test purchase receipt source-linked accounting draft and restrictions
         run: node scripts/test-purchase-receipt-accounting.mjs
       - name: Test verified storefront product review lifecycle and tenant isolation

@@ -1,0 +1,308 @@
+import assert from "node:assert/strict";
+import { createHash, randomUUID } from "node:crypto";
+import postgres from "postgres";
+import { validateCashExpenseEndpoints } from "./lib/local-endpoint-guard.mjs";
+
+function requiredEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(name + " is required for operating expense commitment acceptance.");
+  return value.replace(/^"(.*)"$/s, "$1");
+}
+function asJson(value) { return typeof value === "string" ? JSON.parse(value) : value; }
+const databaseUrl = requiredEnv("TEST_DATABASE_URL");
+const supabaseUrl = requiredEnv("SUPABASE_URL");
+const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
+validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
+const organizationId = "a0000000-0000-0000-0000-000000000001";
+const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+
+async function signIn(email, password) {
+  const response = await fetch(new URL("/auth/v1/token?grant_type=password", supabaseUrl), {
+    method: "POST",
+    headers: { apikey: publishableKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || typeof payload?.access_token !== "string") {
+    throw new Error("Local Auth sign-in failed for a seeded test account (HTTP " + response.status + ").");
+  }
+  return payload.access_token;
+}
+async function setIdentity(client, authUserId, email) {
+  await client.unsafe("reset role").catch(() => {});
+  await client.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+    "values($1,$2,now(),now(),now(),null,'CI operating commitment acceptance','127.0.0.1'::inet) " +
+    "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [authUserId, authUserId],
+  );
+  await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
+  await client.unsafe("select set_config('request.jwt.claims',$1,false)", [
+    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(),
+      role: "authenticated", session_id: authUserId }),
+  ]);
+  await client.unsafe("set role authenticated");
+}
+async function expectCode(label, action, code) {
+  let caught;
+  try { await action(); } catch (error) { caught = error; }
+  assert.ok(caught, label + " should be rejected");
+  assert.equal(String(caught.code), code, label + " SQLSTATE");
+  return caught;
+}
+async function createAccount(code, name, type) {
+  const rows = await db.unsafe(
+    "insert into public.accounting_accounts(organization_id,code,name,account_type,is_active) " +
+    "values($1::uuid,$2,$3,$4,true) returning id",
+    [organizationId, code, name, type],
+  );
+  assert.equal(rows.length, 1);
+  return rows[0].id;
+}
+async function uploadEvidence(accessToken, commitmentId, mimeType="application/pdf") {
+  const ext = mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : "jpg";
+  const body = mimeType === "application/pdf"
+    ? Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n")
+    : Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0,0,0,0]);
+  const path = commitmentId + "/" + randomUUID() + "." + ext;
+  const response = await fetch(new URL("/storage/v1/object/cash-expense-commitment-evidence/" + path, supabaseUrl), {
+    method: "POST",
+    headers: {
+      apikey: publishableKey, Authorization: "Bearer " + accessToken,
+      "Content-Type": mimeType, "x-upsert": "false",
+    },
+    body,
+  });
+  const payload = await response.json().catch(() => null);
+  assert.ok(response.ok, "real local Storage upload must succeed: HTTP " + response.status + " " + JSON.stringify(payload));
+  return { path, body, sha: createHash("sha256").update(body).digest("hex"), mimeType };
+}
+async function registerEvidence(client, commitmentId, uploaded) {
+  const name = uploaded.path.split("/").at(-1) ?? "evidence.pdf";
+  const rows = await client.unsafe(
+    "select public.record_cash_expense_commitment_evidence($1::uuid,$2::text,$3::text,$4::text,$5::bigint,$6::text) as result",
+    [commitmentId, uploaded.path, name, uploaded.mimeType, uploaded.body.length, uploaded.sha],
+  );
+  const result = asJson(rows[0].result);
+  assert.equal(typeof result?.id, "string");
+  assert.equal(result.replayed, false);
+  return result;
+}
+async function createCommitment(client, payload, key) {
+  const rows = await client.unsafe(
+    "select public.record_cash_expense_commitment($1::uuid,$2::text,$3::text,$4::numeric,$5::text,$6::text,$7::text,$8::date) as result",
+    [key,payload.category,payload.description,payload.amount,payload.currency,payload.payment_method,payload.reference,payload.due_date],
+  );
+  return asJson(rows[0].result);
+}
+async function approve(client, id, reason, key) {
+  const rows = await client.unsafe(
+    "select public.approve_cash_expense_commitment($1::uuid,$2::text,$3::uuid) as result",
+    [id,reason,key],
+  );
+  return asJson(rows[0].result);
+}
+async function recordPayment(client, id, paymentDate, key) {
+  const rows = await client.unsafe(
+    "select public.record_cash_expense_commitment_payment($1::uuid,$2::date,$3::uuid) as result",
+    [id,paymentDate,key],
+  );
+  return asJson(rows[0].result);
+}
+async function schedule(client, from, to, currency) {
+  const asOf = new Date().toISOString();
+  const rows = await client.unsafe(
+    "select public.fetch_cash_expense_commitment_cashflow_schedule($1::date,$2::date,$3::timestamptz,$4::text) as result",
+    [from,to,asOf,currency],
+  );
+  return asJson(rows[0].result);
+}
+async function main() {
+  const managerEmail = requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
+  const adminEmail = requiredEnv("E2E_DEVICE_ADMIN_EMAIL").toLowerCase();
+  const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL").toLowerCase();
+  const customerEmail = requiredEnv("E2E_EMAIL").toLowerCase();
+  const lookUp = async (email, role) => {
+    const rows = await db.unsafe(
+      "select p.id,p.auth_user_id,p.email from public.profiles p " +
+      (role ? "join public.user_roles r on r.profile_id=p.id " : "") +
+      "where p.organization_id=$1::uuid and lower(p.email)=lower($2) and p.is_active=true " +
+      (role ? "and r.role=$3 " : "") + "order by p.id limit 2",
+      role ? [organizationId,email,role] : [organizationId,email],
+    );
+    assert.equal(rows.length,1,"seeded local account must resolve to one active tenant profile: "+role);
+    return rows[0];
+  };
+  const manager=await lookUp(managerEmail,"manager");
+  const admin=await lookUp(adminEmail,"admin");
+  const accountant=await lookUp(accountantEmail,"accountant");
+  const customer=await lookUp(customerEmail,null);
+
+  const managerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  const adminDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  const accountantDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  const customerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  try {
+    await Promise.all([
+      setIdentity(managerDb,manager.auth_user_id,manager.email),
+      setIdentity(adminDb,admin.auth_user_id,admin.email),
+      setIdentity(accountantDb,accountant.auth_user_id,accountant.email),
+      setIdentity(customerDb,customer.auth_user_id,customer.email),
+    ]);
+    const [managerToken, adminToken] = await Promise.all([
+      signIn(managerEmail,requiredEnv("E2E_MANAGER_PASSWORD")),
+      signIn(adminEmail,requiredEnv("E2E_DEVICE_ADMIN_PASSWORD")),
+    ]);
+    const today = new Date().toISOString().slice(0,10);
+    const dueDate = new Date(Date.now()+14*86400000).toISOString().slice(0,10);
+    const suffix=randomUUID().replaceAll("-","").slice(-10).toUpperCase();
+    const expenseAccount=await createAccount("P2-COMMIT-EXP-"+suffix,"P2 Commitment Expense "+suffix,"expense");
+    const cashAccount=await createAccount("P2-COMMIT-CASH-"+suffix,"P2 Commitment Cash "+suffix,"asset");
+
+    await expectCode("same-tenant customer cannot read finance commitments",
+      ()=>customerDb.unsafe("select public.fetch_cash_expense_commitments(10,0)"),"42501");
+    await expectCode("authenticated finance user cannot insert commitments around the audited RPC",
+      ()=>managerDb.unsafe(
+        "insert into public.cash_expense_commitments(organization_id,category,description,amount,currency,payment_method,due_date,idempotency_key,payload_fingerprint,created_by_profile_id) " +
+        "values($1::uuid,'bypass','direct insert',1,'YER','cash',$2::date,$3::uuid,md5('bypass'),$4::uuid)",
+        [organizationId,dueDate,randomUUID(),manager.id]),"42501");
+
+    const yerPayload={category:"Rent",description:"Office rent for next period",amount:"250.75",currency:"YER",
+      payment_method:"transfer",reference:"P2-COMMIT-YER-"+suffix,due_date:dueDate};
+    const yerKey=randomUUID();
+    const yer=await createCommitment(managerDb,yerPayload,yerKey);
+    assert.equal(yer.status,"pending_approval");
+    assert.equal(yer.replayed,false);
+    const replay=await createCommitment(managerDb,yerPayload,yerKey);
+    assert.equal(replay.id,yer.id);
+    assert.equal(replay.replayed,true,"exact creation retry must return the saved commitment");
+    await expectCode("creation idempotency rejects changed commitment amount",
+      ()=>createCommitment(managerDb,{...yerPayload,amount:"251.00"},yerKey),"23505");
+
+    const yerEvidence=await uploadEvidence(managerToken,yer.id);
+    const registered=await registerEvidence(managerDb,yer.id,yerEvidence);
+    assert.equal(typeof registered.id,"string");
+    await expectCode("creator cannot approve own commitment",
+      ()=>approve(managerDb,yer.id,"self approval must be denied",randomUUID()),"42501");
+
+    const approvalKey=randomUUID();
+    const approved=await approve(adminDb,yer.id,"مستند إيجار موثق وفاتورة مستحقة",approvalKey);
+    assert.equal(approved.status,"approved");
+    assert.equal(approved.replayed,false);
+    assert.equal((await approve(adminDb,yer.id,"مستند إيجار موثق وفاتورة مستحقة",approvalKey)).replayed,true);
+    await expectCode("approval idem key rejects changed reason",
+      ()=>approve(adminDb,yer.id,"سبب مختلف للطلب نفسه",approvalKey),"23505");
+
+    // A second-currency commitment is separately filtered. No rate conversion is performed.
+    const usdPayload={...yerPayload,category:"Equipment",description:"Imported equipment service fee",amount:"40.25",
+      currency:"USD",reference:"P2-COMMIT-USD-"+suffix};
+    const usd=await createCommitment(managerDb,usdPayload,randomUUID());
+    const usdEvidence=await uploadEvidence(managerToken,usd.id);
+    await registerEvidence(managerDb,usd.id,usdEvidence);
+    assert.equal((await approve(adminDb,usd.id,"مستند التزام بالدولار",randomUUID())).status,"approved");
+    await expectCode("foreign-currency payment remains disabled until the FX policy exists",
+      ()=>recordPayment(accountantDb,usd.id,today,randomUUID()),"0A000");
+
+    const from=today,to=new Date(Date.now()+90*86400000).toISOString().slice(0,10);
+    const yerSchedule=await schedule(adminDb,from,to,"YER");
+    assert.equal(yerSchedule.status,"OK");
+    assert.equal(yerSchedule.currency,"YER");
+    assert.equal(yerSchedule.entries.length,1);
+    assert.equal(yerSchedule.entries[0].direction,"OUTFLOW");
+    assert.equal(yerSchedule.entries[0].amount.value,"250.75");
+    assert.equal(yerSchedule.entries[0].amount.currency,"YER");
+    assert.ok(yerSchedule.entries[0].amount.lineage.evidenceIds.length>=2);
+    assert.equal(yerSchedule.pendingApprovalCount,0);
+
+    const usdSchedule=await schedule(adminDb,from,to,"USD");
+    assert.equal(usdSchedule.status,"OK");
+    assert.equal(usdSchedule.entries.length,1);
+    assert.equal(usdSchedule.entries[0].amount.value,"40.25");
+    assert.equal(usdSchedule.entries[0].amount.currency,"USD");
+
+    const paymentKey=randomUUID();
+    const paid=await recordPayment(accountantDb,yer.id,today,paymentKey);
+    assert.equal(paid.status,"payment_recorded");
+    assert.equal(paid.replayed,false);
+    assert.equal((await recordPayment(accountantDb,yer.id,today,paymentKey)).replayed,true);
+    await expectCode("payment idempotency rejects changed date",
+      ()=>recordPayment(accountantDb,yer.id,new Date(Date.now()-86400000).toISOString().slice(0,10),paymentKey),"23505");
+
+    const partialSchedule=await schedule(adminDb,from,to,"YER");
+    assert.equal(partialSchedule.status,"PARTIAL");
+    assert.equal(partialSchedule.completeness,"PARTIAL");
+    assert.equal(partialSchedule.paymentAwaitingJournalCount,1);
+    assert.equal(partialSchedule.entries.length,0,"payment awaiting its posted journal is not falsely included as a future payable");
+
+    const draftRows=await accountantDb.unsafe(
+      "select public.create_cash_expense_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid) as result",
+      [paid.cash_expense_id,expenseAccount,cashAccount,randomUUID()],
+    );
+    const draft=asJson(draftRows[0].result);
+    assert.equal(draft.status,"draft");
+    const journalLines=await db.unsafe(
+      "select debit::text,credit::text from public.accounting_journal_lines " +
+      "where organization_id=$1::uuid and journal_entry_id=$2::uuid order by line_number",
+      [organizationId,draft.journal_entry_id],
+    );
+    assert.equal(journalLines.length,2);
+    assert.deepEqual(journalLines.map(x=>[x.debit,x.credit]),[["250.75","0.00"],["0.00","250.75"]]);
+
+    const postedRows=await adminDb.unsafe(
+      "select public.post_general_journal_entry($1::uuid) as result",[draft.journal_entry_id],
+    );
+    const posted=asJson(postedRows[0].result);
+    assert.equal(posted.status,"posted");
+    const settled=await db.unsafe(
+      "select status,payment_cash_expense_id::text,settled_by_profile_id::text from public.cash_expense_commitments " +
+      "where organization_id=$1::uuid and id=$2::uuid",[organizationId,yer.id],
+    );
+    assert.equal(settled.length,1);
+    assert.equal(settled[0].status,"settled","posting the exact original cash-expense journal settles the commitment");
+    assert.equal(settled[0].payment_cash_expense_id,paid.cash_expense_id);
+    assert.equal(settled[0].settled_by_profile_id,admin.id);
+
+    const finalSchedule=await schedule(adminDb,from,to,"YER");
+    assert.equal(finalSchedule.status,"OK");
+    assert.equal(finalSchedule.completeness,"COMPLETE");
+    assert.equal(finalSchedule.entries.length,0,"settled paid commitment is excluded from future outflows");
+    const events=await db.unsafe(
+      "select event_type from public.cash_expense_commitment_events where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
+      [organizationId,yer.id],
+    );
+    assert.deepEqual(events.map(x=>x.event_type),["CREATED","EVIDENCE_ATTACHED","APPROVED","PAYMENT_RECORDED","SETTLED"]);
+    const audit=await db.unsafe(
+      "select action,actor_id::text from public.audit_logs where organization_id=$1::uuid and entity_type='cash_expense_commitment' and entity_id=$2::uuid order by id",
+      [organizationId,yer.id],
+    );
+    assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.created"&&x.actor_id===manager.id));
+    assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.approved"&&x.actor_id===admin.id));
+    assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.payment_recorded"&&x.actor_id===accountant.id));
+    assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.settled"&&x.actor_id===admin.id));
+
+    // Storage policy must reject an orphan path with no same-tenant pending commitment.
+    const deniedPath=randomUUID()+"/"+randomUUID()+".pdf";
+    const denied=await fetch(new URL("/storage/v1/object/cash-expense-commitment-evidence/"+deniedPath,supabaseUrl),{
+      method:"POST",headers:{apikey:publishableKey,Authorization:"Bearer "+managerToken,"Content-Type":"application/pdf","x-upsert":"false"},
+      body:Buffer.from("%PDF-1.4\n%%EOF"),
+    });
+    assert.ok(!denied.ok,"Storage upload to a path without a same-tenant pending commitment must be denied");
+    await db.unsafe(
+      "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) " +
+      "values($1::uuid,$2::uuid,'test.cash_expense_commitment.accepted','cash_expense_commitment',$3::uuid,NULL,$4::jsonb)",
+      [organizationId,admin.id,yer.id,JSON.stringify({ci:true})],
+    ).catch(()=>{});
+    process.stdout.write(
+      "PASS PostgreSQL 17 operating expense commitment acceptance: real local Storage upload and tenant path denial; " +
+      "evidence-gated maker/checker; exact-cent and immutable append-only lifecycle; idempotency/replay/conflict; " +
+      "same-currency YER/USD separation and blocked FX payment; verified 90-day outflow lineage; payment-awaiting-journal PARTIAL; " +
+      "balanced cash-expense source journal; independent posting-triggered settlement; source audit/event trail.\n",
+    );
+  } finally {
+    await Promise.all([managerDb.end(),adminDb.end(),accountantDb.end(),customerDb.end()]);
+  }
+}
+main().catch((error)=>{
+  process.stderr.write("FAIL PostgreSQL 17 operating expense commitment acceptance: "+String(error?.stack??error)+"\n");
+  process.exitCode=1;
+}).finally(()=>db.end({timeout:5}).catch(()=>{}));

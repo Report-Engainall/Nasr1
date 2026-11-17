@@ -111,19 +111,19 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
    const aggregatesSafe=knownInflow!==null&&knownOutflow!==null;
    const hasKnownInflows=window.some(x=>x.valid&&x.entry.direction==="INFLOW");
    const hasKnownOutflows=window.some(x=>x.valid&&x.entry.direction==="OUTFLOW");
-   // The existing aggregate only proves receivable inflows; absent an independently complete
-   // supplier/expense outflow schedule, a zero outflow cannot be assumed for closing cash.
-   const projectedMinor=complete&&hasKnownOutflows&&openingValid&&aggregatesSafe
+   // The merged schedule is complete only after receivables, supplier payables and approved
+   // operating-expense commitments have all passed source/evidence checks.
+   const projectedMinor=complete&&openingValid&&aggregatesSafe
     ?(openingMinor as bigint)+knownInflowMinor-knownOutflowMinor:null;
    const projected=projectedMinor===null?null:minorUnitsToNumber(projectedMinor,2);
-   const closingScheduleComplete=complete&&hasKnownOutflows&&aggregatesSafe&&(!openingValid||projected!==null);
+   const closingScheduleComplete=complete&&aggregatesSafe&&(!openingValid||projected!==null);
    const status=resolveCashflowPointStatus(opening,openingValid,closingScheduleComplete,scheduleStatus);
    const sources=[...(opening?[opening]:[]),...window.flatMap(x=>x.metric?[x.metric]:[])];
    const evidenceIds=[...new Set(sources.flatMap(m=>m.lineage.evidenceIds))];
    const formulaVersions=[...new Set(sources.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];
    result.push({
     currency,horizonDays:horizon,period:{from:day,to:end},asOf:input.asOf,openingBalance:openingValid?openingValue:null,
-    knownInflows:complete||hasKnownInflows?knownInflow:null,knownOutflows:hasKnownOutflows?knownOutflow:null,
+    knownInflows:complete||hasKnownInflows?knownInflow:null,knownOutflows:complete||hasKnownOutflows?knownOutflow:null,
     projectedBalance:projected,status,scheduleComplete:closingScheduleComplete,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,
     evidenceIds,formulaVersions,warnings:[...baseWarnings,...(!aggregatesSafe?["SCHEDULE_AMOUNT_OUT_OF_RANGE"]:[]),...(!closingScheduleComplete?["OUTFLOW_SCHEDULE_NOT_VERIFIED_OR_UNAVAILABLE"]:[]),...(projectedMinor!==null&&projected===null?["PROJECTED_BALANCE_OUT_OF_RANGE"]:[]),...(projected===null?["PROJECTED_BALANCE_WITHHELD"]:[])],
    });
