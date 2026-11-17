@@ -12275,6 +12275,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_storefront_cart_product_details: {
+        Args: { p_product_ids: string[] }
+        Returns: Json
+      }
       get_storefront_product_prices: {
         Args: { p_product_ids: string[]; p_quantity?: number }
         Returns: {
