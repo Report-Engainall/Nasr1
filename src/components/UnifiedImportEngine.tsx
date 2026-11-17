@@ -51,7 +51,7 @@ type DuplicatePrompt = {
   sourceSystem: string;
   externalSourceReference: string | null;
   duplicate: DuplicateResult;
-  applicationKind: "products" | "customers" | "inventory";
+  applicationKind: "products" | "customers" | "inventory" | "product_units";
   worksheetName: string | null;
   remainingWorksheets: ImportWorkbookSheet[];
   unsupportedWorksheetNames: string[];
@@ -1223,6 +1223,30 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       setErrorMessage("جودة اللقطة أقل من الحد الأدنى للاعتماد؛ أعد معالجة الملف بعد تصحيح الصفوف.");
       return;
     }
+    if (importKind === "product_units") {
+      if (!window.confirm(
+        "اعتماد تحويلات وحدات الأصناف من " + (snapshot.source_file_name ?? snapshot.id) + "؟\\n\\n" +
+        "يجب اعتماد ورقة Products أولاً حتى تكون أكواد الأصناف موجودة. سيضيف النظام الوحدات البديلة أو يحدّث معاملها مع الحفاظ على الوحدات السابقة. الوحدة الأساسية لا تُضاف كتحويل بديل. الأسعار والباركود وإعدادات البيع والشراء الواردة في هذه الورقة تبقى للمراجعة ولا تُعتمد هنا."
+      )) return;
+      setApplicationBusyId(snapshot.id);
+      setErrorMessage("");
+      try {
+        const result = await applyOnyxProductUnitSnapshot(snapshot.id);
+        const summary = "اكتمل اعتماد وحدات الأصناف: " + formatNumber(result.units_created) +
+          " وحدة جديدة، " + formatNumber(result.units_updated) + " تحويل محدّث، " +
+          formatNumber(result.base_unit_rows_skipped) + " صف وحدة أساسية مستبعد، و" +
+          formatNumber(result.rejected) + " صف مرفوض. " +
+          (result.metadata_rows_pending_review ? formatNumber(result.metadata_rows_pending_review) + " صفًا لديه أسعار/خصائص وحدة تنتظر مراجعة مستقلة." : "");
+        setStatusMessage(summary);
+        onNotice(summary);
+        await refetchSnapshots();
+      } catch (cause) {
+        setErrorMessage(cause instanceof Error ? cause.message : "تعذر اعتماد تحويلات وحدات الأصناف.");
+      } finally {
+        setApplicationBusyId(null);
+      }
+      return;
+    }
     const description = importKind === "products"
       ? "ستظل الأصناف الجديدة غير منشورة. أي أسعار أو تصنيفات غير مكتملة تتطلب مراجعة المدير قبل النشر، ولا تُنفذ هذه العملية تسوية للمخزون."
       : "سيُنشأ العملاء الجدد بحالة انتظار وبشريحة تجزئة افتراضية. لن تُستورد أرصدة أو حدود ائتمان أو صلاحيات أو شرائح أسعار معتمدة من ملف المصدر.";
@@ -1401,7 +1425,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
 
         <section className="panel">
           <div className="panel-head">
-            <div><h2>اعتماد البيانات إلى الكتالوج والعملاء</h2><p>تطبيق لقطة مراجعة جاهزة دون إعادة تحليل الملف أو تعديل السجلات الموجودة.</p></div>
+            <div><h2>اعتماد البيانات إلى الكتالوج والعملاء ووحدات الأصناف</h2><p>تطبيق لقطة مراجعة جاهزة دون إعادة تحليل الملف أو تعديل السجلات الموجودة.</p></div>
 
           </div>
           <div className="privacy-note"><ShieldCheck size={17} /><span>
@@ -1416,7 +1440,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
               <tbody>{readySnapshots.map((snapshot) => <Fragment key={snapshot.id}>
                 <tr>
                   <td><strong>{snapshot.source_file_name ?? "ملف دون اسم"}</strong><small>{snapshot.source_file_hash.slice(0, 14)}… • v{snapshot.snapshot_version}</small></td>
-                  <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : snapshot.report_type === "inventory_stock" ? "أرصدة مخزون — مصالحة مستودعات" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
+                  <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : snapshot.import_kind === "product_units" ? "وحدات الأصناف" : snapshot.report_type === "inventory_stock" ? "أرصدة مخزون — مصالحة مستودعات" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
                   <td>{formatNumber(snapshot.row_count)}</td>
                   <td>{formatNumber(snapshot.data_quality_score)}/100</td>
                   <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
@@ -1430,7 +1454,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                     ) : (
                       <Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
                         onClick={() => void applyReadySnapshot(snapshot)}>
-                        {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : "النوع غير مؤكد"}
+                        {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : snapshot.import_kind === "product_units" ? "اعتماد تحويلات الوحدات" : "النوع غير مؤكد"}
                       </Button>
                     )}
                   </div></td>
@@ -1441,7 +1465,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                       معاينة محدودة لصفوف المصدر قبل الاعتماد ({formatNumber(snapshotPreview.rows.length)} من {formatNumber(snapshot.row_count)}).
                       {snapshotPreview.importKind === "products"
                         ? " الأسعار المعروضة قيم مصدر منفصلة وليست اعتماداً أو نشراً؛ رصيد المصدر غير معتمد حتى تتم التسوية."
-                        : " فئة العميل وحد الائتمان ورصيد الحساب من المصدر لا تظهر ولا تتحول إلى صلاحية تجارية معتمدة."}
+                        : snapshotPreview.importKind === "product_units"
+                          ? " معاينة أكواد الوحدات ومعاملات التحويل فقط. لا تعرض أسعار الوحدة أو خصائص البيع والشراء التي لا تعتمدها هذه العملية."
+                          : " فئة العميل وحد الائتمان ورصيد الحساب من المصدر لا تظهر ولا تتحول إلى صلاحية تجارية معتمدة."}
                     </div>
                     {snapshotPreview.error && <ErrorBox message={snapshotPreview.error} />}
                     {snapshotPreview.loading && snapshotPreview.rows.length === 0 ? <Loading /> :
