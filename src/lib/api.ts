@@ -39,6 +39,16 @@ export async function ensureCustomerImportProfile(): Promise<string> {
   return data;
 }
 
+export async function ensureOnyxStockBalanceImportProfile(): Promise<string> {
+  const { data, error } = await supabase.rpc("ensure_onyx_stock_balance_import_profile");
+  if (error) throw new Error(error.message || "تعذر تهيئة ملف استيراد أرصدة أونكس.");
+  if (typeof data !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+    throw new Error("لم يؤكد الخادم ملف استيراد أرصدة أونكس.");
+  }
+  return data;
+}
+
 type SupabaseReadOutcome<T> = { data: T | null; error: unknown | null };
 
 /** Retries transient READ failures only. Never use this helper for writes, RPC commands, or finance mutations. */
