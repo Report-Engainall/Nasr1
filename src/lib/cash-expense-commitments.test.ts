@@ -19,10 +19,13 @@ describe("cash expense commitment evidence handling",()=>{
   expect(canAttachCommitmentEvidence({...base,status:"approved"})).toBe(false);
   expect(canAttachCommitmentEvidence({...base,evidenceCount:10})).toBe(false);
  });
- it("blocks approval until every stored source document is available for review",()=>{
-  expect(isCommitmentEvidenceReviewable({expectedCount:1,loadedCount:1,loadFailed:false})).toBe(true);
-  expect(isCommitmentEvidenceReviewable({expectedCount:1,loadedCount:0,loadFailed:false})).toBe(false);
-  expect(isCommitmentEvidenceReviewable({expectedCount:1,loadedCount:1,loadFailed:true})).toBe(false);
-  expect(isCommitmentEvidenceReviewable({expectedCount:0,loadedCount:0,loadFailed:false})).toBe(false);
+ it("blocks approval until every source document is loaded, accessible and reviewed",()=>{
+  const complete={expectedCount:2,loadedCount:2,loadFailed:false,accessibleCount:2,reviewedCount:2};
+  expect(isCommitmentEvidenceReviewable(complete)).toBe(true);
+  expect(isCommitmentEvidenceReviewable({...complete,accessibleCount:1})).toBe(false);
+  expect(isCommitmentEvidenceReviewable({...complete,reviewedCount:1})).toBe(false);
+  expect(isCommitmentEvidenceReviewable({...complete,loadedCount:1})).toBe(false);
+  expect(isCommitmentEvidenceReviewable({...complete,loadFailed:true})).toBe(false);
+  expect(isCommitmentEvidenceReviewable({...complete,expectedCount:0,loadedCount:0,accessibleCount:0,reviewedCount:0})).toBe(false);
  });
 });
