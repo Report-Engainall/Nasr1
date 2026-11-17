@@ -154,8 +154,9 @@ BEGIN
     FROM pg_catalog.pg_proc AS p
     WHERE p.oid = v_signature::oid
       AND p.prosecdef
+      AND COALESCE(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=""']
   ) THEN
-    RAISE EXCEPTION 'return review queue RPC must execute with its security-definer boundary';
+    RAISE EXCEPTION 'return review queue RPC must be SECURITY DEFINER with an empty search_path';
   END IF;
 END;
 $security$;
