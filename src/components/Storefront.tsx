@@ -256,8 +256,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
   const cart = cartRestored ? cartState.items : [];
-  const cartProductIds = cart.map((item) => item.product.id).sort();
-  const cartProductIdsKey = cartProductIds.join('|');
+  const cartProductIdsKey = cart.map((item) => item.product.id).sort().join('|');
+  const cartProductIds = useMemo(
+    () => cartProductIdsKey ? cartProductIdsKey.split('|') : [],
+    [cartProductIdsKey],
+  );
   const cartProductDetailsKey = storefrontIdentityKey + '|' + cartStorageKey + '|' + cartProductIdsKey;
   const [cartProductDetailsState, setCartProductDetailsState] = useState<{
     key: string; loading: boolean; error: string | null; unresolvedIds: string[];
@@ -619,7 +622,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     });
 
     return () => { cancelled = true; };
-  }, [authReady, cartRestored, cartProductDetailsKey, cartProductIdsKey, cartStorageKey, storefrontIdentityKey, cartProductRetryCount]);
+  }, [authReady, cartRestored, cartProductDetailsKey, cartProductIds, cartStorageKey, cartProductRetryCount]);
 
   useEffect(() => {
     if (isPagedView) return;
