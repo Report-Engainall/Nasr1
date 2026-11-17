@@ -529,17 +529,49 @@ export function parseOperatingExpenseCommitmentScheduleResponse(
   for (const item of raw.entries) {
     const row = record(item);
     const amount = parseAmount(row?.amount, request.asOf, evidenceIds);
-    if (!row || !nonEmptyString(row.id, 180) ||
-        !row.id.startsWith("cash-expense-commitment-outflow:") || entryIds.has(row.id) ||
+    const idPrefix = "cash-expense-commitment-outflow:";
+    const commitmentId = typeof row?.id === "string" && row.id.startsWith(idPrefix)
+      ? row.id.slice(idPrefix.length)
+      : "";
+    const commitmentEvidenceId = "cash-expense-commitment:" + commitmentId;
+    const lineageIds = new Set(amount?.lineage.evidenceIds ?? []);
+    const commitmentEvidence = evidenceRecords.find((evidence) =>
+      evidence.id === commitmentEvidenceId &&
+      evidence.source.kind === "TABLE" &&
+      evidence.source.name === "cash_expense_commitments" &&
+      evidence.source.recordId === commitmentId &&
+      evidence.currency === amount?.currency &&
+      evidence.period?.from === request.period.from &&
+      evidence.period?.to === request.period.to &&
+      evidence.status === "VERIFIED" &&
+      evidence.completeness === "COMPLETE" &&
+      evidence.quality === "ACCEPTABLE"
+    );
+    const linkedDocuments = evidenceRecords.filter((evidence) =>
+      lineageIds.has(evidence.id) &&
+      evidence.source.kind === "TABLE" &&
+      evidence.source.name === "cash_expense_commitment_evidence" &&
+      typeof evidence.source.recordId === "string" &&
+      evidence.id === "cash-expense-commitment-evidence:" + evidence.source.recordId &&
+      evidence.currency === amount?.currency &&
+      evidence.period?.from === request.period.from &&
+      evidence.period?.to === request.period.to &&
+      evidence.status === "VERIFIED" &&
+      evidence.completeness === "COMPLETE" &&
+      evidence.quality === "ACCEPTABLE"
+    );
+    if (!row || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(commitmentId) ||
+        !nonEmptyString(row.id, 180) || entryIds.has(row.id) ||
         row.direction !== "OUTFLOW" || !isoDay(row.dueDate) ||
         row.dueDate < request.period.from || row.dueDate > request.period.to ||
-        !amount || amount.key !== "cashflow.operating_expense_commitment" ||
+        !amount || amount.id !== "metric:cash-expense-commitment:" + commitmentId ||
+        amount.key !== "cashflow.operating_expense_commitment" ||
         amount.status !== "VERIFIED" || amount.completeness !== "COMPLETE" || amount.quality !== "ACCEPTABLE" ||
         (request.currency !== null && request.currency !== undefined && amount.currency !== request.currency) ||
         amount.lineage.formulaId !== "nasr1.approved-operating-expense-commitment" ||
         amount.lineage.formulaVersion !== "1" ||
-        !amount.lineage.evidenceIds.some(id => id.startsWith("cash-expense-commitment:")) ||
-        !amount.lineage.evidenceIds.some(id => id.startsWith("cash-expense-commitment-evidence:"))) return null;
+        !commitmentEvidence || !lineageIds.has(commitmentEvidenceId) ||
+        linkedDocuments.length === 0) return null;
     entryIds.add(row.id);
     entries.push({ id: row.id, direction: "OUTFLOW", dueDate: row.dueDate, amount });
   }

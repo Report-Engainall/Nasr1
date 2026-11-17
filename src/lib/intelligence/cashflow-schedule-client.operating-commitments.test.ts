@@ -18,6 +18,19 @@ describe("operating commitment cashflow evidence",()=>{
   const id=response();id.entries[0].id="supplier:"+commitmentId;expect(parseOperatingExpenseCommitmentScheduleResponse(id,request)).toBeNull();
   const metric=response();metric.entries[0].amount.key="cashflow.expected_collections";expect(parseOperatingExpenseCommitmentScheduleResponse(metric,request)).toBeNull();
  });
+ it("rejects commitment metric or source records that belong to a different commitment",()=>{
+  const wrongCommitment=response();
+  wrongCommitment.evidenceRecords[0].id="cash-expense-commitment:33333333-3333-4333-8333-333333333333";
+  wrongCommitment.evidenceRecords[0].source.recordId="33333333-3333-4333-8333-333333333333";
+  wrongCommitment.entries[0].amount.lineage.evidenceIds[0]=wrongCommitment.evidenceRecords[0].id;
+  expect(parseOperatingExpenseCommitmentScheduleResponse(wrongCommitment,request)).toBeNull();
+  const wrongDocument=response();
+  wrongDocument.evidenceRecords[1].source.recordId="33333333-3333-4333-8333-333333333333";
+  expect(parseOperatingExpenseCommitmentScheduleResponse(wrongDocument,request)).toBeNull();
+  const wrongMetric=response();
+  wrongMetric.entries[0].amount.id="metric:cash-expense-commitment:33333333-3333-4333-8333-333333333333";
+  expect(parseOperatingExpenseCommitmentScheduleResponse(wrongMetric,request)).toBeNull();
+ });
  it("rejects missing evidence links, unverified amounts and formula substitution",()=>{
   const missing=response();missing.entries[0].amount.lineage.evidenceIds=["cash-expense-commitment:"+commitmentId];expect(parseOperatingExpenseCommitmentScheduleResponse(missing,request)).toBeNull();
   const unverified=response();unverified.entries[0].amount.status="NEEDS_REVIEW";expect(parseOperatingExpenseCommitmentScheduleResponse(unverified,request)).toBeNull();
