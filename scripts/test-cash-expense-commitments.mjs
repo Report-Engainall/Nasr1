@@ -10,8 +10,8 @@ function requiredEnv(name) {
 }
 function asJson(value) { return typeof value === "string" ? JSON.parse(value) : value; }
 const databaseUrl = requiredEnv("TEST_DATABASE_URL");
-const supabaseUrl = requiredEnv("SUPABASE_URL");
-const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
+const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
+const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
 validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
@@ -287,11 +287,6 @@ async function main() {
       body:Buffer.from("%PDF-1.4\n%%EOF"),
     });
     assert.ok(!denied.ok,"Storage upload to a path without a same-tenant pending commitment must be denied");
-    await db.unsafe(
-      "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) " +
-      "values($1::uuid,$2::uuid,'test.cash_expense_commitment.accepted','cash_expense_commitment',$3::uuid,NULL,$4::jsonb)",
-      [organizationId,admin.id,yer.id,JSON.stringify({ci:true})],
-    ).catch(()=>{});
     process.stdout.write(
       "PASS PostgreSQL 17 operating expense commitment acceptance: real local Storage upload and tenant path denial; " +
       "evidence-gated maker/checker; exact-cent and immutable append-only lifecycle; idempotency/replay/conflict; " +
