@@ -1090,7 +1090,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           />
         )}
 
-        {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={(product, quantity) => addToCart(product, quantity)} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
+        {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={(product, quantity) => addToCart(product, quantity)} cartQuantities={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
         {view === 'compare' && <ProductComparison products={products.filter((product) => compare.includes(product.id))} priceVisibilityPolicy={settings?.show_price_on_cards} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onRemove={toggleCompare} onBack={() => void navigate({ to: '/' })} />}
         {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} alreadyInCart={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
 
@@ -1770,6 +1770,7 @@ function CollectionView({
   onRetry,
   onOpen,
   onAdd,
+  cartQuantities = {},
   onWishlist,
   onCompare,
   onBack,
@@ -1786,6 +1787,7 @@ function CollectionView({
   onRetry: () => void;
   onOpen: (product: ProductWithInventory) => void;
   onAdd: (product: ProductWithInventory, requestedQuantity?: number) => void;
+  cartQuantities?: Record<string, number>;
   onWishlist: (id: string) => void;
   onCompare: (id: string) => void;
   onBack: () => void;
@@ -1807,6 +1809,7 @@ function CollectionView({
             emptyDescription=""
             onOpen={onOpen}
             onAdd={onAdd}
+            cartQuantities={cartQuantities}
             onWishlist={onWishlist}
             onCompare={onCompare}
           />
