@@ -138,6 +138,16 @@ describe("decision policy learning candidate client", () => {
     expect(result).toMatchObject({ ok: false, status: "ERROR" });
   });
 
+  it("rejects expected and actual measurements captured at different as-of timestamps", async () => {
+    const invalid = candidate();
+    const observations = invalid.candidateSnapshot.observations as Array<Record<string, unknown>>;
+    const actual = observations[0].actual as Record<string, unknown>;
+    actual.asOf = "2026-11-17T01:00:01.000Z";
+    rpc.mockResolvedValue({ data: { ok: true, duplicate: false, candidate: invalid }, error: null });
+    expect(await createDecisionPolicyLearningCandidate({ decisionIds: [decisionId] }))
+      .toMatchObject({ ok: false, status: "ERROR" });
+  });
+
   it("submits a versioned review command and preserves the server's maker-checker denial", async () => {
     rpc.mockResolvedValueOnce({
       data: { ok: true, duplicate: false, candidate: candidate({

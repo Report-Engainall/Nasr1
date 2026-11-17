@@ -222,6 +222,8 @@ DECLARE
   v_formula_version text;
   v_expected_value numeric;
   v_actual_value numeric;
+  v_expected_as_of timestamptz;
+  v_actual_as_of timestamptz;
   v_difference numeric;
   v_difference_percent numeric;
   v_expected_values numeric[] := ARRAY[]::numeric[];
@@ -386,11 +388,17 @@ BEGIN
     BEGIN
       v_expected_value := (v_expected->>'value')::numeric;
       v_actual_value := (v_actual->>'value')::numeric;
-      PERFORM (v_expected->>'asOf')::timestamptz;
-      PERFORM (v_actual->>'asOf')::timestamptz;
+      v_expected_as_of := (v_expected->>'asOf')::timestamptz;
+      v_actual_as_of := (v_actual->>'asOf')::timestamptz;
     EXCEPTION WHEN OTHERS THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='candidate metric values or timestamps are invalid';
     END;
+
+    IF v_expected_as_of IS NULL
+       OR v_actual_as_of IS NULL
+       OR v_expected_as_of IS DISTINCT FROM v_actual_as_of THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='candidate expected and actual metrics must use the same as-of timestamp';
+    END IF;
 
     IF v_expected_value::text IN ('NaN','Infinity','-Infinity')
        OR v_actual_value::text IN ('NaN','Infinity','-Infinity')

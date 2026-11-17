@@ -102,9 +102,22 @@ function validMetric(value: unknown): boolean {
 }
 function validObservation(value: unknown, expectedDecisionId: string): boolean {
   const observation = record(value);
+  const expected = record(observation?.expected);
+  const actual = record(observation?.actual);
+  const expectedPeriod = record(expected?.period);
+  const actualPeriod = record(actual?.period);
   return !!observation && observation.decisionId === expectedDecisionId &&
-    iso(observation.createdAt) && validMetric(observation.expected) &&
-    validMetric(observation.actual) && safeNumber(observation.difference) &&
+    iso(observation.createdAt) && !!expected && !!actual &&
+    validMetric(expected) && validMetric(actual) &&
+    expected.metricKey === actual.metricKey &&
+    expected.unit === actual.unit &&
+    expected.currency === actual.currency &&
+    expected.unitOfMeasure === actual.unitOfMeasure &&
+    JSON.stringify(expectedPeriod) === JSON.stringify(actualPeriod) &&
+    Date.parse(String(expected.asOf)) === Date.parse(String(actual.asOf)) &&
+    expected.formulaId === actual.formulaId &&
+    expected.formulaVersion === actual.formulaVersion &&
+    safeNumber(observation.difference) &&
     (observation.differencePercent === null || safeNumber(observation.differencePercent)) &&
     Array.isArray(observation.lessons) && observation.lessons.length > 0 &&
     observation.lessons.length <= 100 && observation.lessons.every(item => string(item, 2000)) &&

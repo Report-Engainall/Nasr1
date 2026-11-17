@@ -346,20 +346,43 @@ async function main() {
       assert.equal(approved.candidate.eventCount, 3);
       assert.equal(approved.candidate.candidateSnapshot.activeProfileChanged, false);
 
-      // Correct the decision memory in a new immutable version. Relearning the
-      // same decision must produce Candidate v3 and leave the approved v2 untouched.
+      // A corrected memory with a different measurement as-of timestamp must not
+      // produce a candidate; the expected and actual snapshots are not comparable.
       await setActor(tx, managerClaims);
+      const mismatchAsOf = new Date(Date.parse(asOf) - 30_000).toISOString();
+      const mismatchedMemory = {
+        ...memorySnapshot,
+        asOf: mismatchAsOf,
+        lessons: ["تم فحص اختلاف توقيت القياس قبل السماح بالتعلم."],
+      };
+      const mismatchRows = await tx.unsafe(
+        "select public.save_decision_memory_snapshot($1::uuid,1,$2::jsonb,$3::text,$4::text) as result",
+        [outcomeId, JSON.stringify(mismatchedMemory), "اختبار اختلاف وقت خط الأساس عن النتيجة.", randomUUID()],
+      );
+      const mismatchedSnapshot = decode(mismatchRows[0].result);
+      assert.equal(mismatchedSnapshot?.ok, true);
+      assert.equal(mismatchedSnapshot.snapshot.version, 2);
+      assert.notEqual(
+        mismatchedSnapshot.snapshot.expectedMetric.asOf,
+        mismatchedSnapshot.snapshot.actualMetric.asOf,
+      );
+      await expectSqlState(tx, "22023", () => tx.unsafe(
+        "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text)",
+        [[outcomeId], randomUUID()],
+      ), "expected and actual metric as-of mismatch");
+
+      // A later aligned immutable memory snapshot generates Candidate v3.
       const correctedMemory = {
         ...memorySnapshot,
         lessons: ["تُراجع نتيجة المتابعة وفق قياس موثق.", "تصحيح توقيت المراجعة استناداً إلى القياس الجديد."],
       };
       const correctionRows = await tx.unsafe(
-        "select public.save_decision_memory_snapshot($1::uuid,1,$2::jsonb,$3::text,$4::text) as result",
+        "select public.save_decision_memory_snapshot($1::uuid,2,$2::jsonb,$3::text,$4::text) as result",
         [outcomeId, JSON.stringify(correctedMemory), "تصحيح الدروس بعد مراجعة القياس.", randomUUID()],
       );
       const correction = decode(correctionRows[0].result);
       assert.equal(correction?.ok, true);
-      assert.equal(correction.snapshot.version, 2);
+      assert.equal(correction.snapshot.version, 3);
 
       const nextCandidateRows = await tx.unsafe(
         "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text) as result",
@@ -370,7 +393,7 @@ async function main() {
       assert.equal(nextCandidate.duplicate, false);
       assert.equal(nextCandidate.candidate.candidateVersion, 3);
       assert.equal(nextCandidate.candidate.state, "DRAFT");
-      assert.equal(nextCandidate.candidate.candidateSnapshot.sourceMemorySnapshots[0].version, 2);
+      assert.equal(nextCandidate.candidate.candidateSnapshot.sourceMemorySnapshots[0].version, 3);
       assert.notEqual(
         nextCandidate.candidate.candidateSnapshot.sourceMemorySnapshots[0].snapshotId,
         candidate.candidateSnapshot.sourceMemorySnapshots[0].snapshotId,
@@ -391,6 +414,8 @@ async function main() {
         "where s.organization_id=o.organization_id and s.decision_outcome_id=o.id) as memory_versions, " +
         "(select pg_catalog.jsonb_agg(s.payload->'lessons' order by s.version) from public.decision_memory_snapshots s " +
         "where s.organization_id=o.organization_id and s.decision_outcome_id=o.id) as memory_lesson_versions, " +
+        "(select pg_catalog.jsonb_agg(s.payload->>'asOf' order by s.version) from public.decision_memory_snapshots s " +
+        "where s.organization_id=o.organization_id and s.decision_outcome_id=o.id) as memory_as_of_versions, " +
         "(select c.candidate_snapshot from public.decision_policy_learning_candidates c where c.id=$2::uuid) as original_candidate_snapshot, " +
         "(select count(*)::integer from public.decision_policy_learning_events e " +
         "where e.organization_id=o.organization_id and e.candidate_id=$2::uuid) as learning_events " +
@@ -399,13 +424,15 @@ async function main() {
       );
       assert.equal(preserved.length, 1);
       assert.equal(preserved[0].rule_version, ruleVersion, "Profile v1 / source rule version must not be rewritten");
-      assert.equal(preserved[0].memory_versions, 2, "memory correction creates a new immutable version without overwriting v1");
+      assert.equal(preserved[0].memory_versions, 3, "mismatched and corrected memory snapshots append without overwriting v1");
       assert.deepEqual(preserved[0].memory_lesson_versions, [
         ["تُراجع نتيجة المتابعة وفق قياس موثق."],
+        ["تم فحص اختلاف توقيت القياس قبل السماح بالتعلم."],
         ["تُراجع نتيجة المتابعة وفق قياس موثق.", "تصحيح توقيت المراجعة استناداً إلى القياس الجديد."],
-      ], "v1 decision memory remains immutable and v2 is appended");
+      ], "all immutable decision-memory versions remain preserved");
+      assert.equal(Date.parse(preserved[0].memory_as_of_versions[1]), Date.parse(mismatchAsOf));
       assert.equal(preserved[0].original_candidate_snapshot.sourceMemorySnapshots[0].version, 1,
-        "approved Candidate v2 must remain pinned to the original memory snapshot");
+        "approved Candidate v2 remains pinned to original memory v1");
       assert.equal(preserved[0].learning_events, 3, "CREATE, SUBMIT and APPROVE must be append-only events");
 
       throw new RollbackAcceptance("roll back every temporary invoice, decision, memory snapshot and candidate");
