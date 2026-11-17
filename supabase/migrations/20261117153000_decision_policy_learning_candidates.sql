@@ -502,6 +502,7 @@ BEGIN
           'metricKey',v_expected->>'key','value',v_expected_value,'unit',v_expected->>'unit',
           'currency',v_expected->'currency','unitOfMeasure',v_expected->'unitOfMeasure',
           'period',v_expected->'period','asOf',v_expected->'asOf',
+          'status',v_expected->>'status','completeness',v_expected->>'completeness','quality',v_expected->>'quality',
           'formulaId',v_expected_lineage->>'formulaId','formulaVersion',v_expected_lineage->>'formulaVersion',
           'evidenceIds',v_expected_evidence
         ),
@@ -509,6 +510,7 @@ BEGIN
           'metricKey',v_actual->>'key','value',v_actual_value,'unit',v_actual->>'unit',
           'currency',v_actual->'currency','unitOfMeasure',v_actual->'unitOfMeasure',
           'period',v_actual->'period','asOf',v_actual->'asOf',
+          'status',v_actual->>'status','completeness',v_actual->>'completeness','quality',v_actual->>'quality',
           'formulaId',v_actual_lineage->>'formulaId','formulaVersion',v_actual_lineage->>'formulaVersion',
           'evidenceIds',v_actual_evidence
         ),

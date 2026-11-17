@@ -86,8 +86,32 @@ function makeCandidate(
         version: 1,
         capturedAt: at,
       }],
-      observations: [{ decisionId, difference: -20, differencePercent: -10, lessons: ["تحسين توقيت المتابعة"] }],
-      calibration: { sampleCount: 1 },
+      observations: [{
+        decisionId,
+        createdAt: at,
+        expected: {
+          metricKey: "cashflow.expected_collections", value: 200, unit: "CURRENCY",
+          status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE",
+          currency: "YER", unitOfMeasure: null, period, asOf: at,
+          formulaId: "nasr1.receivables-outstanding", formulaVersion: "1",
+          evidenceIds: ["dmexpected:snapshot:invoice:1"],
+        },
+        actual: {
+          metricKey: "cashflow.expected_collections", value: 180, unit: "CURRENCY",
+          status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE",
+          currency: "YER", unitOfMeasure: null, period, asOf: at,
+          formulaId: "nasr1.receivables-outstanding", formulaVersion: "1",
+          evidenceIds: ["dmactual:snapshot:invoice:1"],
+        },
+        difference: -20, differencePercent: -10, lessons: ["تحسين توقيت المتابعة"],
+        evidenceIds: ["dmexpected:snapshot:invoice:1", "dmactual:snapshot:invoice:1"],
+      }],
+      calibration: {
+        sampleCount: 1, meanExpectedValue: 200, meanActualValue: 180,
+        meanSignedDifference: -20, medianSignedDifference: -20, meanAbsoluteDifference: 20,
+        meanAbsoluteDifferencePercent: 10, percentageSampleCount: 1, zeroBaselineCount: 0,
+        aboveExpectedCount: 0, belowExpectedCount: 1, equalExpectedCount: 0,
+      },
       lessons: ["تحسين توقيت المتابعة"],
       evidenceIds: ["dmexpected:snapshot:invoice:1", "dmactual:snapshot:invoice:1"],
       activeProfileChanged: false,
@@ -166,13 +190,16 @@ describe("DecisionMemoryBook outcome learning controls", () => {
     createCandidate.mockResolvedValue({ ok: true, duplicate: false, candidate: makeCandidate() });
     render(<DecisionMemoryBook result={emptyCompleteResult} />);
 
-    const button = await screen.findByRole("button", { name: "إنشاء Candidate v2 من الأدلة" });
+    const button = await screen.findByRole("button", { name: "إنشاء مرشح تعلم من الأدلة" });
     fireEvent.click(button);
 
     await screen.findByText(/حُفظ مرشح جديد من الأدلة المصدرية/);
     expect(createCandidate).toHaveBeenCalledWith({ decisionIds: [decisionId] });
     expect(await screen.findByText("Candidate v2 · cashflow.collection.followup")).toBeInTheDocument();
     expect(screen.getByText(/Profile الأساسي: 1.0.0/)).toBeInTheDocument();
+    const evidenceToggle=screen.getByText(/عرض القياسات المتوقعة والفعلية والأدلة/);
+    fireEvent.click(evidenceToggle);
+    expect(screen.getByText("القرار "+decisionId+" · "+at)).toBeInTheDocument();
   });
 
   it("reuses the same idempotency key when a candidate creation response is unavailable", async () => {
@@ -181,7 +208,7 @@ describe("DecisionMemoryBook outcome learning controls", () => {
       .mockResolvedValueOnce({ ok: true, duplicate: false, candidate: makeCandidate() });
     render(<DecisionMemoryBook result={emptyCompleteResult} />);
 
-    const button = await screen.findByRole("button", { name: "إنشاء Candidate v2 من الأدلة" });
+    const button = await screen.findByRole("button", { name: "إنشاء مرشح تعلم من الأدلة" });
     fireEvent.click(button);
     await screen.findByText("تعذر الاتصال");
     fireEvent.click(button);
@@ -196,7 +223,7 @@ describe("DecisionMemoryBook outcome learning controls", () => {
   it("disables candidate generation for a partial archive instead of learning from a truncated page", async () => {
     const partial = { ...emptyCompleteResult, status: "PARTIAL" as const, loadedCount: 1, totalCount: 2 };
     render(<DecisionMemoryBook result={partial} />);
-    const button = await screen.findByRole("button", { name: "إنشاء Candidate v2 من الأدلة" });
+    const button = await screen.findByRole("button", { name: "إنشاء مرشح تعلم من الأدلة" });
     expect(button).toBeDisabled();
     expect(screen.getByText(/يُحجب الإنشاء حتى اكتمال قراءة كامل سجل القرارات/)).toBeInTheDocument();
     expect(createCandidate).not.toHaveBeenCalled();

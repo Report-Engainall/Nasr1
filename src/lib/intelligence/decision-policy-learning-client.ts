@@ -82,6 +82,53 @@ function parseEvent(value: unknown): DecisionPolicyLearningEvent | null {
   };
 }
 
+function validEvidenceIds(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length > 0 && value.length <= 300 &&
+    value.every(item => string(item, 300));
+}
+function safeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER;
+}
+function validMetric(value: unknown): boolean {
+  const metric = record(value);
+  const period = record(metric?.period);
+  return !!metric && string(metric.metricKey, 150) && safeNumber(metric.value) &&
+    metric.status === "VERIFIED" && metric.completeness === "COMPLETE" && metric.quality === "ACCEPTABLE" &&
+    string(metric.unit, 80) && nullableString(metric.currency, 8) &&
+    nullableString(metric.unitOfMeasure, 80) &&
+    !!period && string(period.from, 40) && string(period.to, 40) &&
+    iso(metric.asOf) && string(metric.formulaId, 150) &&
+    string(metric.formulaVersion, 80) && validEvidenceIds(metric.evidenceIds);
+}
+function validObservation(value: unknown, expectedDecisionId: string): boolean {
+  const observation = record(value);
+  return !!observation && observation.decisionId === expectedDecisionId &&
+    iso(observation.createdAt) && validMetric(observation.expected) &&
+    validMetric(observation.actual) && safeNumber(observation.difference) &&
+    (observation.differencePercent === null || safeNumber(observation.differencePercent)) &&
+    Array.isArray(observation.lessons) && observation.lessons.length > 0 &&
+    observation.lessons.length <= 100 && observation.lessons.every(item => string(item, 2000)) &&
+    validEvidenceIds(observation.evidenceIds);
+}
+function validCalibration(value: unknown, sampleCount: number): boolean {
+  const calibration = record(value);
+  if (!calibration || calibration.sampleCount !== sampleCount ||
+      !safeNumber(calibration.meanExpectedValue) || !safeNumber(calibration.meanActualValue) ||
+      !safeNumber(calibration.meanSignedDifference) || !safeNumber(calibration.medianSignedDifference) ||
+      !safeNumber(calibration.meanAbsoluteDifference) ||
+      (calibration.meanAbsoluteDifferencePercent !== null && !safeNumber(calibration.meanAbsoluteDifferencePercent))) {
+    return false;
+  }
+  const counts = [
+    calibration.percentageSampleCount, calibration.zeroBaselineCount,
+    calibration.aboveExpectedCount, calibration.belowExpectedCount, calibration.equalExpectedCount,
+  ];
+  if (counts.some(count => !Number.isInteger(count) || (count as number) < 0)) return false;
+  return (calibration.percentageSampleCount as number) + (calibration.zeroBaselineCount as number) === sampleCount &&
+    (calibration.aboveExpectedCount as number) + (calibration.belowExpectedCount as number) +
+      (calibration.equalExpectedCount as number) === sampleCount;
+}
+
 function parseCandidate(value: unknown): DecisionPolicyLearningCandidate | null {
   const raw = record(value);
   const snapshot = record(raw?.candidateSnapshot);
@@ -124,8 +171,13 @@ function parseCandidate(value: unknown): DecisionPolicyLearningCandidate | null 
       }) ||
       new Set(snapshot.sourceDecisionIds).size !== snapshot.sourceDecisionIds.length ||
       !Array.isArray(snapshot.observations) || snapshot.observations.length !== snapshot.sourceDecisionIds.length ||
-      !record(snapshot.metricContext) || !record(snapshot.calibration) ||
-      !Array.isArray(snapshot.evidenceIds) || !Array.isArray(snapshot.lessons)) return null;
+      snapshot.observations.some((item,index)=>!validObservation(item,snapshot.sourceDecisionIds[index])) ||
+      !record(snapshot.metricContext) ||
+      !validCalibration(snapshot.calibration,snapshot.sourceDecisionIds.length) ||
+      !validEvidenceIds(snapshot.evidenceIds) ||
+      new Set(snapshot.evidenceIds).size !== snapshot.evidenceIds.length ||
+      !Array.isArray(snapshot.lessons) || snapshot.lessons.length < 1 ||
+      !snapshot.lessons.every(item=>string(item,2000))) return null;
 
   const candidateState = raw.state as DecisionPolicyLearningCandidateState;
   if ((candidateState === "DRAFT" && (raw.submittedAt !== null || raw.reviewedAt !== null)) ||

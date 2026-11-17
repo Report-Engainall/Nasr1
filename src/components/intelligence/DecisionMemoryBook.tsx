@@ -522,8 +522,21 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
         </div>:null}
         {learningCandidates.map(candidate=>{
           const snapshot=candidate.candidateSnapshot;
-          const context=snapshot.metricContext as {metricKey?:string;unit?:string;currency?:string|null;period?:{from?:string;to?:string}}|undefined;
-          const sampleCount=Array.isArray(snapshot.observations)?snapshot.observations.length:0;
+          const context=snapshot.metricContext as {metricKey?:string;unit?:string;currency?:string|null;period?:{from?:string;to?:string};formulaId?:string;formulaVersion?:string}|undefined;
+          type CandidateMetric=NonNullable<DecisionMemoryRecord["metricComparison"]["expected"]>;
+          const observations=(Array.isArray(snapshot.observations)?snapshot.observations:[]) as Array<{
+            decisionId:string;createdAt:string;expected:CandidateMetric;actual:CandidateMetric;
+            difference:number;differencePercent:number|null;lessons:string[];evidenceIds:string[];
+          }>;
+          const calibration=snapshot.calibration as {
+            meanExpectedValue:number;meanActualValue:number;meanSignedDifference:number;medianSignedDifference:number;
+            meanAbsoluteDifference:number;meanAbsoluteDifferencePercent:number|null;aboveExpectedCount:number;
+            belowExpectedCount:number;equalExpectedCount:number;zeroBaselineCount:number;
+          };
+          const sourceMemorySnapshots=(Array.isArray(snapshot.sourceMemorySnapshots)?snapshot.sourceMemorySnapshots:[]) as Array<{
+            decisionId:string;snapshotId:string;version:number;capturedAt:string;
+          }>;
+          const sampleCount=observations.length;
           const busy=learningBusy.startsWith(candidate.id+":");
           return <article key={candidate.id} className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -533,8 +546,53 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             <p className="text-xs text-muted-foreground">
               Profile الأساسي: {candidate.baseProfileVersion} · {context?.metricKey??"مؤشر غير محدد"} · {context?.currency??context?.unit??"وحدة غير محددة"} · {context?.period?.from??"—"} — {context?.period?.to??"—"} · عينة مثبتة: {sampleCount}
             </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-md bg-muted/40 p-2">
+                <p className="text-xs text-muted-foreground">متوسط المتوقع → الفعلي</p>
+                <strong>{number(calibration.meanExpectedValue)} → {number(calibration.meanActualValue)} {context?.currency??context?.unit??""}</strong>
+              </div>
+              <div className="rounded-md bg-muted/40 p-2">
+                <p className="text-xs text-muted-foreground">الانحراف (الفعلي − المتوقع)</p>
+                <strong>{number(calibration.meanSignedDifference)} · مطلق {number(calibration.meanAbsoluteDifference)}</strong>
+                <p className="text-xs text-muted-foreground">
+                  أعلى {calibration.aboveExpectedCount} · أقل {calibration.belowExpectedCount} · مطابق {calibration.equalExpectedCount} · خط أساس صفري {calibration.zeroBaselineCount}
+                  {calibration.meanAbsoluteDifferencePercent===null?" · النسبة غير متاحة لخط أساس صفري":" · انحراف مطلق "+number(calibration.meanAbsoluteDifferencePercent)+"%"}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              المعادلة: {context?.formulaId??"—"}@{context?.formulaVersion??"—"} · مصادر الذاكرة:
+              {sourceMemorySnapshots.map(source=>" "+source.version+" ("+source.snapshotId.slice(0,8)+")").join(" · ")||" غير متاحة"}
+            </p>
+            <details className="rounded-md border p-2">
+              <summary className="cursor-pointer text-xs font-medium">عرض القياسات المتوقعة والفعلية والأدلة ({sampleCount})</summary>
+              <div className="mt-2 space-y-2">
+                {observations.map(observation=><div key={observation.decisionId} className="space-y-2 rounded-md bg-muted/30 p-2">
+                  <p className="text-xs text-muted-foreground">القرار {observation.decisionId} · {observation.createdAt}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {metricLine("المتوقع",observation.expected)}
+                    {metricLine("الفعلي",observation.actual)}
+                  </div>
+                  <p className="text-xs">
+                    الفرق: {number(observation.difference)} ·
+                    {observation.differencePercent===null?"النسبة غير معرّفة لخط أساس صفري":" نسبة الفرق "+number(observation.differencePercent)+"%"}
+                  </p>
+                  <p className="text-xs">الدروس المرصودة: {observation.lessons.join("؛ ")}</p>
+                  <p className="text-xs">كل مراجع هذا القرار: <EvidenceReferences ids={observation.evidenceIds}/></p>
+                </div>)}
+              </div>
+            </details>
             <p className="text-xs">الدروس: {Array.isArray(snapshot.lessons)?snapshot.lessons.join("؛ "):"غير متاحة"}</p>
-            <p className="text-xs text-muted-foreground">سجل الأحداث: {candidate.history.map(event=>event.type==="CREATE"?"إنشاء":event.type==="SUBMIT_FOR_REVIEW"?"إرسال للمراجعة":event.type==="APPROVE"?"اعتماد":"رفض").join(" ← ")}</p>
+            <details className="rounded-md border p-2">
+              <summary className="cursor-pointer text-xs font-medium">سجل الاعتماد والتدقيق ({candidate.eventCount})</summary>
+              <div className="mt-2 space-y-2">
+                {candidate.history.map(event=><div key={event.id} className="rounded-md bg-muted/30 p-2 text-xs">
+                  <p>{event.type==="CREATE"?"إنشاء":event.type==="SUBMIT_FOR_REVIEW"?"إرسال للمراجعة":event.type==="APPROVE"?"اعتماد": "رفض"} · {event.at}</p>
+                  <p className="text-muted-foreground">المنفذ: {event.actorRole} · {event.actorProfileId}</p>
+                  {event.reason?<p>السبب: {event.reason}</p>:null}
+                </div>)}
+              </div>
+            </details>
             {candidate.reviewReason?<p className="text-xs">سبب المراجعة: {candidate.reviewReason}</p>:null}
             {candidate.state==="DRAFT"||candidate.state==="IN_REVIEW"?<>
               <label className="block space-y-1 text-xs">
@@ -602,7 +660,7 @@ export function DecisionMemoryBook({result=null,state="ready",onRetry}:DecisionM
             disabled={learningBusy!==""||learningLoading||result.status!=="VERIFIED"||result.loadedCount!==result.totalCount||suggestion.observations.length<1||suggestion.observations.length>100}
             onClick={()=>void createLearningCandidate(suggestion)}
           >
-            {learningBusy==="create:"+suggestion.id?"جارٍ الحفظ…":"إنشاء Candidate v2 من الأدلة"}
+            {learningBusy==="create:"+suggestion.id?"جارٍ الحفظ…":"إنشاء مرشح تعلم من الأدلة"}
           </button>
           {(result.status!=="VERIFIED"||result.loadedCount!==result.totalCount)
             ?<p className="text-xs text-amber-700">يُحجب الإنشاء حتى اكتمال قراءة كامل سجل القرارات وذاكرته.</p>:null}
