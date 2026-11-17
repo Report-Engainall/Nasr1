@@ -79,16 +79,22 @@ describe("price-grid CSV/XLSX export-import contract", () => {
     expect(result.worksheetName).toBe("شبكة الأسعار");
     expect(records).toHaveLength(2);
     expect(records[0]).toEqual(expectedHeaders);
-    expect(records[1].slice(0, 9)).toEqual([
+    expect(records[1]).toEqual([
       "1",
       "000041",
       "طحين فاخر",
       "كيس",
       "",
-      "125.5",
+      "125.50",
       "118.25",
-      "121",
-      "130",
+      "121.00",
+      "130.00",
+      "40.125",
+      "2.5",
+      "37.625",
+      "12",
+      "2",
+      "الدقيق",
     ]);
     expect(records[1]).not.toContain(product.id);
 
