@@ -4,13 +4,13 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "supabase/migrations/20261117140000_storefront_cart_product_details.sql"
+      - "supabase/migrations/20261117172000_storefront_cart_product_details.sql"
       - "supabase/tests/storefront_cart_product_details_acceptance.sql"
       - ".github/workflows/storefront-cart-products-pg17.yml"
   push:
     branches: [main]
     paths:
-      - "supabase/migrations/20261117140000_storefront_cart_product_details.sql"
+      - "supabase/migrations/20261117172000_storefront_cart_product_details.sql"
       - "supabase/tests/storefront_cart_product_details_acceptance.sql"
       - ".github/workflows/storefront-cart-products-pg17.yml"
   workflow_dispatch:
