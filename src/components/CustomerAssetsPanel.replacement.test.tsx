@@ -63,11 +63,12 @@ function queryResult(data: unknown[]) {
   return query;
 }
 
-function configureTables(assetStatus = "active") {
+function configureTables(assetStatus = "active", additionalAssets: unknown[] = [], events: unknown[] = []) {
   const row = { ...asset, status: assetStatus };
   mocks.from.mockImplementation((table: string) => {
     const dataByTable: Record<string, unknown[]> = {
-      customer_assets: [row],
+      customer_assets: [row, ...additionalAssets],
+      customer_asset_events: events,
       products: [],
       orders: [],
       customer_invoices: [],
@@ -141,6 +142,48 @@ describe("CustomerAssetsPanel atomic replacement", () => {
     fireEvent.click(screen.getByRole("button", { name: "صيانة / حدث" }));
     const eventType = screen.getByLabelText("نوع الحدث") as HTMLSelectElement;
     expect(Array.from(eventType.options).some(option => option.value === "replacement")).toBe(false);
+  });
+
+  it("shows the replacement link in the previous asset history and opens the new asset record", async () => {
+    const replacement = {
+      ...asset,
+      id: NEW_ASSET_ID,
+      asset_name: "حاسوب بديل",
+      model: "Office 2",
+      serial_number: "NEW-002",
+      status: "active",
+    };
+    const replacementEvent = {
+      id: "event-replacement-001",
+      event_type: "replacement",
+      old_status: "active",
+      new_status: "replaced",
+      summary: "استبدال الجهاز وربط الأصل البديل",
+      reason: "تلف الجهاز السابق واستبداله",
+      reference: null,
+      details: "الأصل البديل: حاسوب بديل",
+      event_at: "2026-11-17T01:00:00.000Z",
+      previous_customer_id: null,
+      new_customer_id: null,
+      metadata: {
+        new_asset_id: NEW_ASSET_ID,
+        request_key: "asset_replace_0123456789abcdef",
+        request_fingerprint: "a".repeat(32),
+      },
+    };
+    configureTables("replaced", [replacement], [replacementEvent]);
+
+    render(<CustomerAssetsPanel customerId={CUSTOMER_ID} />);
+    await screen.findByText("حاسوب مكتبي");
+    fireEvent.click(screen.getAllByRole("button", { name: "الأحداث والملكية" })[0]);
+
+    expect(await screen.findByText("الجهاز البديل: حاسوب بديل")).toBeInTheDocument();
+    expect(screen.getByText(NEW_ASSET_ID)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "فتح سجل الجهاز البديل" }));
+    expect(screen.queryByText("سجل الأحداث والملكية — حاسوب مكتبي")).not.toBeInTheDocument();
+    expect(await screen.findByDisplayValue("NEW-002")).toBeInTheDocument();
+    expect(screen.getByText("حاسوب بديل")).toBeInTheDocument();
   });
 
   it("does not expose asset replacement to customer-only accounts", async () => {
