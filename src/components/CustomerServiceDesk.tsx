@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useLocation } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle, BellRing, CalendarClock, ClipboardList, Download, Filter,
@@ -241,14 +242,20 @@ export function CustomerServiceDesk({ onNotice, onOpenTask }: {
   onOpenTask: (taskId: string) => void;
 }) {
   const { user } = useAuth();
+  const location = useLocation();
+  const linkedCaseCode = getCustomerServiceCaseCodeFromSearch(location.searchStr);
   const canManage = Boolean(user?.roles.some(role => role === "admin" || role === "manager"));
-  const [linkedCaseCode] = useState(() => getCustomerServiceCaseCodeFromSearch(
-    typeof window === "undefined" ? "" : window.location.search,
-  ));
   const [filters, setFilters] = useState<CustomerServiceDeskFilters>(() => linkedCaseCode
     ? { ...defaultFilters, status: "all", search: linkedCaseCode }
     : defaultFilters);
   const [searchDraft, setSearchDraft] = useState(linkedCaseCode);
+  useEffect(() => {
+    if (!linkedCaseCode) return;
+    setSearchDraft(linkedCaseCode);
+    setFilters(current => current.status === "all" && current.search === linkedCaseCode
+      ? current
+      : { ...defaultFilters, status: "all", search: linkedCaseCode });
+  }, [linkedCaseCode]);
   const [items, setItems] = useState<CustomerServiceDeskCase[]>([]);
   const [summary, setSummary] = useState<CustomerServiceDeskSummary>(emptySummary);
   const [cursor, setCursor] = useState<CustomerServiceDeskCursor | null>(null);
