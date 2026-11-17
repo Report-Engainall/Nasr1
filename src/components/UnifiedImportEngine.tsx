@@ -8,6 +8,7 @@ import {
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { projectOnyxSnapshotPreviewRow } from "@/lib/onyx-snapshot-preview";
+import { buildOnyxWarehouseItemKey, validateOnyxStockBalanceRow } from "@/lib/onyx-stock-balance-import";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
 import { useAuth } from "@/lib/auth";
@@ -653,17 +654,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         if (selectedImportKind === "inventory") {
           const itemCode = String(parsed.data.item_code ?? "").trim();
           const warehouseCode = String(parsed.data.warehouse_code ?? "").trim();
-          const asOfDate = String(parsed.data.as_of_date ?? "").trim();
-          const unsupportedGranularity = ["unit_code", "base_unit_code", "batch_number", "lot_number", "serial_number"]
-            .filter((field) => String(parsed.data[field] ?? "").trim() !== "");
-          if (!asOfDate) {
-            parsed.errors.push("تاريخ الرصيد as_of_date مطلوب لتوثيق وقت لقطة المخزون.");
-          }
-          if (unsupportedGranularity.length) {
-            parsed.errors.push("لا يمكن تسوية هذا الصف لأن المصالحة الحالية لا تدعم وحدات أو دفعات/تشغيلات/أرقامًا تسلسلية مستقلة: " + unsupportedGranularity.join("، "));
-          }
+          parsed.errors.push(...validateOnyxStockBalanceRow(parsed.data));
           if (itemCode && warehouseCode) {
-            const identity = warehouseCode.toLocaleUpperCase("en") + "::" + itemCode.toLocaleUpperCase("en");
+            const identity = buildOnyxWarehouseItemKey(itemCode, warehouseCode);
             if (seenStockWarehouseItems.has(identity)) {
               parsed.errors.push("يوجد تكرار للصنف نفسه داخل المخزن نفسه؛ اجمع الرصيد في صف واحد قبل الاستيراد.");
             } else {
