@@ -145,6 +145,21 @@ BEGIN
 END;
 $privileges$;
 
+DO $security$
+DECLARE
+  v_signature regprocedure := 'public.list_customer_return_review_queue_page(integer,timestamp with time zone,uuid,text,text)';
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc AS p
+    WHERE p.oid = v_signature::oid
+      AND p.prosecdef
+  ) THEN
+    RAISE EXCEPTION 'return review queue RPC must execute with its security-definer boundary';
+  END IF;
+END;
+$security$;
+
 DO $acl$
 BEGIN
   IF pg_catalog.has_function_privilege('anon', 'public.list_customer_return_review_queue_page(integer,timestamp with time zone,uuid,text,text)'::regprocedure, 'EXECUTE') THEN
