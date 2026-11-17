@@ -19,8 +19,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: onyx-stock-balance-profile-postgres-${{ github.ref }}
-  cancel-in-progress: true
+  group: onyx-stock-balance-profile-postgres-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   postgres-stock-profile-acceptance:
