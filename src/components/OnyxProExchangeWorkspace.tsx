@@ -67,7 +67,7 @@ function DatasetCard({ dataset, onDownload }: {
   );
 }
 
-export function OnyxProExchangeWorkspace({ onBack, onOpenImport, onOpenSnapshots }: Props) {
+export function OnyxProExchangeWorkspace({ onBack, onOpenImport, canManageImports, onOpenSnapshots }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() => ONYX_PRO_DATASETS.map((dataset) => dataset.id));
   const [notice, setNotice] = useState("");
   const selectedCount = selectedIds.length;
@@ -156,7 +156,7 @@ export function OnyxProExchangeWorkspace({ onBack, onOpenImport, onOpenSnapshots
           <div><strong>الطلبات والتسعيرات</strong><p style={{ fontSize: 12, lineHeight: 1.7 }}>قوالبها ورؤوسها معرفة ومصنفة، لكن اعتماد ملفات الاستيراد لهذه الأنواع غير مفعل في محرك اللقطات الحالي.</p></div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button type="button" className="btn primary" onClick={onOpenImport}><RefreshCw size={15} /> فتح استيراد الأصناف والعملاء</button>
+          {canManageImports && <button type="button" className="btn primary" onClick={onOpenImport}><RefreshCw size={15} /> فتح استيراد الأصناف والعملاء</button>}
           <button type="button" className="btn secondary" onClick={onOpenSnapshots}><PackageCheck size={15} /> فتح لقطات أونكس ومصالحة المخزون</button>
           <a className="btn secondary" href="/admin/exports"><Download size={15} /> تصدير الطلبات الحالي</a>
         </div>
