@@ -101,6 +101,29 @@ describe("supplier payable concentration trend", () => {
     expect(result.warnings).toContain(warning);
   });
 
+  it.each([
+    ["current source-entry aggregate mismatch",
+      { ...snapshot(currentPeriod), sourceEntryCount: 9 }, snapshot(baselinePeriod)],
+    ["baseline source-entry aggregate mismatch",
+      snapshot(currentPeriod), { ...snapshot(baselinePeriod), sourceEntryCount: 9 }],
+    ["baseline currency count mismatch",
+      snapshot(currentPeriod), { ...snapshot(baselinePeriod), currencyCount: 2 }],
+    ["baseline duplicate currency",
+      snapshot(currentPeriod), snapshot(baselinePeriod, [row("YER"), row("YER", { sourceEntryCount: 9 })])],
+    ["baseline net-cent mismatch",
+      snapshot(currentPeriod), snapshot(baselinePeriod, [row("YER", { netPayableMovementAmount: 874.99 })])],
+    ["baseline concentration percent mismatch",
+      snapshot(currentPeriod), snapshot(baselinePeriod, [row("YER", { top5GrossPayableCreditPercent: 80.01 })])],
+  ])("rejects a malformed %s without retaining a partial comparison", (_name, current, baseline) => {
+    const result = buildSupplierPayableConcentrationTrend(
+      current as SupplierPostedPayableActivitySnapshot,
+      baseline as SupplierPostedPayableActivitySnapshot,
+    );
+    expect(result.status).toBe("NOT_COMPARABLE");
+    expect(result.comparisons).toEqual([]);
+    expect(result.warnings).toContain("SUPPLIER_TREND_SOURCE_CONTRACT_INVALID");
+  });
+
   it("does not calculate a delta when the previous period is empty", () => {
     const emptyBaseline = snapshot(baselinePeriod, [], "EMPTY");
     const result = buildSupplierPayableConcentrationTrend(snapshot(currentPeriod), emptyBaseline);
