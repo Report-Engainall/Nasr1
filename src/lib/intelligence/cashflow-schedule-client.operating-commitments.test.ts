@@ -5,7 +5,7 @@ const asOf="2026-11-17T00:00:00.000Z",commitmentId="11111111-1111-4111-8111-1111
 const request:IntelligenceAggregateRequest={requestId:"cashflow-operating-test",metricKeys:["cashflow.schedule"],period:{from:"2026-11-17",to:"2026-12-17"},asOf,currency:"YER"};
 function response(){return {status:"OK",completeness:"COMPLETE",quality:"ACCEPTABLE",asOf,period:request.period,currency:"YER",sideEffects:"NONE",
  entries:[{id:"cash-expense-commitment-outflow:"+commitmentId,direction:"OUTFLOW",dueDate:"2026-11-20",
- amount:{id:"metric:"+commitmentId,key:"cashflow.operating_expense_commitment",value:"250.75",unit:"CURRENCY",currency:"YER",status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",asOf,
+ amount:{id:"metric:cash-expense-commitment:"+commitmentId,key:"cashflow.operating_expense_commitment",value:"250.75",unit:"CURRENCY",currency:"YER",status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",asOf,
  lineage:{evidenceIds:["cash-expense-commitment:"+commitmentId,"cash-expense-commitment-evidence:"+documentId],formulaId:"nasr1.approved-operating-expense-commitment",formulaVersion:"1"}}}],
  evidenceRecords:[
  {id:"cash-expense-commitment:"+commitmentId,source:{kind:"TABLE",name:"cash_expense_commitments",recordId:commitmentId,version:"approved"},sourceTimestamp:asOf,asOf,period:request.period,currency:"YER",status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",warnings:[]},
