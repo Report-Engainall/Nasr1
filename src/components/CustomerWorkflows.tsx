@@ -27,6 +27,7 @@ import { useAuth } from "@/lib/auth";
 import { getCurrentTenantScope, supabase } from "@/lib/supabase";
 import {
   DEFAULT_BARCODE_DETECTOR_FORMATS,
+  nextBarcodeScanQuantity,
   normalizeLocalizedBarcodeInput,
   resolveSupportedBarcodeFormats,
 } from "@/lib/localized-barcode-input";
@@ -221,11 +222,11 @@ type Product = {
   barcode?: string | null;
   sku?: string | null;
   unit: string;
+  min_order_quantity?: number;
+  order_quantity_multiple?: number;
   base_price?: number | string | null;
   status?: string;
   image_url?: string | null;
-  min_order_quantity?: number;
-  order_quantity_multiple?: number;
 };
 type Quote = {
   id: string;
@@ -348,10 +349,10 @@ function withResolvedProductPrice(
     barcode?: unknown;
     sku?: unknown;
     unit?: unknown;
-    status?: unknown;
-    image_url?: unknown;
     min_order_quantity?: unknown;
     order_quantity_multiple?: unknown;
+    status?: unknown;
+    image_url?: unknown;
   },
   price: number | null | undefined,
 ): Product {
@@ -364,18 +365,18 @@ function withResolvedProductPrice(
     barcode: typeof product.barcode === "string" ? product.barcode : null,
     sku: typeof product.sku === "string" ? product.sku : null,
     unit: typeof product.unit === "string" ? product.unit : "",
+    ...(Number.isSafeInteger(Number(product.min_order_quantity)) &&
+      Number(product.min_order_quantity) >= 1 &&
+      Number(product.min_order_quantity) <= 10000
+      ? { min_order_quantity: Number(product.min_order_quantity) }
+      : {}),
+    ...(Number.isSafeInteger(Number(product.order_quantity_multiple)) &&
+      Number(product.order_quantity_multiple) >= 1 &&
+      Number(product.order_quantity_multiple) <= 10000
+      ? { order_quantity_multiple: Number(product.order_quantity_multiple) }
+      : {}),
     status: typeof product.status === "string" ? product.status : undefined,
     image_url: typeof product.image_url === "string" ? product.image_url : null,
-    ...(typeof product.min_order_quantity === "number" &&
-        Number.isSafeInteger(product.min_order_quantity) &&
-        product.min_order_quantity >= 1 && product.min_order_quantity <= 10000
-      ? { min_order_quantity: product.min_order_quantity }
-      : {}),
-    ...(typeof product.order_quantity_multiple === "number" &&
-        Number.isSafeInteger(product.order_quantity_multiple) &&
-        product.order_quantity_multiple >= 1 && product.order_quantity_multiple <= 10000
-      ? { order_quantity_multiple: product.order_quantity_multiple }
-      : {}),
   };
   return price === null || price === undefined
     ? safeProduct
@@ -2470,7 +2471,7 @@ function Barcode() {
         const { organizationId: orgId } = tenantScope;
         const productQuery = () => supabase
           .from("products")
-          .select("id,name,item_code,barcode,sku,unit,status")
+          .select("id,name,item_code,barcode,sku,unit,min_order_quantity,order_quantity_multiple,status")
           .eq("organization_id", orgId)
           .eq("status", "active");
 
@@ -2618,8 +2619,22 @@ function Barcode() {
   async function add() {
     if (!product) return;
     try {
+      const minimum = product.min_order_quantity;
+      const multiple = product.order_quantity_multiple;
+      if (minimum === undefined || multiple === undefined) {
+        setError("لم تصل سياسة الحد الأدنى ومضاعف الطلب من الخادم؛ لم تتم إضافة كمية تخمينية.");
+        return;
+      }
+      const currentLines = loadOfflineCartDraft(window.localStorage, user?.profileId);
+      const currentQuantity = currentLines.find((line) => line.product_id === product.id)?.quantity ?? 0;
+      const nextQuantity = nextBarcodeScanQuantity(currentQuantity, minimum, multiple);
+      if (nextQuantity === null) {
+        setError("تعذر تحديد الكمية التالية ضمن سياسة الصنف أو تجاوز حد السلة؛ راجع الكمية في السلة.");
+        return;
+      }
+      const quantityToAdd = nextQuantity - currentQuantity;
       const merged = mergeOfflineCartDraft(window.localStorage, user?.profileId, [
-        { product_id: product.id, quantity: 1 },
+        { product_id: product.id, quantity: quantityToAdd },
       ]);
       if (!merged) {
         setError("تعذر حفظ الصنف في السلة المعزولة لهذا الحساب.");
@@ -2707,6 +2722,9 @@ function Barcode() {
               {resolvedProductPriceLabel(product.base_price)}
             </strong>
             <span style={{ marginInlineStart: 8 }}>/ {product.unit}</span>
+            <small style={quiet}>
+              الحد الأدنى: {product.min_order_quantity ?? "غير متاح"} · مضاعف الطلب: {product.order_quantity_multiple ?? "غير متاح"}
+            </small>
             <div style={{ marginTop: 14 }}>
               <button style={primary} onClick={() => void add()}>
                 <ShoppingCart size={16} /> أضف إلى السلة
