@@ -513,7 +513,14 @@ export async function matchBankStatementLine(input: {
     p_journal_entry_id: input.journalEntryId, p_journal_line_number: input.journalLineNumber,
   });
   if (error) throw error;
-  return object(data, "نتيجة المطابقة");
+  const row = object(data, "نتيجة المطابقة");
+  if (row.matched !== true || typeof row.replayed !== "boolean") {
+    throw new Error("لم يؤكد الخادم نتيجة مطابقة كشف البنك أو حالة إعادة المحاولة.");
+  }
+  return {
+    matchId: uuid(row.match_id, "مطابقة كشف البنك"),
+    replayed: row.replayed,
+  };
 }
 export async function finalizeBankStatementReconciliation(input: { statementId: string; reason: string }) {
   const { data, error } = await supabase.rpc("finalize_finance_bank_statement_reconciliation", {
