@@ -95,6 +95,13 @@ async function createCommitment(client, payload, key) {
   );
   return asJson(rows[0].result);
 }
+async function reviewEvidence(client,commitmentId,evidenceId,contentSha256,key) {
+  const rows=await client.unsafe(
+    "select public.review_cash_expense_commitment_evidence($1::uuid,$2::uuid,$3::text,$4::uuid) as result",
+    [commitmentId,evidenceId,contentSha256,key],
+  );
+  return asJson(rows[0].result);
+}
 async function approve(client, id, reason, key) {
   const rows = await client.unsafe(
     "select public.approve_cash_expense_commitment($1::uuid,$2::text,$3::uuid) as result",
@@ -203,12 +210,39 @@ async function main() {
 
     const yerEvidence=await uploadEvidence(managerToken,yer.id);
     const registered=await registerEvidence(managerDb,yer.id,yerEvidence);
+    const yerEvidence2=await uploadEvidence(managerToken,yer.id,"image/png");
+    const registered2=await registerEvidence(managerDb,yer.id,yerEvidence2);
     assert.equal(typeof registered.id,"string");
+    assert.equal(typeof registered2.id,"string");
     await expectCode("creator cannot approve own commitment",
       ()=>approve(managerDb,yer.id,"self approval must be denied",randomUUID()),"42501");
 
     const approvalKey=randomUUID();
-    const approved=await approve(adminDb,yer.id,"مستند إيجار موثق وفاتورة مستحقة",approvalKey);
+    const approvalReason="مستند إيجار موثق وفاتورة مستحقة";
+    await expectCode("direct approval RPC rejects a request with unreviewed source documents",
+      ()=>approve(adminDb,yer.id,approvalReason,approvalKey),"22023");
+    await expectCode("creator cannot attest to their own source evidence",
+      ()=>reviewEvidence(managerDb,yer.id,registered.id,yerEvidence.sha,randomUUID()),"42501");
+    await expectCode("accountant cannot review operating expense source evidence",
+      ()=>reviewEvidence(accountantDb,yer.id,registered.id,yerEvidence.sha,randomUUID()),"42501");
+    const reviewKey=randomUUID();
+    const firstReview=await reviewEvidence(adminDb,yer.id,registered.id,yerEvidence.sha,reviewKey);
+    assert.equal(firstReview.evidence_id,registered.id);
+    assert.equal(firstReview.reviewed_by_profile_id,admin.id);
+    assert.equal(firstReview.content_sha256,yerEvidence.sha);
+    assert.equal(firstReview.replayed,false);
+    assert.equal((await reviewEvidence(adminDb,yer.id,registered.id,yerEvidence.sha,reviewKey)).replayed,true);
+    await expectCode("review idempotency rejects a changed digest",
+      ()=>reviewEvidence(adminDb,yer.id,registered.id,"f".repeat(64),reviewKey),"23505");
+    await expectCode("one reviewed document is insufficient while a second source remains unreviewed",
+      ()=>approve(adminDb,yer.id,approvalReason,approvalKey),"22023");
+    const secondReview=await reviewEvidence(adminDb,yer.id,registered2.id,yerEvidence2.sha,randomUUID());
+    assert.equal(secondReview.evidence_id,registered2.id);
+    assert.equal(secondReview.reviewed_by_profile_id,admin.id);
+    assert.equal(secondReview.replayed,false);
+    await expectCode("review RPC rejects a digest different from the registered source",
+      ()=>reviewEvidence(adminDb,yer.id,registered2.id,"e".repeat(64),randomUUID()),"22023");
+    const approved=await approve(adminDb,yer.id,approvalReason,approvalKey);
     assert.equal(approved.status,"approved");
     assert.equal(approved.replayed,false);
     assert.equal((await approve(adminDb,yer.id,"مستند إيجار موثق وفاتورة مستحقة",approvalKey)).replayed,true);
@@ -268,6 +302,10 @@ async function main() {
     await expectCode("accountant cannot reject an expense commitment",
       ()=>reject(accountantDb,rejected.id,rejectionReason,randomUUID()),"42501");
     const rejectionKey=randomUUID();
+    await expectCode("direct rejection RPC rejects an unreviewed source document",
+      ()=>reject(adminDb,rejected.id,rejectionReason,rejectionKey),"22023");
+    const rejectionReview=await reviewEvidence(adminDb,rejected.id,rejectedEvidence.id,rejectedEvidence.sha,randomUUID());
+    assert.equal(rejectionReview.reviewed_by_profile_id,admin.id);
     const rejectedResult=await reject(adminDb,rejected.id,rejectionReason,rejectionKey);
     assert.equal(rejectedResult.status,"rejected");
     assert.equal(rejectedResult.replayed,false);
@@ -289,13 +327,19 @@ async function main() {
       "where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
       [organizationId,rejected.id],
     );
-    assert.deepEqual(rejectedEvents.map(x=>x.event_type).sort(),["CREATED","EVIDENCE_ATTACHED","REJECTED"]);
+    assert.deepEqual(rejectedEvents.map(x=>x.event_type).sort(),["CREATED","EVIDENCE_ATTACHED","EVIDENCE_REVIEWED","REJECTED"]);
     const rejectedAudit=await db.unsafe(
       "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
       "and action='finance.cash_expense_commitment.rejected' and entity_type='cash_expense_commitment' and entity_id=$2::uuid",
       [organizationId,rejected.id],
     );
     assert.equal(rejectedAudit[0].count,1,"rejection appends one immutable audit record");
+    const rejectionReviewAudit=await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and action='finance.cash_expense_commitment.evidence_reviewed' and entity_type='cash_expense_commitment' and entity_id=$2::uuid",
+      [organizationId,rejected.id],
+    );
+    assert.equal(rejectionReviewAudit[0].count,1,"rejection is preceded by a persisted document-review audit");
     const rejectedSchedule=await schedule(adminDb,today,dueDate,"YER");
     assert.ok(!rejectedSchedule.entries.some((entry)=>entry.id==="cash-expense-commitment-outflow:"+rejected.id),
       "a rejected commitment must never become a forecast cash outflow");
@@ -305,7 +349,8 @@ async function main() {
       currency:"USD",reference:"P2-COMMIT-USD-"+suffix};
     const usd=await createCommitment(managerDb,usdPayload,randomUUID());
     const usdEvidence=await uploadEvidence(managerToken,usd.id);
-    await registerEvidence(managerDb,usd.id,usdEvidence);
+    const usdRegistered=await registerEvidence(managerDb,usd.id,usdEvidence);
+    await reviewEvidence(adminDb,usd.id,usdRegistered.id,usdEvidence.sha,randomUUID());
     assert.equal((await approve(adminDb,usd.id,"مستند التزام بالدولار",randomUUID())).status,"approved");
     await expectCode("foreign-currency payment remains disabled until the FX policy exists",
       ()=>recordPayment(accountantDb,usd.id,today,randomUUID()),"0A000");
@@ -394,13 +439,18 @@ async function main() {
       "select event_type from public.cash_expense_commitment_events where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
       [organizationId,yer.id],
     );
-    assert.deepEqual(events.map(x=>x.event_type),["CREATED","EVIDENCE_ATTACHED","APPROVED","PAYMENT_RECORDED","SETTLED"]);
+    assert.deepEqual(events.map(x=>x.event_type),[
+      "CREATED","EVIDENCE_ATTACHED","EVIDENCE_ATTACHED","EVIDENCE_REVIEWED","EVIDENCE_REVIEWED",
+      "APPROVED","PAYMENT_RECORDED","SETTLED"
+    ]);
     const audit=await db.unsafe(
       "select action,actor_id::text from public.audit_logs where organization_id=$1::uuid and entity_type='cash_expense_commitment' and entity_id=$2::uuid order by id",
       [organizationId,yer.id],
     );
     assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.created"&&x.actor_id===manager.id));
     assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.approved"&&x.actor_id===admin.id));
+    assert.equal(audit.filter(x=>x.action==="finance.cash_expense_commitment.evidence_reviewed"&&x.actor_id===admin.id).length,2,
+      "one immutable review audit is required per source document");
     assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.payment_recorded"&&x.actor_id===accountant.id));
     assert.ok(audit.some(x=>x.action==="finance.cash_expense_commitment.settled"&&x.actor_id===admin.id));
 
@@ -413,6 +463,7 @@ async function main() {
     assert.ok(!denied.ok,"Storage upload to a path without a same-tenant pending commitment must be denied");
     process.stdout.write(
       "PASS PostgreSQL 17 operating expense commitment acceptance: real local Storage upload and tenant path denial; " +
+      "persisted reviewer attestations, direct RPC approval/rejection bypass denial, multi-document completeness and digest-bound audit; " +
       "evidence-gated maker/checker with independently authorized rejection, missing-evidence denial, rejection replay/conflict and append-only audit; database due-date horizon; exact-cent and immutable append-only lifecycle; idempotency/replay/conflict; " +
       "same-currency YER/USD separation and blocked FX payment; verified 90-day outflow lineage; payment-awaiting-journal PARTIAL; " +
       "balanced cash-expense source journal; independent posting-triggered settlement; source audit/event trail.\n",

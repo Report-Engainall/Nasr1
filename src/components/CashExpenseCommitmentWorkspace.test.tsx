@@ -29,6 +29,7 @@ const pending={
  rejected_by_profile_id:null,rejected_at:null,rejection_reason:null
 };
 let current:Record<string,unknown>;
+let reviewed=false;
 
 function installData(){
  mocks.useAuth.mockReturnValue({ready:true,sessionRevision:1,user:{
@@ -37,6 +38,11 @@ function installData(){
  mocks.rpc.mockImplementation(async(name:string)=>{
   if(name==="fetch_cash_expense_commitments")return {data:{items:[current]},error:null};
   if(name==="fetch_general_ledger")return {data:{accounts:[]},error:null};
+  if(name==="review_cash_expense_commitment_evidence"){
+   reviewed=true;
+   return {data:{commitment_id:commitmentId,evidence_id:evidenceId,reviewed_by_profile_id:managerProfileId,
+    content_sha256:evidence[0].content_sha256,reviewed_at:"2026-11-17T02:00:00.000Z",replayed:false},error:null};
+  }
   if(name==="reject_cash_expense_commitment"){
    current={...pending,status:"rejected",rejected_by_profile_id:managerProfileId,
     rejected_at:"2026-11-17T02:00:00.000Z",rejection_reason:"المستند لا يثبت الالتزام المطلوب"};
@@ -44,8 +50,12 @@ function installData(){
   }
   return {data:null,error:{message:"Unexpected RPC: "+name}};
  });
- mocks.from.mockImplementation(()=>({
-  select:()=>({in:()=>({order:async()=>({data:evidence,error:null})})})
+ mocks.from.mockImplementation((table:string)=>({
+  select:()=>({in:()=>table==="cash_expense_commitment_evidence"
+   ? {order:async()=>({data:evidence,error:null})}
+   : {eq:async(_column:string,profileId:string)=>({data:reviewed?[{
+      evidence_id:evidenceId,reviewed_by_profile_id:profileId,content_sha256:evidence[0].content_sha256
+     }]:[],error:null})}})
  }));
  mocks.createSignedUrl.mockResolvedValue({data:{signedUrl:"https://example.invalid/signed-evidence"},error:null});
 }
@@ -53,6 +63,7 @@ function installData(){
 beforeEach(()=>{
  vi.clearAllMocks();
  current={...pending};
+ reviewed=false;
  installData();
  vi.stubGlobal("crypto",{randomUUID:()=>"66666666-6666-4666-8666-666666666666"});
 });
@@ -62,13 +73,20 @@ describe("CashExpenseCommitmentWorkspace rejection lifecycle",()=>{
  it("requires every source document to be opened and reviewed before independent rejection",async()=>{
   const prompt=vi.spyOn(window,"prompt").mockReturnValue("المستند لا يثبت الالتزام المطلوب");
   render(<CashExpenseCommitmentWorkspace/>);
+  const approveButton=await screen.findByRole("button",{name:"اعتماد مستقل بعد مراجعة المصدر"});
   const rejectButton=await screen.findByRole("button",{name:"رفض الالتزام مع توثيق السبب"});
+  expect(approveButton).toBeDisabled();
   expect(rejectButton).toBeDisabled();
 
   fireEvent.click(screen.getByRole("button",{name:"معاينة مستند خاص"}));
   await screen.findByRole("link",{name:"فتح مستند المصدر"});
   fireEvent.click(screen.getByRole("checkbox",{name:"تمت مراجعة المستند"}));
-  await waitFor(()=>expect(rejectButton).toBeEnabled());
+  await waitFor(()=>expect(mocks.rpc).toHaveBeenCalledWith("review_cash_expense_commitment_evidence",{
+   p_commitment_id:commitmentId,p_evidence_id:evidenceId,p_content_sha256:evidence[0].content_sha256,
+   p_idempotency_key:"66666666-6666-4666-8666-666666666666"
+  }));
+  await waitFor(()=>expect(approveButton).toBeEnabled());
+  expect(rejectButton).toBeEnabled();
 
   fireEvent.click(rejectButton);
   await waitFor(()=>expect(mocks.rpc).toHaveBeenCalledWith("reject_cash_expense_commitment",{

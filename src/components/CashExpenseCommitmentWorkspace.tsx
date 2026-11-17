@@ -63,6 +63,7 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
  const [form,setForm]=useState<Form>(blank),[file,setFile]=useState<File|null>(null);
  const [items,setItems]=useState<Commitment[]>([]),[accounts,setAccounts]=useState<Account[]>([]);
  const [evidence,setEvidence]=useState<CommitmentEvidence[]>([]),[evidenceLoadError,setEvidenceLoadError]=useState("");
+ const [reviewLoadError,setReviewLoadError]=useState("");
  const [accountLoadError,setAccountLoadError]=useState("");
  const [signedUrls,setSignedUrls]=useState<Record<string,string>>({});
  const [reviewedEvidenceIds,setReviewedEvidenceIds]=useState<Record<string,boolean>>({});
@@ -118,8 +119,35 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
      loadedEvidenceError="تعذر تحميل جميع مستندات المصدر؛ الاعتماد معطل حتى تكتمل مراجعة الأدلة.";
     }
    }
+   let loadedReviewIds:Record<string,boolean>={};
+   let loadedReviewError="";
+   if(parsed.length&&!loadedEvidenceError&&user?.profileId){
+    try{
+     const result=await supabase.from("cash_expense_commitment_evidence_reviews")
+      .select("evidence_id,reviewed_by_profile_id,content_sha256")
+      .in("commitment_id",parsed.map(item=>item.id))
+      .eq("reviewed_by_profile_id",user.profileId);
+     if(result.error||!Array.isArray(result.data))throw result.error??new Error("Invalid evidence review response");
+     const evidenceById=new Map(loadedEvidence.map(item=>[item.id,item]));
+     for(const raw of result.data){
+      if(!isObject(raw)||typeof raw.evidence_id!=="string"||
+       raw.reviewed_by_profile_id!==user.profileId||typeof raw.content_sha256!=="string"){
+       throw new Error("Invalid evidence review metadata");
+      }
+      const registered=evidenceById.get(raw.evidence_id);
+      if(!registered||registered.content_sha256!==raw.content_sha256||loadedReviewIds[raw.evidence_id]){
+       throw new Error("Evidence review does not match its registered source document");
+      }
+      loadedReviewIds[raw.evidence_id]=true;
+     }
+    }catch{
+     loadedReviewIds={};
+     loadedReviewError="تعذر التحقق من سجل مراجعة المستندات؛ الاعتماد والرفض معطلان حتى يكتمل تحميله.";
+    }
+   }
    if(current!==generation.current)return;
    setItems(parsed);setAccounts(found);setEvidence(loadedEvidence);
+   setReviewedEvidenceIds(loadedReviewIds);setReviewLoadError(loadedReviewError);
    setAccountLoadError(accountsError);setEvidenceLoadError(loadedEvidenceError);
    setExpenseAccount(x=>found.some(a=>a.id===x&&a.account_type==="expense")?x:found.find(a=>a.account_type==="expense")?.id||"");
    setSettlementAccount(x=>found.some(a=>a.id===x&&a.account_type==="asset")?x:found.find(a=>a.id===x&&a.account_type==="asset")?.id||"");
@@ -183,6 +211,28 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
    setSignedUrls(current=>({...current,[file.id]:result.data.signedUrl}));
   }catch(e){setError(e instanceof Error?e.message:"تعذر تجهيز المستند.");}
   finally{setOpeningEvidence("");}
+ }
+ async function reviewEvidence(item:Commitment,file:CommitmentEvidence){
+  if(!canReview||item.status!=="pending_approval"||item.created_by_profile_id===user?.profileId||
+   !signedUrls[file.id]||reviewedEvidenceIds[file.id]||!user?.profileId)return;
+  const payload={evidenceId:file.id,contentSha256:file.content_sha256};
+  const key=idempotencyKey("review",item.id,payload);
+  setBusy(item.id+":review:"+file.id);setError("");setNotice("");
+  try{
+   const result=await supabase.rpc("review_cash_expense_commitment_evidence",{
+    p_commitment_id:item.id,p_evidence_id:file.id,p_content_sha256:file.content_sha256,p_idempotency_key:key
+   });
+   if(result.error)throw result.error;
+   if(!isObject(result.data)||result.data.evidence_id!==file.id||
+    result.data.reviewed_by_profile_id!==user.profileId||result.data.content_sha256!==file.content_sha256){
+    throw new Error("لم تؤكد قاعدة البيانات تسجيل مراجعة هذا المستند؛ بقي الاعتماد معطلاً.");
+   }
+   await load();
+   setNotice("سُجلت مراجعتك المستقلة لمستند الالتزام رقم "+item.commitment_number+".");
+  }catch(e){
+   setError(e instanceof Error?e.message:"تعذر تسجيل مراجعة المستند في قاعدة البيانات.");
+   await load();
+  }finally{setBusy(null);}
  }
  async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();if(saving||!canManage)return;setError("");setNotice("");
@@ -249,6 +299,7 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
   {error?<p role="alert" style={{...styles.muted,color:"#b42318"}}>{error}</p>:null}
   {accountLoadError?<p role="status" style={{...styles.muted,color:"#8a5b0a"}}>{accountLoadError}</p>:null}
   {evidenceLoadError?<p role="alert" style={{...styles.muted,color:"#b42318"}}>{evidenceLoadError}</p>:null}
+  {reviewLoadError?<p role="alert" style={{...styles.muted,color:"#b42318"}}>{reviewLoadError}</p>:null}
   {notice?<p role="status" style={{...styles.muted,color:"var(--primary,#155e4a)"}}>{notice}</p>:null}
   <form onSubmit={e=>void submit(e)} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(185px,1fr))",gap:9}}>
    <label>التصنيف<input required maxLength={80} style={styles.field} value={form.category} onChange={e=>setForm(x=>({...x,category:e.target.value}))}/></label>
@@ -270,7 +321,7 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
     const isCreator=user?.profileId===item.created_by_profile_id,working=busy?.startsWith(item.id+":")??false;
     const itemEvidence=evidence.filter(file=>file.commitment_id===item.id);
     const reviewable=isCommitmentEvidenceReviewable({
-     expectedCount:item.evidence_count,loadedCount:itemEvidence.length,loadFailed:Boolean(evidenceLoadError),
+     expectedCount:item.evidence_count,loadedCount:itemEvidence.length,loadFailed:Boolean(evidenceLoadError||reviewLoadError),
      accessibleCount:itemEvidence.filter(file=>Boolean(signedUrls[file.id])).length,
      reviewedCount:itemEvidence.filter(file=>Boolean(reviewedEvidenceIds[file.id])).length
     });
@@ -291,7 +342,8 @@ export function CashExpenseCommitmentWorkspace({onRefresh}:{onRefresh?:()=>Promi
        <a href={signedUrls[file.id]} target="_blank" rel="noopener noreferrer">فتح مستند المصدر</a>
        {canReview?<label style={{display:"inline-flex",alignItems:"center",gap:5}}>
         <input type="checkbox" checked={Boolean(reviewedEvidenceIds[file.id])}
-         onChange={event=>setReviewedEvidenceIds(current=>({...current,[file.id]:event.target.checked}))}/>
+         disabled={working||Boolean(reviewedEvidenceIds[file.id])}
+         onChange={event=>{if(event.target.checked)void reviewEvidence(item,file);}}/>
         تمت مراجعة المستند
        </label>:null}
       </>:<button type="button" style={styles.button} disabled={openingEvidence===file.id}
