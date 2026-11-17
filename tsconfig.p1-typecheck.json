@@ -24,6 +24,8 @@
     "src/lib/customer-service-cases.ts",
     "src/components/CustomerNotificationCenter.tsx",
     "src/components/CustomerServiceDesk.tsx",
+    "src/components/CustomerAssetsPanel.replacement.test.tsx",
+    "src/components/CustomerAssetsPanel.tsx",
     "src/components/CustomerServicePortal.tsx",
     "src/lib/customer-service-notification-link.ts",
     "src/lib/customer-service-notification-link.test.ts",
