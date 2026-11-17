@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { CustomerOrderPricingPresentation } from "@/components/CustomerOrderPricingPresentation";
 import { resolveCustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
 import { retryRead } from "@/lib/retry";
+import { isCustomerAuthorizationRejection } from "@/lib/customer-checkout";
 
 export type CustomerOrderPricingPreviewItem = {
   product_id: string;
@@ -16,12 +17,14 @@ type PreviewAttempt =
   | { signature: string; status: "ready"; payload: unknown }
   | { signature: string; status: "hidden" }
   | { signature: string; status: "error" }
-  | { signature: string; status: "auth-required" };
+  | { signature: string; status: "auth-required" }
+  | { signature: string; status: "access-denied" };
 
 type PreviewResult =
   | { status: "ready"; payload: unknown }
   | { status: "hidden" }
-  | { status: "error" };
+  | { status: "error" }
+  | { status: "access-denied" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -69,8 +72,10 @@ async function fetchPreviewResult(
       return { status: "hidden" };
     }
     return { status: "error" };
-  } catch {
-    return { status: "error" };
+  } catch (cause) {
+    return isCustomerAuthorizationRejection(cause)
+      ? { status: "access-denied" }
+      : { status: "error" };
   }
 }
 
@@ -78,7 +83,7 @@ function PreviewStatusMessage({
   status,
   onRetry,
 }: {
-  status: "loading" | "auth-required" | "hidden" | "error";
+  status: "loading" | "auth-required" | "hidden" | "access-denied" | "error";
   onRetry: () => void;
 }) {
   if (status === "loading") {
@@ -89,6 +94,9 @@ function PreviewStatusMessage({
   }
   if (status === "hidden") {
     return <p role="status">لم يسمح إعداد الخادم بعرض الأسعار على هذه الشاشة؛ لم تُعرض أي مبالغ.</p>;
+  }
+  if (status === "access-denied") {
+    return <p role="alert">لم يتم اعتماد عضوية الشراء لهذا الحساب أو لا يملك صلاحية مراجعة الأسعار. لم تُعرض أي مبالغ؛ اطلب من الإدارة اعتماد حساب العميل قبل إرسال الطلب.</p>;
   }
 
   return (
