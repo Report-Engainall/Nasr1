@@ -14,6 +14,17 @@ $version_guard$;
 
 CREATE SCHEMA IF NOT EXISTS auth;
 
+DO $roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+END
+$roles$;
+
 CREATE TABLE public.organizations (
   id uuid PRIMARY KEY,
   is_active boolean NOT NULL DEFAULT true
