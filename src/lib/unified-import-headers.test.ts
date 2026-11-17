@@ -59,6 +59,25 @@ describe("default Onyx and bulk business import headers", () => {
     expect(detectImportDatasetKind(["رقم العميل", "اسم المؤسسة", "رقم الجوال", "فئة العميل"]).kind).toBe("customers");
   });
 
+  it("detects order headers and the legacy 27-column Onyx order detail layout separately from products", () => {
+    expect(detectImportDatasetKind(["رقم الطلب", "رقم العميل", "رقم الصنف", "اسم الصنف"]).kind).toBe("orders");
+    expect(detectImportDatasetKind([...ONYX_ORDER_COLUMNS]).kind).toBe("orders");
+  });
+
+  it("detects price lists and price lines separately from product catalog rows", () => {
+    expect(normalizeHeader("كود قائمة الأسعار")).toBe("price_list_code");
+    expect(normalizeHeader("سعر الوحدة")).toBe("unit_price");
+    expect(detectImportDatasetKind(["كود قائمة الأسعار", "رقم الصنف", "الوحدة", "سعر الوحدة", "العملة"]).kind).toBe("pricing");
+  });
+
+  it("adds non-conflicting Onyx field names without changing legacy ambiguous headers", () => {
+    expect(normalizeHeader("رقم الطلب")).toBe("order_number");
+    expect(normalizeHeader("كود المخزن")).toBe("warehouse_code");
+    expect(normalizeHeader("رقم الصنف")).toBe("item_code");
+    expect(normalizeHeader("البيان")).toBe("description");
+    expect(normalizeHeader("product_code")).toBe("item_code");
+  });
+
   it("detects inventory-only sheets before they can enter the product apply path", () => {
     expect(detectImportDatasetKind(["رقم الصنف", "المخزن", "الرصيد الافتتاحي"]).kind).toBe("inventory");
     expect(detectImportDatasetKind(["warehouse_code", "item_code", "quantity"]).kind).toBe("inventory");
