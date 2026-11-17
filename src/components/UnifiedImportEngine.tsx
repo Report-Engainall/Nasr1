@@ -679,7 +679,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           const unitName = String(parsed.data.unit_name ?? "").trim();
           const factorText = String(parsed.data.conversion_factor ?? "").trim();
           const baseFlag = String(parsed.data.is_base_unit ?? "").trim().toLocaleLowerCase("en");
-          if (!/^[0-9]{1,7}(?:\\.0+)?$/.test(factorText)) {
+          if (!/^[0-9]{1,7}(?:\.0+)?$/.test(factorText)) {
             parsed.errors.push("معامل التحويل يجب أن يكون عددًا صحيحًا موجبًا؛ لا تُقبل الكسور.");
           }
           if (baseFlag && !["true", "false", "1", "0", "yes", "no", "y", "n", "نعم", "لا"].includes(baseFlag)) {
