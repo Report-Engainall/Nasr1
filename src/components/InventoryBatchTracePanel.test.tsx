@@ -25,7 +25,7 @@ describe('InventoryBatchTracePanel',()=>{
   mocks.products.mockRejectedValueOnce(new Error('inventory.read_balance capability required')).mockResolvedValueOnce([]);
   render(<InventoryBatchTracePanel warehouseId={warehouse} warehouseName="الرئيسي"/>);
   expect(await screen.findByText('inventory.read_balance capability required')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button',{name:'تحديث'}));
+  fireEvent.click(screen.getByRole('button',{name:'إعادة محاولة تحميل الدفعات'}));
   await waitFor(()=>expect(mocks.products).toHaveBeenCalledTimes(2));
  });
 });
