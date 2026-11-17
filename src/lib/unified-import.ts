@@ -4,7 +4,7 @@
  */
 import { ONYX_PRO_HEADER_SYNONYMS } from "./onyx-pro-schema";
 
-export type ImportDatasetKind = "products" | "customers";
+export type ImportDatasetKind = "products" | "customers" | "inventory";
 
 export type ImportProfileMapping = {
   requiredColumns: string[];
@@ -12,9 +12,9 @@ export type ImportProfileMapping = {
 };
 
 /**
- * The quality scorer reads required columns from the persisted import profile.
- * Customer imports therefore require a dedicated customer profile, while this
- * mapping keeps the client validator and checkpoint fingerprint on the same key.
+ * Stock-balance snapshots use the protected inventory reconciliation contract.
+ * Their source identity is warehouse + item (not item alone), since an item may
+ * legitimately have one balance row in each warehouse.
  */
 export function resolveImportProfileMapping(
   kind: ImportDatasetKind,
@@ -24,12 +24,28 @@ export function resolveImportProfileMapping(
   if (kind === "customers") {
     return { requiredColumns: ["customer_code"], matchingKey: "customer_code" };
   }
+  if (kind === "inventory") {
+    return {
+      requiredColumns: configuredRequiredColumns?.length
+        ? [...configuredRequiredColumns]
+        : ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      matchingKey: configuredMatchingKey?.trim() || "warehouse_item_key",
+    };
+  }
   return {
     requiredColumns: configuredRequiredColumns?.length
       ? [...configuredRequiredColumns]
       : ["item_code"],
     matchingKey: configuredMatchingKey?.trim() || "item_code",
   };
+}
+
+/** Canonicalize the official Onyx StockBalances field names for its reconciliation schema. */
+export function normalizeOnyxStockBalanceHeader(value: string): string {
+  const normalized = normalizeHeader(value);
+  if (normalized === "product_code") return "item_code";
+  if (normalized === "quantity_on_hand") return "quantity";
+  return normalized;
 }
 
 export const MAX_IMPORT_FILE_BYTES = 100 * 1024 * 1024;
