@@ -6175,3 +6175,6 @@ Adopt the hybrid authorization target **RBAC + ABAC + ReBAC**, PostgreSQL/Supaba
 - Partial cashflow and incomplete customer retention are not READY; deterministic Arabic business-health execution preserves DENIED and unsupported historical queries. Supplier concentration trend fails closed on malformed population/financial contracts and withholds non-comparable currency samples.
 - P2 local PostgreSQL 17 now posts a source-linked receipt through a separate admin reviewer, proves its inclusion in supplier payable aggregate, and asserts no read-side journal/audit/source writes.
 - P1 run `43998504100` and P2 run `43998503343` are QUEUED, not PASS. No production writes, hosted migration, deployment, Vercel use or paid AI.
+
+
+- P3 exact-SHA acceptance refresh 2026-11-17: latest source/test SHA `d80631544a0dcf55e6200cf07d8d45a14e9f54f8`; P1 run `43998807622` and P2 run `43998807525` are QUEUED on that same SHA. Added baseline-side trend population/financial contract negative tests. Prior P1/P2 run IDs on `5fbfff68...` are superseded for this P3 acceptance; no PASS yet.
