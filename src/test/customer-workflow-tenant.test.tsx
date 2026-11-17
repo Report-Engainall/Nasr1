@@ -985,7 +985,7 @@ describe("customer quote workspace tenant boundary", () => {
       { product_id: firstProductId, quantity: 4 },
       { product_id: secondProductId, quantity: 1 },
     ]);
-    expect(host?.textContent).toContain("2 أصناف");
+    expect(host?.textContent).toContain("٢ أصناف");
     expect(host?.textContent).not.toContain("إجمالي 5 وحدة");
 
     const openCartButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
