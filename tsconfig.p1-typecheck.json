@@ -21,6 +21,7 @@
     "src/components/CustomerServiceSlaPolicyPanel.tsx",
     "src/components/CustomerServiceSlaPolicyPanel.test.tsx",
     "src/lib/customer-service-cases.ts",
+    "src/components/CustomerAssetsPanel.tsx",
     "src/test/customer-quotes-route-acceptance.test.tsx",
     "src/lib/customer-360-print.ts",
     "src/components/Customer360PrintSheet.tsx",
