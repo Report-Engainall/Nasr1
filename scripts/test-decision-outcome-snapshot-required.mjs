@@ -103,9 +103,43 @@ async function main() {
       // This separates a snapshot-shape regression from missing command metadata.
       await tx.unsafe("reset role");
       const validator = await tx.unsafe(
+        "with input as (select $1::jsonb as s), scored as (" +
+        "select s,case s->>'priority' when 'P0' then 400 when 'P1' then 300 when 'P2' then 200 when 'P3' then 100 else -1 end as score from input) " +
         "select public._is_valid_decision_candidate_snapshot($1::jsonb,$2::text,$3::text,$4::text,$5::text) as snapshot_valid, " +
         "$6::uuid is not null as owner_present, " +
-        "char_length(btrim($7::text)) between 1 and 100 as idempotency_key_valid",
+        "char_length(btrim($7::text)) between 1 and 100 as idempotency_key_valid, " +
+        "jsonb_build_object(" +
+        "'is_object',jsonb_typeof(s)='object'," +
+        "'schema',s->>'schemaVersion' is not distinct from '1.0.0'," +
+        "'candidate_id',s->>'candidateId' is not distinct from $2::text," +
+        "'rule_id',s->>'ruleId' is not distinct from $3::text," +
+        "'rule_version',s->>'ruleVersion' is not distinct from $4::text," +
+        "'expected_outcome',s->>'expectedOutcome' is not distinct from $5::text," +
+        "'priority_valid',s->>'priority' in ('P0','P1','P2','P3')," +
+        "'priority_score',s->>'priorityScore' is not distinct from score::text," +
+        "'what',char_length(btrim(coalesce(s->>'what',''))) between 1 and 500," +
+        "'why',char_length(btrim(coalesce(s->>'why',''))) between 1 and 2000," +
+        "'risk',char_length(btrim(coalesce(s->>'risk',''))) between 1 and 2000," +
+        "'so_what',char_length(btrim(coalesce(s->>'soWhat',''))) between 1 and 2000," +
+        "'what_next',char_length(btrim(coalesce(s->>'whatNext',''))) between 1 and 2000," +
+        "'owner',char_length(btrim(coalesce(s->>'owner',''))) between 1 and 150," +
+        "'expected_outcome_length',char_length(btrim(coalesce(s->>'expectedOutcome',''))) between 1 and 2000," +
+        "'created_at_parse',(s->>'createdAt')::timestamptz is not null," +
+        "'proof_object',jsonb_typeof(s->'proof')='object'," +
+        "'as_of_parse',(s->'proof'->>'asOf')::timestamptz is not null," +
+        "'evidence_array',jsonb_typeof(s->'proof'->'evidenceIds')='array'," +
+        "'metric_array',jsonb_typeof(s->'proof'->'metricKeys')='array'," +
+        "'formula_array',jsonb_typeof(s->'proof'->'formulaVersions')='array'," +
+        "'evidence_count',jsonb_array_length(s->'proof'->'evidenceIds') between 1 and 500," +
+        "'metric_count',jsonb_array_length(s->'proof'->'metricKeys') between 1 and 50," +
+        "'formula_count',jsonb_array_length(s->'proof'->'formulaVersions') between 1 and 50," +
+        "'evidence_values',not exists(select 1 from jsonb_array_elements_text(s->'proof'->'evidenceIds') e(value) where char_length(btrim(e.value)) not between 1 and 500)," +
+        "'metric_values',not exists(select 1 from jsonb_array_elements_text(s->'proof'->'metricKeys') e(value) where char_length(btrim(e.value)) not between 1 and 150)," +
+        "'formula_values',not exists(select 1 from jsonb_array_elements_text(s->'proof'->'formulaVersions') e(value) where char_length(btrim(e.value)) not between 1 and 200)," +
+        "'impact_status',s->>'impactStatus' in ('CALCULATED','NOT_CONFIGURED','WITHHELD')," +
+        "'impact_is_json_null',s->'impact'='null'::jsonb," +
+        "'expires_at_null_or_valid',(s->'expiresAt'='null'::jsonb) or nullif(s->>'expiresAt','') is null or (s->>'expiresAt')::timestamptz is not null" +
+        ") as field_checks from scored",
         [command[6],command[0],command[1],command[2],command[4],command[3],command[7]],
       );
       const validation = validator[0];
@@ -113,12 +147,8 @@ async function main() {
         snapshot_valid: validation.snapshot_valid,
         owner_present: validation.owner_present,
         idempotency_key_valid: validation.idempotency_key_valid,
-        priority: snapshot.priority,
-        priority_score: snapshot.priorityScore,
-        impact_status: snapshot.impactStatus,
-        evidence_count: snapshot.proof.evidenceIds.length,
-        metric_count: snapshot.proof.metricKeys.length,
-        formula_count: snapshot.proof.formulaVersions.length,
+        field_checks: validation.field_checks,
+        snapshot,
       }) + "\\n");
       await tx.unsafe("set local role authenticated");
       assert.equal(validation.snapshot_valid, true, "the persisted snapshot validator must accept the exact fixture");
