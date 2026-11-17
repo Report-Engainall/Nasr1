@@ -9,12 +9,33 @@ function requiredEnv(name) {
   return value.replace(/^"(.*)"$/s, "$1");
 }
 function asJson(value) { return typeof value === "string" ? JSON.parse(value) : value; }
+function guardUndefinedSqlParameters(client, label) {
+  return new Proxy(client, {
+    get(target, property) {
+      if (property === "unsafe") {
+        return (query, parameters, ...rest) => {
+          if (Array.isArray(parameters)) {
+            const missing = parameters.flatMap((value, index) => value === undefined ? [index + 1] : []);
+            if (missing.length) {
+              throw new Error("UNDEFINED_SQL_PARAMETER client=" + label +
+                " indexes=" + missing.join(",") +
+                " query=" + String(query).replace(/\\s+/g, " ").slice(0, 240));
+            }
+          }
+          return target.unsafe(query, parameters, ...rest);
+        };
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
 const databaseUrl = requiredEnv("TEST_DATABASE_URL");
 const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
 const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
 validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
-const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+const db = guardUndefinedSqlParameters(postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 }), "service");
 
 async function signIn(email, password) {
   const response = await fetch(new URL("/auth/v1/token?grant_type=password", supabaseUrl), {
@@ -158,10 +179,10 @@ async function main() {
   const accountant=await lookUp(accountantEmail,"accountant");
   const customer=await lookUp(customerEmail,null);
 
-  const managerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const adminDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const accountantDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const customerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  const managerDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"manager");
+  const adminDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"admin");
+  const accountantDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"accountant");
+  const customerDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"customer");
   try {
     await Promise.all([
       setIdentity(managerDb,manager.auth_user_id,manager.email),
