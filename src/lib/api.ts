@@ -3583,6 +3583,7 @@ export type OnyxProductUnitApplicationResult = {
   unit_rows_applied: number;
   units_created: number;
   units_updated: number;
+  units_unchanged: number;
   base_unit_rows_skipped: number;
   metadata_rows_pending_review: number;
   rejected: number;
@@ -3605,7 +3606,7 @@ export async function applyOnyxProductUnitSnapshot(snapshotId: string): Promise<
   const row = data as Record<string, unknown>;
   const numbers = [
     "source_rows", "product_count", "unit_rows_applied", "units_created",
-    "units_updated", "base_unit_rows_skipped", "metadata_rows_pending_review", "rejected",
+    "units_updated", "units_unchanged", "base_unit_rows_skipped", "metadata_rows_pending_review", "rejected",
   ] as const;
   const rowErrors = Array.isArray(row.row_errors) && row.row_errors.every((item) =>
     !!item && typeof item === "object" && !Array.isArray(item) &&
