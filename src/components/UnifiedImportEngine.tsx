@@ -777,7 +777,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       }
       await refetch();
       onNotice(result.status === "completed" ? "اكتمل الاستيراد بجودة " + result.data_quality_score + "/100" : "انتهت الدفعة بالحالة: " + result.status);
-      return ["completed", "completed_with_warnings", "manual_review"].includes(result.status);
+      return result.status === "completed" || result.status === "completed_with_warnings" || result.status === "manual_review";
     } catch (cause) {
       await handleImportFailure(
         cause,
@@ -972,7 +972,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     }
     if (processed) {
       await processWorkbookSheets(pending.file, pending.fileHash, pending.remainingWorksheets, pending.unsupportedWorksheetNames);
-    }  }
+    }
+  }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
     const file = event.target.files?.[0];
