@@ -242,7 +242,6 @@ const LEGACY_DEFAULT_SYNONYMS: Record<string, string> = {
   "item_code": "item_code",
   "product_code": "item_code",
   "base_unit_name": "unit",
-  "الوحدة الأساسية": "unit",
   "اسم الوحدة الأساسية": "unit",
   "quantity_on_hand": "quantity",
   "رصيد المخزون": "quantity",
@@ -1253,7 +1252,7 @@ function parseXlsxCellValue(
 }
 
 /**
- * Reads the first visible XLSX worksheet and emits rows incrementally to the consumer.
+ * Reads a selected visible XLSX worksheet and emits rows incrementally to the consumer.
  * The raw archive and accumulated data rows are never retained; inflated XML is strictly bounded.
  */
 export type XlsxWorksheetSelectionOptions = {
