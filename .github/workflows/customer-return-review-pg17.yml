@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "supabase/migrations/20261117140000_customer_return_review_queue_cursor_pagination.sql"
+      - "supabase/migrations/20261117141000_customer_return_review_queue_cursor_pagination.sql"
       - "supabase/tests/customer_return_review_queue_pagination.sql"
       - ".github/workflows/customer-return-review-pg17.yml"
   pull_request:
     branches: [main]
     paths:
-      - "supabase/migrations/20261117140000_customer_return_review_queue_cursor_pagination.sql"
+      - "supabase/migrations/20261117141000_customer_return_review_queue_cursor_pagination.sql"
       - "supabase/tests/customer_return_review_queue_pagination.sql"
       - ".github/workflows/customer-return-review-pg17.yml"
   workflow_dispatch:
