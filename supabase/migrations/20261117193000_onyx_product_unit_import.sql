@@ -104,6 +104,7 @@ DECLARE
   v_prior public.onyx_product_unit_import_applications%rowtype;
   v_row public.onyx_snapshot_rows%rowtype;
   v_product_id uuid;
+  v_product_matches integer;
   v_base_unit text;
   v_item_code text;
   v_unit_code text;
@@ -232,14 +233,17 @@ BEGIN
         END IF;
 
         IF v_error_reason IS NULL THEN
-          SELECT p.id, p.unit INTO v_product_id, v_base_unit
+          SELECT count(*)::integer,
+                 (pg_catalog.array_agg(p.id ORDER BY p.id))[1],
+                 (pg_catalog.array_agg(p.unit ORDER BY p.id))[1]
+            INTO v_product_matches, v_product_id, v_base_unit
             FROM public.products p
            WHERE p.organization_id = v_org
-             AND pg_catalog.upper(pg_catalog.btrim(p.item_code)) = v_item_code
-           ORDER BY p.id
-           LIMIT 2;
-          IF v_product_id IS NULL THEN
+             AND pg_catalog.upper(pg_catalog.btrim(p.item_code)) = v_item_code;
+          IF coalesce(v_product_matches, 0) = 0 THEN
             v_error_reason := 'product_code_not_found_apply_products_snapshot_first';
+          ELSIF v_product_matches <> 1 THEN
+            v_error_reason := 'product_code_matches_multiple_products_in_organization';
           ELSIF pg_catalog.lower(v_unit_name) = pg_catalog.lower(pg_catalog.btrim(v_base_unit)) THEN
             IF v_factor = 1 THEN
               v_is_base := true;
@@ -331,6 +335,9 @@ BEGIN
                    OR nullif(pg_catalog.btrim(coalesce(v_row.data->>'barcode', '')), '') IS NOT NULL
                    OR nullif(pg_catalog.btrim(coalesce(v_row.data->>'sales_allowed', '')), '') IS NOT NULL
                    OR nullif(pg_catalog.btrim(coalesce(v_row.data->>'purchase_allowed', '')), '') IS NOT NULL
+                   OR nullif(pg_catalog.btrim(coalesce(v_row.data->>'default_sales_unit', '')), '') IS NOT NULL
+                   OR nullif(pg_catalog.btrim(coalesce(v_row.data->>'default_purchase_unit', '')), '') IS NOT NULL
+                   OR nullif(pg_catalog.btrim(coalesce(v_row.data->>'unit_name_en', '')), '') IS NOT NULL
                    OR nullif(pg_catalog.btrim(coalesce(v_row.data->>'is_active', '')), '') IS NOT NULL THEN
                   v_metadata_pending := v_metadata_pending + 1;
                   IF pg_catalog.jsonb_array_length(v_errors) < 50 THEN
