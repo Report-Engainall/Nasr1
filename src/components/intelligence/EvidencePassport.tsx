@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   EvidencePassport as PassportData,
   EvidenceRecord,
@@ -5,6 +6,12 @@ import type {
   MetricSnapshot,
 } from "@/lib/intelligence/types";
 import type { ClaimEvidencePassport } from "@/lib/intelligence/claim-evidence-passport";
+import {
+  claimEvidenceFieldLabels,
+  fetchClaimEvidenceDrilldown,
+  supportsClaimEvidenceDrilldown,
+  type ClaimEvidenceRow,
+} from "@/lib/intelligence/claim-evidence-drilldown-client";
 
 export type EvidencePassportState = "loading" | "empty" | "error" | "unavailable" | "ready";
 
@@ -179,6 +186,103 @@ function EvidenceRecordList({ records }: { records: EvidenceRecord[] }) {
   );
 }
 
+type DrilldownViewState = {
+  status: "idle" | "loading" | "ready" | "empty" | "error";
+  rows: ClaimEvidenceRow[];
+  hasMore: boolean;
+  nextOffset: number | null;
+  message: string;
+};
+
+function EvidenceRecordDrilldown({ record }: { record: EvidenceRecord }) {
+  const [view, setView] = useState<DrilldownViewState>({
+    status: "idle", rows: [], hasMore: false, nextOffset: null, message: "",
+  });
+  const canRead = supportsClaimEvidenceDrilldown(record.source.name) &&
+    typeof record.source.recordId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(record.source.recordId);
+
+  const load = async (offset = 0) => {
+    setView((current) => ({
+      ...current,
+      status: "loading",
+      message: "",
+    }));
+    const result = await fetchClaimEvidenceDrilldown(record, offset);
+    if (result.status === "READY") {
+      setView((current) => ({
+        status: "ready",
+        rows: offset === 0 ? result.rows : [...current.rows, ...result.rows],
+        hasMore: result.hasMore,
+        nextOffset: result.nextOffset,
+        message: "",
+      }));
+      return;
+    }
+    if (result.status === "NOT_FOUND") {
+      setView({ status: "empty", rows: [], hasMore: false, nextOffset: null, message: result.message });
+      return;
+    }
+    setView((current) => ({
+      status: "error",
+      rows: offset === 0 ? [] : current.rows,
+      hasMore: false,
+      nextOffset: null,
+      message: result.message,
+    }));
+  };
+
+  if (!canRead) {
+    return <p className="mt-2 text-muted-foreground">لا يتوفر لهذا المصدر عقد Drill-down آمن أو معرّف سجل صالح.</p>;
+  }
+
+  return (
+    <div className="mt-2 rounded-md border p-2" data-testid="claim-evidence-drilldown">
+      <button
+        type="button"
+        className="rounded-md border px-3 py-2 text-xs font-semibold"
+        disabled={view.status === "loading"}
+        onClick={() => { void load(0); }}
+      >
+        {view.status === "loading" ? "جارٍ جلب صفوف المصدر…" : "عرض الصفوف المصدرية المسموح بها"}
+      </button>
+      {view.status === "error" ? (
+        <div role="alert" className="mt-2 text-xs">
+          <p>{view.message}</p>
+          <button type="button" className="mt-2 rounded-md border px-3 py-2" onClick={() => { void load(0); }}>
+            إعادة المحاولة
+          </button>
+        </div>
+      ) : null}
+      {view.status === "empty" ? <p role="status" className="mt-2 text-xs">{view.message}</p> : null}
+      {view.rows.length > 0 ? (
+        <div aria-live="polite" className="mt-2 space-y-2">
+          {view.rows.map((row, index) => (
+            <dl key={index} className="grid gap-2 rounded-md bg-muted/40 p-2 text-xs sm:grid-cols-2">
+              {Object.entries(row).map(([field, value]) => (
+                <div key={field} className="min-w-0">
+                  <dt className="text-muted-foreground">{claimEvidenceFieldLabels[field] ?? field}</dt>
+                  <dd className="break-words font-medium">{value === null ? "غير متاح" : String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          ))}
+          {view.hasMore && view.nextOffset !== null ? (
+            <button
+              type="button"
+              className="rounded-md border px-3 py-2 text-xs"
+              disabled={view.status === "loading"}
+              onClick={() => { void load(view.nextOffset as number); }}
+            >
+              عرض المزيد من صفوف المصدر
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const claimKindLabels = {
   OBSERVATION: "مشاهدة / ادعاء وصفي",
   DRIVER: "محرك أو عامل مرتبط",
@@ -242,9 +346,9 @@ function ClaimEvidenceCard({ claim }: { claim: ClaimEvidencePassport }) {
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-muted-foreground">
-          هذا Drill-down يعرض المعرّفات المرجعية المصرّح بها فقط؛ لا يجلب حمولة الصفوف الخام ولا يتجاوز صلاحيات المصدر.
-        </p>
+        {claim.sourceRecords.map((record) => (
+          <EvidenceRecordDrilldown key={record.id} record={record} />
+        ))}
         {claim.boundaries.length ? (
           <div className="mt-2">
             <strong>حدود الاستنتاج</strong>

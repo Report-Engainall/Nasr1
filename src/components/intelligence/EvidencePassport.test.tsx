@@ -6,6 +6,19 @@ import type { EvidencePassport as PassportData } from "@/lib/intelligence/types"
 import type { ClaimEvidencePassport } from "@/lib/intelligence/claim-evidence-passport";
 import { EvidencePassport } from "./EvidencePassport";
 
+const drilldownMocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+vi.mock("@/lib/intelligence/claim-evidence-drilldown-client", () => ({
+  claimEvidenceFieldLabels: {
+    invoiceStatus: "حالة الفاتورة",
+    totalAmount: "إجمالي الفاتورة",
+    currency: "العملة",
+    quantityAvailable: "الكمية المتاحة",
+  },
+  supportsClaimEvidenceDrilldown: (sourceName: string) =>
+    sourceName === "customer_invoices" || sourceName === "inventory.current_balances",
+  fetchClaimEvidenceDrilldown: drilldownMocks.fetch,
+}));
+
 const passport: PassportData = {
   id: "passport-1",
   generatedAt: "2026-11-01T01:00:00.000Z",
@@ -71,7 +84,7 @@ const passport: PassportData = {
 };
 
 describe("EvidencePassport", () => {
-  afterEach(() => cleanup());
+  afterEach(() => { cleanup(); drilldownMocks.fetch.mockReset(); });
   it.each([
     ["loading", "جارٍ تحميل سجل الأدلة…"],
     ["empty", "لا توجد مؤشرات أو أدلة للفترة المحددة."],
@@ -113,7 +126,7 @@ describe("EvidencePassport", () => {
     expect(screen.getAllByText(/general_ledger/).length).toBeGreaterThan(1);
   });
 
-  it("shows claim classification, refuses unproven causes and requires cross-domain review", () => {
+  it("shows claim classification, refuses unproven causes and requires cross-domain review", async () => {
     const claim: ClaimEvidencePassport = {
       id: "claim-cross-domain",
       statement: "هل نقص المخزون سبب تأخر التحصيل؟",
@@ -125,10 +138,24 @@ describe("EvidencePassport", () => {
       evidenceIds: ["ledger:cash-1", "stock:row-1"],
       metrics: [passport.metrics[0]],
       sourceRecords: [
-        passport.evidenceRecords[0],
+        {
+          ...passport.evidenceRecords[0],
+          id: "invoice:11111111-1111-4111-8111-111111111111",
+          source: {
+            kind: "TABLE",
+            name: "customer_invoices",
+            recordId: "11111111-1111-4111-8111-111111111111",
+            version: "v1",
+          },
+        },
         {
           id: "stock:row-1",
-          source: { kind: "TABLE", name: "inventory_balances", recordId: "stock-row-1", version: "1" },
+          source: {
+            kind: "TABLE",
+            name: "inventory.current_balances",
+            recordId: "22222222-2222-4222-8222-222222222222",
+            version: "v1",
+          },
           sourceTimestamp: "2026-11-01T00:45:00.000Z",
           asOf: passport.asOf,
           period: null,
@@ -153,8 +180,37 @@ describe("EvidencePassport", () => {
     expect(card).toHaveTextContent("السبب غير مثبت");
     expect(card).toHaveTextContent("CROSS-DOMAIN REVIEW REQUIRED");
     expect(card).toHaveTextContent("غير محددة من مصدر معتمد");
-    expect(card).toHaveTextContent("inventory_balances");
-    expect(card).toHaveTextContent("لا يجلب حمولة الصفوف الخام");
+    expect(card).toHaveTextContent("inventory.current_balances");
+    const drilldownButtons = within(card).getAllByRole("button", {
+      name: "عرض الصفوف المصدرية المسموح بها",
+    });
+    expect(drilldownButtons).toHaveLength(2);
+    expect(drilldownMocks.fetch).not.toHaveBeenCalled();
+
+    drilldownMocks.fetch
+      .mockResolvedValueOnce({
+        status: "READY",
+        rows: [{ invoiceStatus: "issued", totalAmount: "1500.25", currency: "YER" }],
+        hasMore: false,
+        nextOffset: null,
+        message: "",
+      })
+      .mockResolvedValueOnce({
+        status: "DENIED",
+        rows: [],
+        hasMore: false,
+        nextOffset: null,
+        message: "رفض الخادم قراءة الأدلة لهذه الصلاحية؛ لم تُعرض أي بيانات.",
+      });
+
+    fireEvent.click(drilldownButtons[0]);
+    expect(await within(card).findByText("1500.25")).toBeInTheDocument();
+    expect(within(card).getByText("حالة الفاتورة")).toBeInTheDocument();
+    expect(drilldownMocks.fetch).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(drilldownButtons[1]);
+    expect(await within(card).findByRole("alert")).toHaveTextContent("رفض الخادم قراءة الأدلة");
+    expect(drilldownMocks.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("does not render a fabricated source list when the passport has no evidence records", () => {

@@ -19,6 +19,7 @@ on:
       - "scripts/test-admin-catalog-category-hierarchy.mjs"
       - "scripts/test-cash-expense-journal-posting.mjs"
       - "scripts/test-cash-expense-commitments.mjs"
+      - "scripts/test-claim-evidence-drilldown.mjs"
       - "src/components/CashExpenseCommitmentWorkspace.tsx"
       - "src/lib/cash-expense-commitments.ts"
       - "src/lib/cash-expense-commitments.test.ts"
@@ -601,6 +602,8 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test tenant-safe claim evidence raw drill-down on local PostgreSQL 17
+        run: node scripts/test-claim-evidence-drilldown.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
         run: node scripts/test-customer-order-amendment-replay.mjs
       - name: Test server authorization capability registry and six-role legacy parity

@@ -52,6 +52,8 @@
     "src/components/intelligence/EvidenceSourceComparisonPanel.test.tsx",
     "src/lib/intelligence/claim-evidence-passport.ts",
     "src/lib/intelligence/claim-evidence-passport.test.ts",
+    "src/lib/intelligence/claim-evidence-drilldown-client.ts",
+    "src/lib/intelligence/claim-evidence-drilldown-client.test.ts",
     "src/components/intelligence/EvidencePassport.tsx",
     "src/components/intelligence/EvidencePassport.test.tsx",
     "src/components/OperationsCenter.tsx",
