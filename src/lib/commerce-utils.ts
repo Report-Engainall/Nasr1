@@ -425,14 +425,16 @@ function editDistanceAtMostOne(left: string, right: string): boolean {
 
 export type ArabicCatalogSearchRecord = {
   name?: unknown;
+  name_en?: unknown;
+  description?: unknown;
   item_code?: unknown;
   sku?: unknown;
   barcode?: unknown;
 };
 
 /**
- * Empty queries show all records. SKU/barcode are exact-or-prefix only;
- * product names additionally support normalized substrings and one-edit token typos.
+ * Empty queries show all records. SKU/barcode/item-code are exact-or-prefix only;
+ * Arabic and English names plus descriptions support normalized substring and one-edit token matching.
  */
 export function matchesArabicCatalogSearch(
   product: ArabicCatalogSearchRecord,
@@ -449,15 +451,16 @@ export function matchesArabicCatalogSearch(
     if (codes.some((code) => code === codeQuery || code.startsWith(codeQuery))) return true;
   }
 
-  const name = normalizeArabicSearchText(product.name);
-  if (!name) return false;
-  if (name.includes(normalized)) return true;
+  const searchableFields = [product.name, product.name_en, product.description]
+    .map((value) => normalizeArabicSearchText(value))
+    .filter(Boolean);
+  if (searchableFields.some((field) => field.includes(normalized))) return true;
 
   const queryTokens = normalized.split(' ').filter(Boolean);
-  const nameTokens = name.split(' ').filter(Boolean);
-  return queryTokens.every((queryToken) => nameTokens.some((nameToken) =>
-    nameToken.includes(queryToken) ||
-    (queryToken.length >= 4 && editDistanceAtMostOne(nameToken, queryToken)),
+  const searchableTokens = searchableFields.flatMap((field) => field.split(' ').filter(Boolean));
+  return queryTokens.every((queryToken) => searchableTokens.some((fieldToken) =>
+    fieldToken.includes(queryToken) ||
+    (queryToken.length >= 4 && editDistanceAtMostOne(fieldToken, queryToken)),
   ));
 }
 
