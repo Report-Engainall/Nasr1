@@ -2,7 +2,9 @@
  * Shared deterministic primitives for every import source.
  * Raw files are streamed and never persisted; callers persist metadata and normalized rows only.
  */
-import { ONYX_PRO_HEADER_SYNONYMS } from "./onyx-pro-schema";\n\nexport type ImportDatasetKind = "products" | "customers";
+import { ONYX_PRO_HEADER_SYNONYMS } from "./onyx-pro-schema";
+
+export type ImportDatasetKind = "products" | "customers";
 
 export type ImportProfileMapping = {
   requiredColumns: string[];
