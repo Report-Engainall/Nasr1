@@ -130,7 +130,7 @@ INSERT INTO public.customer_return_request_items(id, organization_id, return_req
   ('30000000-0000-4000-8000-000000000201', '22222222-2222-4222-8222-222222222222', '20000000-0000-4000-8000-000000000201', 'FOREIGN-SKU', 'منتج خارجي', 'وحدة', 1.000),
   ('30000000-0000-4000-8000-000000000104', '11111111-1111-4111-8111-111111111111', '10000000-0000-4000-8000-000000000104', 'OLD-SKU', 'صنف مغلق', 'وحدة', 1.000);
 
-\ir ../migrations/20261117140000_customer_return_review_queue_cursor_pagination.sql
+\ir ../migrations/20261117141000_customer_return_review_queue_cursor_pagination.sql
 
 DO $acl$
 BEGIN
