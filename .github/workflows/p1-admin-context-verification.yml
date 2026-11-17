@@ -18,6 +18,8 @@ on:
       - "src/components/AghbariApp.tsx"
       - "src/components/InventoryBatchTracePanel.tsx"
       - "src/components/InventoryBatchTracePanel.test.tsx"
+      - "src/components/InventoryBalanceAdjustmentPanel.tsx"
+      - "src/components/InventoryBalanceAdjustmentPanel.test.tsx"
       - "src/components/OpeningInventoryBaselineApprovalPanel.tsx"
       - "src/components/OpeningInventoryBaselineApprovalPanel.test.tsx"
       - "src/components/AdminAiGovernanceWorkspace.tsx"
