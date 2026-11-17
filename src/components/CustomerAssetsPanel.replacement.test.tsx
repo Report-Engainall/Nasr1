@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   user: { roles: ["admin"] as string[] },
@@ -151,6 +151,37 @@ describe("CustomerAssetsPanel atomic replacement", () => {
     fireEvent.click(screen.getByRole("button", { name: "تأكيد استبدال الجهاز" }));
     expect(await screen.findByText("تعذر إنشاء مفتاح آمن لعملية الاستبدال؛ لا يمكن إرسال الطلب دون مفتاح موثوق.")).toBeInTheDocument();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rotates the idempotency key when replacement details change after an ambiguous failure", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: null, error: { message: "network response was lost" } })
+      .mockResolvedValueOnce({
+        data: { old_asset_id: OLD_ASSET_ID, new_asset_id: NEW_ASSET_ID, status: "replaced", replayed: false },
+        error: null,
+      });
+
+    render(<CustomerAssetsPanel customerId={CUSTOMER_ID} />);
+    await screen.findByText("حاسوب مكتبي");
+    fireEvent.click(screen.getByRole("button", { name: "استبدال الجهاز" }));
+
+    fireEvent.change(screen.getByLabelText("اسم الأصل *"), { target: { value: "حاسوب بديل" } });
+    fireEvent.change(screen.getByLabelText("الرقم التسلسلي"), { target: { value: "NEW-003" } });
+    fireEvent.change(screen.getByLabelText("سبب الاستبدال *"), { target: { value: "تلف الجهاز السابق واستبداله" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "تأكيد استبدال الجهاز" }));
+    await screen.findByRole("alert");
+    const firstPayload = mocks.rpc.mock.calls[0][1] as Record<string, unknown>;
+    const firstRequestKey = firstPayload.p_request_key;
+
+    fireEvent.change(screen.getByLabelText("الموديل"), { target: { value: "Office 3" } });
+    fireEvent.click(screen.getByRole("button", { name: "تأكيد استبدال الجهاز" }));
+    await screen.findByText("تم استبدال الجهاز وإنشاء أصل بديل مستقل وربطه بسجل الجهاز السابق.");
+
+    const secondPayload = mocks.rpc.mock.calls[1][1] as Record<string, unknown>;
+    expect(secondPayload.p_request_key).not.toBe(firstRequestKey);
+    expect(secondPayload.p_model).toBe("Office 3");
+    expect(secondPayload.p_old_asset_id).toBe(OLD_ASSET_ID);
   });
 
   it("does not expose replacement for a terminal asset or in the generic event picker", async () => {
