@@ -1353,7 +1353,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
               <tbody>{readySnapshots.map((snapshot) => <Fragment key={snapshot.id}>
                 <tr>
                   <td><strong>{snapshot.source_file_name ?? "ملف دون اسم"}</strong><small>{snapshot.source_file_hash.slice(0, 14)}… • v{snapshot.snapshot_version}</small></td>
-                  <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
+                  <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : snapshot.report_type === "inventory_stock" ? "أرصدة مخزون — مصالحة مستودعات" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
                   <td>{formatNumber(snapshot.row_count)}</td>
                   <td>{formatNumber(snapshot.data_quality_score)}/100</td>
                   <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
@@ -1362,10 +1362,14 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                       onClick={() => void toggleSnapshotPreview(snapshot)}>
                       {snapshotPreview?.snapshotId === snapshot.id ? "إغلاق المعاينة" : "معاينة الصفوف"}
                     </Button>
-                    <Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
-                      onClick={() => void applyReadySnapshot(snapshot)}>
-                      {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : "النوع غير مؤكد"}
-                    </Button>
+                    {snapshot.report_type === "inventory_stock" ? (
+                      <span className="privacy-note">تُعاين وتُعتمد تسوية هذا الرصيد من مركز لقطات أونكس، لكل مخزن على حدة.</span>
+                    ) : (
+                      <Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
+                        onClick={() => void applyReadySnapshot(snapshot)}>
+                        {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : "النوع غير مؤكد"}
+                      </Button>
+                    )}
                   </div></td>
                 </tr>
                 {snapshotPreview?.snapshotId === snapshot.id && <tr>
