@@ -91,7 +91,7 @@ async function main() {
       };
       const command = [candidateId, snapshot.ruleId, snapshot.ruleVersion, actor.profile_id,
         snapshot.expectedOutcome, "قبول قاعدة بيانات محلي داخل معاملة ستُلغى بالكامل.",
-        JSON.stringify(snapshot), idempotencyKey];
+        snapshot, idempotencyKey];
       const create = async (payload) => {
         const rows = await tx.unsafe(
           "select public.create_decision_outcome_proposal_with_snapshot(" +
@@ -175,7 +175,7 @@ async function main() {
 
       const changedSnapshot = { ...snapshot, what: snapshot.what + " changed" };
       await expectSqlState(tx, "23505", () => create([
-        ...command.slice(0, 6), JSON.stringify(changedSnapshot), idempotencyKey,
+        ...command.slice(0, 6), changedSnapshot, idempotencyKey,
       ]), "same candidate with a changed immutable snapshot");
 
       await expectSqlState(tx, "42501", () => tx.unsafe(
