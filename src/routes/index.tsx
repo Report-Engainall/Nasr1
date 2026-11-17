@@ -4,9 +4,9 @@ import { Storefront } from "@/components/Storefront";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "الأغبري | متجر الجملة للمواد الغذائية" },
+      { title: "إنجاز | الأغبري — متجر الجملة للمواد الغذائية" },
       { name: "description", content: "متجر الأغبري للتجارة بالجملة: كتالوج المواد الغذائية، أسعار ومخزون مباشر، وطلب سريع للمنشآت." },
-      { property: "og:title", content: "الأغبري | Aghbari Commerce" },
+      { property: "og:title", content: "إنجاز | متجر الأغبري — Aghbari Commerce" },
       { property: "og:description", content: "متجر الجملة B2B للمواد الغذائية مع أسعار ومخزون مباشر." },
     ],
   }),

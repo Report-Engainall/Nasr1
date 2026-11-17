@@ -846,7 +846,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     <div className="storefront" dir="rtl">
       <header className="sf-header">
         <div className="sf-header-inner">
-          <div className="sf-brand"><div className="sf-brand-icon"><Activity size={22} /></div><div><strong>{(settings?.store_name as string) ?? 'الأغبري'}</strong><span>{(settings?.store_tagline as string) ?? 'مواد غذائية بالجملة'}</span></div></div>
+          <div className="sf-brand" aria-label="إنجاز — متجر الأغبري"><div className="sf-brand-icon"><img src="/icons/injaz-icon.svg" alt="" width={42} height={42} /></div><div><strong>إنجاز</strong><span>{(settings?.store_name as string) ?? 'متجر الأغبري'}</span></div></div>
           {user?.isStaff === true && (
             <button className="sf-admin-btn" onClick={onExit}><Activity size={16} /> لوحة التحكم</button>
           )}
@@ -1122,7 +1122,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
       <footer className="sf-footer">
         <div className="sf-footer-inner">
-          <div className="sf-footer-brand"><Activity size={20} /> <strong>{(settings?.store_name as string) ?? 'الأغبري'}</strong></div>
+          <div className="sf-footer-brand"><img src="/icons/injaz-icon.svg" alt="" width={24} height={24} /> <strong>إنجاز</strong><span>{(settings?.store_name as string) ?? 'متجر الأغبري'}</span></div>
           <div className="sf-footer-info"><Phone size={15} /> {(settings?.store_phone as string) || 'رقم الهاتف غير مهيأ'}</div>
           <div className="sf-footer-info"><Mail size={15} /> {(settings?.store_email as string) || 'البريد الإلكتروني غير مهيأ'}</div>
           <div className="sf-footer-info"><MapPin size={15} /> {(settings?.store_address as string) || 'عنوان المتجر غير مهيأ'}</div>

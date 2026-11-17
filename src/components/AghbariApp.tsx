@@ -777,7 +777,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   return (
     <div className="app-shell" dir="rtl">
       <aside id="admin-sidebar" aria-label="القائمة الإدارية" className={`sidebar ${mobileNav ? 'open' : ''}`}>
-        <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
+        <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><img src="/icons/injaz-icon.svg" alt="" width={32} height={32} /></div><div><strong>إنجاز</strong><span>منصة الأغبري التجارية</span></div></div>
         <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
         <AdminSidebarNavigation
               groups={visibleNavGroups}

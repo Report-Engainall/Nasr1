@@ -8,8 +8,8 @@ type Mode = 'login' | 'register' | 'forgot';
 function LoginBrand() {
   return (
     <div className="login-brand">
-      <div className="login-brand-icon"><Activity size={28} /></div>
-      <div><strong>الأغبري</strong><span>Aghbari Commerce</span></div>
+      <div className="login-brand-icon"><img src="/icons/injaz-icon.svg" alt="" width={42} height={42} /></div>
+      <div><strong>إنجاز</strong><span>منصة الأغبري التجارية</span></div>
     </div>
   );
 }

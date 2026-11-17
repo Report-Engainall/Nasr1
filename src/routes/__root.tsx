@@ -14,7 +14,7 @@ import { RefreshCw, X } from "lucide-react";
 import appCss from "../styles.css?url";
 import { reportRuntimeError } from "../lib/runtime-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { BUSINESS_BRAND_NAME, BUSINESS_META_DESCRIPTION, BUSINESS_PWA_THEME_COLOR } from "@/lib/brand";
+import { BUSINESS_BRAND_NAME, BUSINESS_BRAND_NAME_AR, BUSINESS_META_DESCRIPTION, BUSINESS_PWA_THEME_COLOR, PRODUCT_BRAND_NAME } from "@/lib/brand";
 import { clearLegacyOfflineCatalogCache, clearOfflineCatalogCache } from "@/lib/offline-catalog-cache";
 import { useAdminOrganizationTheme } from "@/lib/useAdminOrganizationTheme";
 
@@ -80,7 +80,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
-      { title: BUSINESS_BRAND_NAME },
+      { title: `${PRODUCT_BRAND_NAME} | ${BUSINESS_BRAND_NAME_AR}` },
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "author", content: BUSINESS_BRAND_NAME },
@@ -90,16 +90,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:site_name", content: BUSINESS_BRAND_NAME },
       { property: "og:title", content: BUSINESS_BRAND_NAME },
       { property: "og:description", content: BUSINESS_META_DESCRIPTION },
+      { property: "og:image", content: "/brand/injaz-logo.svg" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: BUSINESS_BRAND_NAME },
       { name: "twitter:description", content: BUSINESS_META_DESCRIPTION },
+      { name: "twitter:image", content: "/brand/injaz-logo.svg" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/icons/injaz-icon.svg", type: "image/svg+xml", sizes: "any" },
+      { rel: "apple-touch-icon", href: "/icons/injaz-icon.svg" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
