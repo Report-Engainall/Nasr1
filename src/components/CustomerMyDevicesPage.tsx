@@ -11,6 +11,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { Login } from "@/components/Login";
+import { CustomerDeviceChangeRequestsPanel } from "@/components/CustomerDeviceChangeRequests";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
@@ -265,6 +266,7 @@ function CustomerMyDevicesWorkspace() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 lg:px-8" dir="rtl">
+      <CustomerDeviceChangeRequestsPanel />
       <header className="rounded-2xl border bg-card p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">

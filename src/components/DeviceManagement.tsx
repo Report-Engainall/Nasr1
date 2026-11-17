@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { AdminCustomerDeviceChangeRequests } from '@/components/CustomerDeviceChangeRequests';
 
 type CurrentSession = {
   sessionId: string | null;
@@ -729,6 +730,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
         }}
         onRevoke={(target) => void revokeOrganizationSession(target)}
       />
+      <AdminCustomerDeviceChangeRequests onNotice={onNotice} />
       <DeviceManagementPrivacyNote />
     </section>
   );
