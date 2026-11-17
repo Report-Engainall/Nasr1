@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { InventoryBalanceAdjustmentPanel } from './InventoryBalanceAdjustmentPanel';
 import { adjustInventoryBalance, fetchInventoryAdjustmentBalances } from '@/lib/api';
 
@@ -69,6 +69,41 @@ describe('InventoryBalanceAdjustmentPanel', () => {
     expect(screen.getByRole('option', { name: 'SKU-002 — زيت نباتي 1 لتر' })).toBeInTheDocument();
     expect(screen.getByLabelText('الرصيد الجديد للصنف زيت نباتي 1 لتر')).toHaveValue('42');
     expect(screen.queryByLabelText('الرصيد الجديد للصنف أرز 10 كجم')).not.toBeInTheDocument();
+  });
+
+  it('ignores a late balance response from the previous warehouse after switching warehouses', async () => {
+    const previousWarehouseId = initialBalance.warehouse_id;
+    const activeWarehouseId = '77777777-7777-4777-8777-777777777777';
+    const activeWarehouseBalance = { ...secondBalance, warehouse_id: activeWarehouseId };
+    let resolvePrevious!: (rows: Array<typeof initialBalance>) => void;
+    const previousResponse = new Promise<Array<typeof initialBalance>>((resolve) => {
+      resolvePrevious = resolve;
+    });
+    vi.mocked(fetchInventoryAdjustmentBalances)
+      .mockReturnValueOnce(previousResponse)
+      .mockResolvedValueOnce([activeWarehouseBalance]);
+
+    const view = render(
+      <InventoryBalanceAdjustmentPanel warehouseId={previousWarehouseId} warehouseName="المستودع السابق" />,
+    );
+    await waitFor(() => {
+      expect(fetchInventoryAdjustmentBalances).toHaveBeenNthCalledWith(1, previousWarehouseId);
+    });
+
+    view.rerender(
+      <InventoryBalanceAdjustmentPanel warehouseId={activeWarehouseId} warehouseName="المستودع الفرعي" />,
+    );
+    await screen.findByRole('option', { name: 'SKU-002 — زيت نباتي 1 لتر' });
+    expect(screen.getByLabelText('الرصيد الجديد للصنف زيت نباتي 1 لتر')).toHaveValue('42');
+
+    await act(async () => {
+      resolvePrevious([initialBalance]);
+    });
+
+    expect(screen.queryByRole('option', { name: 'SKU-001 — أرز 10 كجم' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'SKU-002 — زيت نباتي 1 لتر' })).toBeInTheDocument();
+    expect(screen.getByLabelText('الرصيد الجديد للصنف زيت نباتي 1 لتر')).toHaveValue('42');
+    expect(fetchInventoryAdjustmentBalances).toHaveBeenNthCalledWith(2, activeWarehouseId);
   });
 
   it('loads server balances and submits an explicitly confirmed single-item adjustment', async () => {
@@ -172,6 +207,45 @@ describe('InventoryBalanceAdjustmentPanel', () => {
     expect(screen.getByText(/الرصيد الجديد أقل من المحجوز/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'اعتماد نقص الرصيد' })).toBeDisabled();
     expect(adjustInventoryBalance).not.toHaveBeenCalled();
+  });
+
+  it('does not let a completed adjustment reload the previous warehouse after switching warehouses', async () => {
+    const previousWarehouseId = initialBalance.warehouse_id;
+    const activeWarehouseId = '77777777-7777-4777-8777-777777777777';
+    const activeWarehouseBalance = { ...secondBalance, warehouse_id: activeWarehouseId };
+    let resolveAdjustment!: (value: typeof successfulAdjustment) => void;
+    const delayedAdjustment = new Promise<typeof successfulAdjustment>((resolve) => {
+      resolveAdjustment = resolve;
+    });
+    vi.mocked(fetchInventoryAdjustmentBalances)
+      .mockResolvedValueOnce([initialBalance])
+      .mockResolvedValueOnce([activeWarehouseBalance]);
+    vi.mocked(adjustInventoryBalance).mockReturnValueOnce(delayedAdjustment);
+
+    const view = render(
+      <InventoryBalanceAdjustmentPanel warehouseId={previousWarehouseId} warehouseName="المستودع السابق" />,
+    );
+    await screen.findByRole('option', { name: 'SKU-001 — أرز 10 كجم' });
+    fireEvent.change(screen.getByLabelText('الرصيد الجديد للصنف أرز 10 كجم'), { target: { value: '125' } });
+    fireEvent.change(screen.getByLabelText('سبب التسوية'), { target: { value: 'تسوية موثقة' } });
+    fireEvent.click(screen.getByRole('button', { name: 'اعتماد زيادة الرصيد' }));
+    await waitFor(() => expect(adjustInventoryBalance).toHaveBeenCalledTimes(1));
+
+    view.rerender(
+      <InventoryBalanceAdjustmentPanel warehouseId={activeWarehouseId} warehouseName="المستودع الفرعي" />,
+    );
+    await screen.findByRole('option', { name: 'SKU-002 — زيت نباتي 1 لتر' });
+    expect(screen.getByLabelText('الرصيد الجديد للصنف زيت نباتي 1 لتر')).toHaveValue('42');
+
+    await act(async () => {
+      resolveAdjustment(successfulAdjustment);
+    });
+
+    expect(screen.queryByRole('option', { name: 'SKU-001 — أرز 10 كجم' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'SKU-002 — زيت نباتي 1 لتر' })).toBeInTheDocument();
+    expect(screen.getByLabelText('الرصيد الجديد للصنف زيت نباتي 1 لتر')).toHaveValue('42');
+    expect(fetchInventoryAdjustmentBalances).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/تم تنفيذ التسوية وحفظ حركتها وتدقيقها/)).not.toBeInTheDocument();
   });
 
   it('retains the server stale-writer rejection instead of showing optimistic balance success', async () => {
