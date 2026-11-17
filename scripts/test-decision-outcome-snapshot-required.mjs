@@ -99,6 +99,32 @@ async function main() {
         return typeof rows[0].result === "string" ? JSON.parse(rows[0].result) : rows[0].result;
       };
 
+      // Evaluate the exact persisted-snapshot predicate with the exact RPC arguments.
+      // This separates a snapshot-shape regression from missing command metadata.
+      await tx.unsafe("reset role");
+      const validator = await tx.unsafe(
+        "select public._is_valid_decision_candidate_snapshot($1::jsonb,$2::text,$3::text,$4::text,$5::text) as snapshot_valid, " +
+        "$6::uuid is not null as owner_present, " +
+        "char_length(btrim($7::text)) between 1 and 100 as idempotency_key_valid",
+        [command[6],command[0],command[1],command[2],command[4],command[3],command[7]],
+      );
+      const validation = validator[0];
+      process.stdout.write("Decision snapshot validation: " + JSON.stringify({
+        snapshot_valid: validation.snapshot_valid,
+        owner_present: validation.owner_present,
+        idempotency_key_valid: validation.idempotency_key_valid,
+        priority: snapshot.priority,
+        priority_score: snapshot.priorityScore,
+        impact_status: snapshot.impactStatus,
+        evidence_count: snapshot.proof.evidenceIds.length,
+        metric_count: snapshot.proof.metricKeys.length,
+        formula_count: snapshot.proof.formulaVersions.length,
+      }) + "\\n");
+      await tx.unsafe("set local role authenticated");
+      assert.equal(validation.snapshot_valid, true, "the persisted snapshot validator must accept the exact fixture");
+      assert.equal(validation.owner_present, true, "the command must have a tenant manager owner profile");
+      assert.equal(validation.idempotency_key_valid, true, "the command idempotency key must satisfy the database contract");
+
       const first = await create(command);
       assert.equal(first?.ok, true, "the manager must create the snapshot-backed proposal");
       assert.equal(first?.duplicate, false);
