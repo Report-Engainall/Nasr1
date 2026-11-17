@@ -13,6 +13,7 @@ import { normalizeLocalizedDecimalInput } from '@/lib/localized-number-input';
 import { StorefrontPricePresentation } from '@/components/StorefrontPricePresentation';
 import { ProductComparison } from '@/components/store/ProductComparison';
 import { CartQuantityControl } from '@/components/store/CartQuantityControl';
+import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-products';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
@@ -47,7 +48,7 @@ type StorefrontProductsSnapshot =
 
 function pendingCartProduct(productId: string): ProductWithInventory {
   return {
-    id: productId, name: 'صنف محفوظ — جار تحديث بياناته', name_en: null, item_code: '', sku: null, barcode: null,
+    id: productId, name: 'تعذر استعادة بيانات الصنف', name_en: null, item_code: '', sku: null, barcode: null,
     category_id: null, brand_id: null, unit: 'وحدة', description: null, image_url: null, is_active: false, is_featured: false,
     sort_order: 0, stock_quantity: 0, reserved_quantity: 0, min_stock_level: 0, status: 'pending',
   };
@@ -152,6 +153,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       const emptySnapshot = (): StorefrontProductsSnapshot => isPagedView
         ? { mode: 'paged', identityKey: storefrontIdentityKey, search: debouncedQuery, categoryId: activeCat || null, availableOnly, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [] }
         : { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
+      if (view === 'cart' || view === 'checkout') return emptySnapshot();
       if (!authReady) return emptySnapshot();
 
       const expectedAuthUserId = user?.id ?? null;
@@ -254,6 +256,22 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
   const cart = cartRestored ? cartState.items : [];
+  const cartProductIds = cart.map((item) => item.product.id).sort();
+  const cartProductIdsKey = cartProductIds.join('|');
+  const cartProductDetailsKey = storefrontIdentityKey + '|' + cartStorageKey + '|' + cartProductIdsKey;
+  const [cartProductDetailsState, setCartProductDetailsState] = useState<{
+    key: string;
+    loading: boolean;
+    error: string | null;
+    unresolvedIds: string[];
+  }>({ key: '', loading: false, error: null, unresolvedIds: [] });
+  const [cartProductRetryCount, setCartProductRetryCount] = useState(0);
+  const cartProductDetailsLoaded =
+    cartProductDetailsState.key === cartProductDetailsKey &&
+    !cartProductDetailsState.loading &&
+    !cartProductDetailsState.error;
+  const cartProductDetailsReady =
+    cartProductDetailsLoaded && cartProductDetailsState.unresolvedIds.length === 0;
   function setCart(next: CartItem[] | ((previous: CartItem[]) => CartItem[])) {
     cartMutationRevisionRef.current += 1;
     setCartState((current) => {
@@ -546,31 +564,17 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
 
   useEffect(() => {
-    if (isPagedView || productsLoading || productsError || !cartRestored || !cart.length) return;
-    let changed = false;
-    const resolved = cart.map((item) => {
-      const product = products.find((candidate) => candidate.id === item.product.id);
-      if (product && product !== item.product) {
-        changed = true;
-        return { ...item, product };
-      }
-      return item;
-    });
-    if (changed) setCart(resolved);
-  }, [isPagedView, productsLoading, productsError, cartRestored, cart, products]);
-
-  useEffect(() => {
-    if (cartRestored || typeof window === 'undefined') return;
-    if (!products.length && (productsLoading || productsError)) return;
+    if (cartRestored || typeof window === 'undefined' || !authReady) return;
     const draft = loadOfflineCartDraft(window.localStorage, user?.profileId);
-    const restored = draft
-      .map(({ product_id, quantity }) => ({
-        product: products.find((product) => product.id === product_id) ?? (isPagedView ? pendingCartProduct(product_id) : null),
-        quantity,
-      }))
-      .filter((line): line is CartItem => Boolean(line.product));
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const restored = draft.map(({ product_id, quantity }) => ({
+      product: productById.get(product_id) ?? pendingCartProduct(product_id),
+      quantity,
+    }));
+    // Restore IDs and quantities immediately. Product details are resolved separately
+    // for these exact IDs, so a paginated or failed catalogue request cannot hide the cart.
     setCart(restored);
-  }, [products, cartStorageKey, cartRestored, productsLoading, productsError, user?.profileId]);
+  }, [authReady, products, cartStorageKey, cartRestored, user?.profileId]);
 
   useEffect(() => {
     if (!cartRestored || typeof window === 'undefined') return;
@@ -582,6 +586,47 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   }, [cart, cartRestored, cartStorageKey, user?.profileId]);
 
   useEffect(() => {
+    if (!authReady || !cartRestored) return;
+    const requestKey = cartProductDetailsKey;
+    const productIds = [...cartProductIds];
+    if (productIds.length === 0) {
+      setCartProductDetailsState({ key: requestKey, loading: false, error: null, unresolvedIds: [] });
+      return;
+    }
+
+    let cancelled = false;
+    setCartProductDetailsState({ key: requestKey, loading: true, error: null, unresolvedIds: [] });
+    void fetchStorefrontCartProductDetails(productIds).then((resolvedProducts) => {
+      if (cancelled) return;
+      const byId = new Map(resolvedProducts.map((product) => [product.id, product]));
+      const unresolvedIds = productIds.filter((productId) => !byId.has(productId));
+      setCart((previous) => previous.map((item) => ({
+        ...item,
+        product: byId.get(item.product.id) ?? pendingCartProduct(item.product.id),
+      })));
+      setCartProductDetailsState({ key: requestKey, loading: false, error: null, unresolvedIds });
+    }).catch((cause) => {
+      if (cancelled) return;
+      setCartProductDetailsState({
+        key: requestKey,
+        loading: false,
+        error: cause instanceof Error ? cause.message : 'تعذر استعادة تفاصيل أصناف السلة.',
+        unresolvedIds: [],
+      });
+    });
+
+    return () => { cancelled = true; };
+  }, [
+    authReady,
+    cartRestored,
+    cartProductDetailsKey,
+    cartProductIdsKey,
+    cartStorageKey,
+    storefrontIdentityKey,
+    cartProductRetryCount,
+  ]);
+
+  useEffect(() => {
     if (isPagedView) return;
     if (!authReady) return;
     if (!persistentCartProfileId) {
@@ -589,7 +634,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       setCustomerCartSyncState('idle');
       return;
     }
-    if (!cartRestored || productsLoading || productsError || !isOnline) {
+    if (!cartRestored || !isOnline) {
       if (!isOnline) setCustomerCartSyncState('pending');
       return;
     }
@@ -613,9 +658,12 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       for (const item of cart) {
         quantities.set(item.product.id, Math.max(quantities.get(item.product.id) ?? 0, item.quantity));
       }
-      const merged = [...quantities.entries()]
-        .map(([productId, quantity]) => ({ product: products.find((product) => product.id === productId), quantity }))
-        .filter((line): line is CartItem => Boolean(line.product));
+      const existingProducts = new Map(cart.map((item) => [item.product.id, item.product]));
+      const catalogueProducts = new Map(products.map((product) => [product.id, product]));
+      const merged = [...quantities.entries()].map(([productId, quantity]) => ({
+        product: catalogueProducts.get(productId) ?? existingProducts.get(productId) ?? pendingCartProduct(productId),
+        quantity,
+      }));
       setCart(merged);
       setCustomerCartHydratedFor(persistentCartProfileId);
       setCustomerCartSyncState('pending');
@@ -625,7 +673,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
     return () => { cancelled = true; };
   }, [
-    authReady, persistentCartProfileId, cartRestored, productsLoading, productsError,
+    authReady, persistentCartProfileId, cartRestored,
     isOnline, customerCartHydratedFor, customerCartRetryCount, products, cart,
   ]);
 
@@ -653,19 +701,25 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   }, [authReady, persistentCartProfileId, cartRestored, isOnline, customerCartHydratedFor, cart]);
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
-  const canBuyNow = cartRestored && isOnline && (
+  const canBuyNow = cartRestored && cartProductDetailsReady && isOnline && (
     !persistentCartProfileId ||
     customerCartHydratedFor === persistentCartProfileId
   );
   const buyNowDisabledMessage = !cartRestored
     ? "جار استعادة سلة الشراء قبل بدء الإتمام."
-    : !isOnline
-      ? "يلزم اتصال بالإنترنت للتحقق من السلة وإتمام الطلب."
-      : persistentCartProfileId && customerCartHydratedFor !== persistentCartProfileId
-        ? customerCartSyncState === "error"
-          ? "تعذر استعادة سلة حسابك؛ افتح السلة وأعد مزامنتها قبل الشراء المباشر."
-          : "جار مزامنة سلة حسابك المحفوظة قبل بدء الإتمام."
-        : null;
+    : !cartProductDetailsReady
+      ? cartProductDetailsState.error
+        ? "تعذر استعادة تفاصيل السلة؛ أعد المحاولة من صفحة السلة."
+        : cartProductDetailsState.unresolvedIds.length
+          ? "تحتوي السلة على أصناف لم تعد متاحة في الكتالوج؛ راجعها قبل الشراء."
+          : "جار استعادة تفاصيل أصناف السلة..."
+      : !isOnline
+        ? "يلزم اتصال بالإنترنت للتحقق من السلة وإتمام الطلب."
+        : persistentCartProfileId && customerCartHydratedFor !== persistentCartProfileId
+          ? customerCartSyncState === "error"
+            ? "تعذر استعادة سلة حسابك؛ افتح السلة وأعد مزامنتها قبل الشراء المباشر."
+            : "جار مزامنة سلة حسابك المحفوظة قبل بدء الإتمام."
+          : null;
 
   function addToCart(product: ProductWithInventory, requestedQuantity?: number, unitSelection?: ProductUnitSelection): boolean {
     const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
@@ -984,7 +1038,8 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                       ? 'لا توجد أصناف نشطة متاحة للعرض في المتجر حالياً. يُرجى التواصل مع إدارة المتجر إذا كنت تتوقع ظهور المنتجات.'
                       : 'جرّب تغيير البحث أو التصنيف'}
                     onOpen={openProduct}
-                    onAdd={addToCart}
+                    onAdd={(product, quantity) => addToCart(product, quantity)}
+                    cartQuantities={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))}
                     onWishlist={toggleWishlist}
                     onCompare={toggleCompare}
                   />}
@@ -1040,16 +1095,15 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           />
         )}
 
-        {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
+        {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={(product, quantity) => addToCart(product, quantity)} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
         {view === 'compare' && <ProductComparison products={products.filter((product) => compare.includes(product.id))} priceVisibilityPolicy={settings?.show_price_on_cards} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onRemove={toggleCompare} onBack={() => void navigate({ to: '/' })} />}
         {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} alreadyInCart={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
 
         {view === 'cart' && (!cartRestored ? (
           <section className="sf-cart-page">
             <h2>سلة المشتريات</h2>
-            <div className="sf-empty" role={productsError ? 'alert' : 'status'}>
-              <span>{productsLoading ? 'جار استعادة السلة المحلية...' : productsError ? 'تعذر استعادة تفاصيل السلة من الكتالوج الحالي.' : 'جار استعادة السلة...'}</span>
-              {productsError && <><small>{productsError}</small><button type="button" className="sf-btn-secondary" onClick={() => void refetchProducts()}>إعادة المحاولة</button></>}
+            <div className="sf-empty" role="status">
+              <span>{authReady ? 'جار استعادة السلة المحلية...' : 'جار التحقق من جلسة العميل...'}</span>
             </div>
           </section>
         ) : (
@@ -1068,38 +1122,82 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               </div>
             )}
             {!cart.length ? <div className="sf-empty"><ShoppingCart size={30} /><span>سلتك فارغة</span><button className="sf-link" onClick={() => void navigate({ to: '/' })}>تصفح المنتجات</button></div> :
-            <>
-              <div className="sf-cart-list">
-                {cart.map((item) => (
-                  <div className="sf-cart-row" key={item.product.id}>
-                    <div className="sf-cart-info"><div className="sf-cart-img"><Package size={20} /></div><div><strong>{item.product.name}</strong><span>الوحدة: {item.product.unit}</span></div></div>
-                    <CartQuantityControl
-                      productName={item.product.name}
-                      quantity={item.quantity}
-                      minimum={item.product.min_order_quantity}
-                      multiple={item.product.order_quantity_multiple}
-                      available={item.product.inventory?.quantity_available}
-                      onCommit={(quantity) => setCartQuantity(item.product.id, quantity)}
-                    />
-                    <button className="sf-cart-remove" aria-label={`حذف ${item.product.name} من السلة`} onClick={() => removeFromCart(item.product.id)}><Trash2 size={16} /></button>
-                  </div>
-                ))}
+            !cartProductDetailsLoaded ? (
+              <div className="sf-empty" role={cartProductDetailsState.error ? 'alert' : 'status'}>
+                <span>{cartProductDetailsState.error ?? 'جار استعادة تفاصيل أصناف سلتك...'}</span>
+                {cartProductDetailsState.error && (
+                  <button type="button" className="sf-btn-secondary" onClick={() => setCartProductRetryCount((current) => current + 1)}>إعادة المحاولة</button>
+                )}
               </div>
-              <CustomerOrderPricingPreview
-                items={cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity }))}
-                policyValue={settings?.show_price_in_cart}
-                surface="cart"
-                title="ملخص أسعار السلة"
-              />
-              {settings?.show_price_in_cart !== true && <div role="note" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>سيُراجع الطلب ويُعتمد من جهة الإدارة. إظهار الأسعار والإجماليات معطّل في إعدادات المتجر لهذه الشاشة.</div>}
-              <div className="sf-cart-actions"><button className="sf-btn-secondary" onClick={() => void navigate({ to: '/' })}>متابعة التسوق</button><button className="sf-btn-primary" onClick={() => void navigate({ to: '/checkout' })}>إتمام الطلب <ChevronLeft size={16} /></button></div>
-            </>
-            }
+            ) : (
+              <>
+                {cartProductDetailsState.unresolvedIds.length > 0 && (
+                  <div role="alert" className="sf-form-error" style={{ marginBottom: 12 }}>
+                    بعض الأصناف لم تعد نشطة في الكتالوج الحالي. احذفها من السلة قبل إتمام الطلب.
+                  </div>
+                )}
+                <div className="sf-cart-list">
+                  {cart.map((item) => {
+                    const unavailable = item.product.status === 'pending';
+                    return (
+                      <div className="sf-cart-row" key={item.product.id}>
+                        <div className="sf-cart-info">
+                          <div className="sf-cart-img"><Package size={20} /></div>
+                          <div>
+                            <strong>{unavailable ? 'صنف غير متاح حاليًا' : item.product.name}</strong>
+                            <span>{unavailable ? <>معرّف الصنف المحفوظ: <bdi>{item.product.id.slice(0, 8)}</bdi></> : `الوحدة: ${item.product.unit}`}</span>
+                          </div>
+                        </div>
+                        {unavailable ? (
+                          <span role="status" style={{ color: '#9a3630', fontSize: 12 }}>يتطلب الحذف من السلة</span>
+                        ) : (
+                          <CartQuantityControl
+                            productName={item.product.name}
+                            quantity={item.quantity}
+                            minimum={item.product.min_order_quantity}
+                            multiple={item.product.order_quantity_multiple}
+                            available={item.product.inventory?.quantity_available}
+                            onCommit={(quantity) => setCartQuantity(item.product.id, quantity)}
+                          />
+                        )}
+                        <button className="sf-cart-remove" aria-label={`حذف ${unavailable ? 'الصنف غير المتاح' : item.product.name} من السلة`} onClick={() => removeFromCart(item.product.id)}><Trash2 size={16} /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {cartProductDetailsReady ? (
+                  <CustomerOrderPricingPreview
+                    items={cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity }))}
+                    policyValue={settings?.show_price_in_cart}
+                    surface="cart"
+                    title="ملخص أسعار السلة"
+                  />
+                ) : null}
+                {settings?.show_price_in_cart !== true && <div role="note" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>سيُراجع الطلب ويُعتمد من جهة الإدارة. إظهار الأسعار والإجماليات معطّل في إعدادات المتجر لهذه الشاشة.</div>}
+                <div className="sf-cart-actions">
+                  <button className="sf-btn-secondary" onClick={() => void navigate({ to: '/' })}>متابعة التسوق</button>
+                  <button className="sf-btn-primary" disabled={!cartProductDetailsReady} onClick={() => void navigate({ to: '/checkout' })}>إتمام الطلب <ChevronLeft size={16} /></button>
+                </div>
+              </>
+            )}
           </section>
         ))}
-
-        {view === 'checkout' && (!cartRestored ? (
-          <section className="sf-checkout"><div className="sf-empty" role={productsError ? 'alert' : 'status'}><span>{productsLoading ? 'جار استعادة سلة الطلب...' : productsError ? 'تعذر استعادة السلة.' : 'جار استعادة سلة الطلب...'}</span>{productsError && <><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></>}</div></section>
+        {view === 'checkout' && (!cartRestored || !cartProductDetailsReady ? (
+          <section className="sf-checkout">
+            <div className="sf-empty" role={cartProductDetailsState.error ? 'alert' : 'status'}>
+              <span>{!cartRestored
+                ? 'جار استعادة سلة الطلب...'
+                : cartProductDetailsState.error
+                  ? cartProductDetailsState.error
+                  : cartProductDetailsState.unresolvedIds.length
+                    ? 'توجد أصناف غير متاحة في السلة؛ ارجع إليها واحذفها.'
+                    : 'جار استعادة تفاصيل أصناف السلة قبل إتمام الطلب...'}</span>
+              {cartProductDetailsState.error && (
+                <button type="button" onClick={() => setCartProductRetryCount((current) => current + 1)}>إعادة المحاولة</button>
+              )}
+              <button type="button" className="sf-btn-secondary" onClick={() => void navigate({ to: '/cart' })}>مراجعة السلة</button>
+            </div>
+          </section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
         ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
@@ -1123,6 +1221,64 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   );
 }
 
+function StorefrontProductCardPurchase({
+  product,
+  quantityKnown,
+  out,
+  belowMinimum,
+  selectedQuantity,
+  onAdd,
+}: {
+  product: ProductWithInventory;
+  quantityKnown: boolean;
+  out: boolean;
+  belowMinimum: boolean;
+  selectedQuantity?: number;
+  onAdd: (product: ProductWithInventory, requestedQuantity?: number) => void;
+}) {
+  const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+    ? Number(product.min_order_quantity) : 1;
+  const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+    ? Number(product.order_quantity_multiple) : 1;
+  const initialQuantity = Number.isSafeInteger(selectedQuantity) && Number(selectedQuantity) >= minimum
+    ? Number(selectedQuantity) : minimum;
+  const [quantity, setQuantity] = useState(initialQuantity);
+
+  useEffect(() => {
+    setQuantity(initialQuantity);
+  }, [product.id, initialQuantity]);
+
+  return (
+    <div className="sf-card-purchase" style={{ display: 'grid', gap: 8, padding: '0 12px 12px' }}>
+      {quantityKnown && !out && !belowMinimum ? (
+        <CartQuantityControl
+          productName={product.name}
+          quantity={quantity}
+          minimum={minimum}
+          multiple={multiple}
+          available={product.inventory?.quantity_available}
+          onCommit={setQuantity}
+        />
+      ) : null}
+      <button
+        type="button"
+        className="sf-add-btn"
+        aria-label={`إضافة ${product.name} إلى السلة`}
+        disabled={!quantityKnown || out || belowMinimum}
+        onClick={() => onAdd(product, quantity)}
+      >
+        {!quantityKnown
+          ? 'التوفر غير مؤكد'
+          : out
+            ? 'غير متوفر'
+            : belowMinimum
+              ? 'الكمية المتاحة أقل من الحد الأدنى'
+              : <><Plus size={16} /> أضف للسلة</>}
+      </button>
+    </div>
+  );
+}
+
 export function ProductGrid({
   products,
   priceVisibilityPolicy,
@@ -1132,6 +1288,7 @@ export function ProductGrid({
   emptyDescription,
   onOpen,
   onAdd,
+  cartQuantities = {},
   onWishlist,
   onCompare,
 }: {
@@ -1142,7 +1299,8 @@ export function ProductGrid({
   emptyTitle: string;
   emptyDescription: string;
   onOpen: (product: ProductWithInventory) => void;
-  onAdd: (product: ProductWithInventory) => void;
+  onAdd: (product: ProductWithInventory, requestedQuantity?: number) => void;
+  cartQuantities?: Record<string, number>;
   onWishlist: (id: string) => void;
   onCompare: (id: string) => void;
 }) {
@@ -1226,15 +1384,14 @@ export function ProductGrid({
                     : <span className={belowMinimum ? "sf-out" : "sf-in"}>{formatNumber(qty)} متوفر{belowMinimum ? ' — أقل من الحد الأدنى' : ''}</span>}
               </div>
             </button>
-            <button type="button" className="sf-add-btn" aria-label={`إضافة ${product.name} إلى السلة`} disabled={!quantityKnown || out || belowMinimum} onClick={() => onAdd(product)}>
-              {!quantityKnown
-                ? 'التوفر غير مؤكد'
-                : out
-                  ? 'غير متوفر'
-                  : belowMinimum
-                    ? 'الكمية المتاحة أقل من الحد الأدنى'
-                    : <><Plus size={16} /> أضف للسلة</>}
-            </button>
+            <StorefrontProductCardPurchase
+              product={product}
+              quantityKnown={quantityKnown}
+              out={out}
+              belowMinimum={belowMinimum}
+              selectedQuantity={cartQuantities[product.id]}
+              onAdd={onAdd}
+            />
           </article>
         );
       })}
@@ -1641,7 +1798,7 @@ function CollectionView({
   error: string | null;
   onRetry: () => void;
   onOpen: (product: ProductWithInventory) => void;
-  onAdd: (product: ProductWithInventory) => void;
+  onAdd: (product: ProductWithInventory, requestedQuantity?: number) => void;
   onWishlist: (id: string) => void;
   onCompare: (id: string) => void;
   onBack: () => void;

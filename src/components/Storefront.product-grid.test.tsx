@@ -58,6 +58,14 @@ describe("storefront product card accessibility", () => {
     expect(favoriteButton.closest(".sf-card-actions")?.parentElement).toBe(imageButton.parentElement);
     expect(compareButton.closest(".sf-card-actions")?.parentElement).toBe(imageButton.parentElement);
 
+    const quantityInput = screen.getByRole("textbox", { name: "كمية رز بسمتي قابل للوصول" });
+    expect(quantityInput).toHaveValue("1");
+    fireEvent.change(quantityInput, { target: { value: "٣" } });
+    fireEvent.blur(quantityInput);
+    expect(quantityInput).toHaveValue("3");
+    fireEvent.click(screen.getByRole("button", { name: "زيادة كمية رز بسمتي قابل للوصول" }));
+    expect(quantityInput).toHaveValue("4");
+
     fireEvent.click(imageButton);
     fireEvent.click(favoriteButton);
     fireEvent.click(compareButton);
@@ -66,7 +74,7 @@ describe("storefront product card accessibility", () => {
     expect(onOpen).toHaveBeenCalledWith(product);
     expect(onWishlist).toHaveBeenCalledWith(productId);
     expect(onCompare).toHaveBeenCalledWith(productId);
-    expect(onAdd).toHaveBeenCalledWith(product);
+    expect(onAdd).toHaveBeenCalledWith(product, 4);
   });
 
   it("shows the server-backed minimum and quantity multiple without exposing hidden prices", () => {
