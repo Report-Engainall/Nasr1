@@ -132,6 +132,19 @@ INSERT INTO public.customer_return_request_items(id, organization_id, return_req
 
 \ir ../migrations/20261117141000_customer_return_review_queue_cursor_pagination.sql
 
+DO $privileges$
+DECLARE
+  v_signature regprocedure := 'public.list_customer_return_review_queue_page(integer,timestamp with time zone,uuid,text,text)';
+BEGIN
+  IF NOT has_function_privilege('authenticated', v_signature, 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated role must be able to call the return review queue RPC';
+  END IF;
+  IF has_function_privilege('anon', v_signature, 'EXECUTE') THEN
+    RAISE EXCEPTION 'anonymous role must not be able to call the return review queue RPC';
+  END IF;
+END;
+$privileges$;
+
 DO $acl$
 BEGIN
   IF pg_catalog.has_function_privilege('anon', 'public.list_customer_return_review_queue_page(integer,timestamp with time zone,uuid,text,text)'::regprocedure, 'EXECUTE') THEN
