@@ -66,7 +66,7 @@ describe("storefront product card accessibility", () => {
     expect(onOpen).toHaveBeenCalledWith(product);
     expect(onWishlist).toHaveBeenCalledWith(productId);
     expect(onCompare).toHaveBeenCalledWith(productId);
-    expect(onAdd).toHaveBeenCalledWith(product);
+    expect(onAdd).toHaveBeenCalledWith(product, 1);
   });
 
   it("shows an explicit category-aware illustration when no original image is linked", () => {
@@ -134,11 +134,12 @@ describe("storefront product card accessibility", () => {
     expect(screen.getByRole("button", { name: "إزالة رز بسمتي قابل للوصول من المقارنة" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("does not report missing inventory evidence as confirmed out of stock or allow an unchecked add", () => {
+  it("keeps the quantity selector visible when inventory evidence is missing but blocks adding", () => {
     const productWithoutInventory = {
       ...product,
       inventory: undefined,
     } as unknown as ProductWithInventory;
+    const onAdd = vi.fn();
 
     render(
       <ProductGrid
@@ -149,7 +150,7 @@ describe("storefront product card accessibility", () => {
         emptyTitle="لا توجد منتجات"
         emptyDescription=""
         onOpen={vi.fn()}
-        onAdd={vi.fn()}
+        onAdd={onAdd}
         onWishlist={vi.fn()}
         onCompare={vi.fn()}
       />,
@@ -157,11 +158,45 @@ describe("storefront product card accessibility", () => {
 
     expect(screen.getByText("لم يتم التحقق من المخزون")).toBeInTheDocument();
     expect(screen.queryByText("نفد المخزون")).toBeNull();
+    const quantityInput = screen.getByRole("textbox", {
+      name: "كمية رز بسمتي قابل للوصول",
+    });
+    expect(quantityInput).toHaveValue("1");
+    fireEvent.change(quantityInput, { target: { value: "5" } });
+    fireEvent.blur(quantityInput);
+    expect(quantityInput).toHaveValue("5");
+
     const addButton = screen.getByRole("button", {
       name: "إضافة رز بسمتي قابل للوصول إلى السلة",
     });
     expect(addButton).toBeDisabled();
     expect(addButton).toHaveTextContent("التوفر غير مؤكد");
+    fireEvent.click(addButton);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("adds the exact quantity selected on the product card", () => {
+    const onAdd = vi.fn();
+    render(
+      <ProductGrid
+        products={[product]}
+        priceVisibilityPolicy={false}
+        wishlist={[]}
+        compare={[]}
+        emptyTitle="لا توجد منتجات"
+        emptyDescription=""
+        onOpen={vi.fn()}
+        onAdd={onAdd}
+        onWishlist={vi.fn()}
+        onCompare={vi.fn()}
+      />,
+    );
+    const quantityInput = screen.getByRole("textbox", { name: "كمية رز بسمتي قابل للوصول" });
+    fireEvent.change(quantityInput, { target: { value: "6" } });
+    fireEvent.blur(quantityInput);
+    expect(quantityInput).toHaveValue("6");
+    fireEvent.click(screen.getByRole("button", { name: "إضافة رز بسمتي قابل للوصول إلى السلة" }));
+    expect(onAdd).toHaveBeenCalledWith(product, 6);
   });
 
   it("continues to report out of stock for an authoritative zero balance", () => {
