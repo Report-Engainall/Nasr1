@@ -2,6 +2,7 @@
 // data layer (src/lib/api.ts) keeps its own hand-written contracts in src/lib/types.ts.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as typedClient } from '@/integrations/supabase/client';
+import { parseCurrentTenantScopePayload } from './tenant-scope';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const supabase = typedClient as unknown as SupabaseClient<any>;
@@ -16,8 +17,6 @@ export type CurrentTenantScope = {
 };
 
 export type StorefrontDataScope = Pick<CurrentTenantScope, 'organizationId' | 'warehouseId' | 'isStaff' | 'canViewInternalProductPrices'>;
-
-import { parseCurrentTenantScopePayload } from './tenant-scope';
 
 let tenantScopeCache: { userId: string; pending: Promise<CurrentTenantScope> } | undefined;
 let tenantScopeAuthListenerRegistered = false;

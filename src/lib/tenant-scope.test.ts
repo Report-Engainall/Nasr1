@@ -29,7 +29,12 @@ describe('parseCurrentTenantScopePayload', () => {
   });
 
   it('keeps missing optional customer-management metadata denied', () => {
-    const { can_manage_customers: _omitted, ...legacy } = base;
+    const legacy = {
+      profile_id: base.profile_id,
+      organization_id: base.organization_id,
+      warehouse_id: base.warehouse_id,
+      is_staff: base.is_staff,
+    };
     expect(parseCurrentTenantScopePayload(legacy).canManageCustomers).toBe(false);
   });
 
