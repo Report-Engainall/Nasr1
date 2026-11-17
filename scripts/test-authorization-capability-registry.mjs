@@ -335,7 +335,9 @@ async function main() {
   assert.equal(guardedTransferFunctions.length,2,
    "single and batch transfer RPCs must both exist after V2 scope migration");
   for(const fn of guardedTransferFunctions) {
-   assert.match(fn.definition,/PERFORM public\.assert_inventory_transfer_scope_v2\(/,
+   const guardPosition=fn.definition.indexOf("PERFORM public.assert_inventory_transfer_scope_v2(");
+   const replayLockPosition=fn.definition.indexOf("pg_advisory_xact_lock");
+   assert.ok(guardPosition>=0 && replayLockPosition>guardPosition,
     fn.proname+" must check both assigned warehouses before any idempotency replay");
   }
 
