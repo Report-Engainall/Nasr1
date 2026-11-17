@@ -2,7 +2,7 @@
  * Shared deterministic primitives for every import source.
  * Raw files are streamed and never persisted; callers persist metadata and normalized rows only.
  */
-export type ImportDatasetKind = "products" | "customers";
+import { ONYX_PRO_HEADER_SYNONYMS } from "./onyx-pro-schema";\n\nexport type ImportDatasetKind = "products" | "customers";
 
 export type ImportProfileMapping = {
   requiredColumns: string[];
@@ -395,7 +395,7 @@ export const DEFAULT_SYNONYMS: Record<string, string> = {
   "رقم المورد": "supplier_code",
   "supplier": "supplier_code",
   "supplier_code": "supplier_code",
-};
+  ...Object.fromEntries(Object.entries(ONYX_PRO_HEADER_SYNONYMS).filter(([header]) => !["البيان", "product_code"].includes(header))),\n};
 
 const NORMALIZED_DEFAULT_SYNONYMS = new Map(
   Object.entries(DEFAULT_SYNONYMS).map(([key, canonical]) => [normalizeHeaderToken(key), canonical]),
@@ -415,21 +415,17 @@ export function normalizeHeader(value: string, synonyms: Record<string, string> 
 
 
 
-export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "ambiguous" | "unknown";
+export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "orders" | "pricing" | "ambiguous" | "unknown";
 export type ImportDatasetDetection = {
   kind: ImportDatasetDetectionKind;
   matchedFields: string[];
 };
 
-/**
- * Classifies a dataset from its normalized header row before an import job is created.
- * Mixed identifiers fail closed. A stock-only sheet is inventory, not a product catalog;
- * a product sheet may still include warehouse and quantity columns.
- */
+/** Routes complete exchange files before staging so unsupported entities cannot be misapplied. */
 export function detectImportDatasetKind(headers: readonly string[]): ImportDatasetDetection {
   const fields = [...new Set(headers
     .filter((header): header is string => typeof header === "string")
-    .map((header) => normalizeHeader(header.replace(/^\uFEFF/, "")))
+    .map((header) => normalizeHeader(header.replace(/^\\uFEFF/, "")))
     .filter(Boolean))].sort();
   const set = new Set(fields);
   const hasItemCode = set.has("item_code");
@@ -445,13 +441,32 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   ].filter((field) => set.has(field));
   const inventoryDetails = [
     "warehouse_code", "warehouse_name", "quantity", "available_quantity", "reserved_quantity",
-    "batch_number", "expiry_date",
+    "batch_number", "expiry_date", "movement_id", "movement_type",
   ].filter((field) => set.has(field));
   const hasInventoryMarkers = hasWarehouse || hasQuantity ||
-    set.has("reserved_quantity") || set.has("batch_number") || set.has("expiry_date");
+    set.has("reserved_quantity") || set.has("batch_number") || set.has("expiry_date") ||
+    set.has("movement_id") || set.has("external_movement_id") || set.has("movement_type");
+  const hasOrderNumber = set.has("order_number") || set.has("external_order_number") || set.has("order_id");
+  const hasOrderLineMarkers = [
+    "quotation_number", "beneficiary_id", "reserve_quantities", "discount_1", "discount_2", "discount_3",
+  ].some((field) => set.has(field));
+  const hasPricingMarkers = set.has("price_list_code") || set.has("price_line_id") ||
+    (set.has("price_level_code") && set.has("unit_price"));
 
   if (hasItemCode && hasCustomerCode) {
     return { kind: "ambiguous", matchedFields: ["item_code", "customer_code"] };
+  }
+  if ((hasOrderNumber && (hasCustomerCode || hasItemCode || set.has("order_date"))) ||
+      (hasItemCode && hasOrderLineMarkers)) {
+    return { kind: "orders", matchedFields: fields.filter((field) =>
+      ["order_number", "external_order_number", "order_id", "customer_code", "item_code",
+        "quotation_number", "beneficiary_id", "reserve_quantities", "discount_1", "discount_2", "discount_3"].includes(field),
+    ) };
+  }
+  if (hasPricingMarkers) {
+    return { kind: "pricing", matchedFields: fields.filter((field) =>
+      ["price_list_code", "price_line_id", "price_level_code", "product_code", "unit_price", "currency_code"].includes(field),
+    ) };
   }
   if (hasCustomerCode && hasInventoryMarkers) {
     return { kind: "ambiguous", matchedFields: ["customer_code", ...inventoryDetails] };
@@ -470,8 +485,7 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   }
   return { kind: "unknown", matchedFields: fields };
 }
-
-export type ParsedImportRow = {
+\nexport type ParsedImportRow = {
   row_number: number;
   data: Record<string, unknown>;
   status: 'valid' | 'warning' | 'rejected';
