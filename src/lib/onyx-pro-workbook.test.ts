@@ -56,6 +56,18 @@ describe("Onyx Pro multi-sheet XLSX exchange template", () => {
     expect(parsed.worksheetNames).toEqual(["Orders", "Products", "StockBalances"]);
     expect(parsed.worksheetName).toBe("Products");
     expect(rows[0]).toEqual(getOnyxProHeaders("products"));
+
+    const customerBytes = buildOnyxProWorkbook(["orders", "customers"]);
+    const customerBuffer = new ArrayBuffer(customerBytes.byteLength);
+    new Uint8Array(customerBuffer).set(customerBytes);
+    const customerRows: string[][] = [];
+    const customerParsed = await parseXlsxFirstWorksheet(
+      new Blob([customerBuffer]),
+      (values) => customerRows.push(values),
+      { preferredWorksheetNames: ["Customers"] },
+    );
+    expect(customerParsed.worksheetName).toBe("Customers");
+    expect(customerRows[0]).toEqual(getOnyxProHeaders("customers"));
   });
 
   it("supports a selected subset without silently adding unrequested sheets", () => {
