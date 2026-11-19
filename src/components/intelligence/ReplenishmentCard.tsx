@@ -1,5 +1,5 @@
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchProducts } from "@/lib/api";
 import { ReplenishmentPurchaseDraft } from "./ReplenishmentPurchaseDraft";
 import { EvidenceReferences, EvidenceStatusLabel, EvidenceWarnings, formatEvidenceNumber, IntelligenceStatePanel, type IntelligenceViewState } from "./shared";
@@ -36,6 +36,8 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry, c
     });
     return () => { active = false; };
   }, [recommendations]);
+  // Keep retry keys alive while the purchase dialog is closed and reopened.
+  const idempotencyKeys = useRef(new Map<string, string>());
   const [draftOpen, setDraftOpen] = useState(false);
   const selectableRecommendations = (recommendations ?? []).filter((item) =>
     item.status === "VERIFIED" && item.action === "RECOMMEND" &&
@@ -113,7 +115,7 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry, c
           </article>
         ))}
       </div>
-      {draftOpen ? <ReplenishmentPurchaseDraft recommendations={selectedRecommendations} onClose={() => setDraftOpen(false)} /> : null}
+      {draftOpen ? <ReplenishmentPurchaseDraft recommendations={selectedRecommendations} idempotencyKeys={idempotencyKeys.current} onClose={() => setDraftOpen(false)} /> : null}
     </section>
   );
 }
