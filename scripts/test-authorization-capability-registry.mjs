@@ -140,7 +140,7 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    const lineA=lineAResult[0];
    const writeA=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
     "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
-    [sessionA.id,lineA.id,lineA.expected_quantity]
+    [sessionA.id,lineA.product_id,lineA.expected_quantity]
    ));
    const lineAAfter=await tx.unsafe(
     "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
@@ -242,7 +242,7 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    assert.equal(balanceBefore.length,1,"the B balance source must exist before the denied write");
    await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
     "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
-    [sessionB.id,lineB.id,lineB.expected_quantity]
+    [sessionB.id,lineB.product_id,lineB.expected_quantity]
    )),"manager cannot edit a real stock-count line after B assignment revocation");
    const lineAfter=await tx.unsafe(
     "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
