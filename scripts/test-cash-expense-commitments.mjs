@@ -9,12 +9,33 @@ function requiredEnv(name) {
   return value.replace(/^"(.*)"$/s, "$1");
 }
 function asJson(value) { return typeof value === "string" ? JSON.parse(value) : value; }
+function guardUndefinedSqlParameters(client, label) {
+  return new Proxy(client, {
+    get(target, property) {
+      if (property === "unsafe") {
+        return (query, parameters, ...rest) => {
+          if (Array.isArray(parameters)) {
+            const missing = parameters.flatMap((value, index) => value === undefined ? [index + 1] : []);
+            if (missing.length) {
+              throw new Error("UNDEFINED_SQL_PARAMETER client=" + label +
+                " indexes=" + missing.join(",") +
+                " query=" + String(query).replace(/\\s+/g, " ").slice(0, 240));
+            }
+          }
+          return target.unsafe(query, parameters, ...rest);
+        };
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
 const databaseUrl = requiredEnv("TEST_DATABASE_URL");
 const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
 const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
 validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
-const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+const db = guardUndefinedSqlParameters(postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 }), "service");
 
 async function signIn(email, password) {
   const response = await fetch(new URL("/auth/v1/token?grant_type=password", supabaseUrl), {
@@ -158,10 +179,10 @@ async function main() {
   const accountant=await lookUp(accountantEmail,"accountant");
   const customer=await lookUp(customerEmail,null);
 
-  const managerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const adminDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const accountantDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const customerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  const managerDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"manager");
+  const adminDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"admin");
+  const accountantDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"accountant");
+  const customerDb=guardUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"customer");
   try {
     await Promise.all([
       setIdentity(managerDb,manager.auth_user_id,manager.email),
@@ -295,8 +316,9 @@ async function main() {
     const rejectionReason="المستند لا يثبت الالتزام المالي المطلوب";
     await expectCode("a commitment cannot be rejected before source evidence is registered",
       ()=>reject(adminDb,rejected.id,rejectionReason,randomUUID()),"22023");
-    const rejectedEvidence=await uploadEvidence(managerToken,rejected.id);
-    await registerEvidence(managerDb,rejected.id,rejectedEvidence);
+    const rejectedEvidenceUpload=await uploadEvidence(managerToken,rejected.id);
+    const rejectedEvidence=await registerEvidence(managerDb,rejected.id,rejectedEvidenceUpload);
+    assert.equal(typeof rejectedEvidence.id,"string","registered rejected-commitment evidence must expose its persisted evidence id");
     await expectCode("commitment creator cannot reject their own request",
       ()=>reject(managerDb,rejected.id,rejectionReason,randomUUID()),"42501");
     await expectCode("accountant cannot reject an expense commitment",
@@ -304,7 +326,7 @@ async function main() {
     const rejectionKey=randomUUID();
     await expectCode("direct rejection RPC rejects an unreviewed source document",
       ()=>reject(adminDb,rejected.id,rejectionReason,rejectionKey),"22023");
-    const rejectionReview=await reviewEvidence(adminDb,rejected.id,rejectedEvidence.id,rejectedEvidence.sha,randomUUID());
+    const rejectionReview=await reviewEvidence(adminDb,rejected.id,rejectedEvidence.id,rejectedEvidenceUpload.sha,randomUUID());
     assert.equal(rejectionReview.reviewed_by_profile_id,admin.id);
     const rejectedResult=await reject(adminDb,rejected.id,rejectionReason,rejectionKey);
     assert.equal(rejectedResult.status,"rejected");
@@ -374,20 +396,48 @@ async function main() {
 
     // A commitment and its source evidence created after asOf must invalidate a historical snapshot
     // without modifying the already approved commitment or rewriting its evidence history.
-    const evidenceSnapshotAsOf=new Date(Date.now()-1500).toISOString();
+    const snapshotClock=await db.unsafe("select clock_timestamp() as snapshot_at");
+    const evidenceSnapshotAsOf=snapshotClock[0].snapshot_at;
+    const priorSnapshotSource=await db.unsafe(
+      "select c.status,c.due_date::text as due_date, " +
+      "(c.created_at<=$2::timestamptz) as created_before_snapshot, " +
+      "(c.updated_at<=$2::timestamptz) as updated_before_snapshot, " +
+      "exists(select 1 from public.cash_expense_commitment_evidence e where e.organization_id=c.organization_id " +
+      "and e.commitment_id=c.id and e.created_at<=$2::timestamptz) as evidence_before_snapshot " +
+      "from public.cash_expense_commitments c where c.organization_id=$1::uuid and c.id=$3::uuid",
+      [organizationId,evidenceSnapshotAsOf,yer.id],
+    );
+    assert.equal(priorSnapshotSource[0]?.status,"approved");
+    assert.equal(priorSnapshotSource[0]?.created_before_snapshot,true);
+    assert.equal(priorSnapshotSource[0]?.updated_before_snapshot,true);
+    assert.equal(priorSnapshotSource[0]?.evidence_before_snapshot,true);
     const snapshotCommitment=await createCommitment(managerDb,{
       ...yerPayload,category:"Post-snapshot request",description:"New maintenance request created after snapshot",
       amount:"12.00",reference:"P2-COMMIT-ASOF-"+suffix,
     },randomUUID());
+    const snapshotCreated=await db.unsafe(
+      "select created_at>$2::timestamptz as created_after_snapshot from public.cash_expense_commitments " +
+      "where organization_id=$1::uuid and id=$3::uuid",
+      [organizationId,evidenceSnapshotAsOf,snapshotCommitment.id],
+    );
+    assert.equal(snapshotCreated[0]?.created_after_snapshot,true,"the new fixture must be created after the database-issued snapshot clock");
     const lateEvidence=await uploadEvidence(managerToken,snapshotCommitment.id,"image/png");
     await registerEvidence(managerDb,snapshotCommitment.id,lateEvidence);
     const staleSnapshot=await schedule(adminDb,from,to,"YER",evidenceSnapshotAsOf);
+    process.stdout.write("Cashflow as-of fixture evidence: " + JSON.stringify({
+      snapshot_at: evidenceSnapshotAsOf instanceof Date ? evidenceSnapshotAsOf.toISOString() : evidenceSnapshotAsOf,
+      prior_source: priorSnapshotSource[0],
+      new_source_created_after_snapshot: snapshotCreated[0]?.created_after_snapshot,
+      schedule_status: staleSnapshot.status,
+      changed_after_as_of: staleSnapshot.changedAfterAsOfCount,
+      entries: staleSnapshot.entries.length,
+    }) + "\\n");
     assert.equal(staleSnapshot.status,"PARTIAL","a new post-as-of commitment must invalidate the snapshot");
     assert.equal(staleSnapshot.completeness,"PARTIAL");
     assert.ok(staleSnapshot.changedAfterAsOfCount>=1);
     assert.equal(staleSnapshot.entries.length,1,"the previously approved source remains visible but the snapshot is not complete");
-    assert.equal(staleSnapshot.evidenceRecords.filter((e)=>e.id.startsWith("cash-expense-commitment-evidence:")).length,1,
-      "the evidence passport contains only the pre-as-of approved source evidence");
+    assert.equal(staleSnapshot.evidenceRecords.filter((e)=>e.id.startsWith("cash-expense-commitment-evidence:")).length,2,
+      "the evidence passport contains both pre-as-of files from the approved source and excludes the later document");
 
     const paymentKey=randomUUID();
     const paid=await recordPayment(accountantDb,yer.id,today,paymentKey);
