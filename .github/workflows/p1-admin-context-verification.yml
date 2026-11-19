@@ -16,6 +16,8 @@ on:
       - "supabase/tests/opening_inventory_baseline_approval.sql"
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
+      - "src/components/admin/operations/**"
+      - "src/components/reference-model/observability/**"
       - "src/components/InventoryBatchTracePanel.tsx"
       - "src/components/InventoryBatchTracePanel.test.tsx"
       - "src/components/InventoryBalanceAdjustmentPanel.tsx"
@@ -190,6 +192,7 @@ on:
       - "src/components/CustomerDeviceChangeRequests.test.tsx"
       - "src/test/device-management.test.tsx"
       - "tsconfig.p1-typecheck.json"
+      - "tsconfig.p4-typecheck.json"
       - "src/components/BulkProductImageUploader.tsx"
       - "src/components/BulkProductImageUploader.test.tsx"
       - "src/lib/product-image-batch-match.ts"
@@ -346,6 +349,8 @@ on:
       - ".github/workflows/organization-role-assignment-pg17.yml"
       - "supabase/migrations/20261112001302_vip_customer_tier_preview_label.sql"
       - "src/components/AghbariApp.tsx"
+      - "src/components/admin/operations/**"
+      - "src/components/reference-model/observability/**"
       - "src/components/Storefront.tsx"
       - "src/lib/storefront-artwork.ts"
       - "src/components/StorefrontArtworkPicker.tsx"
@@ -470,6 +475,7 @@ on:
       - "src/components/CustomerDeviceChangeRequests.test.tsx"
       - "src/test/device-management.test.tsx"
       - "tsconfig.p1-typecheck.json"
+      - "tsconfig.p4-typecheck.json"
       - "src/components/BulkProductImageUploader.tsx"
       - "src/components/BulkProductImageUploader.test.tsx"
       - "src/lib/product-image-batch-match.ts"
@@ -631,6 +637,9 @@ jobs:
       - name: Run P1 strict TypeScript check (even if Vitest fails)
         if: always() && steps.install.outcome == 'success'
         run: bunx tsc --noEmit -p tsconfig.p1-typecheck.json
+      - name: Run P4 observability strict TypeScript check (even if Vitest fails)
+        if: always() && steps.install.outcome == 'success'
+        run: bunx tsc --noEmit -p tsconfig.p4-typecheck.json
 
       - name: Build production application bundle (even if an acceptance test fails)
         if: always() && steps.install.outcome == 'success'
