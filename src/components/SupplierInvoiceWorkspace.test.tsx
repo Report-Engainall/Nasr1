@@ -151,6 +151,37 @@ describe("supplier invoice workspace register controls", () => {
     expect(mocks.fetchWorkspace).toHaveBeenCalledTimes(1);
   });
 
+  it("clears page filters when the authenticated identity changes", async () => {
+    const props = {
+      mode: "capture" as const,
+      accounts: [],
+      purchaseOrders: [] as const,
+    };
+    const { rerender } = render(createElement(SupplierInvoiceWorkspace, props));
+    await screen.findByRole("button", { name: /INV-001/ });
+    await waitFor(() => expect(mocks.fetchWorkspace).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "بحث فواتير المورد" }), {
+      target: { value: "INV-001" },
+    });
+    expect(screen.queryByRole("button", { name: /INV-002/ })).not.toBeInTheDocument();
+
+    mocks.useAuth.mockReturnValue({
+      sessionRevision: 2,
+      user: {
+        id: "manager-2",
+        profileId: "manager-profile-2",
+        roles: ["manager"],
+      },
+    });
+    rerender(createElement(SupplierInvoiceWorkspace, props));
+
+    expect(await screen.findByRole("button", { name: /INV-002/ })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "بحث فواتير المورد" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "تصفية حالة مطابقة فواتير المورد" })).toHaveValue("all");
+    await waitFor(() => expect(mocks.fetchWorkspace).toHaveBeenCalledTimes(2));
+  });
+
   it("shows a real no-results state and restores the list when filters are cleared", async () => {
     await mountWorkspace();
 
