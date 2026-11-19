@@ -69,7 +69,7 @@ async function resourceDecision(db,actor,key,resourceId) {
 async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
  const migrationUrl=new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url);
  const migrationSource=await readFile(migrationUrl,"utf8");
- const migrationSql=migrationSource.replace(/(^|\n)BEGIN;\s*/i,"$1").replace(/\nCOMMIT;\s*$/i,"\n");
+ const migrationSql=migrationSource.replace(/^\s*BEGIN;\s*/i,"").replace(/\s*COMMIT;\s*$/i,"");
  if(migrationSql===migrationSource) throw new Error("Could not isolate authorization prerequisite migration body for rollback-only upgrade fixture.");
  const canonicalUrl=new URL("../supabase/migrations/20261117050202_authorization_capability_registry_v2.sql",import.meta.url);
  const canonicalSource=await readFile(canonicalUrl,"utf8");
@@ -545,6 +545,59 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   assert.deepEqual(persistedManagerLine[0],{counted_quantity:"77.125",counted_by:manager.profile_id},
     "the authorized stock-count line UPDATE must persist the draft quantity and maker identity");
 
+  // A disabled assignment must revoke both the decision and real write paths.
+  const activeManagerAssignment = await db.unsafe(
+    "select id::text from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid and is_active=true",
+    [org,manager.profile_id,targetWarehouse]
+  );
+  assert.equal(activeManagerAssignment.length,1,"manager must have exactly one active warehouse A assignment before the revocation proof");
+  const managerAssignmentId=activeManagerAssignment[0].id;
+  const managerCountsBeforeDisabledWrite=await db.unsafe(
+    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+    [org]
+  );
+  await db.unsafe("update public.authorization_profile_scopes set is_active=false where id=$1::uuid",[managerAssignmentId]);
+  try {
+    assert.equal((await resourceDecision(db,manager,"inventory.count.enter",targetWarehouse)).decision,"DENY",
+      "disabled warehouse assignment must deny count entry immediately");
+    await assert.rejects(
+      ()=>withActor(db,manager,tx=>tx.unsafe(
+        "select public.set_stock_count_line($1::uuid,$2::uuid,79.5::numeric)",
+        [managerSession.id,managerLines[0].product_id]
+      )),
+      error=>error&&String(error.code)==="42501",
+      "set_stock_count_line RPC must reject a disabled warehouse assignment"
+    );
+    await assert.rejects(
+      ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
+        "update public.stock_count_lines set counted_quantity=79.5::numeric where id=$1::uuid returning id",
+        [managerLines[0].id]
+      )),
+      error=>error&&String(error.code)==="42501",
+      "the independent stock-count row trigger must reject a disabled warehouse assignment"
+    );
+    const managerCountsAfterDisabledWrite=await db.unsafe(
+      "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+      "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+      [org]
+    );
+    assert.deepEqual(managerCountsAfterDisabledWrite[0],managerCountsBeforeDisabledWrite[0],
+      "disabled-assignment denials must leave stock-count session and line row counts unchanged");
+    const managerLineAfterDisabledWrite=await db.unsafe(
+      "select counted_quantity::text as counted_quantity,counted_by::text as counted_by from public.stock_count_lines where id=$1::uuid",
+      [managerLines[0].id]
+    );
+    assert.deepEqual(managerLineAfterDisabledWrite[0],{counted_quantity:"77.125",counted_by:manager.profile_id},
+      "disabled-assignment denial must preserve the previously written warehouse A line");
+  } finally {
+    const restoredAssignment=await db.unsafe(
+      "update public.authorization_profile_scopes set is_active=true where id=$1::uuid returning id::text",
+      [managerAssignmentId]
+    );
+    assert.equal(restoredAssignment.length,1,"isolated acceptance must restore the exact manager warehouse A assignment");
+  }
+
   // Create a real B-session through a staff profile assigned to B, then attack its line as manager A.
   const staffCountKey="AUTHZ-STAFF-B-"+randomUUID().replace(/-/g,"");
   const staffStart=await withActor(db,staff,tx=>tx.unsafe(
@@ -559,6 +612,11 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   );
   assert.ok(staffLines.length>0,"warehouse B must contain real stock-count snapshot lines");
   assert.equal(staffLines[0].counted_quantity,null);
+  const warehouseBCountsBeforeDeniedWrites=await db.unsafe(
+    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+    [org]
+  );
 
   await assert.rejects(
     ()=>withActor(db,manager,tx=>tx.unsafe(
@@ -582,6 +640,13 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   );
   assert.deepEqual(unchangedBLine[0],{counted_quantity:null,counted_by:null},
     "the denied warehouse B row write must leave the snapshot line unchanged");
+  const warehouseBCountsAfterDeniedWrites=await db.unsafe(
+    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
+    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
+    [org]
+  );
+  assert.deepEqual(warehouseBCountsAfterDeniedWrites[0],warehouseBCountsBeforeDeniedWrites[0],
+    "denied warehouse B RPC/trigger writes must leave count-session and count-line row counts unchanged");
 
   await assert.rejects(
     ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
