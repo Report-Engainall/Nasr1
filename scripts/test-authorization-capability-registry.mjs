@@ -87,6 +87,161 @@ async function withServiceRole(db,callback) {
    return callback(tx);
   });
 }
+function decodeJson(value) { return typeof value==="string"?JSON.parse(value):value; }
+async function withActorOnTransaction(tx,actor,callback) {
+ await tx.unsafe("reset role");
+ await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[actor.auth_user_id]);
+ await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({...actor.jwtClaims,role:"authenticated"})]);
+ await tx.unsafe("set local role authenticated");
+ try { return await callback(tx); } finally { await tx.unsafe("reset role"); }
+}
+async function expectSqlStateInTransaction(tx,expectedCode,action,label) {
+ const savepoint="stock_count_expected_failure";
+ await tx.unsafe("SAVEPOINT "+savepoint);
+ try { await action(); } catch(error) {
+  await tx.unsafe("ROLLBACK TO SAVEPOINT "+savepoint);
+  await tx.unsafe("RELEASE SAVEPOINT "+savepoint);
+  assert.equal(String(error?.code),expectedCode,label+" SQLSTATE");
+  return;
+ }
+ await tx.unsafe("RELEASE SAVEPOINT "+savepoint);
+ assert.fail(label+" unexpectedly succeeded.");
+}
+async function assertStockCountWarehouseScope(db,actors,organizationId,assignedWarehouseId,unassignedWarehouseId) {
+ const manager=actors.get("manager");
+ const admin=actors.get("admin");
+ await db.begin(async tx=>{
+  await tx.unsafe("SAVEPOINT stock_count_warehouse_scope_acceptance");
+  try {
+   const startA=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [assignedWarehouseId,"authz-count-A-"+randomUUID().replaceAll("-",""),"PG17 assigned warehouse A acceptance"]
+   ));
+   const sessionA=decodeJson(startA[0]?.result);
+   assert.ok(sessionA?.id,"the assigned manager must create a real stock-count session in warehouse A");
+   assert.equal(sessionA.warehouse_id,assignedWarehouseId);
+   assert.equal(sessionA.status,"open");
+   const lineAResult=await tx.unsafe(
+    "select id::text,product_id::text,expected_quantity,counted_quantity from public.stock_count_lines "+
+    "where organization_id=$1::uuid and session_id=$2::uuid order by product_id limit 1",
+    [organizationId,sessionA.id]
+   );
+   assert.equal(lineAResult.length,1,"warehouse A must snapshot a real inventory line");
+   const lineA=lineAResult[0];
+   const writeA=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
+    [sessionA.id,lineA.id,lineA.expected_quantity]
+   ));
+   const lineAAfter=await tx.unsafe(
+    "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    [organizationId,sessionA.id,lineA.id]
+   );
+   assert.equal(lineAAfter.length,1,"the authorized A line must remain tenant scoped");
+   assert.equal(Number(lineAAfter[0].counted_quantity),Number(lineA.expected_quantity),
+    "the assigned manager must persist the counted quantity through the real line RPC");
+   const sessionAAfter=await tx.unsafe(
+    "select counted_lines,total_lines from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,sessionA.id]
+   );
+   assert.equal(Number(sessionAAfter[0].counted_lines),1,"the real draft write must advance the session count");
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.complete_stock_count($1::uuid)",[sessionA.id]
+   )),"the stock-count maker cannot finalize the same session");
+   const reviewerScope=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+    [admin.profile_id,assignedWarehouseId,"P2 isolated independent stock-count reviewer"]
+   ));
+   const reviewerScopeResult=decodeJson(reviewerScope[0]?.result);
+   assert.equal(reviewerScopeResult?.changed,true,"an independent administrator reviewer must receive the explicit A assignment");
+   const finalized=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.complete_stock_count($1::uuid) as result",[sessionA.id]
+   ));
+   const finalizedResult=decodeJson(finalized[0]?.result);
+   assert.equal(finalizedResult?.status,"completed","a different authorized reviewer must finalize the counted session");
+   const completedA=await tx.unsafe(
+    "select status,started_by::text,completed_by::text from public.stock_count_sessions where id=$1::uuid and organization_id=$2::uuid",
+    [sessionA.id,organizationId]
+   );
+   assert.equal(completedA[0].status,"completed");
+   assert.notEqual(completedA[0].started_by,completedA[0].completed_by,
+    "the persisted finalizer must be different from the session maker");
+
+   const grantB=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+    [manager.profile_id,unassignedWarehouseId,"P2 temporary B assignment for revoke-and-deny acceptance"]
+   ));
+   const grantBResult=decodeJson(grantB[0]?.result);
+   assert.equal(grantBResult?.changed,true,"the temporary B assignment must be created for a real session fixture");
+   const startB=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [unassignedWarehouseId,"authz-count-B-"+randomUUID().replaceAll("-",""),"PG17 temporary warehouse B fixture"]
+   ));
+   const sessionB=decodeJson(startB[0]?.result);
+   assert.ok(sessionB?.id,"the temporarily assigned manager must create the B fixture session");
+   assert.equal(sessionB.warehouse_id,unassignedWarehouseId);
+   const lineBRows=await tx.unsafe(
+    "select id::text,product_id::text,expected_quantity,counted_quantity from public.stock_count_lines "+
+    "where organization_id=$1::uuid and session_id=$2::uuid order by product_id limit 1",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(lineBRows.length,1,"warehouse B fixture must contain a real inventory count line");
+   const lineB=lineBRows[0];
+   const revokeB=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,1) as result",
+    [manager.profile_id,unassignedWarehouseId,"P2 revoke B assignment before write denial"]
+   ));
+   const revokeBResult=decodeJson(revokeB[0]?.result);
+   assert.equal(revokeBResult?.changed,true,"the manager's B warehouse assignment must be disabled before testing writes");
+   const scopeDecision=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.start',$2::uuid) as start_decision,"+
+    "public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.count.enter',$2::uuid) as enter_decision",
+    [manager.profile_id,unassignedWarehouseId]
+   ));
+   const startDecision=decodeJson(scopeDecision[0]?.start_decision);
+   const enterDecision=decodeJson(scopeDecision[0]?.enter_decision);
+   assert.equal(startDecision?.decision,"DENY","the manager's disabled B assignment must deny count start");
+   assert.equal(enterDecision?.decision,"DENY","the manager's disabled B assignment must deny count entry");
+   const sessionCountBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_sessions where organization_id=$1::uuid and warehouse_id=$2::uuid",
+    [organizationId,unassignedWarehouseId]
+   );
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text)",
+    [unassignedWarehouseId,"authz-denied-B-"+randomUUID().replaceAll("-",""),"must be denied after assignment revocation"]
+   )),"manager cannot start a count in unassigned warehouse B");
+   const sessionCountAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_sessions where organization_id=$1::uuid and warehouse_id=$2::uuid",
+    [organizationId,unassignedWarehouseId]
+   );
+   assert.equal(sessionCountAfter[0].count,sessionCountBefore[0].count,
+    "a denied B start must not insert a stock-count session");
+   const lineBefore=await tx.unsafe(
+    "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    [organizationId,sessionB.id,lineB.id]
+   );
+   assert.equal(lineBefore.length,1);
+   assert.equal(lineBefore[0].counted_quantity,null);
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+    [sessionB.id,lineB.id,lineB.expected_quantity]
+   )),"manager cannot edit a real stock-count line after B assignment revocation");
+   const lineAfter=await tx.unsafe(
+    "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    [organizationId,sessionB.id,lineB.id]
+   );
+   assert.deepEqual(lineAfter,lineBefore,"the rejected B line write must leave the persisted row unchanged");
+   const balanceAfter=await tx.unsafe(
+    "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+    [lineB.product_id,unassignedWarehouseId]
+   );
+   assert.equal(balanceAfter.length,1,"the B balance source must remain present");
+  } finally {
+   await tx.unsafe("reset role").catch(()=>{});
+   await tx.unsafe("ROLLBACK TO SAVEPOINT stock_count_warehouse_scope_acceptance");
+   await tx.unsafe("RELEASE SAVEPOINT stock_count_warehouse_scope_acceptance");
+  }
+ });
+}
 async function decision(db,actor,key) {
  return withActor(db,actor,async(tx)=>{
   const rows=await tx.unsafe("select public.current_authorization_decision($1::text) as decision,public.current_actor_has_capability($1::text) as allowed",[key]);
@@ -146,10 +301,16 @@ async function main() {
   const ownerAdmin=actors.get("admin");
   const ownerManager=actors.get("manager");
   const targetWarehouse=(await db.unsafe(
-    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true order by created_at,id limit 1",
+    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code='P2-LOCAL-E2E' order by id limit 1",
     [org]
   ))[0]?.id;
-  assert.ok(targetWarehouse,"owner-boundary acceptance requires an active local test warehouse");
+  assert.ok(targetWarehouse,"stock-count acceptance requires the manager-assigned P2 local E2E warehouse");
+  const unassignedWarehouse=(await db.unsafe(
+    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code='P2-LOCAL-RLS-A' order by id limit 1",
+    [org]
+  ))[0]?.id;
+  assert.ok(unassignedWarehouse,"stock-count acceptance requires a same-tenant unassigned warehouse B");
+  await assertStockCountWarehouseScope(db,actors,org,targetWarehouse,unassignedWarehouse);
 
   const ownerPrivileges=await db.unsafe(
     "select has_table_privilege('authenticated','public.organization_owner_bindings','SELECT') as authenticated_read,"+
