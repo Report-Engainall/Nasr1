@@ -6,6 +6,11 @@ on:
     paths:
       - "supabase/migrations/20261018080000_inventory_write_boundary_and_reorder_point.sql"
       - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
+      - "supabase/migrations/20261018070000_inventory_transfer_command.sql"
+      - "supabase/migrations/20261019240000_inventory_transfer_batches.sql"
+      - "supabase/migrations/20261117190000_inventory_batch_allocation_fefo.sql"
+      - "supabase/migrations/20261117240000_inventory_transfer_replay_scope_guard.sql"
+      - "supabase/tests/inventory_transfer_replay_scope_guard.sql"
       - "supabase/migrations/20261116111000_inventory_adjustment_invariants.sql"
       - "supabase/migrations/20261116112000_inventory_adjustment_authorization_v2.sql"
       - "supabase/migrations/20261116113000_inventory_adjustment_capability_v2.sql"
@@ -22,6 +27,11 @@ on:
     paths:
       - "supabase/migrations/20261018080000_inventory_write_boundary_and_reorder_point.sql"
       - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
+      - "supabase/migrations/20261018070000_inventory_transfer_command.sql"
+      - "supabase/migrations/20261019240000_inventory_transfer_batches.sql"
+      - "supabase/migrations/20261117190000_inventory_batch_allocation_fefo.sql"
+      - "supabase/migrations/20261117240000_inventory_transfer_replay_scope_guard.sql"
+      - "supabase/tests/inventory_transfer_replay_scope_guard.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
   workflow_dispatch:
@@ -64,3 +74,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/inventory_balance_adjustment.sql
+      - name: Verify transfer warehouse scope precedes replay locks on PostgreSQL 17
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --command "CREATE DATABASE inventory_transfer_scope_test"
+          psql "postgresql://postgres:postgres@localhost:5432/inventory_transfer_scope_test" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/inventory_transfer_replay_scope_guard.sql
