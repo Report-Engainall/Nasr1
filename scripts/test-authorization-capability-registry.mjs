@@ -25,9 +25,10 @@ async function assertCapabilitySeedPreservesExistingRows(db) {
   console.log("AUTH_CAPABILITY_REPLAY_STAGE:before-existing-row-update");
   await tx.unsafe(
    "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
-   "separation_of_duties=true,state_requirements=jsonb_build_object("+
-   "'requires_active_warehouse_assignment',true,'existing_row_sentinel','keep-existing-policy'),"+
-   "is_active=false,updated_at=statement_timestamp() "+
+   "separation_of_duties=true,state_requirements=case capability_key "+
+   "when 'inventory.count.enter' then jsonb_build_object('requires_active_warehouse_assignment',true,'writes_draft_only',true) "+
+   "when 'inventory.count.finalize' then jsonb_build_object('requires_active_warehouse_assignment',true,'reviewer_must_differ_from_counter',true,'requires_review',true) "+
+   "else state_requirements end,is_active=false,updated_at=statement_timestamp() "+
    "where capability_key=any($1::text[])",
    [["inventory.count.enter","inventory.count.finalize"]]
   );
