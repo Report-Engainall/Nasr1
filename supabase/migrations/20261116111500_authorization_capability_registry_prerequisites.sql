@@ -96,4 +96,37 @@ BEGIN
 END
 $bootstrap$;
 
+-- The next inventory-scope migration backfills warehouse-level permissions
+-- from these three legacy source capabilities. Seed the same canonical rows
+-- and role grants before that consumer runs; the later registry migration
+-- will reconcile the capability definitions with its canonical ON CONFLICT
+-- update and retain the already-compatible grants.
+INSERT INTO public.authorization_capabilities (
+  capability_key,domain,resource,action,sensitivity,scope_kind,
+  approval_mode,separation_of_duties,state_requirements,legacy_operation_id
+) VALUES
+  ('inventory.read_balance','inventory','stock_balance','read','inventory','warehouse',
+   'none',false,'{"requires_warehouse_assignment":true}'::jsonb,NULL),
+  ('inventory.count.start','inventory','stock_count','start','inventory','warehouse',
+   'none',false,'{"requires_warehouse_assignment":true}'::jsonb,NULL),
+  ('inventory.count.enter','inventory','stock_count','enter_count','inventory','organization',
+   'approval_required',false,'{"writes_draft_only":true}'::jsonb,'stock_count_edit'),
+  ('inventory.count.finalize','inventory','stock_count','finalize','inventory','organization',
+   'maker_checker',true,'{"requires_review":true}'::jsonb,'stock_count_finalize'),
+  ('inventory.transfer.create','inventory','inventory_transfer','create','inventory','organization',
+   'approval_required',false,'{"requires_available_quantity":true}'::jsonb,'inventory_transfer')
+ON CONFLICT (capability_key) DO NOTHING;
+
+INSERT INTO public.authorization_role_capabilities(role,capability_key,grant_source)
+VALUES
+  ('admin','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('manager','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('staff','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('admin','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('manager','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('staff','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('admin','inventory.count.finalize','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('manager','inventory.count.finalize','legacy-role-parity:ADMIN_OPERATION_RULES')
+ON CONFLICT (role,capability_key) DO NOTHING;
+
 COMMIT;
