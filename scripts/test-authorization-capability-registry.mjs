@@ -151,8 +151,8 @@ async function main() {
   const ownerAdmin=actors.get("admin");
   const ownerManager=actors.get("manager");
   const targetWarehouse=(await db.unsafe(
-    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true order by created_at,id limit 1",
-    [org]
+    "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code=$2::text order by created_at,id limit 1",
+    [org,"P2-LOCAL-E2E"]
   ))[0]?.id;
   assert.ok(targetWarehouse,"owner-boundary acceptance requires an active local test warehouse");
 
