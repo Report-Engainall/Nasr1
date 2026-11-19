@@ -145,11 +145,7 @@ VALUES
 ('finance.journal.post','finance','journal_entry','post','financial','organization','maker_checker',true,'{"required_status":"draft"}',NULL),
 ('finance.journal.reverse','finance','journal_entry','reverse','financial','organization','maker_checker',true,'{"requires_posted_source_and_reason":true}',NULL)
 -- Preserve any capability already configured more narrowly or deliberately disabled.
-ON CONFLICT(capability_key) DO NOTHING
- domain=EXCLUDED.domain,resource=EXCLUDED.resource,action=EXCLUDED.action,sensitivity=EXCLUDED.sensitivity,
- scope_kind=EXCLUDED.scope_kind,approval_mode=EXCLUDED.approval_mode,
- separation_of_duties=EXCLUDED.separation_of_duties,state_requirements=EXCLUDED.state_requirements,
- legacy_operation_id=EXCLUDED.legacy_operation_id,is_active=true,updated_at=statement_timestamp();
+ON CONFLICT(capability_key) DO NOTHING;
 
 INSERT INTO public.authorization_role_capabilities(role,capability_key,grant_source) VALUES
 ('admin','pricing.edit_draft','legacy-role-parity:ADMIN_OPERATION_RULES'),('manager','pricing.edit_draft','legacy-role-parity:ADMIN_OPERATION_RULES'),
