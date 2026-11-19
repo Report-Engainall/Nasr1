@@ -71,6 +71,12 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
  const migrationSource=await readFile(migrationUrl,"utf8");
  const migrationSql=migrationSource.replace(/^\s*BEGIN;\s*/i,"").replace(/\s*COMMIT;\s*$/i,"");
  if(migrationSql===migrationSource) throw new Error("Could not isolate authorization prerequisite migration body for rollback-only upgrade fixture.");
+ const canonicalUrl=new URL("../supabase/migrations/20261117050202_authorization_capability_registry_v2.sql",import.meta.url);
+ const canonicalSource=await readFile(canonicalUrl,"utf8");
+ const canonicalSeed=canonicalSource.match(/INSERT INTO public\.authorization_capabilities[\s\S]*?ON CONFLICT\(capability_key\) DO NOTHING;/);
+ if(!canonicalSeed) throw new Error("The canonical capability migration must preserve existing catalog rows with ON CONFLICT DO NOTHING.");
+ assert.doesNotMatch(canonicalSource,/INSERT INTO public\.authorization_role_capabilities/i,
+  "the canonical function migration must not reseed role grants after initial registry creation");
  const rollbackMarker="ROLLBACK_AUTHORIZATION_PREREQUISITE_UPGRADE_FIXTURE";
  await assert.rejects(db.begin(async(tx)=>{
   const initial=await tx.unsafe("select capability_key from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key");
@@ -78,13 +84,26 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
   const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
   assert.equal(grant.length,1,"upgrade fixture requires a manager grant to remove");
   await tx.unsafe("update public.authorization_capabilities set scope_kind='warehouse',is_active=true where capability_key='inventory.balance.adjust'");
-  await tx.unsafe("update public.authorization_capabilities set is_active=false where capability_key='inventory.reorder_point.write'");
+  const preservedPolicy={requires_active_warehouse_assignment:true,upgrade_fixture:"preserve-existing-capability-policy"};
+  await tx.unsafe(
+   "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
+   "separation_of_duties=true,state_requirements=$1::jsonb,is_active=false "+
+   "where capability_key='inventory.reorder_point.write'",
+   [JSON.stringify(preservedPolicy)]
+  );
   await tx.unsafe("delete from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
   await tx.unsafe(migrationSql);
+  await tx.unsafe(canonicalSeed[0]);
   const scope=await tx.unsafe("select scope_kind,is_active from public.authorization_capabilities where capability_key='inventory.balance.adjust'");
   assert.deepEqual(scope[0],{scope_kind:"warehouse",is_active:true},"prerequisite backfill must not widen or alter an existing warehouse capability");
-  const disabled=await tx.unsafe("select is_active from public.authorization_capabilities where capability_key='inventory.reorder_point.write'");
-  assert.equal(disabled[0]?.is_active,false,"prerequisite backfill must not reactivate an existing disabled capability");
+  const disabled=await tx.unsafe(
+   "select scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
+   "from public.authorization_capabilities where capability_key='inventory.reorder_point.write'"
+  );
+  assert.deepEqual(disabled[0],{
+   scope_kind:"warehouse",approval_mode:"maker_checker",separation_of_duties:true,
+   state_requirements:preservedPolicy,is_active:false
+  },"both prerequisite and canonical capability seeds must preserve existing scope, approval policy, metadata and disabled state");
   const restored=await tx.unsafe("select count(*)::integer as count from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
   assert.equal(restored[0].count,0,"prerequisite backfill must not recreate a deliberately removed role grant");
   const flag=await tx.unsafe("select current_setting('nasr.authorization_role_capabilities_preexisting',true) as existed");
