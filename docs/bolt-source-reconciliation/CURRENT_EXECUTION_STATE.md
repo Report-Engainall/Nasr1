@@ -1,3 +1,42 @@
+# LIVE EXECUTION RESUME — 2026-11-20
+
+> This is the active session pointer. It supersedes historical NEXT_ACTION/checkpoint text below. Read this header, then `AGENTS.md`; do not restart discovery.
+
+- Repository: `Report-Engainall/Nasr1`; source branch: `main`.
+- Last inspected application-code HEAD: `79495b284fa94f1339bd00c83bec1b30e8977b28`.
+- Control-only commits after that application snapshot: `8cdf592caf4bd1235cd09936d79b6f84e2d4aff0` (P1/P2/P3 ownership protocol in `AGENTS.md`) and `247e13a15cbefb45d9784eb037ed9b598973f455` (remove unverified Bolt/runtime-DB claims from README). These commits do not change application code. At every session start, fetch live `main` once; do not assume this pointer SHA is still HEAD.
+- Current role contract: P1 = ChatGPT product lead/integrator/sole merger; P2 = commerce transactions, database and data integrity; P3 = intelligence, BI, analytics and AI. Exact ownership and merge rules are in root `AGENTS.md`.
+- Current open-PR snapshot observed 2026-11-20: #547, #546, #545, #543, #542, #541, #540, #539, #538, #537, #535, #533, #526, #514, #513, #509, #507, #506, #497, #496, #493, #492, #491, #490. Re-fetch their current heads/checks before acting; no PR is accepted just because it is mergeable or has a convincing description.
+- Known overlap to resolve once, not reimplement: cart #543/#535; supplier-invoice filters #539/#533; customer-asset replacement #541/#526; open-PO base-unit normalization #537/#513; P1 fixture repairs #545/#542/#540. Error-log #490/#492 are related scopes; establish dependency/unique files before deciding whether they are sequential or overlapping. Never merge both members of a duplicate pair blindly.
+- High-priority independent work already waiting: #546 warehouse-scope guard; #547 decision-snapshot PG17 diagnostic; #538 Onyx multi-sheet import; #507 bank-line retry safety; #509 verified liquidity balances; #506 purchase-draft idempotency; #497 supplier due-date exceptions; #496 daily decision board; #493 customer amendment replay; #514 service-case deep links; #491 process-bottleneck evidence.
+ 
+## NEXT EXECUTION — NO RE-DISCOVERY
+
+1. **P2 / security first:** reconcile #546 against live `main`. Preserve the warehouse-scope assertion in both `transfer_inventory` and `transfer_inventory_batch` before idempotency replay. Run its isolated PostgreSQL 17 acceptance and exact-head P1 checks. P1 merges immediately when the exact head is green, conflict-free and scoped.
+2. **P1 / storefront recovery:** compare #543 with #535 at changed-file level. Select one current-main implementation, preserve any unique valid fix from the other, run cart/product-card/browser and local PG17 tenant/privacy acceptance, then merge once. Do not duplicate cart recovery or quantity controls.
+3. **P1 / baseline repairs:** consolidate only the necessary test-fixture changes from #545/#542/#540 into one current-main fix. Keep production behavior unchanged unless a reproducible application defect is found. Restore green exact-main P1 checks before widening the change queue.
+4. **P2 / operations:** process #493, #537 (instead of duplicating #513), #506, #507 then #509, and #538 as independent vertical slices. Validate every database change on isolated PostgreSQL 17; never infer production schema or apply remote migrations while the runtime target remains unverified.
+5. **P1 / customer-admin surfaces:** process #539 (vs #533), #541 (vs #526), and #514 without recreating existing supplier/customer/service screens.
+6. **P3 / intelligence:** diagnose #547's ranked-snapshot acceptance without weakening immutability/idempotency; then integrate #496 only against the accepted snapshot contract; preserve and accept #491's source-evidence gates. Keep all intelligence outputs source-backed and deterministic when no verified free AI provider is available.
+7. After every merge, verify the resulting `main` SHA and required post-merge checks; update only the affected acceptance row and this pointer's next action. Continue to the next independent task in the same session.
+
+## DELIVERY WINDOW
+
+- **First five-hour sprint:** a focused integration wave, not a false promise that the entire ERP, populated-data acceptance, real external providers and production release can all be completed in five hours. Target: close the P2 warehouse authorization issue, restore the current-main P1 baseline, merge the highest-value non-overlapping existing slices, and leave a tested exact-SHA checkpoint. If checks or conflicts block a PR, fix the cause; do not bypass the gate.
+- **90-day rolling product delivery (parallel work, continuous merges):**
+  - Days 1–10: existing-PR reconciliation, auth/tenant/privacy, checkout/cart/order lifecycle, P1 green baseline.
+  - Days 11–25: storefront and customer self-service, order amendments/returns/cancellations, admin product/customer/pricing screens and route discovery.
+  - Days 26–40: inventory, barcode/mobile warehouse work, procurement, supplier portal foundations and Onyx round-trip.
+  - Days 41–55: invoices, payments, general ledger, opening balances, bank reconciliation, receivables/payables and liquidity sources.
+  - Days 56–65: CRM/Customer 360, service desk, tasks, official-notification readiness and company buyer roles.
+  - Days 66–75: BI, forecasts, decision workflows, deterministic AI/read engines and verified free-provider governance.
+  - Days 76–85: design-system consistency, responsive RTL, accessibility, print/export quality and measured performance.
+  - Days 86–90: hosted tenant E2E, target-version Onyx acceptance, official WhatsApp receipt, deployment/rollback, backup/restore and release gate.
+- These are delivery targets, not permission to mark unfinished work complete. Workstreams remain parallel where file/contracts are disjoint; accepted slices merge to `main` continuously. The application is not GO until the canonical release gate has exact, current evidence.
+
+---
+## HISTORICAL CHECKPOINTS — REFERENCE ONLY
+
 # ACTIVE EXECUTION CONTROL — DATABASE TARGET DISPUTED — 2026-11-17
 
 ## IMMEDIATE SAFETY CORRECTION
