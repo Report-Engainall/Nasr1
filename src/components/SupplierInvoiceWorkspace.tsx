@@ -417,6 +417,9 @@ async function prepareEvidenceLink(evidence: SupplierInvoiceEvidence) {
     evidenceLinkRequestRef.current += 1;
     setEvidenceLinkBusy(null);
     setWorkspace(null);
+    setInvoiceQuery("");
+    setInvoiceStatusFilter("all");
+    setOffset(0);
     setOrderOptions([]);
     setSelectedInvoiceId(null);
     setEvidenceRows([]);
