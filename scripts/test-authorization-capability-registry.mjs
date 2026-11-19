@@ -69,7 +69,8 @@ async function resourceDecision(db,actor,key,resourceId) {
 async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
  const migrationUrl=new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url);
  const migrationSource=await readFile(migrationUrl,"utf8");
- const migrationSql=migrationSource.replace(/^\s*BEGIN;\s*/i,"").replace(/\s*COMMIT;\s*$/i,"");
+ const migrationSql=migrationSource.replace(/^\s*BEGIN;\s*$/im,"").replace(/^\s*COMMIT;\s*$/im,"");
+ if(/^\s*BEGIN;\s*$/im.test(migrationSql)||/^\s*COMMIT;\s*$/im.test(migrationSql)) throw new Error("Could not strip standalone migration transaction wrappers for the rollback-only upgrade fixture.");
  if(migrationSql===migrationSource) throw new Error("Could not isolate authorization prerequisite migration body for rollback-only upgrade fixture.");
  const canonicalUrl=new URL("../supabase/migrations/20261117050202_authorization_capability_registry_v2.sql",import.meta.url);
  const canonicalSource=await readFile(canonicalUrl,"utf8");
