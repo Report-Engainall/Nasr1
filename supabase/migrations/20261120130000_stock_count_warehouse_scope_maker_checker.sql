@@ -185,16 +185,16 @@ DECLARE
  v_entry_definition text:=pg_catalog.pg_get_functiondef('public.set_stock_count_line(uuid,uuid,numeric)'::regprocedure);
  v_finalize_definition text:=pg_catalog.pg_get_functiondef('public.complete_stock_count(uuid)'::regprocedure);
 BEGIN
- IF pg_catalog.position('current_actor_has_capability(''inventory.count.enter'',v_session.warehouse_id)' IN v_entry_definition)=0
-    OR pg_catalog.position('current_actor_has_capability(''inventory.count.enter'')' IN v_entry_definition)>0
-    OR pg_catalog.position('counted_by=v_actor' IN v_entry_definition)=0
-    OR pg_catalog.position('inventory.stock_count.line_counted' IN v_entry_definition)=0 THEN
+ IF pg_catalog.strpos(v_entry_definition,'current_actor_has_capability(''inventory.count.enter'',v_session.warehouse_id)')=0
+    OR pg_catalog.strpos(v_entry_definition,'current_actor_has_capability(''inventory.count.enter'')')>0
+    OR pg_catalog.strpos(v_entry_definition,'counted_by=v_actor')=0
+    OR pg_catalog.strpos(v_entry_definition,'inventory.stock_count.line_counted')=0 THEN
   RAISE EXCEPTION 'stock-count entry must remain warehouse-scoped and audit the active counter';
  END IF;
- IF pg_catalog.position('current_authorization_decision(''inventory.count.finalize'',v_session.warehouse_id)' IN v_finalize_definition)=0
-    OR pg_catalog.position('v_session.started_by=v_actor' IN v_finalize_definition)=0
-    OR pg_catalog.position('LOCK TABLE public.inventory_balances IN EXCLUSIVE MODE' IN v_finalize_definition)=0
-    OR pg_catalog.position('inventory.stock_count.completed' IN v_finalize_definition)=0 THEN
+ IF pg_catalog.strpos(v_finalize_definition,'current_authorization_decision(''inventory.count.finalize'',v_session.warehouse_id)')=0
+    OR pg_catalog.strpos(v_finalize_definition,'v_session.started_by=v_actor')=0
+    OR pg_catalog.strpos(v_finalize_definition,'LOCK TABLE public.inventory_balances IN EXCLUSIVE MODE')=0
+    OR pg_catalog.strpos(v_finalize_definition,'inventory.stock_count.completed')=0 THEN
   RAISE EXCEPTION 'stock-count finalization must enforce separate Maker/Checker and preserve atomic snapshot guards';
  END IF;
 END
