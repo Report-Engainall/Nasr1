@@ -35,4 +35,4 @@ Build:
 bun run build
 ```
 
-Keep `main` within the verified Bolt import ceiling. Do not add bulk archives, duplicate source trees, or unrelated reports. Restore only high-value execution context and focused tests, checking the size impact before each addition.
+Keep `main` lean. Do not add bulk archives, duplicate source trees, or unrelated reports. Restore only high-value execution context and focused tests.
