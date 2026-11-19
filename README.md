@@ -1,6 +1,6 @@
 # متجر الأغبري | Aghbari Commerce — Nasr1
 
-This is the canonical application and execution branch for the existing Nasr1 project. The active branch is `main`, connected to Bolt through the existing GitHub repository.
+This is the canonical application and execution branch for the existing Nasr1 project. The active branch is `main`. GitHub is the engineering source of truth; Bolt New and Lovable are not part of the workflow.
 
 ## Canonical source and execution documents
 - Master specification: `docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md`.
@@ -19,11 +19,10 @@ This is the canonical application and execution branch for the existing Nasr1 pr
 - Original snapshot: 1,399 files / 23,059,921 bytes.
 
 ## Existing Supabase backend — do not recreate
-- Project: `aghbari-commerce-nasr1`.
-- Ref: `tfdwtuwkdddnzgyhcoyy`.
-- URL: `https://tfdwtuwkdddnzgyhcoyy.supabase.co`.
-- Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in Bolt environment settings; server secrets stay server-side.
-- Never create, reset, recreate, truncate, or reseed this database. Never replay historical migrations. Inspect the live migration ledger before any new schema change.
+- The production/runtime Supabase project ref and URL are **not yet verified** against the effective configuration of the running application.
+- Do not assume a Supabase project by its name, prior documentation, or account visibility. Confirm the effective runtime `VITE_SUPABASE_URL` first; compare its project ref with Supabase metadata.
+- Until that identity is confirmed, use isolated local PostgreSQL 17/Supabase for database acceptance only. No remote SQL, migration, Edge deployment, production write or reset.
+- Keep `VITE_SUPABASE_PUBLISHABLE_KEY` public only as intended; all service-role and provider secrets remain server-side.
 
 ## Local development
 ```sh
