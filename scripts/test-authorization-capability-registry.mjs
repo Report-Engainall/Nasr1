@@ -22,20 +22,27 @@ async function assertCapabilitySeedPreservesExistingRows(db) {
 
  await db.begin(async tx=>{
   await tx.unsafe("SAVEPOINT preserve_existing_capability_rows");
+  console.log("AUTH_CAPABILITY_REPLAY_STAGE:before-existing-row-update");
   await tx.unsafe(
    "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
-   "separation_of_duties=true,state_requirements=$2::jsonb,is_active=false,updated_at=statement_timestamp() "+
+   "separation_of_duties=true,state_requirements=jsonb_build_object("+
+   "'requires_active_warehouse_assignment',true,'existing_row_sentinel','keep-existing-policy'),"+
+   "is_active=false,updated_at=statement_timestamp() "+
    "where capability_key=any($1::text[])",
-   [["inventory.count.enter","inventory.count.finalize"],
-    JSON.stringify({requires_active_warehouse_assignment:true,existing_row_sentinel:"keep-existing-policy"})]
+   [["inventory.count.enter","inventory.count.finalize"]]
   );
+  console.log("AUTH_CAPABILITY_REPLAY_STAGE:after-existing-row-update");
   const before=await tx.unsafe(
    "select capability_key,scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
    "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key",
    [["inventory.count.enter","inventory.count.finalize"]]
   );
   assert.equal(before.length,2,"both existing stock-count capability rows must be present before replay");
-  for(const seed of seedStatements) await tx.unsafe(seed);
+  for(let seedIndex=0;seedIndex<seedStatements.length;seedIndex++) {
+   console.log("AUTH_CAPABILITY_REPLAY_STAGE:before-seed-"+(seedIndex+1));
+   await tx.unsafe(seedStatements[seedIndex]);
+   console.log("AUTH_CAPABILITY_REPLAY_STAGE:after-seed-"+(seedIndex+1));
+  }
   const after=await tx.unsafe(
    "select capability_key,scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
    "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key"
