@@ -257,7 +257,28 @@ async function main() {
       );
       const memoryResult = decode(memoryRows[0].result);
       assert.equal(memoryResult?.ok, true, "the actual source-derived decision-memory snapshot must be saved");
-      assert.equal(memoryResult.snapshot.actualMetric.value, amount);
+
+      // Diagnose the source-backed projection with the local database owner,
+      // without weakening authenticated behavior or exposing any non-test data.
+      await tx.unsafe("reset role");
+      const sourceDiagnostics = await tx.unsafe(
+        "select " +
+          "o.measured_outcome is not null as has_measured_outcome, " +
+          "o.measured_outcome->>'asOf' as measured_as_of, " +
+          "o.measured_outcome->'evidenceIds' as measured_evidence_ids, " +
+          "(select count(*)::integer from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as matching_invoice_count, " +
+          "(select i.issued_at <= (o.measured_outcome->>'asOf')::timestamptz from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as invoice_is_before_as_of, " +
+          "public._decision_memory_resolve_evidence($3::uuid,ARRAY['invoice:'||$2::text],'decision-learning-acceptance-debug', " +
+          "jsonb_build_object('from',$4::date,'to',$5::date),(o.measured_outcome->>'asOf')::timestamptz) as resolved_evidence, " +
+          "public._decision_memory_snapshot($3::uuid,$1::uuid)->'actualMetric' as reloaded_actual_metric " +
+        "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
+        [outcomeId, invoiceId, manager.organization_id, periodFrom, periodTo],
+      );
+      console.log("Decision learning source diagnostics:", JSON.stringify(sourceDiagnostics[0] ?? null));
+      await setActor(tx, managerClaims);
+
+      assert.equal(memoryResult.snapshot.actualMetric?.value, amount,
+        "a verified measurement must be projected only after its invoice evidence resolves");
       assert.equal(memoryResult.snapshot.expectedMetric.value, amount);
 
       const createRows = await tx.unsafe(
