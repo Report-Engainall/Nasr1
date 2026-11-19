@@ -55,16 +55,17 @@ function OperationsTabNavigation({ selected, onSelect }: { selected: OperationTa
   );
 }
 
-function OperationsTabContent({ tab, onNotice, refreshVersion, onOpenTask, onOpenImportJob, onOpenReconciliationRun, initialImportJobId, initialReconciliationRunId }: {
+function OperationsTabContent({ tab, onNotice, refreshVersion, onOpenTask, onOpenImportJob, onOpenReconciliationRun, onOpenSupplierInvoice, initialImportJobId, initialReconciliationRunId }: {
   tab: OperationTab; onNotice: (message: string) => void; refreshVersion: number;
   onOpenTask: (taskId: string) => void;
   onOpenImportJob: (jobId: string) => void;
   onOpenReconciliationRun: (runId: string) => void;
+  onOpenSupplierInvoice: (invoiceId: string) => void;
   initialImportJobId: string | null;
   initialReconciliationRunId: string | null;
 }) {
   switch (tab) {
-    case 'exceptions': return <OperationsExceptionCenter refreshVersion={refreshVersion} onOpenTask={onOpenTask} onOpenImportJob={onOpenImportJob} onOpenReconciliationRun={onOpenReconciliationRun} />;
+    case 'exceptions': return <OperationsExceptionCenter refreshVersion={refreshVersion} onOpenTask={onOpenTask} onOpenImportJob={onOpenImportJob} onOpenReconciliationRun={onOpenReconciliationRun} onOpenSupplierInvoice={onOpenSupplierInvoice} />;
     case 'imports': return <ImportEngine onNotice={onNotice} refreshVersion={refreshVersion} initialJobId={initialImportJobId ?? undefined} />;
     case 'onyx': return <OnyxDashboard onNotice={onNotice} refreshVersion={refreshVersion} />;
     case 'reconcile': return <InventoryReconciliation onNotice={onNotice} refreshVersion={refreshVersion} initialRunId={initialReconciliationRunId ?? undefined} />;
@@ -72,7 +73,7 @@ function OperationsTabContent({ tab, onNotice, refreshVersion, onOpenTask, onOpe
   }
 }
 
-export function OperationsCenter({ onNotice, onOpenTask }: { onNotice: (message: string) => void; onOpenTask: (taskId: string) => void }) {
+export function OperationsCenter({ onNotice, onOpenTask, onOpenSupplierInvoice }: { onNotice: (message: string) => void; onOpenTask: (taskId: string) => void; onOpenSupplierInvoice: (invoiceId: string) => void }) {
   const [tab, setTab] = useState<OperationTab>('exceptions');
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [selectedImportJobId, setSelectedImportJobId] = useState<string | null>(null);
@@ -84,6 +85,7 @@ export function OperationsCenter({ onNotice, onOpenTask }: { onNotice: (message:
       onNotice={onNotice}
       refreshVersion={refreshVersion}
       onOpenTask={onOpenTask}
+      onOpenSupplierInvoice={onOpenSupplierInvoice}
       onOpenImportJob={(jobId) => { setSelectedImportJobId(jobId); setTab('imports'); }}
       onOpenReconciliationRun={(runId) => { setSelectedReconciliationRunId(runId); setTab('reconcile'); }}
       initialImportJobId={selectedImportJobId}
