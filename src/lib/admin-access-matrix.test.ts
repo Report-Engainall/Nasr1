@@ -6,6 +6,16 @@ import {
 } from "@/lib/admin-access-matrix";
 
 const routeTreeSource = readFileSync(new URL("../routeTree.gen.ts", import.meta.url), "utf8");
+const adminAppSource = readFileSync(new URL("../components/AghbariApp.tsx", import.meta.url), "utf8");
+const operationsBarrelSource = readFileSync(new URL("../components/admin/operations/index.ts", import.meta.url), "utf8");
+
+const observabilityScreenBindings = [
+  { view: "system-health", component: "SystemHealthScreen" },
+  { view: "error-log", component: "ErrorLogScreen" },
+  { view: "architecture", component: "ArchitectureScreen" },
+  { view: "engine-status", component: "EngineStatusScreen" },
+] as const;
+
 
 describe("admin access presentation contract", () => {
   it("assigns every admin page to exactly one navigation group", () => {
@@ -33,6 +43,20 @@ describe("admin access presentation contract", () => {
   it("registers every canonical navigation destination in the generated TanStack route tree", () => {
     for (const item of ADMIN_NAV_ITEMS) {
       expect(routeTreeSource, `missing registered route for ${item.id}: ${item.path}`).toContain(`path: '${item.path}'`);
+    }
+  });
+
+  it("maps each observability view to its lazy screen in the canonical admin view switch", () => {
+    for (const { view, component } of observabilityScreenBindings) {
+      expect(adminAppSource).toContain(
+        `const ${component} = lazy(async () => ({ default: (await import('@/components/admin/operations')).${component} }));`,
+      );
+      expect(adminAppSource).toMatch(
+        new RegExp(`case\\s+["']${view}["']:\\s*return\\s*<${component}\\s*/>;`),
+      );
+      expect(operationsBarrelSource).toContain(
+        `export { ${component} } from "./${component}";`,
+      );
     }
   });
 
