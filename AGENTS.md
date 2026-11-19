@@ -41,18 +41,40 @@ Only acceptance matrix: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPT
 - Preserve audit/history and existing customer order amendment/return/cancellation, supplier finance, liquidity/reconciliation, replenishment, task/service, Customer 360, Onyx, analytics and export modules. Verify before extending; never rebuild them.
 - No fabricated balances, invoices, payments, tax, FX, stock or delivery status.
 
-## Sole execution owner and unified responsibility
+## Three-programmer execution model — mandatory
 
-- **One programmer only: ChatGPT — P1.** The user has explicitly consolidated all former P1, P2 and P3 responsibilities under ChatGPT. These labels describe technical domains only; they are not separate owners, workers, agents or handoffs.
-- ChatGPT owns the complete product lifecycle: customer/admin UI, routes, workflows, client data handling, database schema and migrations, RPC, RLS, tenant authorization, finance, inventory, server integrations, intelligent engines, formulas, evidence-backed decisions, tests, security review, integration, PR reconciliation and safe merge.
-- Do not wait for, delegate to, or create parallel assignments for P2/P3/other programmers or external builders. Sequence work by dependency, but retain one accountable implementation path.
-- Preserve existing contracts and working modules. Reuse existing engines; never create duplicate engines or rebuild completed features.
-- Database, security and finance changes still require exact schema/ledger inspection, additive migrations, isolated PostgreSQL 17 acceptance and tenant/RLS proof. Consolidating ownership does not weaken these technical gates.
-- main remains the only source of truth. Preserve existing branches and unmerged work; reconcile overlap before merging. Never delete branches, discard user work, force-push or rewrite history.
-- No task is complete because a file or screen exists. Complete a vertical slice from route/UI through service, data contract, authorization and appropriate tests; repair failures before advancing.
-- A blocker on one integration must not stop independent implementation. Record the exact blocker in the single execution pointer, continue other eligible work, then return to it.
-- Reports are delivery evidence, not the work itself. Do not repeat repository-wide discovery or produce status-only updates when an actionable change is available.
+The user explicitly requires three coordinated programmers. These are real workstream owners, not permission to create three competing implementations. **P1 is ChatGPT and is the single accountable product lead, integrator and only merger to `main`.**
 
+### Ownership boundaries
+
+- **P1 — Product, UX and integration lead (ChatGPT).** Owns storefront and admin experience, routes/navigation, screen composition, customer-facing workflows, visual consistency, cross-workstream contracts, end-to-end product completion, exact-SHA acceptance coordination, open-PR deduplication and every merge to `main`. P1 is accountable for connecting P2/P3 capabilities to usable screens and resolving cross-domain integration.
+- **P2 — Commerce transactions and data integrity.** Owns PostgreSQL schema/migrations, RPC/Edge transaction contracts, RLS and server authorization, tenant/resource isolation, idempotency, order/checkout persistence, inventory, procurement, suppliers, finance/accounting/payment posting, bank reconciliation and Onyx import/export data contracts. P2 supplies typed contracts and isolated PostgreSQL 17 acceptance; P2 does not create parallel product screens or navigation.
+- **P3 — Intelligence, analytics and decision systems.** Owns deterministic intelligence engines, AI privacy/provider governance, source-backed BI, forecasting, decision snapshots/lifecycle, customer/retention analytics, process bottleneck analysis, intelligent reports and their focused tests. Paid AI is prohibited. P3 does not create duplicate financial, inventory or commerce transaction engines and does not bypass P2's source/authorization contracts.
+- **UI integration rule.** P1 owns the final UI composition and navigation for P2/P3 features. P2/P3 may supply a focused component only when agreed in advance; P1 mounts it into the existing screen. No role may independently create a second screen, service, engine, schema or route for an already-owned capability.
+- **One owner per work item and one owner per shared file.** Before parallel work begins, P1 assigns an exact outcome, owned paths, excluded paths, dependency contract and acceptance command. If two tasks need the same files, sequence them; never let agents overwrite one another.
+
+### Continuous integration and immediate merge
+
+1. Read this file and the newest checkpoint at the top of `CURRENT_EXECUTION_STATE.md`; fetch the live `main` head once. Continue from the exact recorded next action, not from memory or an old report.
+2. Reconcile the existing open PR queue before creating any branch. Compare overlapping PRs by changed files, commits and exact-SHA checks. Select one best current-main implementation; transplant only unique required work; never merge two implementations of the same feature.
+3. P2/P3/P1 feature work uses short-lived branches from current `main` with prefixes `p2/`, `p3/`, and `p1/`. Every PR targets `main`. Do not develop features directly on `main`.
+4. Build a complete vertical slice, not a visual stub: UI/contract/service/authorization/data behavior and the smallest applicable regression acceptance. Do not open a PR for notes, screenshots or a report alone.
+5. P1 performs a **scoped merge decision**: inspect only the PR diff and its callers, confirm ownership/no duplicate, confirm the exact head SHA, check required workflow results and resolve blocking comments. Do not trigger a repository-wide re-review.
+6. **Merge immediately after the exact PR head passes its required checks and is conflict-free.** Use squash by default unless ordered migrations or dependent commits require a merge commit. Do not wait for unrelated work or batch completed PRs.
+7. After each merge, verify the resulting `main` SHA and the required post-merge checks for high-risk changes. Update only the affected row(s) in the one canonical acceptance matrix and the top checkpoint in the one execution pointer.
+8. Close duplicate PRs only after confirming all unique code/tests have been preserved in the selected implementation. Delete a branch only after its work is merged or explicitly confirmed redundant; never discard unmerged work. No force-push, history rewrite or conflict bypass.
+9. If one workstream is blocked, the other workstreams continue on disjoint files. P1 records the exact blocking dependency and resumes it when available; do not stop the whole product for one external integration.
+10. Keep progress operational: one-line owner/branch/PR/next-action handoffs are enough. No parallel plans, duplicate matrices, status essays, repeated repository scans or documentation-only PRs. Update the canonical cursor only when the real next action changes or work merges.
+
+### Work selection and finish criteria
+
+- Priority order: (1) security/data/privacy and corrupting transaction defects; (2) broken customer purchase and order lifecycle; (3) inventory/procurement/finance; (4) remaining admin/customer workflows; (5) analytics/AI; (6) visual polish and competitive additions. P1 may reorder only when a reproducible customer-blocking defect is more urgent.
+- Finish the already-started PRs and existing product capabilities before adding new product surface area. Preserve completed return/amendment/version history, ExecutiveLiquidityCommandCenter, ReplenishmentCard/PO draft, AccountPersonalizationSettings, TaskQualityReviewCenter and other accepted work; inspect before extending.
+- A task is done only when its real user flow works and the exact relevant checks pass. A file, route, component, test authored but not run, old SHA pass, or GitHub mergeability flag is not acceptance.
+- GitHub Actions and isolated local PostgreSQL 17/Playwright are the default free verification route. Use the narrow existing workflows; do not create overlapping CI workflows or rerun successful jobs unnecessarily.
+- No external database writes, deployments, hosted migrations or secret changes until the actual running app's Supabase project ref is proven from effective runtime configuration. Broad user permission does not make an unidentified production target safe.
+- Never consume Vercel build/deployment/preview credits for coding or routine checks. Preserve those credits for the explicitly authorized final hosting/E2E phase only.
+- The first five-hour work window is a **focused integration sprint**, not a promise that the entire B2B ERP, external providers, populated-data acceptance and production release can be completed in five hours. Do not fake completion or change NO-GO to GO to satisfy a time target. The overall product plan is a 90-day rolling delivery with small merges throughout, not a three-month documentation phase.
 
 ## Tooling and quota-protection policy — mandatory for every programmer/agent
 
