@@ -671,11 +671,6 @@ const manager=actors.get("manager"),admin=actors.get("admin");
     "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
     [org]
   );
-  const warehouseBCountsBeforeDeniedWrites=await db.unsafe(
-    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
-    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
-    [org]
-  );
 
   await assert.rejects(
     ()=>withActor(db,manager,tx=>tx.unsafe(
@@ -699,13 +694,6 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   );
   assert.deepEqual(unchangedBLine[0],{counted_quantity:null,counted_by:null},
     "the denied warehouse B row write must leave the snapshot line unchanged");
-  const warehouseBCountsAfterDeniedWrites=await db.unsafe(
-    "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
-    "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
-    [org]
-  );
-  assert.deepEqual(warehouseBCountsAfterDeniedWrites[0],warehouseBCountsBeforeDeniedWrites[0],
-    "denied warehouse B RPC/trigger writes must leave count-session and count-line row counts unchanged");
   const warehouseBCountsAfterDeniedWrites=await db.unsafe(
     "select (select count(*)::integer from public.stock_count_sessions where organization_id=$1::uuid) as sessions,"+
     "(select count(*)::integer from public.stock_count_lines where organization_id=$1::uuid) as lines",
