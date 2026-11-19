@@ -73,4 +73,27 @@ REVOKE ALL ON TABLE public.authorization_capabilities FROM PUBLIC,anon,authentic
 REVOKE ALL ON TABLE public.authorization_role_capabilities FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.authorization_profile_denials FROM PUBLIC,anon,authenticated;
 
+-- Earlier Authorization V2 migrations create policies/triggers that reference
+-- this helper before the canonical registry migration defines its real body.
+-- Add a fail-closed bootstrap only on a fresh database; never replace an
+-- existing implementation on a database that has already applied the later
+-- canonical migration. The canonical migration will CREATE OR REPLACE it later.
+DO $bootstrap$
+BEGIN
+  IF pg_catalog.to_regprocedure('public.current_actor_has_capability(text)') IS NULL THEN
+    EXECUTE $ddl$
+      CREATE FUNCTION public.current_actor_has_capability(p_capability_key text)
+      RETURNS boolean
+      LANGUAGE sql
+      STABLE
+      SECURITY DEFINER
+      SET search_path = ''
+      AS $function$ SELECT false; $function$
+    $ddl$;
+    EXECUTE 'REVOKE ALL ON FUNCTION public.current_actor_has_capability(text) FROM PUBLIC,anon,authenticated';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.current_actor_has_capability(text) TO authenticated';
+  END IF;
+END
+$bootstrap$;
+
 COMMIT;
