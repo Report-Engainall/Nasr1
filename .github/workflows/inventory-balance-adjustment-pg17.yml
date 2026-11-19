@@ -20,11 +20,6 @@ on:
       - "supabase/migrations/20261116125000_authorization_scope_resource_listing.sql"
       - "supabase/migrations/20261116126000_authorization_profile_decision_simulator.sql"
       - "supabase/migrations/20261116130000_inventory_scope_enforcement_v2.sql"
-      - "supabase/migrations/20261018070000_inventory_transfer_command.sql"
-      - "supabase/migrations/20261019240000_inventory_transfer_batches.sql"
-      - "supabase/migrations/20261117190000_inventory_batch_allocation_fefo.sql"
-      - "supabase/migrations/20261117240000_inventory_transfer_replay_scope_guard.sql"
-      - "supabase/tests/inventory_transfer_replay_scope_guard.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
   pull_request:
@@ -32,6 +27,11 @@ on:
     paths:
       - "supabase/migrations/20261018080000_inventory_write_boundary_and_reorder_point.sql"
       - "supabase/migrations/20261116110000_inventory_balance_adjustment_command.sql"
+      - "supabase/migrations/20261018070000_inventory_transfer_command.sql"
+      - "supabase/migrations/20261019240000_inventory_transfer_batches.sql"
+      - "supabase/migrations/20261117190000_inventory_batch_allocation_fefo.sql"
+      - "supabase/migrations/20261117240000_inventory_transfer_replay_scope_guard.sql"
+      - "supabase/tests/inventory_transfer_replay_scope_guard.sql"
       - "supabase/tests/inventory_balance_adjustment.sql"
       - ".github/workflows/inventory-balance-adjustment-pg17.yml"
   workflow_dispatch:
