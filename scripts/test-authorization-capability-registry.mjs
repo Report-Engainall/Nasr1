@@ -93,7 +93,17 @@ async function withActorOnTransaction(tx,actor,callback) {
  await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[actor.auth_user_id]);
  await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({...actor.jwtClaims,role:"authenticated"})]);
  await tx.unsafe("set local role authenticated");
- try { return await callback(tx); } finally { await tx.unsafe("reset role"); }
+ let callbackFailed=false;
+ try {
+  return await callback(tx);
+ } catch(error) {
+  callbackFailed=true;
+  throw error;
+ } finally {
+  // On an expected SQL rejection the transaction is aborted until the
+  // caller rolls back its savepoint. RESET ROLE must happen after that rollback.
+  if(!callbackFailed) await tx.unsafe("reset role");
+ }
 }
 async function expectSqlStateInTransaction(tx,expectedCode,action,label) {
  const savepoint="stock_count_expected_failure";
