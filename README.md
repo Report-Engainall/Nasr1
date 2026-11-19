@@ -10,7 +10,7 @@ This is the canonical application and execution branch for the existing Nasr1 pr
 
 ## Active application tree
 - Retains the React/Vite/TanStack application, runtime assets, package manifests, Supabase client/types/configuration, and Edge Function source.
-- The three canonical execution documents above are intentionally retained in `main` so Bolt can work from the same acceptance contract.
+- The canonical execution documents above are retained on `main` so P1/P2/P3 and every coding agent share one acceptance contract.
 - Historical tests, E2E fixtures, CI workflows, local scripts, prior source snapshots, and all 271 SQL migration source files remain preserved in `nasr1-reference-archive-2026-11-08`. Retrieve only the necessary tests or migration references; do not merge the archive wholesale.
 
 ## Historical archive
