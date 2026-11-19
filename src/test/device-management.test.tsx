@@ -86,6 +86,17 @@ describe('central device and session management', () => {
     return { data: { session_id: id, revoked: true, revoked_at: '2026-10-23T10:16:00.000Z' }, error: null };
   }
 
+  function mockDeviceManagementRpc(
+    implementation: (name: string, args?: Record<string, unknown>) => unknown | Promise<unknown>,
+  ) {
+    mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
+      if (name === 'fetch_customer_device_change_requests') {
+        return { data: { items: [] }, error: null };
+      }
+      return await implementation(name, args);
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -294,7 +305,14 @@ describe('central device and session management', () => {
   });
 
   it('recovers from a network failure when the administrator retries the session list', async () => {
-    mocks.rpc.mockRejectedValueOnce(new Error('network interrupted'));
+    let failFirstListRead = true;
+    mockDeviceManagementRpc(async (name: string, args?: Record<string, unknown>) => {
+      if (name === 'list_organization_sessions' && failFirstListRead) {
+        failFirstListRead = false;
+        throw new Error('network interrupted');
+      }
+      return await resolveDeviceManagementRpc(name, args);
+    });
     await mount();
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
@@ -330,9 +348,11 @@ describe('central device and session management', () => {
   });
 
   it('fails closed when the server session-list contract is missing or malformed', async () => {
-    mocks.rpc.mockResolvedValueOnce({
-      data: { sessions: [sessions[0]] },
-      error: null,
+    mockDeviceManagementRpc(async (name: string, args?: Record<string, unknown>) => {
+      if (name === 'list_organization_sessions') {
+        return { data: { sessions: [sessions[0]] }, error: null };
+      }
+      return await resolveDeviceManagementRpc(name, args);
     });
     await mount();
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
