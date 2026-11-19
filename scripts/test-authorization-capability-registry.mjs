@@ -145,17 +145,31 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    );
    assert.equal(lineAResult.length,1,"warehouse A must snapshot a real inventory line");
    const lineA=lineAResult[0];
+   const lineAAuditBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineA.id]
+   );
    const writeA=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
     "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
     [sessionA.id,lineA.product_id,lineA.expected_quantity]
    ));
    const lineAAfter=await tx.unsafe(
-    "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    "select counted_quantity,counted_by::text from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
     [organizationId,sessionA.id,lineA.id]
    );
    assert.equal(lineAAfter.length,1,"the authorized A line must remain tenant scoped");
    assert.equal(Number(lineAAfter[0].counted_quantity),Number(lineA.expected_quantity),
     "the assigned manager must persist the counted quantity through the real line RPC");
+   assert.equal(lineAAfter[0].counted_by,manager.profile_id,
+    "the accepted count line must identify the authenticated manager who entered it");
+   const lineAAuditAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineA.id]
+   );
+   assert.equal(lineAAuditAfter[0].count,lineAAuditBefore[0].count+1,
+    "each accepted stock-count write must append a count-line audit event");
    const sessionAAfter=await tx.unsafe(
     "select counted_lines,total_lines from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
     [organizationId,sessionA.id]
@@ -233,7 +247,7 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    assert.equal(sessionCountAfter[0].count,sessionCountBefore[0].count,
     "a denied B start must not insert a stock-count session");
    const lineBefore=await tx.unsafe(
-    "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    "select counted_quantity,counted_by::text from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
     [organizationId,sessionB.id,lineB.id]
    );
    assert.equal(lineBefore.length,1);
@@ -241,6 +255,11 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    const lineCountBefore=await tx.unsafe(
     "select count(*)::integer as count from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid",
     [organizationId,sessionB.id]
+   );
+   const lineBAuditBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineB.id]
    );
    const balanceBefore=await tx.unsafe(
     "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
@@ -252,10 +271,17 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
     [sessionB.id,lineB.product_id,lineB.expected_quantity]
    )),"manager cannot edit a real stock-count line after B assignment revocation");
    const lineAfter=await tx.unsafe(
-    "select counted_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
+    "select counted_quantity,counted_by::text from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid and id=$3::uuid",
     [organizationId,sessionB.id,lineB.id]
    );
-   assert.deepEqual(lineAfter,lineBefore,"the rejected B line write must leave the persisted row unchanged");
+   assert.deepEqual(lineAfter,lineBefore,"the rejected B line write must leave the persisted row and counter identity unchanged");
+   const lineBAuditAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+    [organizationId,lineB.id]
+   );
+   assert.equal(lineBAuditAfter[0].count,lineBAuditBefore[0].count,
+    "a rejected B line write must not append a count-line audit event");
    const lineCountAfter=await tx.unsafe(
     "select count(*)::integer as count from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid",
     [organizationId,sessionB.id]
