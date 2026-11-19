@@ -268,6 +268,7 @@ async function main() {
           "o.measured_outcome->'evidenceIds' as measured_evidence_ids, " +
           "(select count(*)::integer from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as matching_invoice_count, " +
           "(select i.issued_at <= (o.measured_outcome->>'asOf')::timestamptz from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as invoice_is_before_as_of, " +
+          "(select p.provolatile from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_volatility, " +
           "public._decision_memory_resolve_evidence($3::uuid,ARRAY['invoice:'||$2::text],'decision-learning-acceptance-debug', " +
           "jsonb_build_object('from',$4::date,'to',$5::date),(o.measured_outcome->>'asOf')::timestamptz) as resolved_evidence, " +
           "public._decision_memory_snapshot($3::uuid,$1::uuid)->'actualMetric' as reloaded_actual_metric " +
@@ -281,6 +282,8 @@ async function main() {
         "the evidence ID must resolve to exactly one invoice in the active organization");
       assert.equal(sourceDiagnostics[0].invoice_is_before_as_of, true,
         "the measured invoice must exist at or before the source as-of timestamp");
+      assert.equal(sourceDiagnostics[0].snapshot_helper_volatility,"v",
+        "the snapshot helper must use a fresh command snapshot for same-statement read-after-write");
       const resolvedActualEvidence = decode(sourceDiagnostics[0].resolved_evidence);
       assert.equal(resolvedActualEvidence?.ids?.length, 1,
         "the evidence resolver must return every requested same-tenant invoice ID");
