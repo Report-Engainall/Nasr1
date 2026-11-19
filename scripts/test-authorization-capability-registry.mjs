@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
@@ -6,6 +7,44 @@ function requiredEnv(name) {
  const value=process.env[name]?.trim();
  if(!value) throw new Error(name+" is required for authorization capability acceptance.");
  return value.replace(/^"(.*)"$/s,"$1");
+}
+async function assertCapabilitySeedPreservesExistingRows(db) {
+ const seedPaths=[
+  new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url),
+  new URL("../supabase/migrations/20261117050202_authorization_capability_registry_v2.sql",import.meta.url)
+ ];
+ const seedStatements=await Promise.all(seedPaths.map(async path=>{
+  const source=await readFile(path,"utf8");
+  const match=source.match(/INSERT INTO public\\.authorization_capabilities[\\s\\S]*?ON CONFLICT\\(capability_key\\) DO (?:NOTHING|UPDATE SET)[\\s\\S]*?;/);
+  assert.ok(match,"the real capability catalog seed statement must exist in "+String(path));
+  return match[0];
+ }));
+
+ await db.begin(async tx=>{
+  await tx.unsafe("SAVEPOINT preserve_existing_capability_rows");
+  await tx.unsafe(
+   "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
+   "separation_of_duties=true,state_requirements=$2::jsonb,is_active=false,updated_at=statement_timestamp() "+
+   "where capability_key=any($1::text[])",
+   [["inventory.count.enter","inventory.count.finalize"],
+    JSON.stringify({requires_active_warehouse_assignment:true,existing_row_sentinel:"keep-existing-policy"})]
+  );
+  const before=await tx.unsafe(
+   "select capability_key,scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
+   "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key",
+   [["inventory.count.enter","inventory.count.finalize"]]
+  );
+  assert.equal(before.length,2,"both existing stock-count capability rows must be present before replay");
+  for(const seed of seedStatements) await tx.unsafe(seed);
+  const after=await tx.unsafe(
+   "select capability_key,scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
+   "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key"
+  );
+  assert.deepEqual(after,before,
+   "replaying either actual catalog seed must not widen warehouse scope or reactivate an existing disabled capability");
+  await tx.unsafe("ROLLBACK TO SAVEPOINT preserve_existing_capability_rows");
+  await tx.unsafe("RELEASE SAVEPOINT preserve_existing_capability_rows");
+ });
 }
 function localOnly(connectionString) {
  const database=new URL(connectionString);
@@ -101,6 +140,8 @@ async function main() {
     );
     assert.equal(liveSession.length,1,role+" must have a real live session in auth.sessions");
   }
+
+  await assertCapabilitySeedPreservesExistingRows(db);
 
   const ownerAdmin=actors.get("admin");
   const ownerManager=actors.get("manager");
