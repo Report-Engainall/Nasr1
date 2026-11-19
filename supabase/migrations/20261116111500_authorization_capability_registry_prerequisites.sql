@@ -144,7 +144,8 @@ VALUES
 ('finance.journal.create_draft','finance','journal_entry','create_draft','financial','organization','none',false,'{"creates_status":"draft"}',NULL),
 ('finance.journal.post','finance','journal_entry','post','financial','organization','maker_checker',true,'{"required_status":"draft"}',NULL),
 ('finance.journal.reverse','finance','journal_entry','reverse','financial','organization','maker_checker',true,'{"requires_posted_source_and_reason":true}',NULL)
-ON CONFLICT(capability_key) DO UPDATE SET
+-- Preserve any capability already configured more narrowly or deliberately disabled.
+ON CONFLICT(capability_key) DO NOTHING
  domain=EXCLUDED.domain,resource=EXCLUDED.resource,action=EXCLUDED.action,sensitivity=EXCLUDED.sensitivity,
  scope_kind=EXCLUDED.scope_kind,approval_mode=EXCLUDED.approval_mode,
  separation_of_duties=EXCLUDED.separation_of_duties,state_requirements=EXCLUDED.state_requirements,
