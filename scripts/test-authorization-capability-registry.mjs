@@ -221,6 +221,15 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    );
    assert.equal(lineBefore.length,1);
    assert.equal(lineBefore[0].counted_quantity,null);
+   const lineCountBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   const balanceBefore=await tx.unsafe(
+    "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+    [lineB.product_id,unassignedWarehouseId]
+   );
+   assert.equal(balanceBefore.length,1,"the B balance source must exist before the denied write");
    await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
     "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
     [sessionB.id,lineB.id,lineB.expected_quantity]
@@ -230,11 +239,18 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
     [organizationId,sessionB.id,lineB.id]
    );
    assert.deepEqual(lineAfter,lineBefore,"the rejected B line write must leave the persisted row unchanged");
+   const lineCountAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(lineCountAfter[0].count,lineCountBefore[0].count,
+    "the rejected B line write must not add, remove, or duplicate draft lines");
    const balanceAfter=await tx.unsafe(
     "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
     [lineB.product_id,unassignedWarehouseId]
    );
-   assert.equal(balanceAfter.length,1,"the B balance source must remain present");
+   assert.deepEqual(balanceAfter,balanceBefore,
+    "the rejected B line write must not alter the underlying warehouse stock balance");
   } finally {
    await tx.unsafe("reset role").catch(()=>{});
    await tx.unsafe("ROLLBACK TO SAVEPOINT stock_count_warehouse_scope_acceptance");
