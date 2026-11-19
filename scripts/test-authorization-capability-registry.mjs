@@ -15,7 +15,7 @@ async function assertCapabilitySeedPreservesExistingRows(db) {
  ];
  const seedStatements=await Promise.all(seedPaths.map(async path=>{
   const source=await readFile(path,"utf8");
-  const match=source.match(/INSERT INTO public\\.authorization_capabilities[\\s\\S]*?ON CONFLICT\\(capability_key\\) DO (?:NOTHING|UPDATE SET)[\\s\\S]*?;/);
+   const match=source.match(/INSERT INTO public\.authorization_capabilities[\s\S]*?ON CONFLICT\(capability_key\) DO (?:NOTHING|UPDATE SET)[\s\S]*?;/);
   assert.ok(match,"the real capability catalog seed statement must exist in "+String(path));
   return match[0];
  }));
