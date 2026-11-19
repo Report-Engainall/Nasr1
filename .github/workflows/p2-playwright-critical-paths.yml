@@ -10,6 +10,7 @@ on:
       - "supabase/**"
       - "scripts/seed-p2-local-playwright.mjs"
       - "scripts/test-customer-order-amendment-replay.mjs"
+      - "scripts/test-customer-asset-replacement.mjs"
       - "scripts/test-authorization-capability-registry.mjs"
       - "scripts/test-product-image-storage.ts"
       - "scripts/prepare-p2-local-storage-migrations.mjs"
@@ -607,6 +608,8 @@ jobs:
         run: node scripts/seed-p2-local-playwright.mjs
       - name: Test tenant-safe claim evidence raw drill-down on local PostgreSQL 17
         run: node scripts/test-claim-evidence-drilldown.mjs
+      - name: Test atomic customer asset replacement, exact replay and tenant isolation on PostgreSQL 17
+        run: node scripts/test-customer-asset-replacement.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
         run: node scripts/test-customer-order-amendment-replay.mjs
       - name: Test server authorization capability registry and six-role legacy parity
