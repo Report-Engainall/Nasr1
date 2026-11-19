@@ -40,6 +40,26 @@ export async function ensureCustomerImportProfile(): Promise<string> {
   return data;
 }
 
+export async function ensureOnyxStockBalanceImportProfile(): Promise<string> {
+  const { data, error } = await supabase.rpc("ensure_onyx_stock_balance_import_profile");
+  if (error) throw new Error(error.message || "تعذر تهيئة ملف استيراد أرصدة أونكس.");
+  if (typeof data !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+    throw new Error("لم يؤكد الخادم ملف استيراد أرصدة أونكس.");
+  }
+  return data;
+}
+
+export async function ensureOnyxProductUnitImportProfile(): Promise<string> {
+  const { data, error } = await supabase.rpc("ensure_onyx_product_unit_import_profile");
+  if (error) throw new Error(error.message || "تعذر تهيئة ملف وحدات أصناف أونكس.");
+  if (typeof data !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+    throw new Error("لم يؤكد الخادم ملف وحدات أصناف أونكس.");
+  }
+  return data;
+}
+
 type SupabaseReadOutcome<T> = { data: T | null; error: unknown | null };
 
 /** Retries transient READ failures only. Never use this helper for writes, RPC commands, or finance mutations. */
@@ -3557,6 +3577,53 @@ export async function applyAdminImportSnapshot(
     throw new Error("أعاد الخادم ملخص استيراد غير مكتمل؛ لم يُعرض نجاح غير مؤكد.");
   }
   return row as unknown as AdminImportApplicationResult;
+}
+
+export type OnyxProductUnitApplicationResult = {
+  snapshot_id: string;
+  status: "applied";
+  source_rows: number;
+  product_count: number;
+  unit_rows_applied: number;
+  units_created: number;
+  units_updated: number;
+  units_unchanged: number;
+  base_unit_rows_skipped: number;
+  metadata_rows_pending_review: number;
+  rejected: number;
+  row_errors_truncated: boolean;
+  row_errors: Array<{ row_number: number; reason: string }>;
+  idempotent_replay: boolean;
+};
+
+export async function applyOnyxProductUnitSnapshot(snapshotId: string): Promise<OnyxProductUnitApplicationResult> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+    throw new Error("معرّف لقطة وحدات الأصناف غير صالح.");
+  }
+  const { data, error } = await supabase.rpc("apply_onyx_product_unit_snapshot", {
+    p_snapshot_id: snapshotId,
+  });
+  if (error) throw new Error(error.message || "تعذر اعتماد تحويلات وحدات الأصناف.");
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("لم يؤكد الخادم نتيجة اعتماد وحدات الأصناف.");
+  }
+  const row = data as Record<string, unknown>;
+  const numbers = [
+    "source_rows", "product_count", "unit_rows_applied", "units_created",
+    "units_updated", "units_unchanged", "base_unit_rows_skipped", "metadata_rows_pending_review", "rejected",
+  ] as const;
+  const rowErrors = Array.isArray(row.row_errors) && row.row_errors.every((item) =>
+    !!item && typeof item === "object" && !Array.isArray(item) &&
+    Number.isInteger((item as Record<string, unknown>).row_number) &&
+    typeof (item as Record<string, unknown>).reason === "string"
+  );
+  if (row.snapshot_id !== snapshotId || row.status !== "applied" ||
+      numbers.some((field) => typeof row[field] !== "number" || !Number.isInteger(row[field]) || (row[field] as number) < 0) ||
+      typeof row.row_errors_truncated !== "boolean" || !rowErrors ||
+      typeof row.idempotent_replay !== "boolean") {
+    throw new Error("أعاد الخادم نتيجة وحدات غير مكتملة؛ لم يُعرض نجاح غير مؤكد.");
+  }
+  return row as unknown as OnyxProductUnitApplicationResult;
 }
 
 export async function runInventoryReconciliation(snapshotId: string) {

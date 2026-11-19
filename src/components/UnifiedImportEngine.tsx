@@ -1,20 +1,22 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
-  applyAdminImportSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, ensureCustomerImportProfile, failImportJobSafely, fetchCentralSynonyms,
+  applyAdminImportSnapshot, applyOnyxProductUnitSnapshot, cancelImportUploadSession, createImportJob, createImportUploadSession, ensureCustomerImportProfile, ensureOnyxProductUnitImportProfile, ensureOnyxStockBalanceImportProfile, failImportJobSafely, fetchCentralSynonyms,
   fetchImportJobsPage, fetchImportProfiles, fetchOnyxSnapshots, fetchOnyxSnapshotRows, rollbackImportSnapshot,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
   type AdminImportApplicationResult, type ImportRowErrorDetail, type OnyxSnapshotSummary, type OnyxSnapshotRow,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { projectOnyxSnapshotPreviewRow } from "@/lib/onyx-snapshot-preview";
+import { buildOnyxWarehouseItemKey, validateOnyxStockBalanceRow } from "@/lib/onyx-stock-balance-import";
+import { buildOnyxProductUnitKey, validateOnyxProductUnitRow } from "@/lib/onyx-product-unit-import";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
 import { useAuth } from "@/lib/auth";
 import { formatNumber } from "@/lib/format";
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/components/AdminPages";
 import {
-  DataQualityAccumulator, detectImportDatasetKind, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS,
+  DataQualityAccumulator, detectImportDatasetKind, DEFAULT_SYNONYMS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS, normalizeOnyxStockBalanceHeader,
   PROCESSING_CHUNK_ROWS, UPLOAD_CHUNK_BYTES, IncrementalSha256, StreamingCsvParser, hashFileSha256,
   applyImportProfileRules, normalizeHeader, parseXlsxFirstWorksheet, resolveImportProfileMapping, shouldPersistParsedImportRow, stableJsonStringify, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
   type ParsedImportRow, type QualityResult,
@@ -25,7 +27,7 @@ type Stage = "reading" | "detecting" | "mapping" | "validating" | "normalizing" 
 type DuplicateAction = "ignore" | "replace" | "merge" | "new_version" | "resume";
 type SnapshotPreviewState = {
   snapshotId: string;
-  importKind: "products" | "customers";
+  importKind: "products" | "customers" | "product_units";
   rows: OnyxSnapshotRow[];
   loading: boolean;
   error: string;
@@ -39,6 +41,10 @@ type DuplicateResult = {
   jobs: Array<ImportJob & { upload_session_id?: string | null }>;
   snapshots: Array<{ id: string; status: string; snapshot_version: number }>;
 };
+type ImportWorkbookSheet = {
+  worksheetName: string;
+  applicationKind: "products" | "customers" | "inventory" | "product_units";
+};
 type DuplicatePrompt = {
   file: File;
   fileHash: string;
@@ -47,8 +53,10 @@ type DuplicatePrompt = {
   sourceSystem: string;
   externalSourceReference: string | null;
   duplicate: DuplicateResult;
-  applicationKind: "products" | "customers";
+  applicationKind: "products" | "customers" | "inventory" | "product_units";
   worksheetName: string | null;
+  remainingWorksheets: ImportWorkbookSheet[];
+  unsupportedWorksheetNames: string[];
 };
 
 async function readImportFileHeaders(
@@ -108,6 +116,25 @@ async function readImportFileHeaders(
     worksheetName,
     worksheetNames,
   };
+}
+
+async function readImportWorkbookSheets(file: File): Promise<Array<{ worksheetName: string; headers: string[] }>> {
+  const first = await readImportFileHeaders(file, "xlsx", ["Products"]);
+  const worksheetNames = first.worksheetNames;
+  if (worksheetNames.length === 0 || worksheetNames.length > 12) {
+    throw new Error("عدد أوراق مصنف أونكس غير صالح؛ الحد الأعلى 12 ورقة مرئية.");
+  }
+  const sheets: Array<{ worksheetName: string; headers: string[] }> = [];
+  for (const worksheetName of worksheetNames) {
+    const selected = worksheetName === first.worksheetName
+      ? first
+      : await readImportFileHeaders(file, "xlsx", [worksheetName]);
+    if (selected.worksheetName !== worksheetName) {
+      throw new Error("تعذر تثبيت ورقة " + worksheetName + " أثناء قراءة عناوين المصنف؛ أوقفنا الاستيراد.");
+    }
+    sheets.push({ worksheetName, headers: selected.headers });
+  }
+  return sheets;
 }
 
 function unsupportedImportFormatDetails(extension: string): {
@@ -335,10 +362,10 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     selectedExternalSourceReference: string | null = existingJob
       ? (existingJob.external_source_reference ?? null)
       : selectedSource === "manual" ? null : externalSourceReference.trim() || null,
-    requestedImportKind?: "products" | "customers",
+    requestedImportKind?: "products" | "customers" | "inventory" | "product_units",
     requestedWorksheetName?: string | null,
-  ) {
-    if (runningRef.current) return;
+  ): Promise<boolean> {
+    if (runningRef.current) return false;
     runningRef.current = true;
     pausedRef.current = false;
     cancelRef.current = false;
@@ -348,18 +375,26 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     setProgress(10);
     setProcessed(0);
     setQualityPreview(null);
-    const selectedImportKind: "products" | "customers" =
+    const selectedImportKind: "products" | "customers" | "inventory" | "product_units" =
       existingJob?.job_type === "unified_import_customers"
         ? "customers"
-        : existingJob?.job_type === "unified_import_products" || existingJob?.job_type === "unified_import"
-          ? "products"
-          : requestedImportKind ?? applicationKind;
-    if (selectedImportKind === "customers" && !canRollbackImport) {
-      setErrorMessage("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
+        : existingJob?.job_type === "inventory"
+          ? "inventory"
+          : existingJob?.job_type === "product_units"
+            ? "product_units"
+            : existingJob?.job_type === "unified_import_products" || existingJob?.job_type === "unified_import"
+              ? "products"
+              : requestedImportKind ?? applicationKind;
+    if (selectedImportKind !== "products" && !canRollbackImport) {
+      setErrorMessage(selectedImportKind === "inventory"
+        ? "استيراد أرصدة المخزون متاح للمدير أو المدير العام فقط."
+        : selectedImportKind === "product_units"
+          ? "استيراد وحدات الأصناف متاح للمدير أو المدير العام فقط."
+          : "استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       runningRef.current = false;
-      return;
+      return false;
     }
-    setApplicationKind(selectedImportKind);
+    if (selectedImportKind !== "inventory" && selectedImportKind !== "product_units") setApplicationKind(selectedImportKind);
     const storedImportSummary = existingJob?.error_summary && typeof existingJob.error_summary === "object"
       ? existingJob.error_summary as Record<string, unknown>
       : null;
@@ -368,10 +403,14 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       : null;
     const isXlsxImport = file.name.toLocaleLowerCase("en").endsWith(".xlsx");
     const defaultWorksheetName = isXlsxImport
-      ? selectedImportKind === "customers" ? "Customers" : "Products"
+      ? selectedImportKind === "inventory" ? "StockBalances" : selectedImportKind === "product_units" ? "ProductUnits" : selectedImportKind === "customers" ? "Customers" : "Products"
       : null;
     const selectedWorksheetName = requestedWorksheetName ?? storedWorksheetName ?? defaultWorksheetName;
-    const importJobType = selectedImportKind === "customers" ? "unified_import_customers" : "unified_import_products";
+    const importJobType = selectedImportKind === "inventory"
+      ? "inventory"
+      : selectedImportKind === "product_units"
+        ? "product_units"
+        : selectedImportKind === "customers" ? "unified_import_customers" : "unified_import_products";
     let job: ImportJob | null = existingJob ?? null;
     let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; external_source_reference: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
     let processingConfigFingerprint: string | null = null;
@@ -384,6 +423,18 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           throw new Error("ملف العملاء التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف العملاء قبل الاستئناف.");
         }
         selectedProfile = customerProfileId;
+      } else if (selectedImportKind === "inventory") {
+        const stockProfileId = await ensureOnyxStockBalanceImportProfile();
+        if (selectedProfile && selectedProfile !== stockProfileId) {
+          throw new Error("ملف أرصدة أونكس التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف الأرصدة قبل الاستئناف.");
+        }
+        selectedProfile = stockProfileId;
+      } else if (selectedImportKind === "product_units") {
+        const unitProfileId = await ensureOnyxProductUnitImportProfile();
+        if (selectedProfile && selectedProfile !== unitProfileId) {
+          throw new Error("ملف وحدات الأصناف التعريفي لا يطابق الدفعة المحددة؛ أعد اختيار ملف ProductUnits قبل الاستئناف.");
+        }
+        selectedProfile = unitProfileId;
       }
       if (!job) {
         const { data: authSessionData, error: authSessionError } = await supabase.auth.getSession();
@@ -435,7 +486,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setStage(null);
         setStatusMessage(unsupported.statusMessage);
         await refetch();
-        return;
+        return false;
       }
 
       const currentProfiles = await fetchImportProfiles();
@@ -566,20 +617,27 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         if (quality) setQualityPreview(quality.result());
       };
 
+      const seenStockWarehouseItems = new Set<string>();
+      const seenProductUnitKeys = new Set<string>();
+      const seenProductUnitNames = new Set<string>();
       const consumeRow = async (values: string[]) => {
         if (cancelRef.current) return;
         if (!headers) {
           if (values.length > MAX_IMPORT_COLUMNS) throw new Error("عدد الأعمدة يتجاوز الحد الأقصى " + MAX_IMPORT_COLUMNS);
           headers = values.map((value) => {
             const canonical = normalizeHeader(value, profileSynonyms);
+            const stockCanonical = selectedImportKind === "inventory"
+              ? normalizeOnyxStockBalanceHeader(canonical)
+              : canonical;
             const rawKey = normalizeSynonymSource(value);
-            return ignoredColumns.has(canonical) || ignoredColumns.has(rawKey) ? "" : canonical;
+            return ignoredColumns.has(stockCanonical) || ignoredColumns.has(canonical) || ignoredColumns.has(rawKey) ? "" : stockCanonical;
           });
           if (!headers.length || headers.every((value) => !value)) throw new Error("صف العناوين فارغ؛ يلزم تعيين الأعمدة يدويًا.");
           if (new Set(headers.filter(Boolean)).size !== headers.filter(Boolean).length) {
             throw new Error("يوجد أكثر من عنوان يتحول إلى العمود نفسه بعد التطبيع؛ راجع قاموس المرادفات.");
           }
-          const requiredHeaderSet = new Set([...requiredColumns, matchingKey]);
+          const sourceMatchingKey = selectedImportKind === "inventory" || selectedImportKind === "product_units" ? "item_code" : matchingKey;
+          const requiredHeaderSet = new Set([...requiredColumns, sourceMatchingKey]);
           const missingRequiredHeaders = [...requiredHeaderSet].filter((field) => !headers!.includes(field));
           if (missingRequiredHeaders.length > 0) {
             throw new Error("الملف يفتقد أعمدة إلزامية للملف التعريفي الحالي: " + missingRequiredHeaders.join("، ") + ". صحح صف العناوين أو اختر ملفًا تعريفيًا مطابقًا؛ لم يتم اعتماد أي بيانات.");
@@ -591,8 +649,48 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         if (values.length > MAX_IMPORT_COLUMNS) throw new Error("صف البيانات تجاوز حد الأعمدة.");
         if (dataRows >= MAX_IMPORT_ROWS) throw new Error("تجاوز الملف الحد الأقصى " + MAX_IMPORT_ROWS + " صف.");
         dataRows += 1;
-        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, matchingKey, requiredColumns);
+        const sourceMatchingKey = selectedImportKind === "inventory" || selectedImportKind === "product_units" ? "item_code" : matchingKey;
+        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, sourceMatchingKey, requiredColumns);
         const parsed: ParsedImportRow = applyImportProfileRules(baseRow, transformations, validations);
+        if (selectedImportKind === "inventory") {
+          const itemCode = String(parsed.data.item_code ?? "").trim();
+          const warehouseCode = String(parsed.data.warehouse_code ?? "").trim();
+          parsed.errors.push(...validateOnyxStockBalanceRow(parsed.data));
+          if (itemCode && warehouseCode) {
+            const identity = buildOnyxWarehouseItemKey(itemCode, warehouseCode);
+            if (seenStockWarehouseItems.has(identity)) {
+              parsed.errors.push("يوجد تكرار للصنف نفسه داخل المخزن نفسه؛ اجمع الرصيد في صف واحد قبل الاستيراد.");
+            } else {
+              seenStockWarehouseItems.add(identity);
+            }
+            parsed.data.warehouse_item_key = identity;
+          }
+          if (parsed.errors.length) parsed.status = "rejected";
+        }
+        if (selectedImportKind === "product_units") {
+          const itemCode = String(parsed.data.item_code ?? "").trim();
+          const unitCode = String(parsed.data.unit_code ?? "").trim();
+          const unitName = String(parsed.data.unit_name ?? "").trim();
+          parsed.errors.push(...validateOnyxProductUnitRow(parsed.data));
+          if (itemCode && unitCode) {
+            const identity = buildOnyxProductUnitKey(itemCode, unitCode);
+            if (seenProductUnitKeys.has(identity)) {
+              parsed.errors.push("كود الوحدة مكرر للصنف نفسه داخل ورقة ProductUnits.");
+            } else {
+              seenProductUnitKeys.add(identity);
+            }
+            parsed.data.product_unit_key = identity;
+          }
+          if (itemCode && unitName) {
+            const nameIdentity = itemCode.toLocaleUpperCase("en") + "::" + unitName.trim().toLocaleLowerCase("en");
+            if (seenProductUnitNames.has(nameIdentity)) {
+              parsed.errors.push("اسم الوحدة مكرر للصنف نفسه داخل ورقة ProductUnits.");
+            } else {
+              seenProductUnitNames.add(nameIdentity);
+            }
+          }
+          if (parsed.errors.length) parsed.status = "rejected";
+        }
         quality?.add(parsed);
         // Already-verified upload chunks have their structured rows committed before their
         // manifest checkpoint. Reparse those bytes locally to rebuild CSV/quality state, but
@@ -703,7 +801,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         await refetch();
         setStage(null);
         setStatusMessage("ألغيت الدفعة. لم تُحفظ بيانات الملف الخام.");
-        return;
+        return false;
       }
 
       if (extension === "csv") {
@@ -752,6 +850,16 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       }
       await refetch();
       onNotice(result.status === "completed" ? "اكتمل الاستيراد بجودة " + result.data_quality_score + "/100" : "انتهت الدفعة بالحالة: " + result.status);
+      if ((selectedImportKind === "inventory" || selectedImportKind === "product_units") &&
+          (result.status !== "completed" || !result.snapshot_id)) {
+        setStatusMessage(selectedImportKind === "inventory"
+          ? "لم تُنشأ لقطة StockBalances جاهزة للمصالحة؛ نتيجة الجودة " + result.data_quality_score +
+            "/100 والحالة " + result.status + ". صحح الصفوف المرفوضة أو أكمل المراجعة ثم أعد المعالجة؛ لم تتغير أرصدة المخازن."
+          : "لم تُنشأ لقطة ProductUnits جاهزة للاعتماد؛ نتيجة الجودة " + result.data_quality_score +
+            "/100 والحالة " + result.status + ". صحح الصفوف المرفوضة أو أكمل المراجعة ثم أعد المعالجة؛ لم تتغير تحويلات الوحدات.");
+        return false;
+      }
+      return result.status === "completed" || result.status === "completed_with_warnings" || result.status === "manual_review";
     } catch (cause) {
       await handleImportFailure(
         cause,
@@ -759,11 +867,63 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         processingConfigFingerprint,
         checkpointFingerprintPersisted,
       );
+      return false;
     } finally {
       runningRef.current = false;
       pausedRef.current = false;
       setPaused(false);
     }
+  }
+
+  async function processWorkbookSheets(
+    file: File,
+    fileHash: string,
+    worksheets: ImportWorkbookSheet[],
+    unsupportedWorksheetNames: string[],
+  ): Promise<void> {
+    if (worksheets.length === 0) return;
+    for (let index = 0; index < worksheets.length; index += 1) {
+      const worksheet = worksheets[index];
+      const selectedProfileForFile = worksheet.applicationKind === "customers"
+        ? await ensureCustomerImportProfile()
+        : worksheet.applicationKind === "inventory"
+          ? await ensureOnyxStockBalanceImportProfile()
+          : worksheet.applicationKind === "product_units"
+            ? await ensureOnyxProductUnitImportProfile()
+            : activeProfileId;
+      const duplicate = await findImportDuplicate(fileHash, selectedProfileForFile, periodKey.trim() || null) as DuplicateResult;
+      if (duplicate.duplicate) {
+        setDuplicatePrompt({
+          file, fileHash, profileId: selectedProfileForFile, periodKey: periodKey.trim() || null,
+          sourceSystem, externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
+          duplicate, applicationKind: worksheet.applicationKind, worksheetName: worksheet.worksheetName,
+          remainingWorksheets: worksheets.slice(index + 1), unsupportedWorksheetNames,
+        });
+        setStage(null);
+        setStatusMessage("توقف المصنف عند ورقة " + worksheet.worksheetName + " لاكتشاف نسخة سابقة؛ لم تُستكمل الأوراق التالية قبل قرارك.");
+        return;
+      }
+      const processed = await processFile(
+        file, fileHash, "new_version", undefined, selectedProfileForFile, periodKey.trim() || null,
+        sourceSystem, sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
+        worksheet.applicationKind, worksheet.worksheetName,
+      );
+      if (!processed) {
+        setStatusMessage("توقف المصنف عند ورقة " + worksheet.worksheetName + " بسبب فشل المعالجة أو رفض الجودة. لم نتابع الأوراق التالية حتى لا تختلط النتائج.");
+        return;
+      }
+    }
+    const importedNames = worksheets.map((sheet) => sheet.worksheetName);
+    const inventoryIncluded = worksheets.some((sheet) => sheet.applicationKind === "inventory");
+    const productUnitsIncluded = worksheets.some((sheet) => sheet.applicationKind === "product_units");
+    const unsupportedText = unsupportedWorksheetNames.length
+      ? " الأوراق التي لم تُرحّل لعدم وجود مسار اعتماد مطابق: " + unsupportedWorksheetNames.join("، ") + "."
+      : " لم توجد أوراق إضافية خارج مسارات الاستيراد المدعومة.";
+    setStage("complete");
+    setStatusMessage("اكتملت معالجة أوراق المصنف: " + importedNames.join("، ") + "." + unsupportedText +
+      (inventoryIncluded ? " لقطة StockBalances جاهزة لمعاينة كل مخزن واعتماد تسويته من مركز لقطات أونكس." : "") +
+      (productUnitsIncluded ? " وحدات ProductUnits جاهزة للمعاينة والاعتماد بعد اعتماد لقطة الأصناف أولًا." : "") +
+      " لا تُعدّل الأرصدة أو التحويلات عند رفع الملف؛ كل نوع ينتظر أمر اعتماده الخاص.");
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -789,51 +949,72 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       });
       setStage("detecting");
       const extension = file.name.split(".").pop()?.toLocaleLowerCase("en") ?? "";
-      let detectedImportKind: "products" | "customers" = applicationKind;
+      if (extension === "xlsx") {
+        const workbookSheets = await readImportWorkbookSheets(file);
+        const supportedWorksheets: ImportWorkbookSheet[] = [];
+        const unsupportedWorksheetNames: string[] = [];
+        const supportedKinds = new Map<"products" | "customers" | "inventory" | "product_units", string[]>();
+        for (const sheet of workbookSheets) {
+          const detection = detectImportDatasetKind(sheet.headers);
+          const normalizedStockHeaders = sheet.headers.map(normalizeOnyxStockBalanceHeader);
+          const isStockBalancesSheet = sheet.worksheetName.trim().toLocaleLowerCase("en") === "stockbalances" &&
+            ["item_code", "warehouse_code", "quantity", "as_of_date"].every((field) => normalizedStockHeaders.includes(field));
+          const applicationKind = detection.kind === "inventory" && isStockBalancesSheet ? "inventory" : detection.kind;
+          if (applicationKind === "products" || applicationKind === "customers" || applicationKind === "inventory" || applicationKind === "product_units") {
+            supportedWorksheets.push({ worksheetName: sheet.worksheetName, applicationKind });
+            const names = supportedKinds.get(applicationKind) ?? [];
+            names.push(sheet.worksheetName);
+            supportedKinds.set(applicationKind, names);
+          } else {
+            unsupportedWorksheetNames.push(sheet.worksheetName + " (" + detection.kind + ")");
+          }
+        }
+        const sheetOrder: Record<ImportWorkbookSheet["applicationKind"], number> = {
+          products: 0, customers: 1, product_units: 2, inventory: 3,
+        };
+        supportedWorksheets.sort((left, right) => sheetOrder[left.applicationKind] - sheetOrder[right.applicationKind]);
+        for (const [kind, names] of supportedKinds) {
+          if (names.length > 1) {
+            const kindLabel = kind === "products" ? "أصناف" : kind === "customers" ? "عملاء" : kind === "product_units" ? "وحدات أصناف" : "أرصدة مخزون";
+            throw new Error("يحتوي المصنف على أكثر من ورقة " + kindLabel +
+              " (" + names.join("، ") + "). اجمع كل مجموعة في ورقة واحدة بمفتاحها الفريد قبل الاستيراد؛ لم تُنشأ أي دفعة.");
+          }
+        }
+        if (supportedWorksheets.length === 0) {
+          throw new Error("لم يعثر المصنف على ورقة أصناف أو عملاء قابلة للاستيراد. الأوراق المكتشفة: " +
+            unsupportedWorksheetNames.join("، ") + ". لم تُنشأ أي دفعة أو تتغير بيانات.");
+        }
+        if (supportedWorksheets.some((sheet) => sheet.applicationKind !== "products") && !canRollbackImport) {
+          throw new Error("يحتوي المصنف على ورقة غير الأصناف؛ يلزم حساب مدير/مدير عام لاعتماد الوحدات والعملاء والمخزون. لم يبدأ أي استيراد.");
+        }
+        await processWorkbookSheets(file, fileHash, supportedWorksheets, unsupportedWorksheetNames);
+        return;
+      }
+
+      let detectedImportKind: "products" | "customers" | "product_units" = applicationKind;
       let selectedWorksheetName: string | null = null;
-      if (extension === "csv" || extension === "xlsx") {
-        const headerRead = await readImportFileHeaders(
-          file,
-          extension,
-          applicationKind === "customers" ? ["Customers"] : ["Products"],
-        );
-        const sourceHeaders = headerRead.headers;
-        selectedWorksheetName = headerRead.worksheetName;
-        if (extension === "xlsx" && headerRead.worksheetNames.length > 1 && selectedWorksheetName) {
-          const otherSheets = headerRead.worksheetNames.filter((name) => name !== selectedWorksheetName);
-          setStatusMessage(
-            "تم اختيار ورقة " + selectedWorksheetName + " تلقائياً من ملف Excel. هذا المسار يعالج الورقة المختارة فقط؛ الأوراق الأخرى (" +
-            otherSheets.join("، ") + ") لم تُرحّل في هذه العملية.",
-          );
+      if (extension === "csv") {
+        const headerRead = await readImportFileHeaders(file, extension);
+        const detection = detectImportDatasetKind(headerRead.headers);
+        if (detection.kind === "orders" || detection.kind === "pricing" || detection.kind === "inventory" || detection.kind === "ambiguous") {
+          throw new Error("هذا الملف من نوع " + detection.kind + " ولا يملك مسار اعتماد من نوع " + applicationKind +
+            ". لم تُنشأ دفعة ولم تتغير بيانات التشغيل.");
         }
-        const detection = detectImportDatasetKind(sourceHeaders);
-        if (detection.kind === "orders") {
-          throw new Error("تم التعرف على ملف طلبات أونكس. لا يمكن تمريره إلى اعتماد الأصناف أو العملاء؛ يلزم ربط رأس الطلب وتفاصيله والتحقق من العميل والأصناف وحالة المستند قبل أي كتابة. لم تُنشأ دفعة ولم تتغير الطلبات.");
-        }
-        if (detection.kind === "pricing") {
-          throw new Error("تم التعرف على ملف قوائم/أسعار أونكس. لا يمكن تمريره إلى اعتماد كتالوج الأصناف؛ يلزم التحقق من قائمة الأسعار والعملة والوحدة وفترة السريان قبل تحديث الأسعار. لم تُنشأ دفعة ولم تتغير الأسعار.");
-        }
-        if (detection.kind === "inventory") {
-          throw new Error("اكتشف النظام ملف أرصدة مخزون مستقلًا (" + detection.matchedFields.join("، ") +
-            "). لم تُنشأ دفعة أصناف ولم يُعدّل أي رصيد؛ لا يُعتمد المخزون حتى يكتمل مسار المطابقة والتسوية الآمنة.");
-        }
-        if (detection.kind === "ambiguous") {
-          throw new Error("رؤوس الملف تجمع أكثر من نوع بيانات (" + detection.matchedFields.join("، ") +
-            "). افصل الأصناف والعملاء والمخزون في ملفات مستقلة؛ لم تُنشأ دفعة ولم تُحفظ صفوف.");
-        }
-        if (detection.kind === "products" || detection.kind === "customers") {
+        if (detection.kind === "products" || detection.kind === "customers" || detection.kind === "product_units") {
           detectedImportKind = detection.kind;
-          setApplicationKind(detectedImportKind);
-        } else {
-          setStatusMessage("لم تكفِ رؤوس الملف لإثبات نوعه؛ سيُستخدم اختيار النوع اليدوي الحالي، وتظل قواعد الأعمدة الإلزامية نافذة.");
+          if (detectedImportKind === "products" || detectedImportKind === "customers") setApplicationKind(detectedImportKind);
         }
       }
-      if (detectedImportKind === "customers" && !canRollbackImport) {
-        throw new Error("استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
+      if (detectedImportKind !== "products" && !canRollbackImport) {
+        throw new Error(detectedImportKind === "product_units"
+          ? "استيراد وحدات الأصناف متاح للمدير أو المدير العام فقط."
+          : "استيراد دليل العملاء متاح للمدير أو المدير العام فقط.");
       }
       const selectedProfileForFile = detectedImportKind === "customers"
         ? await ensureCustomerImportProfile()
-        : activeProfileId;
+        : detectedImportKind === "product_units"
+          ? await ensureOnyxProductUnitImportProfile()
+          : activeProfileId;
       const duplicate = await findImportDuplicate(fileHash, selectedProfileForFile, periodKey.trim() || null) as DuplicateResult;
       if (duplicate.duplicate) {
         setDuplicatePrompt({
@@ -846,6 +1027,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
           duplicate,
           applicationKind: detectedImportKind,
           worksheetName: selectedWorksheetName,
+          remainingWorksheets: [],
+          unsupportedWorksheetNames: [],
         });
         setStage(null);
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
@@ -865,9 +1048,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
     const pending = duplicatePrompt;
     setDuplicatePrompt(null);
     if (action === "ignore") {
-      setStatusMessage("لم يُنشأ استيراد جديد؛ احتفظ النظام بالنسخة السابقة دون تعديل.");
+      setStatusMessage("تم تجاوز ورقة " + (pending.worksheetName ?? "CSV") + " دون تعديل النسخة السابقة.");
+      await processWorkbookSheets(pending.file, pending.fileHash, pending.remainingWorksheets, pending.unsupportedWorksheetNames);
       return;
     }
+    let processed = false;
     if (action === "resume") {
       const openJob = pending.duplicate.jobs.find((item) =>
         ["staging", "uploading", "failed"].includes(item.status) && Boolean(item.upload_session_id),
@@ -876,17 +1061,21 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         setErrorMessage("لا توجد دفعة غير مكتملة قابلة للاستئناف لهذا الملف.");
         return;
       }
-      await processFile(
+      processed = await processFile(
         pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey,
         openJob.source_system ?? pending.sourceSystem,
         openJob.external_source_reference ?? pending.externalSourceReference,
-        pending.applicationKind,
-        pending.worksheetName,
+        pending.applicationKind, pending.worksheetName,
       );
-      return;
+    } else {
+      processed = await processFile(
+        pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
+        pending.sourceSystem, pending.externalSourceReference, pending.applicationKind, pending.worksheetName,
+      );
     }
-    await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
-      pending.sourceSystem, pending.externalSourceReference, pending.applicationKind, pending.worksheetName);
+    if (processed) {
+      await processWorkbookSheets(pending.file, pending.fileHash, pending.remainingWorksheets, pending.unsupportedWorksheetNames);
+    }
   }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
@@ -1025,6 +1214,30 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
       setErrorMessage("جودة اللقطة أقل من الحد الأدنى للاعتماد؛ أعد معالجة الملف بعد تصحيح الصفوف.");
       return;
     }
+    if (importKind === "product_units") {
+      if (!window.confirm(
+        "اعتماد تحويلات وحدات الأصناف من " + (snapshot.source_file_name ?? snapshot.id) + "؟\\n\\n" +
+        "يجب اعتماد ورقة Products أولاً حتى تكون أكواد الأصناف موجودة. سيضيف النظام الوحدات البديلة أو يحدّث معاملها مع الحفاظ على الوحدات السابقة. الوحدة الأساسية لا تُضاف كتحويل بديل. الأسعار والباركود وإعدادات البيع والشراء الواردة في هذه الورقة تبقى للمراجعة ولا تُعتمد هنا."
+      )) return;
+      setApplicationBusyId(snapshot.id);
+      setErrorMessage("");
+      try {
+        const result = await applyOnyxProductUnitSnapshot(snapshot.id);
+        const summary = "اكتمل اعتماد وحدات الأصناف: " + formatNumber(result.units_created) +
+          " وحدة جديدة، " + formatNumber(result.units_updated) + " تحويل محدّث، " + formatNumber(result.units_unchanged) + " دون تغيير، " +
+          formatNumber(result.base_unit_rows_skipped) + " صف وحدة أساسية مستبعد، و" +
+          formatNumber(result.rejected) + " صف مرفوض. " +
+          (result.metadata_rows_pending_review ? formatNumber(result.metadata_rows_pending_review) + " صفًا لديه أسعار/خصائص وحدة تنتظر مراجعة مستقلة." : "");
+        setStatusMessage(summary);
+        onNotice(summary);
+        await refetchSnapshots();
+      } catch (cause) {
+        setErrorMessage(cause instanceof Error ? cause.message : "تعذر اعتماد تحويلات وحدات الأصناف.");
+      } finally {
+        setApplicationBusyId(null);
+      }
+      return;
+    }
     const description = importKind === "products"
       ? "ستظل الأصناف الجديدة غير منشورة. أي أسعار أو تصنيفات غير مكتملة تتطلب مراجعة المدير قبل النشر، ولا تُنفذ هذه العملية تسوية للمخزون."
       : "سيُنشأ العملاء الجدد بحالة انتظار وبشريحة تجزئة افتراضية. لن تُستورد أرصدة أو حدود ائتمان أو صلاحيات أو شرائح أسعار معتمدة من ملف المصدر.";
@@ -1110,7 +1323,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
         <section className="panel import-upload-panel">
           <div className="import-upload-icon"><Upload size={26} /></div>
           <h2>رفع ملف للمعالجة</h2>
-          <p>يدعم CSV وXLSX. في المصنف متعدد الأوراق يختار ورقة Products أو Customers بحسب نوع الاستيراد، ثم يعالج الورقة المختارة فقط. صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي.</p>
+          <p>يدعم CSV وXLSX. يقرأ مصنف Excel متعدد الأوراق ويعالج الأصناف والعملاء، كما يجهّز ورقة StockBalances كلقطة مخزون مستقلة. لقطة المخزون لا تغيّر الأرصدة عند الرفع؛ يجب معاينة كل مخزن ثم تطبيق المصالحة المعتمدة من مركز لقطات أونكس. وحدات الأصناف والدفعات وحركات المخزون وقوائم الأسعار والطلبات تبقى غير مرحّلة حتى تتوفر أوامر اعتمادها المخصصة.</p>
           <div className="form-grid">
             <label className="form-field"><span>نوع البيانات في الملف</span>
               <select value={applicationKind} disabled={stage !== null || Boolean(duplicatePrompt)}
@@ -1121,9 +1334,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                 <option value="products">أصناف المنتجات</option>
                 <option value="customers" disabled={!canRollbackImport}>دليل العملاء</option>
               </select>
-              <small>اختيار النوع أعلاه يخص ملفات الرفع الجديدة فقط؛ نوع اللقطة يُحدد من دفعة المصدر الأصلية. اللقطات التي لا يمكن إثبات نوعها لن تكون قابلة للاعتماد.</small><small>يُكتشف نوع CSV/XLSX من الرؤوس قبل إنشاء الدفعة؛ ملفات المخزون المستقلة والملفات المختلطة تُرفض دون حفظ صفوف. {applicationKind === "customers"
-                ? "يُستخدم ملف عملاء مستقل ومفتاح رقم العميل؛ تُتجاهل فئة المصدر ويحدد المدير فئة العميل لاحقاً."
-                : "ملف الأصناف يستخدم رقم الصنف ومواصفات وأسعار الفئات الثلاث."}</small>
+              <small>يُستخدم الاختيار اليدوي لملفات CSV غير المعروفة فقط. مصنف XLSX يُصنف ورقةً بورقة، ويُحدد نوع اللقطة من سجل الدفعة المصدر.</small><small>في المصنف الواحد تُرحّل ورقة واحدة لكل نوع: أصناف، عملاء، وStockBalances. لقطة المخزون تتطلب product_code وwarehouse_code وquantity_on_hand وas_of_date؛ وتُرفض صفوف الوحدات/الدفعات/التشغيلات/الأرقام التسلسلية لأن المصالحة الحالية تعتمد كمية الوحدة الأساسية المجمعة لكل صنف ومخزن. لا يعتمد رفع المخزون الرصيد مباشرة.</small>
             </label>
             <label className="form-field"><span>مصدر البيانات</span>
               <select value={sourceSystem} disabled={stage !== null || Boolean(duplicatePrompt)} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
@@ -1205,7 +1416,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
 
         <section className="panel">
           <div className="panel-head">
-            <div><h2>اعتماد البيانات إلى الكتالوج والعملاء</h2><p>تطبيق لقطة مراجعة جاهزة دون إعادة تحليل الملف أو تعديل السجلات الموجودة.</p></div>
+            <div><h2>اعتماد البيانات إلى الكتالوج والعملاء ووحدات الأصناف</h2><p>تطبيق لقطة مراجعة جاهزة دون إعادة تحليل الملف أو تعديل السجلات الموجودة.</p></div>
 
           </div>
           <div className="privacy-note"><ShieldCheck size={17} /><span>
@@ -1220,7 +1431,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
               <tbody>{readySnapshots.map((snapshot) => <Fragment key={snapshot.id}>
                 <tr>
                   <td><strong>{snapshot.source_file_name ?? "ملف دون اسم"}</strong><small>{snapshot.source_file_hash.slice(0, 14)}… • v{snapshot.snapshot_version}</small></td>
-                  <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
+                  <td>{snapshot.import_kind === "products" ? "أصناف" : snapshot.import_kind === "customers" ? "عملاء" : snapshot.import_kind === "product_units" ? "وحدات الأصناف" : snapshot.report_type === "inventory_stock" ? "أرصدة مخزون — مصالحة مستودعات" : "نوع المصدر غير مؤكد"}<small>{snapshot.report_type}</small></td>
                   <td>{formatNumber(snapshot.row_count)}</td>
                   <td>{formatNumber(snapshot.data_quality_score)}/100</td>
                   <td>{new Date(snapshot.created_at).toLocaleDateString("ar")}</td>
@@ -1229,10 +1440,14 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                       onClick={() => void toggleSnapshotPreview(snapshot)}>
                       {snapshotPreview?.snapshotId === snapshot.id ? "إغلاق المعاينة" : "معاينة الصفوف"}
                     </Button>
-                    <Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
-                      onClick={() => void applyReadySnapshot(snapshot)}>
-                      {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : "النوع غير مؤكد"}
-                    </Button>
+                    {snapshot.report_type === "inventory_stock" ? (
+                      <span className="privacy-note">تُعاين وتُعتمد تسوية هذا الرصيد من مركز لقطات أونكس، لكل مخزن على حدة.</span>
+                    ) : (
+                      <Button disabled={!canRollbackImport || Boolean(applicationBusyId) || snapshot.data_quality_score < 75 || !snapshot.import_kind}
+                        onClick={() => void applyReadySnapshot(snapshot)}>
+                        {applicationBusyId === snapshot.id ? "جارٍ الاعتماد…" : snapshot.import_kind === "products" ? "اعتماد الأصناف" : snapshot.import_kind === "customers" ? "اعتماد العملاء" : snapshot.import_kind === "product_units" ? "اعتماد تحويلات الوحدات" : "النوع غير مؤكد"}
+                      </Button>
+                    )}
                   </div></td>
                 </tr>
                 {snapshotPreview?.snapshotId === snapshot.id && <tr>
@@ -1241,7 +1456,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0, initialJobId
                       معاينة محدودة لصفوف المصدر قبل الاعتماد ({formatNumber(snapshotPreview.rows.length)} من {formatNumber(snapshot.row_count)}).
                       {snapshotPreview.importKind === "products"
                         ? " الأسعار المعروضة قيم مصدر منفصلة وليست اعتماداً أو نشراً؛ رصيد المصدر غير معتمد حتى تتم التسوية."
-                        : " فئة العميل وحد الائتمان ورصيد الحساب من المصدر لا تظهر ولا تتحول إلى صلاحية تجارية معتمدة."}
+                        : snapshotPreview.importKind === "product_units"
+                          ? " معاينة أكواد الوحدات ومعاملات التحويل فقط. لا تعرض أسعار الوحدة أو خصائص البيع والشراء التي لا تعتمدها هذه العملية."
+                          : " فئة العميل وحد الائتمان ورصيد الحساب من المصدر لا تظهر ولا تتحول إلى صلاحية تجارية معتمدة."}
                     </div>
                     {snapshotPreview.error && <ErrorBox message={snapshotPreview.error} />}
                     {snapshotPreview.loading && snapshotPreview.rows.length === 0 ? <Loading /> :

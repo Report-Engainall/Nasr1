@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ONYX_ORDER_COLUMNS } from "@/lib/onyx-export";
-import { detectImportDatasetKind, normalizeHeader, resolveImportProfileMapping } from "@/lib/unified-import";
+import { detectImportDatasetKind, normalizeHeader, normalizeOnyxStockBalanceHeader, resolveImportProfileMapping } from "@/lib/unified-import";
 
 describe("default Onyx and bulk business import headers", () => {
   it("maps every one of the 27 official Onyx order-template column labels", () => {
@@ -101,6 +101,50 @@ describe("default Onyx and bulk business import headers", () => {
 
   it("requires a manual type selection when headers do not establish a known dataset", () => {
     expect(detectImportDatasetKind(["document_date", "amount", "notes"]).kind).toBe("unknown");
+  });
+
+  it("classifies the supported and deferred sheets in one Onyx workbook independently", () => {
+    const sheets: Array<[string, string[], string]> = [
+      ["Products", ["product_code", "product_name", "base_unit_name", "price_retail"], "products"],
+      ["Customers", ["customer_code", "business_name", "phone"], "customers"],
+      ["StockBalances", ["product_code", "warehouse_code", "quantity_on_hand", "as_of_date"], "inventory"],
+      ["PriceLists", ["price_list_code", "price_list_name", "currency_code"], "pricing"],
+      ["PriceListLines", ["price_list_code", "product_code", "unit_price", "currency_code"], "pricing"],
+      ["Orders", ["order_number", "customer_code", "order_date"], "orders"],
+      ["OrderLines", ["order_number", "product_code", "quantity"], "orders"],
+      ["StockMovements", ["movement_id", "product_code", "quantity", "transaction_date"], "inventory"],
+    ];
+    for (const [sheetName, headers, expectedKind] of sheets) {
+      expect(detectImportDatasetKind(headers).kind, sheetName).toBe(expectedKind);
+    }
+  });
+
+  it("maps official StockBalances headers into the protected reconciliation contract", () => {
+    expect(normalizeOnyxStockBalanceHeader("product_code")).toBe("item_code");
+    expect(normalizeOnyxStockBalanceHeader("quantity_on_hand")).toBe("quantity");
+    expect(detectImportDatasetKind(["product_code", "warehouse_code", "quantity_on_hand", "as_of_date"]).kind)
+      .toBe("inventory");
+    expect(resolveImportProfileMapping(
+      "inventory",
+      ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      "warehouse_item_key",
+    )).toEqual({
+      requiredColumns: ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      matchingKey: "warehouse_item_key",
+    });
+  });
+
+  it("detects ProductUnits sheets separately from product catalog rows", () => {
+    expect(detectImportDatasetKind(["product_code", "unit_code", "unit_name", "conversion_factor"]).kind)
+      .toBe("product_units");
+    expect(resolveImportProfileMapping(
+      "product_units",
+      ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      "product_unit_key",
+    )).toEqual({
+      requiredColumns: ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      matchingKey: "product_unit_key",
+    });
   });
 
   it("preserves the active product profile rules for product files", () => {
