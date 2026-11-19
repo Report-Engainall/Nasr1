@@ -1,73 +1,62 @@
 # LIVE EXECUTION RESUME — 2026-11-20
 
-> This is the sole live execution pointer. Read this header and root `AGENTS.md`; continue from the first unaccepted action below. Historical sections after the divider are reference only and must not override this pointer.
+> Sole live pointer. Read this section and root `AGENTS.md`; historical content below is reference only. Resume from the first unaccepted action, not from old SHAs or closed PRs.
 
-- Repository: `Report-Engainall/Nasr1`; only source branch: `main`.
-- Current `main` HEAD: `99ae206a5780920b3640344a1ab9719ed74df38e`.
-- Owners: P1 = ChatGPT product/UX/integration and sole merger; P2 = PostgreSQL/RPC/migrations/transactions/inventory/finance; P3 = intelligence/BI/forecast engines.
-- Never infer acceptance from file presence, PR description, mergeability, stale SHA, or a skipped job. No production DB mutation, external migration, hosted deployment, Vercel build/preview/deploy, Bolt, Lovable, or paid AI was used in this session.
+- Repository: `Report-Engainall/Nasr1`; only truth branch: `main`.
+- Current `main` HEAD: `8bca69d98099a4e2910a476a9fb92b9dabc968c7`.
+- `main` advanced from the code-tested merge SHA `99ae206a5780920b3640344a1ab9719ed74df38e` through documentation-only commits `4aaa013dfebcd1767d2b98494f64c3bcf8d0e496` (this checkpoint) and `8bca69d98099a4e2910a476a9fb92b9dabc968c7` (acceptance-matrix update). No application, migration, or workflow code changed after `99ae206a...`; keep all evidence explicitly tied to the tested SHA.
+- Owners: P1 = product/integration/sole merger; P2 = PostgreSQL/RPC/migrations/transactions/inventory/finance; P3 = intelligence/BI/forecast.
+- No production or hosted Supabase mutation, live integration write, Vercel build/preview/deploy, Bolt, Lovable, or paid AI was used.
 
-## Merges completed on current main
+## Merges completed
 
-1. **PR #550 — P1 baseline test-fixture restoration**
-   - Merge SHA: `f5cb379bb6367f8dd427c021bf87fbb5c2607195`.
-   - Exact PR head: `3906db8fb91cdf97dccab6e4cb731a37584f4d6f`.
-   - Restored device-change retry fixture persistence/idempotency, isolated device-management RPC mocks, and locale-safe cart quantity assertions.
-   - Exact-head P1 and device-request PostgreSQL 17 acceptance passed. Duplicate #545/#542/#540 were closed only after confirming their remaining changes were already on main or unsafe/stale.
+1. **PR #550 — P1 baseline fixture restoration**
+   - Merge: `f5cb379bb6367f8dd427c021bf87fbb5c2607195`; PR head: `3906db8fb91cdf97dccab6e4cb731a37584f4d6f`.
+   - Exact-head P1 and device-request PG17 acceptance passed.
 
 2. **PR #556 — supplier invoice page-local search and status filters**
-   - Merge SHA: `0265a21520e7350c406e07b117dfcc05000d7738`.
-   - Exact PR head: `e867b046ac1e90c830ab8ad46c1c36aa46491ed5`.
-   - Six files: Arabic-normalized search over current loaded page, match-status filter, visible-row selection, empty/clear states, page-local scope disclosure, and filter reset on identity/session change. No RPC, SQL, finance posting, or new supplier record path was added. Full-register server-side search remains P2 and is not claimed by this UI work.
-   - Exact-head P1: 180/180 test files and 1,283/1,283 tests passed; strict TypeScript and production build passed. Post-merge P1 checks also passed. PR #539 was closed after its P1 work was carried forward; #533 remains open for its distinct P2 full-register RPC/migration.
+   - Merge: `0265a21520e7350c406e07b117dfcc05000d7738`; PR head: `e867b046ac1e90c830ab8ad46c1c36aa46491ed5`.
+   - Page-local Arabic-normalized search, status filtering, visible-row selection, clear/empty states and session reset are on main. Full-register server-side search remains separate in #533.
 
-3. **PR #560 — isolated PostgreSQL 17 proof for inventory transfer guard order**
-   - Merge SHA / current main at merge: `99ae206a5780920b3640344a1ab9719ed74df38e`.
-   - Exact PR head: `97081efbac284fd3a049ff0efc70454fa50b8ff5`.
-   - Added a PostgreSQL 17 SQL regression to exercise the real forward guard migration for both `transfer_inventory` and `transfer_inventory_batch`, verify guard-before-replay-lock ordering, reapplication safety, rejection of a late guard, and recovery after simulated later function redefinition; connected it to the owning workflow.
-   - Exact-head targeted PostgreSQL 17 workflow run `44634463303` passed. Exact-head P1 Vitest/strict TypeScript passed. Public UI smoke was still running at merge; its post-merge run on `99ae206a...` is pending below. No production DDL was performed.
+3. **PR #560 — PostgreSQL 17 proof of inventory transfer guard order**
+   - Merge: `99ae206a5780920b3640344a1ab9719ed74df38e`; PR head: `97081efbac284fd3a049ff0efc70454fa50b8ff5`.
+   - Added `supabase/tests/inventory_transfer_replay_scope_guard.sql` and wired it into `.github/workflows/inventory-balance-adjustment-pg17.yml`.
+   - The test runs the real forward guard migration against both `transfer_inventory` and `transfer_inventory_batch`, proves the warehouse-scope guard occurs before the first replay advisory lock, tests safe reapplication, rejects a late guard, and proves redefinition recovery. This is a structural migration/order acceptance; it is not a live transaction or authenticated cross-tenant runtime test.
 
-## Current exact-head acceptance boundaries
+## Exact-SHA acceptance after PR #560
 
-- **Current main `99ae206a...` post-merge checks:** Authenticated E2E infrastructure gate succeeded; customer order/tenant E2E is **SKIPPED** because external authenticated test infrastructure is unavailable; PostgreSQL 17 atomic-adjustment/denial, read-only Playwright public UI smoke, and Vitest/strict TypeScript checks were still **IN_PROGRESS** when this pointer was refreshed. Recheck these exact runs/checks before recording terminal post-merge status.
-- **PR #559 — Authorization V2 prerequisite + stock-count permissions:** still open and not merged. Exact candidate head `8bdfb7e4b2c7bcdf9ba64c26142b4f40bd3dc2bb` is based on stale main `0265a215...`, one merge behind current `99ae206a...`. Fresh PostgreSQL 17 migration replay passed the former missing-`authorization_capabilities` failure; fixture creation and authorization registry/six-role parity passed; storefront review/question tenant acceptance passed. The aggregate P2 path then failed at the independent ranked decision snapshot check (`ranked decision snapshot or command metadata is invalid`), so later stock-count and authenticated order tests were skipped. The separate finance-commitment PostgreSQL 17 step failed with postgres.js `UNDEFINED_VALUE`; that is not a financial acceptance pass.
-- **Security review blocker on #559:** its retroactive prerequisite seed uses `ON CONFLICT DO UPDATE`; on an already-migrated database this can overwrite a warehouse-scoped `inventory.balance.adjust` row back to organization scope and reactivate disabled canonical capabilities, while the older scope migration will not rerun. Comment `7024734431` requires insert-only `ON CONFLICT DO NOTHING` plus fresh/existing-database regression coverage. The candidate also needs explicit PostgreSQL 17 A/B warehouse assignment and actual stock-count line trigger/RPC write acceptance, with finalizer Maker–Checker preserved. Do not merge until all these findings and exact-head checks are resolved.
-- **PR #557** was closed unmerged as superseded by #559; its code was not merged.
-- **PR #533** remains open for distinct P2 full-register invoice search via server RPC. Keep it separate from the page-local P1 filters now on main.
-- **Decision snapshot:** latest PR #559 P2 local job `44633336292`, job `135947084351`, failed `scripts/test-decision-outcome-snapshot-required.mjs` with `ranked decision snapshot or command metadata is invalid`; downstream P2 tests were skipped. PR #547 is the existing diagnostic slice; do not weaken immutability, evidence, replay, audit, or legacy-RPC denial.
-- **Duplicate/overlap PRs closed after preservation:** #546 (weaker transfer guard migration), #545/#542/#540 (baseline duplicates), #543/#535 (cart/device duplicates), #539 (supplier P1 filters carried into #556), and #557 (superseded by #559). #560 is merged.
+All results below are from the post-merge GitHub Actions runs against the exact code SHA `99ae206a5780920b3640344a1ab9719ed74df38e`:
 
-## Open PR snapshot — refreshed 2026-11-20
+- **P1 run 44635049970 — SUCCESS.** 180/180 Vitest files and 1,283/1,283 tests passed; strict TypeScript and production build steps completed successfully.
+- **Inventory PostgreSQL 17 run 44635050101 — SUCCESS.** Logs explicitly contain `inventory balance adjustment PostgreSQL 17 acceptance: PASS` and `inventory transfer replay scope guard PostgreSQL 17 acceptance: PASS`.
+- **P2 Playwright run 44635050005 — IN_PROGRESS overall.** Read-only public Storefront browser job `135951295340` succeeded; authenticated E2E infrastructure gate `135951295779` succeeded; customer order/tenant isolation job `135951352665` was **SKIPPED**; local Supabase order persistence/tenant isolation job `135952989151` was still starting isolated Supabase services at last inspection. Do not mark the overall P2 workflow or local authenticated order/tenant path PASS until its terminal conclusion and all required steps are inspected.
+- The current main SHA `8bca69d98099a4e2910a476a9fb92b9dabc968c7` is later only by the two documentation commits listed above. The above code test results remain tied to `99ae206a...`, not relabeled as runs on `8bca69d98099a4e2910a476a9fb92b9dabc968c7`.
 
-- #559 Authorization V2 bootstrap and stock-count permission candidate (blocked as above).
-- #538 Onyx workbook multi-sheet import.
-- #533 P2 server-side supplier invoice full-register search.
-- #507 bank reconciliation line retry/idempotency.
-- #547 decision snapshot diagnostic.
-- #509 verified opening/closing bank balances.
-- #541/#526 customer asset replacement overlap — reconcile before selecting one.
-- #514 customer service deep links.
-- #497 supplier due-date exceptions.
-- #492/#490 runtime error observability overlap — compare dependencies and changed files.
-- #496 daily decision board; #491 process bottleneck evidence gates.
-- Refresh these exact PR heads, changed files, review threads, and relevant checks before any action.
+## Current open work and blockers
 
-## FIRST NEXT ACTION — CONTINUE WITHOUT REBUILDING
+- **#561 — P2 decision/finance PostgreSQL 17 acceptance repair:** head `959a6d1a3a98a63a66137ae325200c8ea2449e9a`, base `99ae206a5780920b3640344a1ab9719ed74df38e`; still open. Changes the decision-snapshot and cash-expense acceptance scripts, decision-policy test parameter binding, and adds `20261120113000_decision_memory_chosen_option_assignment.sql`. P1, P2 and Storefront-feedback PG17 checks were still IN_PROGRESS at last inspection; authenticated customer E2E was SKIPPED. It overlaps files in #559 and #547; review ownership and unique diffs before any merge. Do not treat its SQL diagnostics as functional decision-engine acceptance.
+- **#559 — Authorization V2 prerequisite and stock-count permissions:** head `ccc44a3a7f3412dedd94bae87b4fd8cb3ebd6d38`, base `0265a21520e7350c406e07b117dfcc05000d7738`; open with CHANGES_REQUESTED. The latest prerequisite migration still contains `ON CONFLICT(capability_key) DO UPDATE`, capable of widening an existing warehouse-scoped capability back to organization scope and reactivating a disabled capability when the backfilled older migration runs. Do not merge until it is insert-only for existing capability rows, with existing-schema non-widening coverage; add PG17 manager A/B assigned/unassigned warehouse checks and actual stock-count line trigger/RPC write denial; preserve separate warehouse Maker–Checker finalization; resolve overlapping P2/P3 acceptance fixes and rerun all checks on the updated exact head.
+- **#507 — financial bank reconciliation retry:** head `3b487999aee33442d0a84561eb90edb66c2b8dea`, base `bf9e595149418e75deeed0864bed7b09e2594566`; open and stale. P1 review `5984901508` requested changes: retry keys live only in component `useRef` maps and disappear on reload; new match RPC migration lacks PG17 exact/concurrent retry and single-consumption/audit-count acceptance; branch must update to latest main without Force Push; decision-diagnostic script changes overlap #547/#561. Existing DB already has statement-line idempotency unique key and RPC replay behavior; do not duplicate that work.
+- **Cart recovery:** do not revive #543/#535 wholesale. Main already has offline/customer cart restoration, product-detail hydration, tenant-scoped product RPC, quantity boundaries and tests/migration acceptance in the current implementation. Recheck only a concrete uncovered behavior before touching it.
+- Other open independent PRs include #538 Onyx workbook import, #533 full-register supplier invoice RPC/search, #509 verified cash balances, #541/#526 asset replacement overlap, #514 service case links, #497 supplier due-date exceptions, #492/#490 observability overlap, #496 decision board and #491 bottleneck evidence. Compare exact current heads and changed-file overlap before selecting any.
+- #546 is the weaker duplicate inventory guard and remains closed/unmerged; do not reopen.
 
-1. Recheck post-merge runs/checks on `99ae206a...` and record terminal results; do not mark any skipped authenticated E2E as PASS.
-2. Continue P2 owner work on #559: make prerequisite capability seeding insert-only for existing rows, add existing-schema non-widening coverage, add exact assigned/unassigned warehouse manager/staff/customer role and actual draft line trigger/RPC acceptance on PostgreSQL 17, preserve separate warehouse-scoped Maker–Checker finalization, and update its branch onto `99ae206a...`.
-3. Diagnose `UNDEFINED_VALUE` in `scripts/test-cash-expense-commitments.mjs` by identifying the specific bind/query; do not silently coerce missing values to NULL or weaken the finance assertion.
-4. Repair the ranked decision snapshot validator/fixture on its existing P3/P2 workstream; rerun its isolated PostgreSQL 17 acceptance before dependent decision learning/board claims.
-5. Continue #533 only for full-register server-side search; do not duplicate #556 page-local filters. Continue other independent open PRs only after confirming no overlapping work and exact-head acceptance.
-6. After each merge, verify new main SHA and post-merge checks, then update this pointer and only the affected acceptance-matrix rows.
+## First next actions
+
+1. Finish the terminal outcome of P2 run `44635050005` on `99ae206a...`; inspect the local Supabase start/migration/test steps. Keep hosted authenticated E2E as SKIPPED unless separately configured with explicit non-production write approval.
+2. Review #561 on exact head `959a6d1...`: confirm test fixes address the exact undefined SQL bind and snapshot RPC payload, inspect the chosen-option migration for an exact function signature/anchor and safe forward behavior, and isolate changes overlapping #559/#547. Require P1/P2/PG17 exact-head passes before considering merge.
+3. Continue #559 only after owner updates its branch to current main and removes the capability-widening upsert; require actual A/B warehouse and stock-count trigger-write proofs on PostgreSQL 17.
+4. Keep #507 blocked until reload-safe request identity and PostgreSQL 17 concurrency/replay/audit proofs are added, and isolate the P3 decision-diagnostic script changes.
+5. After any merge, verify new main SHA and post-merge checks; update only this pointer and affected CSV rows.
 
 ## Delivery discipline
 
-- `main` is the only truth branch. Use short branches based on latest main; no force-push and no deletion of unmerged work.
-- Merge only after exact-head scope and required acceptance are proven. Preserve unique work from duplicate PRs before closing them.
-- PostgreSQL 17 migrations run only in isolated local/test databases. Never infer the production project from a historical Supabase ref.
-- Keep AI paid spend at zero and reserve hosting quota for the explicitly authorized final E2E/release stage.
-- Update only this pointer and affected rows in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`; do not create a daily report or a new resume document.
+- `main` is the only truth branch. Short branches must start from latest main; no Force Push and no discarding unmerged work.
+- Merge only after exact-head scope review and required acceptance. IN_PROGRESS, QUEUED, SKIPPED and BLOCKED are not PASS.
+- PostgreSQL 17 migrations use isolated local/test DBs only. Never infer the production project from a historical Supabase ref.
+- Budget is zero: no paid AI, no Vercel build/preview/deploy, no hosted or production mutation without explicit authorization.
+- Do not create daily reports or new checkpoint documents.
+
 
 ---
 ## HISTORICAL CHECKPOINTS — REFERENCE ONLY
