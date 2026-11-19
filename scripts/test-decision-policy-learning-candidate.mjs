@@ -274,12 +274,34 @@ async function main() {
         "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
         [outcomeId, invoiceId, manager.organization_id, periodFrom, periodTo],
       );
-      console.log("Decision learning source diagnostics:", JSON.stringify(sourceDiagnostics[0] ?? null));
+      assert.equal(sourceDiagnostics.length, 1, "the measured decision must retain its same-tenant source row");
+      assert.equal(sourceDiagnostics[0].has_measured_outcome, true,
+        "the terminal MEASURE event must persist a structured outcome");
+      assert.equal(Number(sourceDiagnostics[0].matching_invoice_count), 1,
+        "the evidence ID must resolve to exactly one invoice in the active organization");
+      assert.equal(sourceDiagnostics[0].invoice_is_before_as_of, true,
+        "the measured invoice must exist at or before the source as-of timestamp");
+      const resolvedActualEvidence = decode(sourceDiagnostics[0].resolved_evidence);
+      assert.equal(resolvedActualEvidence?.ids?.length, 1,
+        "the evidence resolver must return every requested same-tenant invoice ID");
+      assert.ok(sourceDiagnostics[0].reloaded_actual_metric,
+        "a subsequent SQL statement must reload the source-backed actual metric");
+      assert.equal(Number(sourceDiagnostics[0].reloaded_actual_metric.value), amount,
+        "the reloaded actual metric must retain the server-measured amount");
+      assert.equal(sourceDiagnostics[0].reloaded_actual_metric.status, "VERIFIED");
       await setActor(tx, managerClaims);
 
+      assert.ok(memoryResult?.snapshot && typeof memoryResult.snapshot.id === "string",
+        "save_decision_memory_snapshot must return the row it just inserted");
       assert.equal(memoryResult.snapshot.actualMetric?.value, amount,
-        "a verified measurement must be projected only after its invoice evidence resolves");
+        "the immediate response must project the verified measurement after resolving its invoice evidence");
       assert.equal(memoryResult.snapshot.expectedMetric.value, amount);
+      assert.deepEqual(memoryResult.snapshot.actualMetric.lineage.evidenceIds,
+        ["dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId],
+        "the actual metric must retain the namespaced source invoice lineage");
+      assert.ok(memoryResult.snapshot.evidenceRecords.some((record) =>
+        record.id === "dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId
+      ), "the immutable memory snapshot must preserve its resolved source evidence record");
 
       const createRows = await tx.unsafe(
         "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text) as result",
