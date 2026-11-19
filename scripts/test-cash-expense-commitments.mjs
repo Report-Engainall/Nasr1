@@ -482,9 +482,10 @@ async function main() {
     assert.equal(settled[0].settled_by_profile_id,admin.id);
 
     const finalSchedule=await schedule(adminDb,from,to,"YER");
-    assert.equal(finalSchedule.status,"OK");
-    assert.equal(finalSchedule.completeness,"COMPLETE");
-    assert.equal(finalSchedule.entries.length,0,"settled paid commitment is excluded from future outflows");
+    assert.equal(finalSchedule.status,"PARTIAL","the separate post-snapshot draft must keep expense coverage partial until independently reviewed");
+    assert.equal(finalSchedule.completeness,"PARTIAL");
+    assert.equal(finalSchedule.pendingApprovalCount,1,"the remaining draft is visible as a pending approval, never as a verified outflow");
+    assert.equal(finalSchedule.entries.length,0,"settled paid commitment and unapproved draft are both excluded from verified future outflows");
     const events=await db.unsafe(
       "select event_type from public.cash_expense_commitment_events where organization_id=$1::uuid and commitment_id=$2::uuid order by created_at,id",
       [organizationId,yer.id],
