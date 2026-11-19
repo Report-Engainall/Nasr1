@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import postgres from "postgres";
 
 function requiredEnv(name) {
@@ -48,6 +49,50 @@ async function withServiceRole(db,callback) {
    return callback(tx);
   });
 }
+
+async function withActorAsServiceRole(db,actor,callback) {
+ if(!actor.jwtClaims?.session_id) throw new Error("A live Auth session is required for the role-bound trigger check.");
+ return db.begin(async(tx)=>{
+  await tx.unsafe("select set_config('request.jwt.claim.sub',$1,true)",[actor.auth_user_id]);
+  await tx.unsafe("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({...actor.jwtClaims,role:"authenticated"})]);
+  await tx.unsafe("set local role service_role");
+  return callback(tx);
+ });
+}
+async function resourceDecision(db,actor,key,resourceId) {
+ return withActor(db,actor,async(tx)=>{
+  const rows=await tx.unsafe("select public.current_authorization_decision($1::text,$2::uuid) as decision,public.current_actor_has_capability($1::text,$2::uuid) as allowed",[key,resourceId]);
+  const value=typeof rows[0].decision==="string"?JSON.parse(rows[0].decision):rows[0].decision;
+  return {...value,allowed:rows[0].allowed};
+ });
+}
+async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
+ const migrationUrl=new URL("../supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql",import.meta.url);
+ const migrationSource=await readFile(migrationUrl,"utf8");
+ const migrationSql=migrationSource.replace(/(^|\\n)BEGIN;\\s*/i,"$1").replace(/\\nCOMMIT;\\s*$/i,"\\n");
+ if(migrationSql===migrationSource) throw new Error("Could not isolate authorization prerequisite migration body for rollback-only upgrade fixture.");
+ const rollbackMarker="ROLLBACK_AUTHORIZATION_PREREQUISITE_UPGRADE_FIXTURE";
+ await assert.rejects(db.begin(async(tx)=>{
+  const initial=await tx.unsafe("select capability_key from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key");
+  assert.equal(initial.length,2,"upgrade fixture requires both existing capability rows");
+  const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+  assert.equal(grant.length,1,"upgrade fixture requires a manager grant to remove");
+  await tx.unsafe("update public.authorization_capabilities set scope_kind='warehouse',is_active=true where capability_key='inventory.balance.adjust'");
+  await tx.unsafe("update public.authorization_capabilities set is_active=false where capability_key='inventory.reorder_point.write'");
+  await tx.unsafe("delete from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+  await tx.unsafe(migrationSql);
+  const scope=await tx.unsafe("select scope_kind,is_active from public.authorization_capabilities where capability_key='inventory.balance.adjust'");
+  assert.deepEqual(scope[0],{scope_kind:"warehouse",is_active:true},"prerequisite backfill must not widen or alter an existing warehouse capability");
+  const disabled=await tx.unsafe("select is_active from public.authorization_capabilities where capability_key='inventory.reorder_point.write'");
+  assert.equal(disabled[0]?.is_active,false,"prerequisite backfill must not reactivate an existing disabled capability");
+  const restored=await tx.unsafe("select count(*)::integer as count from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+  assert.equal(restored[0].count,0,"prerequisite backfill must not recreate a deliberately removed role grant");
+  const flag=await tx.unsafe("select current_setting('nasr.authorization_role_capabilities_preexisting',true) as existed");
+  assert.equal(flag[0].existed,"true","fixture must prove the pre-existing-role-table upgrade branch");
+  throw new Error(rollbackMarker);
+ }),error=>error?.message===rollbackMarker,"upgrade-safety fixture rolls back its local policy mutations after proving the migration preserves existing state");
+}
+
 async function decision(db,actor,key) {
  return withActor(db,actor,async(tx)=>{
   const rows=await tx.unsafe("select public.current_authorization_decision($1::text) as decision,public.current_actor_has_capability($1::text) as allowed",[key]);
@@ -62,6 +107,7 @@ async function main() {
  const publishableKey=requiredEnv("SUPABASE_PUBLISHABLE_KEY");
  const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
  try {
+  await assertAuthorizationPrerequisiteUpgradeSafety(db);
   const profiles=await db.unsafe(
    "select p.id::text as profile_id,p.auth_user_id::text as auth_user_id,p.organization_id::text as organization_id,"+
    "p.email,array_agg(r.role order by r.role) as roles from public.profiles p "+
