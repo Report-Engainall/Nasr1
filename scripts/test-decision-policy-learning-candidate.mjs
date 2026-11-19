@@ -195,7 +195,7 @@ async function main() {
         "select public.create_decision_outcome_proposal_with_snapshot(" +
         "$1::text,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::jsonb,$8::text) as result",
         [candidateId, ruleId, ruleVersion, manager.profile_id, expectedOutcome,
-          "إنشاء قرار اختبار قبل القياس.", JSON.stringify(candidateSnapshot), randomUUID()],
+          "إنشاء قرار اختبار قبل القياس.", candidateSnapshot, randomUUID()],
       );
       const proposal = decode(proposalRows[0].result);
       assert.equal(proposal?.ok, true, "the manager must create the snapshot-backed decision");
@@ -206,7 +206,7 @@ async function main() {
           "select public.command_decision_outcome(" +
           "$1::uuid,$2::text,$3::text,$4::integer,$5::text,$6::text,$7::uuid,$8::jsonb) as result",
           [outcomeId, randomUUID(), randomUUID(), expectedVersion, eventType,
-            "اختبار دورة قرار معزولة.", ownerProfileId, measuredOutcome ? JSON.stringify(measuredOutcome) : null],
+            "اختبار دورة قرار معزولة.", ownerProfileId, measuredOutcome],
         );
         return decode(rows[0].result);
       }
@@ -253,7 +253,7 @@ async function main() {
       };
       const memoryRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,0,$2::jsonb,NULL,$3::text) as result",
-        [outcomeId, JSON.stringify(memorySnapshot), randomUUID()],
+        [outcomeId, memorySnapshot, randomUUID()],
       );
       const memoryResult = decode(memoryRows[0].result);
       assert.equal(memoryResult?.ok, true, "the actual source-derived decision-memory snapshot must be saved");
@@ -357,7 +357,7 @@ async function main() {
       };
       const mismatchRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,1,$2::jsonb,$3::text,$4::text) as result",
-        [outcomeId, JSON.stringify(mismatchedMemory), "اختبار اختلاف وقت خط الأساس عن النتيجة.", randomUUID()],
+        [outcomeId, mismatchedMemory, "اختبار اختلاف وقت خط الأساس عن النتيجة.", randomUUID()],
       );
       const mismatchedSnapshot = decode(mismatchRows[0].result);
       assert.equal(mismatchedSnapshot?.ok, true);
@@ -378,7 +378,7 @@ async function main() {
       };
       const correctionRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,2,$2::jsonb,$3::text,$4::text) as result",
-        [outcomeId, JSON.stringify(correctedMemory), "تصحيح الدروس بعد مراجعة القياس.", randomUUID()],
+        [outcomeId, correctedMemory, "تصحيح الدروس بعد مراجعة القياس.", randomUUID()],
       );
       const correction = decode(correctionRows[0].result);
       assert.equal(correction?.ok, true);
