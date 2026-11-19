@@ -13,6 +13,20 @@ UPDATE public.authorization_capabilities
  WHERE capability_key='inventory.count.enter'
    AND is_active=true;
 
+-- The later canonical registry upsert also re-introduces the earlier
+-- organization-level seed for finalization. Restore the warehouse scope that
+-- the stock-count enforcement contract requires, without weakening the
+-- independent reviewer requirement.
+UPDATE public.authorization_capabilities
+   SET scope_kind='warehouse',
+       approval_mode='maker_checker',
+       separation_of_duties=true,
+       state_requirements=state_requirements ||
+         '{"requires_active_warehouse_assignment":true,"reviewer_must_differ_from_counter":true}'::jsonb,
+       updated_at=statement_timestamp()
+ WHERE capability_key='inventory.count.finalize'
+   AND is_active=true;
+
 DO $assert_count_entry_policy$
 DECLARE
   v_capability public.authorization_capabilities%ROWTYPE;
@@ -54,6 +68,8 @@ BEGIN
        AND approval_mode='maker_checker'
        AND separation_of_duties=true
        AND scope_kind='warehouse'
+       AND coalesce((state_requirements->>'reviewer_must_differ_from_counter')::boolean,false)=true
+       AND coalesce((state_requirements->>'requires_active_warehouse_assignment')::boolean,false)=true
   ) THEN
     RAISE EXCEPTION 'inventory.count.finalize must remain a separate warehouse-scoped maker-checker command';
   END IF;
