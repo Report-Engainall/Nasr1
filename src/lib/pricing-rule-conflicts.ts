@@ -44,8 +44,6 @@ function periodsOverlap(left: PricingRuleConflictCandidate, right: PricingRuleCo
   const leftEnd = asEnd(left.effective_until);
   const rightStart = asStart(right.effective_from);
   const rightEnd = asEnd(right.effective_until);
-  if (![leftStart, leftEnd, rightStart, rightEnd].every(Number.isFinite) &&
-      ![leftStart, leftEnd, rightStart, rightEnd].every((value) => !Number.isNaN(value))) return false;
   if ([leftStart, leftEnd, rightStart, rightEnd].some(Number.isNaN)) return false;
   return leftStart <= rightEnd && rightStart <= leftEnd;
 }
