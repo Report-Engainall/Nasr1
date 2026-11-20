@@ -19,6 +19,7 @@ import type { CustomerTierPricePreview } from '@/lib/api';
 import { StorefrontProductReviewModeration } from '@/components/StorefrontProductReviewModeration';
 import { StorefrontProductQuestionModeration } from '@/components/StorefrontProductQuestionModeration';
 import { archiveAdminCatalogProduct, saveAdminCatalogProduct } from '@/lib/admin-catalog-commands';
+import { buildAdminProductCatalogCsv, reviewAdminProductCatalog, type AdminProductCatalogReview } from '@/lib/admin-product-catalog-review';
 import { useFetch } from '@/lib/useFetch';
 import { useRefreshWhileActive } from '@/lib/use-refresh-while-active';
 import { ADMIN_NAV_GROUPS, ADMIN_NAV_PATHS, rolesCanAccessView } from '@/lib/admin-access-matrix';
@@ -1042,6 +1043,10 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   const [bulkApplyDescription, setBulkApplyDescription] = useState(false);
   const [bulkDescription, setBulkDescription] = useState('');
   const [bulkFeatured, setBulkFeatured] = useState<'unchanged' | 'yes' | 'no'>('unchanged');
+  const [catalogReview, setCatalogReview] = useState<AdminProductCatalogReview | null>(null);
+  const [catalogReviewError, setCatalogReviewError] = useState('');
+  const [catalogReviewBusy, setCatalogReviewBusy] = useState(false);
+  const [catalogExportBusy, setCatalogExportBusy] = useState(false);
   const [showReviewModeration, setShowReviewModeration] = useState(false);
   const [showQuestionModeration, setShowQuestionModeration] = useState(false);
   const [page, setPage] = useState(1);
@@ -1085,6 +1090,31 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
   async function refreshProducts() {
     await refetch();
     setCatalogRevision((revision) => revision + 1);
+  }
+  async function loadCompleteAdminCatalog(input: { search?: string; status?: 'all' | 'active' | 'inactive'; categoryId?: string }): Promise<ProductWithInventory[]> {
+    const complete: ProductWithInventory[] = [];
+    const seenIds = new Set<string>();
+    for (let requestedPage = 1; requestedPage <= 2500; requestedPage += 1) {
+      const result = await fetchAdminProductsPage({
+        page: requestedPage,
+        search: input.search ?? '',
+        status: input.status ?? 'all',
+        categoryId: input.categoryId,
+      });
+      if (result.page !== requestedPage || result.items.length > result.pageSize) {
+        throw new Error('تسلسل صفحات الكتالوج غير متسق؛ أوقفنا الفحص والتصدير.');
+      }
+      if (result.hasNextPage && result.items.length !== result.pageSize) {
+        throw new Error('أعلن الخادم عن صفحة لاحقة مع صفحة حالية غير مكتملة؛ تعذر إثبات اكتمال الكتالوج.');
+      }
+      for (const product of result.items) {
+        if (seenIds.has(product.id)) throw new Error('تكرر منتج بين صفحات الكتالوج؛ أوقفنا العملية بدل إصدار نتيجة غير موثوقة.');
+        seenIds.add(product.id);
+        complete.push(product);
+      }
+      if (!result.hasNextPage) return complete;
+    }
+    throw new Error('تجاوز الكتالوج الحد الأعلى لعدد الصفحات؛ لم نصدر تقريرًا أو ملفًا جزئيًا.');
   }
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<ProductWithInventory | null>(null);
@@ -1211,6 +1241,48 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       setBulkSaving(false);
     }
   }
+  async function reviewCatalogQuality() {
+    if (!canUploadProductImages || catalogReviewBusy) return;
+    setCatalogReviewBusy(true);
+    setCatalogReviewError('');
+    setCatalogReview(null);
+    try {
+      const products = await loadCompleteAdminCatalog({ status: 'all' });
+      const review = reviewAdminProductCatalog(products, canManageProductLifecycle);
+      setCatalogReview(review);
+      onNotice(`اكتمل فحص الكتالوج: ${formatNumber(review.totalProducts)} منتج، ${formatNumber(review.productsWithIssues.length)} سجل يحتاج مراجعة.`);
+    } catch (cause) {
+      setCatalogReviewError(cause instanceof Error ? cause.message : 'تعذر إكمال فحص الكتالوج.');
+    } finally {
+      setCatalogReviewBusy(false);
+    }
+  }
+
+  async function exportCatalog() {
+    if (!canUploadProductImages || catalogExportBusy) return;
+    setCatalogExportBusy(true);
+    try {
+      const products = await loadCompleteAdminCatalog({ search: debouncedQuery, status: statusFilter, categoryId: categoryFilter === 'all' ? undefined : categoryFilter });
+      if (products.length === 0) { onNotice('لا توجد منتجات مطابقة للتصدير.'); return; }
+      const csv = buildAdminProductCatalogCsv(products, canManageProductLifecycle);
+      const blob = new Blob(['\\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `aghbari-products-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      onNotice(`تم تجهيز ملف CSV كامل يضم ${formatNumber(products.length)} منتج. ${canManageProductLifecycle ? 'يتضمن سعر الأساس المسموح للدور.' : 'استُبعدت جميع الأسعار وفق صلاحية الدور.'}`);
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر تصدير الكتالوج كاملًا.');
+    } finally {
+      setCatalogExportBusy(false);
+    }
+  }
+
   function openTransfer(product: ProductWithInventory) {
     setTransferProduct(product);
     setTransferSource(product.inventory?.warehouse_id ?? warehouses?.[0]?.id ?? '');
@@ -1372,7 +1444,22 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
 
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+    <div className="toolbar"><span className="toolbar-note">{rows.length} صنف في الصفحة {page}{data?.hasNextPage ? ' — توجد صفحات أخرى' : ''}</span><div className="toolbar-actions">{canManageProductLifecycle && <><Button variant="outline" onClick={() => setShowReviewModeration(true)}><MessageSquareText size={16} /> تقييمات العملاء</Button><Button variant="outline" onClick={() => setShowQuestionModeration(true)}><MessageSquareText size={16} /> أسئلة العملاء</Button></>}{canUploadProductImages && <><Button variant="outline" disabled={catalogReviewBusy} onClick={() => void reviewCatalogQuality()}>{catalogReviewBusy ? 'جار فحص الكتالوج…' : 'فحص جودة ومكررات الكتالوج'}</Button><Button variant="outline" disabled={catalogExportBusy} onClick={() => void exportCatalog()}>{catalogExportBusy ? 'جار تجهيز الملف…' : 'تصدير الكتالوج CSV'}</Button></>}<Button variant="secondary" onClick={() => void refreshProducts()}><RefreshCw size={16} /> تحديث</Button>{canManageProductLifecycle && <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>}</div></div>
+    {catalogReviewError && <div className="form-error" role="alert">{catalogReviewError}</div>}
+    {catalogReview && <section className="panel" aria-label="نتائج جودة الكتالوج" style={{ marginBottom: 16 }}>
+      <div className="panel-head"><div><h2>مراجعة جودة الكتالوج</h2><p>فحص {formatNumber(catalogReview.totalProducts)} منتج من جميع صفحات الكتالوج. لا تُعامل الأسعار المخفية على أنها صفر.</p></div><Button variant="outline" onClick={() => setCatalogReview(null)}>إغلاق التقرير</Button></div>
+      <div className="report-grid">
+        <article className="report-metric"><span>بلا صورة رئيسية</span><strong>{formatNumber(catalogReview.missingPrimaryImage.length)}</strong></article>
+        <article className="report-metric"><span>بلا وحدة بيع</span><strong>{formatNumber(catalogReview.missingUnit.length)}</strong></article>
+        <article className="report-metric"><span>بلا وصف</span><strong>{formatNumber(catalogReview.missingDescription.length)}</strong></article>
+        <article className="report-metric"><span>سعر أساس غير متاح</span><strong>{catalogReview.missingBasePrice === null ? 'غير متاح بالصلاحية' : formatNumber(catalogReview.missingBasePrice.length)}</strong></article>
+        <article className="report-metric"><span>مفاتيح تعريف مكررة</span><strong>{formatNumber(catalogReview.duplicateIdentifiers.length)}</strong></article>
+        <article className="report-metric"><span>منتجات تحتاج مراجعة</span><strong>{formatNumber(catalogReview.productsWithIssues.length)}</strong></article>
+      </div>
+      {catalogReview.productsWithIssues.length > 0 ? <TableWrap><table><thead><tr><th>المنتج</th><th>الرمز</th><th>الملاحظات</th></tr></thead><tbody>{catalogReview.productsWithIssues.slice(0, 100).map((product) => <tr key={product.id}><td>{product.name}</td><td><code>{product.item_code}</code></td><td>{product.issues.join('، ')}</td></tr>)}</tbody></table>{catalogReview.productsWithIssues.length > 100 && <p className="report-note">يظهر أول 100 سجل؛ العدد الإجمالي محفوظ في المؤشر أعلاه.</p>}</TableWrap> : <p role="status">لم يرصد الفحص أي نقص أو تكرار في حقول الجودة التي أمكن التحقق منها.</p>}
+      {catalogReview.duplicateIdentifiers.length > 0 && <details><summary>تفاصيل المفاتيح المكررة</summary><ul>{catalogReview.duplicateIdentifiers.slice(0, 100).map((duplicate) => <li key={duplicate.kind + ':' + duplicate.value}>{duplicate.kind}: <code>{duplicate.value}</code> — {duplicate.products.map((product) => product.name).join('، ')}</li>)}</ul></details>}
+      <p className="report-note">نطاق التحليل: كل صفحات الكتالوج التي أعاد الخادم اكتمالها وقت الفحص. يشمل فحص السعر سعر الأساس فقط عندما تسمح صلاحية الدور بعرضه؛ لا يستنتج المحرك سعرًا مخفيًا أو سعر شريحة غير معادة.</p>
+    </section>}
     <BulkProductImageUploader
       loadProducts={fetchProducts}
       catalogRevision={catalogRevision}
