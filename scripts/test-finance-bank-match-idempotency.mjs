@@ -180,11 +180,6 @@ async function main() {
   const organizationId = "a0000000-0000-0000-0000-000000000001";
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
   const adminEmail = requiredEnv("E2E_DEVICE_ADMIN_EMAIL").toLowerCase();
-  const managerRows = await (postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 })).unsafe(
-    "select p.id,p.auth_user_id,p.email from public.profiles p join public.user_roles r on r.profile_id=p.id " +
-    "where p.organization_id=$1::uuid and lower(p.email)=lower($2) and p.is_active=true and r.role='manager' order by p.id limit 2",
-    [organizationId, managerEmail],
-  ).catch((error) => { throw error; });
   const serviceDb = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
   let managerA;
   let managerB;
@@ -359,11 +354,21 @@ async function main() {
       [statementB, "مطابقة حركتي البنك مع قيدي الأستاذ المستقلين"],
     ))[0].result);
     assert.equal(runB.outcome, "VERIFIED");
-    assert.equal(runB.statement_line_count, 2);
-    assert.equal(runB.matched_line_count, 2);
     assert.equal(runB.unmatched_ledger_lines, 0);
+    assert.equal(runB.unmatched_statement_lines, 0);
     assert.equal(runB.statement_net_movement, "-200.00");
     assert.equal(runB.ledger_net_movement, "-200.00");
+    const verifiedRunRows = await serviceDb.unsafe(
+      "select outcome,statement_line_count,matched_line_count,unmatched_statement_lines,unmatched_ledger_lines," +
+      "statement_net_movement::text,ledger_net_movement::text " +
+      "from public.finance_bank_statement_reconciliation_runs where organization_id=$1::uuid and statement_id=$2::uuid",
+      [organizationId, statementB],
+    );
+    assert.deepEqual(verifiedRunRows, [{
+      outcome: "VERIFIED", statement_line_count: 2, matched_line_count: 2,
+      unmatched_statement_lines: 0, unmatched_ledger_lines: 0,
+      statement_net_movement: "-200.00", ledger_net_movement: "-200.00",
+    }], "persisted reconciliation run retains exact counters and equal signed movements");
 
     await expectCode(
       "exact match replay after VERIFIED must not allow a different ledger target",
