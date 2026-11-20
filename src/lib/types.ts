@@ -18,6 +18,8 @@ export interface Product {
   /** Additional same-tenant WebP gallery images; image_url remains the primary image. */
   image_gallery_urls?: string[];
   is_active: boolean; is_featured: boolean; sort_order: number;
+  /** Server-authored product freshness timestamp; gallery mutations advance it too. */
+  updated_at?: string;
   /** Database lifecycle status; public reads expose only active records. */
   status?: string;
   price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number; base_price: number;
