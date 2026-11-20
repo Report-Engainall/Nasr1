@@ -16,6 +16,18 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 describe("profile-scoped storefront compare storage", () => {
+  it("keeps the existing guest key and isolates authenticated users without a profile mapping", () => {
+    const userA = "a2000000-0000-0000-0000-000000000001";
+    const userB = "b2000000-0000-0000-0000-000000000001";
+    const userAKey = storefrontCompareStorageKey(null, userA);
+    const userBKey = storefrontCompareStorageKey(null, userB);
+
+    expect(userAKey).not.toBe(STOREFRONT_COMPARE_GUEST_STORAGE_KEY);
+    expect(userBKey).not.toBe(STOREFRONT_COMPARE_GUEST_STORAGE_KEY);
+    expect(userAKey).not.toBe(userBKey);
+    expect(userAKey).toBe(`aghbari:compare:auth:v1:${userA}`);
+  });
+
   it("keeps the existing guest key but isolates each customer profile", () => {
     expect(storefrontCompareStorageKey()).toBe(STOREFRONT_COMPARE_GUEST_STORAGE_KEY);
     expect(storefrontCompareStorageKey(" profile-a ")).toBe("aghbari:compare:v2:profile-a");
