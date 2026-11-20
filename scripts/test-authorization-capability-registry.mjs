@@ -773,6 +773,53 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   assert.deepEqual(warehouseBAuditAfter[0],warehouseBAuditBefore[0],
     "cross-warehouse completion denial must not add a completion audit");
 
+  // Cancellation has its own warehouse capability. A manager assigned only
+  // to warehouse A must not cancel a real open session in warehouse B, and the
+  // denial must leave the open session, cancellation audit and stock ledger unchanged.
+  const cancellationBeforeDeniedAttempt=await db.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(cancellationBeforeDeniedAttempt[0],{
+    status:"open",cancelled_by:null,cancellation_reason:null
+  },"the B-session must still be open before the independent cancellation denial proof");
+  const cancellationAuditBeforeDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [org,staffSession.id]
+  );
+  const cancellationMovementsBeforeDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.cancel_stock_count($1::uuid,$2::text)",
+      [staffSession.id,"Rejected cross-warehouse cancellation"]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "a manager assigned only to warehouse A must be denied cancellation of a warehouse B session"
+  );
+  const cancellationAfterDeniedAttempt=await db.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(cancellationAfterDeniedAttempt[0],cancellationBeforeDeniedAttempt[0],
+    "cross-warehouse cancellation denial must preserve the immutable session state");
+  const cancellationAuditAfterDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [org,staffSession.id]
+  );
+  assert.deepEqual(cancellationAuditAfterDeniedAttempt[0],cancellationAuditBeforeDeniedAttempt[0],
+    "cross-warehouse cancellation denial must not append a cancellation audit");
+  const cancellationMovementsAfterDeniedAttempt=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(cancellationMovementsAfterDeniedAttempt[0],cancellationMovementsBeforeDeniedAttempt[0],
+    "cross-warehouse cancellation denial must not move stock");
+
   // A stock-count snapshot is immutable history. Close the isolated fixture
   // through the real authorized cancellation RPC instead of deleting its
   // session/lines and violating the append-only history boundary.
