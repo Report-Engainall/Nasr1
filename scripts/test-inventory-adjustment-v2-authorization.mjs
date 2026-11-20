@@ -494,14 +494,40 @@ async function main() {
         );
         await applyActor(tx, actors.manager);
 
-        // The cancellation RPC is explicitly administrator/manager gated.
+        // Warehouse entry permission must never imply administrative cancellation.
+        await applyActor(tx, actors.staff);
+        const [staffCancelDecision] = await tx.unsafe(
+          "select public.current_actor_has_capability('inventory.count.cancel') as allowed",
+        );
+        assert.equal(staffCancelDecision.allowed, false,
+          "a warehouse staff member must not receive the independent stock-count cancellation capability");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text)",
+          [countSession.id, "Staff is not authorized to cancel a stock count"],
+        ), "warehouse staff cannot cancel an open stock count");
+        const [staffCancelState] = await tx.unsafe(
+          "select status,cancelled_by::text from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.deepEqual(staffCancelState, { status: "open", cancelled_by: null },
+          "unauthorized cancellation must not change the draft session");
+        const [staffCancelAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId, countSession.id],
+        );
+        assert.equal(staffCancelAudit.count, 0,
+          "unauthorized cancellation must not create an audit event");
+
+        // The cancellation RPC is governed by a dedicated organization-level V2 capability.
         // Use the administrator actor for this test-fixture cleanup; the manager's
         // count-entry and Maker/Checker permissions remain independently asserted.
         await applyActor(tx, actors.admin);
         const [adminCancelContext] = await tx.unsafe(
           "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
           "public.current_organization_id()::text as organization_id, " +
-          "public.operational_tasks_can_manage() as can_manage",
+          "public.current_actor_has_capability('inventory.count.cancel') as can_cancel",
         );
         assert.equal(adminCancelContext.auth_user_id, actors.admin.auth_user_id,
           "stock-count cancellation must use the authenticated administrator JWT: " + JSON.stringify(adminCancelContext));
@@ -509,8 +535,8 @@ async function main() {
           "stock-count cancellation must resolve the administrator profile: " + JSON.stringify(adminCancelContext));
         assert.equal(adminCancelContext.organization_id, organizationId,
           "stock-count cancellation must resolve the manager organization: " + JSON.stringify(adminCancelContext));
-        assert.equal(adminCancelContext.can_manage, true,
-          "the active administrator in the current organization must satisfy the existing cancel guard: " +
+        assert.equal(adminCancelContext.can_cancel, true,
+          "the active administrator must hold the dedicated stock-count cancellation capability: " +
             JSON.stringify(adminCancelContext));
         const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
         let cancellationResult;
@@ -836,14 +862,14 @@ async function main() {
         const [adminMakerCancelContext] = await tx.unsafe(
           "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
           "public.current_organization_id()::text as organization_id, " +
-          "public.operational_tasks_can_manage() as can_manage",
+          "public.current_actor_has_capability('inventory.count.cancel') as can_cancel",
         );
         assert.equal(adminMakerCancelContext.profile_id, actors.admin.profile_id,
           "maker fixture cleanup must resolve the administrator profile: " + JSON.stringify(adminMakerCancelContext));
         assert.equal(adminMakerCancelContext.organization_id, organizationId,
           "maker fixture cleanup must stay in the original organization: " + JSON.stringify(adminMakerCancelContext));
-        assert.equal(adminMakerCancelContext.can_manage, true,
-          "administrator must satisfy the stock-count cancellation guard: " + JSON.stringify(adminMakerCancelContext));
+        assert.equal(adminMakerCancelContext.can_cancel, true,
+          "administrator cancellation must remain independent of warehouse scope: " + JSON.stringify(adminMakerCancelContext));
         const cancelledMaker = decodeJson((await tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text) as result",
           [makerSession.id, "Close self-approval fixture before independent maker acceptance"],
