@@ -583,7 +583,7 @@ async function main() {
   process.stdout.write(
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
-    " confirmedUsers=8 adminAndManagerSeeded=true independentReviewerAdminSeeded=true accountantSeeded=true customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
+    " confirmedUsers=9 adminAndManagerSeeded=true independentReviewerAdminSeeded=true accountantSeeded=true customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
     " multiInvoiceReceiptInvoices=2 localOnly=true catalogProduct=" + productId + " stock=100 localOnly=true\n",
   );
 }
