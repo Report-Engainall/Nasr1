@@ -31,6 +31,11 @@ describe('offline cart identity scope', () => {
       .toBe(`aghbari:cart:v2:customer:${encodeURIComponent(PROFILE_A)}`);
   });
 
+  it('falls back to the authenticated identity when the profile identifier is malformed', () => {
+    expect(offlineCartStorageKey('not-a-profile-id', USER_A))
+      .toBe(`aghbari:cart:v2:auth-user:${USER_A}`);
+  });
+
   it('uses distinct authenticated namespaces when profile mapping is absent', () => {
     const userAKey = offlineCartStorageKey(null, USER_A);
     const userBKey = offlineCartStorageKey(null, USER_B);
