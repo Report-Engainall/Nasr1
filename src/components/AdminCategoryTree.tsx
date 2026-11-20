@@ -10,6 +10,7 @@ import { fetchAdminCategoryProducts, type AdminCategoryProductRow } from '@/lib/
 import { buildAdminCategoryTree, filterAdminCategoryTree, getAdminCategoryAncestorIds, getAdminCategoryPath, type AdminCategoryTreeNode } from '@/lib/admin-category-tree';
 import type { Category, ProductWithInventory } from '@/lib/types';
 import { storefrontCategorySlug } from '@/lib/storefront-slugs';
+import { AdminCatalogChangeHistory } from '@/components/AdminCatalogChangeHistory';
 import { useAuth } from '@/lib/auth';
 
 type DetailTab = 'overview' | 'children' | 'products' | 'catalog';
@@ -454,6 +455,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
               <button type="submit" className="btn outline" disabled={renaming || !renameDraft.trim()}><Pencil size={15}/>{renaming ? 'جار الحفظ…' : 'حفظ الاسم'}</button>
             </form>}
             {canManage && selected.is_active !== false && <button type="button" className="btn danger" onClick={() => void archiveCategory(selected)} disabled={busyId !== null}><AlertTriangle size={15}/>{busyId === selected.id ? 'جارٍ الأرشفة…' : 'أرشفة التصنيف'}</button>}
+            {canManage && <AdminCatalogChangeHistory entityType="category" entityId={selected.id} />}
             {canManage && selected.is_active === false && <button type="button" className="btn outline" onClick={() => void restoreCategory(selected)} disabled={busyId !== null}><RotateCcw size={15}/>{busyId === selected.id ? 'جارٍ الاستعادة…' : 'استعادة التصنيف'}</button>}
           </div>}
           {tab === 'children' && <div className="admin-category-child-list">{children.length ? children.map((node) => <button type="button" key={node.category.id} onClick={() => selectCategory(node.category.id)}><FolderTree size={15}/><span>{node.category.name}</span><ChevronLeft size={14}/></button>) : <p>لا توجد فروع مباشرة.</p>}</div>}
