@@ -40,7 +40,7 @@ import { isCheckoutAuthorizationDenied } from '@/lib/checkout-errors';
 import { persistCheckoutAttempt as verifyPersistedCheckoutAttempt } from '@/lib/checkout-attempt-storage';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
 import { loadOfflineCartDraft, offlineCartStorageKey, saveOfflineCartDraft } from '@/lib/offline-cart';
-import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
+import { CUSTOMER_CART_SYNCED_EVENT, fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
 import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
 import { StorefrontPredictiveSearch } from '@/components/StorefrontPredictiveSearch';
@@ -814,7 +814,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       setCustomerCartSyncState('loading');
       void saveCustomerCart(snapshot).then(() => {
         if (cancelled) return;
-        setCustomerCartSyncState(revisionAtStart === cartMutationRevisionRef.current ? 'synced' : 'pending');
+        const isCurrentSnapshot = revisionAtStart === cartMutationRevisionRef.current;
+        setCustomerCartSyncState(isCurrentSnapshot ? 'synced' : 'pending');
+        if (isCurrentSnapshot) {
+          window.dispatchEvent(new Event(CUSTOMER_CART_SYNCED_EVENT));
+        }
       }).catch(() => {
         if (!cancelled) setCustomerCartSyncState('pending');
       });
