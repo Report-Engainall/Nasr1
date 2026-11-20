@@ -4,7 +4,7 @@
  */
 import { ONYX_PRO_HEADER_SYNONYMS } from "./onyx-pro-schema";
 
-export type ImportDatasetKind = "products" | "customers";
+export type ImportDatasetKind = "products" | "customers" | "inventory" | "product_units";
 
 export type ImportProfileMapping = {
   requiredColumns: string[];
@@ -12,9 +12,9 @@ export type ImportProfileMapping = {
 };
 
 /**
- * The quality scorer reads required columns from the persisted import profile.
- * Customer imports therefore require a dedicated customer profile, while this
- * mapping keeps the client validator and checkpoint fingerprint on the same key.
+ * Stock-balance snapshots use the protected inventory reconciliation contract.
+ * Their source identity is warehouse + item (not item alone), since an item may
+ * legitimately have one balance row in each warehouse.
  */
 export function resolveImportProfileMapping(
   kind: ImportDatasetKind,
@@ -24,12 +24,36 @@ export function resolveImportProfileMapping(
   if (kind === "customers") {
     return { requiredColumns: ["customer_code"], matchingKey: "customer_code" };
   }
+  if (kind === "inventory") {
+    return {
+      requiredColumns: configuredRequiredColumns?.length
+        ? [...configuredRequiredColumns]
+        : ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      matchingKey: configuredMatchingKey?.trim() || "warehouse_item_key",
+    };
+  }
+  if (kind === "product_units") {
+    return {
+      requiredColumns: configuredRequiredColumns?.length
+        ? [...configuredRequiredColumns]
+        : ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      matchingKey: configuredMatchingKey?.trim() || "product_unit_key",
+    };
+  }
   return {
     requiredColumns: configuredRequiredColumns?.length
       ? [...configuredRequiredColumns]
       : ["item_code"],
     matchingKey: configuredMatchingKey?.trim() || "item_code",
   };
+}
+
+/** Canonicalize the official Onyx StockBalances field names for its reconciliation schema. */
+export function normalizeOnyxStockBalanceHeader(value: string): string {
+  const normalized = normalizeHeader(value);
+  if (normalized === "product_code") return "item_code";
+  if (normalized === "quantity_on_hand") return "quantity";
+  return normalized;
 }
 
 export const MAX_IMPORT_FILE_BYTES = 100 * 1024 * 1024;
@@ -431,7 +455,7 @@ export function normalizeHeader(value: string, synonyms: Record<string, string> 
 
 
 
-export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "orders" | "pricing" | "ambiguous" | "unknown";
+export type ImportDatasetDetectionKind = "products" | "customers" | "inventory" | "product_units" | "orders" | "pricing" | "ambiguous" | "unknown";
 export type ImportDatasetDetection = {
   kind: ImportDatasetDetectionKind;
   matchedFields: string[];
@@ -468,6 +492,7 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
   ].some((field) => set.has(field));
   const hasPricingMarkers = set.has("price_list_code") || set.has("price_line_id") ||
     (set.has("price_level_code") && set.has("unit_price"));
+  const hasProductUnitMarkers = set.has("unit_code") && set.has("unit_name") && set.has("conversion_factor");
 
   if (hasOrderNumber && (hasCustomerCode || hasItemCode || set.has("order_date"))) {
     return { kind: "orders", matchedFields: fields.filter((field) =>
@@ -482,6 +507,9 @@ export function detectImportDatasetKind(headers: readonly string[]): ImportDatas
       ["order_number", "external_order_number", "order_id", "customer_code", "item_code",
         "quotation_number", "beneficiary_id", "reserve_quantities", "discount_1", "discount_2", "discount_3"].includes(field),
     ) };
+  }
+  if (hasItemCode && hasProductUnitMarkers && !hasWarehouse && !hasPricingMarkers) {
+    return { kind: "product_units", matchedFields: ["item_code", "unit_code", "unit_name", "conversion_factor"] };
   }
   if (hasPricingMarkers) {
     return { kind: "pricing", matchedFields: fields.filter((field) =>
@@ -828,9 +856,6 @@ export class StreamingCsvParser {
     for (; cursor < this.pending.length; cursor += 1) {
       const char = this.pending[cursor];
       const next = this.pending[cursor + 1];
-      // A CR at the end of a non-final chunk may be the first half of CRLF.
-      // Keep it pending until the next chunk so the pair is consumed as one row delimiter.
-      if (char === '\r' && next === undefined && !final && !this.quoted) break;
       if (char === '"' && cursor + 1 === this.pending.length && !final) break;
       if (char === '"' && this.quoted && next === '"') {
         if (!this.currentCellExceeded) {
