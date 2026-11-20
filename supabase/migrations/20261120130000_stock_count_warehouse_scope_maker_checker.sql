@@ -180,10 +180,61 @@ GRANT EXECUTE ON FUNCTION public.complete_stock_count(uuid) TO authenticated;
 COMMENT ON FUNCTION public.complete_stock_count(uuid) IS
  'Finalizes a warehouse stock count only for a distinct assigned Maker/Checker reviewer; preserves warehouse serialization, stale-snapshot rejection, atomic balance movements and audit history.';
 
+CREATE OR REPLACE FUNCTION public.cancel_stock_count(p_session_id uuid,p_reason text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $
+DECLARE
+ v_actor uuid := public.current_profile_id();
+ v_org uuid;
+ v_session public.stock_count_sessions%ROWTYPE;
+ v_reason text := nullif(pg_catalog.btrim(coalesce(p_reason,'')),'');
+BEGIN
+ SELECT p.organization_id INTO v_org
+ FROM public.profiles p
+ WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+ IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR p_session_id IS NULL THEN
+  RAISE EXCEPTION USING ERRCODE='42501',
+    MESSAGE='active organization session and stock-count session are required';
+ END IF;
+ SELECT s.* INTO v_session
+ FROM public.stock_count_sessions s
+ WHERE s.id=p_session_id AND s.organization_id=v_org
+ FOR UPDATE;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION USING ERRCODE='42501',
+    MESSAGE='stock-count session is unavailable in this organization';
+ END IF;
+ IF NOT public.current_actor_has_capability('inventory.count.enter',v_session.warehouse_id) THEN
+  RAISE EXCEPTION USING ERRCODE='42501',
+    MESSAGE='inventory.count.enter capability and assigned warehouse are required to cancel a draft stock count';
+ END IF;
+ IF v_session.status<>'open' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='stock count is not open';
+ END IF;
+ IF v_reason IS NULL OR pg_catalog.char_length(v_reason)>1000 THEN
+  RAISE EXCEPTION USING ERRCODE='22023',
+    MESSAGE='stock-count cancellation requires a reason between 1 and 1000 characters';
+ END IF;
+ UPDATE public.stock_count_sessions
+ SET status='cancelled',cancelled_by=v_actor,cancelled_at=pg_catalog.clock_timestamp(),cancellation_reason=v_reason
+ WHERE id=v_session.id
+ RETURNING * INTO v_session;
+ INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
+ VALUES(v_org,v_actor,'inventory.stock_count.cancelled','stock_count_session',v_session.id,
+  pg_catalog.jsonb_build_object('status','open','warehouse_id',v_session.warehouse_id),
+  pg_catalog.jsonb_build_object('status','cancelled','reason',v_reason,'cancelled_by',v_actor));
+ RETURN pg_catalog.jsonb_build_object('session_id',v_session.id,'status','cancelled','reason',v_reason);
+END;
+$;
+REVOKE ALL ON FUNCTION public.cancel_stock_count(uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.cancel_stock_count(uuid,text) TO authenticated;
+COMMENT ON FUNCTION public.cancel_stock_count(uuid,text) IS
+ 'Cancels only an open tenant-owned stock-count draft when the actor has inventory.count.enter for its exact warehouse; records the reason, actor, and immutable cancellation audit without changing stock balances.';
+
 DO $assert_stock_count_scope_guards$
 DECLARE
  v_entry_definition text:=pg_catalog.pg_get_functiondef('public.set_stock_count_line(uuid,uuid,numeric)'::regprocedure);
  v_finalize_definition text:=pg_catalog.pg_get_functiondef('public.complete_stock_count(uuid)'::regprocedure);
+ v_cancel_definition text:=pg_catalog.pg_get_functiondef('public.cancel_stock_count(uuid,text)'::regprocedure);
 BEGIN
  IF pg_catalog.strpos(v_entry_definition,'current_actor_has_capability(''inventory.count.enter'',v_session.warehouse_id)')=0
     OR pg_catalog.strpos(v_entry_definition,'current_actor_has_capability(''inventory.count.enter'')')>0
@@ -196,6 +247,11 @@ BEGIN
     OR pg_catalog.strpos(v_finalize_definition,'LOCK TABLE public.inventory_balances IN EXCLUSIVE MODE')=0
     OR pg_catalog.strpos(v_finalize_definition,'inventory.stock_count.completed')=0 THEN
   RAISE EXCEPTION 'stock-count finalization must enforce separate Maker/Checker and preserve atomic snapshot guards';
+ END IF;
+ IF pg_catalog.strpos(v_cancel_definition,'current_actor_has_capability(''inventory.count.enter'',v_session.warehouse_id)')=0
+    OR pg_catalog.strpos(v_cancel_definition,'current_actor_has_capability(''inventory.count.enter'')')>0
+    OR pg_catalog.strpos(v_cancel_definition,'inventory.stock_count.cancelled')=0 THEN
+  RAISE EXCEPTION 'stock-count cancellation must require exact warehouse authorization and append cancellation audit';
  END IF;
 END
 $assert_stock_count_scope_guards$;
