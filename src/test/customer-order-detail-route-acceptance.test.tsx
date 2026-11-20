@@ -110,6 +110,7 @@ describe("customer order detail real route acceptance", () => {
     }
     host?.remove();
     host = undefined;
+    vi.unstubAllGlobals();
   });
 
   async function mountOrderRoute() {
@@ -208,8 +209,31 @@ describe("customer order detail real route acceptance", () => {
         phone: "PRIVATE-ACCOUNT-PHONE", notes: "PRIVATE-CUSTOMER-NOTE",
       }], error: null },
     };
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    const clipboardNavigator = Object.create(navigator) as Navigator;
+    Object.defineProperty(clipboardNavigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+    vi.stubGlobal("navigator", clipboardNavigator);
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
     await mountOrderRoute();
+    const copyButton = host?.querySelector<HTMLButtonElement>('button[aria-label="نسخ الرقم المرجعي للطلب"]');
+    expect(copyButton?.textContent).toContain("نسخ الرقم المرجعي");
+    await act(async () => {
+      copyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith("SO-PRINT-001");
+    expect(host?.textContent).toContain("تم نسخ الرقم المرجعي للطلب.");
+
+    clipboardWriteText.mockRejectedValueOnce(new Error("clipboard permission denied"));
+    await act(async () => {
+      copyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(host?.textContent).toContain("تعذر النسخ التلقائي؛ حدّد الرقم المرجعي الظاهر في المستند وانسخه يدويًا.");
+
     const printButton = host?.querySelector<HTMLButtonElement>('button.sf-btn-primary');
     expect(printButton?.textContent).toContain("طباعة / حفظ PDF");
     await act(async () => { printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
