@@ -56,9 +56,9 @@ function writeQuietly(storage: OfflineCartStorage, key: string, lines: CartLineD
  * Load a local cart draft for the current customer.
  *
  * Older builds used one global key. It is only migrated to the anonymous guest scope,
- * never straight into an authenticated profile. When a user signs in, a guest draft may
- * be claimed once if that profile has no saved cart. A draft belonging to another profile
- * is never read or merged.
+ * never directly into an authenticated identity. Only a user with a valid profile mapping
+ * may claim the guest draft once; authenticated users without a mapped profile read only
+ * their own auth-user key. A draft belonging to another profile is never read or merged.
  */
 export function loadOfflineCartDraft(
   storage: OfflineCartStorage,
