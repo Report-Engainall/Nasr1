@@ -58,6 +58,25 @@ async function routeAdvancedSearchFixture(
     });
     return;
   }
+  if (pathname === "/rest/v1/rpc/get_storefront_catalog_page" && request.method() === "POST") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers,
+      body: JSON.stringify({
+        page: 1,
+        page_size: 1,
+        total_count: 0,
+        total_pages: 0,
+        filters: {
+          brands: [{ id: "a1000000-0000-4000-8000-000000000777", name: "علامة اختبار", name_en: "Test Brand" }],
+          units: ["كيس", "كرتون"],
+        },
+        items: [],
+      }),
+    });
+    return;
+  }
   await route.abort("blockedbyclient");
 }
 
@@ -255,7 +274,14 @@ test("subcategory deep link renders the child category screen", async ({ page })
         status: 200,
         contentType: "application/json",
         headers,
-        body: JSON.stringify({ page: 1, page_size: 24, total_count: 0, total_pages: 0, items: [] }),
+        body: JSON.stringify({
+          page: 1,
+          page_size: 24,
+          total_count: 0,
+          total_pages: 0,
+          filters: { brands: [], units: [] },
+          items: [],
+        }),
       });
       return;
     }
@@ -352,6 +378,10 @@ test("advanced search recovers from a category-source failure", async ({ page })
     .filter({ hasText: "تعذر تحميل التصنيفات:" });
   await expect(categoryError).toBeVisible();
   await expect(categorySelect).toBeDisabled();
+  await expect(page.locator("#advanced-storefront-brand")).toBeEnabled();
+  await expect(page.locator("#advanced-storefront-brand").getByRole("option", { name: "علامة اختبار", exact: true })).toHaveCount(1);
+  await expect(page.locator("#advanced-storefront-unit").getByRole("option", { name: "كرتون", exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("إظهار المنتجات التي تسمح سياسة المتجر بعرض أسعارها فقط")).toBeVisible();
   // Prove the category endpoint itself was hit for all automatic transient retries.
   expect(fixtureState.categoryReads).toBeGreaterThanOrEqual(3);
 
@@ -361,6 +391,99 @@ test("advanced search recovers from a category-source failure", async ({ page })
   await expect(categoryError).toHaveCount(0);
 
   expect(fixtureState.categoryReads).toBeGreaterThanOrEqual(4);
+  expect(pageErrors).toEqual([]);
+});
+
+test("advanced search sends brand, sale-unit and price-display filters to server catalog", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const brandId = "a1000000-0000-4000-8000-000000000777";
+  const catalogCalls: Array<Record<string, unknown>> = [];
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+  };
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.route("https://tfdwtuwkdddnzgyhcoyy.supabase.co/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const rpcName = url.pathname.split("/").pop() ?? "";
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 200, headers });
+      return;
+    }
+    if (rpcName === "get_public_storefront_context") {
+      await route.fulfill({
+        status: 200, contentType: "application/json", headers,
+        body: JSON.stringify({ organization_id: organizationId, warehouse_id: null }),
+      });
+      return;
+    }
+    if (rpcName === "get_public_storefront_categories") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers, body: "[]" });
+      return;
+    }
+    if (rpcName === "get_storefront_catalog_page" && request.method() === "POST") {
+      const catalogRequest = request.postDataJSON() as { p_page?: unknown; p_page_size?: unknown };
+      catalogCalls.push(catalogRequest as Record<string, unknown>);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          page: typeof catalogRequest.p_page === "number" ? catalogRequest.p_page : 1,
+          page_size: typeof catalogRequest.p_page_size === "number" ? catalogRequest.p_page_size : 24,
+          total_count: 0,
+          total_pages: 0,
+          filters: {
+            brands: [{ id: brandId, name: "علامة اختبار", name_en: "Test Brand" }],
+            units: ["كيس", "كرتون"],
+          },
+          items: [],
+        }),
+      });
+      return;
+    }
+    if (rpcName === "get_public_storefront_settings") {
+      await route.fulfill({
+        status: 200, contentType: "application/json", headers,
+        body: JSON.stringify({ show_price_on_cards: false, show_price_in_cart: false, show_price_in_orders: false }),
+      });
+      return;
+    }
+    if (rpcName === "get_storefront_announcements" || rpcName === "get_storefront_promotions") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers, body: "[]" });
+      return;
+    }
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        headers: { ...headers, "content-range": "0-0/*" }, body: "[]",
+      });
+      return;
+    }
+    await route.abort("blockedbyclient");
+  });
+
+  await page.goto("/search/advanced");
+  await expect(page.getByRole("heading", { name: "البحث المتقدم", exact: true })).toBeVisible();
+  const brand = page.locator("#advanced-storefront-brand");
+  const unit = page.locator("#advanced-storefront-unit");
+  await expect(brand).toBeEnabled();
+  await expect(unit).toBeEnabled();
+  await brand.selectOption(brandId);
+  await unit.selectOption("كرتون");
+  await page.getByLabel("إظهار المنتجات التي تسمح سياسة المتجر بعرض أسعارها فقط").check();
+  await page.getByRole("button", { name: "عرض النتائج" }).click();
+
+  await expect(page).toHaveURL(/\/catalog(?:\?|$)/);
+  await expect.poll(() => catalogCalls.some((call) =>
+    call.p_brand_id === brandId &&
+    call.p_unit === "كرتون" &&
+    call.p_price_displayable_only === true
+  )).toBe(true);
   expect(pageErrors).toEqual([]);
 });
 
@@ -543,6 +666,7 @@ test("cart and checkout ignore browser-stored money without an authorized server
           page_size: pageSize,
           total_count: 1,
           total_pages: 1,
+          filters: { brands: [], units: [] },
           items: [{
             id: productId,
             name: "أرز اختبار",
