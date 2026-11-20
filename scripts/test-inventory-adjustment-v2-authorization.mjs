@@ -494,6 +494,14 @@ async function main() {
         );
         await applyActor(tx, actors.manager);
 
+        const [managerCancelDecision] = await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel') as decision, " +
+          "public.current_actor_has_capability('inventory.count.cancel') as allowed",
+        );
+        assert.equal(decodeJson(managerCancelDecision.decision).decision, "PERMIT",
+          "an active manager must receive the dedicated organization-level cancellation capability");
+        assert.equal(managerCancelDecision.allowed, true);
+
         // Warehouse entry permission must never imply administrative cancellation.
         await applyActor(tx, actors.staff);
         const [staffCancelDecision] = await tx.unsafe(
