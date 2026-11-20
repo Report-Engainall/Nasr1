@@ -223,6 +223,10 @@ jobs:
         timeout-minutes: 10
         run: node scripts/test-decision-policy-learning-candidate.mjs
 
+      - name: Accept immutable customer receivable identity, source reconciliation and finance access on PostgreSQL 17
+        timeout-minutes: 10
+        run: node scripts/test-customer-receivable-aging-identity.mjs
+
       - name: Accept verified-purchase review submission, moderation, privacy and tenant isolation
         run: node scripts/test-storefront-product-reviews.mjs
 
