@@ -81,10 +81,15 @@ async function createManualJournal(client, entryDate, description, debitAccountI
   );
   assert.equal(jsonShape[0]?.value_type, "array");
   assert.equal(Number(jsonShape[0]?.line_count), 2);
-  return asJson((await client.unsafe(
+  const result = asJson((await client.unsafe(
     "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,NULL::text) as result",
     [randomUUID(), entryDate, description, client.json(lines)],
   ))[0].result);
+  // create_general_journal_draft returns { id, entry_number, status, replayed };
+  // expose the canonical id explicitly for the posting/matching fixture helpers.
+  const journalEntryId = result?.journal_entry_id ?? result?.id;
+  assert.equal(typeof journalEntryId, "string", "manual journal RPC must return its persisted entry id");
+  return { ...result, journal_entry_id: journalEntryId };
 }
 async function recordCashExpense(client, expenseDate, amount, description, reference) {
   return asJson((await client.unsafe(
