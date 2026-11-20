@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/20261120050000_customer_shopping_lists.sql"
+      - "supabase/migrations/20261120060000_customer_shopping_lists_background_scheduler.sql"
+      - "supabase/migrations/20261120060000_customer_shopping_lists_background_scheduler.sql"
       - "supabase/tests/customer_shopping_lists_acceptance.sql"
       - ".github/workflows/customer-shopping-lists-pg17.yml"
       - "src/components/CustomerShoppingListsWorkspace.tsx"
@@ -36,7 +38,7 @@ jobs:
     timeout-minutes: 12
     services:
       postgres:
-        image: postgres:17
+        image: public.ecr.aws/supabase/postgres:17.6.1.166
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
