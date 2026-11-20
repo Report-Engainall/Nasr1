@@ -10,6 +10,9 @@ DECLARE
   );
   v_before text;
   v_after text;
+  v_return_anchor text := '  RETURN v_result;';
+  v_return_notice text := '  RAISE NOTICE ''decision-memory return value type=% value=%'', pg_catalog.jsonb_typeof(v_result), pg_catalog.left(v_result::text,1000);' || pg_catalog.chr(10)
+    || '  RETURN v_result;';
   v_joined_select text := $old$
   SELECT s.id, s.version, s.captured_at, s.payload, o.measured_outcome
     INTO v_snapshot_id, v_version, v_captured_at, v_payload, v_measured
@@ -72,6 +75,13 @@ BEGIN
      OR pg_catalog.strpos(v_after, 'IF v_snapshot_id IS NULL THEN') = 0
      OR pg_catalog.strpos(v_after, 'decision-memory snapshot has no same-organization outcome') = 0 THEN
     RAISE EXCEPTION 'decision-memory split lookup contract was not installed';
+  END IF;
+
+  IF pg_catalog.strpos(v_after, v_return_notice) = 0 THEN
+    IF pg_catalog.strpos(v_after, v_return_anchor) = 0 THEN
+      RAISE EXCEPTION 'decision-memory return anchor was not found';
+    END IF;
+    v_after := pg_catalog.replace(v_after, v_return_anchor, v_return_notice);
   END IF;
 
   IF v_after IS DISTINCT FROM v_before THEN
