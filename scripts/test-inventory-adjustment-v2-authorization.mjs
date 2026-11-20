@@ -1005,47 +1005,31 @@ async function main() {
           [makerSession.id],
         ), "an unassigned administrator cannot finalize a warehouse count");
 
-        // Preserve the proved open state and zero-write self-approval denial,
-        // then close this temporary maker fixture through the audited cancel
-        // command before the independent staff-maker session is opened.
+        // The administrator's exact warehouse scope is intentionally revoked above.
+        // Prove that cancellation also denies the unassigned administrator, then let
+        // the already-assigned manager close the temporary maker fixture via the
+        // same audited resource-scoped RPC used by the product.
         await applyActor(tx, actors.admin);
-        const [adminMakerCancelContext] = await tx.unsafe(
-          "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
-          "public.current_organization_id()::text as organization_id, " +
-          "public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as can_cancel",
+        const adminMakerCancelDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel',$1::uuid) as decision, " +
+          "public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
           [fixture.warehouse_id],
-        );
-        assert.equal(adminMakerCancelContext.profile_id, actors.admin.profile_id,
-          "maker fixture cleanup must resolve the administrator profile: " + JSON.stringify(adminMakerCancelContext));
-        assert.equal(adminMakerCancelContext.organization_id, organizationId,
-          "maker fixture cleanup must stay in the original organization: " + JSON.stringify(adminMakerCancelContext));
-        assert.equal(adminMakerCancelContext.can_cancel, false,
-          "administrator cancellation must be denied after its exact warehouse assignment is revoked: " + JSON.stringify(adminMakerCancelContext));
-        await tx.unsafe("reset role");
-        const [adminMakerScopeRow] = await tx.unsafe(
-          "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
-          "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
-          [organizationId, actors.admin.profile_id, fixture.warehouse_id],
-        );
-        const adminMakerScopeRevision = adminMakerScopeRow ? Number(adminMakerScopeRow.revision) : 0;
-        await applyActor(tx, actors.admin);
-        const adminMakerTemporaryScope = decodeJson((await tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
-          [actors.admin.profile_id, fixture.warehouse_id,
-            "Temporary exact warehouse scope to close the self-approval denial fixture",
-            adminMakerScopeRevision],
-        ))[0].result);
-        assert.equal(adminMakerTemporaryScope.is_active, true,
-          "the administrator must be explicitly assigned to the exact warehouse before cancelling the test fixture");
-        const [adminMakerScopedCancelDecision] = await tx.unsafe(
-          "select public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
+        ))[0]);
+        assert.equal(adminMakerCancelDecision.decision.decision, "DENY",
+          "an administrator without this exact warehouse assignment cannot cancel the maker fixture");
+        assert.equal(adminMakerCancelDecision.allowed, false);
+        await applyActor(tx, actors.manager);
+        const managerMakerCancelDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel',$1::uuid) as decision, " +
+          "public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
           [fixture.warehouse_id],
-        );
-        assert.equal(adminMakerScopedCancelDecision.allowed, true,
-          "the administrator's temporary exact warehouse assignment must authorize fixture cancellation");
+        ))[0]);
+        assert.equal(managerMakerCancelDecision.decision.decision, "PERMIT",
+          "the already-assigned manager must hold the independent warehouse-scoped cancellation capability");
+        assert.equal(managerMakerCancelDecision.allowed, true);
         const cancelledMaker = decodeJson((await tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text) as result",
-          [makerSession.id, "Close self-approval fixture before independent maker acceptance"],
+          [makerSession.id, "Assigned manager closes self-approval fixture without broadening admin scope"],
         ))[0].result);
         assert.equal(cancelledMaker.status, "cancelled");
         const [cancelledMakerState] = await tx.unsafe(
@@ -1053,7 +1037,7 @@ async function main() {
           [makerSession.id],
         );
         assert.equal(cancelledMakerState.status, "cancelled");
-        assert.equal(cancelledMakerState.cancelled_by, actors.admin.profile_id);
+        assert.equal(cancelledMakerState.cancelled_by, actors.manager.profile_id);
         assert.ok(cancelledMakerState.cancelled_at);
         const [cancelledMakerMovements] = await tx.unsafe(
           "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
