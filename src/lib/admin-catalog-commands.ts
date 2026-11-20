@@ -27,10 +27,15 @@ export type AdminCatalogPayload = {
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const invokeAdminRpc = supabase.rpc.bind(supabase) as unknown as (
+type AdminRpcInvoker = (
   name: string,
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+function invokeAdminRpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> {
+  // Resolve the lazy client only for an actual command; pure validators remain offline-safe.
+  return (supabase as unknown as { rpc: AdminRpcInvoker }).rpc(name, args);
+}
 
 function validAmount(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0

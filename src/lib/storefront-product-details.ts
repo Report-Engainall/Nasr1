@@ -69,7 +69,10 @@ type RpcInvoker = (name: string, args: Record<string, unknown>) => Promise<RpcRe
 
 // The generated Supabase type file is refreshed by the schema-generation pipeline.
 // Keep the extended RPC contract typed locally until that generated snapshot lands.
-const invokeRpc = supabase.rpc.bind(supabase) as unknown as RpcInvoker;
+function invokeRpc(name: string, args: Record<string, unknown>): Promise<RpcResult> {
+  // Keep module import and pure contract parsing independent from runtime Supabase configuration.
+  return (supabase as unknown as { rpc: RpcInvoker }).rpc(name, args);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

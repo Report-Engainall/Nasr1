@@ -3,10 +3,15 @@ import type { ProductWithInventory } from '@/lib/types';
 import { normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH } from '@/lib/commerce-utils';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const invokeCatalogRpc = supabase.rpc.bind(supabase) as unknown as (
+type CatalogRpcInvoker = (
   name: string,
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>;
+
+function invokeCatalogRpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
+  // Resolve the lazy client only when a catalogue request is actually made.
+  return (supabase as unknown as { rpc: CatalogRpcInvoker }).rpc(name, args);
+}
 
 export interface StorefrontCatalogPage {
   page: number;
