@@ -483,7 +483,7 @@ async function main() {
       // must preserve that valid source population; candidate creation must then
       // reject the expected/actual as-of mismatch.
       await setActor(tx, managerClaims);
-      const mismatchAsOf = new Date(Date.parse(asOf) + 30_000).toISOString();
+      const mismatchAsOf = new Date(Date.parse(asOf) - 30_000).toISOString();
       const mismatchSourceRows = await tx.unsafe(
         "select issued_at <= $2::timestamptz as predates_mismatched_as_of " +
         "from public.customer_invoices where id=$1::uuid and organization_id=$3::uuid",
