@@ -270,6 +270,7 @@ async function main() {
         lessons: ["تُراجع نتيجة المتابعة وفق قياس موثق."],
         expectedMetric: { key: "cashflow.expected_collections", currency: "YER" },
       };
+      await tx.unsafe("reset role");
       const memoryPreflight = await tx.unsafe(
         "WITH input AS (" +
           "SELECT $2::jsonb AS snapshot, " +
@@ -301,6 +302,7 @@ async function main() {
         [outcomeId, memorySnapshot, manager.organization_id],
       );
       process.stdout.write("Decision memory save preflight: " + JSON.stringify(memoryPreflight[0] ?? null) + "\\n");
+      await setActor(tx, managerClaims);
 
       const memoryRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,0,$2::jsonb,NULL,$3::text) as result",
