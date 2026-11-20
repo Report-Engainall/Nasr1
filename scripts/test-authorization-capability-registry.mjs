@@ -97,10 +97,13 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
    const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
    assert.equal(grant.length,1,"upgrade fixture requires a manager grant to remove");
    await tx.unsafe("update public.authorization_capabilities set scope_kind='warehouse',is_active=true where capability_key='inventory.balance.adjust'");
-   const preservedPolicy={requires_active_warehouse_assignment:true};
+   // Use an existing, catalog-valid policy key while making its value deliberately
+   // different from the canonical seed. This tests upgrade preservation without
+   // manufacturing metadata that the production registry constraint rejects.
+   const preservedPolicy={requires_reason:false};
    await tx.unsafe(
     "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
-    "separation_of_duties=true,state_requirements=pg_catalog.jsonb_build_object('requires_active_warehouse_assignment',true),is_active=false "+
+    "separation_of_duties=true,state_requirements=pg_catalog.jsonb_build_object('requires_reason',false),is_active=false "+
     "where capability_key='inventory.reorder_point.write'"
    );
    rollbackPhase="removing a deliberately revoked manager grant";
