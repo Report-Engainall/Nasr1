@@ -110,19 +110,7 @@ async function main() {
       [organizationId, actors.manager.profile_id],
     );
     assert.ok(fixture, "local fixture must have an existing active stock balance");
-    const [otherWarehouse] = await db.unsafe(
-      "select w.id::text as warehouse_id from public.warehouses w " +
-      "where w.organization_id=$1::uuid and w.is_active=true and w.id<>$2::uuid " +
-      "and exists (select 1 from public.inventory_balances ib where ib.warehouse_id=w.id and ib.product_id=$4::uuid) " +
-      "and not exists (select 1 from public.stock_count_sessions c " +
-      "where c.organization_id=w.organization_id and c.warehouse_id=w.id and c.status='open') " +
-      "and not exists (select 1 from public.authorization_profile_scopes s " +
-      "where s.organization_id=w.organization_id and s.profile_id=$3::uuid and s.scope_kind='warehouse' " +
-      "and s.warehouse_id=w.id and s.is_active=true and s.valid_from<=statement_timestamp() " +
-      "and (s.expires_at is null or s.expires_at>statement_timestamp())) " +
-      "order by w.id limit 1",
-      [organizationId, fixture.warehouse_id, actors.manager.profile_id, fixture.product_id],
-    );
+    let otherWarehouse;
     const oldQuantity = Number(fixture.quantity_on_hand);
     const newQuantity = Number((oldQuantity + 1).toFixed(3));
     const key = "inventory-authz-v2-" + process.pid + "-" + Date.now();
@@ -137,6 +125,24 @@ async function main() {
 
     try {
       await db.begin(async (tx) => {
+        // Create a dedicated second warehouse inside the rollback-only transaction.
+        // The fixture is deterministic in purpose, but its identity/code are unique
+        // per run and cannot collide with a parallel P2 acceptance worker.
+        const testWarehouseCode = "P2-RBAC-CANCEL-" + process.pid + "-" + Date.now();
+        const [testWarehouse] = await tx.unsafe(
+          "insert into public.warehouses(organization_id,branch_id,name,code,is_active) " +
+          "values($1::uuid,NULL,'P2 RBAC cancellation isolation fixture',$2::text,true) " +
+          "returning id::text as warehouse_id",
+          [organizationId, testWarehouseCode],
+        );
+        assert.ok(testWarehouse?.warehouse_id, "the rollback-only cancellation fixture warehouse must be created");
+        otherWarehouse = testWarehouse;
+        await tx.unsafe(
+          "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
+          "values($1::uuid,$2::uuid,100,0,0)",
+          [fixture.product_id, otherWarehouse.warehouse_id],
+        );
+
         // The broader P2 storefront fixture intentionally places a manager-level
         // explicit denial on this capability. Revoke it only inside this rollback-
         // only acceptance transaction so this test can separately prove both
@@ -347,7 +353,6 @@ async function main() {
         assert.equal(countStartDiagnostics.allowed, true,
           "manager must have an active inventory.count.start grant and assigned warehouse: " +
           JSON.stringify(countStartDiagnostics));
-        assert.ok(otherWarehouse,"an independent unassigned warehouse fixture is required");
         const unassignedCountDecision=decodeJson((await tx.unsafe(
           "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
           [otherWarehouse.warehouse_id],
