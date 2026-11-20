@@ -48,7 +48,7 @@ describe("cart pricing change review", () => {
     rememberCartPricingSnapshot(identity, lines, pricing(20));
     expect(getCartPricingSnapshot(identity, [...lines].reverse())?.totalAmount).toBe(120);
     expect(getCartPricingSnapshot(otherIdentity, lines)).toBeNull();
-    expect(getCartPricingSnapshot(identity, [{ ...lines[0], quantity: 5 }, lines[1]])).toBeNull();
+    expect(getCartPricingSnapshot(identity, [{ ...lines[0], quantity: 5 }, lines[1]])?.items[0].quantity).toBe(4);
   });
 
   it("compares the actual server unit prices and reports increases and decreases", () => {
@@ -58,6 +58,19 @@ describe("cart pricing change review", () => {
       items: pricing(24).items.map((line, index) => index === 0 ? line : { ...line, unit_price: 15 }),
     };
     expect(compareCartPricingSnapshots(before, after).map((change) => change.kind)).toEqual(["increase", "decrease"]);
+  });
+
+  it("detects a quantity-tier unit-price change between cart and checkout", () => {
+    const before = pricing(20);
+    const current = {
+      ...pricing(18),
+      items: pricing(18).items.map((line) => ({ ...line, quantity: line.quantity + 1 })),
+    };
+    const changes = compareCartPricingSnapshots(before, current);
+    expect(changes).toHaveLength(2);
+    expect(changes[0].previous_quantity).toBe(4);
+    expect(changes[0].quantity).toBe(5);
+    expect(changes[0].kind).toBe("decrease");
   });
 
   it("detects changed promotional terms even when the payable unit price is unchanged", () => {
