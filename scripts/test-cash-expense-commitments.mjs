@@ -13,7 +13,7 @@ function guardUndefinedSqlParameters(client, label) {
   return new Proxy(client, {
     get(target, property) {
       if (property === "unsafe") {
-        return (query, parameters, ...rest) => {
+        return (query, parameters = [], ...rest) => {
           if (Array.isArray(parameters)) {
             const missing = parameters.flatMap((value, index) => value === undefined ? [index + 1] : []);
             if (missing.length) {
