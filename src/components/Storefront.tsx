@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, ShoppingCart, Trash2,
-  Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
+  Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList, Printer,
   Heart, GitCompare, ArrowRight, SlidersHorizontal, CreditCard,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
