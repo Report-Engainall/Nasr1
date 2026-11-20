@@ -267,6 +267,13 @@ BEGIN
   IF (v_result->>'created_runs')::integer<>2 THEN
     RAISE EXCEPTION 'weekly and monthly due schedules were not materialized exactly once: %',v_result;
   END IF;
+  SELECT count(*) INTO v_count
+    FROM public.audit_logs
+   WHERE action='customer.shopping_list.recurrence_due'
+     AND new_value->>'due_on'=v_today::text;
+  IF v_count<>2 THEN
+    RAISE EXCEPTION 'each due weekly/monthly review must have exactly one audit event; found %',v_count;
+  END IF;
   PERFORM public.materialize_due_customer_shopping_list_runs();
   SELECT count(*) INTO v_count FROM public.customer_shopping_list_runs;
   IF v_count<>2 THEN RAISE EXCEPTION 'reopening a due list duplicated a scheduled run'; END IF;
