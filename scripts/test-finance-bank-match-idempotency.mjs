@@ -414,7 +414,7 @@ async function main() {
       "from public.finance_bank_statement_reconciliation_runs where organization_id=$1::uuid and statement_id=$2::uuid",
       [organizationId, statementB],
     );
-    assert.deepEqual(verifiedRunRows, [{
+    assert.deepEqual([...verifiedRunRows], [{
       outcome: "VERIFIED", statement_line_count: 2, matched_line_count: 2,
       unmatched_statement_lines: 0, unmatched_ledger_lines: 0,
       statement_net_movement: "-200.00", ledger_net_movement: "-200.00",
