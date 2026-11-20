@@ -257,7 +257,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId, user?.id);
   const wishlistStorageKey = storefrontWishlistStorageKey(user?.profileId, user?.id);
-  const compareStorageKey = storefrontCompareStorageKey(user?.profileId);
+  const compareStorageKey = storefrontCompareStorageKey(user?.profileId, user?.id);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
