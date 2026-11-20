@@ -15,6 +15,9 @@ import { ProductComparison } from '@/components/store/ProductComparison';
 import { CartQuantityControl } from '@/components/store/CartQuantityControl';
 import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-products';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
+import { ProductDataQualityPanel } from '@/components/store/ProductDataQualityPanel';
+import { StorefrontProductOffers } from '@/components/store/StorefrontProductOffers';
+import { formatProductUpdatedAt } from '@/lib/storefront-product-data-quality';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
@@ -33,7 +36,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
-import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
+import { readPendingSavedProductChanges, setStorefrontSavedProduct, storefrontWishlistStorageKey, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
 import { StorefrontRecentlyViewed } from '@/components/StorefrontRecentlyViewed';
@@ -252,12 +255,12 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     error: categoriesError,
     refetch: refetchCategories,
   } = useFetch(fetchCategories);
-  const { data: promotions } = useFetch(fetchStorefrontPromotions);
+  const { data: promotions, loading: promotionsLoading, error: promotionsError, refreshError: promotionsRefreshError, refetch: refetchPromotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
-  const cartStorageKey = offlineCartStorageKey(user?.profileId);
-  const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
-  const compareStorageKey = storefrontCompareStorageKey(user?.profileId);
+  const cartStorageKey = offlineCartStorageKey(user?.profileId, user?.id);
+  const wishlistStorageKey = storefrontWishlistStorageKey(user?.profileId, user?.id);
+  const compareStorageKey = storefrontCompareStorageKey(user?.profileId, user?.id);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
@@ -569,7 +572,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
   useEffect(() => {
     if (cartRestored || typeof window === 'undefined' || !authReady) return;
-    const draft = loadOfflineCartDraft(window.localStorage, user?.profileId);
+    const draft = loadOfflineCartDraft(window.localStorage, user?.profileId, user?.id);
     const productById = new Map(products.map((product) => [product.id, product]));
     const restored = draft.map(({ product_id, quantity }) => ({
       product: productById.get(product_id) ?? pendingCartProduct(product_id),
@@ -578,7 +581,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     // Restore the saved IDs and quantities immediately; details are loaded separately
     // for these exact IDs, so an unrelated catalogue/page/price failure cannot hide the cart.
     setCart(restored);
-  }, [authReady, products, cartStorageKey, cartRestored, user?.profileId]);
+  }, [authReady, products, cartStorageKey, cartRestored, user?.profileId, user?.id]);
 
   useEffect(() => {
     if (!cartRestored || typeof window === 'undefined') return;
@@ -586,8 +589,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       window.localStorage,
       user?.profileId,
       cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+      user?.id,
     );
-  }, [cart, cartRestored, cartStorageKey, user?.profileId]);
+  }, [cart, cartRestored, cartStorageKey, user?.profileId, user?.id]);
   useEffect(() => {
     if (!authReady || !cartRestored) return;
     const requestKey = cartProductDetailsKey;
@@ -1071,6 +1075,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         {view === 'product' && (selectedProduct
           ? <ProductDetail
               product={selectedProduct}
+              isStaff={user?.isStaff === true}
+              promotions={promotions}
+              promotionsLoading={promotionsLoading}
+              promotionsError={promotionsError ?? promotionsRefreshError}
+              onRetryPromotions={() => void refetchPromotions()}
               relatedProducts={(products ?? []).filter((candidate) =>
                 selectedProduct.category_id !== null
                 && candidate.id !== selectedProduct.id
@@ -1409,6 +1418,11 @@ export function ProductGrid({
 
 export function ProductDetail({
   product,
+  isStaff,
+  promotions,
+  promotionsLoading,
+  promotionsError,
+  onRetryPromotions,
   relatedProducts = [],
   priceVisibilityPolicy,
   inWishlist,
@@ -1424,6 +1438,11 @@ export function ProductDetail({
   onOpenRelated,
 }: {
   product: ProductWithInventory;
+  isStaff: boolean;
+  promotions: Promotion[] | null;
+  promotionsLoading: boolean;
+  promotionsError: string | null;
+  onRetryPromotions: () => void;
   relatedProducts: ProductWithInventory[];
   priceVisibilityPolicy: unknown;
   inWishlist: boolean;
@@ -1451,6 +1470,7 @@ export function ProductDetail({
     product.image_url,
     ...(Array.isArray(product.image_gallery_urls) ? product.image_gallery_urls : []),
   ].filter((url): url is string => isSafeStorefrontImageUrl(url))));
+  const productUpdatedAtLabel = formatProductUpdatedAt(product.updated_at);
   const [alternateUnits, setAlternateUnits] = useState<ProductAlternateUnit[]>([]);
   const [alternateUnitsLoading, setAlternateUnitsLoading] = useState(true);
   const [alternateUnitsError, setAlternateUnitsError] = useState('');
@@ -1621,6 +1641,20 @@ export function ProductDetail({
           <h2>{product.name}</h2>
           {product.name_en ? <p dir="auto" style={{ margin: '-4px 0 12px', color: '#5f777b', fontSize: 14, fontWeight: 500 }}>{product.name_en}</p> : null}
           <p className="sf-detail-description">{product.description || 'لا يوجد وصف متاح لهذا المنتج.'}</p>
+          {productUpdatedAtLabel ? (
+            <p style={{ margin: "-4px 0 12px", color: "#71817f", fontSize: 11 }}>
+              آخر تحديث للمعلومات: <time dateTime={product.updated_at}>{productUpdatedAtLabel}</time>
+            </p>
+          ) : null}
+          {isStaff ? (
+            <ProductDataQualityPanel
+              imageCount={galleryUrls.length}
+              description={product.description}
+              salesUnit={product.unit}
+              alternateUnitCount={alternateUnits.length}
+              alternateUnitState={alternateUnitsLoading ? "loading" : alternateUnitsError ? "error" : "ready"}
+            />
+          ) : null}
           <StorefrontPricePresentation
             policyValue={priceVisibilityPolicy}
             serverUnitPrice={product.display_price}
@@ -1743,6 +1777,14 @@ export function ProductDetail({
           </div>
         </div>
       </div>
+      <StorefrontProductOffers
+        productId={product.id}
+        categoryId={product.category_id}
+        promotions={promotions}
+        loading={promotionsLoading}
+        error={promotionsError}
+        onRetry={onRetryPromotions}
+      />
       {relatedProducts.length > 0 && (
         <section className="sf-related-products" aria-labelledby="sf-related-products-title">
           <div className="sf-related-header">

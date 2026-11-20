@@ -86,6 +86,9 @@ export function parseStorefrontCartProductDetailsRow(value: unknown): ProductWit
     order_quantity_multiple: orderQuantityMultiple,
     status: typeof row.status === 'string' ? row.status : 'active',
     created_at: typeof row.created_at === 'string' ? row.created_at : '',
+    ...(typeof row.updated_at === 'string' && Number.isFinite(Date.parse(row.updated_at))
+      ? { updated_at: row.updated_at }
+      : {}),
     ...(displayPrice === undefined ? {} : { display_price: displayPrice }),
     inventory,
   };
