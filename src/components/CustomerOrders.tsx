@@ -551,6 +551,29 @@ function OrderInvoiceInner({ id }: { id: string }) {
     };
   }, [id]);
 
+  const previousOrderStatusRef = useRef<{ orderId: string; status: string } | null>(null);
+  const [statusChangeNotice, setStatusChangeNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!data?.order) return;
+    const orderId = data.order.id;
+    const nextStatus = data.order.status;
+    const previous = previousOrderStatusRef.current;
+    previousOrderStatusRef.current = { orderId, status: nextStatus };
+
+    if (previous?.orderId !== orderId) {
+      setStatusChangeNotice(null);
+      return;
+    }
+    if (previous.status !== nextStatus) {
+      const previousLabel = ORDER_STATUS_LABELS[previous.status] ?? previous.status;
+      const nextLabel = ORDER_STATUS_LABELS[nextStatus] ?? nextStatus;
+      setStatusChangeNotice(
+        `تغيّرت حالة الطلب ${data.order.order_number} من ${previousLabel} إلى ${nextLabel}.`,
+      );
+    }
+  }, [data?.order?.id, data?.order?.status, data?.order?.order_number]);
+
   const hasUnsavedAmendmentDraft = useMemo(() => {
     if (amendmentBusy || amendmentNote.trim()) return true;
     return (data?.items ?? []).some((item) => {
@@ -653,15 +676,34 @@ function OrderInvoiceInner({ id }: { id: string }) {
       setCopyFeedback('error');
       return;
     }
+
+    let copied = false;
     try {
-      if (typeof navigator === 'undefined' || typeof navigator.clipboard?.writeText !== 'function') {
-        throw new Error('Clipboard API is unavailable');
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(orderReference);
+        copied = true;
       }
-      await navigator.clipboard.writeText(orderReference);
-      setCopyFeedback('success');
     } catch {
-      setCopyFeedback('error');
+      // Clipboard permission may be unavailable; use the selection fallback.
     }
+
+    if (!copied && typeof document.execCommand === 'function') {
+      const input = document.createElement('textarea');
+      input.value = orderReference;
+      input.setAttribute('readonly', '');
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      try {
+        input.select();
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      } finally {
+        input.remove();
+      }
+    }
+    setCopyFeedback(copied ? 'success' : 'error');
   }
 
 
@@ -841,8 +883,23 @@ function OrderInvoiceInner({ id }: { id: string }) {
           </button>
         </div>
       ) : null}
+      {statusChangeNotice ? (
+        <div
+          className="no-print"
+          role="status"
+          aria-live="polite"
+          aria-label="إشعار تحديث حالة الطلب"
+          style={{ ...card, marginBottom: 12, borderColor: '#9bcfc1', background: '#f0faf6', color: '#185b49' }}
+        >
+          <strong>{statusChangeNotice}</strong>
+          <Link to="/notifications" className="sf-link" style={{ display: 'inline-flex', marginInlineStart: 10 }}>
+            فتح مركز التنبيهات
+          </Link>
+        </div>
+      ) : null}
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
+        <Link to="/notifications" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>مركز التنبيهات</Link>
         <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>
         <button type="button" className="sf-btn-secondary" aria-label="نسخ الرقم المرجعي للطلب" onClick={() => void copyOrderReference()}><Copy size={16} /> نسخ الرقم المرجعي</button>
         <button
