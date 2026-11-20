@@ -5,6 +5,7 @@ export type SupplierInvoiceMatchStatus =
   | "variance_pending"
   | "variance_approved"
   | "variance_rejected";
+export type SupplierInvoiceWorkspaceStatusFilter = "all" | SupplierInvoiceMatchStatus;
 export type SupplierInvoiceTaxAccountingStatus = "not_required" | "pending";
 
 export interface SupplierInvoicePurchaseOrder {
@@ -291,15 +292,24 @@ export async function fetchSupplierInvoiceWorkspace(input: {
   purchaseOrderId?: string | null;
   limit?: number;
   offset?: number;
+  search?: string;
+  matchStatus?: SupplierInvoiceWorkspaceStatusFilter;
 } = {}): Promise<SupplierInvoiceWorkspace> {
   const purchaseOrderId = input.purchaseOrderId ?? null;
   const limit = input.limit ?? 50;
   const offset = input.offset ?? 0;
+  const search = input.search?.trim() ?? "";
+  const matchStatus = input.matchStatus ?? "all";
   if (purchaseOrderId !== null && !UUID_PATTERN.test(purchaseOrderId)) throw new Error("معرّف أمر الشراء غير صالح.");
   if (!Number.isInteger(limit) || limit < 1 || limit > 100 ||
-      !Number.isInteger(offset) || offset < 0 || offset > 10000) throw new Error("حدود عرض فواتير المورد غير صالحة.");
-  const { data, error } = await supabase.rpc("fetch_purchase_supplier_invoice_workspace", {
+      !Number.isInteger(offset) || offset < 0 || offset > 2147483647 - limit ||
+      search.length > 120 ||
+      !["all","matched","variance_pending","variance_approved","variance_rejected"].includes(matchStatus)) {
+    throw new Error("حدود البحث والتصفية وعرض فواتير المورد غير صالحة.");
+  }
+  const { data, error } = await supabase.rpc("fetch_purchase_supplier_invoice_workspace_filtered", {
     p_purchase_order_id: purchaseOrderId, p_limit: limit, p_offset: offset,
+    p_search: search || null, p_match_status: matchStatus,
   });
   if (error) throw error;
   const row = object(data, "مساحة مطابقة فواتير الموردين");
