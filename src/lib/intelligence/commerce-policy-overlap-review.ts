@@ -82,7 +82,10 @@ function readIds(value: unknown): { present: boolean; valid: boolean; ids: Set<s
       value.some(item => typeof item !== "string" || !UUID.test(item))) {
     return { present: true, valid: false, ids: new Set() };
   }
-  return { present: true, valid: true, ids: new Set((value as string[]).map(item => item.toLowerCase())) };
+  const normalized = (value as string[]).map(item => item.toLowerCase());
+  const ids = new Set(normalized);
+  if (ids.size !== normalized.length) return { present: true, valid: false, ids: new Set() };
+  return { present: true, valid: true, ids };
 }
 
 /**
@@ -171,7 +174,8 @@ export function buildPromotionPolicyOverlapReview(
     const sourceStart = timestamp(source.start_date);
     const sourceEnd = timestamp(source.end_date);
 
-    if (start === null || (policy.effectiveUntil !== null && end === null) ||
+    if (start === null ||
+        (policy.effectiveUntil !== null && (end === null || end <= start)) ||
         sourceStart === null || sourceEnd === null || sourceEnd < sourceStart) {
       sourceDateMissingCount += 1;
       continue;
