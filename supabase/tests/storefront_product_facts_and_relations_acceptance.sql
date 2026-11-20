@@ -54,6 +54,13 @@ CREATE TABLE public.audit_logs(
   actor_id uuid,action text NOT NULL,entity_type text NOT NULL,entity_id uuid,old_value jsonb,new_value jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Test-only server-resolved customer tier prices; the browser never chooses a tier.
+CREATE TABLE public.customer_price_quotes(
+  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  unit_price numeric(15,2) NOT NULL CHECK (unit_price >= 0),
+  PRIMARY KEY(profile_id,product_id)
+);
 
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
@@ -96,10 +103,12 @@ AS $$
       WHEN auth.uid() IS NULL AND COALESCE((SELECT (s.value #>> '{}')::boolean FROM public.admin_settings s WHERE s.organization_id=p.organization_id AND s.key='show_price_on_cards'),true) THEN p.base_price
       WHEN auth.uid() IS NOT NULL AND COALESCE(NULLIF(public.get_current_tenant_context()->>'can_view_internal_product_prices','')::boolean,false) THEN p.base_price
       WHEN auth.uid() IS NOT NULL AND NOT COALESCE(NULLIF(public.get_current_tenant_context()->>'is_staff','')::boolean,false)
-        AND COALESCE((SELECT (s.value #>> '{}')::boolean FROM public.admin_settings s WHERE s.organization_id=p.organization_id AND s.key='show_price_on_cards'),true) THEN p.base_price
+        AND COALESCE((SELECT (s.value #>> '{}')::boolean FROM public.admin_settings s WHERE s.organization_id=p.organization_id AND s.key='show_price_on_cards'),true) THEN quote.unit_price
       ELSE NULL::numeric(15,2)
     END::numeric(15,2)
   FROM public.products p
+  LEFT JOIN public.customer_price_quotes quote
+    ON quote.product_id=p.id AND quote.profile_id=public.current_profile_id()
   WHERE p.id=ANY(COALESCE(p_product_ids,ARRAY[]::uuid[]))
     AND p.organization_id=COALESCE(
       NULLIF(public.get_current_tenant_context()->>'organization_id','')::uuid,
@@ -150,10 +159,14 @@ INSERT INTO public.organizations(id) VALUES
 INSERT INTO public.profiles(id,auth_user_id,organization_id) VALUES
 ('a1000000-0000-4000-8000-000000000001','a2000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000001'),
 ('a1000000-0000-4000-8000-000000000002','a2000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000001'),
+('a1000000-0000-4000-8000-000000000003','a2000000-0000-4000-8000-000000000003','a0000000-0000-4000-8000-000000000001'),
+('a1000000-0000-4000-8000-000000000004','a2000000-0000-4000-8000-000000000004','a0000000-0000-4000-8000-000000000001'),
 ('b1000000-0000-4000-8000-000000000002','b2000000-0000-4000-8000-000000000002','b0000000-0000-4000-8000-000000000002');
 INSERT INTO public.user_roles(profile_id,role) VALUES
 ('a1000000-0000-4000-8000-000000000001','admin'),
 ('a1000000-0000-4000-8000-000000000002','staff'),
+('a1000000-0000-4000-8000-000000000003','manager'),
+('a1000000-0000-4000-8000-000000000004','customer'),
 ('b1000000-0000-4000-8000-000000000002','admin');
 INSERT INTO public.warehouses(id,organization_id) VALUES
 ('a3000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000001'),
@@ -162,11 +175,25 @@ INSERT INTO public.products(id,organization_id,name,item_code,unit,description,i
 ('a4000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000001','منتج رئيسي','MAIN-01','قطعة','وصف معتمد','https://cdn.example.test/main.webp','active',50,2,2),
 ('a4000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000001','بديل فعلي','ALT-01','قطعة','بديل',NULL,'active',40,1,1),
 ('a4000000-0000-4000-8000-000000000003','a0000000-0000-4000-8000-000000000001','مكمل فعلي','COMP-01','قطعة','مكمل',NULL,'active',30,1,1),
+('a4000000-0000-4000-8000-000000000005','a0000000-0000-4000-8000-000000000001','منتج مطابق ثانٍ','MATCH-02','قطعة','مطابق للمرشحات',NULL,'active',80,2,2),
+('a4000000-0000-4000-8000-000000000006','a0000000-0000-4000-8000-000000000001','منتج بوحدة مختلفة','OTHER-UNIT','صندوق','وحدة مختلفة',NULL,'active',90,1,1),
+('a4000000-0000-4000-8000-000000000007','a0000000-0000-4000-8000-000000000001','منتج بلا مخزون','NO-STOCK','قطعة','لا يوجد مخزون',NULL,'active',65,1,1),
 ('b4000000-0000-4000-8000-000000000004','b0000000-0000-4000-8000-000000000002','منتج مؤسسة أخرى','FOREIGN-01','قطعة','ممنوع الربط',NULL,'active',70,1,1);
 INSERT INTO public.product_unit_conversions(organization_id,product_id,unit_name,base_units_per_unit)
-VALUES('a0000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000001','كرتون',24);
+VALUES
+('a0000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000001','كرتون',24),
+('a0000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000005','كرتون',12),
+('a0000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000007','كرتون',6);
 INSERT INTO public.inventory_balances(id,product_id,warehouse_id,quantity_available)
-VALUES('a5000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000001','a3000000-0000-4000-8000-000000000001',48);
+VALUES
+('a5000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000001','a3000000-0000-4000-8000-000000000001',48),
+('a5000000-0000-4000-8000-000000000005','a4000000-0000-4000-8000-000000000005','a3000000-0000-4000-8000-000000000001',36),
+('a5000000-0000-4000-8000-000000000006','a4000000-0000-4000-8000-000000000006','a3000000-0000-4000-8000-000000000001',8);
+INSERT INTO public.customer_price_quotes(profile_id,product_id,unit_price) VALUES
+('a1000000-0000-4000-8000-000000000004','a4000000-0000-4000-8000-000000000001',42.75),
+('a1000000-0000-4000-8000-000000000004','a4000000-0000-4000-8000-000000000005',67.50),
+('a1000000-0000-4000-8000-000000000004','a4000000-0000-4000-8000-000000000006',75.20),
+('a1000000-0000-4000-8000-000000000004','a4000000-0000-4000-8000-000000000007',58.90);
 INSERT INTO public.admin_settings(organization_id,key,value)
 VALUES('a0000000-0000-4000-8000-000000000001','show_price_on_cards','true'::jsonb);
 
@@ -215,6 +242,16 @@ END
 $save$;
 RESET ROLE;
 
+-- Brand the additional test products from the same organization so the server-side
+-- conjunction can distinguish unit/availability filters from brand membership.
+UPDATE public.products
+SET brand_id=(SELECT brand_id FROM public.products WHERE id='a4000000-0000-4000-8000-000000000001')
+WHERE id IN (
+  'a4000000-0000-4000-8000-000000000005',
+  'a4000000-0000-4000-8000-000000000006',
+  'a4000000-0000-4000-8000-000000000007'
+);
+
 -- Public client projection: same tenant, verified facts only, explicit recommendations only.
 SELECT set_config('app.public_org_id','a0000000-0000-4000-8000-000000000001',false);
 SELECT set_config('app.public_warehouse_id','a3000000-0000-4000-8000-000000000001',false);
@@ -223,7 +260,7 @@ SELECT set_config('request.jwt.claim.sub','',false);
 SET ROLE anon;
 
 DO $public$
-DECLARE v_result jsonb; v_item jsonb;
+DECLARE v_result jsonb; v_item jsonb; v_first_page_id text;
 BEGIN
   v_result:=public.get_storefront_catalog_page(
     NULL,NULL,1,10,false,NULLIF(current_setting('app.test_brand_id'),'')::uuid,
@@ -246,6 +283,34 @@ BEGIN
   IF jsonb_array_length(v_result->'items')<>0 THEN RAISE EXCEPTION 'cross-tenant product leaked: %',v_result; END IF;
   v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,true,'a4000000-0000-4000-8000-000000000001');
   IF jsonb_array_length(v_result->'items')<>1 THEN RAISE EXCEPTION 'price displayability filter did not honor visible price'; END IF;
+
+  -- All four filters run before COUNT and page slicing. The unit filter resolves the
+  -- saved carton conversion, while the availability filter excludes a stocked-out match.
+  v_result:=public.get_storefront_catalog_page(
+    NULL,NULL,1,100,false,NULLIF(current_setting('app.test_brand_id'),'')::uuid,
+    'كرتون',true,NULL
+  );
+  IF (v_result->>'total_count')::integer<>3 THEN
+    RAISE EXCEPTION 'brand + unit + display-price filter count is not global: %',v_result;
+  END IF;
+  v_result:=public.get_storefront_catalog_page(
+    NULL,NULL,1,1,true,NULLIF(current_setting('app.test_brand_id'),'')::uuid,
+    'كرتون',true,NULL
+  );
+  IF (v_result->>'total_count')::integer<>2 OR (v_result->>'total_pages')::integer<>2
+     OR jsonb_array_length(v_result->'items')<>1 OR (v_result->>'page_size')::integer<>1 THEN
+    RAISE EXCEPTION 'conjunctive availability/count/page-one contract failed: %',v_result;
+  END IF;
+  v_first_page_id:=v_result->'items'->0->>'id';
+  v_result:=public.get_storefront_catalog_page(
+    NULL,NULL,2,1,true,NULLIF(current_setting('app.test_brand_id'),'')::uuid,
+    'كرتون',true,NULL
+  );
+  IF (v_result->>'total_count')::integer<>2 OR (v_result->>'total_pages')::integer<>2
+     OR jsonb_array_length(v_result->'items')<>1
+     OR v_result->'items'->0->>'id'=v_first_page_id THEN
+    RAISE EXCEPTION 'global page-two slice/count is not stable: %',v_result;
+  END IF;
 END
 $public$;
 RESET ROLE;
@@ -266,6 +331,97 @@ BEGIN
   IF jsonb_array_length(v_result->'items')<>0 THEN RAISE EXCEPTION 'hidden price still passed price-displayable filter'; END IF;
 END
 $hidden_price$;
+RESET ROLE;
+
+-- Authenticated customers receive only their own server-resolved tier price.
+UPDATE public.admin_settings SET value='true'::jsonb
+WHERE organization_id='a0000000-0000-4000-8000-000000000001' AND key='show_price_on_cards';
+SELECT set_config('request.jwt.claim.sub','a2000000-0000-4000-8000-000000000004',false);
+SELECT set_config('app.auth_org_id','a0000000-0000-4000-8000-000000000001',false);
+SELECT set_config('app.auth_warehouse_id','a3000000-0000-4000-8000-000000000001',false);
+SELECT set_config('app.is_staff','false',false);
+SELECT set_config('app.can_view_internal_prices','false',false);
+SET ROLE authenticated;
+DO $customer$
+DECLARE v_result jsonb; v_item jsonb; v_denied boolean:=false;
+BEGIN
+  v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,false,
+    'a4000000-0000-4000-8000-000000000001');
+  v_item:=v_result->'items'->0;
+  IF v_item->>'display_price'<>'42.75'
+    OR v_item?'base_price' OR v_item?'cost_price' OR v_item?'margin'
+    OR v_item?'price_wholesale' OR v_item?'price_wholesale_of_wholesale'
+    OR v_item?'organization_id' THEN
+    RAISE EXCEPTION 'authenticated customer did not receive only the resolved account price: %',v_item;
+  END IF;
+
+  v_result:=public.get_storefront_catalog_page(
+    NULL,NULL,1,1,true,NULLIF(current_setting('app.test_brand_id'),'')::uuid,
+    'كرتون',true,NULL
+  );
+  IF (v_result->>'total_count')::integer<>2 OR (v_result->>'total_pages')::integer<>2
+     OR jsonb_array_length(v_result->'items')<>1 THEN
+    RAISE EXCEPTION 'authenticated customer combined filter/count contract failed: %',v_result;
+  END IF;
+
+  v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,false,
+    'b4000000-0000-4000-8000-000000000004');
+  IF jsonb_array_length(v_result->'items')<>0 THEN
+    RAISE EXCEPTION 'authenticated customer read a product from another organization: %',v_result;
+  END IF;
+
+  BEGIN
+    PERFORM public.get_admin_storefront_product_details('a4000000-0000-4000-8000-000000000001');
+  EXCEPTION WHEN insufficient_privilege THEN v_denied:=true; END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'customer could read admin-only product details'; END IF;
+END
+$customer$;
+RESET ROLE;
+
+UPDATE public.admin_settings SET value='false'::jsonb
+WHERE organization_id='a0000000-0000-4000-8000-000000000001' AND key='show_price_on_cards';
+SET ROLE authenticated;
+DO $customer_hidden$
+DECLARE v_result jsonb; v_item jsonb;
+BEGIN
+  v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,false,
+    'a4000000-0000-4000-8000-000000000001');
+  v_item:=v_result->'items'->0;
+  IF v_item IS NULL OR v_item->'display_price'<>'null'::jsonb
+    OR v_item?'base_price' OR v_item?'cost_price' OR v_item?'margin'
+    OR v_item?'price_wholesale' OR v_item?'price_wholesale_of_wholesale' THEN
+    RAISE EXCEPTION 'authenticated hidden-price privacy contract failed: %',v_item;
+  END IF;
+  v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,true,
+    'a4000000-0000-4000-8000-000000000001');
+  IF jsonb_array_length(v_result->'items')<>0 THEN
+    RAISE EXCEPTION 'authenticated hidden-price account passed displayability filter';
+  END IF;
+END
+$customer_hidden$;
+RESET ROLE;
+
+-- A manager may read management facts, but staff may not use these raw endpoints.
+SELECT set_config('request.jwt.claim.sub','a2000000-0000-4000-8000-000000000003',false);
+SELECT set_config('app.is_staff','true',false);
+SELECT set_config('app.can_view_internal_prices','false',false);
+SET ROLE authenticated;
+DO $manager$
+DECLARE v_result jsonb; v_catalog jsonb; v_item jsonb;
+BEGIN
+  v_result:=public.get_admin_storefront_product_details('a4000000-0000-4000-8000-000000000001');
+  IF v_result->>'brand_name'<>'علامة معتمدة' THEN
+    RAISE EXCEPTION 'manager could not read the management product facts: %',v_result;
+  END IF;
+  v_catalog:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,false,
+    'a4000000-0000-4000-8000-000000000001');
+  v_item:=v_catalog->'items'->0;
+  IF v_item->'display_price'<>'null'::jsonb OR v_item?'base_price'
+    OR v_item?'cost_price' OR v_item?'margin' THEN
+    RAISE EXCEPTION 'staff without internal-price permission received protected price data: %',v_item;
+  END IF;
+END
+$manager$;
 RESET ROLE;
 
 DO $grants$
@@ -369,4 +525,4 @@ BEGIN
 END
 $audit$;
 
-SELECT 'PASS: PostgreSQL 17 storefront product facts, tenant recommendations, price privacy, role denial, RLS and atomic rollback' AS result;
+SELECT 'PASS: PostgreSQL 17 storefront facts, anonymous and authenticated tier price privacy, tenant scope, conjunctive filters/pagination, manager/staff authorization, RLS and atomic rollback' AS result;
