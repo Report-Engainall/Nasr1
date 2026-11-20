@@ -278,6 +278,13 @@ async function main() {
           "(select count(*)::integer from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as matching_invoice_count, " +
           "(select i.issued_at <= (o.measured_outcome->>'asOf')::timestamptz from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as invoice_is_before_as_of, " +
           "(select p.provolatile from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_volatility, " +
+          "(select pg_catalog.pg_get_userbyid(p.proowner) from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_owner, " +
+          "(select p.prosecdef from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_security_definer, " +
+          "(select r.rolbypassrls from pg_catalog.pg_roles r where r.rolname=(select pg_catalog.pg_get_userbyid(p.proowner) from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure)) as snapshot_owner_bypasses_rls, " +
+          "(select c.relrowsecurity from pg_catalog.pg_class c where c.oid='public.decision_memory_snapshots'::regclass) as snapshot_table_rls, " +
+          "(select c.relforcerowsecurity from pg_catalog.pg_class c where c.oid='public.decision_memory_snapshots'::regclass) as snapshot_table_force_rls, " +
+          "(select count(*)::integer from public.decision_memory_snapshots s join public.decision_outcomes x on x.id=s.decision_outcome_id and x.organization_id=s.organization_id where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as snapshot_join_rows, " +
+          "current_user::text as diagnostic_current_user,session_user::text as diagnostic_session_user, " +
           "public._decision_memory_resolve_evidence($3::uuid,ARRAY['invoice:'||$2::text],'decision-learning-acceptance-debug', " +
           "jsonb_build_object('from',$4::date,'to',$5::date),(o.measured_outcome->>'asOf')::timestamptz) as resolved_evidence, " +
           "public._decision_memory_snapshot($3::uuid,$1::uuid) as reloaded_memory_snapshot, " +
@@ -318,6 +325,14 @@ async function main() {
           evidenceIds: sourceDiagnostics[0].measured_evidence_ids,
           resolved: resolvedActualEvidence,
           helperVolatility: sourceDiagnostics[0].snapshot_helper_volatility,
+          helperOwner: sourceDiagnostics[0].snapshot_helper_owner,
+          helperSecurityDefiner: sourceDiagnostics[0].snapshot_helper_security_definer,
+          ownerBypassesRls: sourceDiagnostics[0].snapshot_owner_bypasses_rls,
+          snapshotTableRls: sourceDiagnostics[0].snapshot_table_rls,
+          snapshotTableForceRls: sourceDiagnostics[0].snapshot_table_force_rls,
+          snapshotJoinRows: sourceDiagnostics[0].snapshot_join_rows,
+          diagnosticCurrentUser: sourceDiagnostics[0].diagnostic_current_user,
+          diagnosticSessionUser: sourceDiagnostics[0].diagnostic_session_user,
           snapshotRows: sourceDiagnostics[0].memory_snapshot_row_count,
           reloadedSnapshot: sourceDiagnostics[0].reloaded_memory_snapshot
         }));
