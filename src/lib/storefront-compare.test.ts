@@ -38,7 +38,8 @@ describe("profile-scoped storefront compare storage", () => {
     expect(storefrontCompareStorageKey()).toBe(STOREFRONT_COMPARE_GUEST_STORAGE_KEY);
     expect(storefrontCompareStorageKey(" a1000000-0000-0000-0000-000000000001 ")).toBe("aghbari:compare:v2:a1000000-0000-0000-0000-000000000001");
     expect(storefrontCompareStorageKey("a1000000-0000-0000-0000-000000000001")).not.toBe(storefrontCompareStorageKey("b1000000-0000-0000-0000-000000000001"));
-    expect(storefrontCompareStorageKey("profile/a")).toBe("aghbari:compare:v2:a1000000-0000-0000-0000-000000000001%2Fextra");
+    expect(storefrontCompareStorageKey("profile/a", "a2000000-0000-0000-0000-000000000001"))
+      .toBe("aghbari:compare:auth:v1:a2000000-0000-0000-0000-000000000001");
   });
 
   it("does not expose guest or another customer's saved products to a different profile", () => {
