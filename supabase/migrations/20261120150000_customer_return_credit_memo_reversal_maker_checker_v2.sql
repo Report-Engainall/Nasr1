@@ -478,8 +478,6 @@ BEGIN
           'reversed_at',COALESCE(m.reversed_at,rev.reversed_at),
           'reversal_reason',COALESCE(m.reversal_reason,rev.reason),
           'reversal_journal_status',rj.status,
-          'reversal_created_by_profile_id',rev.created_by_profile_id,
-          'reversal_posted_by_profile_id',rev.posted_by_profile_id,
           'reversal_created_at',rev.created_at,
           'reversal_posted_at',rev.posted_at,
           'reversal_journal_entry_id',rj.id,
