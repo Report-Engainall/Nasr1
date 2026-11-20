@@ -3,6 +3,46 @@
 -- the existing BEFORE UPDATE trigger; never reuse the finalize capability.
 BEGIN;
 
+-- A preceding compatibility migration used organization scope. Restore the
+-- canonical inventory-v2 contract before the RPC and trigger evaluate it.
+UPDATE public.authorization_capabilities
+   SET scope_kind='warehouse',
+       approval_mode='none',
+       separation_of_duties=false,
+       state_requirements=coalesce(state_requirements,'{}'::jsonb)
+         || '{"requires_active_warehouse_assignment":true,"requires_reason":true,"required_status":"open","does_not_move_stock":true}'::jsonb,
+       updated_at=statement_timestamp()
+ WHERE capability_key='inventory.count.cancel'
+   AND is_active=true;
+
+DO $assert_stock_count_cancel_contract$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.authorization_capabilities
+     WHERE capability_key='inventory.count.cancel'
+       AND is_active=true
+       AND scope_kind='warehouse'
+       AND approval_mode='none'
+       AND separation_of_duties=false
+       AND coalesce((state_requirements->>'requires_active_warehouse_assignment')::boolean,false)
+       AND coalesce((state_requirements->>'requires_reason')::boolean,false)
+       AND coalesce((state_requirements->>'does_not_move_stock')::boolean,false)
+  ) THEN
+    RAISE EXCEPTION 'inventory.count.cancel must remain a warehouse-scoped, non-finalizing capability';
+  END IF;
+END
+$assert_stock_count_cancel_contract$;
+
+DELETE FROM public.authorization_role_capabilities
+ WHERE capability_key='inventory.count.cancel'
+   AND role NOT IN ('admin','manager');
+
+INSERT INTO public.authorization_role_capabilities(role,capability_key,grant_source)
+VALUES
+  ('admin','inventory.count.cancel','authorization-v2:stock-count-cancellation'),
+  ('manager','inventory.count.cancel','authorization-v2:stock-count-cancellation')
+ON CONFLICT(role,capability_key) DO NOTHING;
+
 CREATE OR REPLACE FUNCTION public.cancel_stock_count(
   p_session_id uuid,
   p_reason text
