@@ -34,6 +34,7 @@ BEGIN
   IF p_settlement_account_mapping_id IS NULL OR p_evidence_id IS NULL OR p_as_of_date IS NULL
      OR p_as_of_date>(statement_timestamp() AT TIME ZONE 'UTC')::date
      OR p_opening_balance IS NULL
+     OR p_opening_balance<>pg_catalog.trunc(p_opening_balance,2)
      OR p_opening_balance<=-10000000000000000
      OR p_opening_balance>=10000000000000000
      OR p_idempotency_key IS NULL THEN
