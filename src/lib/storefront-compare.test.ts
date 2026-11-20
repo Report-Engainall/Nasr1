@@ -28,28 +28,34 @@ describe("profile-scoped storefront compare storage", () => {
     expect(userAKey).toBe(`aghbari:compare:auth:v1:${userA}`);
   });
 
+  it("uses the authenticated identity when a profile identifier is malformed", () => {
+    const userId = "a2000000-0000-0000-0000-000000000001";
+    expect(storefrontCompareStorageKey("not-a-profile-id", userId))
+      .toBe(`aghbari:compare:auth:v1:${userId}`);
+  });
+
   it("keeps the existing guest key but isolates each customer profile", () => {
     expect(storefrontCompareStorageKey()).toBe(STOREFRONT_COMPARE_GUEST_STORAGE_KEY);
-    expect(storefrontCompareStorageKey(" profile-a ")).toBe("aghbari:compare:v2:profile-a");
-    expect(storefrontCompareStorageKey("profile-a")).not.toBe(storefrontCompareStorageKey("profile-b"));
-    expect(storefrontCompareStorageKey("profile/a")).toBe("aghbari:compare:v2:profile%2Fa");
+    expect(storefrontCompareStorageKey(" a1000000-0000-0000-0000-000000000001 ")).toBe("aghbari:compare:v2:a1000000-0000-0000-0000-000000000001");
+    expect(storefrontCompareStorageKey("a1000000-0000-0000-0000-000000000001")).not.toBe(storefrontCompareStorageKey("b1000000-0000-0000-0000-000000000001"));
+    expect(storefrontCompareStorageKey("profile/a")).toBe("aghbari:compare:v2:a1000000-0000-0000-0000-000000000001%2Fextra");
   });
 
   it("does not expose guest or another customer's saved products to a different profile", () => {
     const storage = memoryStorage({
       [STOREFRONT_COMPARE_GUEST_STORAGE_KEY]: JSON.stringify(["guest-product"]),
-      "aghbari:compare:v2:profile-a": JSON.stringify(["customer-a-product"]),
+      "aghbari:compare:v2:a1000000-0000-0000-0000-000000000001": JSON.stringify(["customer-a-product"]),
     });
 
-    expect(readStorefrontCompareIds(storage, storefrontCompareStorageKey("profile-a")))
+    expect(readStorefrontCompareIds(storage, storefrontCompareStorageKey("a1000000-0000-0000-0000-000000000001")))
       .toEqual(["customer-a-product"]);
-    expect(readStorefrontCompareIds(storage, storefrontCompareStorageKey("profile-b"))).toEqual([]);
+    expect(readStorefrontCompareIds(storage, storefrontCompareStorageKey("b1000000-0000-0000-0000-000000000001"))).toEqual([]);
     expect(readStorefrontCompareIds(storage, storefrontCompareStorageKey())).toEqual(["guest-product"]);
   });
 
   it("normalizes the list and enforces the three-product cap on writes and reads", () => {
     const storage = memoryStorage();
-    const key = storefrontCompareStorageKey("profile-a");
+    const key = storefrontCompareStorageKey("a1000000-0000-0000-0000-000000000001");
 
     expect(writeStorefrontCompareIds(storage, key, ["a", "b", "a", "", "c", "d", 4])).toBe(true);
     expect(readStorefrontCompareIds(storage, key)).toEqual(["a", "b", "c"]);
