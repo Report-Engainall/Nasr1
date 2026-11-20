@@ -95,13 +95,18 @@ function parsePolicy(value: unknown): CommercePolicyMetadata | null {
       !["pricing_rules","promotions","customers","products","inventory_balances"].includes(r.sourceTable) ||
       !uuid(r.sourceId) || !Number.isSafeInteger(r.version) || (r.version as number) < 1 ||
       !uuid(r.ownerProfileId) || typeof r.effectiveFrom !== "string" ||
-      (r.effectiveUntil !== null && typeof r.effectiveUntil !== "string") ||
+      !Number.isFinite(Date.parse(r.effectiveFrom)) ||
+      (r.effectiveUntil !== null && (
+        typeof r.effectiveUntil !== "string" ||
+        !Number.isFinite(Date.parse(r.effectiveUntil)) ||
+        Date.parse(r.effectiveUntil) <= Date.parse(r.effectiveFrom)
+      )) ||
       !Number.isSafeInteger(r.conflictPriority) || typeof r.businessRule !== "string" ||
       typeof r.rationale !== "string" || !Array.isArray(r.testExamples) ||
       typeof r.sourceFingerprint !== "string" || !/^[0-9a-f]{32}$/.test(r.sourceFingerprint) ||
       typeof r.sourceChanged !== "boolean" || !object(r.currentSource) ||
       !["SCHEDULED","EFFECTIVE","EXPIRED","SUPERSEDED"].includes(String(r.lifecycle)) ||
-      typeof r.createdAt !== "string") return null;
+      typeof r.createdAt !== "string" || !Number.isFinite(Date.parse(r.createdAt))) return null;
   return r as unknown as CommercePolicyMetadata;
 }
 
@@ -110,6 +115,7 @@ export function parseCommercePolicyCatalog(value: unknown): PolicyRpcResult<Comm
   if (!row || typeof row.asOf !== "string" || !Number.isFinite(Date.parse(row.asOf)) ||
       !Number.isSafeInteger(row.totalCount) || (row.totalCount as number) < 0 ||
       !Number.isSafeInteger(row.returnedCount) || (row.returnedCount as number) < 0 ||
+      (row.returnedCount as number) > 200 ||
       (row.returnedCount as number) > (row.totalCount as number) ||
       typeof row.completePopulation !== "boolean" || !Array.isArray(row.items) ||
       row.returnedCount !== row.items.length ||
@@ -120,7 +126,7 @@ export function parseCommercePolicyCatalog(value: unknown): PolicyRpcResult<Comm
   if (items.some(item => item === null))
     return { ok: false, status: "ERROR", message: "أحد سجلات السياسات ناقص أو غير صالح؛ لم يتم عرض بيانات بديلة." };
   const parsed = items as CommercePolicyMetadata[];
-  if (new Set(parsed.map(item => item.id)).size !== parsed.length)
+  if (new Set(parsed.map(item => item.id.toLowerCase())).size !== parsed.length)
     return { ok: false, status: "ERROR", message: "سجل السياسات يحتوي على معرفات مكررة؛ تم حجب المجتمع." };
   return { ok: true, data: {
     asOf: row.asOf, totalCount: row.totalCount as number,
