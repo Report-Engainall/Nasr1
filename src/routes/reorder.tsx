@@ -9,7 +9,7 @@ export const Route = createFileRoute("/reorder")({
 });
 
 function ReorderWorkspaceHub() {
-  const [active, setActive] = useState<"lists" | "templates">("templates");
+  const [active, setActive] = useState<"lists" | "templates">("lists");
   return (
     <div className="storefront" dir="rtl">
       <nav aria-label="مساحات الطلب" role="tablist" style={{

@@ -75,6 +75,10 @@ vi.mock("@/components/Login", () => ({
   Login: () => <div data-testid="login-required">تسجيل الدخول مطلوب</div>,
 }));
 
+vi.mock("@/components/CustomerShoppingListsWorkspace", () => ({
+  CustomerShoppingListsWorkspace: () => <div data-testid="shopping-lists-workspace">قوائم المشتريات والدورات</div>,
+}));
+
 vi.mock("@/components/CustomerReturnRequest", () => ({
   CustomerReturnRequest: () => null,
 }));
@@ -212,7 +216,7 @@ describe("customer reorder real route acceptance", () => {
     });
   }
 
-  async function mountReorderRoute() {
+  async function mountReorderRoute(startInTemplates = true) {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
@@ -227,6 +231,17 @@ describe("customer reorder real route acceptance", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await flush();
+    if (startInTemplates) {
+      const templatesTab = Array.from(host.querySelectorAll<HTMLButtonElement>('button[role="tab"]')).find((button) =>
+        button.textContent?.includes("قوالب إعادة الطلب السابقة"),
+      );
+      expect(templatesTab).toBeTruthy();
+      await act(async () => {
+        fireEvent.click(templatesTab!);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await flush();
+    }
     expect(router.state.location.pathname).toBe("/reorder");
     return router;
   }
@@ -260,6 +275,29 @@ describe("customer reorder real route acceptance", () => {
     });
     await flush();
   }
+
+  it("opens customer shopping lists first and keeps legacy reorder templates available", async () => {
+    mocks.user = CUSTOMER;
+
+    await mountReorderRoute(false);
+
+    const tabs = Array.from(host?.querySelectorAll<HTMLButtonElement>('button[role="tab"]') ?? []);
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0].textContent).toContain("قوائم المشتريات والدورات");
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(host?.querySelector('[data-testid="shopping-lists-workspace"]')).toBeTruthy();
+    expect(tabs[1].getAttribute("aria-selected")).toBe("false");
+
+    await act(async () => {
+      fireEvent.click(tabs[1]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+
+    expect(host?.querySelector('[data-testid="shopping-lists-workspace"]')).toBeNull();
+    expect(host?.querySelector('input[value="طلب متكرر"]')).toBeTruthy();
+    expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+  });
 
   it("gates guests before resolving tenant scope, querying reorder data or calling RPCs", async () => {
     await mountReorderRoute();
