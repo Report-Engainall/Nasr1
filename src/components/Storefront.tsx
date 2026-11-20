@@ -26,6 +26,7 @@ import {
   buildCartAvailabilitySnapshot,
   compareCartAvailabilitySnapshots,
   compareCartPricingSnapshots,
+  clearCartPricingSnapshot,
   getCartAvailabilitySnapshot,
   getCartPricingSnapshot,
   rememberCartAvailabilitySnapshot,
@@ -372,8 +373,16 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     [cart],
   );
   const rememberCurrentCartPricing = useCallback((presentation: CustomerOrderPricingPresentation | null) => {
-    rememberCartPricingSnapshot(cartReviewIdentity, cartReviewLines, presentation);
-  }, [cartReviewIdentity, cartReviewLines]);
+    if (presentation?.visible && settings?.show_price_in_cart === true) {
+      rememberCartPricingSnapshot(cartReviewIdentity, cartReviewLines, presentation);
+    }
+  }, [cartReviewIdentity, cartReviewLines, settings?.show_price_in_cart]);
+  const handleCartPricingPreviewStatus = useCallback((status: CustomerOrderPricingPreviewStatus) => {
+    setCartPricingPreviewStatus(status);
+    if (status === 'hidden' && !settingsLoading) {
+      clearCartPricingSnapshot(cartReviewIdentity, cartReviewLines);
+    }
+  }, [cartReviewIdentity, cartReviewLines, settingsLoading]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
@@ -1323,7 +1332,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                   policyValue={settings?.show_price_in_cart}
                   surface="cart"
                   title="ملخص أسعار السلة"
-                  onStatusChange={setCartPricingPreviewStatus}
+                  onStatusChange={handleCartPricingPreviewStatus}
                   onPresentationChange={rememberCurrentCartPricing}
                 />
               ) : null}
