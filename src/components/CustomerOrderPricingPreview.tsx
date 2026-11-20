@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { CustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { CustomerOrderPricingPresentation } from "@/components/CustomerOrderPricingPresentation";
@@ -171,12 +172,14 @@ export function CustomerOrderPricingPreview({
   surface,
   title,
   onStatusChange,
+  onPresentationChange,
 }: {
   items: readonly CustomerOrderPricingPreviewItem[];
   policyValue: unknown;
   surface: CustomerOrderPricingSurface;
   title: string;
   onStatusChange?: (status: CustomerOrderPricingPreviewStatus) => void;
+  onPresentationChange?: (presentation: CustomerOrderPricingPresentation | null) => void;
 }) {
   const { user } = useAuth();
   const [retry, setRetry] = useState(0);
@@ -197,6 +200,16 @@ export function CustomerOrderPricingPreview({
     policyValue !== true || items.length === 0
       ? "hidden"
       : currentAttempt?.status ?? "loading";
+
+  const currentPayload = currentAttempt?.status === "ready" ? currentAttempt.payload : null;
+
+  useEffect(() => {
+    if (!onPresentationChange) return;
+    const presentation = currentPayload === null
+      ? null
+      : resolveCustomerOrderPricingPresentation(true, currentPayload, surface);
+    onPresentationChange(presentation?.visible ? presentation : null);
+  }, [currentPayload, onPresentationChange, policyValue, requestSignature, surface]);
 
   useEffect(() => {
     onStatusChange?.(reportedStatus);
