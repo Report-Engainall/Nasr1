@@ -133,7 +133,7 @@ function managerReport(
 function weeklyReport(weekStarts: string[]): RawReport {
   const result = baseReport();
   result.reportKind = "WEEKLY";
-  result.period = { from: "2026-11-19", to: "2026-11-25", timeZone: "UTC" };
+  result.period = { from: "2026-11-14", to: "2026-11-20", timeZone: "UTC" };
   result.weeklyTrend = weekStarts.map(weekStart => ({
     weekStart,
     createdCount: 2,
@@ -281,28 +281,28 @@ describe("task intelligence report source contract", () => {
 describe("task intelligence weekly window contract", () => {
   it("accepts Monday buckets intersecting the UTC report window", () => {
     const parsed = parseTaskIntelligenceReport(
-      weeklyReport(["2026-11-16", "2026-11-23"]),
+      weeklyReport(["2026-11-09", "2026-11-16"]),
       "WEEKLY",
     );
     expect(parsed?.weeklyTrend.map(point => point.weekStart)).toEqual([
+      "2026-11-09",
       "2026-11-16",
-      "2026-11-23",
     ]);
   });
 
   it("rejects non-Monday buckets and Mondays outside the report window", () => {
-    expect(parseTaskIntelligenceReport(weeklyReport(["2026-11-22"]), "WEEKLY")).toBeNull();
-    expect(parseTaskIntelligenceReport(weeklyReport(["2026-11-09"]), "WEEKLY")).toBeNull();
-    expect(parseTaskIntelligenceReport(weeklyReport(["2026-11-30"]), "WEEKLY")).toBeNull();
+    expect(parseTaskIntelligenceReport(weeklyReport(["2026-11-15"]), "WEEKLY")).toBeNull();
+    expect(parseTaskIntelligenceReport(weeklyReport(["2026-11-02"]), "WEEKLY")).toBeNull();
+    expect(parseTaskIntelligenceReport(weeklyReport(["2026-11-23"]), "WEEKLY")).toBeNull();
   });
 
   it("rejects duplicate or non-chronological weekly buckets", () => {
     expect(parseTaskIntelligenceReport(
-      weeklyReport(["2026-11-16", "2026-11-16"]),
+      weeklyReport(["2026-11-09", "2026-11-09"]),
       "WEEKLY",
     )).toBeNull();
     expect(parseTaskIntelligenceReport(
-      weeklyReport(["2026-11-23", "2026-11-16"]),
+      weeklyReport(["2026-11-16", "2026-11-09"]),
       "WEEKLY",
     )).toBeNull();
   });
