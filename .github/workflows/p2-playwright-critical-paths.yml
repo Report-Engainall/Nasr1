@@ -604,6 +604,21 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Install PostgreSQL client for isolated Onyx acceptance
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Accept Onyx ProductUnits concurrency, replay and tenant isolation on PostgreSQL 17
+        shell: bash
+        env:
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          onyx_database="onyx_product_units_${GITHUB_RUN_ID}"
+          createdb --maintenance-db="$TEST_DATABASE_URL" --template=template0 "$onyx_database"
+          export ONYX_TEST_DATABASE_URL
+          ONYX_TEST_DATABASE_URL="$(node -e 'const value = new URL(process.env.TEST_DATABASE_URL); value.pathname = "/" + process.argv[1]; process.stdout.write(value.toString());' "$onyx_database")"
+          psql "$ONYX_TEST_DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/onyx_product_unit_import_acceptance.sql
       - name: Test tenant-safe claim evidence raw drill-down on local PostgreSQL 17
         run: node scripts/test-claim-evidence-drilldown.mjs
       - name: Test customer amendment exact replay and financial-field rejection on local PostgreSQL 17
