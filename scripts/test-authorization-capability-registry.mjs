@@ -216,6 +216,10 @@ async function main() {
 
   const ownerAdmin=actors.get("admin");
   const ownerManager=actors.get("manager");
+  for(const role of ["admin","manager","staff","accountant","customer_manager"]) {
+    assert.equal(actors.get(role).roles.includes("customer"),false,
+      "the seeded "+role+" identity must not retain the default customer role");
+  }
   const targetWarehouse=(await db.unsafe(
     "select id::text from public.warehouses where organization_id=$1::uuid and is_active=true and code=$2::text order by created_at,id limit 1",
     [org,"P2-LOCAL-E2E"]
