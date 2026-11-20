@@ -1,8 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchStorefrontProductFacts, type StorefrontProductFacts as Facts } from "@/lib/storefront-product-details";
 
+const PRIVATE_IMAGE_QUERY_KEYS = new Set([
+  "token", "signature", "sig", "apikey", "api_key", "authorization",
+  "x-amz-signature", "x-goog-signature",
+]);
+
 function safeImage(value: string | null): value is string {
-  return typeof value === "string" && /^https:\/\//i.test(value.trim());
+  if (typeof value !== "string" || !value.trim() || value.trim() !== value || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+    let privateQuery = false;
+    url.searchParams.forEach((_queryValue, key) => {
+      if (PRIVATE_IMAGE_QUERY_KEYS.has(key.toLowerCase())) privateQuery = true;
+    });
+    return !privateQuery;
+  } catch {
+    return false;
+  }
 }
 
 function RecommendationGroup({
