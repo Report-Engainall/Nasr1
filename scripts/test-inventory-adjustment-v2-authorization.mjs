@@ -345,3 +345,716 @@ async function main() {
         assert.equal(countStartDiagnostics.allowed, true,
           "manager must have an active inventory.count.start grant and assigned warehouse: " +
           JSON.stringify(countStartDiagnostics));
+        assert.ok(otherWarehouse,"an independent unassigned warehouse fixture is required");
+        const unassignedCountDecision=decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
+          [otherWarehouse.warehouse_id],
+        ))[0].decision);
+        assert.equal(unassignedCountDecision.decision,"DENY",
+          "the count-entry capability must be denied for a same-tenant but unassigned warehouse");
+        const unassignedCountKey="rbac-v2-count-unassigned-"+process.pid+"-"+Date.now();
+        await expectSqlState(tx,"42501",()=>tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text)",
+          [otherWarehouse.warehouse_id,unassignedCountKey,"unassigned warehouse must be rejected"],
+        ),"a manager cannot start a stock count in an unassigned warehouse");
+        const unassignedCountSessions=await tx.unsafe(
+          "select id from public.stock_count_sessions where organization_id=$1::uuid and idempotency_key=$2::text",
+          [organizationId,unassignedCountKey],
+        );
+        assert.equal(unassignedCountSessions.length,0,"a denied unassigned count must not persist a session");
+        const countKey="rbac-v2-count-"+process.pid+"-"+Date.now();
+        const countSessionRows=await tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+          [fixture.warehouse_id,countKey,"RBAC V2 count-entry permission separation"],
+        );
+        const countSession=decodeJson(countSessionRows[0]?.result);
+        assert.equal(countSession.status,"open","the assigned manager must be able to create the source-backed count snapshot");
+        const countLineRows=await tx.unsafe(
+          "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
+          [countSession.id,fixture.product_id,oldQuantity],
+        );
+        const countedLine=decodeJson(countLineRows[0]?.result);
+        assert.equal(countedLine.product_id,fixture.product_id);
+        assert.equal(Number(countedLine.counted_quantity),oldQuantity);
+        assert.equal(countedLine.counted_by,actors.manager.profile_id,
+          "the database trigger must attribute the physical count to the authenticated manager");
+        const countSessionState=await tx.unsafe(
+          "select counted_lines from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(countSessionState[0].counted_lines,1,
+          "saving a counted line must update the persisted session counter");
+        const [balanceAfterCountEntry]=await tx.unsafe(
+          "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id,fixture.warehouse_id],
+        );
+        assert.equal(Number(balanceAfterCountEntry.quantity_on_hand),oldQuantity,
+          "draft count entry must not mutate the canonical inventory balance");
+        const separateAdjustmentDenial=await tx.unsafe(
+          "select public.current_actor_has_capability('inventory.balance.adjust',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        );
+        assert.equal(separateAdjustmentDenial[0].allowed,false,
+          "stock-count entry must not restore or manufacture the separately denied balance-adjustment capability");
+
+        // The converse is also required: an explicit denial of count entry
+        // blocks both creating a session and saving a previously opened line.
+        await applyActor(tx, actors.admin);
+        const countEntryDenial = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.enter',$2::text,NULL::timestamptz,true) as result",
+          [actors.manager.profile_id, "P2 explicit stock-count entry denial proof"],
+        ))[0].result);
+        assert.equal(countEntryDenial.changed, true);
+        await applyActor(tx, actors.manager);
+        const deniedCountEntry = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(deniedCountEntry.decision, "DENY");
+
+        const deniedCountKey = "rbac-v2-count-denied-" + process.pid + "-" + Date.now();
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text)",
+          [fixture.warehouse_id, deniedCountKey, "must be denied before session creation"],
+        ), "an explicit count-entry denial must block creating a stock-count session");
+
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+          [countSession.id, fixture.product_id, oldQuantity + 0.5],
+        ), "an explicit count-entry denial must block saving a line in an existing session");
+
+        const deniedStartRows = await tx.unsafe(
+          "select count(*)::integer as count from public.stock_count_sessions where organization_id=$1::uuid and idempotency_key=$2",
+          [organizationId, deniedCountKey],
+        );
+        assert.equal(deniedStartRows[0].count, 0,
+          "denied count-session creation must leave no persisted session");
+
+        const [unchangedCountLine] = await tx.unsafe(
+          "select counted_quantity from public.stock_count_lines where session_id=$1::uuid and product_id=$2::uuid",
+          [countSession.id, fixture.product_id],
+        );
+        assert.equal(Number(unchangedCountLine.counted_quantity), oldQuantity,
+          "denied count-line update must leave the previously saved count unchanged");
+        const [unchangedCountBalance] = await tx.unsafe(
+          "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id, fixture.warehouse_id],
+        );
+        assert.equal(Number(unchangedCountBalance.quantity_on_hand), oldQuantity,
+          "denied count entry must not mutate canonical stock");
+
+        await applyActor(tx, actors.admin);
+        const restoredCountEntryDenial = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.enter',NULL,NULL::timestamptz,false) as result",
+          [actors.manager.profile_id],
+        ))[0].result);
+        assert.equal(restoredCountEntryDenial.changed, true);
+        await applyActor(tx, actors.manager);
+        const restoredCountEntryPermission = await tx.unsafe(
+          "select public.current_actor_has_capability('inventory.count.enter',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        );
+        assert.equal(restoredCountEntryPermission[0].allowed, true,
+          "the authenticated manager must regain count-entry for the exact assigned warehouse");
+
+        // Registry tables deliberately revoke direct SELECT from authenticated.
+        // Capture internal diagnostic fields only after RESET ROLE; the actual
+        // permission assertion above remains under the real manager JWT/session.
+        await tx.unsafe("reset role");
+        const restoredCountEntryDiagnostics = await tx.unsafe(
+          "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as current_profile_id, " +
+          "(select d.is_active from public.authorization_profile_denials d where d.organization_id=$1::uuid and d.profile_id=$2::uuid and d.capability_key='inventory.count.enter') as denial_is_active, " +
+          "(select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('role',ur.role,'grant_source',rc.grant_source,'valid_from',rc.valid_from,'expires_at',rc.expires_at)) " +
+          " from public.authorization_role_capabilities rc join public.user_roles ur on ur.role=rc.role and ur.profile_id=$2::uuid " +
+          " where rc.capability_key='inventory.count.enter' and rc.valid_from<=statement_timestamp() and (rc.expires_at is null or rc.expires_at>statement_timestamp())) as active_role_grants, " +
+          "(select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('is_active',s.is_active,'valid_from',s.valid_from,'expires_at',s.expires_at)) " +
+          " from public.authorization_profile_scopes s where s.organization_id=$1::uuid and s.profile_id=$2::uuid and s.scope_kind='warehouse' and s.warehouse_id=$3::uuid) as warehouse_scopes, " +
+          "(select pg_catalog.jsonb_build_object('scope_kind',c.scope_kind,'approval_mode',c.approval_mode,'is_active',c.is_active) " +
+          " from public.authorization_capabilities c where c.capability_key='inventory.count.enter') as capability, " +
+          "public.current_authorization_decision('inventory.count.enter',$3::uuid) as decision, " +
+          "public.current_actor_has_capability('inventory.count.enter',$3::uuid) as allowed",
+          [organizationId, actors.manager.profile_id, fixture.warehouse_id],
+        );
+        const restoredCountEntry = restoredCountEntryDiagnostics[0];
+        assert.equal(
+          restoredCountEntry.allowed,
+          true,
+          "privileged diagnostics must still resolve the same manager authorization decision: " +
+            JSON.stringify(restoredCountEntry),
+        );
+        await applyActor(tx, actors.manager);
+
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.get_inventory_adjustment_balances($1::uuid)",
+          [fixture.warehouse_id],
+        ), "V2 explicit denial must block the adjustment-only stock projection");
+        await expectSqlState(tx, "42501", () => invoke(tx), 
+          "V2 explicit denial must roll back an adjustment even though the legacy role guard permits manager");
+
+        const [unchanged] = await tx.unsafe(
+          "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id, fixture.warehouse_id],
+        );
+        assert.equal(Number(unchanged.quantity_on_hand), oldQuantity, "denied V2 adjustment must leave the canonical balance unchanged");
+
+        // Restore the manager's capability in this same transaction before the allowed path.
+        await applyActor(tx, actors.admin);
+        await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.balance.adjust',NULL,NULL::timestamptz,false)",
+          [actors.manager.profile_id],
+        );
+        await applyActor(tx, actors.manager);
+
+        const managerCancelDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel',$1::uuid) as decision, " +
+          "public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        ))[0]);
+        assert.equal(managerCancelDecision.decision.decision, "PERMIT",
+          "an active manager with an assignment must receive the warehouse-scoped cancellation capability");
+        assert.equal(managerCancelDecision.allowed, true);
+
+        // Warehouse entry permission must never imply administrative cancellation.
+        await applyActor(tx, actors.staff);
+        const [staffCancelDecision] = await tx.unsafe(
+          "select public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        );
+        assert.equal(staffCancelDecision.allowed, false,
+          "a warehouse staff member must not receive the independent stock-count cancellation capability");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text)",
+          [countSession.id, "Staff is not authorized to cancel a stock count"],
+        ), "warehouse staff cannot cancel an open stock count");
+        const [staffCancelState] = await tx.unsafe(
+          "select status,cancelled_by::text from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.deepEqual(staffCancelState, { status: "open", cancelled_by: null },
+          "unauthorized cancellation must not change the draft session");
+        const [staffCancelAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId, countSession.id],
+        );
+        assert.equal(staffCancelAudit.count, 0,
+          "unauthorized cancellation must not create an audit event");
+
+        // Cancellation is independent from maker-checker finalization and
+        // requires the manager's explicit assignment to this exact warehouse.
+        await applyActor(tx, actors.manager);
+        const cancelCapability = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel',$1::uuid) as decision," +
+          "public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        ))[0]);
+        assert.equal(cancelCapability.decision.decision, "PERMIT",
+          "the assigned manager must receive the distinct warehouse-scoped cancellation capability");
+        assert.equal(cancelCapability.allowed, true);
+        const unassignedCancelCapability = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.cancel',$1::uuid) as decision",
+          [otherWarehouse.warehouse_id],
+        ))[0].decision);
+        assert.equal(unassignedCancelCapability.decision, "DENY",
+          "the same manager must not cancel a count in an unassigned warehouse");
+
+        // A role grant is only an eligibility preflight. A valid session in an
+        // unassigned warehouse must still fail the full resource authorization.
+        await tx.unsafe("reset role");
+        const unassignedSessionKey = "rbac-cancel-unassigned-" + process.pid + "-" + Date.now();
+        const [unassignedSession] = await tx.unsafe(
+          "insert into public.stock_count_sessions(organization_id,warehouse_id,idempotency_key,started_by,notes) " +
+          "values ($1::uuid,$2::uuid,$3::text,$4::uuid,$5::text) returning id::text as id",
+          [organizationId, otherWarehouse.warehouse_id, unassignedSessionKey, actors.admin.profile_id,
+            "Authorization acceptance: manager has no assignment to this warehouse"],
+        );
+        assert.ok(unassignedSession?.id);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text)",
+          [unassignedSession.id, "Unassigned warehouse cancellation must be denied"],
+        ), "manager role grant must not authorize cancellation in an unassigned warehouse");
+        const [unassignedSessionAfter] = await tx.unsafe(
+          "select status,cancelled_by::text from public.stock_count_sessions where id=$1::uuid",
+          [unassignedSession.id],
+        );
+        assert.deepEqual(unassignedSessionAfter, { status: "open", cancelled_by: null },
+          "unassigned cancellation must not change the stock-count session");
+        const [unassignedCancellationAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId, unassignedSession.id],
+        );
+        assert.equal(unassignedCancellationAudit.count, 0,
+          "unassigned cancellation must not produce an audit event");
+        await tx.unsafe("reset role");
+        await tx.unsafe("delete from public.stock_count_sessions where id=$1::uuid", [unassignedSession.id]);
+        await applyActor(tx, actors.manager);
+
+        // An explicit profile denial overrides both the manager role grant
+        // and an otherwise valid warehouse assignment, without writes.
+        await applyActor(tx, actors.admin);
+        const cancellationDenial = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.cancel',$2::text,NULL::timestamptz,true) as result",
+          [actors.manager.profile_id, "Temporary stock-count cancellation denial acceptance"],
+        ))[0].result);
+        assert.equal(cancellationDenial.changed, true);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text)",
+          [countSession.id, "An explicit cancellation denial must override the role grant"],
+        ), "an active explicit denial must block cancellation even for an assigned manager");
+        const [explicitDeniedSession] = await tx.unsafe(
+          "select status,cancelled_by::text from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.deepEqual(explicitDeniedSession, { status: "open", cancelled_by: null },
+          "explicitly denied cancellation must preserve the open stock-count session");
+        const [explicitDenialAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId, countSession.id],
+        );
+        assert.equal(explicitDenialAudit.count, 0,
+          "explicitly denied cancellation must not create a cancellation audit");
+        const [explicitDenialMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements " +
+          "where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(explicitDenialMovements.count, 0,
+          "explicitly denied cancellation must not create stock movements");
+        await applyActor(tx, actors.admin);
+        const cancellationDenialRevoked = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.cancel',NULL,NULL::timestamptz,false) as result",
+          [actors.manager.profile_id],
+        ))[0].result);
+        assert.equal(cancellationDenialRevoked.changed, true,
+          "the stock-count cancellation fixture must restore the original role grant");
+        await applyActor(tx, actors.manager);
+
+        const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
+        const cancelledCount = decodeJson((await tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text) as result",
+          [countSession.id,cancellationReason],
+        ))[0].result);
+        assert.equal(cancelledCount.status,"cancelled");
+        const [cancelledCountState] = await tx.unsafe(
+          "select status,cancelled_by,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(cancelledCountState.status,"cancelled");
+        assert.equal(cancelledCountState.cancelled_by,actors.manager.profile_id);
+        assert.equal(cancelledCountState.cancellation_reason,cancellationReason);
+        const [cancelledCountMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(cancelledCountMovements.count,0,
+          "warehouse-scoped cancellation of an unfinalized count must not create inventory movements");
+        const cancellationAudits = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId,countSession.id],
+        );
+        assert.equal(cancellationAudits[0].count,1,
+          "cancelling the draft count must append exactly one audit event");
+
+        const permittedDecisionRows = await tx.unsafe(
+          "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision," +
+          "public.current_actor_has_capability('inventory.balance.adjust',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        );
+        const permittedDecision = decodeJson(permittedDecisionRows[0].decision);
+        assert.equal(permittedDecision.decision, "PERMIT");
+        assert.equal(permittedDecisionRows[0].allowed, true);
+
+        const projectionRows = await tx.unsafe(
+          "select public.get_inventory_adjustment_balances($1::uuid) as projection",
+          [fixture.warehouse_id],
+        );
+        const projection = decodeJson(projectionRows[0].projection);
+        assert.equal(projection.warehouse_id, fixture.warehouse_id);
+        assert.ok(Array.isArray(projection.items));
+        assert.ok(projection.items.some((item) => item.product_id === fixture.product_id));
+        for (const item of projection.items) {
+          assert.equal(Object.hasOwn(item, "base_price"), false);
+          assert.equal(Object.hasOwn(item, "cost_price"), false);
+          assert.equal(Object.hasOwn(item, "margin"), false);
+        }
+
+        const first = (await invoke(tx))[0].result;
+        assert.equal(first.idempotent_replay, false);
+        assert.equal(Number(first.previous_quantity_on_hand), oldQuantity);
+        assert.equal(Number(first.new_quantity_on_hand), newQuantity);
+        assert.equal(Number(first.quantity_delta), 1);
+
+        const replay = (await invoke(tx))[0].result;
+        assert.equal(replay.idempotent_replay, true);
+        assert.equal(replay.adjustment_id, first.adjustment_id);
+
+        await expectSqlState(tx, "22023", () => invoke(tx, [
+          ...args.slice(0, 3), newQuantity + 1, ...args.slice(4),
+        ]), "idempotency key reuse with a changed payload must be rejected");
+        await expectSqlState(tx, "40001", () => invoke(tx, [
+          ...args.slice(0, 3), newQuantity + 2, args[4], args[5], args[6], key + "-stale",
+        ]), "stale stock quantity must be rejected");
+
+        const [current] = await tx.unsafe(
+          "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id, fixture.warehouse_id],
+        );
+        const currentQuantity = Number(current.quantity_on_hand);
+        const currentReserved = Number(current.quantity_reserved);
+        if (currentReserved > 0) {
+          await expectSqlState(tx, "22023", () => invoke(tx, [
+            fixture.product_id, fixture.warehouse_id, currentQuantity,
+            Number((currentReserved - 0.001).toFixed(3)), "below reserved test", null, null, key + "-reserved",
+          ]), "the command must refuse to lower on-hand below reserved");
+        } else {
+          await expectSqlState(tx, "22023", () => invoke(tx, [
+            fixture.product_id, fixture.warehouse_id, currentQuantity, -1,
+            "negative balance test", null, null, key + "-negative",
+          ]), "the command must reject negative stock");
+        }
+
+        // Revoke and restore the scope; the following request must observe revocation.
+        await applyActor(tx, actors.admin);
+        const revokedScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,1) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 warehouse scope revocation"],
+        ))[0].result);
+        assert.equal(revokedScope.changed, true);
+        assert.equal(revokedScope.revision, 2);
+
+        await applyActor(tx, actors.manager);
+        const revokedDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(revokedDecision.decision, "DENY");
+        await applyActor(tx, actors.admin);
+        const revokedSimulation = decodeJson((await tx.unsafe(
+          "select public.evaluate_authorization_profile_decision_v2($1::uuid,'inventory.balance.adjust',$2::uuid) as decision",
+          [actors.manager.profile_id, fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(revokedSimulation.decision, "DENY");
+        assert.equal(revokedSimulation.source, "resource_assignment");
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => invoke(tx), "revoked warehouse assignment must deny the next inventory write");
+
+        await applyActor(tx, actors.admin);
+        await expectSqlState(tx, "40001", () => tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,1)",
+          [actors.manager.profile_id, fixture.warehouse_id, "Stale scope reactivation"],
+        ), "revoked scope must reject a stale revision");
+        const reactivatedScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,2) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 warehouse scope reactivation"],
+        ))[0].result);
+        assert.equal(reactivatedScope.changed, true);
+        assert.equal(reactivatedScope.revision, 3);
+
+        const expiresAt = new Date(Date.now() + 1500).toISOString();
+        const expiringScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,$4::timestamptz,true,3) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 temporary warehouse assignment expiry", expiresAt],
+        ))[0].result);
+        assert.equal(expiringScope.changed, true);
+        assert.equal(expiringScope.revision, 4);
+
+        await new Promise((resolve) => setTimeout(resolve, 1800));
+        await applyActor(tx, actors.manager);
+        const expiredDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(expiredDecision.decision, "DENY", "expired warehouse scope must be denied on the next request");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.get_inventory_adjustment_balances($1::uuid)",
+          [fixture.warehouse_id],
+        ), "expired warehouse assignment must deny the next balance read");
+
+        await applyActor(tx, actors.admin);
+        const renewedScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,4) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 permanent warehouse scope renewal"],
+        ))[0].result);
+        assert.equal(renewedScope.changed, true);
+        assert.equal(renewedScope.revision, 5);
+        await applyActor(tx, actors.manager);
+        const renewedDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(renewedDecision.decision, "PERMIT");
+
+        await tx.unsafe("reset role");
+        const [scopeAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs where entity_type='authorization_profile_scope' and entity_id=$1::uuid and action='authorization.scope.assignment.changed'",
+          [warehouseScope.scope_id],
+        );
+        assert.equal(scopeAudit.count, 5, "creation, revocation, reactivation, expiry change and renewal must each be audited once");
+        await applyActor(tx, actors.manager);
+
+        await expectSqlState(tx, "42501", async (sp) => {
+          await applyActor(sp, actors.staff);
+          return invoke(sp, [
+            fixture.product_id, fixture.warehouse_id, currentQuantity, currentQuantity + 1,
+            "staff denial", null, null, key + "-staff",
+          ]);
+        }, "ordinary staff must be denied by the command");
+
+        await expectSqlState(tx, "42501", async (sp) => {
+          await applyActor(sp, actors.staff);
+          return sp.unsafe("select public.get_inventory_adjustment_balances($1::uuid)", [fixture.warehouse_id]);
+        }, "ordinary staff must be denied from the balance projection");
+
+        await tx.unsafe("reset role");
+        const [counts] = await tx.unsafe(
+          "select (select count(*)::integer from public.inventory_adjustments where id=$1::uuid) as adjustments," +
+          "(select count(*)::integer from public.inventory_movements where reference_type='inventory_adjustment' and reference_id=$1::uuid) as movements," +
+          "(select count(*)::integer from public.audit_logs where entity_type='inventory_adjustment' and entity_id=$1::uuid and action='inventory.balance.adjusted') as audits",
+          [first.adjustment_id],
+        );
+        assert.deepEqual(
+          { adjustments: counts.adjustments, movements: counts.movements, audits: counts.audits },
+          { adjustments: 1, movements: 1, audits: 1 },
+          "an adjustment replay must not create duplicate ledger, movement or audit evidence",
+        );
+        await expectSqlState(tx, "55000", () => tx.unsafe(
+          "update public.inventory_adjustments set reason=reason where id=$1::uuid",
+          [first.adjustment_id],
+        ), "inventory adjustment history must be append-only");
+
+        // Prove the complete stock-count command, not only the draft-entry RPC.
+        // The manager who opens the first count has both entry and finalization
+        // capability, but Maker/Checker must still reject self-approval.
+        await applyActor(tx, actors.manager);
+        const makerKey = "inventory-count-maker-checker-" + process.pid + "-" + Date.now();
+        const makerSession = decodeJson((await tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+          [fixture.warehouse_id, makerKey, "P2 maker-checker self-approval acceptance"],
+        ))[0].result);
+        assert.equal(makerSession.status, "open");
+        const makerLines = await tx.unsafe(
+          "select product_id::text,expected_quantity from public.stock_count_lines where session_id=$1::uuid order by product_id",
+          [makerSession.id],
+        );
+        assert.ok(makerLines.length > 0, "maker-checker fixture must snapshot real warehouse balances");
+        for (const line of makerLines) {
+          await tx.unsafe(
+            "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+            [makerSession.id, line.product_id, line.expected_quantity],
+          );
+        }
+        const selfReviewDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(selfReviewDecision.decision, "REQUIRES_APPROVAL",
+          "the manager must have the review capability before the separate maker identity is evaluated");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.complete_stock_count($1::uuid)",
+          [makerSession.id],
+        ), "the stock-count maker cannot finalize their own session");
+        const makerDeniedState = await tx.unsafe(
+          "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.deepEqual(makerDeniedState[0], { status: "open", completed_by: null },
+          "self-approval denial must leave the count session open and uncompleted");
+        const makerDeniedMovement = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(makerDeniedMovement[0].count, 0,
+          "self-approval denial must not write an inventory movement");
+
+        // An administrator grant without this warehouse assignment must also fail.
+        // Disable only the test actor's matching assignment inside this rollback-only
+        // transaction, so the assertion is deterministic even with seeded local scopes.
+        await applyActor(tx, actors.admin);
+        await tx.unsafe("reset role");
+        await tx.unsafe(
+          "update public.authorization_profile_scopes set is_active=false,updated_at=statement_timestamp() " +
+          "where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.admin.profile_id, fixture.warehouse_id],
+        );
+        await applyActor(tx, actors.admin);
+        const unassignedReviewDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(unassignedReviewDecision.decision, "DENY",
+          "an administrator with no active warehouse assignment cannot review this count");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.complete_stock_count($1::uuid)",
+          [makerSession.id],
+        ), "an unassigned administrator cannot finalize a warehouse count");
+
+        // Preserve the proved open state and zero-write self-approval denial,
+        // then close this temporary maker fixture through the audited cancel
+        // command before the independent staff-maker session is opened.
+        await applyActor(tx, actors.admin);
+        const [adminMakerCancelContext] = await tx.unsafe(
+          "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
+          "public.current_organization_id()::text as organization_id, " +
+          "public.current_actor_has_capability('inventory.count.cancel') as can_cancel",
+        );
+        assert.equal(adminMakerCancelContext.profile_id, actors.admin.profile_id,
+          "maker fixture cleanup must resolve the administrator profile: " + JSON.stringify(adminMakerCancelContext));
+        assert.equal(adminMakerCancelContext.organization_id, organizationId,
+          "maker fixture cleanup must stay in the original organization: " + JSON.stringify(adminMakerCancelContext));
+        assert.equal(adminMakerCancelContext.can_cancel, true,
+          "administrator cancellation must remain independent of warehouse scope: " + JSON.stringify(adminMakerCancelContext));
+        const cancelledMaker = decodeJson((await tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text) as result",
+          [makerSession.id, "Close self-approval fixture before independent maker acceptance"],
+        ))[0].result);
+        assert.equal(cancelledMaker.status, "cancelled");
+        const [cancelledMakerState] = await tx.unsafe(
+          "select status,cancelled_by::text,cancelled_at from public.stock_count_sessions where id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(cancelledMakerState.status, "cancelled");
+        assert.equal(cancelledMakerState.cancelled_by, actors.admin.profile_id);
+        assert.ok(cancelledMakerState.cancelled_at);
+        const [cancelledMakerMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(cancelledMakerMovements.count, 0,
+          "cancelling a rejected self-approval draft must not create inventory movements");
+        const [cancelledMakerAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs where action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(cancelledMakerAudit.count, 1,
+          "the maker-checker draft must close through exactly one audited cancellation");
+
+        // Staff has the distinct count-entry capability. Assign the staff member
+        // to this warehouse, let them make a full physical count, and have the
+        // previously assigned manager approve it as the independent checker.
+        await tx.unsafe("reset role");
+        const staffScopeRows = await tx.unsafe(
+          "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+          "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.staff.profile_id, fixture.warehouse_id],
+        );
+        const staffExpectedRevision = staffScopeRows.length ? Number(staffScopeRows[0].revision) : 0;
+        await applyActor(tx, actors.admin);
+        const staffAssignment = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.staff.profile_id, fixture.warehouse_id, "P2 independent stock-count maker assignment", staffExpectedRevision],
+        ))[0].result);
+        assert.equal(staffAssignment.is_active, true,
+          "the administrator must establish an active warehouse assignment for the count maker");
+
+        await applyActor(tx, actors.staff);
+        const staffEntryDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(staffEntryDecision.decision, "PERMIT",
+          "an assigned staff member may enter physical counts without receiving balance-adjustment or finalization authority");
+        const staffKey = "inventory-count-independent-maker-" + process.pid + "-" + Date.now();
+        const staffSession = decodeJson((await tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+          [fixture.warehouse_id, staffKey, "P2 independent stock-count maker acceptance"],
+        ))[0].result);
+        assert.equal(staffSession.status, "open");
+        const staffLines = await tx.unsafe(
+          "select product_id::text,expected_quantity from public.stock_count_lines where session_id=$1::uuid order by product_id",
+          [staffSession.id],
+        );
+        assert.ok(staffLines.length > 0, "independent maker session must snapshot the active warehouse balance set");
+        const reviewedQuantity = Number((currentQuantity + 1).toFixed(3));
+        let reviewedProductFound = false;
+        for (const line of staffLines) {
+          const countedQuantity = line.product_id === fixture.product_id
+            ? reviewedQuantity
+            : Number(line.expected_quantity);
+          if (line.product_id === fixture.product_id) reviewedProductFound = true;
+          await tx.unsafe(
+            "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+            [staffSession.id, line.product_id, countedQuantity],
+          );
+        }
+        assert.equal(reviewedProductFound, true,
+          "the active balance used by this test must be part of the staff's count snapshot");
+        const completeDecision = decodeJson((await (async () => {
+          await applyActor(tx, actors.manager);
+          return tx.unsafe(
+            "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+            [fixture.warehouse_id],
+          );
+        })())[0].decision);
+        assert.equal(completeDecision.decision, "REQUIRES_APPROVAL",
+          "the assigned manager has the separate warehouse-scoped maker-checker review capability");
+        const completion = decodeJson((await tx.unsafe(
+          "select public.complete_stock_count($1::uuid) as result",
+          [staffSession.id],
+        ))[0].result);
+        assert.equal(completion.status, "completed");
+        assert.equal(completion.adjusted_lines, 1,
+          "the independent reviewer must apply the one real counted variance atomically");
+
+        const finalState = await tx.unsafe(
+          "select s.status,s.started_by::text,s.completed_by::text,l.counted_quantity,l.completed_quantity,l.variance " +
+          "from public.stock_count_sessions s join public.stock_count_lines l on l.session_id=s.id " +
+          "where s.id=$1::uuid and l.product_id=$2::uuid",
+          [staffSession.id, fixture.product_id],
+        );
+        assert.equal(finalState.length, 1);
+        assert.equal(finalState[0].status, "completed");
+        assert.equal(finalState[0].started_by, actors.staff.profile_id);
+        assert.equal(finalState[0].completed_by, actors.manager.profile_id);
+        assert.equal(Number(finalState[0].counted_quantity), reviewedQuantity);
+        assert.equal(Number(finalState[0].completed_quantity), reviewedQuantity);
+        assert.equal(Number(finalState[0].variance), 1);
+        const [balanceAfterReview] = await tx.unsafe(
+          "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id, fixture.warehouse_id],
+        );
+        assert.equal(Number(balanceAfterReview.quantity_on_hand), reviewedQuantity,
+          "an independently approved count must reconcile the canonical stock balance");
+        const [movementProof] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' " +
+          "and reference_id=$1::uuid and movement_type='stock_count_adjustment'",
+          [staffSession.id],
+        );
+        assert.equal(movementProof.count, 1,
+          "the approved physical variance must write exactly one stock-count movement");
+        const [auditProof] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs where action='inventory.stock_count.completed' " +
+          "and entity_type='stock_count_session' and entity_id=$1::uuid",
+          [staffSession.id],
+        );
+        assert.equal(auditProof.count, 1,
+          "the independent finalization must append exactly one completion audit event");
+
+        throw rollbackSentinel;
+      });
+    } catch (cause) {
+      if (cause !== rollbackSentinel) throw cause;
+    }
+
+    process.stdout.write(
+      "PASS local PostgreSQL 17 RBAC V2 inventory adjustment: manager permit, explicit-deny precedence, " +
+      "staff command/read denial, restricted projection, idempotent replay, stale/negative/reserved guards, " +
+      "one movement and audit row, append-only history, real sessions, independent stock-count Maker/Checker finalization, " +
+      "self-approval and unassigned-review denial, and rollback-only test data.\n",
+    );
+  } finally {
+    await db.end({ timeout: 5 }).catch(() => {});
+  }
+}
+main().catch((error) => {
+  process.stderr.write("FAIL RBAC V2 inventory adjustment acceptance: " + String(error?.stack ?? error) + "\n");
+  process.exitCode = 1;
+});
