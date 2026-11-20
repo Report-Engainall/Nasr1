@@ -10,10 +10,14 @@ type StorageLike = Pick<Storage, "getItem" | "setItem">;
  * isolating authenticated customers by verified profile id. The browser cache is
  * convenience state only: product data is always resolved from the live catalog.
  */
-export function storefrontCompareStorageKey(profileId?: string | null): string {
+export function storefrontCompareStorageKey(profileId?: string | null, authUserId?: string | null): string {
   const normalizedProfileId = typeof profileId === "string" ? profileId.trim() : "";
-  if (!normalizedProfileId) return STOREFRONT_COMPARE_GUEST_STORAGE_KEY;
-  return `aghbari:compare:v2:${encodeURIComponent(normalizedProfileId)}`;
+  if (normalizedProfileId) return `aghbari:compare:v2:${encodeURIComponent(normalizedProfileId)}`;
+
+  const normalizedAuthUserId = typeof authUserId === "string" ? authUserId.trim() : "";
+  if (normalizedAuthUserId) return `aghbari:compare:auth:v1:${encodeURIComponent(normalizedAuthUserId)}`;
+
+  return STOREFRONT_COMPARE_GUEST_STORAGE_KEY;
 }
 
 export function readStorefrontCompareIds(storage: StorageLike, storageKey: string): string[] {
