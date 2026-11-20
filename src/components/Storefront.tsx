@@ -255,7 +255,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const { data: promotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
-  const cartStorageKey = offlineCartStorageKey(user?.profileId);
+  const cartStorageKey = offlineCartStorageKey(user?.profileId, user?.id);
   const wishlistStorageKey = storefrontWishlistStorageKey(user?.profileId, user?.id);
   const compareStorageKey = storefrontCompareStorageKey(user?.profileId);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
@@ -569,7 +569,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
   useEffect(() => {
     if (cartRestored || typeof window === 'undefined' || !authReady) return;
-    const draft = loadOfflineCartDraft(window.localStorage, user?.profileId);
+    const draft = loadOfflineCartDraft(window.localStorage, user?.profileId, user?.id);
     const productById = new Map(products.map((product) => [product.id, product]));
     const restored = draft.map(({ product_id, quantity }) => ({
       product: productById.get(product_id) ?? pendingCartProduct(product_id),
@@ -578,7 +578,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     // Restore the saved IDs and quantities immediately; details are loaded separately
     // for these exact IDs, so an unrelated catalogue/page/price failure cannot hide the cart.
     setCart(restored);
-  }, [authReady, products, cartStorageKey, cartRestored, user?.profileId]);
+  }, [authReady, products, cartStorageKey, cartRestored, user?.profileId, user?.id]);
 
   useEffect(() => {
     if (!cartRestored || typeof window === 'undefined') return;
@@ -586,8 +586,9 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       window.localStorage,
       user?.profileId,
       cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+      user?.id,
     );
-  }, [cart, cartRestored, cartStorageKey, user?.profileId]);
+  }, [cart, cartRestored, cartStorageKey, user?.profileId, user?.id]);
   useEffect(() => {
     if (!authReady || !cartRestored) return;
     const requestKey = cartProductDetailsKey;
