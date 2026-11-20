@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import type { CustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
+import { resolveCustomerOrderPricingPresentation, type CustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { CustomerOrderPricingPresentation } from "@/components/CustomerOrderPricingPresentation";
-import { resolveCustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
 import { retryRead } from "@/lib/retry";
 import { isCheckoutAuthorizationDenied } from "@/lib/checkout-errors";
 
