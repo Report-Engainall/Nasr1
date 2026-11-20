@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { BookmarkPlus, ClipboardList, RefreshCw, ShoppingCart } from "lucide-react";
 import { fetchCategories } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fetchCustomerCart, type CustomerCartSnapshot } from "@/lib/customer-cart";
+import { CUSTOMER_CART_SYNCED_EVENT, fetchCustomerCart, type CustomerCartSnapshot } from "@/lib/customer-cart";
 import { fetchStorefrontCartProductDetails } from "@/lib/storefront-cart-products";
 import { saveCustomerShoppingList } from "@/lib/customer-shopping-lists";
 import { loadOfflineCartDraft, offlineCartStorageKey } from "@/lib/offline-cart";
@@ -59,6 +59,13 @@ export function CartShoppingListsAccess() {
       setProducts([]);
       setCategories([]);
     }
+  }, [ready, isCustomer, refresh]);
+
+  useEffect(() => {
+    if (!ready || !isCustomer) return;
+    const refreshAfterConfirmedSync = () => { void refresh(); };
+    window.addEventListener(CUSTOMER_CART_SYNCED_EVENT, refreshAfterConfirmedSync);
+    return () => window.removeEventListener(CUSTOMER_CART_SYNCED_EVENT, refreshAfterConfirmedSync);
   }, [ready, isCustomer, refresh]);
 
   const summary = useMemo(() => summarizeCartLines(cart?.items ?? []), [cart]);
