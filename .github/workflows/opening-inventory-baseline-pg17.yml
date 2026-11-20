@@ -1,0 +1,57 @@
+name: Owner Opening Inventory Baseline PostgreSQL 17 Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116114000_owner_approved_opening_inventory_baseline.sql"
+      - "supabase/migrations/20261116127000_owner_opening_baseline_source_identity_guard.sql"
+      - "supabase/tests/opening_inventory_baseline_approval.sql"
+      - ".github/workflows/opening-inventory-baseline-pg17.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116114000_owner_approved_opening_inventory_baseline.sql"
+      - "supabase/migrations/20261116127000_owner_opening_baseline_source_identity_guard.sql"
+      - "supabase/tests/opening_inventory_baseline_approval.sql"
+      - ".github/workflows/opening-inventory-baseline-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opening-inventory-baseline-pg17-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  opening-inventory-baseline:
+    name: PostgreSQL 17 owner approval, source proof and immutable snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Validate approved baseline snapshot without changing stock quantities
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/opening_inventory_baseline_approval.sql
