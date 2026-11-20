@@ -25,7 +25,8 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_ENTRY_BYTES = 1024 * 1024;
 const MAX_TOTAL_UNPACKED_BYTES = 4 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 24;
-const MAX_DATA_ROWS = 500;\ntype ZipEntry = { method: number; compressedSize: number; uncompressedSize: number; localOffset: number };
+const MAX_DATA_ROWS = 500;
+type ZipEntry = { method: number; compressedSize: number; uncompressedSize: number; localOffset: number };
 
 function normalizeDigits(value: string): string {
   return value
