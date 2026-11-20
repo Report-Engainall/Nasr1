@@ -31,6 +31,12 @@ $old$;
    ORDER BY s.version DESC
    LIMIT 1;
 
+  RAISE NOTICE 'decision-memory snapshot lookup org=% outcome=% snapshot_id=% visible_rows=%',
+    p_organization_id, p_decision_outcome_id, v_snapshot_id,
+    (SELECT pg_catalog.count(*) FROM public.decision_memory_snapshots s
+      WHERE s.organization_id = p_organization_id
+        AND s.decision_outcome_id = p_decision_outcome_id);
+
   IF v_snapshot_id IS NULL THEN
     RETURN NULL;
   END IF;
