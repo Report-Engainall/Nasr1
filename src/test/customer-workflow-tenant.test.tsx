@@ -276,13 +276,21 @@ describe("customer quote workspace tenant boundary", () => {
       roles: ["customer"], isStaff: false,
     };
     await mountQuoteWorkspace("/reorder");
+    expect(host?.textContent).toContain("قوائم المشتريات والدورات");
+    const templatesTab = Array.from(host?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])
+      .find((tab) => tab.textContent?.includes("قوالب إعادة الطلب السابقة"));
+    expect(templatesTab).toBeDefined();
+    await act(async () => {
+      templatesTab?.click();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(host?.textContent).toContain("إعادة الطلب");
     expect(host?.textContent).toContain("Rice");
     expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
-    const products = queryFor("products");
-    expect(products.columns).toBe(
-      "id,name,item_code,barcode,unit,status,min_order_quantity,order_quantity_multiple",
-    );
+    const expectedProductColumns = "id,name,item_code,barcode,unit,status,min_order_quantity,order_quantity_multiple";
+    const products = mocks.queries.find((entry) => entry.table === "products" && entry.columns === expectedProductColumns);
+    expect(products).toBeDefined();
     expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
     expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
     expect(products.filters).toContainEqual({ column: "status", value: "active" });
