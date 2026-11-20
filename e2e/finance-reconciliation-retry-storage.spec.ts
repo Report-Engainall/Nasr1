@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-test.skip(!process.env.E2E_PRICE_FIXTURE_BASE_URL, "This localStorage reload acceptance runs in the dedicated Vite public UI harness.");
-
 type BankLineRequest = {
   statementId: string;
   lineNumber: number;
@@ -17,6 +15,7 @@ function fixtureUrl(): string {
 }
 
 test("bank-line and opening-balance idempotency survive a real browser reload after a committed-but-lost response", async ({ page }) => {
+  test.skip(!process.env.E2E_PRICE_FIXTURE_BASE_URL, "This localStorage reload acceptance runs in the dedicated Vite public UI harness.");
   const committedLines = new Map<string, { lineId: string; statementId: string; lineNumber: number }>();
   const committedOpeningBalances = new Map<string, { proposalId: string }>();
   const bankAttempts: BankLineRequest[] = [];
