@@ -1423,6 +1423,28 @@ const manager=actors.get("manager"),admin=actors.get("admin");
     "authenticated clients must not query the internal authorization tables"
    );
   }
+  const decisionLearningRpcPrivileges=await db.unsafe(
+   "select "+
+   "has_function_privilege('authenticated','public.create_decision_policy_learning_candidate(uuid[],text)'::regprocedure,'EXECUTE') as create_authenticated, "+
+   "has_function_privilege('authenticated','public.command_decision_policy_learning_candidate(uuid,text,text,integer,text,text)'::regprocedure,'EXECUTE') as command_authenticated, "+
+   "has_function_privilege('authenticated','public.fetch_decision_policy_learning_candidates(integer,integer)'::regprocedure,'EXECUTE') as fetch_authenticated, "+
+   "has_function_privilege('anon','public.create_decision_policy_learning_candidate(uuid[],text)'::regprocedure,'EXECUTE') as create_anon, "+
+   "has_function_privilege('anon','public.command_decision_policy_learning_candidate(uuid,text,text,integer,text,text)'::regprocedure,'EXECUTE') as command_anon, "+
+   "has_function_privilege('anon','public.fetch_decision_policy_learning_candidates(integer,integer)'::regprocedure,'EXECUTE') as fetch_anon"
+  );
+  assert.equal(decisionLearningRpcPrivileges[0].create_authenticated,true,
+   "authenticated finance actors must use the guarded decision-learning create RPC");
+  assert.equal(decisionLearningRpcPrivileges[0].command_authenticated,true,
+   "authenticated finance actors must use the guarded decision-learning command RPC");
+  assert.equal(decisionLearningRpcPrivileges[0].fetch_authenticated,true,
+   "authenticated finance actors must use the tenant-scoped decision-learning read RPC");
+  assert.equal(decisionLearningRpcPrivileges[0].create_anon,false,
+   "anonymous callers must not create decision-learning candidates");
+  assert.equal(decisionLearningRpcPrivileges[0].command_anon,false,
+   "anonymous callers must not mutate decision-learning candidates");
+  assert.equal(decisionLearningRpcPrivileges[0].fetch_anon,false,
+   "anonymous callers must not read decision-learning candidates");
+
   await db.unsafe("delete from auth.sessions where id=$1::uuid and user_id=$2::uuid",[manager.jwtClaims.session_id,manager.auth_user_id]);
   assert.equal((await decision(db,manager,"pricing.edit_draft")).decision,"DENY",
    "revoking auth.sessions must deny the next decision even when the same signed JWT is presented");
