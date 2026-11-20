@@ -69,6 +69,38 @@ BEGIN
       MESSAGE = 'active authenticated stock-count organization is required';
   END IF;
 
+  -- Eligibility preflight only: this checks that the caller has an active
+  -- role grant and no explicit profile denial. It deliberately does NOT
+  -- authorize cancellation; the exact warehouse decision is still required
+  -- after the tenant-owned session is resolved below.
+  IF NOT EXISTS (
+       SELECT 1
+         FROM public.authorization_capabilities c
+         JOIN public.authorization_role_capabilities rc
+           ON rc.capability_key = c.capability_key
+         JOIN public.user_roles ur
+           ON ur.role = rc.role
+          AND ur.profile_id = v_actor
+        WHERE c.capability_key = 'inventory.count.cancel'
+          AND c.is_active = true
+          AND c.scope_kind = 'warehouse'
+          AND rc.valid_from <= statement_timestamp()
+          AND (rc.expires_at IS NULL OR rc.expires_at > statement_timestamp())
+     )
+     OR EXISTS (
+       SELECT 1
+         FROM public.authorization_profile_denials d
+        WHERE d.organization_id = v_org
+          AND d.profile_id = v_actor
+          AND d.capability_key = 'inventory.count.cancel'
+          AND d.is_active = true
+          AND (d.expires_at IS NULL OR d.expires_at > statement_timestamp())
+     ) THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '42501',
+      MESSAGE = 'active inventory.count.cancel role eligibility is required';
+  END IF;
+
   IF p_session_id IS NULL THEN
     RAISE EXCEPTION USING
       ERRCODE = '22023',
