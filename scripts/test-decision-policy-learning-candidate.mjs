@@ -478,10 +478,12 @@ async function main() {
       assert.equal(approved.candidate.eventCount, 3);
       assert.equal(approved.candidate.candidateSnapshot.activeProfileChanged, false);
 
-      // A corrected memory with a different measurement as-of timestamp must not
-      // produce a candidate; the expected and actual snapshots are not comparable.
+      // A later memory baseline remains after the source invoice was issued,
+      // but differs from the terminal measurement timestamp. The save command
+      // must preserve that valid source population; candidate creation must then
+      // reject the expected/actual as-of mismatch.
       await setActor(tx, managerClaims);
-      const mismatchAsOf = new Date(Date.parse(asOf) - 30_000).toISOString();
+      const mismatchAsOf = new Date(Date.parse(asOf) + 30_000).toISOString();
       const mismatchSourceRows = await tx.unsafe(
         "select issued_at <= $2::timestamptz as predates_mismatched_as_of " +
         "from public.customer_invoices where id=$1::uuid and organization_id=$3::uuid",
