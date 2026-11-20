@@ -4,8 +4,8 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
 GRANT USAGE ON SCHEMA cron TO postgres;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA cron TO postgres;
+GRANT EXECUTE ON FUNCTION cron.schedule(text,text,text) TO postgres;
+GRANT EXECUTE ON FUNCTION cron.unschedule(bigint) TO postgres;
 
 CREATE OR REPLACE FUNCTION public.run_due_customer_shopping_list_scheduler()
 RETURNS jsonb

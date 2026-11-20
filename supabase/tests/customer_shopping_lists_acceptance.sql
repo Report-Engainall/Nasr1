@@ -91,11 +91,21 @@ CREATE TABLE public.audit_logs(
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE OR REPLACE FUNCTION auth.uid()
-RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
-AS $function$
-  SELECT nullif(pg_catalog.current_setting('request.jwt.claim.sub',true),'')::uuid
-$function$;
+DO $auth_uid$
+BEGIN
+  -- Supabase PostgreSQL owns auth.uid(); use the platform implementation when present.
+  -- Only create the lightweight claim reader when running against plain PostgreSQL 17.
+  IF pg_catalog.to_regprocedure('auth.uid()') IS NULL THEN
+    EXECUTE $ddl$
+      CREATE FUNCTION auth.uid()
+      RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+      AS $function$
+        SELECT nullif(pg_catalog.current_setting('request.jwt.claim.sub',true),'')::uuid
+      $function$
+    $ddl$;
+  END IF;
+END
+$auth_uid$;
 CREATE OR REPLACE FUNCTION public.current_profile_id()
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $function$
