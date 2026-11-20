@@ -62,7 +62,12 @@ import {
 } from "@/lib/customer-quote-product-pagination";
 import { downloadCustomerInvoiceWorkbookXlsx } from "@/lib/customer-invoice-xlsx";
 import { downloadCustomerPaymentHistoryWorkbookXlsx } from "@/lib/customer-payment-history-xlsx";
-import { filterCustomerPaymentHistory } from "@/lib/customer-payment-history-filter";
+import {
+  filterCustomerPaymentHistory,
+  parseCustomerPaymentHistoryPayload,
+  type ValidatedCustomerPayment,
+  type ValidatedCustomerPaymentInvoice,
+} from "@/lib/customer-payment-history-filter";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
@@ -1443,14 +1448,9 @@ export function CustomerPaymentsPage() {
   );
 }
 
-type CustomerPaymentHistoryRow = PaymentAmount & {
-  id?: string;
-  paid_at?: string;
-};
-
 function CustomerPayments() {
-  const [payments, setPayments] = useState<CustomerPaymentHistoryRow[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [payments, setPayments] = useState<ValidatedCustomerPayment[]>([]);
+  const [invoices, setInvoices] = useState<ValidatedCustomerPaymentInvoice[]>([]);
   const [search, setSearch] = useState("");
   const [paidFrom, setPaidFrom] = useState("");
   const [paidThrough, setPaidThrough] = useState("");
@@ -1467,37 +1467,9 @@ function CustomerPayments() {
       if (result.error || !result.data || typeof result.data !== "object") {
         throw new Error("تعذر قراءة سجل الدفعات من دفتر الحساب المصرّح به.");
       }
-      const payload = result.data as { invoices?: unknown; payments?: unknown };
-      if (!Array.isArray(payload.invoices) || payload.invoices.length > 200 ||
-          !Array.isArray(payload.payments) || payload.payments.length > 500) {
-        throw new Error("أعاد الخادم تفاصيل دفعات غير مكتملة أو تجاوزت حدود القراءة.");
-      }
-      const parsed: CustomerPaymentHistoryRow[] = [];
-      for (const candidate of payload.payments) {
-        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-          throw new Error("توجد حركة دفع لا تطابق عقد دفتر الحساب؛ لم تُعرض بيانات جزئية.");
-        }
-        const row = candidate as Record<string, unknown>;
-        const amount = typeof row.amount === "number" || typeof row.amount === "string"
-          ? Number(row.amount)
-          : NaN;
-        if (typeof row.invoice_id !== "string" ||
-            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.invoice_id) ||
-            !Number.isFinite(amount) || amount < 0 ||
-            (row.id !== undefined && (typeof row.id !== "string" ||
-              !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id))) ||
-            (row.paid_at !== undefined && (typeof row.paid_at !== "string" || !Number.isFinite(Date.parse(row.paid_at))))) {
-          throw new Error("إحدى حركات الدفع تحتوي مرجعاً أو مبلغاً أو تاريخاً غير صالح.");
-        }
-        parsed.push({
-          invoice_id: row.invoice_id,
-          amount: row.amount as number | string,
-          ...(typeof row.id === "string" ? { id: row.id } : {}),
-          ...(typeof row.paid_at === "string" ? { paid_at: row.paid_at } : {}),
-        });
-      }
-      setInvoices(payload.invoices as Invoice[]);
-      setPayments(parsed);
+      const parsed = parseCustomerPaymentHistoryPayload(result.data);
+      setInvoices(parsed.invoices);
+      setPayments(parsed.payments);
     } catch (cause) {
       setInvoices([]);
       setPayments([]);
