@@ -151,9 +151,6 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
     }
   }, [canOpen, categories]);
 
-  useEffect(() => {
-    if (canOpen && categories.length > 0) void scanPublishedCategoryCounts();
-  }, [canOpen, categories, scanPublishedCategoryCounts]);
 
   const tree = useMemo(() => buildAdminCategoryTree(categories), [categories]);
   const filteredTree = useMemo(() => filterAdminCategoryTree(tree, search), [tree, search]);
@@ -367,6 +364,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
       <div><span>الكتالوج والتسعير</span><h1>التصنيفات الرئيسية والفرعية</h1><p>شجرة واحدة مرتبطة بحقل parent_id الحالي وعمليات الخادم المعتمدة.</p></div>
       <div className="admin-category-page__actions">
         <button type="button" className="btn outline" onClick={() => void load().catch(() => undefined)} disabled={loading}><RefreshCw size={16}/> تحديث</button>
+        {canOpen && <button type="button" className="btn outline" onClick={() => void scanPublishedCategoryCounts()} disabled={publishedCountsLoading || loading || categories.length === 0}><Tags size={16}/>{publishedCountsLoading ? ' جارٍ حساب المنشور…' : publishedCounts ? ' إعادة حساب المنشور' : ' حساب المنتجات المنشورة'}</button>}
         {canManage && <button type="button" className="btn primary" onClick={() => { setCreateParent(null); setNewName(''); setNewCode(''); }}><Plus size={16}/> تصنيف رئيسي</button>}
       </div>
     </header>
