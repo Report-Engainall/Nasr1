@@ -208,7 +208,7 @@ async function main() {
     process.stdout.write(
       "PASS Authorization V2 bootstrap: clean migration order, admin/manager inventory-adjustment grants, " +
       "staff/accountant/customer-manager/customer denial, private registry tables, warehouse draft-only count entry, " +
-      "and independent warehouse maker-checker finalization.\\n",
+      "and independent warehouse maker-checker finalization.\n",
     );
   } finally {
     await db.end({ timeout: 5 }).catch(() => {});
@@ -216,6 +216,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write("FAIL Authorization V2 bootstrap acceptance: " + String(error?.stack ?? error) + "\\n");
+  process.stderr.write("FAIL Authorization V2 bootstrap acceptance: " + String(error?.stack ?? error) + "\n");
   process.exitCode = 1;
 });
