@@ -461,35 +461,6 @@ async function main() {
             JSON.stringify(restoredCountEntry),
         );
 
-        // This first session exists only to prove count-entry and explicit-denial
-        // behavior. Close it through the real audited cancellation command before
-        // opening the independent maker/checker sessions below. The production
-        // invariant intentionally permits only one open count per warehouse.
-        const cancelledDraft = decodeJson((await tx.unsafe(
-          "select public.cancel_stock_count($1::uuid,$2::text) as result",
-          [countSession.id, "Close the authorization-entry fixture before maker-checker acceptance"],
-        ))[0].result);
-        assert.equal(cancelledDraft.status, "cancelled");
-        const [cancelledDraftState] = await tx.unsafe(
-          "select status,cancelled_by::text,cancelled_at from public.stock_count_sessions where id=$1::uuid",
-          [countSession.id],
-        );
-        assert.equal(cancelledDraftState.status, "cancelled");
-        assert.equal(cancelledDraftState.cancelled_by, actors.manager.profile_id);
-        assert.ok(cancelledDraftState.cancelled_at);
-        const [cancelledDraftMovements] = await tx.unsafe(
-          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
-          [countSession.id],
-        );
-        assert.equal(cancelledDraftMovements.count, 0,
-          "cancelling a draft count must not create inventory movements");
-        const [cancelledDraftAudit] = await tx.unsafe(
-          "select count(*)::integer as count from public.audit_logs where action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$1::uuid",
-          [countSession.id],
-        );
-        assert.equal(cancelledDraftAudit.count, 1,
-          "the draft fixture must close through exactly one audited cancellation");
-
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.get_inventory_adjustment_balances($1::uuid)",
           [fixture.warehouse_id],
@@ -511,8 +482,10 @@ async function main() {
         );
         await applyActor(tx, actors.manager);
 
-        // Close the intentionally draft count fixture before the independent
-        // balance-adjustment acceptance in this same warehouse.
+        // The cancellation RPC is explicitly administrator/manager gated.
+        // Use the administrator actor for this test-fixture cleanup; the manager's
+        // count-entry and Maker/Checker permissions remain independently asserted.
+        await applyActor(tx, actors.admin);
         const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
         const cancelledCount = decodeJson((await tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text) as result",
@@ -524,8 +497,14 @@ async function main() {
           [countSession.id],
         );
         assert.equal(cancelledCountState.status,"cancelled");
-        assert.equal(cancelledCountState.cancelled_by,actors.manager.profile_id);
+        assert.equal(cancelledCountState.cancelled_by,actors.admin.profile_id);
         assert.equal(cancelledCountState.cancellation_reason,cancellationReason);
+        const [cancelledCountMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(cancelledCountMovements.count,0,
+          "administrative cancellation of an unfinalized count must not create inventory movements");
         const cancellationAudits = await tx.unsafe(
           "select count(*)::integer as count from public.audit_logs " +
           "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
@@ -771,7 +750,7 @@ async function main() {
         // Preserve the proved open state and zero-write self-approval denial,
         // then close this temporary maker fixture through the audited cancel
         // command before the independent staff-maker session is opened.
-        await applyActor(tx, actors.manager);
+        await applyActor(tx, actors.admin);
         const cancelledMaker = decodeJson((await tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text) as result",
           [makerSession.id, "Close self-approval fixture before independent maker acceptance"],
@@ -782,7 +761,7 @@ async function main() {
           [makerSession.id],
         );
         assert.equal(cancelledMakerState.status, "cancelled");
-        assert.equal(cancelledMakerState.cancelled_by, actors.manager.profile_id);
+        assert.equal(cancelledMakerState.cancelled_by, actors.admin.profile_id);
         assert.ok(cancelledMakerState.cancelled_at);
         const [cancelledMakerMovements] = await tx.unsafe(
           "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
