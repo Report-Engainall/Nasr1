@@ -23,11 +23,13 @@ export function CartShoppingListsAccess() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const activeProfile = useRef(user?.profileId);
+  const refreshSequence = useRef(0);
   activeProfile.current = user?.profileId;
 
   const refresh = useCallback(async () => {
     if (!isCustomer || !user?.profileId) return;
     const profileId = user.profileId;
+    const requestId = ++refreshSequence.current;
     setLoading(true);
     setError("");
     try {
@@ -36,7 +38,7 @@ export function CartShoppingListsAccess() {
         fetchStorefrontCartProductDetails(currentCart.items.map((line) => line.product_id)),
         fetchCategories().catch(() => []),
       ]);
-      if (activeProfile.current !== profileId) return;
+      if (activeProfile.current !== profileId || refreshSequence.current !== requestId) return;
       if (details.length !== currentCart.items.length) {
         throw new Error("بعض أصناف السلة لم تعد نشطة في الكتالوج؛ راجع السلة قبل حفظها كقائمة.");
       }
@@ -44,17 +46,18 @@ export function CartShoppingListsAccess() {
       setProducts(details);
       setCategories(currentCategories);
     } catch (cause) {
-      if (activeProfile.current === profileId) {
+      if (activeProfile.current === profileId && refreshSequence.current === requestId) {
         setError(cause instanceof Error ? cause.message : "تعذر تحميل ملخص السلة الحالية.");
       }
     } finally {
-      if (activeProfile.current === profileId) setLoading(false);
+      if (activeProfile.current === profileId && refreshSequence.current === requestId) setLoading(false);
     }
   }, [isCustomer, user?.profileId]);
 
   useEffect(() => {
     if (ready && isCustomer) void refresh();
     if (!isCustomer) {
+      refreshSequence.current += 1;
       setCart(null);
       setProducts([]);
       setCategories([]);
@@ -165,6 +168,9 @@ export function CartShoppingListsAccess() {
         </div>
       </header>
 
+      <p style={{ margin: "8px 0 0", color: "#708387", fontSize: 11, lineHeight: 1.7 }}>
+        يعرض هذا الملخص آخر نسخة أكدها الخادم؛ تعديلات السلة المحلية لا تدخل فيه قبل اكتمال المزامنة.
+      </p>
       {loading && <p role="status" style={{ color: "#60777a", fontSize: 12 }}>جار قراءة السلة والكتالوج الحاليين من الخادم...</p>}
       {error && <p role="alert" style={{ color: "#a22", fontSize: 13 }}>{error}</p>}
       {notice && <p role="status" style={{ color: "#176847", fontSize: 13 }}>{notice}</p>}
