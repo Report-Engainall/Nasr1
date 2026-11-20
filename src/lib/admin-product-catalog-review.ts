@@ -110,7 +110,7 @@ function csvCell(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '""';
   const raw = String(value);
   // Prevent spreadsheet formula execution when catalog text starts with a formula marker.
-  const safe = /^[\\s]*[=+@-]/.test(raw) ? "'" + raw : raw;
+  const safe = /^[\s]*[=+@-]/.test(raw) ? "'" + raw : raw;
   return '"' + safe.replace(/"/g, '""') + '"';
 }
 
@@ -136,5 +136,5 @@ export function buildAdminProductCatalogCsv(
   return [
     columns.map((column) => csvCell(column.header)).join(','),
     ...products.map((product) => columns.map((column) => csvCell(column.value(product))).join(',')),
-  ].join('\\r\\n');
+  ].join('\r\n');
 }
