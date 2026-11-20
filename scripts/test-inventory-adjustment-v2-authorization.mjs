@@ -207,14 +207,30 @@ async function main() {
         };
         await expectSqlState(tx, "42501", managerCannotSimulate, "only role administrators may use the authorization simulator");
 
-        // Admin assigns only this warehouse with an optimistic revision.
+        // Admin assigns only this warehouse with the exact current optimistic revision.
+        // An inactive historical row is still versioned; absence of an active
+        // assignment does not imply revision zero.
+        await tx.unsafe("reset role");
+        const [existingManagerScope] = await tx.unsafe(
+          "select id::text,revision,is_active from public.authorization_profile_scopes " +
+          "where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.manager.profile_id, fixture.warehouse_id],
+        );
+        const managerScopeRevision = existingManagerScope ? Number(existingManagerScope.revision) : 0;
+        const [managerScopeAuditBefore] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where entity_type='authorization_profile_scope' and entity_id=$1::uuid " +
+          "and action='authorization.scope.assignment.changed'",
+          [existingManagerScope?.id ?? "00000000-0000-0000-0000-000000000000"],
+        );
+        await applyActor(tx, actors.admin);
         const assignmentRows = await tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
-          [actors.manager.profile_id, fixture.warehouse_id, "P2 assigned warehouse scope acceptance"],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 assigned warehouse scope acceptance", managerScopeRevision],
         );
         const warehouseScope = decodeJson(assignmentRows[0].result);
         assert.equal(warehouseScope.changed, true);
-        assert.equal(warehouseScope.revision, 1);
+        assert.equal(warehouseScope.revision, managerScopeRevision + 1);
         assert.equal(warehouseScope.is_active, true);
 
         const scopeList = decodeJson((await tx.unsafe(
@@ -250,8 +266,12 @@ async function main() {
         if (resourceCatalog.customers.length > 0) {
           const assignedCustomerId = resourceCatalog.customers[0].id;
           const customerScope = decodeJson((await tx.unsafe(
-            "select public.set_authorization_profile_scope($1::uuid,'assigned_customer',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
-            [actors.manager.profile_id, assignedCustomerId, "P2 assigned customer scope acceptance"],
+            "select public.set_authorization_profile_scope($1::uuid,'assigned_customer',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+            [actors.manager.profile_id, assignedCustomerId, "P2 assigned customer scope acceptance",
+              Number((await tx.unsafe(
+                "select revision from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='assigned_customer' and customer_id=$3::uuid",
+                [organizationId, actors.manager.profile_id, assignedCustomerId],
+              ))[0]?.revision ?? 0)],
           ))[0].result);
           assert.equal(customerScope.changed, true);
           assert.equal(customerScope.scope_kind, "assigned_customer");
@@ -262,23 +282,23 @@ async function main() {
           assert.equal(customerScopedDecision.decision, "DENY",
             "an assigned customer relationship must not manufacture an absent capability grant");
           const customerScopeRevoked = decodeJson((await tx.unsafe(
-            "select public.set_authorization_profile_scope($1::uuid,'assigned_customer',$2::uuid,$3::text,NULL::timestamptz,false,1) as result",
-            [actors.manager.profile_id, assignedCustomerId, "P2 customer scope rollback proof"],
+            "select public.set_authorization_profile_scope($1::uuid,'assigned_customer',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer) as result",
+            [actors.manager.profile_id, assignedCustomerId, "P2 customer scope rollback proof", Number(customerScope.revision)],
           ))[0].result);
-          assert.equal(customerScopeRevoked.revision, 2);
+          assert.equal(customerScopeRevoked.revision, Number(customerScope.revision) + 1);
         }
 
         await expectSqlState(tx, "40001", () => tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0)",
-          [actors.manager.profile_id, fixture.warehouse_id, "Stale warehouse scope write"],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer)",
+          [actors.manager.profile_id, fixture.warehouse_id, "Stale warehouse scope write", managerScopeRevision],
         ), "scope writer with stale expected revision must be rejected");
 
         const scopeReplay = decodeJson((await tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,1) as result",
-          [actors.manager.profile_id, fixture.warehouse_id, "P2 assigned warehouse scope acceptance"],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 assigned warehouse scope acceptance", Number(warehouseScope.revision)],
         ))[0].result);
         assert.equal(scopeReplay.changed, false);
-        assert.equal(scopeReplay.revision, 1);
+        assert.equal(scopeReplay.revision, Number(warehouseScope.revision));
 
         await expectSqlState(tx, "42501", async (sp) => {
           await applyActor(sp, actors.manager);
@@ -758,11 +778,11 @@ async function main() {
         // Revoke and restore the scope; the following request must observe revocation.
         await applyActor(tx, actors.admin);
         const revokedScope = decodeJson((await tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,1) as result",
-          [actors.manager.profile_id, fixture.warehouse_id, "P2 warehouse scope revocation"],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 warehouse scope revocation", Number(warehouseScope.revision)],
         ))[0].result);
         assert.equal(revokedScope.changed, true);
-        assert.equal(revokedScope.revision, 2);
+        assert.equal(revokedScope.revision, Number(warehouseScope.revision) + 1);
 
         await applyActor(tx, actors.manager);
         const revokedDecision = decodeJson((await tx.unsafe(
@@ -782,23 +802,24 @@ async function main() {
 
         await applyActor(tx, actors.admin);
         await expectSqlState(tx, "40001", () => tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,1)",
-          [actors.manager.profile_id, fixture.warehouse_id, "Stale scope reactivation"],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer)",
+          [actors.manager.profile_id, fixture.warehouse_id, "Stale scope reactivation", Number(warehouseScope.revision)],
         ), "revoked scope must reject a stale revision");
         const reactivatedScope = decodeJson((await tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,2) as result",
-          [actors.manager.profile_id, fixture.warehouse_id, "P2 warehouse scope reactivation"],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 warehouse scope reactivation", Number(revokedScope.revision)],
         ))[0].result);
         assert.equal(reactivatedScope.changed, true);
-        assert.equal(reactivatedScope.revision, 3);
+        assert.equal(reactivatedScope.revision, Number(revokedScope.revision) + 1);
 
         const expiresAt = new Date(Date.now() + 1500).toISOString();
         const expiringScope = decodeJson((await tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,$4::timestamptz,true,3) as result",
-          [actors.manager.profile_id, fixture.warehouse_id, "P2 temporary warehouse assignment expiry", expiresAt],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,$4::timestamptz,true,$5::integer) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 temporary warehouse assignment expiry", expiresAt,
+            Number(reactivatedScope.revision)],
         ))[0].result);
         assert.equal(expiringScope.changed, true);
-        assert.equal(expiringScope.revision, 4);
+        assert.equal(expiringScope.revision, Number(reactivatedScope.revision) + 1);
 
         await new Promise((resolve) => setTimeout(resolve, 1800));
         await applyActor(tx, actors.manager);
@@ -814,11 +835,11 @@ async function main() {
 
         await applyActor(tx, actors.admin);
         const renewedScope = decodeJson((await tx.unsafe(
-          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,4) as result",
-          [actors.manager.profile_id, fixture.warehouse_id, "P2 permanent warehouse scope renewal"],
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.manager.profile_id, fixture.warehouse_id, "P2 permanent warehouse scope renewal", Number(expiringScope.revision)],
         ))[0].result);
         assert.equal(renewedScope.changed, true);
-        assert.equal(renewedScope.revision, 5);
+        assert.equal(renewedScope.revision, Number(expiringScope.revision) + 1);
         await applyActor(tx, actors.manager);
         const renewedDecision = decodeJson((await tx.unsafe(
           "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision",
@@ -831,7 +852,8 @@ async function main() {
           "select count(*)::integer as count from public.audit_logs where entity_type='authorization_profile_scope' and entity_id=$1::uuid and action='authorization.scope.assignment.changed'",
           [warehouseScope.scope_id],
         );
-        assert.equal(scopeAudit.count, 5, "creation, revocation, reactivation, expiry change and renewal must each be audited once");
+        assert.equal(scopeAudit.count, managerScopeAuditBefore.count + 5,
+          "initial assignment, revocation, reactivation, expiry change and renewal must each add one audit event");
         await applyActor(tx, actors.manager);
 
         await expectSqlState(tx, "42501", async (sp) => {
