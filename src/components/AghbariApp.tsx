@@ -3093,7 +3093,7 @@ export function PricingRuleModal({ rule, existingRules = [], onClose, onSaved }:
       effective_until: until ? until.toISOString() : null,
     }, existingRules);
   }, [existingRules, rule?.id, scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil]);
-  const potentialRuleConflictKey = JSON.stringify({ scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil, conflicts: potentialRuleConflicts.map((conflict) => [conflict.ruleId, conflict.priority, conflict.minQuantity, conflict.samePriority]) });
+  const potentialRuleConflictKey = JSON.stringify({ scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil, conflicts: potentialRuleConflicts.map((conflict) => [conflict.ruleId, conflict.priority, conflict.minQuantity, conflict.samePriority, conflict.effectiveFrom, conflict.effectiveUntil]) });
   useEffect(() => { setConflictAcknowledged(false); }, [potentialRuleConflictKey]);
 
   const pageProductOptions = products?.rows ?? [];
