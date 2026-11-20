@@ -498,7 +498,7 @@ test("advanced search sends brand, sale-unit and price-display filters to server
       params.get("priced"),
       params.get("q"),
     ];
-  }).toEqual([brandId, "كرتون", "1", "رز"]);
+  }).toEqual([brandId, "كرتون", '"1"', "رز"]);
   await expect.poll(() => catalogCalls.some((call) =>
     call.p_search === "رز" &&
     call.p_brand_id === brandId &&
