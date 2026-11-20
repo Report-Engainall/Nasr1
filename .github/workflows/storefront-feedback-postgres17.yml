@@ -10,6 +10,7 @@ on:
       - "src/components/StorefrontProductQuestions.test.tsx"
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
+      - "scripts/test-authorization-bootstrap.mjs"
       - "scripts/test-cash-expense-commitments.mjs"
       - "src/components/CashExpenseCommitmentWorkspace.tsx"
       - "src/components/CashExpenseCommitmentWorkspace.test.tsx"
@@ -34,6 +35,7 @@ on:
       - "src/components/StorefrontProductQuestions.test.tsx"
       - "scripts/test-storefront-product-reviews.mjs"
       - "scripts/test-storefront-product-questions.mjs"
+      - "scripts/test-authorization-bootstrap.mjs"
       - "scripts/test-cash-expense-commitments.mjs"
       - "src/components/CashExpenseCommitmentWorkspace.tsx"
       - "src/components/CashExpenseCommitmentWorkspace.test.tsx"
@@ -181,6 +183,9 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+
+      - name: Accept Authorization V2 bootstrap, role grants and stock-count scope on local PostgreSQL 17
+        run: node scripts/test-authorization-bootstrap.mjs
 
       - name: Accept verified-purchase review submission, moderation, privacy and tenant isolation
         run: node scripts/test-storefront-product-reviews.mjs
