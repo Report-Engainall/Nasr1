@@ -773,6 +773,23 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   assert.deepEqual(warehouseBAuditAfter[0],warehouseBAuditBefore[0],
     "cross-warehouse completion denial must not add a completion audit");
 
+  // This open B-session exists only to prove cross-warehouse denial. Remove the
+  // disposable fixture after every assertion so later PostgreSQL acceptance
+  // scripts can independently select the same warehouse and exercise session
+  // creation without colliding with a leaked open-count row.
+  const removedStaffFixture = await db.unsafe(
+    "delete from public.stock_count_sessions where id=$1::uuid returning id::text",
+    [staffSession.id]
+  );
+  assert.deepEqual(removedStaffFixture, [{ id: staffSession.id }],
+    "the cross-warehouse stock-count fixture must be removed after its denial proofs");
+  const remainingStaffFixtureLines = await db.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines where session_id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.equal(remainingStaffFixtureLines[0].count, 0,
+    "deleting the disposable session must cascade its snapshot lines");
+
   await assert.rejects(
     ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
       "update public.stock_count_sessions set status='completed' where id=$1::uuid returning id",
