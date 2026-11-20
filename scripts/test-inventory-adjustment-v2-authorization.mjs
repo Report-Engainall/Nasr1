@@ -493,6 +493,30 @@ async function main() {
         );
         await applyActor(tx, actors.manager);
 
+        // Close the intentionally draft count fixture before the independent
+        // balance-adjustment acceptance in this same warehouse.
+        const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
+        const cancelledCount = decodeJson((await tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text) as result",
+          [countSession.id,cancellationReason],
+        ))[0].result);
+        assert.equal(cancelledCount.status,"cancelled");
+        const [cancelledCountState] = await tx.unsafe(
+          "select status,cancelled_by,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(cancelledCountState.status,"cancelled");
+        assert.equal(cancelledCountState.cancelled_by,actors.manager.profile_id);
+        assert.equal(cancelledCountState.cancellation_reason,cancellationReason);
+        const cancellationAudits = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId,countSession.id],
+        );
+        assert.equal(cancellationAudits[0].count,1,
+          "cancelling the draft count must append exactly one audit event");
+
         const permittedDecisionRows = await tx.unsafe(
           "select public.current_authorization_decision('inventory.balance.adjust',$1::uuid) as decision," +
           "public.current_actor_has_capability('inventory.balance.adjust',$1::uuid) as allowed",
