@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCartAvailabilitySnapshot,
   compareCartAvailabilitySnapshots,
+  planCartAvailabilityAdjustments,
   compareCartPricingSnapshots,
   getCartAvailabilitySnapshot,
   getCartPricingSnapshot,
@@ -124,6 +125,38 @@ describe("cart availability change review", () => {
     rememberCartAvailabilitySnapshot(identity, ids, snapshot);
     expect(getCartAvailabilitySnapshot(identity, [...ids].reverse())).toEqual(snapshot);
     expect(getCartAvailabilitySnapshot(otherIdentity, ids)).toBeNull();
+  });
+
+  it("plans valid quantity reductions and removes lines that cannot meet minimum order rules", () => {
+    const changes = [
+      { product_id: ids[0], previous_status: "active" as const, current_status: "active" as const, previous_available: 30, current_available: 7, kind: "reduced" as const },
+      { product_id: ids[1], previous_status: "active" as const, current_status: "active" as const, previous_available: 10, current_available: 1, kind: "reduced" as const },
+    ];
+    const plan = planCartAvailabilityAdjustments(
+      [{ product_id: ids[0], quantity: 10 }, { product_id: ids[1], quantity: 4 }],
+      changes,
+      [
+        { product_id: ids[0], min_order_quantity: 2, order_quantity_multiple: 2 },
+        { product_id: ids[1], min_order_quantity: 2, order_quantity_multiple: 2 },
+      ],
+    );
+    expect(plan).toEqual([
+      { product_id: ids[0], previous_quantity: 10, next_quantity: 6, action: "reduce" },
+      { product_id: ids[1], previous_quantity: 4, next_quantity: null, action: "remove" },
+    ]);
+  });
+
+  it("blocks automatic quantity changes when the server cannot confirm availability", () => {
+    const changes = [
+      { product_id: ids[0], previous_status: "active" as const, current_status: "active" as const, previous_available: 30, current_available: null, kind: "unknown" as const },
+    ];
+    expect(planCartAvailabilityAdjustments(
+      [{ product_id: ids[0], quantity: 4 }],
+      changes,
+      [],
+    )).toEqual([
+      { product_id: ids[0], previous_quantity: 4, next_quantity: null, action: "blocked" },
+    ]);
   });
 
   it("distinguishes restored, increased and unknown availability", () => {
