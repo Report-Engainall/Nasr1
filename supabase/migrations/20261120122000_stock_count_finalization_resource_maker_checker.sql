@@ -29,7 +29,9 @@ BEGIN
   'inventory.count.finalize',v_session.warehouse_id
  );
  IF v_finalize_decision->>'decision' IS DISTINCT FROM 'REQUIRES_APPROVAL'
-    OR (v_finalize_decision->>'separation_of_duties')::boolean IS DISTINCT FROM true
+    OR v_finalize_decision->>'approval_mode' IS DISTINCT FROM 'maker_checker'
+    OR coalesce((v_finalize_decision->>'separation_of_duties')::boolean,false) IS DISTINCT FROM true
+    OR v_session.started_by IS NULL
     OR v_actor=v_session.started_by THEN
   RAISE EXCEPTION USING ERRCODE='42501',
    MESSAGE='stock-count finalization requires an assigned independent maker-checker reviewer';
