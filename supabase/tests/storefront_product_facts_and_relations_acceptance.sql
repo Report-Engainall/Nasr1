@@ -98,12 +98,18 @@ CREATE OR REPLACE FUNCTION public.get_storefront_product_prices(p_product_ids uu
 RETURNS TABLE(product_id uuid,unit_price numeric(15,2))
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $$
+  -- Deliberately neutral price source: this resolver knows only the current
+  -- tier and authorization context. It must not implement show_price_on_cards;
+  -- the public catalog projection alone is responsible for redacting the value.
   SELECT p.id,
     CASE
-      WHEN auth.uid() IS NULL AND COALESCE((SELECT (s.value #>> '{}')::boolean FROM public.admin_settings s WHERE s.organization_id=p.organization_id AND s.key='show_price_on_cards'),true) THEN p.base_price
-      WHEN auth.uid() IS NOT NULL AND COALESCE(NULLIF(public.get_current_tenant_context()->>'can_view_internal_product_prices','')::boolean,false) THEN p.base_price
-      WHEN auth.uid() IS NOT NULL AND NOT COALESCE(NULLIF(public.get_current_tenant_context()->>'is_staff','')::boolean,false)
-        AND COALESCE((SELECT (s.value #>> '{}')::boolean FROM public.admin_settings s WHERE s.organization_id=p.organization_id AND s.key='show_price_on_cards'),true) THEN quote.unit_price
+      WHEN auth.uid() IS NULL THEN p.base_price
+      WHEN auth.uid() IS NOT NULL
+        AND COALESCE(NULLIF(public.get_current_tenant_context()->>'can_view_internal_product_prices','')::boolean,false)
+        THEN p.base_price
+      WHEN auth.uid() IS NOT NULL
+        AND NOT COALESCE(NULLIF(public.get_current_tenant_context()->>'is_staff','')::boolean,false)
+        THEN quote.unit_price
       ELSE NULL::numeric(15,2)
     END::numeric(15,2)
   FROM public.products p
@@ -334,8 +340,13 @@ UPDATE public.admin_settings SET value='false'::jsonb
 WHERE organization_id='a0000000-0000-4000-8000-000000000001' AND key='show_price_on_cards';
 SET ROLE anon;
 DO $hidden_price$
-DECLARE v_result jsonb; v_item jsonb;
+DECLARE v_result jsonb; v_item jsonb; v_resolver_price numeric(15,2);
 BEGIN
+  SELECT price.unit_price INTO v_resolver_price
+  FROM public.get_storefront_product_prices(ARRAY['a4000000-0000-4000-8000-000000000001'::uuid],1) price;
+  IF v_resolver_price IS DISTINCT FROM 50.00::numeric(15,2) THEN
+    RAISE EXCEPTION 'neutral source resolver must still return its price while the card policy is hidden: %',v_resolver_price;
+  END IF;
   v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,false,'a4000000-0000-4000-8000-000000000001');
   v_item:=v_result->'items'->0;
   IF v_item IS NULL OR v_item->'display_price'<>'null'::jsonb OR v_item?'base_price' OR v_item?'cost_price' OR v_item?'margin' THEN
@@ -396,8 +407,13 @@ UPDATE public.admin_settings SET value='false'::jsonb
 WHERE organization_id='a0000000-0000-4000-8000-000000000001' AND key='show_price_on_cards';
 SET ROLE authenticated;
 DO $customer_hidden$
-DECLARE v_result jsonb; v_item jsonb;
+DECLARE v_result jsonb; v_item jsonb; v_resolver_price numeric(15,2);
 BEGIN
+  SELECT price.unit_price INTO v_resolver_price
+  FROM public.get_storefront_product_prices(ARRAY['a4000000-0000-4000-8000-000000000001'::uuid],1) price;
+  IF v_resolver_price IS DISTINCT FROM 42.75::numeric(15,2) THEN
+    RAISE EXCEPTION 'neutral customer-tier resolver must remain independent of catalog display policy: %',v_resolver_price;
+  END IF;
   v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,false,
     'a4000000-0000-4000-8000-000000000001');
   v_item:=v_result->'items'->0;
