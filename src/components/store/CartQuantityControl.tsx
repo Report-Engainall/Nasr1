@@ -89,9 +89,11 @@ export function CartQuantityControl({
   };
 
   const next = nextCartQuantity(quantity, minimum, multiple);
-  const previous = maximumAllowed !== null && quantity > maximumAllowed
-    ? maximumAllowed
-    : previousCartQuantity(quantity, minimum, multiple);
+  const previous = maximum !== null && maximum < minimum
+    ? null
+    : maximumAllowed !== null && quantity > maximumAllowed
+      ? maximumAllowed
+      : previousCartQuantity(quantity, minimum, multiple);
   const nextDisabled = maximum !== null && next > maximum;
 
   const commitStep = (value: number) => {
