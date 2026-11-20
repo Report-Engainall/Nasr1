@@ -198,6 +198,19 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
     "the reviewer decision must retain the configured Maker/Checker approval mode: "+JSON.stringify(reviewerDecision));
    assert.equal(reviewerDecision?.separation_of_duties,true,
     "the reviewer decision must retain separation of duties: "+JSON.stringify(reviewerDecision));
+   const sessionMakerRows=await tx.unsafe(
+    "select started_by::text from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,sessionA.id]
+   );
+   assert.equal(sessionMakerRows[0]?.started_by,manager.profile_id,
+    "the persisted session maker must be the manager who started warehouse A");
+   assert.notEqual(sessionMakerRows[0]?.started_by,admin.profile_id,
+    "the reviewer profile must differ from the persisted session maker");
+   const reviewerIdentityRows=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.current_profile_id()::text as profile_id"
+   ));
+   assert.equal(reviewerIdentityRows[0]?.profile_id,admin.profile_id,
+    "the reviewer JWT must resolve to the intended administrator profile");
    const finalized=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
     "select public.complete_stock_count($1::uuid) as result",[sessionA.id]
    ));
