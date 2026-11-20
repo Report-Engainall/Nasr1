@@ -145,11 +145,19 @@ async function main() {
     `);
 
     const migrationPath = fileURLToPath(new URL("../supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql", import.meta.url));
-    const migrationSql = await readFile(migrationPath, "utf8");
-    await db.unsafe(migrationSql);
+    const migrationSource = await readFile(migrationPath, "utf8");
+    const migrationSql = migrationSource
+      .replace(/^\\s*BEGIN;\\s*$/im, "")
+      .replace(/^\\s*COMMIT;\\s*$/im, "");
+    if (/^\\s*BEGIN;\\s*$/im.test(migrationSql) || /^\\s*COMMIT;\\s*$/im.test(migrationSql)) {
+      throw new Error("Could not remove standalone transaction wrappers from the tested bank-match migration.");
+    }
+    // The actual migration body is replayed atomically through postgres.js's
+    // managed transaction API; raw SQL must not issue nested BEGIN/COMMIT.
+    await db.begin(async (tx) => tx.unsafe(migrationSql));
     // Reapplying the function definition must be safe; this also guards against
     // accidental one-shot migration behavior in the retry contract.
-    await db.unsafe(migrationSql);
+    await db.begin(async (tx) => tx.unsafe(migrationSql));
 
     const privilege = await db.unsafe(
       "select has_function_privilege('anon','public.match_finance_bank_statement_line(uuid,uuid,uuid,integer)','EXECUTE') as anon_exec," +
