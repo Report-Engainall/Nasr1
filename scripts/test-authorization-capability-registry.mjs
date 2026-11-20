@@ -88,8 +88,10 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
   "where role='manager' and capability_key='inventory.reorder_point.write'"
  );
  let rollbackFailure;
+ let rollbackPhase="starting rollback-only upgrade fixture";
  try {
   await db.begin(async(tx)=>{
+   rollbackPhase="checking pre-existing capability rows";
    const initial=await tx.unsafe("select capability_key from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key");
    assert.equal(initial.length,2,"upgrade fixture requires both existing capability rows");
    const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
@@ -102,11 +104,16 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
     "where capability_key='inventory.reorder_point.write'",
     [JSON.stringify(preservedPolicy)]
    );
+   rollbackPhase="removing a deliberately revoked manager grant";
    await tx.unsafe("delete from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+   rollbackPhase="replaying the authorization prerequisites migration";
    await tx.unsafe(migrationSql);
+   rollbackPhase="replaying the canonical capability catalog seed";
    await tx.unsafe(canonicalSeed[0]);
+   rollbackPhase="asserting existing warehouse capability preservation";
    const scope=await tx.unsafe("select scope_kind,is_active from public.authorization_capabilities where capability_key='inventory.balance.adjust'");
    assert.deepEqual(scope[0],{scope_kind:'warehouse',is_active:true},"prerequisite backfill must not widen or alter an existing warehouse capability");
+   rollbackPhase="asserting disabled capability policy preservation";
    const disabled=await tx.unsafe(
     "select scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
     "from public.authorization_capabilities where capability_key='inventory.reorder_point.write'"
@@ -115,23 +122,27 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
     scope_kind:'warehouse',approval_mode:'maker_checker',separation_of_duties:true,
     state_requirements:preservedPolicy,is_active:false
    },"both prerequisite and canonical capability seeds must preserve existing scope, approval policy, metadata and disabled state");
+   rollbackPhase="asserting removed role grant stays removed";
    const restored=await tx.unsafe("select count(*)::integer as count from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
    assert.equal(restored[0].count,0,"prerequisite backfill must not recreate a deliberately removed role grant");
+   rollbackPhase="asserting the pre-existing role-table upgrade branch";
    const flag=await tx.unsafe("select current_setting('nasr.authorization_role_capabilities_preexisting',true) as existed");
    assert.equal(flag[0].existed,"true","fixture must prove the pre-existing-role-table upgrade branch");
+   rollbackPhase="triggering the expected full rollback";
    throw new Error(rollbackMarker);
   });
  } catch(cause) {
   rollbackFailure=cause;
  }
- assert.equal(
-  rollbackFailure?.message,
-  rollbackMarker,
-  "upgrade-safety transaction must roll back only after all preservation assertions. Actual rejection: "+
+ if(rollbackFailure?.message!==rollbackMarker) {
+  throw new Error(
+   "upgrade-safety fixture failed during \""+rollbackPhase+"\" before the planned rollback: "+
    String(rollbackFailure?.message??rollbackFailure??"transaction unexpectedly committed")+
    (rollbackFailure?.code?" [SQLSTATE "+rollbackFailure.code+"]":"")+
-   (rollbackFailure?.detail?" — "+rollbackFailure.detail:"")
- );
+   (rollbackFailure?.detail?" — "+rollbackFailure.detail:""),
+   {cause:rollbackFailure}
+  );
+ }
  const postFixtureCapabilities=await db.unsafe(
   "select capability_key,domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active "+
   "from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key"
