@@ -13,8 +13,10 @@ DECLARE
  v_positive numeric(20,3) := 0; v_negative numeric(20,3) := 0; v_line_count integer := 0; v_counted_lines integer := 0;
 BEGIN
  SELECT p.organization_id INTO v_org FROM public.profiles p WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active;
- IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL THEN
-  RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='authenticated stock-count reviewer and active organization are required';
+ IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR p_session_id IS NULL THEN
+  -- A missing session identifier is an authorization-boundary failure: do not
+  -- distinguish missing/closed sessions before the caller has a resource identity.
+  RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='authenticated stock-count reviewer, active organization and session identity are required';
  END IF;
  SELECT s.* INTO v_session FROM public.stock_count_sessions s
   WHERE s.id=p_session_id AND s.organization_id=v_org FOR UPDATE;
