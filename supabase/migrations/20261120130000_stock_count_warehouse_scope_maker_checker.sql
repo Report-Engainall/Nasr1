@@ -181,7 +181,7 @@ COMMENT ON FUNCTION public.complete_stock_count(uuid) IS
  'Finalizes a warehouse stock count only for a distinct assigned Maker/Checker reviewer; preserves warehouse serialization, stale-snapshot rejection, atomic balance movements and audit history.';
 
 CREATE OR REPLACE FUNCTION public.cancel_stock_count(p_session_id uuid,p_reason text)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $cancel$
 DECLARE
  v_actor uuid := public.current_profile_id();
  v_org uuid;
@@ -224,7 +224,7 @@ BEGIN
   pg_catalog.jsonb_build_object('status','cancelled','reason',v_reason,'cancelled_by',v_actor));
  RETURN pg_catalog.jsonb_build_object('session_id',v_session.id,'status','cancelled','reason',v_reason);
 END;
-$;
+$cancel$;
 REVOKE ALL ON FUNCTION public.cancel_stock_count(uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.cancel_stock_count(uuid,text) TO authenticated;
 COMMENT ON FUNCTION public.cancel_stock_count(uuid,text) IS
