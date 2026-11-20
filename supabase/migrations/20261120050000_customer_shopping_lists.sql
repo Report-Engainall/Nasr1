@@ -849,9 +849,8 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'shopping list run was already loaded, cancelled or is no longer available';
   END IF;
 
-  SELECT NULLIF(v_context->>'warehouse_id','')::uuid
-    INTO v_warehouse
-    FROM (SELECT public.get_current_tenant_context() AS v_context) AS context_row;
+  v_context := public.get_current_tenant_context();
+  v_warehouse := NULLIF(v_context->>'warehouse_id','')::uuid;
   IF v_warehouse IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'current warehouse is not configured; stock availability cannot be verified';
   END IF;
