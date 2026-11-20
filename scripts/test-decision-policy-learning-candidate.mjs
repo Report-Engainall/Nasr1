@@ -347,6 +347,11 @@ async function main() {
       assert.equal(Number(sourceDiagnostics[0].reloaded_actual_metric.value), amount,
         "the reloaded actual metric must retain the server-measured amount");
       assert.equal(sourceDiagnostics[0].reloaded_actual_metric.status, "VERIFIED");
+      assert.ok(Array.isArray(sourceDiagnostics[0].reloaded_memory_snapshot?.evidenceRecords),
+        "a reloaded decision snapshot must normalize a stored JSON null evidenceRecords field to an array");
+      assert.ok(sourceDiagnostics[0].reloaded_memory_snapshot.evidenceRecords.some((record) =>
+        record.id === "dmactual:" + sourceDiagnostics[0].reloaded_memory_snapshot.id + ":invoice:" + invoiceId
+      ), "reloaded evidenceRecords must include the full tenant-resolved source invoice");
       await setActor(tx, managerClaims);
 
       assert.ok(memoryResult?.snapshot && typeof memoryResult.snapshot.id === "string",
