@@ -640,14 +640,62 @@ async function main() {
         );
         assert.equal(unassignedCancellationAudit.count, 0,
           "unassigned cancellation must not produce an audit event");
+        // Close this test session as an authorized, temporarily assigned manager.
+        // Stock-count snapshots are immutable: never DELETE the session or its lines.
         await tx.unsafe("reset role");
-        await tx.unsafe("delete from public.stock_count_sessions where id=$1::uuid", [unassignedSession.id]);
+        const [existingManagerOtherWarehouseScope] = await tx.unsafe(
+          "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+          "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.manager.profile_id, otherWarehouse.warehouse_id],
+        );
+        const managerOtherWarehouseRevision = existingManagerOtherWarehouseScope
+          ? Number(existingManagerOtherWarehouseScope.revision) : 0;
+        await applyActor(tx, actors.admin);
+        const managerOtherWarehouseAssignment = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.manager.profile_id, otherWarehouse.warehouse_id,
+            "Temporary P2 cleanup scope after cross-warehouse denial proof",
+            managerOtherWarehouseRevision],
+        ))[0].result);
+        assert.equal(managerOtherWarehouseAssignment.is_active, true);
+        await applyActor(tx, actors.manager);
+        const cancelledUnassignedFixture = decodeJson((await tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text) as result",
+          [unassignedSession.id, "Close cross-warehouse denial fixture through authorized audited cancellation"],
+        ))[0].result);
+        assert.equal(cancelledUnassignedFixture.status, "cancelled");
+        const [cancelledUnassignedState] = await tx.unsafe(
+          "select status,cancelled_by::text from public.stock_count_sessions where id=$1::uuid",
+          [unassignedSession.id],
+        );
+        assert.deepEqual(cancelledUnassignedState, {
+          status: "cancelled", cancelled_by: actors.manager.profile_id,
+        });
+        const [retainedUnassignedLines] = await tx.unsafe(
+          "select count(*)::integer as count from public.stock_count_lines where session_id=$1::uuid",
+          [unassignedSession.id],
+        );
+        assert.ok(retainedUnassignedLines.count > 0,
+          "authorized cancellation must retain the immutable stock-count snapshot lines");
+        const [unassignedCancellationMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements " +
+          "where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [unassignedSession.id],
+        );
+        assert.equal(unassignedCancellationMovements.count, 0);
+        await tx.unsafe("reset role");
         await applyActor(tx, actors.admin);
         await tx.unsafe(
           "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer)",
           [actors.staff.profile_id, otherWarehouse.warehouse_id,
             "Revoke temporary isolated cancellation fixture scope",
             Number(staffOtherWarehouseAssignment.revision)],
+        );
+        await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer)",
+          [actors.manager.profile_id, otherWarehouse.warehouse_id,
+            "Revoke temporary manager cancellation cleanup scope",
+            Number(managerOtherWarehouseAssignment.revision)],
         );
         await applyActor(tx, actors.manager);
 
