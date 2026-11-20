@@ -172,6 +172,7 @@ on:
       - "src/lib/intelligence/cashflow-schedule-client.operating-commitments.test.ts"
       - "scripts/test-price-grid-atomicity.mjs"
       - "scripts/test-authorization-capability-registry.mjs"
+      - "scripts/test-decision-policy-learning-candidate.mjs"
       - "src/components/CustomerServiceDesk.tsx"
       - "src/components/CustomerNotificationCenter.tsx"
       - "src/components/CustomerServicePortal.tsx"
@@ -362,10 +363,12 @@ on:
       - "src/lib/admin-order-progress.test.ts"
       - "src/lib/api.admin-orders-page.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
+      - "src/test/customer-order-detail-route-acceptance.test.tsx"
   pull_request:
     branches:
       - main
     paths:
+      - "src/test/customer-order-detail-route-acceptance.test.tsx"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
@@ -584,6 +587,7 @@ on:
       - "scripts/test-cash-expense-journal-posting.mjs"
       - "scripts/test-price-grid-atomicity.mjs"
       - "scripts/test-authorization-capability-registry.mjs"
+      - "scripts/test-decision-policy-learning-candidate.mjs"
       - "src/lib/supabase.ts"
       - "src/lib/data-center.ts"
       - "src/lib/storefront-categories.ts"

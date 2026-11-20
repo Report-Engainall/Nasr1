@@ -39,6 +39,25 @@ async function signIn(apiUrl, publishableKey, email, password) {
 function decode(value) {
   return typeof value === "string" ? JSON.parse(value) : value;
 }
+function assertCompleteEvidenceProjection(snapshot, label) {
+  const records = snapshot?.evidenceRecords;
+  assert.ok(Array.isArray(records), label + " evidenceRecords must be a JSON array");
+  for (const metricName of ["expectedMetric", "actualMetric"]) {
+    const metric = snapshot?.[metricName];
+    const evidenceIds = metric?.lineage?.evidenceIds;
+    assert.ok(Array.isArray(evidenceIds) && evidenceIds.length > 0,
+      label + " " + metricName + " must retain source evidence IDs");
+    for (const evidenceId of evidenceIds) {
+      assert.ok(records.some((record) =>
+        record?.id === evidenceId &&
+        record.status === "VERIFIED" &&
+        record.completeness === "COMPLETE" &&
+        record.quality === "ACCEPTABLE"
+      ), label + " " + metricName + " evidence " + evidenceId +
+        " must resolve to a complete, acceptable source record");
+    }
+  }
+}
 async function expectSqlState(tx, expectedCode, action, label) {
   const savepoint = "policy_learning_expected_failure";
   await tx.unsafe("SAVEPOINT " + savepoint);
@@ -142,7 +161,7 @@ async function main() {
 
       const invoiceRows = await tx.unsafe(
         "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount,due_at) " +
-        "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',transaction_timestamp()-interval '1 second','YER',$5,0,$5,$6::date) returning id",
+        "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',transaction_timestamp()-interval '1 minute','YER',$5,0,$5,$6::date) returning id",
         [manager.organization_id, customerId, orderId, invoiceNumber, amount, periodFrom],
       );
       assert.equal(invoiceRows.length, 1, "the rollback-only invoice source must be created");
@@ -195,7 +214,7 @@ async function main() {
         "select public.create_decision_outcome_proposal_with_snapshot(" +
         "$1::text,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::jsonb,$8::text) as result",
         [candidateId, ruleId, ruleVersion, manager.profile_id, expectedOutcome,
-          "إنشاء قرار اختبار قبل القياس.", JSON.stringify(candidateSnapshot), randomUUID()],
+          "إنشاء قرار اختبار قبل القياس.", candidateSnapshot, randomUUID()],
       );
       const proposal = decode(proposalRows[0].result);
       assert.equal(proposal?.ok, true, "the manager must create the snapshot-backed decision");
@@ -206,7 +225,7 @@ async function main() {
           "select public.command_decision_outcome(" +
           "$1::uuid,$2::text,$3::text,$4::integer,$5::text,$6::text,$7::uuid,$8::jsonb) as result",
           [outcomeId, randomUUID(), randomUUID(), expectedVersion, eventType,
-            "اختبار دورة قرار معزولة.", ownerProfileId, measuredOutcome ? JSON.stringify(measuredOutcome) : null],
+            "اختبار دورة قرار معزولة.", ownerProfileId, measuredOutcome],
         );
         return decode(rows[0].result);
       }
@@ -251,14 +270,62 @@ async function main() {
         lessons: ["تُراجع نتيجة المتابعة وفق قياس موثق."],
         expectedMetric: { key: "cashflow.expected_collections", currency: "YER" },
       };
+      process.stdout.write("Decision memory save preflight: " + JSON.stringify({
+        asOf,
+        period: { from: periodFrom, to: periodTo },
+        snapshotFields: Object.keys(memorySnapshot).sort(),
+        role: "authenticated manager via existing save RPC",
+      }) + "\\n");
+      await setActor(tx, managerClaims);
+
       const memoryRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,0,$2::jsonb,NULL,$3::text) as result",
-        [outcomeId, JSON.stringify(memorySnapshot), randomUUID()],
+        [outcomeId, memorySnapshot, randomUUID()],
       );
       const memoryResult = decode(memoryRows[0].result);
       assert.equal(memoryResult?.ok, true, "the actual source-derived decision-memory snapshot must be saved");
-      assert.equal(memoryResult.snapshot.actualMetric.value, amount);
+      assert.ok(memoryResult.snapshot && typeof memoryResult.snapshot.id === "string",
+        "the decision-memory command must return the just-inserted immutable snapshot");
+      assert.equal(memoryResult.snapshot.version, 1,
+        "the first decision-memory capture must return version one");
+
+      // Re-read the immutable snapshot through the same tenant-scoped,
+      // authenticated RPC used by the product. Do not bypass table ACL/RLS
+      // with direct test-only reads of decision_outcomes or snapshot internals.
+      const outcomeReadRows = await tx.unsafe(
+        "select public.fetch_decision_outcomes(100,0) as result",
+      );
+      const outcomeRead = decode(outcomeReadRows[0].result);
+      const persistedOutcome = outcomeRead?.items?.find((item) => item.id === outcomeId);
+      assert.ok(persistedOutcome,
+        "the authenticated tenant-scoped outcome read must return the saved decision");
+      const reloadedMemorySnapshot = decode(persistedOutcome.memorySnapshot);
+      assert.ok(reloadedMemorySnapshot && typeof reloadedMemorySnapshot.id === "string",
+        "the authenticated outcome read must return the persisted immutable memory snapshot");
+      assert.equal(Number(reloadedMemorySnapshot.actualMetric?.value), amount,
+        "the persisted actualMetric must be reloaded through the authorized outcome read");
+      assert.equal(reloadedMemorySnapshot.actualMetric.status, "VERIFIED");
+      assert.ok(Array.isArray(reloadedMemorySnapshot.evidenceRecords),
+        "the authenticated outcome read must return evidenceRecords as an array");
+      assert.ok(reloadedMemorySnapshot.evidenceRecords.some((record) =>
+        record.id === "dmactual:" + reloadedMemorySnapshot.id + ":invoice:" + invoiceId
+      ), "the reloaded evidenceRecords must include the tenant-resolved measured invoice");
+      assertCompleteEvidenceProjection(reloadedMemorySnapshot, "authenticated reloaded decision snapshot");
+
+      assert.ok(memoryResult?.snapshot && typeof memoryResult.snapshot.id === "string",
+        "save_decision_memory_snapshot must return the row it just inserted");
+      assert.equal(memoryResult.snapshot.actualMetric?.value, amount,
+        "the immediate response must project the verified measurement after resolving its invoice evidence");
       assert.equal(memoryResult.snapshot.expectedMetric.value, amount);
+      assert.deepEqual(memoryResult.snapshot.actualMetric.lineage.evidenceIds,
+        ["dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId],
+        "the actual metric must retain the namespaced source invoice lineage");
+      assert.ok(Array.isArray(memoryResult.snapshot.evidenceRecords),
+        "the immediate save response must always return evidenceRecords as a JSON array");
+      assert.ok(memoryResult.snapshot.evidenceRecords.some((record) =>
+        record.id === "dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId
+      ), "the immutable memory snapshot must preserve its resolved source evidence record");
+      assertCompleteEvidenceProjection(memoryResult.snapshot, "immediate decision snapshot");
 
       const createRows = await tx.unsafe(
         "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text) as result",
@@ -346,10 +413,20 @@ async function main() {
       assert.equal(approved.candidate.eventCount, 3);
       assert.equal(approved.candidate.candidateSnapshot.activeProfileChanged, false);
 
-      // A corrected memory with a different measurement as-of timestamp must not
-      // produce a candidate; the expected and actual snapshots are not comparable.
+      // A later memory baseline remains after the source invoice was issued,
+      // but differs from the terminal measurement timestamp. The save command
+      // must preserve that valid source population; candidate creation must then
+      // reject the expected/actual as-of mismatch.
       await setActor(tx, managerClaims);
       const mismatchAsOf = new Date(Date.parse(asOf) - 30_000).toISOString();
+      const mismatchSourceRows = await tx.unsafe(
+        "select issued_at <= $2::timestamptz as predates_mismatched_as_of " +
+        "from public.customer_invoices where id=$1::uuid and organization_id=$3::uuid",
+        [invoiceId, mismatchAsOf, manager.organization_id],
+      );
+      assert.equal(mismatchSourceRows.length, 1);
+      assert.equal(mismatchSourceRows[0].predates_mismatched_as_of, true,
+        "the source invoice must predate both the original and deliberately mismatched decision-memory timestamps");
       const mismatchedMemory = {
         ...memorySnapshot,
         asOf: mismatchAsOf,
@@ -357,14 +434,29 @@ async function main() {
       };
       const mismatchRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,1,$2::jsonb,$3::text,$4::text) as result",
-        [outcomeId, JSON.stringify(mismatchedMemory), "اختبار اختلاف وقت خط الأساس عن النتيجة.", randomUUID()],
+        [outcomeId, mismatchedMemory, "اختبار اختلاف وقت خط الأساس عن النتيجة.", randomUUID()],
       );
       const mismatchedSnapshot = decode(mismatchRows[0].result);
       assert.equal(mismatchedSnapshot?.ok, true);
       assert.equal(mismatchedSnapshot.snapshot.version, 2);
+      const savedExpectedAsOf = Date.parse(mismatchedSnapshot.snapshot.expectedMetric.asOf);
+      const savedActualAsOf = Date.parse(mismatchedSnapshot.snapshot.actualMetric.asOf);
+      assert.ok(Number.isFinite(savedExpectedAsOf), "the saved expected-metric timestamp must be valid");
+      assert.ok(Number.isFinite(savedActualAsOf), "the saved actual-metric timestamp must be valid");
+      assert.equal(
+        savedExpectedAsOf,
+        Date.parse(mismatchAsOf),
+        "the saved baseline must retain the deliberately older, still-valid as-of instant",
+      );
+      assert.equal(
+        savedActualAsOf,
+        Date.parse(asOf),
+        "the saved measured outcome must retain its original source-measurement instant",
+      );
       assert.notEqual(
-        mismatchedSnapshot.snapshot.expectedMetric.asOf,
-        mismatchedSnapshot.snapshot.actualMetric.asOf,
+        savedExpectedAsOf,
+        savedActualAsOf,
+        "the baseline and terminal measurement must remain distinct instants",
       );
       await expectSqlState(tx, "22023", () => tx.unsafe(
         "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text)",
@@ -378,7 +470,7 @@ async function main() {
       };
       const correctionRows = await tx.unsafe(
         "select public.save_decision_memory_snapshot($1::uuid,2,$2::jsonb,$3::text,$4::text) as result",
-        [outcomeId, JSON.stringify(correctedMemory), "تصحيح الدروس بعد مراجعة القياس.", randomUUID()],
+        [outcomeId, correctedMemory, "تصحيح الدروس بعد مراجعة القياس.", randomUUID()],
       );
       const correction = decode(correctionRows[0].result);
       assert.equal(correction?.ok, true);

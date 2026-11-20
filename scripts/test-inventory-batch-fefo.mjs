@@ -21,14 +21,34 @@ async function receipt(manager,batch,expiry){
  const po=(await rpc("select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) result",
  [supplier,warehouse,db.json([{product_id:product,quantity:1,unit_cost:125.5}]),"FEFO "+batch,randomUUID().replaceAll("-","")])).purchase_order.id;
  assert.ok(po);await rpc("select public.submit_purchase_order($1::uuid) result",[po]);
- const line=(await db.unsafe("select id::text from public.purchase_order_items where organization_id=$1::uuid and purchase_order_id=$2::uuid",[org,po]))[0];
+ const visibleOrders=await rpc("select public.fetch_purchase_orders() result");
+ assert.ok(Array.isArray(visibleOrders),"authorized purchase-order reader must return an array");
+ const visibleOrder=visibleOrders.find(value=>value.id===po);
+ assert.ok(visibleOrder,"manager must read the submitted purchase order through the tenant-authorized RPC");
+ assert.equal(visibleOrder.organization_id,org,"purchase-order detail must remain inside the active organization");
+ const item=visibleOrder.items?.find(value=>value.product_id===product && Number(value.remaining_quantity)===1);
+ assert.ok(item,"purchase-order RPC must return the submitted line with its remaining quantity");
+ const line={id:item.id};
  const input={item_id:line.id,quantity:1,batch_number:batch,expiry_date:expiry},key="fefo-"+randomUUID().replaceAll("-","");
  const first=await rpc("select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) result",[po,db.json([input]),"Physical FEFO acceptance",key]);
  const replay=await rpc("select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) result",[po,db.json([input]),"Physical FEFO acceptance",key]);
  assert.ok(first.receipt.id);assert.equal(replay.idempotent_replay,true);
  await db.unsafe("reset role");return {receiptId:first.receipt.id,batch,expiry};
 }
-async function status(manager,id,s){await as(manager);await db.unsafe("update public.orders set status=$2::text,updated_at=now() where id=$1::uuid",[id,s]);await db.unsafe("reset role");}
+// FEFO acceptance exercises the order transition triggers, not table-write authorization.
+ // Keep the authenticated manager JWT claims for the trigger's staff/tenant checks,
+ // but run this isolated fixture UPDATE as the local database owner because direct
+ // orders-table DML is deliberately unavailable to authenticated clients. This
+ // does not grant table privileges or claim browser status-transition acceptance.
+ async function status(manager,id,s){
+  await as(manager);
+  await db.unsafe("reset role");
+  try {
+   await db.unsafe("update public.orders set status=$2::text,updated_at=now() where id=$1::uuid",[id,s]);
+  } finally {
+   await db.unsafe("reset role");
+  }
+ }
 async function main(){
  const manager=await actor(env("E2E_MANAGER_EMAIL")),customer=await actor(env("E2E_EMAIL"));
  const cust=(await db.unsafe("select id::text from public.customers where organization_id=$1::uuid and status='approved' order by created_at limit 1",[org]))[0];assert.ok(cust);
@@ -47,7 +67,7 @@ async function main(){
  assert.equal(print.items[0].batch_number,early.batch);assert.equal(print.items[0].expiry_date,ds.e);
  const order=(await rpc("select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO sale lot",randomUUID().replaceAll("-",""),"cash_on_delivery"])).id;
- assert.ok(order);await db.unsafe("update public.orders set status='confirmed',updated_at=now() where id=$1::uuid",[order]);await db.unsafe("reset role");
+ assert.ok(order);await status(manager,order,"confirmed");
  const res=(await db.unsafe("select im.inventory_batch_id::text id,b.batch_number,b.expiry_date::text from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve'",[order]));
  assert.equal(res.length,1);assert.equal(res[0].batch_number,early.batch);assert.equal(res[0].expiry_date,ds.e);
  await status(manager,order,"processing");await status(manager,order,"shipped");
@@ -59,7 +79,7 @@ async function main(){
  assert.equal(Number(parity.h),Number(parity.bh));assert.equal(Number(parity.r),Number(parity.br));
  await as(manager);const order2=(await rpc("select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO release",randomUUID().replaceAll("-",""),"cash_on_delivery"])).id;
- await db.unsafe("update public.orders set status='confirmed',updated_at=now() where id=$1::uuid",[order2]);await db.unsafe("reset role");
+ await status(manager,order2,"confirmed");
  const res2=(await db.unsafe("select inventory_batch_id::text id from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='reserve'",[order2]))[0];
  const batch2=(await db.unsafe("select batch_number from public.inventory_batches where id=$1::uuid",[res2.id]))[0];
  assert.equal(batch2.batch_number,late.batch);await status(manager,order2,"cancelled");
@@ -67,7 +87,8 @@ async function main(){
  assert.equal(rel.length,1);assert.equal(rel[0].id,res2.id);
  const restored=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r from public.inventory_batches where id=$1::uuid",[res2.id]))[0];
  assert.equal(Number(restored.h),1);assert.equal(Number(restored.r),0);
- const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<$1::date expired from public.inventory_batches where id=$2::uuid",[expiredDate,expiredBatchId]))[0];
+ // Compare the previous-day test lot with today, not with its own expiry date.
+ const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<(pg_catalog.now() at time zone 'UTC')::date expired from public.inventory_batches where id=$1::uuid",[expiredBatchId]))[0];
  assert.equal(expiredState.expired,true);assert.equal(Number(expiredState.h),1);assert.equal(Number(expiredState.r),0);
  await as(manager);const trace=await rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]);assert.equal(trace.product_id,product);assert.ok(trace.lots.some(x=>x.batch_number===late.batch));assert.ok(trace.lots.some(x=>x.batch_number===expiredBatch&&x.expired===true));
  await as(customer);

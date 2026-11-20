@@ -194,6 +194,13 @@ async function main() {
       "on conflict(profile_id,role) do nothing",
       [profileAId, profileBId, managerProfileId, companyMemberProfileId, customerManagerProfileId, accountantProfileId, adminProfileId, staffProfileId],
     );
+    // Auth signup provisions a default customer role. Internal E2E identities must
+    // be role-exclusive so the customer/staff boundary is tested against distinct
+    // accounts instead of synthetic dual-role profiles.
+    await tx.unsafe(
+      "delete from public.user_roles where role='customer' and profile_id=any($1::uuid[])",
+      [[managerProfileId, staffProfileId, adminProfileId, accountantProfileId, customerManagerProfileId]],
+    );
     await tx.unsafe(
       "insert into public.customers(" +
       "organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at" +

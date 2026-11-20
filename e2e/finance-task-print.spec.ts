@@ -355,9 +355,11 @@ test("authorized finance documents and operational-task print remain tenant-scop
     // Admin sales-order print must show only persisted order values, never editable draft values.
     await manager.goto("/admin/orders");
     await expect(manager.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
-    const salesOrderRow = manager.getByRole("row").filter({ hasText: orderNumber }).first();
-    await expect(salesOrderRow).toBeVisible({ timeout: 30_000 });
-    await salesOrderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+    // The live orders workspace renders semantic article cards, not table rows.
+    // Anchor the acceptance to the persisted order card and its actual review action.
+    const salesOrderCard = manager.locator("article.admin-order-card").filter({ hasText: orderNumber }).first();
+    await expect(salesOrderCard).toBeVisible({ timeout: 30_000 });
+    await salesOrderCard.getByRole("button", { name: "تفاصيل الطلب ومراجعته", exact: true }).click();
     await expect(manager.getByRole("heading", { name: "الطلب #" + orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
     const salesOrderPrintButton = manager.getByRole("button", { name: "طباعة أمر البيع", exact: true });
     await expect(salesOrderPrintButton).toBeEnabled();
@@ -446,7 +448,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
     await manager.goto("/admin/tasks");
     await expect(manager.getByRole("heading", { name: "مركز المهام التشغيلية" })).toBeVisible();
-    await manager.getByLabel("الحالة").selectOption("all");
+    await manager.locator(".task-filters").getByLabel("الحالة", { exact: true }).selectOption("all");
     await manager.getByLabel("نطاق الطباعة").selectOption("all");
     const printTasksButton = manager.getByRole("button", { name: "طباعة كل المهام المسموحة", exact: true });
     await expect(printTasksButton).toBeEnabled({ timeout: 15_000 });
