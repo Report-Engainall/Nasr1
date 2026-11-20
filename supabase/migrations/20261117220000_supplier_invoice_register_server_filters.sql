@@ -61,7 +61,7 @@ BEGIN
   ) ORDER BY po.created_at DESC,po.purchase_order_number DESC),'[]'::jsonb)
   INTO v_orders
   FROM public.purchase_orders po
-  JOIN public.suppliers s ON s.id=po.supplier_id
+  JOIN public.suppliers s ON s.id=po.supplier_id AND s.organization_id=po.organization_id
   JOIN public.organizations org ON org.id=po.organization_id
   WHERE po.organization_id=v_org AND po.status IN ('submitted','partially_received','received')
     AND (p_purchase_order_id IS NULL OR po.id=p_purchase_order_id)
@@ -85,7 +85,7 @@ BEGIN
       (poi.unit_cost IS NOT NULL AND ri.unit_cost IS NOT NULL AND ri.line_total IS NOT NULL) AS source_cost_complete
     FROM public.purchase_receipts r
     JOIN public.purchase_orders po ON po.id=r.purchase_order_id AND po.organization_id=r.organization_id
-    JOIN public.suppliers s ON s.id=po.supplier_id
+    JOIN public.suppliers s ON s.id=po.supplier_id AND s.organization_id=po.organization_id
     JOIN public.organizations org ON org.id=po.organization_id
     JOIN public.purchase_receipt_items ri ON ri.receipt_id=r.id AND ri.organization_id=r.organization_id
     JOIN public.purchase_order_items poi ON poi.id=ri.purchase_order_item_id AND poi.organization_id=ri.organization_id
@@ -165,7 +165,7 @@ BEGIN
       ) AS invoice_row
     FROM public.purchase_supplier_invoices i
     JOIN public.purchase_orders po ON po.id=i.purchase_order_id AND po.organization_id=i.organization_id
-    JOIN public.suppliers s ON s.id=i.supplier_id
+    JOIN public.suppliers s ON s.id=i.supplier_id AND s.organization_id=i.organization_id
     WHERE i.organization_id=v_org
       AND (p_purchase_order_id IS NULL OR i.purchase_order_id=p_purchase_order_id)
       AND (v_status IS NULL OR i.match_status=v_status)
