@@ -271,24 +271,33 @@ async function main() {
         expectedMetric: { key: "cashflow.expected_collections", currency: "YER" },
       };
       const memoryPreflight = await tx.unsafe(
-        "select o.created_at as outcome_created_at, o.state as outcome_state, now() as database_now, " +
-          "($2::jsonb->>'asOf')::timestamptz as requested_as_of, " +
-          "(($2::jsonb->>'asOf')::timestamptz > now()) as as_of_is_future, " +
-          "(($2::jsonb->>'asOf')::timestamptz > o.created_at) as as_of_after_outcome_creation, " +
-          "(($2::jsonb->'period'->>'from')::date < ((($2::jsonb->>'asOf')::timestamptz at time zone 'UTC')::date) as period_starts_before_as_of, " +
-          "(($2::jsonb->'period'->>'to')::date > ((($2::jsonb->>'asOf')::timestamptz at time zone 'UTC')::date + 90) as period_exceeds_90_days, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'period') as period_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'factsReviewed') as facts_reviewed_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'facts') as facts_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'opinions') as opinions_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'hypotheses') as hypotheses_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'assumptions') as assumptions_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'alternatives') as alternatives_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'assumptionsReviewed') as assumptions_reviewed_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'lessonsReviewed') as lessons_reviewed_type, " +
-          "pg_catalog.jsonb_typeof($2::jsonb->'lessons') as lessons_type, " +
-          "(o.state='MEASURED' and $2::jsonb->'lessonsReviewed' <> 'true'::jsonb) as measured_without_lessons_review " +
-        "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
+        "WITH input AS (" +
+          "SELECT $2::jsonb AS snapshot, " +
+            "($2::jsonb->>'asOf')::timestamptz AS as_of, " +
+            "($2::jsonb #>> '{period,from}')::date AS period_from, " +
+            "($2::jsonb #>> '{period,to}')::date AS period_to" +
+        ") " +
+        "SELECT o.created_at AS outcome_created_at, o.state AS outcome_state, now() AS database_now, " +
+          "i.as_of AS requested_as_of, " +
+          "(i.as_of > now()) AS as_of_is_future, " +
+          "(i.as_of > o.created_at) AS as_of_after_outcome_creation, " +
+          "(i.period_from < (i.as_of AT TIME ZONE 'UTC')::date) AS period_starts_before_as_of, " +
+          "(i.period_to > ((i.as_of AT TIME ZONE 'UTC')::date + 90)) AS period_exceeds_90_days, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'period') AS period_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'factsReviewed') AS facts_reviewed_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'facts') AS facts_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'opinions') AS opinions_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'hypotheses') AS hypotheses_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'assumptions') AS assumptions_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'alternatives') AS alternatives_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'assumptionsReviewed') AS assumptions_reviewed_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'lessonsReviewed') AS lessons_reviewed_type, " +
+          "pg_catalog.jsonb_typeof(i.snapshot->'lessons') AS lessons_type, " +
+          "(o.state='MEASURED' AND i.snapshot->'lessonsReviewed' <> 'true'::jsonb) AS measured_without_lessons_review, " +
+          "(i.snapshot->>'problem' IS NOT NULL AND pg_catalog.char_length(i.snapshot->>'problem') > 2000) AS problem_too_long, " +
+          "(i.snapshot->>'actionTaken' IS NOT NULL AND pg_catalog.char_length(i.snapshot->>'actionTaken') > 2000) AS action_too_long " +
+        "FROM public.decision_outcomes o CROSS JOIN input i " +
+        "WHERE o.id=$1::uuid AND o.organization_id=$3::uuid",
         [outcomeId, memorySnapshot, manager.organization_id],
       );
       process.stdout.write("Decision memory save preflight: " + JSON.stringify(memoryPreflight[0] ?? null) + "\\n");
