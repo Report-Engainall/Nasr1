@@ -64,7 +64,7 @@ function parsePeriod(v: unknown): ProcessBottleneckPeriod | null {
   return r && day(r.from) && day(r.to) && r.from <= r.to && r.timeZone === "UTC"
     ? {from:r.from,to:r.to,timeZone:"UTC"} : null;
 }
-function parseMetric(v: unknown): ProcessBottleneckMetric | null {
+function parseMetric(v: unknown, asOfTimestamp: number): ProcessBottleneckMetric | null {
   const r=rec(v);
   if (!r || (r.window!=="CURRENT" && r.window!=="BASELINE") ||
       typeof r.processKey!=="string" || !PROCESS_KEYS.has(r.processKey as ProcessBottleneckKey) ||
@@ -73,7 +73,8 @@ function parseMetric(v: unknown): ProcessBottleneckMetric | null {
       !num(r.averageMinutes) || !num(r.medianMinutes) || !num(r.p90Minutes) ||
       r.p90Minutes<r.medianMinutes ||
       !ts(r.firstCompletedAt) || !ts(r.lastCompletedAt) ||
-      Date.parse(r.firstCompletedAt)>Date.parse(r.lastCompletedAt)) return null;
+      Date.parse(r.firstCompletedAt)>Date.parse(r.lastCompletedAt) ||
+      Date.parse(r.lastCompletedAt)>asOfTimestamp) return null;
   return {
     window:r.window, processKey:r.processKey as ProcessBottleneckKey, stageKey:r.stageKey,
     waitClass:r.waitClass as ProcessWaitClass, sampleCount:r.sampleCount,
@@ -127,7 +128,8 @@ export function parseProcessBottleneckSnapshot(v: unknown): ProcessBottleneckSna
   const period=parsePeriod(r.period);
   const baselinePeriod=r.baselinePeriod===null ? null : parsePeriod(r.baselinePeriod);
   if (!period || (r.baselinePeriod!==null && !baselinePeriod)) return null;
-  const metrics=r.metrics.map(parseMetric);
+  const snapshotAsOf=Date.parse(r.asOf as string);
+  const metrics=r.metrics.map(x=>parseMetric(x,snapshotAsOf));
   const queues=r.queues.map(x=>parseQueue(x,r.asOf as string));
   const coverage=r.sourceCoverage.map(x=>parseCoverage(x,r.asOf as string,period));
   if (metrics.some(x=>x===null) || queues.some(x=>x===null) || coverage.some(x=>x===null)) return null;
@@ -228,7 +230,7 @@ export function buildProcessBottlenecks(s: ProcessBottleneckSnapshot): ProcessBo
     withheld.push("عينة "+m.processKey+"/"+m.stageKey+" لا تكفي لاعتبار المرحلة اختناقاً (n="+m.sampleCount+").");
   if(s.baselinePeriod && !comparablePeriods)
     withheld.push("فترة الأساس يجب أن تسبق الفترة الحالية وأن تطابقها في عدد الأيام؛ حُجبت المقارنة.");
-  else if(s.baselinePeriod && comparisons.length===0)
+  else if(s.baselinePeriod && comparisons.length===0 && (currentStages.size>0 || prior.size>0))
     withheld.push("لا توجد مراحل مشتركة بعينة كافية في الفترتين للمقارنة.");
   return {
     state,asOf:s.asOf,period:s.period,baselinePeriod:s.baselinePeriod,findings,

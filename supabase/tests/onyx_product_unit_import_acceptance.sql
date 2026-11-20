@@ -301,4 +301,236 @@ BEGIN
 END;
 $acceptance$;
 
-SELECT 'Onyx ProductUnits PostgreSQL 17 acceptance: PASS' AS result;
+-- Independent-transaction acceptance: two different snapshots must not lose
+-- each other's unit additions when applied concurrently to one product.
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+INSERT INTO public.products (id, organization_id, item_code, unit)
+VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        '11111111-1111-4111-8111-111111111111',
+        'ONYX-CONCURRENCY-01', 'حبة');
+
+INSERT INTO public.product_unit_conversions (organization_id, product_id, unit_name, base_units_per_unit)
+VALUES ('11111111-1111-4111-8111-111111111111',
+        'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'وحدة قديمة', 3);
+
+INSERT INTO public.import_jobs (id, organization_id, job_type, status) VALUES
+ ('f0000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','product_units','completed'),
+ ('f0000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111','product_units','completed');
+
+INSERT INTO public.onyx_snapshots
+ (id, organization_id, source_import_job_id, status, report_type, data_quality_score, row_count)
+VALUES
+ ('f1000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','f0000000-0000-4000-8000-000000000001','ready','product_units',96,1),
+ ('f1000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111','f0000000-0000-4000-8000-000000000002','ready','product_units',96,1);
+
+INSERT INTO public.onyx_snapshot_rows
+ (snapshot_id, organization_id, row_number, canonical_key, status, data)
+VALUES
+ ('f1000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111',1,'ONYX-CONCURRENCY-01::BOX','valid',
+  '{"item_code":"ONYX-CONCURRENCY-01","unit_code":"BOX","unit_name":"صندوق متزامن","conversion_factor":"24"}'::jsonb),
+ ('f1000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111',1,'ONYX-CONCURRENCY-01::PACK','valid',
+  '{"item_code":"ONYX-CONCURRENCY-01","unit_code":"PACK","unit_name":"عبوة متزامنة","conversion_factor":"6"}'::jsonb);
+
+DO $concurrent_acceptance$
+DECLARE
+  v_conninfo text := pg_catalog.format(
+    'host=127.0.0.1 port=%s dbname=%s user=%s password=postgres',
+    pg_catalog.current_setting('port'), pg_catalog.current_database(), current_user
+  );
+  v_result_a jsonb;
+  v_result_b jsonb;
+  v_replay jsonb;
+  v_lock_count integer := 0;
+  v_poll integer;
+  v_unit_count integer;
+  v_old_factor integer;
+  v_box_factor integer;
+  v_pack_factor integer;
+  v_audit_count integer;
+  v_application_count integer;
+BEGIN
+  PERFORM public.dblink_connect('onyx_product_units_a',v_conninfo || ' application_name=onyx-product-units-a');
+  PERFORM public.dblink_connect('onyx_product_units_b',v_conninfo || ' application_name=onyx-product-units-b');
+
+  PERFORM public.dblink_exec('onyx_product_units_a','BEGIN');
+  PERFORM public.dblink_exec('onyx_product_units_a',
+    'SET LOCAL nasr.test.organization_id = ''11111111-1111-4111-8111-111111111111''');
+  PERFORM public.dblink_exec('onyx_product_units_a',
+    'SET LOCAL nasr.test.profile_id = ''22222222-2222-4222-8222-222222222222''');
+  PERFORM public.dblink_exec('onyx_product_units_a',
+    'SET LOCAL nasr.test.auth_uid = ''33333333-3333-4333-8333-333333333333''');
+
+  SELECT result::jsonb INTO v_result_a
+    FROM public.dblink(
+      'onyx_product_units_a',
+      'SELECT public.apply_onyx_product_unit_snapshot(''f1000000-0000-4000-8000-000000000001''::uuid)::text'
+    ) AS t(result text);
+  IF v_result_a->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'first concurrent ProductUnits snapshot did not apply: %',v_result_a;
+  END IF;
+
+  PERFORM public.dblink_exec('onyx_product_units_b','BEGIN');
+  PERFORM public.dblink_exec('onyx_product_units_b',
+    'SET LOCAL nasr.test.organization_id = ''11111111-1111-4111-8111-111111111111''');
+  PERFORM public.dblink_exec('onyx_product_units_b',
+    'SET LOCAL nasr.test.profile_id = ''22222222-2222-4222-8222-222222222222''');
+  PERFORM public.dblink_exec('onyx_product_units_b',
+    'SET LOCAL nasr.test.auth_uid = ''33333333-3333-4333-8333-333333333333''');
+
+  IF public.dblink_send_query(
+    'onyx_product_units_b',
+    'SELECT public.apply_onyx_product_unit_snapshot(''f1000000-0000-4000-8000-000000000002''::uuid)::text'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'could not start the second concurrent ProductUnits apply';
+  END IF;
+
+  -- Prove transaction B is blocked on a database lock while A still owns the
+  -- product row. The bounded wait prevents the acceptance job from hanging.
+  FOR v_poll IN 1..200 LOOP
+    SELECT count(*)::integer INTO v_lock_count
+      FROM pg_catalog.pg_stat_activity
+     WHERE application_name = 'onyx-product-units-b'
+       AND wait_event_type = 'Lock'
+       AND query LIKE 'SELECT public.apply_onyx_product_unit_snapshot%';
+    EXIT WHEN v_lock_count > 0;
+    PERFORM pg_catalog.pg_sleep(0.025);
+  END LOOP;
+  IF v_lock_count = 0 THEN
+    RAISE EXCEPTION 'second snapshot did not wait on the shared product lock';
+  END IF;
+
+  PERFORM public.dblink_exec('onyx_product_units_a','COMMIT');
+
+  SELECT result::jsonb INTO v_result_b
+    FROM public.dblink_get_result('onyx_product_units_b') AS t(result text);
+  IF v_result_b->>'status' <> 'applied' THEN
+    RAISE EXCEPTION 'second concurrent ProductUnits snapshot did not apply: %',v_result_b;
+  END IF;
+  PERFORM public.dblink_exec('onyx_product_units_b','COMMIT');
+
+  SELECT count(*)::integer,
+         max(base_units_per_unit) FILTER (WHERE unit_name='وحدة قديمة'),
+         max(base_units_per_unit) FILTER (WHERE unit_name='صندوق متزامن'),
+         max(base_units_per_unit) FILTER (WHERE unit_name='عبوة متزامنة')
+    INTO v_unit_count,v_old_factor,v_box_factor,v_pack_factor
+    FROM public.product_unit_conversions
+   WHERE organization_id='11111111-1111-4111-8111-111111111111'
+     AND product_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  IF v_unit_count <> 3 OR v_old_factor <> 3 OR v_box_factor <> 24 OR v_pack_factor <> 6 THEN
+    RAISE EXCEPTION 'concurrent ProductUnits merge lost an update: count %, old %, BOX %, PACK %',
+      v_unit_count,v_old_factor,v_box_factor,v_pack_factor;
+  END IF;
+
+  SELECT count(*)::integer INTO v_application_count
+    FROM public.onyx_product_unit_import_applications
+   WHERE organization_id='11111111-1111-4111-8111-111111111111'
+     AND snapshot_id IN (
+       'f1000000-0000-4000-8000-000000000001',
+       'f1000000-0000-4000-8000-000000000002'
+     );
+  IF v_application_count <> 2 THEN
+    RAISE EXCEPTION 'both concurrent snapshots must be recorded exactly once; got %',v_application_count;
+  END IF;
+
+  SELECT count(*)::integer INTO v_audit_count
+    FROM public.audit_logs
+   WHERE entity_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+     AND action='catalog.product_units_updated';
+  IF v_audit_count <> 2 THEN
+    RAISE EXCEPTION 'each concurrent accepted unit change must be audited once; got %',v_audit_count;
+  END IF;
+
+  PERFORM public.dblink_exec('onyx_product_units_a','BEGIN');
+  PERFORM public.dblink_exec('onyx_product_units_a',
+    'SET LOCAL nasr.test.organization_id = ''11111111-1111-4111-8111-111111111111''');
+  PERFORM public.dblink_exec('onyx_product_units_a',
+    'SET LOCAL nasr.test.profile_id = ''22222222-2222-4222-8222-222222222222''');
+  PERFORM public.dblink_exec('onyx_product_units_a',
+    'SET LOCAL nasr.test.auth_uid = ''33333333-3333-4333-8333-333333333333''');
+  SELECT result::jsonb INTO v_replay
+    FROM public.dblink(
+      'onyx_product_units_a',
+      'SELECT public.apply_onyx_product_unit_snapshot(''f1000000-0000-4000-8000-000000000001''::uuid)::text'
+    ) AS t(result text);
+  IF v_replay->>'idempotent_replay' <> 'true' THEN
+    RAISE EXCEPTION 'same-snapshot replay must return the original application result';
+  END IF;
+  PERFORM public.dblink_exec('onyx_product_units_a','COMMIT');
+
+  SELECT count(*)::integer INTO v_audit_count
+    FROM public.audit_logs
+   WHERE entity_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+     AND action='catalog.product_units_updated';
+  IF v_audit_count <> 2 THEN
+    RAISE EXCEPTION 'same-snapshot replay must not emit another product update audit; got %',v_audit_count;
+  END IF;
+  PERFORM public.dblink_disconnect('onyx_product_units_a');
+  PERFORM public.dblink_disconnect('onyx_product_units_b');
+EXCEPTION WHEN OTHERS THEN
+  BEGIN PERFORM public.dblink_exec('onyx_product_units_a','ROLLBACK'); EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN PERFORM public.dblink_exec('onyx_product_units_b','ROLLBACK'); EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN PERFORM public.dblink_disconnect('onyx_product_units_a'); EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN PERFORM public.dblink_disconnect('onyx_product_units_b'); EXCEPTION WHEN OTHERS THEN NULL; END;
+  RAISE;
+END;
+$concurrent_acceptance$;
+
+-- A tenant-mismatched source row is excluded from the active tenant's row set.
+-- Because the stored row_count includes it, application fails closed without
+-- writing any product conversions, application record or audit event.
+INSERT INTO public.import_jobs (id, organization_id, job_type, status)
+VALUES ('f0000000-0000-4000-8000-000000000003','11111111-1111-4111-8111-111111111111','product_units','completed');
+INSERT INTO public.onyx_snapshots
+ (id, organization_id, source_import_job_id, status, report_type, data_quality_score, row_count)
+VALUES
+ ('f1000000-0000-4000-8000-000000000003','11111111-1111-4111-8111-111111111111','f0000000-0000-4000-8000-000000000003','ready','product_units',96,2);
+INSERT INTO public.onyx_snapshot_rows
+ (snapshot_id, organization_id, row_number, canonical_key, status, data)
+VALUES
+ ('f1000000-0000-4000-8000-000000000003','11111111-1111-4111-8111-111111111111',1,'ONYX-CONCURRENCY-01::BOX2','valid',
+  '{"item_code":"ONYX-CONCURRENCY-01","unit_code":"BOX2","unit_name":"صندوق إضافي","conversion_factor":"48"}'::jsonb),
+ ('f1000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',2,'FOREIGN-PRODUCT::PACK','valid',
+  '{"item_code":"FOREIGN-PRODUCT","unit_code":"PACK","unit_name":"وحدة خارجية","conversion_factor":"5"}'::jsonb);
+
+DO $tenant_scope_acceptance$
+DECLARE
+  v_result jsonb;
+  v_error_code text;
+  v_count integer;
+BEGIN
+  PERFORM pg_catalog.set_config('nasr.test.organization_id','11111111-1111-4111-8111-111111111111',true);
+  PERFORM pg_catalog.set_config('nasr.test.profile_id','22222222-2222-4222-8222-222222222222',true);
+  PERFORM pg_catalog.set_config('nasr.test.auth_uid','33333333-3333-4333-8333-333333333333',true);
+  BEGIN
+    PERFORM public.apply_onyx_product_unit_snapshot('f1000000-0000-4000-8000-000000000003');
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_error_code = RETURNED_SQLSTATE;
+  END;
+  IF v_error_code <> '22023' THEN
+    RAISE EXCEPTION 'cross-tenant snapshot row must fail the stored row-count check with 22023; got %',coalesce(v_error_code,'no error');
+  END IF;
+  SELECT count(*)::integer INTO v_count
+    FROM public.product_unit_conversions
+   WHERE organization_id='11111111-1111-4111-8111-111111111111'
+     AND product_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  IF v_count <> 3 THEN
+    RAISE EXCEPTION 'tenant-mismatched snapshot must not partially change product conversions; got % rows',v_count;
+  END IF;
+  SELECT count(*)::integer INTO v_count
+    FROM public.onyx_product_unit_import_applications
+   WHERE snapshot_id='f1000000-0000-4000-8000-000000000003';
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'tenant-mismatched snapshot must not create an application record';
+  END IF;
+  SELECT count(*)::integer INTO v_count
+    FROM public.audit_logs
+   WHERE entity_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+     AND action='catalog.product_units_updated';
+  IF v_count <> 2 THEN
+    RAISE EXCEPTION 'tenant-mismatched snapshot must not add an audit event; got %',v_count;
+  END IF;
+END;
+$tenant_scope_acceptance$;
+
+SELECT 'Onyx ProductUnits PostgreSQL 17 concurrency, replay and tenant acceptance: PASS' AS result;
