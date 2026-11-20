@@ -776,22 +776,25 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   // A stock-count snapshot is immutable history. Close the isolated fixture
   // through the real authorized cancellation RPC instead of deleting its
   // session/lines and violating the append-only history boundary.
-  await ensureWarehouseAssignment(admin,unassignedWarehouse,
-    "P2 cancellation fixture cleanup requires the assigned independent admin reviewer");
-  const cancellationRows=await withActor(db,admin,tx=>tx.unsafe(
+  // First prove the manager without B assignment was denied above. The admin
+  // now grants only a temporary B assignment to that manager so the same real
+  // cancellation RPC can close the immutable fixture, then revokes that grant.
+  await ensureWarehouseAssignment(manager,unassignedWarehouse,
+    "Temporary P2 fixture scope for testing authorized stock-count cancellation");
+  const cancellationRows=await withActor(db,manager,tx=>tx.unsafe(
     "select public.cancel_stock_count($1::uuid,$2::text) as result",
     [staffSession.id,"Accepted isolated P2 cross-warehouse fixture cleanup"]
   ));
   const cancellationResult=typeof cancellationRows[0].result==="string"
     ? JSON.parse(cancellationRows[0].result) : cancellationRows[0].result;
   assert.equal(cancellationResult.status,"cancelled",
-    "the independent assigned administrator must close the test snapshot through the real cancellation RPC");
+    "the manager with an explicit warehouse assignment must close the snapshot through the real cancellation RPC");
   const cancelledFixture=await db.unsafe(
     "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
     [staffSession.id]
   );
   assert.deepEqual(cancelledFixture[0],{
-    status:"cancelled",cancelled_by:admin.profile_id,
+    status:"cancelled",cancelled_by:manager.profile_id,
     cancellation_reason:"Accepted isolated P2 cross-warehouse fixture cleanup"
   },"cancellation must preserve a permanent, attributed session history");
   const retainedFixtureLines=await db.unsafe(
@@ -813,6 +816,23 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   );
   assert.equal(cancellationMovements[0].count,0,
     "cancelling an unfinished draft must not create stock movements");
+  const managerWarehouseScope=await db.unsafe(
+    "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+    "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid and is_active=true",
+    [org,manager.profile_id,unassignedWarehouse]
+  );
+  assert.equal(managerWarehouseScope.length,1,
+    "the temporary manager B assignment must exist only for the authorized cancellation proof");
+  const revokedManagerScope=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer) as result",
+    [manager.profile_id,unassignedWarehouse,"Revoke temporary P2 cancellation fixture assignment",
+      Number(managerWarehouseScope[0].revision)]
+  ));
+  const revokedManagerScopeResult=typeof revokedManagerScope[0].result==="string"
+    ? JSON.parse(revokedManagerScope[0].result) : revokedManagerScope[0].result;
+  assert.equal(revokedManagerScopeResult.changed,true);
+  assert.equal(revokedManagerScopeResult.is_active,false,
+    "the temporary cancellation scope must be revoked after the acceptance proof");
 
   await assert.rejects(
     ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
