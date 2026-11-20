@@ -1265,7 +1265,7 @@ function Products({ onNotice, initialSearch }: { onNotice: (m: string) => void; 
       const products = await loadCompleteAdminCatalog({ search: debouncedQuery, status: statusFilter, categoryId: categoryFilter === 'all' ? undefined : categoryFilter });
       if (products.length === 0) { onNotice('لا توجد منتجات مطابقة للتصدير.'); return; }
       const csv = buildAdminProductCatalogCsv(products, canManageProductLifecycle);
-      const blob = new Blob(['\\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+      const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
