@@ -2149,6 +2149,7 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAva
   const availabilityChangesSignature = JSON.stringify(availabilityChanges);
   const [priceChangesAccepted, setPriceChangesAccepted] = useState(false);
   const [availabilityChangesAccepted, setAvailabilityChangesAccepted] = useState(false);
+  const [stockUpdateNotice, setStockUpdateNotice] = useState('');
   const handleCheckoutPricingPresentation = useCallback((presentation: CustomerOrderPricingPresentation | null) => {
     setCheckoutPricingPresentation(presentation);
   }, []);
@@ -2293,11 +2294,11 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAva
     // A request may only be sent from the explicit review stage after the final confirmation.
     if (checkoutStage !== 'review' || !finalConfirmationAccepted ||
         (priceChanges.length > 0 && !priceChangesAccepted) ||
-        (availabilityChanges.length > 0 && !availabilityChangesAccepted)) {
+        availabilityChanges.length > 0) {
       setError(priceChanges.length > 0 && !priceChangesAccepted
         ? 'راجع فروق الأسعار الحالية ووافق عليها صراحةً قبل الإرسال.'
-        : availabilityChanges.length > 0 && !availabilityChangesAccepted
-          ? 'راجع تغيرات التوفر الحالية ووافق عليها قبل الإرسال.'
+        : availabilityChanges.length > 0
+          ? 'طبّق تعديلات التوفر التي أعادها الخادم على السلة، ثم راجع الطلب من جديد قبل الإرسال.'
           : 'راجع مستند الطلب ثم فعّل التأكيد النهائي قبل الإرسال.');
       return;
     }
@@ -2671,11 +2672,14 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAva
                     ) : (
                       <button type="button" className="sf-btn-primary" disabled={!availabilityChangesAccepted || submitting || ambiguousSubmit} onClick={() => {
                         const result = onApplyAvailabilityChanges(availabilityAdjustments);
-                        setError(result.message);
-                        if (result.applied) {
-                          setAvailabilityChangesAccepted(false);
-                          setFinalConfirmationAccepted(false);
+                        if (!result.applied) {
+                          setError(result.message);
+                          return;
                         }
+                        setError('');
+                        setStockUpdateNotice(result.message);
+                        setAvailabilityChangesAccepted(false);
+                        setFinalConfirmationAccepted(false);
                       }}>تطبيق تعديلات الخادم على السلة</button>
                     )}
                   </div>
@@ -2723,7 +2727,7 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAva
                     className="sf-btn-primary"
                     type="button"
                     onClick={() => void submit()}
-                    disabled={submitting || previewLoading || !cartValidation || pricePreviewPending || !finalConfirmationAccepted || (priceChanges.length > 0 && !priceChangesAccepted) || (availabilityChanges.length > 0 && !availabilityChangesAccepted)}
+                    disabled={submitting || previewLoading || !cartValidation || pricePreviewPending || !finalConfirmationAccepted || (priceChanges.length > 0 && !priceChangesAccepted) || availabilityChanges.length > 0}
                   >
                     {submitting
                       ? 'جارٍ إرسال الطلب...'
@@ -2750,6 +2754,7 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAva
                   {previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق من السلة</button>
                 </div>
               ) : null}
+              {stockUpdateNotice ? <div className="sf-checkout-trust-note" role="status" aria-live="polite">{stockUpdateNotice}</div> : null}
               {error ? <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert" aria-live="assertive">{error}</div> : null}
               {ambiguousSubmit ? (
                 <div className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
