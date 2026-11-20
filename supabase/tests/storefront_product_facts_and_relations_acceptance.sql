@@ -242,6 +242,20 @@ BEGIN
     OR v_item?'price_wholesale' OR v_item?'organization_id' THEN
     RAISE EXCEPTION 'public facts projection/price allowlist failed: %',v_item;
   END IF;
+
+  IF NOT EXISTS (
+       SELECT 1
+       FROM pg_catalog.jsonb_array_elements(v_result->'filters'->'brands') f
+       WHERE f->>'id' = current_setting('app.test_brand_id')
+         AND f->>'name' = 'علامة معتمدة'
+     )
+     OR NOT EXISTS (
+       SELECT 1
+       FROM pg_catalog.jsonb_array_elements_text(v_result->'filters'->'units') u(unit_name)
+       WHERE u.unit_name = 'كرتون'
+     ) THEN
+    RAISE EXCEPTION 'tenant-wide brand/unit facets were not returned independently of the current page: %',v_result->'filters';
+  END IF;
   v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,false,'b4000000-0000-4000-8000-000000000004');
   IF jsonb_array_length(v_result->'items')<>0 THEN RAISE EXCEPTION 'cross-tenant product leaked: %',v_result; END IF;
   v_result:=public.get_storefront_catalog_page(NULL,NULL,1,10,false,NULL,NULL,true,'a4000000-0000-4000-8000-000000000001');
