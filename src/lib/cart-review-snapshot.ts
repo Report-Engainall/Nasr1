@@ -122,7 +122,7 @@ export function compareCartPricingSnapshots(
   const changes: CartPriceChange[] = [];
   for (const line of current.items) {
     const oldLine = oldById.get(line.product_id.toLowerCase());
-    if (!oldLine || oldLine.quantity !== line.quantity) continue;
+    if (!oldLine) continue;
     const netPriceChanged = oldLine.unit_price !== line.unit_price;
     const termsChanged =
       oldLine.original_unit_price !== line.original_unit_price ||
