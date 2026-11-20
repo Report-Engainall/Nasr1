@@ -590,6 +590,8 @@ BEGIN
    ORDER BY organization_id,customer_id
    OFFSET 99 LIMIT 1;
   SELECT count(*) INTO v_batch_carts_before FROM public.customer_carts;
+  -- Capture cart contents immediately before the worker, after all prior cart-load fixtures.
+  v_before_cart:=public.get_customer_cart();
 
   v_batch_result:=public.run_due_customer_shopping_list_scheduler();
   IF (v_batch_result->>'processed_customers')::integer<>100
