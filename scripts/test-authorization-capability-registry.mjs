@@ -916,7 +916,7 @@ const manager=actors.get("manager"),admin=actors.get("admin");
     "and action='inventory.stock_count.completed'",
     [org,managerSession.id]
   );
-  assert.deepEqual(completionAudit,[{actor_id:admin.profile_id,action:"inventory.stock_count.completed"}],
+  assert.deepEqual([...completionAudit],[{actor_id:admin.profile_id,action:"inventory.stock_count.completed"}],
     "one completion audit must identify the independent reviewer");
 
   // P2 acceptance: approval-gated pricing proposals and guarded manager edit path.
