@@ -282,7 +282,11 @@ async function main() {
           "jsonb_build_object('from',$4::date,'to',$5::date),(o.measured_outcome->>'asOf')::timestamptz) as resolved_evidence, " +
           "public._decision_memory_snapshot($3::uuid,$1::uuid) as reloaded_memory_snapshot, " +
           "public._decision_memory_snapshot($3::uuid,$1::uuid)->'actualMetric' as reloaded_actual_metric, " +
-          "(select count(*)::integer from public.decision_memory_snapshots s where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_row_count " +
+          "(select count(*)::integer from public.decision_memory_snapshots s where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_row_count, " +
+          "(select count(*)::integer from public.decision_memory_snapshots s join public.decision_outcomes o on o.id=s.decision_outcome_id and o.organization_id=s.organization_id where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_join_count, " +
+          "(select jsonb_agg(jsonb_build_object('snapshot_id',s.id,'snapshot_org',s.organization_id,'snapshot_decision',s.decision_outcome_id,'outcome_id',o.id,'outcome_org',o.organization_id) order by s.version desc) from public.decision_memory_snapshots s left join public.decision_outcomes o on o.id=s.decision_outcome_id where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_join_diagnostics, " +
+          "(select public._decision_memory_snapshot(s.organization_id,s.decision_outcome_id) from public.decision_memory_snapshots s where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid order by s.version desc limit 1) as direct_snapshot_using_persisted_keys, " +
+          "pg_catalog.pg_get_functiondef('public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_function_definition " +
         "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
         [outcomeId, invoiceId, manager.organization_id, periodFrom, periodTo],
       );
