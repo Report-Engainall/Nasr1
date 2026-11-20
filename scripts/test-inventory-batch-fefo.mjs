@@ -35,7 +35,20 @@ async function receipt(manager,batch,expiry){
  assert.ok(first.receipt.id);assert.equal(replay.idempotent_replay,true);
  await db.unsafe("reset role");return {receiptId:first.receipt.id,batch,expiry};
 }
-async function status(manager,id,s){await as(manager);await db.unsafe("update public.orders set status=$2::text,updated_at=now() where id=$1::uuid",[id,s]);await db.unsafe("reset role");}
+// FEFO acceptance exercises the order transition triggers, not table-write authorization.
+ // Keep the authenticated manager JWT claims for the trigger's staff/tenant checks,
+ // but run this isolated fixture UPDATE as the local database owner because direct
+ // orders-table DML is deliberately unavailable to authenticated clients. This
+ // does not grant table privileges or claim browser status-transition acceptance.
+ async function status(manager,id,s){
+  await as(manager);
+  await db.unsafe("reset role");
+  try {
+   await db.unsafe("update public.orders set status=$2::text,updated_at=now() where id=$1::uuid",[id,s]);
+  } finally {
+   await db.unsafe("reset role");
+  }
+ }
 async function main(){
  const manager=await actor(env("E2E_MANAGER_EMAIL")),customer=await actor(env("E2E_EMAIL"));
  const cust=(await db.unsafe("select id::text from public.customers where organization_id=$1::uuid and status='approved' order by created_at limit 1",[org]))[0];assert.ok(cust);
@@ -54,7 +67,7 @@ async function main(){
  assert.equal(print.items[0].batch_number,early.batch);assert.equal(print.items[0].expiry_date,ds.e);
  const order=(await rpc("select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO sale lot",randomUUID().replaceAll("-",""),"cash_on_delivery"])).id;
- assert.ok(order);await db.unsafe("update public.orders set status='confirmed',updated_at=now() where id=$1::uuid",[order]);await db.unsafe("reset role");
+ assert.ok(order);await status(manager,order,"confirmed");
  const res=(await db.unsafe("select im.inventory_batch_id::text id,b.batch_number,b.expiry_date::text from public.inventory_movements im join public.inventory_batches b on b.id=im.inventory_batch_id where im.reference_type='order' and im.reference_id=$1::uuid and im.movement_type='reserve'",[order]));
  assert.equal(res.length,1);assert.equal(res[0].batch_number,early.batch);assert.equal(res[0].expiry_date,ds.e);
  await status(manager,order,"processing");await status(manager,order,"shipped");
@@ -66,7 +79,7 @@ async function main(){
  assert.equal(Number(parity.h),Number(parity.bh));assert.equal(Number(parity.r),Number(parity.br));
  await as(manager);const order2=(await rpc("select public.create_staff_order($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) result",
  [cust.id,db.json([{product_id:product,quantity:1}]),"FEFO release",randomUUID().replaceAll("-",""),"cash_on_delivery"])).id;
- await db.unsafe("update public.orders set status='confirmed',updated_at=now() where id=$1::uuid",[order2]);await db.unsafe("reset role");
+ await status(manager,order2,"confirmed");
  const res2=(await db.unsafe("select inventory_batch_id::text id from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='reserve'",[order2]))[0];
  const batch2=(await db.unsafe("select batch_number from public.inventory_batches where id=$1::uuid",[res2.id]))[0];
  assert.equal(batch2.batch_number,late.batch);await status(manager,order2,"cancelled");
