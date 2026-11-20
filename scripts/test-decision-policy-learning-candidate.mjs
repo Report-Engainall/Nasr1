@@ -257,6 +257,10 @@ async function main() {
       );
       const memoryResult = decode(memoryRows[0].result);
       assert.equal(memoryResult?.ok, true, "the actual source-derived decision-memory snapshot must be saved");
+      assert.ok(memoryResult.snapshot && typeof memoryResult.snapshot.id === "string",
+        "the decision-memory command must return the just-inserted immutable snapshot");
+      assert.equal(memoryResult.snapshot.version, 1,
+        "the first decision-memory capture must return version one");
 
       // Diagnose the source-backed projection with the local database owner,
       // without weakening authenticated behavior or exposing any non-test data.
@@ -299,6 +303,10 @@ async function main() {
       );
       process.stdout.write("Decision source projection diagnostic: " + JSON.stringify(sourceDiagnostics[0] ?? null) + "\\n");
       assert.equal(sourceDiagnostics.length, 1, "the measured decision must retain its same-tenant source row");
+      assert.equal(Number(sourceDiagnostics[0].memory_snapshot_row_count), 1,
+        "the subsequent statement must see exactly one persisted immutable memory snapshot");
+      assert.equal(Number(sourceDiagnostics[0].memory_snapshot_join_count), 1,
+        "the snapshot must remain joined to its same-tenant decision outcome");
       assert.equal(sourceDiagnostics[0].has_measured_outcome, true,
         "the terminal MEASURE event must persist a structured outcome");
       assert.equal(Number(sourceDiagnostics[0].matching_invoice_count), 1,
