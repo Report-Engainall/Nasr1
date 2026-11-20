@@ -77,13 +77,25 @@ BEGIN
   RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='stock-count session is unavailable in this organization';
  END IF;
  v_authorization:=public.current_authorization_decision('inventory.count.finalize',v_session.warehouse_id);
- IF v_authorization->>'decision' IS DISTINCT FROM 'REQUIRES_APPROVAL'
-    OR v_authorization->>'approval_mode' IS DISTINCT FROM 'maker_checker'
-    OR coalesce((v_authorization->>'separation_of_duties')::boolean,false) IS DISTINCT FROM true
-    OR v_session.started_by IS NULL
-    OR v_session.started_by=v_actor THEN
+ IF v_authorization->>'decision' IS DISTINCT FROM 'REQUIRES_APPROVAL' THEN
   RAISE EXCEPTION USING ERRCODE='42501',
-    MESSAGE='an independently assigned Maker/Checker reviewer is required to finalize this stock count';
+    MESSAGE='stock-count finalization requires a reviewer explicitly assigned to this warehouse';
+ END IF;
+ IF v_authorization->>'approval_mode' IS DISTINCT FROM 'maker_checker' THEN
+  RAISE EXCEPTION USING ERRCODE='42501',
+    MESSAGE='stock-count finalization requires Maker/Checker approval mode';
+ END IF;
+ IF coalesce((v_authorization->>'separation_of_duties')::boolean,false) IS DISTINCT FROM true THEN
+  RAISE EXCEPTION USING ERRCODE='42501',
+    MESSAGE='stock-count finalization requires separation of duties';
+ END IF;
+ IF v_session.started_by IS NULL THEN
+  RAISE EXCEPTION USING ERRCODE='42501',
+    MESSAGE='stock-count finalization requires a recorded session maker';
+ END IF;
+ IF v_session.started_by=v_actor THEN
+  RAISE EXCEPTION USING ERRCODE='42501',
+    MESSAGE='the stock-count maker cannot finalize their own count';
  END IF;
  IF v_session.status<>'open' THEN
   RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='stock count is not open';
