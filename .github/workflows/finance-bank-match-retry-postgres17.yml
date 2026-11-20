@@ -1,0 +1,72 @@
+name: Finance bank match retry PostgreSQL 17 Acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql"
+      - "supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql"
+      - "supabase/migrations/20261120131000_finance_opening_balance_exact_retry.sql"
+      - "scripts/test-finance-opening-balance-retry.mjs"
+      - "scripts/test-finance-bank-match-retry.mjs"
+      - ".github/workflows/finance-bank-match-retry-postgres17.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql"
+      - "supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql"
+      - "supabase/migrations/20261120131000_finance_opening_balance_exact_retry.sql"
+      - "scripts/test-finance-bank-match-retry.mjs"
+      - "scripts/test-finance-opening-balance-retry.mjs"
+      - ".github/workflows/finance-bank-match-retry-postgres17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finance-bank-match-postgres17-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  postgres17:
+    name: Exact match replay, concurrency and audit on PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: finance_retry
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d finance_retry"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout exact source SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Apply the actual repository migration and exercise concurrent callers
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/finance_retry
+        run: bun scripts/test-finance-bank-match-retry.mjs
+
+      - name: Verify exact opening-balance replay after account deactivation
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/finance_retry
+        run: bun scripts/test-finance-opening-balance-retry.mjs
