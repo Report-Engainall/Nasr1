@@ -13,6 +13,8 @@ DECLARE
   v_guard text := '  IF v_snapshot_id IS NULL THEN' || pg_catalog.chr(10)
     || '    RETURN NULL;' || pg_catalog.chr(10)
     || '  END IF;';
+  v_first_guard integer;
+  v_second_relative integer;
   v_second_guard integer;
   v_outcome_guard text := '  IF NOT FOUND THEN' || pg_catalog.chr(10)
     || '    RAISE EXCEPTION USING' || pg_catalog.chr(10)
@@ -47,14 +49,18 @@ BEGIN
     RETURN;
   END IF;
 
-  v_second_guard := pg_catalog.strpos(
-    v_after,
-    v_guard,
-    pg_catalog.strpos(v_after,v_guard)+pg_catalog.length(v_guard)
+  v_first_guard := pg_catalog.strpos(v_after,v_guard);
+  IF v_first_guard=0 THEN
+    RAISE EXCEPTION 'expected the first snapshot NULL guard';
+  END IF;
+  v_second_relative := pg_catalog.strpos(
+    pg_catalog.substr(v_after,v_first_guard+pg_catalog.length(v_guard)),
+    v_guard
   );
-  IF v_second_guard=0 THEN
+  IF v_second_relative=0 THEN
     RAISE EXCEPTION 'expected the second post-outcome snapshot NULL guard exactly once';
   END IF;
+  v_second_guard := v_first_guard+pg_catalog.length(v_guard)+v_second_relative-1;
 
   IF pg_catalog.strpos(
     pg_catalog.substr(v_after,1,v_second_guard-1),
