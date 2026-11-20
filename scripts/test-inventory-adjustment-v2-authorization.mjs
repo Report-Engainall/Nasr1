@@ -1012,14 +1012,37 @@ async function main() {
         const [adminMakerCancelContext] = await tx.unsafe(
           "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
           "public.current_organization_id()::text as organization_id, " +
-          "public.current_actor_has_capability('inventory.count.cancel') as can_cancel",
+          "public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as can_cancel",
+          [fixture.warehouse_id],
         );
         assert.equal(adminMakerCancelContext.profile_id, actors.admin.profile_id,
           "maker fixture cleanup must resolve the administrator profile: " + JSON.stringify(adminMakerCancelContext));
         assert.equal(adminMakerCancelContext.organization_id, organizationId,
           "maker fixture cleanup must stay in the original organization: " + JSON.stringify(adminMakerCancelContext));
-        assert.equal(adminMakerCancelContext.can_cancel, true,
-          "administrator cancellation must remain independent of warehouse scope: " + JSON.stringify(adminMakerCancelContext));
+        assert.equal(adminMakerCancelContext.can_cancel, false,
+          "administrator cancellation must be denied after its exact warehouse assignment is revoked: " + JSON.stringify(adminMakerCancelContext));
+        await tx.unsafe("reset role");
+        const [adminMakerScopeRow] = await tx.unsafe(
+          "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+          "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.admin.profile_id, fixture.warehouse_id],
+        );
+        const adminMakerScopeRevision = adminMakerScopeRow ? Number(adminMakerScopeRow.revision) : 0;
+        await applyActor(tx, actors.admin);
+        const adminMakerTemporaryScope = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.admin.profile_id, fixture.warehouse_id,
+            "Temporary exact warehouse scope to close the self-approval denial fixture",
+            adminMakerScopeRevision],
+        ))[0].result);
+        assert.equal(adminMakerTemporaryScope.is_active, true,
+          "the administrator must be explicitly assigned to the exact warehouse before cancelling the test fixture");
+        const [adminMakerScopedCancelDecision] = await tx.unsafe(
+          "select public.current_actor_has_capability('inventory.count.cancel',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        );
+        assert.equal(adminMakerScopedCancelDecision.allowed, true,
+          "the administrator's temporary exact warehouse assignment must authorize fixture cancellation");
         const cancelledMaker = decodeJson((await tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text) as result",
           [makerSession.id, "Close self-approval fixture before independent maker acceptance"],
@@ -1044,6 +1067,18 @@ async function main() {
         );
         assert.equal(cancelledMakerAudit.count, 1,
           "the maker-checker draft must close through exactly one audited cancellation");
+        await tx.unsafe("reset role");
+        const revokedAdminMakerScope = decodeJson((await (async () => {
+          await applyActor(tx, actors.admin);
+          return tx.unsafe(
+            "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer) as result",
+            [actors.admin.profile_id, fixture.warehouse_id,
+              "Revoke temporary exact warehouse scope after maker fixture cancellation",
+              Number(adminMakerTemporaryScope.revision)],
+          );
+        })())[0].result);
+        assert.equal(revokedAdminMakerScope.is_active, false,
+          "temporary exact warehouse cancellation scope must be revoked after fixture cleanup");
 
         // Staff has the distinct count-entry capability. Assign the staff member
         // to this warehouse, let them make a full physical count, and have the
