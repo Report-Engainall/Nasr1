@@ -9,6 +9,7 @@ import { normalizeStorefrontArtworkKey, type StorefrontArtworkKey } from '@/lib/
 import { fetchAdminCategoryProducts, type AdminCategoryProductRow } from '@/lib/admin-category-products';
 import { buildAdminCategoryTree, filterAdminCategoryTree, getAdminCategoryAncestorIds, getAdminCategoryPath, type AdminCategoryTreeNode } from '@/lib/admin-category-tree';
 import type { Category, ProductWithInventory } from '@/lib/types';
+import { storefrontCategorySlug } from '@/lib/storefront-slugs';
 import { useAuth } from '@/lib/auth';
 
 type DetailTab = 'overview' | 'children' | 'products' | 'catalog';
@@ -26,9 +27,10 @@ function writeSelectedCategory(id: string | null, replace = false) {
   else window.history.pushState(window.history.state, '', url);
 }
 
-function CategoryBranch({ nodes, expanded, selectedId, depth, onToggle, onSelect }: {
+function CategoryBranch({ nodes, expanded, selectedId, depth, onToggle, onSelect, publishedCounts, publishedCountsLoading }: {
   nodes: AdminCategoryTreeNode[]; expanded: ReadonlySet<string>; selectedId: string | null; depth: number;
   onToggle: (id: string) => void; onSelect: (id: string) => void;
+  publishedCounts: Readonly<Record<string, number>> | null; publishedCountsLoading: boolean;
 }) {
   return <ul className="admin-category-tree__list" aria-label={depth ? 'التصنيفات الفرعية' : 'التصنيفات الرئيسية'}>
     {nodes.map((node) => {
@@ -48,11 +50,13 @@ function CategoryBranch({ nodes, expanded, selectedId, depth, onToggle, onSelect
             <span className="admin-category-tree__folder"><FolderTree size={16} /></span>
             <span className="admin-category-tree__name">{category.name}</span>
             {category.is_active === false && <span className="admin-category-tree__status is-archived">مؤرشف</span>}
+            {publishedCountsLoading && <span className="admin-category-tree__status">جار العد…</span>}
+            {!publishedCountsLoading && publishedCounts && <span className={`admin-category-tree__status ${(publishedCounts[category.id] ?? 0) === 0 ? 'is-warning' : ''}`}>{formatNumber(publishedCounts[category.id] ?? 0)} منشور{(publishedCounts[category.id] ?? 0) === 0 ? ' · فارغ' : ''}</span>}
             {node.relationshipWarning && <span className="admin-category-tree__status is-warning">ارتباط يحتاج مراجعة</span>}
           </button>
         </div>
         {hasChildren && isExpanded && <CategoryBranch nodes={node.children} expanded={expanded} selectedId={selectedId}
-          depth={depth + 1} onToggle={onToggle} onSelect={onSelect} />}
+          depth={depth + 1} onToggle={onToggle} onSelect={onSelect} publishedCounts={publishedCounts} publishedCountsLoading={publishedCountsLoading} />}
       </li>;
     })}
   </ul>;
@@ -92,6 +96,9 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState('');
   const [catalogRetry, setCatalogRetry] = useState(0);
+  const [publishedCounts, setPublishedCounts] = useState<Record<string, number> | null>(null);
+  const [publishedCountsLoading, setPublishedCountsLoading] = useState(false);
+  const [publishedCountsError, setPublishedCountsError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +117,43 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
   useEffect(() => {
     if (canOpen) void load().catch(() => undefined);
   }, [canOpen, load]);
+
+  const scanPublishedCategoryCounts = useCallback(async () => {
+    if (!canOpen || categories.length === 0) return;
+    setPublishedCountsLoading(true);
+    setPublishedCountsError('');
+    setPublishedCounts(null);
+    try {
+      const counts = new Map<string, number>();
+      const seen = new Set<string>();
+      for (let page = 1; page <= 2500; page += 1) {
+        const result = await fetchAdminProductsPage({ page, status: 'active' });
+        if (result.page !== page || result.items.length > result.pageSize || (result.hasNextPage && result.items.length !== result.pageSize)) {
+          throw new Error('تسلسل صفحات المنتجات المنشورة غير مكتمل؛ لم نعرض أعدادًا جزئية للتصنيفات.');
+        }
+        for (const product of result.items) {
+          if (seen.has(product.id)) throw new Error('تكرر منتج بين صفحات القراءة؛ تعذر تأكيد عدد المنتجات المنشورة.');
+          seen.add(product.id);
+          if (typeof product.category_id === 'string' && product.category_id) {
+            counts.set(product.category_id, (counts.get(product.category_id) ?? 0) + 1);
+          }
+        }
+        if (!result.hasNextPage) {
+          setPublishedCounts(Object.fromEntries(categories.map((category) => [category.id, counts.get(category.id) ?? 0])));
+          return;
+        }
+      }
+      throw new Error('تجاوز تعداد المنتجات المنشورة الحد الأعلى للصفحات؛ لم نعرض أرقامًا غير مكتملة.');
+    } catch (cause) {
+      setPublishedCountsError(cause instanceof Error ? cause.message : 'تعذر حساب المنتجات المنشورة لكل تصنيف.');
+    } finally {
+      setPublishedCountsLoading(false);
+    }
+  }, [canOpen, categories]);
+
+  useEffect(() => {
+    if (canOpen && categories.length > 0) void scanPublishedCategoryCounts();
+  }, [canOpen, categories, scanPublishedCategoryCounts]);
 
   const tree = useMemo(() => buildAdminCategoryTree(categories), [categories]);
   const filteredTree = useMemo(() => filterAdminCategoryTree(tree, search), [tree, search]);
@@ -342,7 +386,8 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
         {loading && <div className="admin-category-state"><LoaderCircle size={18} className="spin"/> جارٍ تحميل التصنيفات</div>}
         {!loading && error && <div className="admin-category-error" role="alert"><AlertTriangle size={17}/><span>{error}</span><button type="button" className="btn outline" onClick={() => void load().catch(() => undefined)} disabled={loading}><RefreshCw size={14}/> إعادة المحاولة</button></div>}
         {!loading && !error && !filteredTree.length && <div className="admin-category-empty"><FolderTree size={25}/><strong>{search ? 'لا توجد نتائج' : 'لا توجد تصنيفات محفوظة'}</strong><span>{search ? 'جرّب كلمة أخرى.' : 'أنشئ تصنيفاً رئيسياً لبناء الشجرة.'}</span></div>}
-        {!loading && !error && filteredTree.length > 0 && <CategoryBranch nodes={filteredTree} expanded={new Set([...expandedIds, ...(search ? categories.map((item) => item.id) : [])])} selectedId={selectedId} depth={0} onToggle={toggleExpanded} onSelect={selectCategory}/>}
+        {!loading && !error && filteredTree.length > 0 && <CategoryBranch nodes={filteredTree} expanded={new Set([...expandedIds, ...(search ? categories.map((item) => item.id) : [])])} selectedId={selectedId} depth={0} onToggle={toggleExpanded} onSelect={selectCategory} publishedCounts={publishedCounts} publishedCountsLoading={publishedCountsLoading}/>}
+        {publishedCountsError && <div className="admin-category-error" role="alert"><AlertTriangle size={16}/><span>{publishedCountsError}</span><button type="button" className="btn outline" onClick={() => void scanPublishedCategoryCounts()} disabled={publishedCountsLoading}><RefreshCw size={14}/> إعادة حساب الأعداد</button></div>}
         {!loading && !error && categories.some((item) => item.is_active === false) && <p className="admin-category-legend">السجلات المؤرشفة ظاهرة للمراجعة ولا تُحذف.</p>}
       </section>
       <section className="panel admin-category-details">
@@ -394,6 +439,8 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
             <p>المعرّف: <code dir="ltr">{selected.id}</code></p>
             {selected.description && <p>{selected.description}</p>}
             {selected.parent_id && <button type="button" className="admin-category-link" onClick={() => selectCategory(selected.parent_id)}>الانتقال إلى الأب</button>}
+            {selected.is_active !== false && <a className="admin-category-link" href={'/category/' + storefrontCategorySlug(selected)} target="_blank" rel="noopener noreferrer">معاينة صفحة التصنيف كما يراها العميل</a>}
+            {publishedCounts && <p role="status">المنتجات المنشورة المرتبطة مباشرة بهذا التصنيف: <strong>{formatNumber(publishedCounts[selected.id] ?? 0)}</strong>{(publishedCounts[selected.id] ?? 0) === 0 ? ' — التصنيف فارغ من المنتجات المنشورة' : ''}</p>}
             {canManage && selected.is_active !== false && <section className="panel" aria-label="رسم التصنيف التوضيحي" style={{ display: 'grid', gap: 10, padding: 12 }}>
               <StorefrontArtworkPicker label="الرسم التوضيحي الذي يظهر للتصنيف في المتجر" value={artworkDraft}
                 onChange={setArtworkDraft} previewName={selected.name} disabled={artworkSaving} />
