@@ -448,7 +448,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
     await manager.goto("/admin/tasks");
     await expect(manager.getByRole("heading", { name: "مركز المهام التشغيلية" })).toBeVisible();
-    await manager.getByLabel("الحالة").selectOption("all");
+    await manager.locator(".task-filters").getByLabel("الحالة", { exact: true }).selectOption("all");
     await manager.getByLabel("نطاق الطباعة").selectOption("all");
     const printTasksButton = manager.getByRole("button", { name: "طباعة كل المهام المسموحة", exact: true });
     await expect(printTasksButton).toBeEnabled({ timeout: 15_000 });
