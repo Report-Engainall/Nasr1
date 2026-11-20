@@ -184,7 +184,6 @@ on:
       - "src/components/CustomerServiceSlaPolicyPanel.test.tsx"
       - "src/lib/customer-service-cases.ts"
       - "scripts/test-inventory-adjustment-v2-authorization.mjs"
-      - "scripts/test-decision-policy-learning-candidate.mjs"
       - "src/test/customer-workflow-tenant.test.tsx"
       - "src/test/admin-product-double-submit.test.tsx"
       - "src/test/customer-360-print-sheet.test.tsx"
