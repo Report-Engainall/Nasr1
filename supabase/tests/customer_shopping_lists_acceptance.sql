@@ -91,11 +91,21 @@ CREATE TABLE public.audit_logs(
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE OR REPLACE FUNCTION auth.uid()
-RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
-AS $function$
-  SELECT nullif(pg_catalog.current_setting('request.jwt.claim.sub',true),'')::uuid
-$function$;
+DO $auth_uid$
+BEGIN
+  -- Supabase PostgreSQL owns auth.uid(); use the platform implementation when present.
+  -- Only create the lightweight claim reader when running against plain PostgreSQL 17.
+  IF pg_catalog.to_regprocedure('auth.uid()') IS NULL THEN
+    EXECUTE $ddl$
+      CREATE FUNCTION auth.uid()
+      RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+      AS $function$
+        SELECT nullif(pg_catalog.current_setting('request.jwt.claim.sub',true),'')::uuid
+      $function$
+    $ddl$;
+  END IF;
+END
+$auth_uid$;
 CREATE OR REPLACE FUNCTION public.current_profile_id()
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $function$
@@ -201,7 +211,8 @@ INSERT INTO public.profiles(id,auth_user_id,organization_id) VALUES
  ('a4000000-0000-4000-8000-000000000003','c4000000-0000-4000-8000-000000000003','a0000000-0000-4000-8000-000000000001'),
  ('b4000000-0000-4000-8000-000000000004','c4000000-0000-4000-8000-000000000004','b0000000-0000-4000-8000-000000000002');
 INSERT INTO public.customers(id,organization_id,profile_id,status) VALUES
- ('a5000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000001','approved');
+ ('a5000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000001','approved'),
+ ('b5000000-0000-4000-8000-000000000002','b0000000-0000-4000-8000-000000000002','b4000000-0000-4000-8000-000000000004','approved');
 INSERT INTO public.customer_company_memberships(organization_id,customer_id,profile_id,member_role,status) VALUES
  ('a0000000-0000-4000-8000-000000000001','a5000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000002','buyer','active'),
  ('a0000000-0000-4000-8000-000000000001','a5000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000003','viewer','active');
@@ -218,12 +229,15 @@ INSERT INTO public.customer_carts(organization_id,profile_id,status) VALUES
  ('a0000000-0000-4000-8000-000000000001','a4000000-0000-4000-8000-000000000002','active');
 
 \ir ../migrations/20261120050000_customer_shopping_lists.sql
+\ir ../migrations/20261120060000_customer_shopping_lists_background_scheduler.sql
 
 DO $contract$
 DECLARE
   v_today date := (pg_catalog.now() AT TIME ZONE 'Asia/Aden')::date;
   v_list_id uuid;
   v_monthly_id uuid;
+  v_other_list_id uuid;
+  v_wrap_list_id uuid;
   v_run_id uuid;
   v_manual_run uuid;
   v_data jsonb;
@@ -233,12 +247,26 @@ DECLARE
   v_rejected boolean;
   v_before_cart jsonb;
   v_after_cart jsonb;
+  v_batch_customer record;
+  v_batch_result jsonb;
+  v_batch_list_id uuid;
+  v_batch_expected_organization uuid;
+  v_batch_expected_customer uuid;
+  v_batch_carts_before integer;
 BEGIN
   IF has_table_privilege('authenticated','public.customer_shopping_lists','SELECT')
      OR has_table_privilege('authenticated','public.customer_shopping_list_items','INSERT')
      OR has_table_privilege('authenticated','public.customer_shopping_list_shares','DELETE')
      OR NOT has_function_privilege('authenticated','public.list_customer_shopping_lists()','EXECUTE')
-     OR NOT has_function_privilege('authenticated','public.apply_customer_shopping_list_run_to_cart(uuid)','EXECUTE') THEN
+     OR NOT has_function_privilege('authenticated','public.apply_customer_shopping_list_run_to_cart(uuid)','EXECUTE')
+     OR has_function_privilege('authenticated','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
+     OR has_function_privilege('anon','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
+     OR has_function_privilege('service_role','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
+     OR NOT has_function_privilege('postgres','public.run_due_customer_shopping_list_scheduler()','EXECUTE')
+     OR has_table_privilege('authenticated','public.customer_shopping_list_scheduler_state','SELECT')
+     OR has_table_privilege('anon','public.customer_shopping_list_scheduler_state','SELECT')
+     OR has_table_privilege('service_role','public.customer_shopping_list_scheduler_state','SELECT')
+     OR NOT has_table_privilege('postgres','public.customer_shopping_list_scheduler_state','UPDATE') THEN
     RAISE EXCEPTION 'shopping-list direct table boundary or RPC grant is incorrect';
   END IF;
 
@@ -259,24 +287,54 @@ BEGIN
   PERFORM public.share_customer_shopping_list(v_list_id,'a4000000-0000-4000-8000-000000000002','edit');
   PERFORM public.share_customer_shopping_list(v_list_id,'a4000000-0000-4000-8000-000000000003','view');
 
+  -- A second company has its own owner and recurring list; the worker must isolate both.
+  PERFORM pg_catalog.set_config('app.profile_id','b4000000-0000-4000-8000-000000000004',false);
+  PERFORM pg_catalog.set_config('app.organization_id','b0000000-0000-4000-8000-000000000002',false);
+  PERFORM pg_catalog.set_config('request.jwt.claim.sub','c4000000-0000-4000-8000-000000000004',false);
+  v_other_list_id:=public.save_customer_shopping_list(
+    NULL,'دورة الشركة الثانية','warehouse',false,'weekly',v_today,
+    '[{"product_id":"b2000000-0000-4000-8000-000000000002","quantity":1,"unit_name":"كيس","base_units_per_unit":1}]'::jsonb
+  );
+  PERFORM pg_catalog.set_config('app.profile_id','a4000000-0000-4000-8000-000000000001',false);
+  PERFORM pg_catalog.set_config('app.organization_id','a0000000-0000-4000-8000-000000000001',false);
+  PERFORM pg_catalog.set_config('request.jwt.claim.sub','c4000000-0000-4000-8000-000000000001',false);
+
   v_before_cart:=public.get_customer_cart();
-  v_result:=public.materialize_due_customer_shopping_list_runs();
+  v_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_result->>'created_runs')::integer<>3
+     OR (v_result->>'processed_customers')::integer<>2 THEN
+    RAISE EXCEPTION 'background scheduler did not process both tenant owners and all three due schedules: %',v_result;
+  END IF;
   IF public.get_customer_cart()->'items' IS DISTINCT FROM v_before_cart->'items' THEN
-    RAISE EXCEPTION 'materializing weekly/monthly reviews must never edit the cart or submit an order';
+    RAISE EXCEPTION 'background recurrence must never edit a cart or submit an order';
   END IF;
-  IF (v_result->>'created_runs')::integer<>2 THEN
-    RAISE EXCEPTION 'weekly and monthly due schedules were not materialized exactly once: %',v_result;
-  END IF;
+  SELECT count(*) INTO v_count
+    FROM public.customer_shopping_list_runs
+   WHERE organization_id='a0000000-0000-4000-8000-000000000001'
+     AND created_by_profile_id='a4000000-0000-4000-8000-000000000001';
+  IF v_count<>2 THEN RAISE EXCEPTION 'first tenant recurrence snapshots escaped their owner scope'; END IF;
+  SELECT count(*) INTO v_count
+    FROM public.customer_shopping_list_runs
+   WHERE list_id=v_other_list_id
+     AND organization_id='b0000000-0000-4000-8000-000000000002'
+     AND created_by_profile_id='b4000000-0000-4000-8000-000000000004';
+  IF v_count<>1 THEN RAISE EXCEPTION 'second tenant recurrence was not materialized under its own owner'; END IF;
   SELECT count(*) INTO v_count
     FROM public.audit_logs
    WHERE action='customer.shopping_list.recurrence_due'
      AND new_value->>'due_on'=v_today::text;
-  IF v_count<>2 THEN
-    RAISE EXCEPTION 'each due weekly/monthly review must have exactly one audit event; found %',v_count;
+  IF v_count<>3 THEN
+    RAISE EXCEPTION 'each due review in both companies must have exactly one audit event; found %',v_count;
+  END IF;
+
+  -- Re-running the worker and the owner read is idempotent; no review is duplicated.
+  v_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_result->>'created_runs')::integer<>0 THEN
+    RAISE EXCEPTION 'background scheduler duplicated a previously materialized period: %',v_result;
   END IF;
   PERFORM public.materialize_due_customer_shopping_list_runs();
   SELECT count(*) INTO v_count FROM public.customer_shopping_list_runs;
-  IF v_count<>2 THEN RAISE EXCEPTION 'reopening a due list duplicated a scheduled run'; END IF;
+  IF v_count<>3 THEN RAISE EXCEPTION 'reopening a due list duplicated a scheduled run'; END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.audit_logs
      WHERE action='customer.shopping_list.recurrence_due'
@@ -301,6 +359,29 @@ BEGIN
     FROM pg_catalog.jsonb_array_elements(v_data) AS entry(value)
    WHERE entry.value->>'id'=v_list_id::text;
   IF v_run_id IS NULL THEN RAISE EXCEPTION 'recurring review snapshot not visible to list owner'; END IF;
+
+  -- The persistent cursor must wrap to an earlier tenant after the previous batch
+  -- ended at the last tenant; new due work cannot be starved by stable tenant ordering.
+  v_wrap_list_id:=public.save_customer_shopping_list(
+    NULL,'قائمة بعد المؤشر','warehouse',false,'weekly',v_today,
+    '[{"product_id":"a2000000-0000-4000-8000-000000000001","quantity":2,"unit_name":"كيس","base_units_per_unit":1}]'::jsonb
+  );
+  v_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_result->>'created_runs')::integer<>1
+     OR (v_result->>'processed_customers')::integer<>1
+     OR NOT EXISTS (
+       SELECT 1 FROM public.customer_shopping_list_runs
+        WHERE list_id=v_wrap_list_id AND due_on=v_today
+          AND created_by_profile_id='a4000000-0000-4000-8000-000000000001'
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.customer_shopping_list_scheduler_state
+        WHERE singleton_id=true
+          AND last_organization_id='a0000000-0000-4000-8000-000000000001'
+          AND last_customer_id='a5000000-0000-4000-8000-000000000001'
+     ) THEN
+    RAISE EXCEPTION 'scheduler cursor did not wrap fairly to the earlier due tenant: %',v_result;
+  END IF;
 
   -- A buyer member can read and apply a shared editable list, while the owner remains the company owner.
   PERFORM pg_catalog.set_config('app.profile_id','a4000000-0000-4000-8000-000000000002',false);
@@ -441,10 +522,154 @@ BEGIN
     RAISE EXCEPTION 'cross-tenant product reference created a shopping list';
   END IF;
 
+  -- Prove the hard 100-customer batch boundary across 101 independent companies.
+  -- Each tenant gets its own owner identity and catalog item; the first invocation
+  -- must process exactly 100, persist its cursor, and the next invocation must
+  -- process the last tenant rather than starving it behind stable UUID ordering.
+  CREATE TEMP TABLE scheduler_batch_fixtures (
+    organization_id uuid PRIMARY KEY,
+    profile_id uuid NOT NULL UNIQUE,
+    auth_user_id uuid NOT NULL UNIQUE,
+    customer_id uuid NOT NULL UNIQUE,
+    product_id uuid NOT NULL UNIQUE
+  ) ON COMMIT PRESERVE ROWS;
+
+  INSERT INTO pg_temp.scheduler_batch_fixtures(
+    organization_id,profile_id,auth_user_id,customer_id,product_id
+  )
+  SELECT pg_catalog.gen_random_uuid(),pg_catalog.gen_random_uuid(),
+         pg_catalog.gen_random_uuid(),pg_catalog.gen_random_uuid(),
+         pg_catalog.gen_random_uuid()
+    FROM pg_catalog.generate_series(1,101);
+
+  INSERT INTO public.organizations(id)
+  SELECT organization_id FROM pg_temp.scheduler_batch_fixtures;
+  INSERT INTO public.profiles(id,auth_user_id,organization_id)
+  SELECT profile_id,auth_user_id,organization_id
+    FROM pg_temp.scheduler_batch_fixtures;
+  INSERT INTO public.customers(id,organization_id,profile_id,status)
+  SELECT customer_id,organization_id,profile_id,'approved'
+    FROM pg_temp.scheduler_batch_fixtures;
+  INSERT INTO public.products(
+    id,organization_id,name,item_code,unit,status,min_order_quantity,order_quantity_multiple
+  )
+  SELECT product_id,organization_id,'منتج اختبار الدفعة',
+         'BATCH-' || pg_catalog.substr(product_id::text,1,12),
+         'قطعة','active',1,1
+    FROM pg_temp.scheduler_batch_fixtures;
+
+  FOR v_batch_customer IN
+    SELECT organization_id,profile_id,auth_user_id,customer_id,product_id
+      FROM pg_temp.scheduler_batch_fixtures
+     ORDER BY organization_id,customer_id
+  LOOP
+    PERFORM pg_catalog.set_config('app.profile_id',v_batch_customer.profile_id::text,false);
+    PERFORM pg_catalog.set_config('app.organization_id',v_batch_customer.organization_id::text,false);
+    PERFORM pg_catalog.set_config('request.jwt.claim.sub',v_batch_customer.auth_user_id::text,false);
+    v_batch_list_id:=public.save_customer_shopping_list(
+      NULL,'قائمة دفعة ' || v_batch_customer.customer_id::text,
+      'warehouse',false,'weekly',v_today,
+      pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'product_id',v_batch_customer.product_id,
+        'quantity',1,
+        'unit_name','قطعة',
+        'base_units_per_unit',1
+      ))
+    );
+    IF v_batch_list_id IS NULL THEN
+      RAISE EXCEPTION 'a due list was not created for batch tenant %',v_batch_customer.organization_id;
+    END IF;
+  END LOOP;
+
+  UPDATE public.customer_shopping_list_scheduler_state
+     SET last_organization_id=NULL,last_customer_id=NULL,updated_at=pg_catalog.now()
+   WHERE singleton_id=true;
+  SELECT organization_id,customer_id
+    INTO v_batch_expected_organization,v_batch_expected_customer
+    FROM pg_temp.scheduler_batch_fixtures
+   ORDER BY organization_id,customer_id
+   OFFSET 99 LIMIT 1;
+  SELECT count(*) INTO v_batch_carts_before FROM public.customer_carts;
+  -- Capture cart contents immediately before the worker, after all prior cart-load fixtures.
+  v_before_cart:=public.get_customer_cart();
+
+  v_batch_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_batch_result->>'processed_customers')::integer<>100
+     OR (v_batch_result->>'created_runs')::integer<>100
+     OR (v_batch_result->>'batch_limit')::integer<>100 THEN
+    RAISE EXCEPTION 'first scheduler invocation must process exactly 100 of 101 due tenants: %',v_batch_result;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.customer_shopping_list_scheduler_state
+     WHERE singleton_id=true
+       AND last_organization_id=v_batch_expected_organization
+       AND last_customer_id=v_batch_expected_customer
+  ) THEN
+    RAISE EXCEPTION 'first scheduler batch did not persist its exact 100th-tenant cursor';
+  END IF;
+  SELECT count(*) INTO v_count
+    FROM public.customer_shopping_lists
+   WHERE name LIKE 'قائمة دفعة %' AND next_run_on<=v_today;
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'exactly one due tenant must remain after a 100-customer batch; found %',v_count;
+  END IF;
+
+  v_batch_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_batch_result->>'processed_customers')::integer<>1
+     OR (v_batch_result->>'created_runs')::integer<>1 THEN
+    RAISE EXCEPTION 'second scheduler invocation starved the 101st tenant: %',v_batch_result;
+  END IF;
+  SELECT count(*) INTO v_count
+    FROM public.customer_shopping_list_runs r
+    JOIN public.customer_shopping_lists l ON l.id=r.list_id
+   WHERE l.name LIKE 'قائمة دفعة %' AND r.due_on=v_today;
+  IF v_count<>101 THEN
+    RAISE EXCEPTION 'all 101 tenants must receive exactly one due review; found %',v_count;
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM public.customer_shopping_list_runs r
+      JOIN public.customer_shopping_lists l ON l.id=r.list_id
+     WHERE l.name LIKE 'قائمة دفعة %'
+       AND r.created_by_profile_id IS DISTINCT FROM l.owner_profile_id
+  ) THEN
+    RAISE EXCEPTION 'batch scheduler wrote a review under another tenant owner identity';
+  END IF;
+  SELECT count(*) INTO v_count
+    FROM public.audit_logs a
+    JOIN public.customer_shopping_list_runs r ON r.id=a.entity_id
+    JOIN public.customer_shopping_lists l ON l.id=r.list_id
+   WHERE a.action='customer.shopping_list.recurrence_due'
+     AND l.name LIKE 'قائمة دفعة %';
+  IF v_count<>101 THEN
+    RAISE EXCEPTION 'each of the 101 batch review snapshots must have exactly one audit record; found %',v_count;
+  END IF;
+  IF public.get_customer_cart()->'items' IS DISTINCT FROM v_before_cart->'items' THEN
+    RAISE EXCEPTION 'background batch scheduling must never mutate the active customer cart';
+  END IF;
+  IF (SELECT count(*) FROM public.customer_carts)<>v_batch_carts_before THEN
+    RAISE EXCEPTION 'background batch scheduling created or removed customer carts';
+  END IF;
+
+  v_batch_result:=public.run_due_customer_shopping_list_scheduler();
+  IF (v_batch_result->>'processed_customers')::integer<>0
+     OR (v_batch_result->>'created_runs')::integer<>0 THEN
+    RAISE EXCEPTION 'scheduler replay after draining 101 tenants must be idempotent: %',v_batch_result;
+  END IF;
+
   -- Direct reads and writes to tables stay closed; callers only receive the guarded RPC surface.
   IF has_table_privilege('authenticated','public.customer_shopping_list_runs','SELECT')
      OR has_table_privilege('authenticated','public.customer_shopping_list_run_items','UPDATE') THEN
     RAISE EXCEPTION 'shopping-list run tables are directly accessible to browser roles';
+  END IF;
+  SELECT count(*) INTO v_count
+    FROM cron.job
+   WHERE jobname='aghbari_customer_shopping_lists_due_v1'
+     AND username='postgres'
+     AND schedule='*/5 * * * *'
+     AND command LIKE '%public.run_due_customer_shopping_list_scheduler()%';
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'the PostgreSQL background schedule was not installed exactly once; found % jobs',v_count;
   END IF;
 END
 $contract$;
