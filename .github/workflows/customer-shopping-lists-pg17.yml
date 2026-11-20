@@ -7,6 +7,13 @@ on:
       - "supabase/migrations/20261120050000_customer_shopping_lists.sql"
       - "supabase/tests/customer_shopping_lists_acceptance.sql"
       - ".github/workflows/customer-shopping-lists-pg17.yml"
+      - "src/components/CustomerShoppingListsWorkspace.tsx"
+      - "src/lib/customer-shopping-lists.ts"
+      - "src/lib/customer-shopping-lists.test.ts"
+      - "src/lib/customer-shopping-lists-xlsx.ts"
+      - "src/lib/customer-shopping-lists-xlsx.test.ts"
+      - "src/routes/reorder.tsx"
+      - "tsconfig.p1-typecheck.json"
   push:
     branches: [main]
     paths:
