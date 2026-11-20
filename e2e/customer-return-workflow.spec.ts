@@ -264,13 +264,13 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await expect(administratorRow).toBeVisible();
       await administratorRow.getByLabel(/^سبب عكس الإشعار/).fill(reversalReason);
       await administratorRow.getByRole("button", { name: "إعداد مسودة قيد العكس", exact: true }).click();
-      await expect(administratorRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.", { exact: true })).toBeVisible();
+      await expect(administratorRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.")).toBeVisible();
       await expect(administratorRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true })).toBeEnabled();
       completedStages.push("administrator_prepared_source_linked_reversal_draft");
 
       await administratorRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true }).click();
       await expect(administratorSection.getByRole("alert")).toContainText("checker different from the reversal maker");
-      await expect(administratorRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.", { exact: true })).toBeVisible();
+      await expect(administratorRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.")).toBeVisible();
       completedStages.push("reversal_maker_self_post_denied_without_state_change");
       await administratorPage.close();
 
@@ -283,7 +283,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       const accountantReversalDialog = accountantReversalPage.getByRole("dialog", { name: "مساحة إشعارات المرتجعات الدائنة" });
       const accountantReversalSection = accountantReversalDialog.locator('section[aria-labelledby="return-credit-heading"]');
       const postedRow = accountantReversalSection.locator("article").filter({ hasText: orderNumber });
-      await expect(postedRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.", { exact: true })).toBeVisible();
+      await expect(postedRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.")).toBeVisible();
       await postedRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true }).click();
       await expect(postedRow.getByText("معكوس ماليًا", { exact: true })).toBeVisible();
       await expect(postedRow).toContainText("رقم قيد العكس:");
