@@ -17,6 +17,7 @@ import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-product
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { ProductDataQualityPanel } from '@/components/store/ProductDataQualityPanel';
 import { StorefrontProductOffers } from '@/components/store/StorefrontProductOffers';
+import { StorefrontProductFacts } from '@/components/store/StorefrontProductFacts';
 import { formatProductUpdatedAt } from '@/lib/storefront-product-data-quality';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
@@ -1099,6 +1100,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
               onWishlist={() => toggleWishlist(selectedProduct.id)}
               onCompare={() => toggleCompare(selectedProduct.id)}
               onOpenRelated={openProduct}
+              onOpenRecommendation={(productId) => { void navigate({ to: '/product/$id', params: { id: productId } }); }}
             />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
@@ -1436,6 +1438,7 @@ export function ProductDetail({
   onWishlist,
   onCompare,
   onOpenRelated,
+  onOpenRecommendation,
 }: {
   product: ProductWithInventory;
   isStaff: boolean;
@@ -1456,6 +1459,7 @@ export function ProductDetail({
   onWishlist: () => void;
   onCompare: () => void;
   onOpenRelated: (product: ProductWithInventory) => void;
+  onOpenRecommendation: (productId: string) => void;
 }) {
   const rawAvailableQuantity = product.inventory?.quantity_available;
   const quantityKnown = typeof rawAvailableQuantity === 'number' &&
@@ -1785,6 +1789,7 @@ export function ProductDetail({
         error={promotionsError}
         onRetry={onRetryPromotions}
       />
+      <StorefrontProductFacts key={product.id} productId={product.id} onOpenProduct={onOpenRecommendation} />
       {relatedProducts.length > 0 && (
         <section className="sf-related-products" aria-labelledby="sf-related-products-title">
           <div className="sf-related-header">
