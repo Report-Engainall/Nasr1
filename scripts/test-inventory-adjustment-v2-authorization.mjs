@@ -116,6 +116,8 @@ async function main() {
       "and exists (select 1 from public.inventory_balances ib where ib.warehouse_id=w.id and ib.product_id=$4::uuid) " +
       "and not exists (select 1 from public.stock_count_sessions c " +
       "where c.organization_id=w.organization_id and c.warehouse_id=w.id and c.status='open') " +
+      "and not exists (select 1 from public.stock_count_sessions c " +
+      "where c.organization_id=w.organization_id and c.warehouse_id=w.id and c.status='open') " +
       "and not exists (select 1 from public.authorization_profile_scopes s " +
       "where s.organization_id=w.organization_id and s.profile_id=$3::uuid and s.scope_kind='warehouse' " +
       "and s.warehouse_id=w.id and s.is_active=true and s.valid_from<=statement_timestamp() " +
