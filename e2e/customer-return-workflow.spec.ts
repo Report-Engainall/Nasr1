@@ -129,7 +129,8 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
         expect(summaryXml).toContain(orderNumber);
         expect(summaryXml).toContain("جميع طلبات المراجعة المفتوحة المطابقة للمرشحات وقت القراءة");
         expect(summaryXml).toContain("الحد الآمن 1000 طلب و25000 سطر صنف");
-        expect(summaryXml).toContain("ليست سجلاً تاريخياً كاملاً");
+        expect(summaryXml).toContain("يتوقف التصدير دون ملف جزئي عند تجاوز الحد أو تغيّر مصدر القراءة");
+        expect(summaryXml).toContain("ملاحظات العميل والمعرفات التقنية غير مضمنة");
         expect(detailsXml).toContain(itemName);
         const exportedXml = summaryXml + "\n" + detailsXml;
         expect(exportedXml).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
