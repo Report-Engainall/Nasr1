@@ -19,6 +19,10 @@ DECLARE
   v_org uuid;
   v_session public.stock_count_sessions%ROWTYPE;
   v_line public.stock_count_lines%ROWTYPE;
+  v_old_counted_quantity numeric(15,3);
+  v_old_counted_by uuid;
+  v_old_counted_at timestamptz;
+  v_now timestamptz := pg_catalog.clock_timestamp();
 BEGIN
   SELECT p.organization_id
     INTO v_org
@@ -90,12 +94,35 @@ BEGIN
       MESSAGE = 'product is not part of this stock-count snapshot';
   END IF;
 
+  v_old_counted_quantity := v_line.counted_quantity;
+  v_old_counted_by := v_line.counted_by;
+  v_old_counted_at := v_line.counted_at;
+
   UPDATE public.stock_count_lines
      SET counted_quantity = p_counted_quantity,
          variance = p_counted_quantity - v_line.expected_quantity,
-         counted_at = pg_catalog.now()
+         counted_by = v_actor,
+         counted_at = v_now
    WHERE id = v_line.id
   RETURNING * INTO v_line;
+
+  INSERT INTO public.audit_logs (
+    organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+  ) VALUES (
+    v_org, v_actor, 'inventory.stock_count.line_counted', 'stock_count_line', v_line.id,
+    CASE WHEN v_old_counted_quantity IS NULL THEN NULL ELSE pg_catalog.jsonb_build_object(
+      'counted_quantity', v_old_counted_quantity,
+      'counted_by', v_old_counted_by,
+      'counted_at', v_old_counted_at
+    ) END,
+    pg_catalog.jsonb_build_object(
+      'session_id', v_session.id,
+      'product_id', p_product_id,
+      'counted_quantity', v_line.counted_quantity,
+      'counted_by', v_actor,
+      'counted_at', v_now
+    )
+  );
 
   UPDATE public.stock_count_sessions s
      SET counted_lines = (
@@ -114,6 +141,6 @@ REVOKE ALL ON FUNCTION public.set_stock_count_line(uuid, uuid, numeric) FROM PUB
 GRANT EXECUTE ON FUNCTION public.set_stock_count_line(uuid, uuid, numeric) TO authenticated;
 
 COMMENT ON FUNCTION public.set_stock_count_line(uuid, uuid, numeric) IS
-  'Updates a draft count line only after active tenant identity, an open tenant-owned session, and inventory.count.enter permission for the exact session warehouse; the stock-count line trigger independently enforces the same warehouse boundary and counted_by identity.';
+  'Updates a draft count line only after active tenant identity, an open tenant-owned session, and inventory.count.enter permission for the exact session warehouse; stores the counter and appends one immutable old/new count audit event in the same transaction.';
 
 COMMIT;
