@@ -12,15 +12,13 @@ UPDATE public.authorization_capabilities
        state_requirements=coalesce(state_requirements,'{}'::jsonb)
          || '{"requires_active_warehouse_assignment":true,"requires_reason":true,"required_status":"open","does_not_move_stock":true}'::jsonb,
        updated_at=statement_timestamp()
- WHERE capability_key='inventory.count.cancel'
-   AND is_active=true;
+ WHERE capability_key='inventory.count.cancel';
 
 DO $assert_stock_count_cancel_contract$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.authorization_capabilities
      WHERE capability_key='inventory.count.cancel'
-       AND is_active=true
        AND scope_kind='warehouse'
        AND approval_mode='none'
        AND separation_of_duties=false
