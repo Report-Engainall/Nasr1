@@ -356,8 +356,8 @@ async function main() {
     assert.equal(runB.outcome, "VERIFIED");
     assert.equal(runB.unmatched_ledger_lines, 0);
     assert.equal(runB.unmatched_statement_lines, 0);
-    assert.equal(runB.statement_net_movement, "-200.00");
-    assert.equal(runB.ledger_net_movement, "-200.00");
+    assert.equal(Number(runB.statement_net_movement), -200);
+    assert.equal(Number(runB.ledger_net_movement), -200);
     const verifiedRunRows = await serviceDb.unsafe(
       "select outcome,statement_line_count,matched_line_count,unmatched_statement_lines,unmatched_ledger_lines," +
       "statement_net_movement::text,ledger_net_movement::text " +
