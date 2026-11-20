@@ -3,17 +3,23 @@ import { normalizeSavedProductIds } from "@/lib/commerce-utils";
 export const STOREFRONT_COMPARE_GUEST_STORAGE_KEY = "aghbari:compare:v1";
 export const STOREFRONT_COMPARE_MAX_ITEMS = 3;
 
+const PROFILE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
 /**
  * Keep anonymous compare choices compatible with the existing guest key while
- * isolating authenticated customers by verified profile id. The browser cache is
+ * isolating authenticated users by verified profile id or auth identity. The browser cache is
  * convenience state only: product data is always resolved from the live catalog.
  */
-export function storefrontCompareStorageKey(profileId?: string | null): string {
+export function storefrontCompareStorageKey(profileId?: string | null, authUserId?: string | null): string {
   const normalizedProfileId = typeof profileId === "string" ? profileId.trim() : "";
-  if (!normalizedProfileId) return STOREFRONT_COMPARE_GUEST_STORAGE_KEY;
-  return `aghbari:compare:v2:${encodeURIComponent(normalizedProfileId)}`;
+  if (PROFILE_ID_PATTERN.test(normalizedProfileId)) return `aghbari:compare:v2:${encodeURIComponent(normalizedProfileId)}`;
+
+  const normalizedAuthUserId = typeof authUserId === "string" ? authUserId.trim() : "";
+  if (normalizedAuthUserId) return `aghbari:compare:auth:v1:${encodeURIComponent(normalizedAuthUserId)}`;
+
+  return STOREFRONT_COMPARE_GUEST_STORAGE_KEY;
 }
 
 export function readStorefrontCompareIds(storage: StorageLike, storageKey: string): string[] {
