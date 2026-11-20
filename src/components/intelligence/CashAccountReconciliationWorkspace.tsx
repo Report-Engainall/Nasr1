@@ -22,6 +22,8 @@ import {
   getOrCreatePersistentBankStatementLineRetry,
   getOrCreatePersistentOpeningBalanceRetry,
   normalizeFinanceAmountInput,
+  type PersistentBankStatementLineRetry,
+  type PersistentFinanceRetry,
 } from "@/lib/finance-cash-reconciliation-idempotency";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -130,7 +132,7 @@ export function CashAccountReconciliationWorkspace() {
       return;
     }
 
-    let retry;
+    let retry: PersistentFinanceRetry;
     try {
       const { data: authState } = await supabase.auth.getSession();
       const actorUserId = authState.session?.user.id;
@@ -209,7 +211,7 @@ export function CashAccountReconciliationWorkspace() {
       description: lineDescription.trim(),
       signedAmount,
     };
-    let pending;
+    let pending: PersistentBankStatementLineRetry;
     try {
       const { data: authState } = await supabase.auth.getSession();
       if (!authState.session?.user.id) throw new Error("انتهت جلسة الدخول؛ سجّل الدخول قبل إضافة حركة كشف البنك.");

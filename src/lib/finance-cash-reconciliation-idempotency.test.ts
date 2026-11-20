@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  clearPersistentFinanceRetry,
   getOrCreatePendingBankStatementLine,
+  getOrCreatePersistentBankStatementLineRetry,
+  getOrCreatePersistentOpeningBalanceRetry,
   normalizeFinanceAmountInput,
   type BankStatementLineRetryPayload,
   type PendingBankStatementLine,
@@ -83,7 +86,7 @@ describe("finance reconciliation retry safeguards", () => {
     expect(() => getOrCreatePendingBankStatementLine(pending, payload, 0, () => firstKey)).toThrow(/رقم سطر/);
     expect(() => getOrCreatePendingBankStatementLine(pending, payload, 1, () => "not-a-uuid")).toThrow(/مفتاح صالح/);
   });
-}
+});
 
 class MemoryFinanceRetryStorage {
   private values = new Map<string, string>();
@@ -197,6 +200,4 @@ describe("persistent finance reconciliation retry identity", () => {
       unavailable, "request", () => secondKey, testFingerprintHash,
     )).rejects.toThrow(/لم تُرسل/);
   });
-});
-
 });
