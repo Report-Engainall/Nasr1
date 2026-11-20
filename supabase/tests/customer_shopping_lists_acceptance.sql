@@ -272,6 +272,11 @@ BEGIN
   IF v_next_on IS NULL OR v_next_on<>(v_today + interval '1 month')::date THEN
     RAISE EXCEPTION 'monthly recurrence did not advance from the local due date';
   END IF;
+  SELECT next_run_on INTO v_next_on
+    FROM public.customer_shopping_lists WHERE id=v_list_id;
+  IF v_next_on IS NULL OR v_next_on<>(v_today + 7) THEN
+    RAISE EXCEPTION 'weekly recurrence did not advance by exactly seven local days';
+  END IF;
   v_data:=public.list_customer_shopping_lists();
   IF pg_catalog.jsonb_array_length(v_data)<>2 THEN
     RAISE EXCEPTION 'owner did not receive all company lists';
