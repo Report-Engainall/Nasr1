@@ -345,5 +345,3 @@ async function main() {
         assert.equal(countStartDiagnostics.allowed, true,
           "manager must have an active inventory.count.start grant and assigned warehouse: " +
           JSON.stringify(countStartDiagnostics));
-          "manager must have an active inventory.count.start grant and assigned warehouse: " +
-          JSON.stringify(countStartDiagnostics));
