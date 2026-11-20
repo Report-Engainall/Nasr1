@@ -118,20 +118,39 @@ function parseSpecifications(value: unknown): ProductSpecification[] {
   return specifications as ProductSpecification[];
 }
 
+const PRIVATE_IMAGE_QUERY_KEYS = new Set([
+  "token", "signature", "sig", "apikey", "api_key", "authorization",
+  "x-amz-signature", "x-goog-signature",
+]);
+
+function safePublicImageUrl(value: unknown): string | null {
+  const image = optionalText(value, 2048);
+  if (!image) return null;
+  try {
+    const url = new URL(image);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    let privateQuery = false;
+    url.searchParams.forEach((_queryValue, key) => {
+      if (PRIVATE_IMAGE_QUERY_KEYS.has(key.toLowerCase())) privateQuery = true;
+    });
+    return privateQuery ? null : url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function parseRecommendation(value: unknown): ProductRecommendation | null {
   if (!isRecord(value) || typeof value.id !== "string" || !UUID.test(value.id)) return null;
   const name = optionalText(value.name, 200);
   const itemCode = optionalText(value.item_code, 100);
   const unit = optionalText(value.unit, 40);
   if (!name || !itemCode || !unit) return null;
-  const image = optionalText(value.image_url, 2048);
-  const imageUrl = image && /^https:\/\//i.test(image) ? image : null;
   return {
     id: value.id,
     name,
     item_code: itemCode,
     unit,
-    image_url: imageUrl,
+    image_url: safePublicImageUrl(value.image_url),
     brand_name: optionalText(value.brand_name, 120),
   };
 }
