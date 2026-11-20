@@ -151,6 +151,7 @@ export function CustomerShoppingListsWorkspace() {
   const [reviewLines, setReviewLines] = useState<ReviewLine[]>([]);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [reviewConditionsAccepted, setReviewConditionsAccepted] = useState(false);
   const [loadedResult, setLoadedResult] = useState<LoadedResult | null>(null);
   const loadRevision = useRef(0);
   const activeProfile = useRef(user?.profileId);
@@ -353,6 +354,7 @@ export function CustomerShoppingListsWorkspace() {
     setLoadedResult(null);
     setReviewRun(null);
     setReviewLines([]);
+    setReviewConditionsAccepted(false);
     setError("");
     try {
       const id = runId ?? await createCustomerShoppingListRun(list.id);
@@ -432,6 +434,10 @@ export function CustomerShoppingListsWorkspace() {
 
   async function loadRunIntoCart() {
     if (!reviewRun || !reviewValidation.valid || busy) return;
+    if (!reviewConditionsAccepted) {
+      setReviewError("يلزم تأكيد مراجعة الكميات والتوفر وشروط التسعير الحالية قبل تحميل القائمة إلى السلة.");
+      return;
+    }
     setBusy(true);
     setReviewError("");
     setLoadedResult(null);
@@ -767,6 +773,16 @@ export function CustomerShoppingListsWorkspace() {
               title="الأسعار الحالية من الخادم"
             />
           </div>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, padding: 10, border: "1px solid #dce8e7", borderRadius: 9, fontSize: 12, lineHeight: 1.7 }}>
+            <input
+              type="checkbox"
+              checked={reviewConditionsAccepted}
+              disabled={busy || Boolean(loadedResult)}
+              onChange={(event) => setReviewConditionsAccepted(event.currentTarget.checked)}
+              style={{ marginTop: 4 }}
+            />
+            أؤكد مراجعة كميات القائمة والتوفر الحالي والشروط التي أعادها الخادم. أوافق على تحميلها إلى السلة فقط؛ هذا الإجراء لا يرسل طلب شراء ولا يعتمد الطلب النهائي.
+          </label>
           {!reviewValidation.valid && <p role="alert" style={{ color: "#9a3430", fontWeight: 750 }}>{reviewValidation.message}</p>}
           {loadedResult ? (
             <div style={{ borderTop: "1px solid #e2ecea", paddingTop: 12, marginTop: 12 }}>
@@ -779,7 +795,7 @@ export function CustomerShoppingListsWorkspace() {
               </button>
             </div>
           ) : (
-            <button type="button" style={mainButton} disabled={busy || !reviewValidation.valid || reviewRun.status !== "review_required"} onClick={() => void loadRunIntoCart()}>
+            <button type="button" style={mainButton} disabled={busy || !reviewValidation.valid || !reviewConditionsAccepted || reviewRun.status !== "review_required"} onClick={() => void loadRunIntoCart()}>
               <ShoppingCart size={16} /> {busy ? "جار التحقق والتحميل..." : "إعادة التحقق وتحميل للسلة"}
             </button>
           )}
