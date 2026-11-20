@@ -74,6 +74,7 @@ describe("Arabic assistant query-window guardrails", () => {
     // This describe is independent from the execution tests above; isolate shared hoisted RPC mocks.
     rpc.mockReset();
     invoke.mockReset();
+    fetchBusinessHealth.mockReset();
     invoke.mockRejectedValue(new Error("all configured AI model providers are unavailable"));
   });
 
