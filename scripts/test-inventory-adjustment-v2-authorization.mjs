@@ -440,9 +440,12 @@ async function main() {
         assert.equal(restoredCountEntryDenial.changed, true);
         await applyActor(tx, actors.manager);
         assert.equal(
-          (await tx.unsafe("select public.current_actor_has_capability('inventory.count.enter') as allowed"))[0].allowed,
+          (await tx.unsafe(
+            "select public.current_actor_has_capability('inventory.count.enter',$1::uuid) as allowed",
+            [fixture.warehouse_id],
+          ))[0].allowed,
           true,
-          "removing the test-only denial must restore the independent count-entry capability",
+          "removing the test-only denial must restore count-entry for the exact assigned warehouse",
         );
 
         // This first session exists only to prove count-entry and explicit-denial
