@@ -78,8 +78,6 @@ describe("filterCustomerPaymentHistory", () => {
 
 const statementInvoiceId = "10000000-0000-4000-8000-000000000001";
 const statementPaymentId = "20000000-0000-4000-8000-000000000001";
-const statementInvoiceId2 = "10000000-0000-4000-8000-000000000002";
-const statementPaymentId2 = "20000000-0000-4000-8000-000000000002";
 
 describe("parseCustomerPaymentHistoryPayload", () => {
   const validPayload = () => ({
