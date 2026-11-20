@@ -367,6 +367,29 @@ BEGIN
   END;
   IF NOT v_rejected THEN RAISE EXCEPTION 'read-only viewer was able to edit a shopping list'; END IF;
 
+  -- Removing a share must revoke list visibility before membership itself is revoked.
+  PERFORM pg_catalog.set_config('app.profile_id','a4000000-0000-4000-8000-000000000001',false);
+  PERFORM pg_catalog.set_config('request.jwt.claim.sub','c4000000-0000-4000-8000-000000000001',false);
+  IF NOT public.remove_customer_shopping_list_share(v_list_id,'a4000000-0000-4000-8000-000000000003') THEN
+    RAISE EXCEPTION 'owner did not receive a successful share-revocation result';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.audit_logs
+     WHERE action='customer.shopping_list.share_removed' AND entity_id=v_list_id
+       AND new_value->>'member_profile_id'='a4000000-0000-4000-8000-000000000003'
+  ) THEN RAISE EXCEPTION 'share removal was not audited'; END IF;
+  PERFORM pg_catalog.set_config('app.profile_id','a4000000-0000-4000-8000-000000000003',false);
+  PERFORM pg_catalog.set_config('request.jwt.claim.sub','c4000000-0000-4000-8000-000000000003',false);
+  v_data:=public.list_customer_shopping_lists();
+  IF pg_catalog.jsonb_array_length(v_data)<>0 THEN
+    RAISE EXCEPTION 'unshared viewer retained visibility of the shopping list';
+  END IF;
+  PERFORM pg_catalog.set_config('app.profile_id','a4000000-0000-4000-8000-000000000001',false);
+  PERFORM pg_catalog.set_config('request.jwt.claim.sub','c4000000-0000-4000-8000-000000000001',false);
+  PERFORM public.share_customer_shopping_list(v_list_id,'a4000000-0000-4000-8000-000000000003','view');
+
+  PERFORM pg_catalog.set_config('app.profile_id','a4000000-0000-4000-8000-000000000003',false);
+  PERFORM pg_catalog.set_config('request.jwt.claim.sub','c4000000-0000-4000-8000-000000000003',false);
   UPDATE public.customer_company_memberships SET status='revoked'
    WHERE profile_id='a4000000-0000-4000-8000-000000000003';
   v_rejected:=false;

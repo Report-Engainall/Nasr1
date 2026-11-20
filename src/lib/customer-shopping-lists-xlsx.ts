@@ -225,9 +225,19 @@ export async function parseCustomerShoppingListXlsx(
       throw new Error("ملفات Excel التي تتضمن روابط خارجية أو وحدات ماكرو غير مقبولة.");
     }
   }
-  if ([...entries.keys()].some((name) => !name.endsWith("/") && !allowed.has(name) &&
-      !["[Content_Types].xml","_rels/.rels","docProps/app.xml","docProps/core.xml","docProps/custom.xml"].includes(name) &&
-      !/^xl\\/worksheets\\/_rels\\/sheet\\d+\\.xml\\.rels$/.test(name))) {
+  const unsupportedEntry = [...entries.keys()].some((name) => {
+    const relationshipPrefix = "xl/worksheets/_rels/sheet";
+    const relationshipSuffix = ".xml.rels";
+    const relationshipNumber = name.startsWith(relationshipPrefix) && name.endsWith(relationshipSuffix)
+      ? name.slice(relationshipPrefix.length, -relationshipSuffix.length)
+      : "";
+    const isWorksheetRelationship = /^[0-9]+$/.test(relationshipNumber);
+    const isDocumentMetadata = [
+      "[Content_Types].xml", "_rels/.rels", "docProps/app.xml", "docProps/core.xml", "docProps/custom.xml",
+    ].includes(name);
+    return !name.endsWith("/") && !allowed.has(name) && !isDocumentMetadata && !isWorksheetRelationship;
+  });
+  if (unsupportedEntry) {
     throw new Error("يتضمن الملف مكونات Excel إضافية غير مطلوبة؛ أعد حفظ جدول المنتجات فقط بصيغة XLSX.");
   }
   let totalUnpacked = 0;
