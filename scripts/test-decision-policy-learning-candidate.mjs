@@ -264,6 +264,15 @@ async function main() {
       const sourceDiagnostics = await tx.unsafe(
         "select " +
           "o.measured_outcome is not null as has_measured_outcome, " +
+          "o.measured_outcome as measured_payload, " +
+          "pg_catalog.jsonb_typeof(o.measured_outcome) as measured_payload_type, " +
+          "o.measured_outcome->>'metricKey' as measured_metric_key, " +
+          "o.measured_outcome->>'unit' as measured_unit, " +
+          "o.measured_outcome->>'status' as measured_status, " +
+          "o.measured_outcome->>'completeness' as measured_completeness, " +
+          "o.measured_outcome->>'quality' as measured_quality, " +
+          "pg_catalog.jsonb_typeof(o.measured_outcome->'period') as measured_period_type, " +
+          "pg_catalog.jsonb_typeof(o.measured_outcome->'evidenceIds') as measured_evidence_type, " +
           "o.measured_outcome->>'asOf' as measured_as_of, " +
           "o.measured_outcome->'evidenceIds' as measured_evidence_ids, " +
           "(select count(*)::integer from public.customer_invoices i where i.id=$2::uuid and i.organization_id=$3::uuid) as matching_invoice_count, " +
@@ -288,7 +297,21 @@ async function main() {
       assert.equal(resolvedActualEvidence?.ids?.length, 1,
         "the evidence resolver must return every requested same-tenant invoice ID");
       assert.ok(sourceDiagnostics[0].reloaded_actual_metric,
-        "a subsequent SQL statement must reload the source-backed actual metric");
+        "a subsequent SQL statement must reload the source-backed actual metric; measured payload="+
+        JSON.stringify({
+          payload: sourceDiagnostics[0].measured_payload,
+          payloadType: sourceDiagnostics[0].measured_payload_type,
+          metricKey: sourceDiagnostics[0].measured_metric_key,
+          unit: sourceDiagnostics[0].measured_unit,
+          status: sourceDiagnostics[0].measured_status,
+          completeness: sourceDiagnostics[0].measured_completeness,
+          quality: sourceDiagnostics[0].measured_quality,
+          periodType: sourceDiagnostics[0].measured_period_type,
+          evidenceType: sourceDiagnostics[0].measured_evidence_type,
+          evidenceIds: sourceDiagnostics[0].measured_evidence_ids,
+          resolved: resolvedActualEvidence,
+          helperVolatility: sourceDiagnostics[0].snapshot_helper_volatility
+        }));
       assert.equal(Number(sourceDiagnostics[0].reloaded_actual_metric.value), amount,
         "the reloaded actual metric must retain the server-measured amount");
       assert.equal(sourceDiagnostics[0].reloaded_actual_metric.status, "VERIFIED");
