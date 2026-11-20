@@ -74,6 +74,17 @@ describe("cart pricing change review", () => {
     expect(changes[0].kind).toBe("decrease");
   });
 
+  it("requires approval when the server changes the cart currency", () => {
+    const changes = compareCartPricingSnapshots(pricing(20), {
+      ...pricing(20),
+      currency: "USD",
+    });
+    expect(changes).toHaveLength(2);
+    expect(changes[0].kind).toBe("currency");
+    expect(changes[0].previous_currency).toBe("YER");
+    expect(changes[0].current_currency).toBe("USD");
+  });
+
   it("detects changed promotional terms even when the payable unit price is unchanged", () => {
     const before = pricing(20);
     const after = {
