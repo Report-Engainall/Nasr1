@@ -25,6 +25,113 @@ export type CustomerPaymentHistoryFilterResult = {
   error: string | null;
 };
 
+export type ValidatedCustomerPaymentInvoice = {
+  id: string;
+  invoice_number: string;
+  currency: string;
+};
+
+export type ValidatedCustomerPayment = {
+  id: string;
+  invoice_id: string;
+  amount: number | string;
+  paid_at?: string;
+};
+
+export type ValidatedCustomerPaymentHistory = {
+  invoices: ValidatedCustomerPaymentInvoice[];
+  payments: ValidatedCustomerPayment[];
+};
+
+const CUSTOMER_PAYMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_CUSTOMER_PAYMENT_INVOICES = 200;
+const MAX_CUSTOMER_PAYMENT_ROWS = 500;
+const PAYMENT_AMOUNT_DECIMAL = /^\\d{1,13}(?:\\.\\d{1,2})?$/;
+const PAYMENT_TIMESTAMP = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/;
+
+function paymentPayloadRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function validatedPaymentAmount(value: unknown): number | string | null {
+  const raw = typeof value === "string"
+    ? value.trim()
+    : typeof value === "number" && Number.isFinite(value)
+      ? String(value)
+      : "";
+  if (!raw || raw.length > 16 || !PAYMENT_AMOUNT_DECIMAL.test(raw)) return null;
+
+  try {
+    const [whole, fraction = ""] = raw.split(".");
+    const minorUnits = BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2));
+    if (minorUnits > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  } catch {
+    return null;
+  }
+  return typeof value === "number" ? Number(raw) : raw;
+}
+
+/**
+ * Parse the bounded, read-only customer statement projection into a minimal UI DTO.
+ * Unknown fields are discarded so the payment-history page cannot accidentally
+ * render invoice financials, tenant identifiers, or private metadata added later.
+ */
+export function parseCustomerPaymentHistoryPayload(value: unknown): ValidatedCustomerPaymentHistory {
+  const payload = paymentPayloadRecord(value);
+  if (!payload || !Array.isArray(payload.invoices) || !Array.isArray(payload.payments) ||
+      payload.invoices.length > MAX_CUSTOMER_PAYMENT_INVOICES ||
+      payload.payments.length > MAX_CUSTOMER_PAYMENT_ROWS) {
+    throw new Error("أعاد الخادم تفاصيل دفعات غير مكتملة أو تجاوزت حدود القراءة.");
+  }
+
+  const invoiceIds = new Set<string>();
+  const invoices = payload.invoices.map((candidate, index): ValidatedCustomerPaymentInvoice => {
+    const row = paymentPayloadRecord(candidate);
+    if (!row ||
+        typeof row.id !== "string" || !CUSTOMER_PAYMENT_UUID.test(row.id) ||
+        invoiceIds.has(row.id.toLowerCase()) ||
+        typeof row.invoice_number !== "string" || !row.invoice_number.trim() ||
+        row.invoice_number.trim().length > 100 ||
+        typeof row.currency !== "string" || !/^[A-Z]{3}$/.test(row.currency)) {
+      throw new Error("تفاصيل الفاتورة رقم " + (index + 1) + " لا تطابق عقد كشف الحساب.");
+    }
+    invoiceIds.add(row.id.toLowerCase());
+    return {
+      id: row.id.toLowerCase(),
+      invoice_number: row.invoice_number.trim(),
+      currency: row.currency,
+    };
+  });
+
+  const paymentIds = new Set<string>();
+  const payments = payload.payments.map((candidate, index): ValidatedCustomerPayment => {
+    const row = paymentPayloadRecord(candidate);
+    const amount = row ? validatedPaymentAmount(row.amount) : null;
+    if (!row ||
+        typeof row.id !== "string" || !CUSTOMER_PAYMENT_UUID.test(row.id) ||
+        paymentIds.has(row.id.toLowerCase()) ||
+        typeof row.invoice_id !== "string" || !CUSTOMER_PAYMENT_UUID.test(row.invoice_id) ||
+        amount === null ||
+        (row.paid_at !== undefined && row.paid_at !== null &&
+          (typeof row.paid_at !== "string" ||
+            !PAYMENT_TIMESTAMP.test(row.paid_at) ||
+            !Number.isFinite(Date.parse(row.paid_at))))) {
+      throw new Error("حركة الدفع رقم " + (index + 1) + " تحتوي معرفًا أو مرجعًا أو مبلغًا أو تاريخًا غير صالح.");
+    }
+    paymentIds.add(row.id.toLowerCase());
+    return {
+      id: row.id.toLowerCase(),
+      invoice_id: row.invoice_id.toLowerCase(),
+      amount,
+      ...(typeof row.paid_at === "string" ? { paid_at: row.paid_at } : {}),
+    };
+  });
+
+  return { invoices, payments };
+}
+
 const ARABIC_MARKS = /[\u064B-\u065F\u0670\u0640]/g;
 
 export function normalizeCustomerPaymentSearch(value: string): string {
