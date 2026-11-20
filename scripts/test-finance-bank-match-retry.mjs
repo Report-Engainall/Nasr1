@@ -173,9 +173,9 @@ async function main() {
       const migrationPath = fileURLToPath(new URL(relativePath, import.meta.url));
       const migrationSource = await readFile(migrationPath, "utf8");
       const migrationSql = migrationSource
-        .replace(/^\\s*BEGIN;\\s*$/im, "")
-        .replace(/^\\s*COMMIT;\\s*$/im, "");
-      if (/^\\s*BEGIN;\\s*$/im.test(migrationSql) || /^\\s*COMMIT;\\s*$/im.test(migrationSql)) {
+        .replace(/^\s*BEGIN;\s*$/im, "")
+        .replace(/^\s*COMMIT;\s*$/im, "");
+      if (/^\s*BEGIN;\s*$/im.test(migrationSql) || /^\s*COMMIT;\s*$/im.test(migrationSql)) {
         throw new Error("Could not remove standalone transaction wrappers from " + relativePath + ".");
       }
       await db.begin(async (tx) => tx.unsafe(migrationSql));
