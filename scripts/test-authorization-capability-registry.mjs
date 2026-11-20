@@ -692,6 +692,48 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   );
   assert.deepEqual(warehouseBCountsAfterDeniedWrites[0],warehouseBCountsBeforeDeniedWrites[0],
     "denied warehouse B RPC/trigger writes must leave count-session and count-line row counts unchanged");
+  // A manager assigned to warehouse A must not review/finalize a B-session.
+  const warehouseBFinalizeBefore=await db.unsafe(
+    "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  const warehouseBMovementsBefore=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  const warehouseBAuditBefore=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [staffSession.id]
+  );
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.complete_stock_count($1::uuid)",[staffSession.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "the actual stock-count completion RPC must deny a reviewer assigned only to warehouse A from warehouse B"
+  );
+  const warehouseBFinalizeAfter=await db.unsafe(
+    "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.deepEqual(warehouseBFinalizeAfter[0],warehouseBFinalizeBefore[0],
+    "cross-warehouse completion denial must preserve the B session state");
+  const warehouseBMovementsAfter=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  const warehouseBAuditAfter=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [staffSession.id]
+  );
+  assert.deepEqual(warehouseBMovementsAfter[0],warehouseBMovementsBefore[0],
+    "cross-warehouse completion denial must not post inventory movements");
+  assert.deepEqual(warehouseBAuditAfter[0],warehouseBAuditBefore[0],
+    "cross-warehouse completion denial must not add a completion audit");
 
   await assert.rejects(
     ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
