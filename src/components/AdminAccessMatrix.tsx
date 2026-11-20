@@ -1,0 +1,419 @@
+import { Fragment, useMemo, useState } from "react";
+import {
+  ADMIN_ACCESS_ROLES, ADMIN_NAV_GROUPS, ADMIN_NAV_ITEMS, ADMIN_OPERATION_RULES,
+  pageAccessReason, operationAllowed, operationDenialReason,
+  type AdminRoleId, type AdminViewId,
+} from "@/lib/admin-access-matrix";
+
+type MatrixMode = "all" | "compare" | "single";
+
+
+const SPECIFICATION_ROLES = [
+  { id: "system_admin", label: "مالك النظام", status: "غير مدعوم", kind: "unsupported", note: "لا يوجد دور مستقل لمالك النظام في عقد الخادم الحالي. لا تمنح admin صلاحيات مالك النظام أو إدارة المنصة العامة." },
+  { id: "admin", label: "مدير النظام", status: "مدعوم داخل المؤسسة", kind: "aligned", note: "رمز admin موجود في عقد الخادم ويمثل إدارة المؤسسة؛ لا يعني ملكية المنصة أو تجاوز حدود المؤسسة." },
+  { id: "manager", label: "مدير المبيعات", status: "موجود بنطاق أوسع من المواصفة", kind: "review", note: "رمز manager موجود، لكن نطاقه الحالي على مستوى المؤسسة ويشمل مساحات مالية وتشغيلية وإدارية أوسع من مدير المبيعات. لا يُعد مطابقًا حتى يراجع P2 مبدأ أقل صلاحية." },
+  { id: "sales", label: "موظف المبيعات", status: "غير مدعوم كدور مستقل", kind: "unsupported", note: "لا يوجد sales في AdminRoleId أو عقد إسناد الأدوار الحالي. staff ليس بديلًا مكافئًا ولا يجوز تحويله تلقائيًا." },
+  { id: "warehouse", label: "أمين المخزن", status: "غير مدعوم كدور مستقل", kind: "unsupported", note: "لا يوجد warehouse في عقد الخادم. staff لا يثبت فصل صلاحيات المستودع عن المبيعات والتشغيل." },
+  { id: "accountant", label: "المحاسب", status: "مدعوم", kind: "aligned", note: "رمز accountant موجود بدور مالي مستقل؛ تبقى صلاحيات كل إجراء وحدود التصدير خاضعة لعقد الخادم." },
+  { id: "customer_manager", label: "مسؤول العملاء", status: "مدعوم", kind: "aligned", note: "رمز customer_manager موجود ضمن نطاق إدارة العملاء؛ لا يُفترض منه وصول تلقائي للمالية أو سائر بيانات المؤسسة." },
+  { id: "developer", label: "مطور", status: "غير مدعوم", kind: "unsupported", note: "لا يوجد دور developer في عقد الخادم الحالي. لا يُمنح المطور وصولًا إنتاجيًا أو ماليًا بحكم صفته الفنية." },
+  { id: "customer", label: "عميل", status: "مدعوم", kind: "aligned", note: "رمز customer موجود لحساب المتجر، مع بقاء قراءة بياناته ضمن نطاقه وعزل المؤسسة." },
+] as const;
+
+function SpecificationRoleAlignment() {
+  return (
+    <section className="rounded-lg border border-amber-200 bg-amber-50/50 p-3" aria-label="مطابقة الأدوار التسعة مع عقد الخادم">
+      <h3 className="font-semibold">مطابقة الأدوار التسعة مع عقد الخادم</h3>
+      <p className="mt-1 text-xs leading-5 text-slate-700">
+        المرجع هو مواصفة المشروع وعقد الخادم الفعلي، وليس تشابه أسماء الأدوار. الحالة هنا وصفية ولا تنشئ أدوارًا أو تمنح صلاحيات.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {SPECIFICATION_ROLES.map((role) => (
+          <article
+            key={role.id}
+            className={[
+              "rounded-md border bg-white p-3",
+              role.kind === "aligned" ? "border-emerald-200" : role.kind === "review" ? "border-amber-300" : "border-slate-200",
+            ].join(" ")}
+            data-testid={"specification-role-" + role.id}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <strong className="text-sm">{role.label}</strong>
+              <span className={[
+                "rounded-full px-2 py-0.5 text-xs font-medium",
+                role.kind === "aligned" ? "bg-emerald-50 text-emerald-800" : role.kind === "review" ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-700",
+              ].join(" ")}>
+                {role.status}
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-600">{role.note}</p>
+            <code className="mt-2 block text-[11px] text-slate-500" dir="ltr">{role.id}</code>
+          </article>
+        ))}
+      </div>
+      <div className="mt-3 rounded-md border border-amber-200 bg-white p-3 text-xs leading-5 text-slate-700">
+        <p><strong>قيد مهم:</strong> staff دور تشغيلي عام في العقد الحالي، وليس موظف مبيعات أو أمين مخزن. ومدير المؤسسة الحالي manager أوسع من مدير المبيعات المحدد في المواصفة.</p>
+        <p className="mt-1">يتطلب إغلاق P2 توزيعًا خادميًا منفصلًا لصلاحيات view / create / edit / approve / reject / export / delete / manage حسب المورد والمؤسسة وحساسية البيانات وتدفق الاعتماد، مع اختبارات RPC وRLS وفصل الواجبات. لا يعتمد هذا العرض وحده أي صلاحية.</p>
+      </div>
+    </section>
+  );
+}
+const VIEW_LABELS: Readonly<Record<AdminViewId, string>> = Object.freeze(
+  Object.fromEntries(ADMIN_NAV_ITEMS.map(({ id, label }) => [id, label])) as Record<AdminViewId, string>,
+);
+
+function StatusLabel({ allowed }: { allowed: boolean }) {
+  return (
+    <span className={allowed
+      ? "inline-flex whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800"
+      : "inline-flex whitespace-nowrap rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800"}>
+      {allowed ? "مسموح" : "ممنوع"}
+    </span>
+  );
+}
+
+
+type AllRolesFilter = "all" | "management" | "staff" | "accountant" | "customer_manager";
+type SingleRoleFilter = "all" | "allowed" | "denied";
+
+function normalizeAccessMatrixSearch(value: string): string {
+  return value.normalize("NFKC").toLocaleLowerCase("ar").replace(/[\u064B-\u065F\u0670\u0640]/g, "").trim();
+}
+function matchesAccessMatrixSearch(query: string, values: readonly (string | null | undefined)[]): boolean {
+  const tokens = normalizeAccessMatrixSearch(query).split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+  const haystack = normalizeAccessMatrixSearch(values.filter(Boolean).join(" "));
+  return tokens.every((token) => haystack.includes(token));
+}
+function allowedRoleIdsForView(view: AdminViewId): AdminRoleId[] {
+  return ADMIN_ACCESS_ROLES.filter((role) => pageAccessReason(role.id, view).startsWith("مسموح")).map((role) => role.id);
+}
+function allowedRoleIdsForOperation(operationId: (typeof ADMIN_OPERATION_RULES)[number]["id"]): AdminRoleId[] {
+  return ADMIN_ACCESS_ROLES.filter((role) => operationAllowed(role.id, operationId)).map((role) => role.id);
+}
+function matchesAllRolesFilter(filter: AllRolesFilter, allowedRoles: readonly AdminRoleId[]): boolean {
+  switch (filter) {
+    case "management": return allowedRoles.length > 0 && allowedRoles.every((role) => role === "admin" || role === "manager");
+    case "staff":
+    case "accountant":
+    case "customer_manager": return allowedRoles.includes(filter);
+    default: return true;
+  }
+}
+
+function ComparisonCell({
+  allowed,
+  detail,
+  testId,
+}: {
+  allowed: boolean;
+  detail: string;
+  testId: string;
+}) {
+  return (
+    <td data-testid={testId} className="min-w-40 border-t p-3 align-top">
+      <StatusLabel allowed={allowed} />
+      <p className="mt-2 max-w-64 whitespace-normal text-xs leading-5 text-slate-600">{detail}</p>
+    </td>
+  );
+}
+
+function AllRolesComparison({ views, searchQuery, filter, selectedRoleIds, differencesOnly }: {
+  views: readonly AdminViewId[];
+  searchQuery: string;
+  filter: AllRolesFilter;
+  selectedRoleIds: readonly AdminRoleId[];
+  differencesOnly: boolean;
+}) {
+  const comparisonRoles = useMemo(
+    () => ADMIN_ACCESS_ROLES.filter((role) => selectedRoleIds.includes(role.id)),
+    [selectedRoleIds],
+  );
+  const hasPageDifference = (view: AdminViewId) =>
+    new Set(comparisonRoles.map((role) => pageAccessReason(role.id, view).startsWith("مسموح"))).size > 1;
+  const hasOperationDifference = (operationId: (typeof ADMIN_OPERATION_RULES)[number]["id"]) =>
+    new Set(comparisonRoles.map((role) => operationAllowed(role.id, operationId))).size > 1;
+  const rolePageCounts = useMemo(() => Object.fromEntries(comparisonRoles.map((role) => [
+    role.id, views.filter((view) => pageAccessReason(role.id, view).startsWith("مسموح")).length,
+  ])) as Partial<Record<AdminRoleId, number>>, [views, comparisonRoles]);
+  const roleOperationCounts = useMemo(() => Object.fromEntries(comparisonRoles.map((role) => [
+    role.id, ADMIN_OPERATION_RULES.filter((item) => operationAllowed(role.id, item.id)).length,
+  ])) as Partial<Record<AdminRoleId, number>>, [comparisonRoles]);
+  const visibleGroups = ADMIN_NAV_GROUPS.map((group) => ({
+    ...group,
+    views: group.views.filter((view) => {
+      const navItem = ADMIN_NAV_ITEMS.find((item) => item.id === view);
+      return views.includes(view) &&
+        (!differencesOnly || hasPageDifference(view)) &&
+        matchesAllRolesFilter(filter, allowedRoleIdsForView(view)) &&
+        matchesAccessMatrixSearch(searchQuery, [group.label, navItem?.label, navItem?.path, view]);
+    }),
+  })).filter((group) => group.views.length > 0);
+  const visibleOperations = ADMIN_OPERATION_RULES.filter((item) =>
+    (!differencesOnly || hasOperationDifference(item.id)) &&
+    matchesAllRolesFilter(filter, allowedRoleIdsForOperation(item.id)) &&
+    matchesAccessMatrixSearch(searchQuery, [item.label, item.area, item.id, item.limit, item.denial]),
+  );
+  const visiblePageCount = visibleGroups.reduce((count, group) => count + group.views.length, 0);
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {comparisonRoles.map((role) => <article key={role.id} className="rounded-lg border bg-white p-3">
+          <h3 className="font-semibold">{role.label}</h3><p className="mt-1 text-xs leading-5 text-slate-600">{role.summary}</p>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <span><strong className="tabular-nums">{rolePageCounts[role.id]}</strong> مساحة من {views.length}</span>
+            <span><strong className="tabular-nums">{roleOperationCounts[role.id]}</strong> عملية من {ADMIN_OPERATION_RULES.length}</span>
+          </div><p className="mt-1 text-xs text-slate-500">النطاق: {role.scope}</p>
+        </article>)}
+      </div>
+      <p className="text-xs text-slate-500" role="status" aria-live="polite">
+        النتائج الحالية: {visiblePageCount} مساحة و{visibleOperations.length} عملية. الأرقام في بطاقات الأدوار أعلاه تمثل إجمالي النطاق وليست متأثرة بالبحث.
+      </p>
+      {visiblePageCount === 0 && visibleOperations.length === 0 &&
+        <p role="status" className="rounded-lg border p-4 text-sm text-slate-600">لا توجد صلاحيات مطابقة للبحث والتصفية الحالية.</p>}
+      <section className="space-y-3" aria-labelledby="all-role-pages-title">
+        <div><h3 id="all-role-pages-title" className="font-semibold">مقارنة الوصول إلى الصفحات</h3>
+          <p className="mt-1 text-xs text-slate-500">كل صف يمثل مساحة إدارية؛ سبب المنع ظاهر في خلية الدور غير المسموح له.</p></div>
+        <div role="region" aria-label="جدول مقارنة الوصول إلى الصفحات حسب الدور" tabIndex={0} className="overflow-x-auto rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <table aria-label="مصفوفة وصول الصفحات حسب الدور" className="min-w-[1180px] w-full border-collapse text-sm">
+            <thead className="bg-slate-50 text-right"><tr><th scope="col" className="sticky right-0 z-10 min-w-52 bg-slate-50 p-3">المساحة</th>
+              {comparisonRoles.map((role) => <th scope="col" key={role.id} className="min-w-40 p-3">{role.label}</th>)}</tr></thead>
+            <tbody>{visibleGroups.map((group) => <Fragment key={group.id}>
+              <tr className="bg-slate-100"><th scope="rowgroup" colSpan={comparisonRoles.length + 1} className="p-2 text-right text-xs font-bold text-slate-700">{group.label}</th></tr>
+              {group.views.map((view) => <tr key={view}>
+                <th scope="row" className="sticky right-0 z-10 border-t bg-white p-3 text-right font-medium">{VIEW_LABELS[view] ?? view}</th>
+                {comparisonRoles.map((role) => {
+                  const reason = pageAccessReason(role.id, view), allowed = reason.startsWith("مسموح");
+                  return <ComparisonCell key={role.id} testId={`page-${view}-${role.id}`} allowed={allowed} detail={allowed ? "الوصول متاح ضمن نطاق الدور." : reason} />;
+                })}
+              </tr>)}
+            </Fragment>)}</tbody>
+          </table>
+        </div>
+      </section>
+      <section className="space-y-3" aria-labelledby="all-role-operations-title">
+        <div><h3 id="all-role-operations-title" className="font-semibold">مقارنة العمليات وحدود التعديل</h3>
+          <p className="mt-1 text-xs text-slate-500">تعرض حدود الأسعار والمخزون والمالية، وما يمنع كل دور من تنفيذ العملية.</p></div>
+        <div role="region" aria-label="جدول مقارنة العمليات وحدودها حسب الدور" tabIndex={0} className="overflow-x-auto rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <table aria-label="مصفوفة العمليات وحدودها حسب الدور" className="min-w-[1180px] w-full border-collapse text-sm">
+            <thead className="bg-slate-50 text-right"><tr><th scope="col" className="sticky right-0 z-10 min-w-64 bg-slate-50 p-3">العملية / المجال</th>
+              {comparisonRoles.map((role) => <th scope="col" key={role.id} className="min-w-40 p-3">{role.label}</th>)}</tr></thead>
+            <tbody>{visibleOperations.map((item) => <tr key={item.id}>
+              <th scope="row" className="sticky right-0 z-10 border-t bg-white p-3 text-right"><strong>{item.label}</strong>
+                <span className="mt-1 block text-xs font-normal text-slate-500">{item.area}</span></th>
+              {comparisonRoles.map((role) => {
+                const allowed = operationAllowed(role.id, item.id);
+                return <ComparisonCell key={role.id} testId={`operation-${item.id}-${role.id}`} allowed={allowed} detail={allowed ? item.limit : operationDenialReason(role.id, item.id)} />;
+              })}
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SingleRoleDetails({ selectedRole, searchQuery, filter }: {
+  selectedRole: AdminRoleId; searchQuery: string; filter: SingleRoleFilter;
+}) {
+  const role = ADMIN_ACCESS_ROLES.find((item) => item.id === selectedRole) ?? ADMIN_ACCESS_ROLES[0];
+  const pages = useMemo(() => ADMIN_NAV_GROUPS.flatMap((group) => group.views.map((view) => {
+    const reason = pageAccessReason(selectedRole, view);
+    return { group: group.label, view, reason, allowed: reason.startsWith("مسموح") };
+  })), [selectedRole]);
+  const allowedPages = pages.filter((item) => item.allowed).length;
+  const allowedOperations = ADMIN_OPERATION_RULES.filter((item) => operationAllowed(selectedRole, item.id)).length;
+  const visiblePages = pages.filter((item) => {
+    const navItem = ADMIN_NAV_ITEMS.find((entry) => entry.id === item.view);
+    const statusMatches = filter === "all" || (filter === "allowed" ? item.allowed : !item.allowed);
+    return statusMatches && matchesAccessMatrixSearch(searchQuery, [item.group, navItem?.label, navItem?.path, item.view, item.reason]);
+  });
+  const visibleGroups = ADMIN_NAV_GROUPS.map((group) => ({
+    ...group, views: group.views.filter((view) => visiblePages.some((item) => item.view === view)),
+  })).filter((group) => group.views.length > 0);
+  const visibleOperations = ADMIN_OPERATION_RULES.filter((item) => {
+    const allowed = operationAllowed(selectedRole, item.id);
+    const statusMatches = filter === "all" || (filter === "allowed" ? allowed : !allowed);
+    return statusMatches && matchesAccessMatrixSearch(searchQuery, [
+      item.label, item.area, item.id, item.limit, item.denial,
+      allowed ? item.limit : operationDenialReason(selectedRole, item.id),
+    ]);
+  });
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <article className="rounded-lg border p-3"><p className="text-xs text-slate-500">الدور</p><strong>{role.label}</strong><p className="mt-1 text-xs text-slate-600">{role.scope}</p></article>
+        <article className="rounded-lg border p-3"><p className="text-xs text-slate-500">المساحات المتاحة</p><strong className="text-2xl tabular-nums">{allowedPages}</strong><p className="text-xs text-slate-600">من {pages.length} مساحة إدارية</p></article>
+        <article className="rounded-lg border p-3"><p className="text-xs text-slate-500">العمليات المتاحة</p><strong className="text-2xl tabular-nums">{allowedOperations}</strong><p className="text-xs text-slate-600">من {ADMIN_OPERATION_RULES.length} عملية موثقة</p></article>
+      </div>
+      <p className="text-xs text-slate-500" role="status" aria-live="polite">النتائج الحالية: {visiblePages.length} مساحة و{visibleOperations.length} عملية لهذا الدور.</p>
+      {visiblePages.length === 0 && visibleOperations.length === 0 &&
+        <p role="status" className="rounded-lg border p-4 text-sm text-slate-600">لا توجد صلاحيات مطابقة للبحث والتصفية الحالية.</p>}
+      <section className="space-y-3" aria-label="الصفحات المتاحة والممنوعة">
+        <h3 className="font-semibold">الوصول إلى الصفحات</h3>
+        {visibleGroups.map((group) => <div key={group.id} className="rounded-lg border p-3">
+          <h4 className="mb-2 text-sm font-semibold">{group.label}</h4>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{group.views.map((view) => {
+            const item = visiblePages.find((entry) => entry.view === view);
+            if (!item) return null;
+            return <article key={item.view} data-testid={`single-page-${item.view}`} className="rounded-md bg-slate-50 p-2 text-sm">
+              <div className="flex items-center justify-between gap-2"><strong>{VIEW_LABELS[item.view] ?? item.view}</strong><StatusLabel allowed={item.allowed} /></div>
+              <p className="mt-1 text-xs leading-5 text-slate-600">{item.allowed ? "الوصول متاح ضمن نطاق الدور." : item.reason}</p>
+            </article>;
+          })}</div>
+        </div>)}
+      </section>
+      <section className="space-y-3" aria-label="العمليات وحدود التعديل">
+        <h3 className="font-semibold">العمليات وحدود تعديل الأسعار والمخزون والمالية</h3>
+        <div role="region" aria-label="جدول عمليات الدور المحدد وحدوده" tabIndex={0} className="overflow-x-auto rounded-lg border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <table className="min-w-[760px] w-full border-collapse text-sm">
+            <thead className="bg-slate-50 text-right"><tr><th className="p-3">المجال / العملية</th><th className="p-3">القرار</th><th className="p-3">الحد أو سبب الرفض</th></tr></thead>
+            <tbody>{visibleOperations.map((item) => {
+              const allowed = operationAllowed(selectedRole, item.id);
+              return <tr key={item.id} className="border-t align-top">
+                <td className="p-3"><strong>{item.label}</strong><span className="mt-1 block text-xs text-slate-500">{item.area}</span></td>
+                <td className="p-3"><StatusLabel allowed={allowed} /></td>
+                <td className="max-w-xl p-3 leading-6 text-slate-700">{allowed ? item.limit : operationDenialReason(selectedRole, item.id)}</td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function AdminAccessMatrix() {
+  const [selectedRole, setSelectedRole] = useState<AdminRoleId>("admin");
+  const [mode, setMode] = useState<MatrixMode>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [allRolesFilter, setAllRolesFilter] = useState<AllRolesFilter>("all");
+  const [singleRoleFilter, setSingleRoleFilter] = useState<SingleRoleFilter>("all");
+  const [comparisonRoleIds, setComparisonRoleIds] = useState<AdminRoleId[]>(["admin", "staff"]);
+  const [differencesOnly, setDifferencesOnly] = useState(true);
+
+  function toggleComparisonRole(roleId: AdminRoleId, checked: boolean) {
+    setComparisonRoleIds((current) => {
+      if (checked) return current.includes(roleId) ? current : [...current, roleId];
+      if (current.length <= 2) return current;
+      return current.filter((id) => id !== roleId);
+    });
+  }
+
+  return (
+    <section dir="rtl" className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-4" aria-labelledby="admin-access-matrix-title">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="admin-access-matrix-title" className="text-lg font-semibold">مصفوفة الوصول والعمليات حسب الدور</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            مقارنة موحدة لكل الأدوار وصفحاتها وعملياتها وحدودها. هذا عرض تفسيري لا ينشئ دورًا ولا يمنح صلاحية؛
+            الخادم وواجهات RPC وسياسات RLS هي المرجع التنفيذي النهائي.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" aria-pressed={mode === "all"} className={mode === "all" ? "btn primary" : "btn btn-outline"}
+            onClick={() => setMode("all")}>مقارنة جميع الأدوار</button>
+          <button type="button" aria-pressed={mode === "compare"} className={mode === "compare" ? "btn primary" : "btn btn-outline"}
+            onClick={() => setMode("compare")}>مقارنة أدوار محددة</button>
+          <button type="button" aria-pressed={mode === "single"} className={mode === "single" ? "btn primary" : "btn btn-outline"}
+            onClick={() => setMode("single")}>تفاصيل دور واحد</button>
+        </div>
+      </header>
+
+      <SpecificationRoleAlignment />
+
+      <div className="grid gap-3 rounded-lg border bg-slate-50/70 p-3 md:grid-cols-[minmax(16rem,1fr)_minmax(13rem,auto)]">
+        <label htmlFor="admin-access-matrix-search" className="grid gap-1 text-sm font-medium">
+          بحث في الصفحات والعمليات
+          <input id="admin-access-matrix-search" type="search" aria-label="بحث في الصفحات والعمليات"
+            value={searchQuery} maxLength={120} onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="اسم الشاشة، المجموعة، المسار، العملية أو سبب المنع…"
+            className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+        </label>
+        <div className="grid gap-1 text-sm font-medium">
+          <label htmlFor="admin-access-matrix-filter">{mode === "single" ? "تصفية حالة الوصول" : "تصفية الصلاحيات حسب النطاق"}</label>
+          <select id="admin-access-matrix-filter" aria-label="تصفية الصلاحيات" className="min-w-52 rounded-lg border border-slate-300 bg-white px-3 py-2"
+            value={mode === "single" ? singleRoleFilter : allRolesFilter}
+            onChange={(event) => mode === "single"
+              ? setSingleRoleFilter(event.target.value as SingleRoleFilter)
+              : setAllRolesFilter(event.target.value as AllRolesFilter)}>
+            {mode === "all" ? <>
+              <option value="all">كل النطاقات</option><option value="management">صلاحيات الإدارة العليا فقط</option>
+              <option value="staff">المساحات المتاحة لموظف التشغيل</option><option value="accountant">المساحات المتاحة للمحاسب</option>
+              <option value="customer_manager">المساحات المتاحة لمسؤول العملاء</option>
+            </> : <>
+              <option value="all">المسموح والممنوع</option><option value="allowed">المساحات المسموحة فقط</option>
+              <option value="denied">المساحات الممنوعة فقط</option>
+            </>}
+          </select>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 md:col-span-2">
+          <p className="text-xs leading-5 text-slate-600">البحث يراعي التشكيل العربي ويبحث داخل أسماء المساحات ومجموعاتها ومساراتها وأسماء العمليات وحدودها وأسباب المنع.</p>
+          <button type="button" className="rounded-lg border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => setSearchQuery("")} disabled={!searchQuery}>مسح البحث</button>
+        </div>
+      </div>
+      {mode === "compare" && (
+        <section className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3" aria-label="اختيار الأدوار للمقارنة">
+          <div>
+            <h3 className="font-semibold">الأدوار محل المقارنة</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-600">اختر دورين على الأقل. لا يمكن تقليل الاختيار عن دورين حتى تبقى المقارنة ذات معنى.</p>
+          </div>
+          <fieldset className="flex flex-wrap gap-x-5 gap-y-3">
+            <legend className="sr-only">الأدوار التي ستظهر في المقارنة</legend>
+            {ADMIN_ACCESS_ROLES.map((role) => {
+              const checked = comparisonRoleIds.includes(role.id);
+              return (
+                <label key={role.id} className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    aria-label={`اختيار دور ${role.label} للمقارنة`}
+                    checked={checked}
+                    disabled={checked && comparisonRoleIds.length <= 2}
+                    onChange={(event) => toggleComparisonRole(role.id, event.target.checked)}
+                  />
+                  {role.label}
+                </label>
+              );
+            })}
+          </fieldset>
+          <label className="inline-flex w-fit items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              aria-label="عرض الفروقات فقط"
+              checked={differencesOnly}
+              onChange={(event) => setDifferencesOnly(event.target.checked)}
+            />
+            عرض الفروقات فقط
+          </label>
+          <p className="text-xs text-slate-500" role="status" aria-live="polite">
+            المحدد: {comparisonRoleIds.length} أدوار. {differencesOnly ? "يتم إخفاء المساحات والعمليات المتطابقة بين الأدوار." : "تظهر جميع المساحات والعمليات للأدوار المحددة."}
+          </p>
+        </section>
+      )}
+      {mode === "single" && (
+        <label className="grid max-w-xs gap-1 text-sm font-medium">
+          الدور محل المراجعة
+          <select aria-label="الدور محل المراجعة" className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+            value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as AdminRoleId)}>
+            {ADMIN_ACCESS_ROLES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        </label>
+      )}
+      {mode !== "single"
+        ? <AllRolesComparison
+            views={ADMIN_NAV_GROUPS.flatMap((group) => group.views)}
+            searchQuery={searchQuery}
+            filter={allRolesFilter}
+            selectedRoleIds={mode === "compare" ? comparisonRoleIds : ADMIN_ACCESS_ROLES.map((role) => role.id)}
+            differencesOnly={mode === "compare" && differencesOnly}
+          />
+        : <SingleRoleDetails selectedRole={selectedRole} searchQuery={searchQuery} filter={singleRoleFilter} />}
+
+      <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+        أسباب المنع هنا خاصة بنطاق الدور. قد يرفض الخادم عملية مسموحة للدور بسبب المؤسسة أو المستودع أو حالة السجل أو الموافقة أو نقص السبب؛
+        عندها تكون رسالة الخادم هي السبب التشغيلي الدقيق، ولا يجوز تفسير السماح في هذه المصفوفة كتجاوز لتلك الشروط.
+      </p>
+    </section>
+  );
+}

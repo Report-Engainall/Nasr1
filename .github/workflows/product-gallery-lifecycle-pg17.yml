@@ -1,0 +1,55 @@
+name: Product Gallery Lifecycle PostgreSQL 17 Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116115000_product_gallery_order_and_primary_promotion.sql"
+      - "supabase/tests/product_gallery_order_and_primary_promotion.sql"
+      - ".github/workflows/product-gallery-lifecycle-pg17.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116115000_product_gallery_order_and_primary_promotion.sql"
+      - "supabase/tests/product_gallery_order_and_primary_promotion.sql"
+      - ".github/workflows/product-gallery-lifecycle-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-gallery-lifecycle-pg17-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  product-gallery-lifecycle:
+    name: PostgreSQL 17 secure gallery order and primary promotion
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Verify reorder, primary promotion, preservation, audit and tenant denial
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/product_gallery_order_and_primary_promotion.sql

@@ -1,0 +1,20 @@
+{
+  "name": "إنجاز | متجر الأغبري",
+  "short_name": "إنجاز",
+  "description": "منصة إنجاز لإدارة متجر الأغبري والطلبات التجارية",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffdf5",
+  "theme_color": "#14532d",
+  "icons": [
+    {
+      "src": "/icons/injaz-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

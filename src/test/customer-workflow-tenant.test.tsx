@@ -1,0 +1,1010 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { QueryClient } from "@tanstack/react-query";
+import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { routeTree } from "@/routeTree.gen";
+import { offlineCatalogCacheKeys, offlineCatalogScopeFingerprint } from "@/lib/offline-catalog-cache";
+
+const mocks = vi.hoisted(() => ({
+  user: null as null | {
+    id: string;
+    profileId: string;
+    email: string;
+    name: string;
+    roles: string[];
+    isStaff: boolean;
+  },
+  getCurrentTenantScope: vi.fn(),
+  fetchProducts: vi.fn(),
+  fetchResolvedProductPrices: vi.fn(),
+  fetchSettingsMap: vi.fn(),
+  from: vi.fn(),
+  rpc: vi.fn(),
+  signOut: vi.fn(),
+  responses: {} as Record<string, unknown[]>,
+  queries: [] as Array<{
+    table: string;
+    columns?: string;
+    filters: Array<{ column: string; value: unknown }>;
+    orderBy?: string;
+    range?: { from: number; to: number };
+  }>,
+}));
+
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({
+    user: mocks.user,
+    ready: true,
+    loading: false,
+    sessionRevision: 0,
+    configurationError: null,
+    signOut: mocks.signOut,
+  }),
+  AuthProvider: ({ children }: { children: unknown }) => children,
+}));
+
+vi.mock("@/components/Login", () => ({
+  Login: () => <div data-testid="login-required">تسجيل الدخول مطلوب</div>,
+}));
+
+vi.mock("@/lib/supabase", () => ({
+  getCurrentTenantScope: mocks.getCurrentTenantScope,
+  supabase: {
+    from: mocks.from,
+    rpc: mocks.rpc,
+  },
+}));
+
+vi.mock("@/lib/api", () => ({
+  fetchProducts: mocks.fetchProducts,
+  fetchResolvedProductPrices: mocks.fetchResolvedProductPrices,
+  fetchSettingsMap: mocks.fetchSettingsMap,
+}));
+
+
+const ORGANIZATION_ID = "a0000000-0000-0000-0000-000000000001";
+const PROFILE_ID = "f1111111-1111-4111-8111-111111111111";
+const USER_ID = "11111111-1111-4111-8111-111111111111";
+
+function makeQuery(table: string) {
+  const record = {
+    table,
+    columns: undefined as string | undefined,
+    filters: [] as Array<{ column: string; value: unknown }>,
+    orderBy: undefined as string | undefined,
+  };
+
+  const query = {
+    select(columns = "*") {
+      record.columns = columns;
+      return query;
+    },
+    eq(column: string, value: unknown) {
+      record.filters.push({ column, value });
+      return query;
+    },
+    order(column: string) {
+      record.orderBy = column;
+      return query;
+    },
+    limit(_limit: number) {
+      return query;
+    },
+    range(from: number, to: number) {
+      record.range = { from, to };
+      return query;
+    },
+    maybeSingle() {
+      return Promise.resolve({
+        data: (mocks.responses[table] ?? [])[0] ?? null,
+        error: null,
+      });
+    },
+    then<TResult1 = { data: unknown[]; error: null }, TResult2 = never>(
+      onfulfilled?: ((value: { data: unknown[]; error: null }) => TResult1 | PromiseLike<TResult1>) | null,
+      onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ): Promise<TResult1 | TResult2> {
+      return Promise.resolve({
+        data: mocks.responses[table] ?? [],
+        error: null,
+      }).then(onfulfilled ?? undefined, onrejected ?? undefined);
+    },
+  };
+  mocks.queries.push(record);
+  return query;
+}
+
+function queryFor(table: string) {
+  const query = mocks.queries.find((entry) => entry.table === table);
+  if (!query) throw new Error("Expected query for table: " + table);
+  return query;
+}
+
+function createCustomerInvoicePdfPayload(invoiceId: string) {
+  return {
+    invoice: {
+      id: invoiceId,
+      invoice_number: "INV-UI-001",
+      currency: "YER",
+      subtotal: "25.00",
+      tax_amount: "0.00",
+      total_amount: "25.00",
+    },
+    lines: [{
+      id: "55555555-5555-4555-8555-555555555555",
+      item_code: "000125",
+      description: "سكر أبيض",
+      unit: "كرتون",
+      quantity: "2",
+      unit_price: "12.50",
+      line_total: "25.00",
+    }],
+    customer: {
+      customer_code: "000042",
+      business_name: "متجر الاختبار",
+      contact_name: null,
+    },
+    financial_details_visible: true,
+    customer_tier_visible: false,
+  };
+}
+
+describe("customer quote workspace tenant boundary", () => {
+  let root: Root | undefined;
+  let host: HTMLDivElement | undefined;
+
+  let originalOnlineDescriptor: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    originalOnlineDescriptor = Object.getOwnPropertyDescriptor(window.navigator, "onLine");
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
+    window.localStorage.clear();
+    vi.clearAllMocks();
+    mocks.user = null;
+    mocks.queries.splice(0);
+    mocks.responses = {
+      products: [{
+        id: "product-1",
+        name: "Rice",
+        item_code: "SKU-001",
+        barcode: null,
+        unit: "carton",
+        base_price: 1000,
+        status: "active",
+      }],
+      sales_quotes: [],
+    };
+    mocks.getCurrentTenantScope.mockResolvedValue({
+      profileId: PROFILE_ID,
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
+    });
+    mocks.fetchProducts.mockResolvedValue([]);
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, 1000])));
+    mocks.fetchSettingsMap.mockResolvedValue({ show_price_on_cards: false });
+    mocks.from.mockImplementation((table: string) => makeQuery(table));
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+  });
+
+  afterEach(async () => {
+    window.localStorage.clear();
+    if (originalOnlineDescriptor) {
+      Object.defineProperty(window.navigator, "onLine", originalOnlineDescriptor);
+    }
+    if (root) {
+      await act(async () => root?.unmount());
+      root = undefined;
+    }
+    host?.remove();
+    host = undefined;
+  });
+
+  async function mountQuoteWorkspace(path = "/quotes") {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({ initialEntries: [path] }),
+      context: { queryClient: new QueryClient() },
+    });
+    await router.load();
+    // The admin route lazy-loads its complete workspace. Resolve that module
+    // before asserting role-gated content so the test does not inspect only
+    // the synchronous storefront navigation shell.
+    if (path === "/admin/quotes") {
+      await import("@/components/AghbariApp");
+    }
+    await act(async () => {
+      root?.render(<RouterProvider router={router} />);
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    return router;
+  }
+
+  it("requires an authenticated user before loading customer quote or catalog data", async () => {
+    await mountQuoteWorkspace();
+
+    expect(host?.querySelector('[data-testid="login-required"]')).not.toBeNull();
+    expect(mocks.getCurrentTenantScope).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("loads the customer catalog only after resolving the organization from the server scope", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+
+    await mountQuoteWorkspace();
+
+    expect(host?.textContent).toContain("عروض الأسعار");
+    expect(host?.textContent).toContain("Rice");
+    expect(host?.textContent).toContain("لم ترسل عروض أسعار بعد.");
+    expect(mocks.getCurrentTenantScope).toHaveBeenCalledTimes(1);
+
+    const productQuery = queryFor("products");
+    expect(productQuery.columns).toBe("id,name,item_code,barcode,unit,status");
+    expect(productQuery.range).toEqual({ from: 0, to: 99 });
+    expect(productQuery.columns).not.toMatch(/base_price|cost_price|retail_price|wholesale_price|purchase_cost/i);
+    expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
+    expect(productQuery.filters).toContainEqual({
+      column: "organization_id",
+      value: ORGANIZATION_ID,
+    });
+    expect(productQuery.filters).toContainEqual({
+      column: "status",
+      value: "active",
+    });
+    expect(queryFor("sales_quotes")).toBeDefined();
+  });
+
+
+
+  it("resolves customer-tier prices on the reorder route without selecting base_price", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    await mountQuoteWorkspace("/reorder");
+    expect(host?.textContent).toContain("قوائم المشتريات والدورات");
+    const templatesTab = Array.from(host?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])
+      .find((tab) => tab.textContent?.includes("قوالب إعادة الطلب السابقة"));
+    expect(templatesTab).toBeDefined();
+    await act(async () => {
+      templatesTab?.click();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("إعادة الطلب");
+    expect(host?.textContent).toContain("Rice");
+    expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
+    const expectedProductColumns = "id,name,item_code,barcode,unit,status,min_order_quantity,order_quantity_multiple";
+    const products = mocks.queries.find((entry) => entry.table === "products" && entry.columns === expectedProductColumns);
+    expect(products).toBeDefined();
+    expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
+    expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
+    expect(products.filters).toContainEqual({ column: "status", value: "active" });
+  });
+
+  it("resolves the barcode result price through the server helper", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    await mountQuoteWorkspace("/barcode");
+    const input = host?.querySelector<HTMLInputElement>('input[aria-label="رقم الباركود"]');
+    const form = input?.closest("form");
+    expect(input).not.toBeNull();
+    expect(form).not.toBeNull();
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "SKU-001");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("Rice");
+    expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
+    const products = queryFor("products");
+    expect(products.columns).toBe("id,name,item_code,barcode,sku,unit,min_order_quantity,order_quantity_multiple,status");
+    expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
+    expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
+    expect(products.filters).toContainEqual({ column: "status", value: "active" });
+  });
+
+  it("resolves assistant catalog search prices through the server helper", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    await mountQuoteWorkspace("/assistant");
+    const input = host?.querySelector<HTMLTextAreaElement>("textarea");
+    const form = input?.closest("form");
+    expect(input).not.toBeNull();
+    expect(form).not.toBeNull();
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      setter?.call(input, "ابحث عن Rice");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("نتائج من الكتالوج");
+    expect(host?.textContent).toContain("Rice");
+    expect(mocks.fetchResolvedProductPrices).toHaveBeenCalledWith(["product-1"]);
+    const products = queryFor("products");
+    expect(products.columns).toBe("id,name,item_code,barcode,unit,status");
+    expect(products.columns).not.toMatch(/base_price|retail_price|wholesale_price|purchase_cost/i);
+    expect(products.filters).toContainEqual({ column: "organization_id", value: ORGANIZATION_ID });
+    expect(products.filters).toContainEqual({ column: "status", value: "active" });
+  });
+
+  it("does not render a numeric zero when quote prices are explicitly hidden", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/quotes");
+    expect(host?.textContent).toContain("السعر الحالي السعر غير متاح");
+    expect(host?.textContent).not.toContain("السعر الحالي ٠");
+  });
+
+  it("does not render a numeric zero when reorder-template prices are hidden", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/reorder");
+    expect(host?.textContent).not.toContain("سعر الوحدة");
+    expect(host?.textContent).not.toContain("السعر غير متاح");
+    expect(host?.textContent).not.toContain("٠٫٠٠");
+    expect(host?.textContent).not.toContain("150");
+  });
+
+  it("does not render a numeric zero when barcode lookup resolves a hidden price", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/barcode");
+    const input = host?.querySelector<HTMLInputElement>('input[aria-label="رقم الباركود"]');
+    const form = input?.closest("form");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "SKU-001");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("السعر غير متاح");
+    expect(host?.textContent).not.toContain("٠٫٠٠");
+  });
+
+  it("does not render a numeric zero when assistant catalog results hide prices", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/assistant");
+    const input = host?.querySelector<HTMLTextAreaElement>("textarea");
+    const form = input?.closest("form");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      setter?.call(input, "ابحث عن Rice");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("السعر غير متاح");
+    expect(host?.textContent).not.toContain("٠٫٠٠");
+  });
+
+  it("denies a customer from the admin quotes route before any staff data read", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+
+    await mountQuoteWorkspace("/admin/quotes");
+
+    expect(host?.textContent).toContain("لا تملك صلاحية الإدارة");
+    expect(mocks.getCurrentTenantScope).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("allows an active staff identity to load the staff quotes workspace", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-staff@example.test",
+      name: "CI Staff",
+      roles: ["staff"],
+      isStaff: true,
+    };
+
+    await mountQuoteWorkspace("/admin/quotes");
+
+    expect(host?.textContent).toContain("إدارة عروض الأسعار");
+    expect(host?.textContent).toContain("لا توجد طلبات عروض أسعار.");
+    expect(queryFor("sales_quotes").columns).toBe(
+      "id,quote_number,status,notes,response_note,created_at,quoted_at,valid_until",
+    );
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+  });
+
+  it("sanitizes old and newly synced offline catalogs before persisting them", async () => {
+    const unsafeRow = {
+      id: "product-offline-1",
+      name: "Sugar",
+      item_code: "000125",
+      barcode: "628123",
+      unit: "carton",
+      base_price: 1200,
+      cost_price: 800,
+      retail_price: 1200,
+      wholesale_price: 1000,
+      purchase_cost: 790,
+      min_stock: 50,
+      internal_notes: "private staff note",
+      inventory: {
+        id: "inventory-offline-1",
+        product_id: "product-offline-1",
+        warehouse_id: "warehouse-1",
+        quantity_on_hand: 20,
+        quantity_reserved: 4,
+        quantity_available: 16,
+        reorder_point: 8,
+        internal_movement_note: "private stock note",
+      },
+      category: { id: "category-1", name: "Food", internal_note: "private category note" },
+    };
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-staff@example.test",
+      name: "CI Staff",
+      roles: ["staff"],
+      isStaff: true,
+    };
+    // A previously scoped staff cache is re-sanitized before use; a global legacy
+    // cache is retired and is never trusted as belonging to the active tenant.
+    const cacheKeys = offlineCatalogCacheKeys(PROFILE_ID)!;
+    const serverScope = {
+      profileId: PROFILE_ID,
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
+    };
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([unsafeRow]));
+    window.localStorage.setItem(cacheKeys.catalogKey, JSON.stringify([unsafeRow]));
+    window.localStorage.setItem(cacheKeys.scopeKey, offlineCatalogScopeFingerprint(serverScope));
+    mocks.fetchProducts.mockResolvedValueOnce([unsafeRow]);
+
+    await mountQuoteWorkspace("/offline");
+
+    expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
+    const legacySafe = JSON.parse(window.localStorage.getItem(cacheKeys.catalogKey) || "[]");
+    expect(legacySafe).toHaveLength(1);
+    expect(legacySafe[0]).not.toHaveProperty("base_price");
+    expect(legacySafe[0]).not.toHaveProperty("display_price");
+    expect(legacySafe[0]).not.toHaveProperty("cost_price");
+    expect(legacySafe[0]).not.toHaveProperty("retail_price");
+    expect(legacySafe[0]).not.toHaveProperty("wholesale_price");
+    expect(legacySafe[0]).not.toHaveProperty("purchase_cost");
+    expect(legacySafe[0]).not.toHaveProperty("min_stock");
+    expect(legacySafe[0]).not.toHaveProperty("internal_notes");
+    expect(legacySafe[0].inventory).not.toHaveProperty("quantity_reserved");
+    expect(legacySafe[0].inventory).not.toHaveProperty("reorder_point");
+    expect(legacySafe[0].inventory).not.toHaveProperty("internal_movement_note");
+    expect(legacySafe[0].category).not.toHaveProperty("internal_note");
+
+    const syncButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("تحديث الكتالوج المحلي"),
+    );
+    expect(syncButton).toBeDefined();
+    await act(async () => {
+      syncButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const syncedSafe = JSON.parse(window.localStorage.getItem(cacheKeys.catalogKey) || "[]");
+    expect(mocks.fetchProducts).toHaveBeenCalledTimes(1);
+    expect(syncedSafe).toHaveLength(1);
+    expect(syncedSafe[0]).not.toHaveProperty("base_price");
+    expect(syncedSafe[0]).not.toHaveProperty("display_price");
+    expect(syncedSafe[0]).not.toHaveProperty("cost_price");
+    expect(syncedSafe[0]).not.toHaveProperty("retail_price");
+    expect(syncedSafe[0]).not.toHaveProperty("wholesale_price");
+    expect(syncedSafe[0].inventory).not.toHaveProperty("quantity_reserved");
+    expect(syncedSafe[0].inventory).not.toHaveProperty("reorder_point");
+  });
+
+  it("browses the scoped offline catalog and adds localized quantities to the profile draft without prices", async () => {
+    const sugarId = "f2222222-2222-4222-8222-222222222222";
+    const riceId = "f3333333-3333-4333-8333-333333333333";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    const keys = offlineCatalogCacheKeys(PROFILE_ID)!;
+    const serverScope = {
+      profileId: PROFILE_ID,
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
+    };
+    window.localStorage.setItem(keys.scopeKey, offlineCatalogScopeFingerprint(serverScope));
+    window.localStorage.setItem(keys.lastServerSyncKey, new Date().toISOString());
+    window.localStorage.setItem(keys.catalogKey, JSON.stringify([
+      {
+        id: sugarId,
+        name: "مواد تموينية",
+        item_code: "000125",
+        barcode: "628000125",
+        unit: "كرتون",
+        status: "active",
+        min_order_quantity: 1,
+        order_quantity_multiple: 1,
+        base_price: 1200,
+        cost_price: 800,
+        category: { id: "c1111111-1111-4111-8111-111111111111", name: "السكر" },
+      },
+      {
+        id: riceId,
+        name: "أرز بسمتي",
+        item_code: "000126",
+        unit: "كيس",
+        status: "active",
+        min_order_quantity: 2,
+        order_quantity_multiple: 2,
+        retail_price: 900,
+        category: { id: "c2222222-2222-4222-8222-222222222222", name: "الأرز" },
+      },
+    ]));
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+
+    await mountQuoteWorkspace("/offline");
+
+    expect(host?.textContent).toContain("الكتالوج المحفوظ");
+    expect(host?.textContent).toContain("مواد تموينية");
+    expect(host?.textContent).toContain("أرز بسمتي");
+    expect(host?.textContent).not.toContain("1200");
+    expect(host?.textContent).not.toContain("900");
+
+    const search = host?.querySelector<HTMLInputElement>('[aria-label="البحث في الكتالوج المحفوظ"]');
+    expect(search).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(search, "سكر");
+      search?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(host?.textContent).toContain("مواد تموينية");
+    expect(host?.textContent).not.toContain("أرز بسمتي");
+
+    const quantity = host?.querySelector<HTMLInputElement>('[aria-label="الكمية لمسودة السلة: مواد تموينية"]');
+    expect(quantity).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(quantity, "٢");
+      quantity?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const addButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("إضافة إلى مسودة السلة"),
+    );
+    expect(addButton).toBeDefined();
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const cartKey = "aghbari:cart:v2:customer:" + encodeURIComponent(PROFILE_ID);
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: sugarId, quantity: 2 },
+    ]);
+    expect(host?.textContent).toContain("أُضيف مواد تموينية");
+    expect(host?.textContent).toContain("لم يُرسل طلب ولم يُعتمد سعر أو مخزون");
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(mocks.fetchResolvedProductPrices).not.toHaveBeenCalled();
+  });
+
+  it("shows invoice prices in the customer preview only from the scoped invoice RPC", async () => {
+    const invoiceId = "22222222-2222-4222-8222-222222222222";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-UI-001",
+        order_id: "33333333-3333-4333-8333-333333333333",
+        customer_id: "44444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-10-15T09:00:00.000Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
+      expect(args).toEqual({ p_invoice_id: invoiceId });
+      return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    expect(host?.textContent).toContain("فواتيري");
+    const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("عرض / طباعة"),
+    );
+    expect(openButton).toBeDefined();
+
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("get_customer_invoice_pdf", { p_invoice_id: invoiceId });
+    expect(host?.textContent).toContain("سعر الوحدة");
+    expect(host?.textContent).toContain("الإجمالي المستحق");
+    expect(host?.textContent).toContain("متجر الاختبار");
+    expect(mocks.queries.some((query) => query.table === "customer_invoice_items")).toBe(false);
+    expect(mocks.queries.some((query) => query.table === "customers")).toBe(false);
+  });
+
+  it("omits invoice price columns and totals when the server hides invoice financial details", async () => {
+    const invoiceId = "66666666-6666-4666-8666-666666666666";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-HIDDEN-001",
+        order_id: "77777777-7777-4777-8777-777777777777",
+        customer_id: "44444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-10-15T09:00:00.000Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
+      expect(args).toEqual({ p_invoice_id: invoiceId });
+      return {
+        data: {
+          invoice: {
+            id: invoiceId,
+            invoice_number: "INV-HIDDEN-001",
+            currency: "YER",
+          },
+          lines: [{
+            id: "88888888-8888-4888-8888-888888888888",
+            item_code: "000126",
+            description: "صنف مخفي السعر",
+            unit: "كرتون",
+            quantity: "2",
+          }],
+          customer: {
+            customer_code: "000043",
+            business_name: "عميل مخفي الأسعار",
+            contact_name: null,
+          },
+          financial_details_visible: false,
+          customer_tier_visible: false,
+        },
+        error: null,
+      };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("عرض / طباعة"),
+    );
+    expect(openButton).toBeDefined();
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.querySelector("[data-testid='invoice-prices-hidden']")?.textContent).toContain("مخفية");
+    const headers = Array.from(host?.querySelectorAll('[role="dialog"] th') ?? []).map((node) => node.textContent?.trim());
+    expect(headers).not.toContain("سعر الوحدة");
+    expect(headers).not.toContain("الإجمالي");
+    expect(headers).not.toContain("الإجمالي المستحق");
+    expect(host?.textContent).not.toContain("12.50");
+    expect(host?.textContent).not.toContain("25.00");
+    expect(host?.textContent).toContain("صنف مخفي السعر");
+    expect(mocks.queries.some((query) => query.table === "customer_invoice_items")).toBe(false);
+  });
+
+  it("shows the server-authorized customer tier on invoices independently of hidden monetary amounts", async () => {
+    const invoiceId = "77777777-7777-4777-8777-777777777777";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-TIER-001",
+        order_id: "88888888-8888-4888-8888-888888888888",
+        customer_id: "44444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-10-15T09:00:00.000Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
+      expect(args).toEqual({ p_invoice_id: invoiceId });
+      return {
+        data: {
+          invoice: {
+            id: invoiceId,
+            invoice_number: "INV-TIER-001",
+            currency: "YER",
+          },
+          lines: [{
+            id: "99999999-9999-4999-8999-999999999999",
+            item_code: "000127",
+            description: "صنف دون أسعار",
+            unit: "كرتون",
+            quantity: "2",
+          }],
+          customer: {
+            customer_code: "000044",
+            business_name: "متجر فئة العميل",
+            contact_name: null,
+            tier_label: "الجملة",
+          },
+          financial_details_visible: false,
+          customer_tier_visible: true,
+        },
+        error: null,
+      };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("عرض / طباعة"),
+    );
+    expect(openButton).toBeDefined();
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.textContent).toContain("فئة العميل");
+    expect(host?.textContent).toContain("الجملة");
+    expect(host?.textContent).toContain("الأسعار والإجماليات مخفية");
+    expect(host?.textContent).not.toContain("سعر الوحدة");
+    expect(host?.textContent).not.toContain("الإجمالي المستحق");
+    expect(host?.textContent).not.toContain("25.00");
+  });
+
+  it("does not advertise more customer invoices when no 101st row is returned", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: Array.from({ length: 100 }, (_, index) => ({
+        id: `invoice-${index + 1}`,
+        invoice_number: `INV-${String(index + 1).padStart(3, "0")}`,
+        order_id: `order-${index + 1}`,
+        customer_id: "44444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-10-15T09:00:00.000Z",
+        due_at: null,
+        currency: "YER",
+      })),
+    };
+
+    await mountQuoteWorkspace("/invoices");
+
+    expect(host?.textContent).toContain("فواتيري");
+    expect(host?.textContent).not.toContain("عرض فواتير أقدم");
+    expect(host?.textContent).not.toContain("أحدث 100 فاتورة فقط");
+  });
+
+  it("fails closed when the authenticated server scope cannot be resolved", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.getCurrentTenantScope.mockRejectedValueOnce(
+      new Error("تعذر تحميل نطاق المؤسسة من الخادم."),
+    );
+
+    await mountQuoteWorkspace();
+
+    expect(host?.textContent).toContain("تعذر تحميل نطاق المؤسسة من الخادم.");
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("keeps barcode scanning open for multiple products and merges repeat scans by each product's order multiple", async () => {
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+
+    const firstProductId = "f4444444-4444-4444-8444-444444444444";
+    const secondProductId = "f5555555-5555-4555-8555-555555555555";
+    const firstProduct = {
+      id: firstProductId,
+      name: "سكر أبيض",
+      item_code: "000125",
+      barcode: "628000125",
+      sku: "SUGAR-125",
+      unit: "كرتون",
+      min_order_quantity: 2,
+      order_quantity_multiple: 2,
+      status: "active",
+    };
+    const secondProduct = {
+      id: secondProductId,
+      name: "أرز بسمتي",
+      item_code: "RICE-126",
+      barcode: "628000126",
+      sku: "RICE-126",
+      unit: "كيس",
+      min_order_quantity: 1,
+      order_quantity_multiple: 1,
+      status: "active",
+    };
+    mocks.responses.products = [firstProduct];
+
+    const router = await mountQuoteWorkspace("/barcode");
+    const barcodeInput = host?.querySelector<HTMLInputElement>('[aria-label="رقم الباركود"]');
+    expect(barcodeInput).not.toBeNull();
+
+    const searchBarcode = async (barcode: string) => {
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(barcodeInput, barcode);
+        barcodeInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const searchButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("بحث"),
+      );
+      expect(searchButton).toBeDefined();
+      await act(async () => {
+        searchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+
+    const addScannedProduct = async (name: string) => {
+      expect(host?.textContent).toContain(name);
+      const addButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+        button.textContent?.includes("أضف إلى السلة"),
+      );
+      expect(addButton).toBeDefined();
+      await act(async () => {
+        addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(router.state.location.pathname).toBe("/barcode");
+      expect(host?.textContent).toContain("مسح صنف آخر");
+    };
+
+    await searchBarcode("٦٢٨٠٠٠١٢٥");
+    await addScannedProduct("سكر أبيض");
+
+    const cartKey = "aghbari:cart:v2:customer:" + encodeURIComponent(PROFILE_ID);
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 2 },
+    ]);
+
+    mocks.responses.products = [secondProduct];
+    await searchBarcode("٦٢٨٠٠٠١٢٦");
+    await addScannedProduct("أرز بسمتي");
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 2 },
+      { product_id: secondProductId, quantity: 1 },
+    ]);
+
+    // Re-scanning the first product adds its own server-defined multiple; units are never aggregated.
+    mocks.responses.products = [firstProduct];
+    await searchBarcode("٦٢٨٠٠٠١٢٥");
+    await addScannedProduct("سكر أبيض");
+    expect(JSON.parse(window.localStorage.getItem(cartKey) || "[]")).toEqual([
+      { product_id: firstProductId, quantity: 4 },
+      { product_id: secondProductId, quantity: 1 },
+    ]);
+    expect(host?.textContent).toMatch(/[2٢] أصناف/);
+    expect(host?.textContent).not.toContain("إجمالي 5 وحدة");
+
+    const openCartButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("فتح سلة المشتريات"),
+    );
+    expect(openCartButton).toBeDefined();
+    await act(async () => {
+      openCartButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(router.state.location.pathname).toBe("/cart");
+  });
+
+});

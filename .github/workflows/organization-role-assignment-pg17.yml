@@ -1,0 +1,55 @@
+name: Organization Role Assignment PostgreSQL 17 Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116128000_organization_role_assignment_revision_guard.sql"
+      - "supabase/tests/organization_role_assignment_revision_guard.sql"
+      - ".github/workflows/organization-role-assignment-pg17.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261116128000_organization_role_assignment_revision_guard.sql"
+      - "supabase/tests/organization_role_assignment_revision_guard.sql"
+      - ".github/workflows/organization-role-assignment-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: organization-role-assignment-pg17-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  organization-role-assignment:
+    name: PostgreSQL 17 role revision, tenant boundary and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Validate role assignment revision guard under authenticated sessions
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/organization_role_assignment_revision_guard.sql
