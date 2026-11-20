@@ -61,8 +61,7 @@ describe('central device and session management', () => {
     // DeviceManagement also mounts the independent customer-device request inbox.
     // Keep that RPC valid/empty so session assertions observe only session behavior.
     if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
-    if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
-      if (name === 'list_organization_sessions') return { data: sessions, error: null };
+    if (name === 'list_organization_sessions') return { data: sessions, error: null };
     if (name !== 'revoke_organization_session') {
       return { data: null, error: { message: 'unexpected RPC' } };
     }
