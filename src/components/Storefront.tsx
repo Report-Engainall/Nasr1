@@ -944,6 +944,27 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       }
     });
 
+    const previousAvailabilitySnapshot = getCartAvailabilitySnapshot(
+      cartReviewIdentity,
+      cart.map((item) => item.product.id),
+    ) ?? [];
+    const availabilityByProduct = new Map(
+      previousAvailabilitySnapshot.map((entry) => [entry.product_id.toLowerCase(), entry]),
+    );
+    for (const change of cartAvailabilityChanges) {
+      availabilityByProduct.set(change.product_id.toLowerCase(), {
+        product_id: change.product_id,
+        status: change.current_status,
+        quantity_available: change.current_available,
+      });
+    }
+    const remainingProductIds = updatedCart.map((item) => item.product.id);
+    const acceptedAvailabilitySnapshot = remainingProductIds.flatMap((productId) => {
+      const snapshot = availabilityByProduct.get(productId.toLowerCase());
+      return snapshot ? [snapshot] : [];
+    });
+    rememberCartAvailabilitySnapshot(cartReviewIdentity, remainingProductIds, acceptedAvailabilitySnapshot);
+
     setCart(updatedCart);
     if (removed.length) {
       setRecentlyRemovedCartItems((current) => [
