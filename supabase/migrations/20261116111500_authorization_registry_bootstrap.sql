@@ -5,7 +5,7 @@
 -- private and fail closed until that authoritative migration installs its
 -- role-parity seed and real decision functions.
 --
--- This file intentionally contains no role grants and no capability seeds.
+-- Only the prerequisite definitions/grants consumed by earlier timestamped migrations are seeded here.
 -- The authoritative registry remains 20261117050202_authorization_capability_registry_v2.sql.
 
 BEGIN;
@@ -70,6 +70,48 @@ ALTER TABLE public.authorization_profile_denials ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.authorization_capabilities FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.authorization_role_capabilities FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON TABLE public.authorization_profile_denials FROM PUBLIC,anon,authenticated;
+
+-- Minimal catalogue rows required by the timestamp-earlier inventory and finance
+-- migration contracts. These values and role parity mirror the later canonical
+-- registry migration, which remains responsible for the final upsert/decision rules.
+INSERT INTO public.authorization_capabilities (
+  capability_key,domain,resource,action,sensitivity,scope_kind,
+  approval_mode,separation_of_duties,state_requirements,legacy_operation_id
+) VALUES
+  ('inventory.transfer.create','inventory','inventory_transfer','create','inventory','organization',
+   'approval_required',false,'{"requires_available_quantity":true}','inventory_transfer'),
+  ('inventory.count.enter','inventory','stock_count','enter_count','inventory','organization',
+   'approval_required',false,'{"writes_draft_only":true}','stock_count_edit'),
+  ('inventory.count.finalize','inventory','stock_count','finalize','inventory','organization',
+   'maker_checker',true,'{"requires_review":true}','stock_count_finalize'),
+  ('inventory.read_balance','inventory','stock_balance','read','inventory','warehouse',
+   'none',false,'{"requires_warehouse_assignment":true}',NULL),
+  ('inventory.count.start','inventory','stock_count','start','inventory','warehouse',
+   'none',false,'{"requires_warehouse_assignment":true}',NULL),
+  ('finance.workspace.manage','finance','finance_workspace','manage_invoice_and_collection','financial','organization',
+   'none',false,'{}','finance_manage'),
+  ('finance.journal.create_draft','finance','journal_entry','create_draft','financial','organization',
+   'none',false,'{"creates_status":"draft"}',NULL),
+  ('finance.journal.post','finance','journal_entry','post','financial','organization',
+   'maker_checker',true,'{"required_status":"draft"}',NULL),
+  ('finance.journal.reverse','finance','journal_entry','reverse','financial','organization',
+   'maker_checker',true,'{"requires_posted_source_and_reason":true}',NULL)
+ON CONFLICT (capability_key) DO NOTHING;
+
+INSERT INTO public.authorization_role_capabilities(role,capability_key,grant_source)
+VALUES
+  ('admin','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('manager','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('staff','inventory.transfer.create','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('admin','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('manager','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('staff','inventory.count.enter','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('admin','inventory.count.finalize','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('manager','inventory.count.finalize','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('admin','finance.workspace.manage','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('manager','finance.workspace.manage','legacy-role-parity:ADMIN_OPERATION_RULES'),
+  ('accountant','finance.workspace.manage','legacy-role-parity:ADMIN_OPERATION_RULES')
+ON CONFLICT (role,capability_key) DO NOTHING;
 
 -- Temporary deny-only implementation. The later authoritative registry
 -- migration replaces both signatures with the complete tenant/role/deny logic.
