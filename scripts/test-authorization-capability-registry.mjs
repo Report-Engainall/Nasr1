@@ -79,7 +79,9 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
  assert.doesNotMatch(canonicalSource,/INSERT INTO public\.authorization_role_capabilities/i,
   "the canonical function migration must not reseed role grants after initial registry creation");
  const rollbackMarker="ROLLBACK_AUTHORIZATION_PREREQUISITE_UPGRADE_FIXTURE";
- await assert.rejects(db.begin(async(tx)=>{
+ let rollbackError;
+ try {
+  await db.begin(async(tx)=>{
   const initial=await tx.unsafe("select capability_key from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key");
   assert.equal(initial.length,2,"upgrade fixture requires both existing capability rows");
   const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
@@ -110,7 +112,17 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
   const flag=await tx.unsafe("select current_setting('nasr.authorization_role_capabilities_preexisting',true) as existed");
   assert.equal(flag[0].existed,"true","fixture must prove the pre-existing-role-table upgrade branch");
   throw new Error(rollbackMarker);
- }),error=>error?.message===rollbackMarker,"upgrade-safety fixture rolls back its local policy mutations after proving the migration preserves existing state");
+  });
+ } catch(error) {
+  rollbackError=error;
+ }
+ if(rollbackError?.message!==rollbackMarker) {
+  throw new Error(
+   "Authorization prerequisite upgrade fixture did not reach its deliberate rollback sentinel. "+
+   "Underlying failure: "+String(rollbackError?.stack??rollbackError??"transaction unexpectedly committed"),
+   {cause:rollbackError}
+  );
+ }
 }
 
 async function decision(db,actor,key) {
