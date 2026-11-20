@@ -36,6 +36,11 @@ export interface ReturnCreditMemoSummary {
   reversal_reason: string | null;
   reversal_journal_entry_id: string | null;
   reversal_journal_entry_number: string | null;
+  reversal_journal_status: "draft" | "posted" | null;
+  reversal_created_by_profile_id: string | null;
+  reversal_posted_by_profile_id: string | null;
+  reversal_created_at: string | null;
+  reversal_posted_at: string | null;
   receivable_account_id: string;
   revenue_account_id: string;
   tax_account_id: string | null;
@@ -143,6 +148,12 @@ export function readReturnCreditMemoQueue(value: unknown): ReturnCreditQueue {
         reversal_reason: nullableText(memoRaw.reversal_reason),
         reversal_journal_entry_id: nullableText(memoRaw.reversal_journal_entry_id),
         reversal_journal_entry_number: nullableText(memoRaw.reversal_journal_entry_number),
+        reversal_journal_status: memoRaw.reversal_journal_status === "draft" || memoRaw.reversal_journal_status === "posted"
+          ? memoRaw.reversal_journal_status : null,
+        reversal_created_by_profile_id: nullableText(memoRaw.reversal_created_by_profile_id),
+        reversal_posted_by_profile_id: nullableText(memoRaw.reversal_posted_by_profile_id),
+        reversal_created_at: nullableText(memoRaw.reversal_created_at),
+        reversal_posted_at: nullableText(memoRaw.reversal_posted_at),
         receivable_account_id: requiredText(memoRaw.receivable_account_id, "credit_memo.receivable_account_id"),
         revenue_account_id: requiredText(memoRaw.revenue_account_id, "credit_memo.revenue_account_id"),
         tax_account_id: nullableText(memoRaw.tax_account_id),
@@ -242,29 +253,32 @@ export function readReturnCreditMemoMutation(value: unknown): ReturnCreditMemoMu
 export interface ReturnCreditMemoReversalMutation {
   credit_memo_id: string;
   memo_number: string;
-  status: "reversed";
+  status: "reversal_pending" | "reversed";
   original_journal_entry_id: string;
   reversal_journal_entry_id: string;
   reversal_journal_entry_number: string;
-  reversal_status: "posted";
+  reversal_status: "draft" | "posted";
   reason: string;
   replayed: boolean;
 }
 
 export function readReturnCreditMemoReversalMutation(value: unknown): ReturnCreditMemoReversalMutation {
   if (!isRecord(value)) throw new Error("لم يرجع الخادم نتيجة صالحة لعكس الإشعار الدائن.");
-  if (value.status !== "reversed" || value.reversal_status !== "posted") {
-    throw new Error("لم يؤكد الخادم حالة الإشعار المعكوس والقيد العكسي المرحّل.");
+  const status = value.status;
+  const reversalStatus = value.reversal_status;
+  if (!((status === "reversal_pending" && reversalStatus === "draft") ||
+        (status === "reversed" && reversalStatus === "posted"))) {
+    throw new Error("لم يؤكد الخادم مرحلة مسودة العكس أو ترحيلها بمراجع مستقل.");
   }
   if (typeof value.replayed !== "boolean") throw new Error("علامة إعادة محاولة العكس غير موجودة.");
   return {
     credit_memo_id: requiredText(value.credit_memo_id, "credit_memo_id"),
     memo_number: requiredText(value.memo_number, "memo_number"),
-    status: "reversed",
+    status,
     original_journal_entry_id: requiredText(value.original_journal_entry_id, "original_journal_entry_id"),
     reversal_journal_entry_id: requiredText(value.reversal_journal_entry_id, "reversal_journal_entry_id"),
     reversal_journal_entry_number: requiredText(value.reversal_journal_entry_number, "reversal_journal_entry_number"),
-    reversal_status: "posted",
+    reversal_status: reversalStatus,
     reason: requiredText(value.reason, "reason"),
     replayed: value.replayed,
   };
