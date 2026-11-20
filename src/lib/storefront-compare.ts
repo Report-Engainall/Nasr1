@@ -3,6 +3,8 @@ import { normalizeSavedProductIds } from "@/lib/commerce-utils";
 export const STOREFRONT_COMPARE_GUEST_STORAGE_KEY = "aghbari:compare:v1";
 export const STOREFRONT_COMPARE_MAX_ITEMS = 3;
 
+const PROFILE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
 /**
@@ -12,7 +14,7 @@ type StorageLike = Pick<Storage, "getItem" | "setItem">;
  */
 export function storefrontCompareStorageKey(profileId?: string | null, authUserId?: string | null): string {
   const normalizedProfileId = typeof profileId === "string" ? profileId.trim() : "";
-  if (normalizedProfileId) return `aghbari:compare:v2:${encodeURIComponent(normalizedProfileId)}`;
+  if (PROFILE_ID_PATTERN.test(normalizedProfileId)) return `aghbari:compare:v2:${encodeURIComponent(normalizedProfileId)}`;
 
   const normalizedAuthUserId = typeof authUserId === "string" ? authUserId.trim() : "";
   if (normalizedAuthUserId) return `aghbari:compare:auth:v1:${encodeURIComponent(normalizedAuthUserId)}`;
