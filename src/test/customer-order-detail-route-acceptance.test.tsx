@@ -110,6 +110,7 @@ describe("customer order detail real route acceptance", () => {
     }
     host?.remove();
     host = undefined;
+    vi.unstubAllGlobals();
   });
 
   async function mountOrderRoute() {
@@ -130,6 +131,7 @@ describe("customer order detail real route acceptance", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(router.state.location.pathname).toBe("/orders/33333333-3333-4333-8333-333333333333");
+    return router;
   }
 
   it("gates a guest before reading any order, item, history or customer record", async () => {
@@ -208,8 +210,31 @@ describe("customer order detail real route acceptance", () => {
         phone: "PRIVATE-ACCOUNT-PHONE", notes: "PRIVATE-CUSTOMER-NOTE",
       }], error: null },
     };
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    const clipboardNavigator = Object.create(navigator) as Navigator;
+    Object.defineProperty(clipboardNavigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+    vi.stubGlobal("navigator", clipboardNavigator);
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
     await mountOrderRoute();
+    const copyButton = host?.querySelector<HTMLButtonElement>('button[aria-label="نسخ الرقم المرجعي للطلب"]');
+    expect(copyButton?.textContent).toContain("نسخ الرقم المرجعي");
+    await act(async () => {
+      copyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith("SO-PRINT-001");
+    expect(host?.textContent).toContain("تم نسخ الرقم المرجعي للطلب.");
+
+    clipboardWriteText.mockRejectedValueOnce(new Error("clipboard permission denied"));
+    await act(async () => {
+      copyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(host?.textContent).toContain("تعذر النسخ التلقائي؛ حدّد الرقم المرجعي الظاهر في المستند وانسخه يدويًا.");
+
     const printButton = host?.querySelector<HTMLButtonElement>('button.sf-btn-primary');
     expect(printButton?.textContent).toContain("طباعة / حفظ PDF");
     await act(async () => { printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
@@ -228,6 +253,37 @@ describe("customer order detail real route acceptance", () => {
       "PRIVATE-CUSTOMER-ROW-ID", "PRIVATE-ACCOUNT-PHONE", "PRIVATE-CUSTOMER-NOTE",
       "987654", "2962962", "12345",
     ]) expect(printable?.textContent).not.toContain(privateValue);
+  });
+
+  it("does not announce a status transition when a different order is opened by deep link", async () => {
+    mocks.user = CUSTOMER;
+    const firstOrderId = "33333333-3333-4333-8333-333333333333";
+    const nextOrderId = "66666666-6666-4666-8666-666666666666";
+    mocks.results = {
+      orders: { data: [{
+        id: firstOrderId, order_number: "SO-FIRST-001", customer_id: CUSTOMER.profileId,
+        status: "pending", total_items: 0, notes: null,
+        created_at: "2026-11-20T05:00:00.000Z", delivery_address_snapshot: null,
+      }], error: null },
+      order_items: { data: [], error: null },
+      order_status_history: { data: [], error: null },
+      customers: { data: [{ customer_code: "C-NEXT-01", business_name: "شركة الاختبار", contact_name: null }], error: null },
+    };
+    const router = await mountOrderRoute();
+    mocks.results.orders = { data: [{
+      id: nextOrderId, order_number: "SO-NEXT-001", customer_id: CUSTOMER.profileId,
+      status: "confirmed", total_items: 0, notes: null,
+      created_at: "2026-11-20T05:05:00.000Z", delivery_address_snapshot: null,
+    }], error: null };
+
+    await act(async () => {
+      await router.navigate({ to: "/orders/$id", params: { id: nextOrderId } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(router.state.location.pathname).toBe("/orders/" + nextOrderId);
+    expect(host?.textContent).toContain("SO-NEXT-001");
+    expect(host?.querySelector('[aria-label="إشعار تحديث حالة الطلب"]')).toBeNull();
   });
 
   it("automatically shows management approval without polling while hidden or offline", async () => {
@@ -327,6 +383,9 @@ describe("customer order detail real route acceptance", () => {
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
       expect(host?.textContent).toContain("الحالة: مؤكد");
+      expect(host?.querySelector('[aria-label="إشعار تحديث حالة الطلب"]')?.textContent)
+        .toContain("تغيّرت حالة الطلب SO-AUTO-001 من بانتظار المراجعة إلى مؤكد");
+      expect(host?.querySelector('a[href="/notifications"]')).not.toBeNull();
       expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[0]?.querySelector('[aria-label="مكتمل"]')).not.toBeNull();
       expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[1]?.querySelector('[aria-label="الحالة الحالية"]')).not.toBeNull();
       expect(host?.querySelector('[aria-label="مسار حالة الطلب"]')?.children[2]?.querySelector('[aria-label="لم يكتمل"]')).not.toBeNull();
