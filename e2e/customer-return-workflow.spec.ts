@@ -275,7 +275,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await administratorPage.close();
 
       const accountantReversalPage = await tasksContext.newPage();
-      await signIn(accountantReversalPage, accountantEmail, accountantPassword);
+      // The accountant session remains scoped to tasksContext after its first page closes.
       await accountantReversalPage.goto("/admin/finance");
       const openAccountantReversalFinance = accountantReversalPage.getByRole("button", { name: "إشعارات المرتجعات الدائنة", exact: true });
       await expect(openAccountantReversalFinance).toBeVisible();
