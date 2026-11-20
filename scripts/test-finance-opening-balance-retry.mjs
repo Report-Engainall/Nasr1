@@ -110,6 +110,11 @@ async function main() {
       "the same key with a changed amount must remain an idempotency conflict"
     );
     await expectSqlState(
+      actorSubmit(db,actorA,{...input,amount:"1250.001",idempotencyKey:randomUUID()}),
+      "22023",
+      "opening-balance submissions must reject more than two decimals instead of silently rounding numeric(18,2)"
+    );
+    await expectSqlState(
       actorSubmit(db,actorA,{...input,idempotencyKey:randomUUID()}),
       "42501",
       "a new proposal must still be denied after the account mapping is disabled"
