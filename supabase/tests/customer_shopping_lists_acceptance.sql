@@ -266,11 +266,21 @@ BEGIN
   PERFORM public.materialize_due_customer_shopping_list_runs();
   SELECT count(*) INTO v_count FROM public.customer_shopping_list_runs;
   IF v_count<>2 THEN RAISE EXCEPTION 'reopening a due list duplicated a scheduled run'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.audit_logs
+     WHERE action='customer.shopping_list.recurrence_due'
+       AND new_value->>'due_on'=v_today::text
+  ) THEN RAISE EXCEPTION 'scheduled list review was not written to the audit trail'; END IF;
 
   SELECT next_run_on INTO v_next_on
     FROM public.customer_shopping_lists WHERE id=v_monthly_id;
   IF v_next_on IS NULL OR v_next_on<>(v_today + interval '1 month')::date THEN
     RAISE EXCEPTION 'monthly recurrence did not advance from the local due date';
+  END IF;
+  SELECT next_run_on INTO v_next_on
+    FROM public.customer_shopping_lists WHERE id=v_list_id;
+  IF v_next_on IS NULL OR v_next_on<>(v_today + 7) THEN
+    RAISE EXCEPTION 'weekly recurrence did not advance by exactly seven local days';
   END IF;
   v_data:=public.list_customer_shopping_lists();
   IF pg_catalog.jsonb_array_length(v_data)<>2 THEN

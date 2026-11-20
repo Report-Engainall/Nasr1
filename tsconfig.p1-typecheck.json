@@ -10,6 +10,7 @@
     ]
   },
   "include": [
+    "src/lib/customer-shopping-lists-xlsx-archive.test.ts",
     "src/lib/customer-shopping-lists-schedule.test.ts",
     "src/components/CustomerShoppingListsWorkspace.tsx",
     "src/lib/customer-shopping-lists.ts",

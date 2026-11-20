@@ -9,6 +9,7 @@ const products = [
   { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "سكر", item_code: "SUGAR-2", sku: null, barcode: null, unit: "كيس" },
 ];
 
+
 describe("shopping-list Excel import normalization", () => {
   it("normalizes Arabic-Indic digits and grouped whole quantities", () => {
     expect(normalizeShoppingListImportQuantity("١٬٢٥٠")).toBe(1250);
@@ -33,4 +34,6 @@ describe("shopping-list Excel import normalization", () => {
     const ambiguous = [...products, { ...products[1], id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", item_code: "OTHER", barcode: "6280001" }];
     expect(() => resolveShoppingListImportProduct("6280001", ambiguous)).toThrow("أكثر من منتج");
   });
+
+
 });

@@ -122,7 +122,8 @@ function readZipDirectory(bytes: Uint8Array): Map<string, ZipEntry> {
     const extraLength = view.getUint16(offset + 30, true);
     const commentLength = view.getUint16(offset + 32, true);
     const localOffset = view.getUint32(offset + 42, true);
-    if ((flags & 1) !== 0 || (flags & 8) !== 0 || compressedSize > MAX_FILE_BYTES ||
+    // The central directory carries authoritative sizes, so data-descriptor ZIP entries (bit 3) are supported.
+    if ((flags & 1) !== 0 || compressedSize > MAX_FILE_BYTES ||
         uncompressedSize > MAX_ENTRY_BYTES || ![0, 8].includes(method) ||
         offset + 46 + nameLength + extraLength + commentLength > bytes.length) {
       throw new Error("يحتوي ملف Excel على تشفير أو ضغط أو حجم غير مدعوم.");
