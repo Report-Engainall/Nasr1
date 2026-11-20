@@ -28,7 +28,7 @@ function makeXlsxWithDataDescriptors(rowCount = 1): Uint8Array {
         const row = index + 2;
         const code = rowCount === 1 ? "RICE-1" : "ITEM-" + (index + 1);
         return "<row r=\"" + row + "\"><c r=\"A" + row + "\" t=\"inlineStr\"><is><t>" + code + "</t></is></c>" +
-          "<c r=\"B" + row + "\"><v>1</v></c><c r=\"C" + row + "\" t=\"inlineStr\"><is><t>كيس</t></is></c></row>";
+          "<c r=\"B" + row + "\"><v>" + (rowCount === 1 ? "2" : "1") + "</v></c><c r=\"C" + row + "\" t=\"inlineStr\"><is><t>كيس</t></is></c></row>";
       }).join("") +
       "</sheetData></worksheet>"],
   ] as const;
