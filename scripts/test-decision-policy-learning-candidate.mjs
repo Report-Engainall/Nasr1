@@ -362,6 +362,8 @@ async function main() {
       assert.deepEqual(memoryResult.snapshot.actualMetric.lineage.evidenceIds,
         ["dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId],
         "the actual metric must retain the namespaced source invoice lineage");
+      assert.ok(Array.isArray(memoryResult.snapshot.evidenceRecords),
+        "the immediate save response must always return evidenceRecords as a JSON array");
       assert.ok(memoryResult.snapshot.evidenceRecords.some((record) =>
         record.id === "dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId
       ), "the immutable memory snapshot must preserve its resolved source evidence record");
