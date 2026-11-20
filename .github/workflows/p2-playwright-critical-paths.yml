@@ -377,7 +377,7 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_PRICE_FIXTURE_BASE_URL: http://127.0.0.1:5174
           E2E_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/public-storefront-smoke.spec.ts e2e/storefront-price-visibility.spec.ts"
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/public-storefront-smoke.spec.ts e2e/storefront-price-visibility.spec.ts e2e/finance-reconciliation-retry-storage.spec.ts"
       - name: Record narrow proof boundary
         if: always()
         run: |
