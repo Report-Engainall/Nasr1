@@ -187,6 +187,17 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    ));
    const reviewerScopeResult=decodeJson(reviewerScope[0]?.result);
    assert.equal(reviewerScopeResult?.changed,true,"an independent administrator reviewer must receive the explicit A assignment");
+   const reviewerDecisionRows=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+    "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+    [assignedWarehouseId]
+   ));
+   const reviewerDecision=decodeJson(reviewerDecisionRows[0]?.decision);
+   assert.equal(reviewerDecision?.decision,"REQUIRES_APPROVAL",
+    "the separately assigned reviewer must resolve the exact warehouse-scoped Maker/Checker capability: "+JSON.stringify(reviewerDecision));
+   assert.equal(reviewerDecision?.approval_mode,"maker_checker",
+    "the reviewer decision must retain the configured Maker/Checker approval mode: "+JSON.stringify(reviewerDecision));
+   assert.equal(reviewerDecision?.separation_of_duties,true,
+    "the reviewer decision must retain separation of duties: "+JSON.stringify(reviewerDecision));
    const finalized=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
     "select public.complete_stock_count($1::uuid) as result",[sessionA.id]
    ));
