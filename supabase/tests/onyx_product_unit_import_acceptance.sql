@@ -342,6 +342,7 @@ DECLARE
   v_result_b jsonb;
   v_replay jsonb;
   v_lock_count integer := 0;
+  v_drained_result_count integer := 0;
   v_poll integer;
   v_unit_count integer;
   v_old_factor integer;
@@ -404,6 +405,13 @@ BEGIN
 
   SELECT result::jsonb INTO v_result_b
     FROM public.dblink_get_result('onyx_product_units_b') AS t(result text);
+  -- dblink_get_result must be called until it returns no rows; otherwise libpq
+  -- still considers the asynchronous connection busy and rejects COMMIT.
+  SELECT count(*)::integer INTO v_drained_result_count
+    FROM public.dblink_get_result('onyx_product_units_b') AS t(result text);
+  IF v_drained_result_count <> 0 THEN
+    RAISE EXCEPTION 'second concurrent ProductUnits connection returned an unexpected trailing result';
+  END IF;
   IF v_result_b->>'status' <> 'applied' THEN
     RAISE EXCEPTION 'second concurrent ProductUnits snapshot did not apply: %',v_result_b;
   END IF;
