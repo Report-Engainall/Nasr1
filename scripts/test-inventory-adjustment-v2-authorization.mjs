@@ -415,6 +415,13 @@ async function main() {
         );
         assert.equal(countSessionState[0].counted_lines,1,
           "saving a counted line must update the persisted session counter");
+        const [lineAuditProof]=await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+          "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
+          [organizationId,countedLine.id],
+        );
+        assert.equal(lineAuditProof.count,1,
+          "each successful count-line update must append exactly one audit event");
         const [balanceAfterCountEntry]=await tx.unsafe(
           "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
           [fixture.product_id,fixture.warehouse_id],
@@ -1111,6 +1118,10 @@ async function main() {
         })())[0].decision);
         assert.equal(completeDecision.decision, "REQUIRES_APPROVAL",
           "the assigned manager has the separate warehouse-scoped maker-checker review capability");
+        assert.equal(completeDecision.approval_mode, "maker_checker",
+          "the finalization grant must use the exact Maker/Checker workflow, not a generic approval mode");
+        assert.equal(completeDecision.separation_of_duties, true,
+          "the finalization grant must enforce separation of duties");
         const completion = decodeJson((await tx.unsafe(
           "select public.complete_stock_count($1::uuid) as result",
           [staffSession.id],
