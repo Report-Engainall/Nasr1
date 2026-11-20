@@ -46,7 +46,8 @@ async function assertCapabilitySeedPreservesExistingRows(db) {
   }
   const after=await tx.unsafe(
    "select capability_key,scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
-   "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key"
+   "from public.authorization_capabilities where capability_key=any($1::text[]) order by capability_key",
+   [["inventory.count.enter","inventory.count.finalize"]]
   );
   assert.deepEqual(after,before,
    "replaying either actual catalog seed must not widen warehouse scope or reactivate an existing disabled capability");
