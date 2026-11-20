@@ -265,13 +265,17 @@ async function main() {
 
         if (resourceCatalog.customers.length > 0) {
           const assignedCustomerId = resourceCatalog.customers[0].id;
+          await tx.unsafe("reset role");
+          const [existingCustomerScope] = await tx.unsafe(
+            "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+            "and profile_id=$2::uuid and scope_kind='assigned_customer' and customer_id=$3::uuid",
+            [organizationId, actors.manager.profile_id, assignedCustomerId],
+          );
+          await applyActor(tx, actors.admin);
+          const customerScopeRevision = existingCustomerScope ? Number(existingCustomerScope.revision) : 0;
           const customerScope = decodeJson((await tx.unsafe(
             "select public.set_authorization_profile_scope($1::uuid,'assigned_customer',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
-            [actors.manager.profile_id, assignedCustomerId, "P2 assigned customer scope acceptance",
-              Number((await tx.unsafe(
-                "select revision from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='assigned_customer' and customer_id=$3::uuid",
-                [organizationId, actors.manager.profile_id, assignedCustomerId],
-              ))[0]?.revision ?? 0)],
+            [actors.manager.profile_id, assignedCustomerId, "P2 assigned customer scope acceptance", customerScopeRevision],
           ))[0].result);
           assert.equal(customerScope.changed, true);
           assert.equal(customerScope.scope_kind, "assigned_customer");
@@ -589,21 +593,22 @@ async function main() {
         // Create an authentic open session through the authorized staff RPC on
         // warehouse B, then switch to the manager who has no B assignment.
         // This keeps the session trigger enabled and exercises the real path.
-        await applyActor(tx, actors.admin);
-        const staffScopes = decodeJson((await tx.unsafe(
-          "select public.list_authorization_profile_scopes($1::uuid) as scopes",
-          [actors.staff.profile_id],
-        ))[0].scopes);
-        const staffOtherWarehouseScope = staffScopes.find((scope) =>
-          scope.scope_kind === "warehouse" &&
-          scope.scope_resource_id === otherWarehouse.warehouse_id
+        await tx.unsafe("reset role");
+        const [existingStaffOtherWarehouseScope] = await tx.unsafe(
+          "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+          "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.staff.profile_id, otherWarehouse.warehouse_id],
         );
+        const staffOtherWarehouseRevision = existingStaffOtherWarehouseScope
+          ? Number(existingStaffOtherWarehouseScope.revision) : 0;
+        await applyActor(tx, actors.admin);
         const staffOtherWarehouseAssignment = decodeJson((await tx.unsafe(
           "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
           [actors.staff.profile_id, otherWarehouse.warehouse_id,
             "Temporary isolated count creator scope for cross-warehouse cancellation denial",
-            staffOtherWarehouseScope ? Number(staffOtherWarehouseScope.revision) : 0],
+            staffOtherWarehouseRevision],
         ))[0].result);
+        assert.equal(staffOtherWarehouseAssignment.revision, staffOtherWarehouseRevision + 1);
         assert.equal(staffOtherWarehouseAssignment.is_active, true);
         await applyActor(tx, actors.staff);
         const staffOtherWarehouseStart = decodeJson((await tx.unsafe(
