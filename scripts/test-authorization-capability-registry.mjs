@@ -79,50 +79,71 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
  assert.doesNotMatch(canonicalSource,/INSERT INTO public\.authorization_role_capabilities/i,
   "the canonical function migration must not reseed role grants after initial registry creation");
  const rollbackMarker="ROLLBACK_AUTHORIZATION_PREREQUISITE_UPGRADE_FIXTURE";
- let rollbackError;
+ const preFixtureCapabilities=await db.unsafe(
+  "select capability_key,domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active "+
+  "from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key"
+ );
+ const preFixtureGrant=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at from public.authorization_role_capabilities "+
+  "where role='manager' and capability_key='inventory.reorder_point.write'"
+ );
+ let rollbackFailure;
  try {
   await db.begin(async(tx)=>{
-  const initial=await tx.unsafe("select capability_key from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key");
-  assert.equal(initial.length,2,"upgrade fixture requires both existing capability rows");
-  const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
-  assert.equal(grant.length,1,"upgrade fixture requires a manager grant to remove");
-  await tx.unsafe("update public.authorization_capabilities set scope_kind='warehouse',is_active=true where capability_key='inventory.balance.adjust'");
-  const preservedPolicy={requires_warehouse_assignment:true};
-  await tx.unsafe(
-   "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
-   "separation_of_duties=true,state_requirements=$1::jsonb,is_active=false "+
-   "where capability_key='inventory.reorder_point.write'",
-   [JSON.stringify(preservedPolicy)]
-  );
-  await tx.unsafe("delete from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
-  await tx.unsafe(migrationSql);
-  await tx.unsafe(canonicalSeed[0]);
-  const scope=await tx.unsafe("select scope_kind,is_active from public.authorization_capabilities where capability_key='inventory.balance.adjust'");
-  assert.deepEqual(scope[0],{scope_kind:"warehouse",is_active:true},"prerequisite backfill must not widen or alter an existing warehouse capability");
-  const disabled=await tx.unsafe(
-   "select scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
-   "from public.authorization_capabilities where capability_key='inventory.reorder_point.write'"
-  );
-  assert.deepEqual(disabled[0],{
-   scope_kind:"warehouse",approval_mode:"maker_checker",separation_of_duties:true,
-   state_requirements:preservedPolicy,is_active:false
-  },"both prerequisite and canonical capability seeds must preserve existing scope, approval policy, metadata and disabled state");
-  const restored=await tx.unsafe("select count(*)::integer as count from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
-  assert.equal(restored[0].count,0,"prerequisite backfill must not recreate a deliberately removed role grant");
-  const flag=await tx.unsafe("select current_setting('nasr.authorization_role_capabilities_preexisting',true) as existed");
-  assert.equal(flag[0].existed,"true","fixture must prove the pre-existing-role-table upgrade branch");
-  throw new Error(rollbackMarker);
+   const initial=await tx.unsafe("select capability_key from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key");
+   assert.equal(initial.length,2,"upgrade fixture requires both existing capability rows");
+   const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+   assert.equal(grant.length,1,"upgrade fixture requires a manager grant to remove");
+   await tx.unsafe("update public.authorization_capabilities set scope_kind='warehouse',is_active=true where capability_key='inventory.balance.adjust'");
+   const preservedPolicy={requires_warehouse_assignment:true};
+   await tx.unsafe(
+    "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
+    "separation_of_duties=true,state_requirements=$1::jsonb,is_active=false "+
+    "where capability_key='inventory.reorder_point.write'",
+    [JSON.stringify(preservedPolicy)]
+   );
+   await tx.unsafe("delete from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+   await tx.unsafe(migrationSql);
+   await tx.unsafe(canonicalSeed[0]);
+   const scope=await tx.unsafe("select scope_kind,is_active from public.authorization_capabilities where capability_key='inventory.balance.adjust'");
+   assert.deepEqual(scope[0],{scope_kind:'warehouse',is_active:true},"prerequisite backfill must not widen or alter an existing warehouse capability");
+   const disabled=await tx.unsafe(
+    "select scope_kind,approval_mode,separation_of_duties,state_requirements,is_active "+
+    "from public.authorization_capabilities where capability_key='inventory.reorder_point.write'"
+   );
+   assert.deepEqual(disabled[0],{
+    scope_kind:'warehouse',approval_mode:'maker_checker',separation_of_duties:true,
+    state_requirements:preservedPolicy,is_active:false
+   },"both prerequisite and canonical capability seeds must preserve existing scope, approval policy, metadata and disabled state");
+   const restored=await tx.unsafe("select count(*)::integer as count from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
+   assert.equal(restored[0].count,0,"prerequisite backfill must not recreate a deliberately removed role grant");
+   const flag=await tx.unsafe("select current_setting('nasr.authorization_role_capabilities_preexisting',true) as existed");
+   assert.equal(flag[0].existed,"true","fixture must prove the pre-existing-role-table upgrade branch");
+   throw new Error(rollbackMarker);
   });
- } catch(error) {
-  rollbackError=error;
+ } catch(cause) {
+  rollbackFailure=cause;
  }
- if(rollbackError?.message!==rollbackMarker) {
-  throw new Error(
-   "Authorization prerequisite upgrade fixture did not reach its deliberate rollback sentinel. "+
-   "Underlying failure: "+String(rollbackError?.stack??rollbackError??"transaction unexpectedly committed"),
-   {cause:rollbackError}
-  );
- }
+ assert.equal(
+  rollbackFailure?.message,
+  rollbackMarker,
+  "upgrade-safety transaction must roll back only after all preservation assertions. Actual rejection: "+
+   String(rollbackFailure?.message??rollbackFailure??"transaction unexpectedly committed")+
+   (rollbackFailure?.code?" [SQLSTATE "+rollbackFailure.code+"]":"")+
+   (rollbackFailure?.detail?" — "+rollbackFailure.detail:"")
+ );
+ const postFixtureCapabilities=await db.unsafe(
+  "select capability_key,domain,resource,action,sensitivity,scope_kind,approval_mode,separation_of_duties,state_requirements,legacy_operation_id,is_active "+
+  "from public.authorization_capabilities where capability_key in ('inventory.balance.adjust','inventory.reorder_point.write') order by capability_key"
+ );
+ const postFixtureGrant=await db.unsafe(
+  "select role,capability_key,grant_source,valid_from,expires_at from public.authorization_role_capabilities "+
+  "where role='manager' and capability_key='inventory.reorder_point.write'"
+ );
+ assert.deepEqual(postFixtureCapabilities,preFixtureCapabilities,
+  "rollback-only upgrade fixture must restore every original capability field after the transaction aborts");
+ assert.deepEqual(postFixtureGrant,preFixtureGrant,
+  "rollback-only upgrade fixture must restore the original role grant after the transaction aborts");
 }
 
 async function decision(db,actor,key) {
