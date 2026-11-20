@@ -56,6 +56,7 @@ describe('offline cart identity scope', () => {
     });
 
     expect(loadOfflineCartDraft(storage, null, USER_A)).toEqual([]);
+    expect(loadOfflineCartDraft(storage, 'not-a-profile-id', USER_A)).toEqual([]);
     expect(storage.getItem(GUEST_CART_STORAGE_KEY)).toBe(guestDraft);
     expect(storage.getItem('aghbari:cart:v1')).toBe(legacyDraft);
     expect(storage.getItem('aghbari:cart-restore:v1')).toBe(legacyDraft);
