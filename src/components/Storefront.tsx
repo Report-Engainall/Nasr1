@@ -946,29 +946,51 @@ function StorefrontSession({
         ...(normalizedSearch ? { q: normalizedSearch } : {}),
         ...(categoryId ? { category: categoryId } : {}),
         ...(availableOnly ? { available: '1' as const } : {}),
+        ...(brandId ? { brand: brandId } : {}),
+        ...(unit ? { unit } : {}),
+        ...(priceDisplayableOnly ? { priced: '1' as const } : {}),
       },
     });
   }
 
-  const serverPageActive = Boolean(
-    isPagedView && pageInfo && !productsLoading && !productsError && isOnline && query === debouncedQuery
-  );
-  const filtered = useMemo(() => {
-    let list = products ?? [];
-    if (!serverPageActive) {
-      if (activeCat) list = list.filter((p) => p.category_id === activeCat);
-      if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
-      if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
-    }
-    return list;
-  }, [products, activeCat, query, availableOnly, serverPageActive]);
-  const catalogCount = serverPageActive && pageInfo ? pageInfo.totalCount : products.length;
-  const predictiveSearchQuery = normalizeCatalogSearchQuery(query).trim();
-  const predictiveSearchHasQuery = predictiveSearchQuery.length >= 2;
-  const predictiveSearchSnapshotIsCurrent = Boolean(authReady && isPagedView && pageInfo &&
+  // Never reuse a prior server page for a different search, tenant or filter set.
+  // The exact matching page remains readable offline; pending/failed requests fail closed.
+  const pageSnapshotMatchesCurrentFilters = Boolean(
+    isPagedView && pageInfo &&
     pageInfo.search === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
     pageInfo.categoryId === (activeCat || null) &&
-    pageInfo.availableOnly === availableOnly);
+    pageInfo.availableOnly === availableOnly &&
+    pageInfo.brandId === (brandId || null) &&
+    pageInfo.unit === (unit || null) &&
+    pageInfo.priceDisplayableOnly === priceDisplayableOnly &&
+    pageInfo.page === catalogPage &&
+    brandId === (initialBrandId ?? '') &&
+    unit === (initialUnit ?? '') &&
+    priceDisplayableOnly === (initialPriceDisplayableOnly ?? false)
+  );
+  const pageSnapshotReady = Boolean(
+    pageSnapshotMatchesCurrentFilters && !productsLoading && !productsError && query === debouncedQuery
+  );
+  const serverPageActive = Boolean(pageSnapshotReady && isOnline);
+  const filtered = useMemo(() => {
+    if (isPagedView) {
+      // Server-side brand/unit/price filters cannot be approximated from a stale client list.
+      return pageSnapshotReady ? (products ?? []) : [];
+    }
+    let list = products ?? [];
+    if (activeCat) list = list.filter((p) => p.category_id === activeCat);
+    if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
+    if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
+    return list;
+  }, [isPagedView, pageSnapshotReady, products, activeCat, query, availableOnly]);
+  const catalogCount = isPagedView
+    ? (pageSnapshotReady && pageInfo ? pageInfo.totalCount : 0)
+    : products.length;
+  const predictiveSearchQuery = normalizeCatalogSearchQuery(query).trim();
+  const predictiveSearchHasQuery = predictiveSearchQuery.length >= 2;
+  const predictiveSearchSnapshotIsCurrent = Boolean(
+    authReady && pageSnapshotMatchesCurrentFilters
+  );
   const predictiveSearchProducts = isPagedView && predictiveSearchHasQuery &&
     predictiveSearchQuery === normalizeCatalogSearchQuery(debouncedQuery).trim() &&
     predictiveSearchSnapshotIsCurrent && !productsLoading && !productsError && isOnline
