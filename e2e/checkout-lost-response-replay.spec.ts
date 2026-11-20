@@ -35,7 +35,8 @@ async function fillExactCheckoutPayload(page: Page, customerName: string, phone:
   await page.locator('input[placeholder="اسمك الكامل"]').fill(customerName);
   await page.locator('input[placeholder="7XX XXX XXX"]').fill(phone);
   await page.locator('input[placeholder="اسم المتجر أو الشركة"]').fill("");
-  await page.locator('textarea[placeholder="أي ملاحظات على الطلب..."]').fill(notes);
+  await page.getByPlaceholder("مثال: PO-2026-001").fill("PO-E2E-2026-001");
+  await page.locator("textarea.sf-checkout-notes").fill(notes);
   const address = page.locator("#checkout-delivery-address");
   await expect(address).toBeEnabled({ timeout: 30_000 });
   await address.selectOption("");
@@ -75,9 +76,6 @@ test("checkout replays one committed order after its success response is lost an
     await expect(page.getByText("تم حفظ سلتك في حسابك؛ ستظهر عند الدخول من جهاز آخر.", { exact: true })).toBeVisible({ timeout: 30_000 });
     await openCheckoutFromCart(page);
     await fillExactCheckoutPayload(page, customerName, phone, notes);
-    const firstSubmit = page.getByRole("button", { name: "تأكيد الطلب", exact: true });
-    await expect(firstSubmit, "Server-side cart validation must finish before the request.").toBeEnabled({ timeout: 45_000 });
-
     await page.route("**/rest/v1/rpc/submit_customer_order*", async (route) => {
       submitCalls += 1;
       const body = route.request().postDataJSON() as Record<string, unknown>;
@@ -99,6 +97,21 @@ test("checkout replays one committed order after its success response is lost an
       capturedRequests.replay = body;
       await route.continue();
     });
+
+    await expect(page.getByRole("heading", { name: "إتمام الطلب", exact: true })).toBeVisible();
+    const reviewButton = page.getByRole("button", { name: "مراجعة الطلب والفاتورة", exact: true });
+    await expect(reviewButton, "Server-side cart validation must finish before review.").toBeEnabled({ timeout: 45_000 });
+    await reviewButton.click();
+    await expect(page.getByTestId("checkout-review-document")).toBeVisible();
+    await expect(page.getByTestId("checkout-invoice-preview")).toBeVisible();
+    await expect(page.getByTestId("checkout-review-document")).toContainText("PO-E2E-2026-001");
+    expect(submitCalls, "Entering and reviewing checkout must never submit an order.").toBe(0);
+    await page.getByRole("checkbox", { name: /أؤكد أن بيانات العميل والعنوان/ }).check();
+    expect(submitCalls, "Checking final agreement alone must not submit an order.").toBe(0);
+    const firstSubmit = page.getByRole("button", { name: "تأكيد نهائي وإرسال الطلب", exact: true });
+    await expect(firstSubmit, "An explicit review and final confirmation must precede the RPC.").toBeEnabled({ timeout: 45_000 });
+
+
 
     await firstSubmit.click();
     await expect(page.getByText(/لم يصل تأكيد نهائي لنتيجة الطلب/)).toBeVisible({ timeout: 30_000 });
@@ -125,8 +138,13 @@ test("checkout replays one committed order after its success response is lost an
     await openCheckoutFromCart(page);
     await expect(page.getByText(/توجد محاولة طلب سابقة لم يصل تأكيدها بعد/)).toBeVisible({ timeout: 30_000 });
     await fillExactCheckoutPayload(page, customerName, phone, notes);
+    const reviewAgain = page.getByRole("button", { name: "مراجعة الطلب والفاتورة", exact: true });
+    await expect(reviewAgain, "The restored exact attempt must pass through review again.").toBeEnabled({ timeout: 45_000 });
+    await reviewAgain.click();
+    await expect(page.getByTestId("checkout-review-document")).toBeVisible();
+    await page.getByRole("checkbox", { name: /أؤكد أن بيانات العميل والعنوان/ }).check();
     const retry = page.getByRole("button", { name: "إعادة محاولة تأكيد الطلب نفسه", exact: true });
-    await expect(retry, "The same cart and exact request signature must be restored.").toBeEnabled({ timeout: 45_000 });
+    await expect(retry, "The same cart and exact request signature must be restored before replay.").toBeEnabled({ timeout: 45_000 });
     await retry.click();
     await expect.poll(() => submitCalls, { timeout: 30_000 }).toBe(2);
     expect(capturedRequests.replay).not.toBeNull();
@@ -155,7 +173,7 @@ test("checkout replays one committed order after its success response is lost an
     const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
     try {
       const orders = await db.unsafe(
-        "select id::text,order_number,status,idempotency_key from public.orders where idempotency_key=$1",
+        "select id::text,order_number,status,idempotency_key,notes from public.orders where idempotency_key=$1",
         [firstKey],
       );
       verifiedOrderCount = orders.length;
@@ -163,6 +181,8 @@ test("checkout replays one committed order after its success response is lost an
       expect(orders[0].id).toBe(orderId);
       expect(orders[0].order_number).toBe(committedResult!.order_number);
       expect(orders[0].status).toBe("pending");
+      expect(orders[0].notes).toContain(notes);
+      expect(orders[0].notes).toContain("مرجع أمر الشراء: PO-E2E-2026-001");
 
       const lines = await db.unsafe(
         "select count(*)::int as line_count, coalesce(sum(quantity),0)::numeric::text as quantity from public.order_items where order_id=$1::uuid",
