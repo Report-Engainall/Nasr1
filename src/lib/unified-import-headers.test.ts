@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ONYX_ORDER_COLUMNS } from "@/lib/onyx-export";
-import { detectImportDatasetKind, normalizeHeader, resolveImportProfileMapping } from "@/lib/unified-import";
+import { detectImportDatasetKind, normalizeHeader, normalizeOnyxStockBalanceHeader, resolveImportProfileMapping } from "@/lib/unified-import";
 
 describe("default Onyx and bulk business import headers", () => {
   it("maps every one of the 27 official Onyx order-template column labels", () => {
@@ -101,6 +101,31 @@ describe("default Onyx and bulk business import headers", () => {
 
   it("requires a manual type selection when headers do not establish a known dataset", () => {
     expect(detectImportDatasetKind(["document_date", "amount", "notes"]).kind).toBe("unknown");
+  });
+
+
+  it("classifies Onyx ProductUnits as a dedicated import instead of product or inventory rows", () => {
+    const headers = ["item_code", "unit_code", "unit_name", "conversion_factor"];
+    expect(detectImportDatasetKind(headers).kind).toBe("product_units");
+    expect(resolveImportProfileMapping("product_units", [], undefined)).toEqual({
+      requiredColumns: ["item_code", "unit_code", "unit_name", "conversion_factor"],
+      matchingKey: "product_unit_key",
+    });
+  });
+
+  it("normalizes StockBalances worksheet headers and scopes the key to warehouse plus item", () => {
+    expect(normalizeOnyxStockBalanceHeader("product_code")).toBe("item_code");
+    expect(normalizeOnyxStockBalanceHeader("quantity_on_hand")).toBe("quantity");
+    expect(normalizeOnyxStockBalanceHeader("رقم الصنف")).toBe("item_code");
+    expect(resolveImportProfileMapping("inventory", [], undefined)).toEqual({
+      requiredColumns: ["item_code", "quantity", "warehouse_code", "as_of_date"],
+      matchingKey: "warehouse_item_key",
+    });
+  });
+
+  it("does not classify unit conversion rows as StockBalances when warehouse is absent", () => {
+    expect(detectImportDatasetKind(["product_code", "unit_code", "unit_name", "conversion_factor"]).kind)
+      .toBe("product_units");
   });
 
   it("preserves the active product profile rules for product files", () => {

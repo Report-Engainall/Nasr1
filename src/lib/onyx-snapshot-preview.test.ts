@@ -80,6 +80,35 @@ describe("safe Onyx snapshot row preview", () => {
     expect(JSON.stringify(preview)).not.toContain("2000");
   });
 
+  it("projects ProductUnits conversion identity while omitting per-unit prices and operational flags", () => {
+    const preview = projectOnyxSnapshotPreviewRow(snapshotRow({
+      canonical_key: "P-001::BOX",
+      data: {
+        item_code: "P-001",
+        unit_code: "BOX",
+        unit_name: "كرتون",
+        conversion_factor: 24,
+        is_base_unit: false,
+        unit_cost_price: 8,
+        unit_selling_price: 12,
+        barcode: "6280000001",
+        sales_allowed: true,
+        purchase_allowed: true,
+      },
+    }), "product_units");
+
+    expect(preview.matchingCode).toBe("P-001::BOX");
+    expect(preview.title).toBe("كرتون");
+    expect(preview.subtitle).toBe("BOX");
+    expect(preview.facts).toContainEqual({ label: "كود الصنف", value: "P-001" });
+    expect(preview.facts).toContainEqual({ label: "كود الوحدة", value: "BOX" });
+    expect(preview.facts).toContainEqual({ label: "معامل التحويل", value: "24" });
+    expect(JSON.stringify(preview)).not.toContain("unit_cost_price");
+    expect(JSON.stringify(preview)).not.toContain("unit_selling_price");
+    expect(JSON.stringify(preview)).not.toContain("6280000001");
+    expect(JSON.stringify(preview)).not.toContain("sales_allowed");
+  });
+
   it("keeps rejected-row reasons but bounds their count and length", () => {
     const preview = projectOnyxSnapshotPreviewRow(snapshotRow({
       status: "rejected",
