@@ -2692,8 +2692,9 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAva
                     {priceChanges.map((change) => (
                       <div key={change.product_id} style={{ display: 'grid', gap: 3, borderBottom: '1px solid #e7eeee', paddingBottom: 8 }}>
                         <strong>{change.name} × {formatNumber(change.quantity)}</strong>
-                        <span>السعر السابق للوحدة: {formatCartReviewAmount(change.previous_unit_price, change.currency)}</span>
-                        <span>السعر الحالي للوحدة: {formatCartReviewAmount(change.current_unit_price, change.currency)} · {change.kind === 'increase' ? 'زيادة' : change.kind === 'decrease' ? 'انخفاض' : 'تغير شروط العرض'}</span>
+                        {change.previous_quantity !== change.quantity && <small>الكمية السابقة: {formatNumber(change.previous_quantity)} · الحالية: {formatNumber(change.quantity)}</small>}
+                        <span>السعر السابق للوحدة: {formatCartReviewAmount(change.previous_unit_price, change.previous_currency)}</span>
+                        <span>السعر الحالي للوحدة: {formatCartReviewAmount(change.current_unit_price, change.current_currency)} · {change.kind === 'currency' ? 'تغيير العملة' : change.kind === 'increase' ? 'زيادة' : change.kind === 'decrease' ? 'انخفاض' : 'تغير شروط العرض'}</span>
                       </div>
                     ))}
                   </div>
