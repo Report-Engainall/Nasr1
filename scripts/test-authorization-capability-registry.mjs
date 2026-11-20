@@ -178,9 +178,11 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
     [organizationId,sessionA.id]
    );
    assert.equal(Number(sessionAAfter[0].counted_lines),1,"the real draft write must advance the session count");
+   console.info("STOCK_COUNT_STAGE:before-maker-self-finalize-denial");
    await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
     "select public.complete_stock_count($1::uuid)",[sessionA.id]
    )),"the stock-count maker cannot finalize the same session");
+   console.info("STOCK_COUNT_STAGE:after-maker-self-finalize-denial");
    const reviewerScope=await withActorOnTransaction(tx,reviewerGrantor,tx=>tx.unsafe(
     "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
     [admin.profile_id,assignedWarehouseId,"P2 isolated independent stock-count reviewer"]
@@ -211,9 +213,11 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    ));
    assert.equal(reviewerIdentityRows[0]?.profile_id,admin.profile_id,
     "the reviewer JWT must resolve to the intended administrator profile");
+   console.info("STOCK_COUNT_STAGE:before-independent-reviewer-finalize");
    const finalized=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
     "select public.complete_stock_count($1::uuid) as result",[sessionA.id]
    ));
+   console.info("STOCK_COUNT_STAGE:after-independent-reviewer-finalize");
    const finalizedResult=decodeJson(finalized[0]?.result);
    assert.equal(finalizedResult?.status,"completed","a different authorized reviewer must finalize the counted session");
    const completedA=await tx.unsafe(
