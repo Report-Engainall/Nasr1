@@ -536,19 +536,24 @@ async function main() {
       const mismatchedSnapshot = decode(mismatchRows[0].result);
       assert.equal(mismatchedSnapshot?.ok, true);
       assert.equal(mismatchedSnapshot.snapshot.version, 2);
+      const savedExpectedAsOf = Date.parse(mismatchedSnapshot.snapshot.expectedMetric.asOf);
+      const savedActualAsOf = Date.parse(mismatchedSnapshot.snapshot.actualMetric.asOf);
+      assert.ok(Number.isFinite(savedExpectedAsOf), "the saved expected-metric timestamp must be valid");
+      assert.ok(Number.isFinite(savedActualAsOf), "the saved actual-metric timestamp must be valid");
       assert.equal(
-        mismatchedSnapshot.snapshot.expectedMetric.asOf,
-        mismatchAsOf,
-        "the saved baseline must retain the deliberately older, still-valid as-of timestamp",
+        savedExpectedAsOf,
+        Date.parse(mismatchAsOf),
+        "the saved baseline must retain the deliberately older, still-valid as-of instant",
       );
       assert.equal(
-        mismatchedSnapshot.snapshot.actualMetric.asOf,
-        asOf,
-        "the saved measured outcome must retain its original source-measurement timestamp",
+        savedActualAsOf,
+        Date.parse(asOf),
+        "the saved measured outcome must retain its original source-measurement instant",
       );
       assert.notEqual(
-        mismatchedSnapshot.snapshot.expectedMetric.asOf,
-        mismatchedSnapshot.snapshot.actualMetric.asOf,
+        savedExpectedAsOf,
+        savedActualAsOf,
+        "the baseline and terminal measurement must remain distinct instants",
       );
       await expectSqlState(tx, "22023", () => tx.unsafe(
         "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text)",
