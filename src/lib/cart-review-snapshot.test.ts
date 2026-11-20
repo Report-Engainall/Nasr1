@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCartAvailabilitySnapshot,
   compareCartAvailabilitySnapshots,
+  clearCartPricingSnapshot,
   planCartAvailabilityAdjustments,
   compareCartPricingSnapshots,
   getCartAvailabilitySnapshot,
@@ -41,6 +42,8 @@ function pricing(unitPrice: number, originalPrice = unitPrice): CustomerOrderPri
 }
 
 afterEach(() => {
+  clearCartPricingSnapshot(identity, lines);
+  clearCartPricingSnapshot(otherIdentity, lines);
   vi.restoreAllMocks();
 });
 
@@ -98,14 +101,21 @@ describe("cart pricing change review", () => {
     expect(changes[0].kind).toBe("terms");
   });
 
-  it("does not compare hidden or different-currency previews", () => {
+  it("detects currency changes and preserves the last valid baseline during transient hidden results", () => {
+    const currencyChanges = compareCartPricingSnapshots(pricing(20), { ...pricing(20), currency: "USD" });
+    expect(currencyChanges).toHaveLength(2);
+    expect(currencyChanges[0].kind).toBe("currency");
     expect(compareCartPricingSnapshots(pricing(20), { visible: false })).toEqual([]);
-    expect(compareCartPricingSnapshots(pricing(20), { ...pricing(20), currency: "USD" })).toEqual([]);
-    rememberCartPricingSnapshot(identity, lines, { visible: false });
+
+    rememberCartPricingSnapshot(identity, lines, pricing(20));
+    rememberCartPricingSnapshot(identity, lines, null);
+    expect(getCartPricingSnapshot(identity, lines)?.totalAmount).toBe(120);
+    clearCartPricingSnapshot(identity, lines);
     expect(getCartPricingSnapshot(identity, lines)).toBeNull();
   });
 
   it("rejects a preview that does not describe the exact cart lines", () => {
+    clearCartPricingSnapshot(identity, lines);
     rememberCartPricingSnapshot(identity, lines, {
       ...pricing(20),
       items: pricing(20).items.slice(0, 1),
