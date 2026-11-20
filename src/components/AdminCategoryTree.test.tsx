@@ -133,6 +133,22 @@ describe("AdminCategoryTree", () => {
     expect(mocks.notice).toHaveBeenCalledWith("تم إنشاء التصنيف وحفظ علاقته بالأب");
   });
 
+  it("counts only published products and identifies empty categories on demand", async () => {
+    mocks.fetchAdminProductsPage.mockResolvedValueOnce({
+      items: [catalogProduct()],
+      page: 1,
+      pageSize: 40,
+      hasNextPage: false,
+    });
+
+    renderTree();
+    await screen.findByRole("heading", { name: root.name });
+    fireEvent.click(screen.getByRole("button", { name: /حساب المنتجات المنشورة/ }));
+
+    expect(await screen.findByText("1 منشور")).toBeInTheDocument();
+    expect(mocks.fetchAdminProductsPage).toHaveBeenCalledWith({ page: 1, status: "active" });
+  });
+
   it("shows the selected category identity, parent and hierarchical path", async () => {
     window.history.replaceState({}, "", "/admin/categories?category=" + CHILD_ID);
     mocks.fetchCategories.mockResolvedValueOnce([root, child]);
