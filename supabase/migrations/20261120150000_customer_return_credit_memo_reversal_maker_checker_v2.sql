@@ -65,13 +65,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='return credit memo not found in this organization';
   END IF;
-  IF v_memo.status<>'posted' THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='only a posted return credit memo can begin reversal; void unposted drafts separately';
-  END IF;
-  IF v_memo.currency<>'YER' THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='credit memo currency has no approved reversal policy';
-  END IF;
-
   v_fingerprint:=pg_catalog.md5(pg_catalog.jsonb_build_object(
     'organization_id',v_org,'credit_memo_id',v_memo.id,'reason',v_reason,
     'source_amount',v_memo.total_amount::text,'source_currency',v_memo.currency
@@ -86,17 +79,37 @@ BEGIN
     END IF;
     SELECT e.* INTO v_reversal FROM public.accounting_journal_entries e
      WHERE e.id=v_existing.reversal_journal_entry_id AND e.organization_id=v_org;
-    IF NOT FOUND OR v_reversal.status<>'draft'
-       OR v_existing.posted_by_profile_id IS NOT NULL
-       OR v_existing.reversed_at IS NOT NULL THEN
-      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reversal request is not in a valid pending-checker state';
+    IF NOT FOUND THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='recorded reversal journal is missing';
     END IF;
-    RETURN pg_catalog.jsonb_build_object(
-      'credit_memo_id',v_memo.id,'memo_number',v_memo.memo_number,'status','reversal_pending',
-      'original_journal_entry_id',v_existing.original_journal_entry_id,
-      'reversal_journal_entry_id',v_reversal.id,'reversal_journal_entry_number',v_reversal.entry_number::text,
-      'reversal_status',v_reversal.status,'reason',v_existing.reason,'replayed',true
-    );
+    IF v_memo.status='reversed' AND v_reversal.status='posted'
+       AND v_existing.posted_by_profile_id IS NOT NULL
+       AND v_existing.reversed_at IS NOT NULL THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'credit_memo_id',v_memo.id,'memo_number',v_memo.memo_number,'status','reversed',
+        'original_journal_entry_id',v_existing.original_journal_entry_id,
+        'reversal_journal_entry_id',v_reversal.id,'reversal_journal_entry_number',v_reversal.entry_number::text,
+        'reversal_status',v_reversal.status,'reason',v_existing.reason,'replayed',true
+      );
+    END IF;
+    IF v_memo.status='posted' AND v_reversal.status='draft'
+       AND v_existing.posted_by_profile_id IS NULL
+       AND v_existing.posted_at IS NULL AND v_existing.reversed_at IS NULL THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'credit_memo_id',v_memo.id,'memo_number',v_memo.memo_number,'status','reversal_pending',
+        'original_journal_entry_id',v_existing.original_journal_entry_id,
+        'reversal_journal_entry_id',v_reversal.id,'reversal_journal_entry_number',v_reversal.entry_number::text,
+        'reversal_status',v_reversal.status,'reason',v_existing.reason,'replayed',true
+      );
+    END IF;
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='recorded reversal state does not reconcile with its source memo';
+  END IF;
+
+  IF v_memo.status<>'posted' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='only a posted return credit memo can begin reversal; void unposted drafts separately';
+  END IF;
+  IF v_memo.currency<>'YER' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='credit memo currency has no approved reversal policy';
   END IF;
 
   SELECT sp.* INTO v_source FROM public.accounting_return_credit_memo_postings sp
