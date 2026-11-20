@@ -114,7 +114,7 @@ describe("customer device change request workflow", () => {
         p_idempotency_key: expect.stringMatching(/^[0-9a-f-]{36}$/i),
       }),
     ));
-    expect(await screen.findByText("بانتظار موافقة الإدارة")).toBeInTheDocument();
+    expect(await screen.findByText(/^بانتظار موافقة الإدارة\.?$/)).toBeInTheDocument();
     expect(screen.getByText(/لن تُفصل جلساتك الحالية عند الإرسال/)).toBeInTheDocument();
   });
 
@@ -146,7 +146,7 @@ describe("customer device change request workflow", () => {
     await waitFor(() => expect(attempts).toBe(2));
     const calls = mocks.rpc.mock.calls.filter(([name]) => name === "request_customer_device_change");
     expect(calls[1][1]).toEqual(expect.objectContaining({ p_idempotency_key: first.p_idempotency_key, p_reason: reason }));
-    expect(await screen.findByText("بانتظار موافقة الإدارة")).toBeInTheDocument();
+    expect(await screen.findByText(/^بانتظار موافقة الإدارة\.?$/)).toBeInTheDocument();
   });
 
   it("allows an organization administrator to review a customer request and requires a server decision acknowledgement", async () => {
