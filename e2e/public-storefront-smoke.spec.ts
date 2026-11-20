@@ -426,14 +426,15 @@ test("advanced search sends brand, sale-unit and price-display filters to server
       return;
     }
     if (rpcName === "get_storefront_catalog_page" && request.method() === "POST") {
-      catalogCalls.push(request.postDataJSON() as Record<string, unknown>);
+      const catalogRequest = request.postDataJSON() as { p_page?: unknown; p_page_size?: unknown };
+      catalogCalls.push(catalogRequest as Record<string, unknown>);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         headers,
         body: JSON.stringify({
-          page: 1,
-          page_size: 24,
+          page: typeof catalogRequest.p_page === "number" ? catalogRequest.p_page : 1,
+          page_size: typeof catalogRequest.p_page_size === "number" ? catalogRequest.p_page_size : 24,
           total_count: 0,
           total_pages: 0,
           filters: {
