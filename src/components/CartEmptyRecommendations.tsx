@@ -60,19 +60,18 @@ export function CartEmptyRecommendations() {
           user?.profileId,
           user?.id,
         );
-        const isOnline = typeof navigator !== "undefined" && navigator.onLine;
-        const localOnly = resolveCartEmptyEligibility({
-          audience,
-          isOnline,
-          localDraftLineCount: localDraft.length,
-          serverCartLineCount: null,
-        });
-        if (localOnly === "not-empty" || localOnly === "unverified") {
-          if (active) setEligibility(localOnly);
+        if (localDraft.length > 0) {
+          if (active) setEligibility("not-empty");
           return;
         }
 
-        let serverCartLineCount: number | null = null;
+        const isOnline = typeof navigator !== "undefined" && navigator.onLine;
+        if (!isOnline) {
+          if (active) setEligibility("unverified");
+          return;
+        }
+
+        let serverCartLineCount = 0;
         if (audience === "customer") {
           const serverCart = await fetchCustomerCart();
           serverCartLineCount = serverCart.items.length;
