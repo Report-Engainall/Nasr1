@@ -127,7 +127,11 @@ BEGIN
           v_result := v_result || pg_catalog.jsonb_build_object(
             'actualMetric', v_actual_metric,
             'evidenceRecords',
-              coalesce(v_result->'evidenceRecords', '[]'::jsonb) || v_resolved->'records'
+              (CASE
+                WHEN pg_catalog.jsonb_typeof(v_result->'evidenceRecords') = 'array'
+                  THEN v_result->'evidenceRecords'
+                ELSE '[]'::jsonb
+              END) || v_resolved->'records'
           );
         END IF;
       END IF;
