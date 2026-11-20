@@ -91,7 +91,28 @@ async function main() {
         id uuid PRIMARY KEY,
         organization_id uuid NOT NULL,
         accounting_account_id uuid NOT NULL,
-        is_active boolean NOT NULL
+        is_active boolean NOT NULL,
+        currency text NOT NULL DEFAULT 'YER'
+      );
+      CREATE TABLE public.finance_cash_account_evidence (
+        id uuid PRIMARY KEY,
+        organization_id uuid NOT NULL,
+        settlement_account_mapping_id uuid NOT NULL,
+        evidence_kind text NOT NULL
+      );
+      CREATE TABLE public.finance_cash_opening_balance_proposals (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        settlement_account_mapping_id uuid NOT NULL,
+        evidence_id uuid NOT NULL,
+        as_of_date date NOT NULL,
+        opening_balance numeric(18,2) NOT NULL,
+        currency text NOT NULL,
+        idempotency_key uuid NOT NULL,
+        payload_fingerprint text NOT NULL,
+        created_by_profile_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (organization_id,idempotency_key)
       );
       CREATE TABLE public.finance_bank_statements (
         id uuid PRIMARY KEY,
@@ -168,6 +189,7 @@ async function main() {
     const migrationPaths = [
       "../supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql",
       "../supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql",
+      "../supabase/migrations/20261120131000_finance_opening_balance_exact_retry.sql",
     ];
     for (const relativePath of migrationPaths) {
       const migrationPath = fileURLToPath(new URL(relativePath, import.meta.url));
@@ -201,7 +223,7 @@ async function main() {
       [actor.profileId, organizationId, actor.authUserId],
     );
     await db.unsafe(
-      "insert into public.purchase_supplier_payment_settlement_accounts(id,organization_id,accounting_account_id,is_active) values($1::uuid,$2::uuid,$3::uuid,true)",
+      "insert into public.purchase_supplier_payment_settlement_accounts(id,organization_id,accounting_account_id,is_active,currency) values($1::uuid,$2::uuid,$3::uuid,true,'YER')",
       [mappingId, organizationId, bankAccountId],
     );
 
