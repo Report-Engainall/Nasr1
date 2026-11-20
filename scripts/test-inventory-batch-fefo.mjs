@@ -87,7 +87,8 @@ async function main(){
  assert.equal(rel.length,1);assert.equal(rel[0].id,res2.id);
  const restored=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r from public.inventory_batches where id=$1::uuid",[res2.id]))[0];
  assert.equal(Number(restored.h),1);assert.equal(Number(restored.r),0);
- const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<$1::date expired from public.inventory_batches where id=$2::uuid",[expiredDate,expiredBatchId]))[0];
+ // Compare the previous-day test lot with today, not with its own expiry date.
+ const expiredState=(await db.unsafe("select quantity_on_hand::text h,quantity_reserved::text r,expiry_date<(pg_catalog.now() at time zone 'UTC')::date expired from public.inventory_batches where id=$1::uuid",[expiredBatchId]))[0];
  assert.equal(expiredState.expired,true);assert.equal(Number(expiredState.h),1);assert.equal(Number(expiredState.r),0);
  await as(manager);const trace=await rpc("select public.list_inventory_batch_stock($1::uuid,$2::uuid) result",[product,warehouse]);assert.equal(trace.product_id,product);assert.ok(trace.lots.some(x=>x.batch_number===late.batch));assert.ok(trace.lots.some(x=>x.batch_number===expiredBatch&&x.expired===true));
  await as(customer);
