@@ -581,6 +581,49 @@ async function main() {
         await tx.unsafe("delete from public.stock_count_sessions where id=$1::uuid", [unassignedSession.id]);
         await applyActor(tx, actors.manager);
 
+        // An explicit profile denial overrides both the manager role grant
+        // and an otherwise valid warehouse assignment, without writes.
+        await applyActor(tx, actors.admin);
+        const cancellationDenial = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.cancel',$2::text,NULL::timestamptz,true) as result",
+          [actors.manager.profile_id, "Temporary stock-count cancellation denial acceptance"],
+        ))[0].result);
+        assert.equal(cancellationDenial.changed, true);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text)",
+          [countSession.id, "An explicit cancellation denial must override the role grant"],
+        ), "an active explicit denial must block cancellation even for an assigned manager");
+        const [explicitDeniedSession] = await tx.unsafe(
+          "select status,cancelled_by::text from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.deepEqual(explicitDeniedSession, { status: "open", cancelled_by: null },
+          "explicitly denied cancellation must preserve the open stock-count session");
+        const [explicitDenialAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId, countSession.id],
+        );
+        assert.equal(explicitDenialAudit.count, 0,
+          "explicitly denied cancellation must not create a cancellation audit");
+        const [explicitDenialMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements " +
+          "where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(explicitDenialMovements.count, 0,
+          "explicitly denied cancellation must not create stock movements");
+        await applyActor(tx, actors.admin);
+        const cancellationDenialRevoked = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_denial($1::uuid,'inventory.count.cancel',NULL,NULL::timestamptz,false) as result",
+          [actors.manager.profile_id],
+        ))[0].result);
+        assert.equal(cancellationDenialRevoked.changed, true,
+          "the stock-count cancellation fixture must restore the original role grant");
+        await applyActor(tx, actors.manager);
+
         const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
         const cancelledCount = decodeJson((await tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text) as result",
