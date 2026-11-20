@@ -571,7 +571,7 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   const managerSession=typeof managerStart[0].result==="string"?JSON.parse(managerStart[0].result):managerStart[0].result;
   assert.equal(managerSession.warehouse_id,targetWarehouse,"the manager session must bind to assigned warehouse A");
   const managerLines=await db.unsafe(
-    "select id::text,product_id::text,counted_quantity::text from public.stock_count_lines where session_id=$1::uuid order by id",
+    "select id::text,product_id::text,counted_quantity::text,expected_quantity::text from public.stock_count_lines where session_id=$1::uuid order by id",
     [managerSession.id]
   );
   assert.ok(managerLines.length>0,"manager start must create real snapshot rows on warehouse A");
@@ -707,6 +707,149 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   );
   assert.equal(unchangedSession[0]?.status,"open",
     "a rejected maker finalization must leave the stock-count session open");
+
+  // Fill every count line as the maker, then prove the actual completion RPC
+  // rejects that maker before inventory or audit writes.
+  for(const line of managerLines.slice(1)) {
+    const lineWrite=await withActor(db,manager,tx=>tx.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric) as result",
+      [managerSession.id,line.product_id,line.expected_quantity]
+    ));
+    const lineResult=typeof lineWrite[0].result==="string"?JSON.parse(lineWrite[0].result):lineWrite[0].result;
+    assert.equal(lineResult.counted_by,manager.profile_id,
+      "every stock-count quantity must be attributed to its maker");
+  }
+  const completedDraftLines=await db.unsafe(
+    "select count(*)::integer as total,count(*) filter(where counted_quantity is not null)::integer as counted,"+
+    "count(*) filter(where counted_by=$2::uuid)::integer as maker_lines "+
+    "from public.stock_count_lines where session_id=$1::uuid",
+    [managerSession.id,manager.profile_id]
+  );
+  assert.equal(completedDraftLines[0].counted,completedDraftLines[0].total);
+  assert.equal(completedDraftLines[0].maker_lines,completedDraftLines[0].total,
+    "all snapshot quantities must be entered by the same maker before review");
+
+  const makerMovementBefore=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [managerSession.id]
+  );
+  const makerAuditBefore=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [managerSession.id]
+  );
+  await assert.rejects(
+    ()=>withActor(db,manager,tx=>tx.unsafe(
+      "select public.complete_stock_count($1::uuid)",[managerSession.id]
+    )),
+    error=>error&&String(error.code)==="42501",
+    "complete_stock_count must deny the maker even when every line is counted"
+  );
+  const afterMakerRpcDenied=await db.unsafe(
+    "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+    [managerSession.id]
+  );
+  assert.deepEqual(afterMakerRpcDenied[0],{status:"open",completed_by:null},
+    "maker RPC denial must keep the session open and without a completing actor");
+  const makerMovementAfter=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [managerSession.id]
+  );
+  const makerAuditAfter=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_type='stock_count_session' "+
+    "and entity_id=$1::uuid and action='inventory.stock_count.completed'",
+    [managerSession.id]
+  );
+  assert.deepEqual(makerMovementAfter[0],makerMovementBefore[0],
+    "denied maker completion must not write inventory movements");
+  assert.deepEqual(makerAuditAfter[0],makerAuditBefore[0],
+    "denied maker completion must not write a completion audit");
+
+  // Provision the independent reviewer scope only inside this disposable local
+  // PostgreSQL acceptance database; record the fixture's authority change.
+  const reviewerScopeRows=await db.unsafe(
+    "select id::text,is_active from public.authorization_profile_scopes "+
+    "where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+    [org,admin.profile_id,targetWarehouse]
+  );
+  assert.ok(reviewerScopeRows.length<=1,"admin reviewer must have at most one warehouse A scope");
+  if(reviewerScopeRows.length===1) {
+    assert.equal(reviewerScopeRows[0].is_active,true,
+      "any existing admin warehouse reviewer assignment must be active in the isolated fixture");
+  } else {
+    const reviewerScopeId=randomUUID();
+    await withActorAsServiceRole(db,admin,tx=>tx.unsafe(
+      "insert into public.authorization_profile_scopes("+
+      "id,organization_id,profile_id,scope_kind,warehouse_id,customer_id,reason,is_active,"+
+      "valid_from,expires_at,revision,created_by,updated_by) "+
+      "values($1::uuid,$2::uuid,$3::uuid,'warehouse',$4::uuid,NULL,$5::text,true,"+
+      "statement_timestamp(),NULL,1,$3::uuid,$3::uuid) returning id",
+      [reviewerScopeId,org,admin.profile_id,targetWarehouse,
+       "P2 isolated independent reviewer assignment for stock-count acceptance"]
+    ));
+    await withActorAsServiceRole(db,admin,tx=>tx.unsafe(
+      "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) "+
+      "values($1::uuid,$2::uuid,'authorization.scope.assignment.fixture','authorization_profile_scope',$3::uuid,"+
+      "'{}'::jsonb,jsonb_build_object('warehouse_id',$4::uuid,'is_active',true))",
+      [org,admin.profile_id,reviewerScopeId,targetWarehouse]
+    ));
+  }
+  const adminFinalizeDecision=await resourceDecision(db,admin,"inventory.count.finalize",targetWarehouse);
+  assert.equal(adminFinalizeDecision.decision,"REQUIRES_APPROVAL",
+    "the independent admin must hold an active warehouse-scoped maker-checker grant");
+  assert.equal(adminFinalizeDecision.separation_of_duties,true);
+
+  const inventoryBeforeReview=await db.unsafe(
+    "select ib.product_id::text,ib.quantity_on_hand::text,ib.quantity_reserved::text "+
+    "from public.inventory_balances ib where ib.warehouse_id=$1::uuid "+
+    "and ib.product_id in (select product_id from public.stock_count_lines where session_id=$2::uuid) "+
+    "order by ib.product_id",
+    [targetWarehouse,managerSession.id]
+  );
+  const reviewRows=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.complete_stock_count($1::uuid) as result",[managerSession.id]
+  ));
+  const reviewResult=typeof reviewRows[0].result==="string"?JSON.parse(reviewRows[0].result):reviewRows[0].result;
+  assert.equal(reviewResult.status,"completed",
+    "an independent assigned admin must complete the manager's count through the real RPC");
+  assert.equal(reviewResult.session_id,managerSession.id);
+  const completedSession=await db.unsafe(
+    "select status,completed_by::text,started_by::text,counted_lines,total_lines "+
+    "from public.stock_count_sessions where id=$1::uuid",[managerSession.id]
+  );
+  assert.deepEqual(completedSession[0],{
+    status:"completed",completed_by:admin.profile_id,started_by:manager.profile_id,
+    counted_lines:completedDraftLines[0].total,total_lines:completedDraftLines[0].total
+  },"the independent reviewer must finalize the fully counted snapshot");
+
+  const stockCountMovements=await db.unsafe(
+    "select id::text,product_id::text,quantity::text,balance_after::text from public.inventory_movements "+
+    "where reference_type='stock_count_session' and reference_id=$1::uuid and movement_type='stock_count_adjustment' order by product_id",
+    [managerSession.id]
+  );
+  assert.equal(stockCountMovements.length,reviewResult.adjusted_lines,
+    "accepted completion must equal the number of persisted stock-adjustment movements");
+  assert.ok(stockCountMovements.length>0,
+    "the counted variance must produce a real append-only stock-adjustment movement");
+  const inventoryAfterReview=await db.unsafe(
+    "select ib.product_id::text,ib.quantity_on_hand::text,ib.quantity_reserved::text "+
+    "from public.inventory_balances ib where ib.warehouse_id=$1::uuid "+
+    "and ib.product_id in (select product_id from public.stock_count_lines where session_id=$2::uuid) "+
+    "order by ib.product_id",
+    [targetWarehouse,managerSession.id]
+  );
+  assert.notDeepEqual(inventoryAfterReview,inventoryBeforeReview,
+    "independent finalization must update the source inventory balances");
+  const completionAudit=await db.unsafe(
+    "select actor_id::text,action from public.audit_logs where organization_id=$1::uuid "+
+    "and entity_type='stock_count_session' and entity_id=$2::uuid "+
+    "and action='inventory.stock_count.completed'",
+    [org,managerSession.id]
+  );
+  assert.deepEqual(completionAudit,[{actor_id:admin.profile_id,action:"inventory.stock_count.completed"}],
+    "one completion audit must identify the independent reviewer");
 
   // P2 acceptance: approval-gated pricing proposals and guarded manager edit path.
  
