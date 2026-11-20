@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { resolveCustomerOrderPricingPresentation, type CustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
+import { resolveCustomerOrderPricingPresentation, type CustomerOrderPricingPresentation as CustomerOrderPricingPresentationData } from "@/lib/storefront-price-visibility";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { CustomerOrderPricingPresentation } from "@/components/CustomerOrderPricingPresentation";
@@ -178,7 +178,7 @@ export function CustomerOrderPricingPreview({
   surface: CustomerOrderPricingSurface;
   title: string;
   onStatusChange?: (status: CustomerOrderPricingPreviewStatus) => void;
-  onPresentationChange?: (presentation: CustomerOrderPricingPresentation | null) => void;
+  onPresentationChange?: (presentation: CustomerOrderPricingPresentationData | null) => void;
 }) {
   const { user } = useAuth();
   const [retry, setRetry] = useState(0);
