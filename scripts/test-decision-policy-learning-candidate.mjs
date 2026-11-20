@@ -280,7 +280,9 @@ async function main() {
           "(select p.provolatile from pg_catalog.pg_proc p where p.oid='public._decision_memory_snapshot(uuid,uuid)'::regprocedure) as snapshot_helper_volatility, " +
           "public._decision_memory_resolve_evidence($3::uuid,ARRAY['invoice:'||$2::text],'decision-learning-acceptance-debug', " +
           "jsonb_build_object('from',$4::date,'to',$5::date),(o.measured_outcome->>'asOf')::timestamptz) as resolved_evidence, " +
-          "public._decision_memory_snapshot($3::uuid,$1::uuid)->'actualMetric' as reloaded_actual_metric " +
+          "public._decision_memory_snapshot($3::uuid,$1::uuid) as reloaded_memory_snapshot, " +
+          "public._decision_memory_snapshot($3::uuid,$1::uuid)->'actualMetric' as reloaded_actual_metric, " +
+          "(select count(*)::integer from public.decision_memory_snapshots s where s.organization_id=$3::uuid and s.decision_outcome_id=$1::uuid) as memory_snapshot_row_count " +
         "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
         [outcomeId, invoiceId, manager.organization_id, periodFrom, periodTo],
       );
@@ -310,7 +312,9 @@ async function main() {
           evidenceType: sourceDiagnostics[0].measured_evidence_type,
           evidenceIds: sourceDiagnostics[0].measured_evidence_ids,
           resolved: resolvedActualEvidence,
-          helperVolatility: sourceDiagnostics[0].snapshot_helper_volatility
+          helperVolatility: sourceDiagnostics[0].snapshot_helper_volatility,
+          snapshotRows: sourceDiagnostics[0].memory_snapshot_row_count,
+          reloadedSnapshot: sourceDiagnostics[0].reloaded_memory_snapshot
         }));
       assert.equal(Number(sourceDiagnostics[0].reloaded_actual_metric.value), amount,
         "the reloaded actual metric must retain the server-measured amount");
