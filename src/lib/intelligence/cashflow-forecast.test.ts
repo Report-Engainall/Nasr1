@@ -17,9 +17,12 @@ describe("scheduled cash-flow forecast",()=>{
  it("keeps currency groups separate",()=>{
   const usd=metric("usd-open","cash.opening",100,"USD"),usdIn=entry("usd-in","INFLOW","2026-11-01",15,"USD");
   const r=buildCashflowForecast({...base([usdIn]),openingBalances:[metric("open","cash.opening",100,"YER"),usd],evidenceRecords:[evidence("open","YER"),evidence("usd-open","USD"),evidence("usd-in","USD")]});
-  expect(r.points.every(p=>p.projectedBalance===null)).toBe(true);
-  expect(r.points.every(p=>p.status==="NEEDS_REVIEW")).toBe(true);
+  const yer=r.points.find(p=>p.currency==="YER"&&p.horizonDays===7);
+  const usdPoint=r.points.find(p=>p.currency==="USD"&&p.horizonDays===7);
+  expect(yer).toMatchObject({currency:"YER",openingBalance:100,knownInflows:0,knownOutflows:0,projectedBalance:100,status:"VERIFIED"});
+  expect(usdPoint).toMatchObject({currency:"USD",openingBalance:100,knownInflows:15,knownOutflows:0,projectedBalance:115,status:"VERIFIED"});
   expect(r.points.every(p=>p.currency==="YER" || p.currency==="USD")).toBe(true);
+  expect(r.points.every(p=>p.projectedBalance!==null)).toBe(true);
  });
  it("withholds projected balance when schedule coverage is partial",()=>{
   const r=buildCashflowForecast({...base([entry("a","INFLOW","2026-11-01",20)]),scheduleCompleteness:"PARTIAL"});
@@ -44,6 +47,7 @@ describe("scheduled cash-flow forecast",()=>{
   const opening=metric("open","cash.opening",100,"YER");
   const result=buildCashflowForecast({
    ...base([entry("known-inflow","INFLOW","2026-11-01",20)]),
+   scheduleCompleteness:"PARTIAL" as const,
    openingBalances:[opening],
    evidenceRecords:[evidence("open","YER"),evidence("known-inflow","YER")],
   });
@@ -58,8 +62,8 @@ describe("scheduled cash-flow forecast",()=>{
   const result=buildCashflowForecast({...base([entry("unfunded-in","INFLOW","2026-11-01",20)]),openingBalances:[]});
   const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
   expect(point).toMatchObject({
-   currency:"YER",openingBalance:null,knownInflows:20,knownOutflows:null,
-   projectedBalance:null,status:"NEEDS_REVIEW",scheduleComplete:false,
+   currency:"YER",openingBalance:null,knownInflows:20,knownOutflows:0,
+   projectedBalance:null,status:"UNAVAILABLE",scheduleComplete:true,
   });
   expect(point?.warnings).toContain("OPENING_BALANCE_NOT_VERIFIED");
   expect(point?.warnings).toContain("PROJECTED_BALANCE_WITHHELD");
