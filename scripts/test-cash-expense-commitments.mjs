@@ -14,7 +14,11 @@ const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
 const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
 validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
-const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+const db = diagnoseUndefinedSqlParameters(
+  postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 }),
+  "finance acceptance root client",
+);
+
 
 async function signIn(email, password) {
   const response = await fetch(new URL("/auth/v1/token?grant_type=password", supabaseUrl), {
@@ -158,10 +162,14 @@ async function main() {
   const accountant=await lookUp(accountantEmail,"accountant");
   const customer=await lookUp(customerEmail,null);
 
-  const managerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const adminDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const accountantDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const customerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  const managerDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"manager");
+
+  const adminDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"admin");
+
+  const accountantDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"accountant");
+
+  const customerDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"customer");
+
   try {
     await Promise.all([
       setIdentity(managerDb,manager.auth_user_id,manager.email),
