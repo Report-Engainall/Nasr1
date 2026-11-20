@@ -10,6 +10,14 @@
     ]
   },
   "include": [
+    "src/lib/customer-shopping-lists-xlsx-archive.test.ts",
+    "src/lib/customer-shopping-lists-schedule.test.ts",
+    "src/components/CustomerShoppingListsWorkspace.tsx",
+    "src/lib/customer-shopping-lists.ts",
+    "src/lib/customer-shopping-lists.test.ts",
+    "src/lib/customer-shopping-lists-xlsx.ts",
+    "src/lib/customer-shopping-lists-xlsx.test.ts",
+    "src/routes/reorder.tsx",
     "src/test/ai-gateway-logic.test.ts",
     "src/test/password-reset-route-security.test.ts",
     "src/components/CustomerWorkflows.tsx",
