@@ -102,7 +102,7 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
     "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
     "separation_of_duties=true,state_requirements=$1::jsonb,is_active=false "+
     "where capability_key='inventory.reorder_point.write'",
-    [JSON.stringify(preservedPolicy)]
+    [tx.json(preservedPolicy)]
    );
    rollbackPhase="removing a deliberately revoked manager grant";
    await tx.unsafe("delete from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
