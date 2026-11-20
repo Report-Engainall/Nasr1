@@ -204,7 +204,7 @@ export function CustomerOrderPricingPreview({
 
   useEffect(() => {
     if (!onPresentationChange) return;
-    const presentation = currentPayload === null
+    const presentation = policyValue !== true || currentPayload === null
       ? null
       : resolveCustomerOrderPricingPresentation(true, currentPayload, surface);
     onPresentationChange(presentation?.visible ? presentation : null);
