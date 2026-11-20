@@ -763,6 +763,8 @@ DECLARE
   v_offset integer;
   v_total_count bigint := 0;
   v_items jsonb := '[]'::jsonb;
+  v_brand_options jsonb := '[]'::jsonb;
+  v_unit_options jsonb := '[]'::jsonb;
 BEGIN
   IF v_page < 1 OR v_page > 100000
      OR v_page_size < 1 OR v_page_size > 100 THEN
@@ -825,6 +827,49 @@ BEGIN
   v_search_compact := pg_catalog.regexp_replace(v_search, '[[:space:]]+', '', 'g');
   v_unit := NULLIF(pg_catalog.lower(pg_catalog.btrim(p_unit)), '');
   v_offset := (v_page - 1) * v_page_size;
+
+  -- Filter choices come from every active product in this tenant, not the current page.
+  -- They never include an inactive brand, a product from another tenant, or internal values.
+  SELECT COALESCE(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object('id', f.id, 'name', f.name, 'name_en', f.name_en)
+      ORDER BY f.name, f.id
+    ),
+    '[]'::jsonb
+  )
+  INTO v_brand_options
+  FROM (
+    SELECT DISTINCT b.id, b.name, b.name_en
+    FROM public.product_brands b
+    JOIN public.products p
+      ON p.brand_id = b.id
+     AND p.organization_id = b.organization_id
+     AND p.status = 'active'
+    WHERE b.organization_id = v_organization_id
+      AND b.is_active = true
+  ) f;
+
+  SELECT COALESCE(
+    pg_catalog.jsonb_agg(u.unit_name ORDER BY pg_catalog.lower(u.unit_name), u.unit_name),
+    '[]'::jsonb
+  )
+  INTO v_unit_options
+  FROM (
+    SELECT DISTINCT pg_catalog.btrim(p.unit) AS unit_name
+    FROM public.products p
+    WHERE p.organization_id = v_organization_id
+      AND p.status = 'active'
+      AND pg_catalog.btrim(p.unit) <> ''
+    UNION
+    SELECT DISTINCT pg_catalog.btrim(c.unit_name) AS unit_name
+    FROM public.product_unit_conversions c
+    JOIN public.products p
+      ON p.id = c.product_id
+     AND p.organization_id = c.organization_id
+    WHERE p.organization_id = v_organization_id
+      AND p.status = 'active'
+      AND pg_catalog.btrim(c.unit_name) <> ''
+  ) u;
 
   WITH matched AS MATERIALIZED (
     SELECT
@@ -1108,6 +1153,10 @@ BEGIN
     'total_count', v_total_count,
     'total_pages', CASE WHEN v_total_count = 0 THEN 0
       ELSE ((v_total_count + v_page_size - 1) / v_page_size) END,
+    'filters', pg_catalog.jsonb_build_object(
+      'brands', v_brand_options,
+      'units', v_unit_options
+    ),
     'items', v_items
   );
 END
