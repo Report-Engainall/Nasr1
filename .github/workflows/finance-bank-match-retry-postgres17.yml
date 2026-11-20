@@ -7,6 +7,8 @@ on:
     paths:
       - "supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql"
       - "supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql"
+      - "supabase/migrations/20261120131000_finance_opening_balance_exact_retry.sql"
+      - "scripts/test-finance-opening-balance-retry.mjs"
       - "scripts/test-finance-bank-match-retry.mjs"
       - ".github/workflows/finance-bank-match-retry-postgres17.yml"
   push:
@@ -14,7 +16,10 @@ on:
       - main
     paths:
       - "supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql"
+      - "supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql"
+      - "supabase/migrations/20261120131000_finance_opening_balance_exact_retry.sql"
       - "scripts/test-finance-bank-match-retry.mjs"
+      - "scripts/test-finance-opening-balance-retry.mjs"
       - ".github/workflows/finance-bank-match-retry-postgres17.yml"
   workflow_dispatch:
 
@@ -60,3 +65,8 @@ jobs:
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/finance_retry
         run: bun scripts/test-finance-bank-match-retry.mjs
+
+      - name: Verify exact opening-balance replay after account deactivation
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/finance_retry
+        run: bun scripts/test-finance-opening-balance-retry.mjs
