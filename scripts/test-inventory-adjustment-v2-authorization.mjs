@@ -546,6 +546,41 @@ async function main() {
         ))[0].decision);
         assert.equal(unassignedCancelCapability.decision, "DENY",
           "the same manager must not cancel a count in an unassigned warehouse");
+
+        // A role grant is only an eligibility preflight. A valid session in an
+        // unassigned warehouse must still fail the full resource authorization.
+        await tx.unsafe("reset role");
+        const unassignedSessionKey = "rbac-cancel-unassigned-" + process.pid + "-" + Date.now();
+        const [unassignedSession] = await tx.unsafe(
+          "insert into public.stock_count_sessions(organization_id,warehouse_id,idempotency_key,started_by,notes) " +
+          "values ($1::uuid,$2::uuid,$3::text,$4::uuid,$5::text) returning id::text as id",
+          [organizationId, otherWarehouse.warehouse_id, unassignedSessionKey, actors.admin.profile_id,
+            "Authorization acceptance: manager has no assignment to this warehouse"],
+        );
+        assert.ok(unassignedSession?.id);
+        await applyActor(tx, actors.manager);
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text)",
+          [unassignedSession.id, "Unassigned warehouse cancellation must be denied"],
+        ), "manager role grant must not authorize cancellation in an unassigned warehouse");
+        const [unassignedSessionAfter] = await tx.unsafe(
+          "select status,cancelled_by::text from public.stock_count_sessions where id=$1::uuid",
+          [unassignedSession.id],
+        );
+        assert.deepEqual(unassignedSessionAfter, { status: "open", cancelled_by: null },
+          "unassigned cancellation must not change the stock-count session");
+        const [unassignedCancellationAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs " +
+          "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' " +
+          "and entity_type='stock_count_session' and entity_id=$2::uuid",
+          [organizationId, unassignedSession.id],
+        );
+        assert.equal(unassignedCancellationAudit.count, 0,
+          "unassigned cancellation must not produce an audit event");
+        await tx.unsafe("reset role");
+        await tx.unsafe("delete from public.stock_count_sessions where id=$1::uuid", [unassignedSession.id]);
+        await applyActor(tx, actors.manager);
+
         const cancellationReason = "Finish count-entry authorization fixture before independent adjustment acceptance";
         const cancelledCount = decodeJson((await tx.unsafe(
           "select public.cancel_stock_count($1::uuid,$2::text) as result",
