@@ -33,7 +33,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
-import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
+import { readPendingSavedProductChanges, setStorefrontSavedProduct, storefrontWishlistStorageKey, syncStorefrontSavedProducts } from '@/lib/saved-products';
 import { fetchProductUnitOptions, type ProductAlternateUnit } from '@/lib/product-unit-conversions';
 import { canRecordRecentlyViewedProducts, recordRecentlyViewedProduct } from '@/lib/recently-viewed-products';
 import { StorefrontRecentlyViewed } from '@/components/StorefrontRecentlyViewed';
@@ -256,7 +256,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
-  const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
+  const wishlistStorageKey = storefrontWishlistStorageKey(user?.profileId, user?.id);
   const compareStorageKey = storefrontCompareStorageKey(user?.profileId);
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartMutationRevisionRef = useRef(0);
