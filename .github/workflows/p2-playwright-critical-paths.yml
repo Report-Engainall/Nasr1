@@ -19,6 +19,7 @@ on:
       - "scripts/test-admin-catalog-category-hierarchy.mjs"
       - "scripts/test-cash-expense-journal-posting.mjs"
       - "scripts/test-cash-expense-commitments.mjs"
+      - "scripts/test-finance-bank-match-idempotency.mjs"
       - "scripts/test-business-health-supplier-payable-activity.mjs"
       - "scripts/test-claim-evidence-drilldown.mjs"
       - "src/components/CashExpenseCommitmentWorkspace.tsx"
@@ -376,7 +377,7 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_PRICE_FIXTURE_BASE_URL: http://127.0.0.1:5174
           E2E_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/public-storefront-smoke.spec.ts e2e/storefront-price-visibility.spec.ts"
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/public-storefront-smoke.spec.ts e2e/storefront-price-visibility.spec.ts e2e/finance-reconciliation-retry-storage.spec.ts"
       - name: Record narrow proof boundary
         if: always()
         run: |
@@ -632,6 +633,8 @@ jobs:
         run: node scripts/test-admin-catalog-category-hierarchy.mjs
       - name: Test cash-expense source posting, idempotency and void/post concurrency
         run: node scripts/test-cash-expense-journal-posting.mjs
+      - name: Test exact bank-match retry, concurrent GL-line exclusivity and immutable reconciliation on PostgreSQL 17
+        run: node scripts/test-finance-bank-match-idempotency.mjs
       - name: Test source-backed operating expense commitments, Storage evidence, maker/checker and forecast settlement on PostgreSQL 17
         run: node scripts/test-cash-expense-commitments.mjs
       - name: Test purchase receipt source-linked accounting draft, independent posting and restrictions
