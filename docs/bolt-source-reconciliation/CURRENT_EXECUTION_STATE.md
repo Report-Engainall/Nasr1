@@ -3,7 +3,7 @@
 > Sole live pointer. Continue from the current P2 transaction/security gate. Historical sections after the marker remain unchanged reference evidence.
 
 - Repository: `Report-Engainall/Nasr1`; only truth branch: `main`.
-- Current main HEAD: `0213eec123f818ecc1abafd3e3229472e3f26457`.
+- Latest application/feature merge on main: `0213eec123f818ecc1abafd3e3229472e3f26457`. Main tip immediately before this pointer refresh: `f2ab79e9f4581cfe2094f647515588453bb1bf66` (checkpoint/matrix documentation descendants only; no application source changed after the #572 merge).
 - Latest accepted feature merge: PR #572, merged as `0213eec123f818ecc1abafd3e3229472e3f26457`.
 - Owners: P1 product/integration and sole merger; P2 PostgreSQL/RPC/migrations/transactions/inventory/finance/Onyx; P3 deterministic intelligence/BI/forecast.
 - No production/hosted Supabase mutation, deployment, Vercel action, Bolt/Lovable action or paid AI usage was performed.
@@ -26,7 +26,7 @@
 - Current exact PR head: `11c353455e7d67c36f07ae0b15dc3e906d320fef`; base is prior main `139a753e38e1186b62f8f0afd9f22a57c4c876e0`. Main has since advanced by the independent #572 merge; check mergeability again before merge and do not overwrite the owner's active branch.
 - Exact-head P1 run 44652517766: SUCCESS — full Vitest, P1/P4 strict TypeScript and production build.
 - Exact-head PostgreSQL 17 run 44652517888, job 136010629595: full migration replay SUCCESS; Authorization V2 capability parity and customer/staff scope isolation SUCCESS; inventory adjustment plus exact warehouse-scope write denial is IN_PROGRESS at last observation.
-- Exact-head P2 run 44652517864: authenticated-infrastructure gate SUCCESS; public UI smoke IN_PROGRESS; hosted customer/order/tenant job 136011967708 SKIPPED. The local Supabase order/tenant job has not yet reached acceptance at this checkpoint.
+- Exact-head P2 run 44652517864: authenticated-infrastructure gate SUCCESS; public read-only UI smoke SUCCESS; hosted customer/order/tenant job 136011967708 SKIPPED; local Supabase order/tenant job 136013402915 QUEUED at last observation. QUEUED/SKIPPED are not PASS.
 - Prior exact head `80c4798e32b3bafb0e69250afabf822b3271771a` P2 local acceptance failed at `test-decision-policy-learning-candidate.mjs`: the measured invoice payload was VERIFIED/COMPLETE/ACCEPTABLE and source evidence resolution returned one invoice, the memory snapshot row count was 1, but `_decision_memory_snapshot(...)` returned NULL. This is not an accepted outcome and no evidence gate was weakened.
 - The current head adds diagnostics for the snapshot/outcome JOIN count and keys, function owner, SECURITY DEFINER, owner BYPASSRLS, table RLS/FORCE RLS flags, current/session user, and direct read using persisted keys. Inspect the exact current-head result before changing SQL. The aim is to find the real visibility/join/owner defect; do not replace it with an unconditional NULL or broad `WHEN OTHERS` fallback.
 - Required before merge: complete PG17 A/B denial and maker-checker finalization; decision CREATE/snapshot/idempotency/legacy RPC denial; outcome learning measured-source read-after-write; finance source posting and audit; and the full local P2 order/tenant/browser path on one exact head. SKIPPED hosted tests remain SKIPPED, never PASS.
@@ -40,9 +40,9 @@
 
 ## First next actions
 
-1. Continue PR #565 exact-head runs 44652517888 and 44652517864. Complete the inventory A/B step and inspect the new outcome snapshot owner/RLS/JOIN diagnostic when the outcome-learning step runs.
+1. Continue PG17 run 44652517888 (job 136010629595) through the inventory A/B step, then the decision and finance steps. Start/complete local P2 job 136013402915 and inspect its exact outcome-learning readback diagnostic.
 2. If the JOIN keys exist but the helper remains NULL, correct the actual function owner/RLS/query contract while preserving immutable snapshot, source evidence, as-of/period, idempotency, audit and Maker–Checker invariants; rerun full PG17 and P2 on the new exact SHA.
-3. Once #565 is fully accepted, update it to the current main base `0213eec123f818ecc1abafd3e3229472e3f26457` without Force Push; run all required checks on the resulting exact head; P1 merges only after review and acceptance.
+3. Once #565 is fully accepted, incorporate the current main application merge `0213eec123f818ecc1abafd3e3229472e3f26457` and its documentation-only descendants without Force Push; rerun P1, full PG17 and P2 against one exact head; P1 merges only after review and acceptance.
 4. Re-run any P3 local authenticated coverage that was blocked by the earlier Authorization V2 migration sequence against the accepted new main. Keep prior source-only/client-only proofs distinct from database runtime acceptance.
 5. Verify the new main SHA and exact post-merge checks; update only this pointer and affected acceptance-matrix rows.
 
