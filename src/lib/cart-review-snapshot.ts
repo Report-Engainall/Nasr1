@@ -27,6 +27,7 @@ export type CartPriceChange = {
   product_id: string;
   name: string;
   quantity: number;
+  previous_quantity: number;
   previous_unit_price: number;
   current_unit_price: number;
   currency: string;
@@ -89,7 +90,7 @@ export function rememberCartPricingSnapshot(
 ): void {
   const owner = identityKey(identity);
   if (!owner) return;
-  const signature = cartReviewLineSignature(lines);
+  const signature = stableIdSignature(lines.map((line) => line.product_id));
   const key = owner + ":price:" + signature;
   if (!presentation?.visible) {
     priceSnapshots.delete(key);
@@ -108,7 +109,7 @@ export function getCartPricingSnapshot(
 ): Extract<CustomerOrderPricingPresentation, { visible: true }> | null {
   const owner = identityKey(identity);
   if (!owner) return null;
-  const signature = cartReviewLineSignature(lines);
+  const signature = stableIdSignature(lines.map((line) => line.product_id));
   return read(priceSnapshots, owner + ":price:" + signature, signature);
 }
 
@@ -133,6 +134,7 @@ export function compareCartPricingSnapshots(
       product_id: line.product_id,
       name: line.name,
       quantity: line.quantity,
+      previous_quantity: oldLine.quantity,
       previous_unit_price: oldLine.unit_price,
       current_unit_price: line.unit_price,
       currency: current.currency ?? previous.currency ?? "YER",
