@@ -201,6 +201,29 @@ BEGIN
       MESSAGE = 'snapshot row count is empty, inconsistent, or exceeds the 5000-row application limit';
   END IF;
 
+  -- Serialize independent snapshots targeting the same products BEFORE reading
+  -- current conversions. save_product_unit_conversions also locks the product,
+  -- but taking that later would allow a stale pre-lock merge payload to overwrite
+  -- another snapshot's committed unit additions.
+  PERFORM p.id
+    FROM public.products p
+    JOIN (
+      SELECT DISTINCT
+             pg_catalog.upper(pg_catalog.btrim(coalesce(
+               nullif(pg_catalog.btrim(r.data->>'item_code'), ''),
+               nullif(pg_catalog.btrim(pg_catalog.split_part(coalesce(r.canonical_key, ''), '::', 1)), ''),
+               ''
+             ))) AS item_code
+        FROM public.onyx_snapshot_rows r
+       WHERE r.snapshot_id = v_snapshot.id
+         AND r.organization_id = v_org
+    ) source
+      ON pg_catalog.upper(pg_catalog.btrim(p.item_code)) = source.item_code
+   WHERE p.organization_id = v_org
+     AND source.item_code <> ''
+   ORDER BY p.id
+   FOR UPDATE OF p;
+
   FOR v_row IN
     SELECT r.* FROM public.onyx_snapshot_rows r
      WHERE r.snapshot_id = v_snapshot.id
