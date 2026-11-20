@@ -58,7 +58,11 @@ describe('central device and session management', () => {
   };
 
   async function resolveDeviceManagementRpc(name: string, args?: Record<string, unknown>) {
-    if (name === 'list_organization_sessions') return { data: sessions, error: null };
+    // DeviceManagement also mounts the independent customer-device request inbox.
+    // Keep that RPC valid/empty so session assertions observe only session behavior.
+    if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
+    if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
+      if (name === 'list_organization_sessions') return { data: sessions, error: null };
     if (name !== 'revoke_organization_session') {
       return { data: null, error: { message: 'unexpected RPC' } };
     }
@@ -145,6 +149,7 @@ describe('central device and session management', () => {
       },
     ];
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_other_auth_sessions') {
         const revokedIds = sessions
@@ -199,6 +204,7 @@ describe('central device and session management', () => {
     let resolveInitialList: ((value: { data: unknown; error: null }) => void) | undefined;
     let listCalls = 0;
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') {
         listCalls += 1;
         if (listCalls === 1) {
@@ -248,6 +254,7 @@ describe('central device and session management', () => {
   it('does not issue duplicate revocation RPCs for rapid repeated clicks', async () => {
     let finishRevocation: ((value: { data: unknown; error: null }) => void) | undefined;
     mocks.rpc.mockImplementation((name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return Promise.resolve({ data: sessions, error: null });
       if (name === 'revoke_organization_session') {
         return new Promise((resolve) => { finishRevocation = resolve; });
@@ -278,7 +285,16 @@ describe('central device and session management', () => {
   });
 
   it('recovers from a network failure when the administrator retries the session list', async () => {
-    mocks.rpc.mockRejectedValueOnce(new Error('network interrupted'));
+    let listAttempts = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
+      if (name === 'list_organization_sessions') {
+        listAttempts += 1;
+        if (listAttempts === 1) throw new Error('network interrupted');
+        return { data: sessions, error: null };
+      }
+      return { data: null, error: { message: 'unexpected RPC' } };
+    });
     await mount();
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
@@ -314,9 +330,10 @@ describe('central device and session management', () => {
   });
 
   it('fails closed when the server session-list contract is missing or malformed', async () => {
-    mocks.rpc.mockResolvedValueOnce({
-      data: { sessions: [sessions[0]] },
-      error: null,
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
+      if (name === 'list_organization_sessions') return { data: { sessions: [sessions[0]] }, error: null };
+      return { data: null, error: { message: 'unexpected RPC' } };
     });
     await mount();
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
@@ -329,6 +346,7 @@ describe('central device and session management', () => {
   it('does not show a success notice when the revocation RPC fails', async () => {
     const onNotice = vi.fn();
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       return { data: null, error: { message: 'permission denied' } };
     });
@@ -354,6 +372,7 @@ describe('central device and session management', () => {
   it('rejects a success-shaped acknowledgement for a different session id', async () => {
     const onNotice = vi.fn();
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_organization_session') {
         return {
@@ -385,6 +404,7 @@ describe('central device and session management', () => {
   it('rejects a session-revocation acknowledgement without a valid server timestamp', async () => {
     const onNotice = vi.fn();
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_organization_session') {
         return {
@@ -436,6 +456,7 @@ describe('central device and session management', () => {
       throw new Error('bulk revocation RPC was not started');
     };
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_other_auth_sessions') {
         sessions = sessions.filter((row) => row.session_id === CURRENT_SESSION_ID);
@@ -478,6 +499,7 @@ describe('central device and session management', () => {
   it('uses the server-owned self-scoped RPC to revoke other sessions and preserves the current session', async () => {
     const onNotice = mocks.onNotice;
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_other_auth_sessions') {
         const revokedIds = sessions
@@ -515,6 +537,7 @@ describe('central device and session management', () => {
   it('does not report bulk revocation success when the server acknowledgement is malformed', async () => {
     const onNotice = mocks.onNotice;
     mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'fetch_customer_device_change_requests') return { data: { items: [] }, error: null };
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_other_auth_sessions') {
         return {
