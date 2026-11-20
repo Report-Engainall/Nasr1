@@ -33,6 +33,7 @@ const passwordB = randomUUID().replaceAll("-", "") + "Bb2!";
 const managerPassword = randomUUID().replaceAll("-", "") + "Mm3!";
 const staffPassword = randomUUID().replaceAll("-", "") + "St4!";
 const adminPassword = randomUUID().replaceAll("-", "") + "Ad5!";
+const reviewerAdminPassword = randomUUID().replaceAll("-", "") + "Rv6!";
 const accountantPassword = randomUUID().replaceAll("-", "") + "Ac4!";
 const customerManagerPassword = randomUUID().replaceAll("-", "") + "Cm4!";
 const emailA = "p2.local.e2e.a." + runKey + "@example.test";
@@ -40,6 +41,7 @@ const emailB = "p2.local.e2e.b." + runKey + "@example.test";
 const managerEmail = "p2.local.e2e.manager." + runKey + "@example.test";
 const staffEmail = "p2.local.e2e.staff." + runKey + "@example.test";
 const adminEmail = "p2.local.e2e.admin." + runKey + "@example.test";
+const reviewerAdminEmail = "p2.local.e2e.reviewer-admin." + runKey + "@example.test";
 const accountantEmail = "p2.local.e2e.accountant." + runKey + "@example.test";
 const customerManagerEmail = "p2.local.e2e.customer-manager." + runKey + "@example.test";
 const customerManagerTargetName = "P2 Local E2E Invite Target";
@@ -114,7 +116,7 @@ async function createConfirmedUser(email, password, fullName) {
 
 async function main() {
   // Mask every ephemeral identity/credential before the next Actions step echoes inherited env.
-  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, staffEmail, staffPassword, adminEmail, adminPassword, accountantEmail, accountantPassword, customerManagerEmail, customerManagerPassword, customerManagerTargetEmail, companyMemberEmail, companyMemberPassword, expiredInvitationToken, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
+  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, staffEmail, staffPassword, adminEmail, adminPassword, accountantEmail, accountantPassword, reviewerAdminEmail, reviewerAdminPassword, customerManagerEmail, customerManagerPassword, customerManagerTargetEmail, companyMemberEmail, companyMemberPassword, expiredInvitationToken, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
     process.stdout.write("::add-mask::" + value + String.fromCharCode(10));
   }
   const userAId = await createConfirmedUser(emailA, passwordA, "P2 Local E2E Customer A");
@@ -122,6 +124,7 @@ async function main() {
   const managerUserId = await createConfirmedUser(managerEmail, managerPassword, "P2 Local E2E Manager");
   const staffUserId = await createConfirmedUser(staffEmail, staffPassword, "P2 Local E2E Staff");
   const adminUserId = await createConfirmedUser(adminEmail, adminPassword, "P2 Local E2E Administrator");
+  const reviewerAdminUserId = await createConfirmedUser(reviewerAdminEmail, reviewerAdminPassword, "P2 Local E2E Independent Reviewer");
   const adminJwtClaims = await signInLocal(adminEmail, adminPassword, adminUserId);
   const accountantUserId = await createConfirmedUser(accountantEmail, accountantPassword, "P2 Local E2E Accountant");
   const companyMemberUserId = await createConfirmedUser(companyMemberEmail, companyMemberPassword, "P2 Local E2E Company Member");
@@ -131,6 +134,7 @@ async function main() {
   let managerProfileId;
   let staffProfileId;
   let adminProfileId;
+  let reviewerAdminProfileId;
   let accountantProfileId;
   let companyMemberProfileId;
   let customerManagerProfileId;
@@ -186,13 +190,14 @@ async function main() {
     managerProfileId = await upsertProfile(managerUserId, organizationId, "P2 Local E2E Manager", managerEmail);
     staffProfileId = await upsertProfile(staffUserId, organizationId, "P2 Local E2E Staff", staffEmail);
     adminProfileId = await upsertProfile(adminUserId, organizationId, "P2 Local E2E Administrator", adminEmail);
+    reviewerAdminProfileId = await upsertProfile(reviewerAdminUserId, organizationId, "P2 Local E2E Independent Reviewer", reviewerAdminEmail);
     accountantProfileId = await upsertProfile(accountantUserId, organizationId, "P2 Local E2E Accountant", accountantEmail);
     companyMemberProfileId = await upsertProfile(companyMemberUserId, organizationId, "P2 Local E2E Company Member", companyMemberEmail);
     customerManagerProfileId = await upsertProfile(customerManagerUserId, organizationId, "P2 Local E2E Customer Manager", customerManagerEmail);
     await tx.unsafe(
-      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager'),($4::uuid,'customer'),($5::uuid,'customer_manager'),($6::uuid,'accountant'),($7::uuid,'admin'),($8::uuid,'staff') " +
+      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager'),($4::uuid,'customer'),($5::uuid,'customer_manager'),($6::uuid,'accountant'),($7::uuid,'admin'),($8::uuid,'staff'),($9::uuid,'admin') " +
       "on conflict(profile_id,role) do nothing",
-      [profileAId, profileBId, managerProfileId, companyMemberProfileId, customerManagerProfileId, accountantProfileId, adminProfileId, staffProfileId],
+      [profileAId, profileBId, managerProfileId, companyMemberProfileId, customerManagerProfileId, accountantProfileId, adminProfileId, staffProfileId, reviewerAdminProfileId],
     );
     await tx.unsafe(
       "insert into public.customers(" +
@@ -533,6 +538,8 @@ async function main() {
     "E2E_PRODUCT_ID=" + productId,
     "E2E_DEVICE_ADMIN_EMAIL=" + adminEmail,
     "E2E_DEVICE_ADMIN_PASSWORD=" + adminPassword,
+    "E2E_DEVICE_REVIEWER_ADMIN_EMAIL=" + reviewerAdminEmail,
+    "E2E_DEVICE_REVIEWER_ADMIN_PASSWORD=" + reviewerAdminPassword,
     "E2E_DEVICE_TARGET_EMAIL=" + managerEmail,
     "E2E_DEVICE_TARGET_PASSWORD=" + managerPassword,
     "E2E_ACCOUNTANT_EMAIL=" + accountantEmail,
@@ -576,7 +583,7 @@ async function main() {
   process.stdout.write(
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
-    " confirmedUsers=7 adminAndManagerSeeded=true accountantSeeded=true customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
+    " confirmedUsers=8 adminAndManagerSeeded=true independentReviewerAdminSeeded=true accountantSeeded=true customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
     " multiInvoiceReceiptInvoices=2 localOnly=true catalogProduct=" + productId + " stock=100 localOnly=true\n",
   );
 }
