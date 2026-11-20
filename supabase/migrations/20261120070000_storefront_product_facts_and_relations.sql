@@ -1128,7 +1128,10 @@ BEGIN
                   LIMIT 8
                 ) rel
               ), '[]'::jsonb),
-              'display_price', prices.unit_price,
+              'display_price', CASE
+                WHEN v_price_displayable THEN prices.unit_price
+                ELSE NULL::numeric(15,2)
+              END,
               'inventory', pg_catalog.jsonb_build_object(
                 'product_id', r.id,
                 'quantity_available', r.quantity_available
