@@ -200,9 +200,32 @@ describe("task intelligence report source contract", () => {
     expect(parseTaskIntelligenceReport(result, "DAILY")).toBeNull();
   });
 
-  it("requires exactly one role summary for each distinct visible role", () => {
+  it("rejects a missing summary for a server-declared visible role", () => {
     const result = baseReport();
     result.scope = { ...result.scope, visibleRoles: ["sales", "warehouse"] };
+    result.roleSummaries = [roleSummary()];
+    expect(parseTaskIntelligenceReport(result, "DAILY")).toBeNull();
+  });
+
+  it("rejects duplicate role-summary identities", () => {
+    const result = baseReport();
+    result.scope = { ...result.scope, visibleRoles: ["sales", "warehouse"] };
+    result.roleSummaries = [
+      roleSummary(),
+      roleSummary({ openCount: 0, overdueOpenCount: 0, highImpactOpenCount: 0 }),
+    ];
+    expect(parseTaskIntelligenceReport(result, "DAILY")).toBeNull();
+  });
+
+  it("rejects duplicate source aggregate identities", () => {
+    const result = baseReport();
+    result.sourceBreakdown = [sourceSummary(), sourceSummary()];
+    expect(parseTaskIntelligenceReport(result, "DAILY")).toBeNull();
+  });
+
+  it("rejects duplicate roles in the server-declared visible role set", () => {
+    const result = baseReport();
+    result.scope = { ...result.scope, visibleRoles: ["sales", "sales"] };
     result.roleSummaries = [roleSummary(), roleSummary()];
     expect(parseTaskIntelligenceReport(result, "DAILY")).toBeNull();
   });
@@ -274,6 +297,12 @@ describe("task intelligence report source contract", () => {
   it("rejects duplicate risk IDs in the bounded manager projection", () => {
     const duplicate = managerRisk(1);
     const result = managerReport([duplicate, { ...duplicate }], 2);
+    expect(parseTaskIntelligenceReport(result, "DAILY")).toBeNull();
+  });
+
+  it("rejects an overdue count greater than the open-task denominator", () => {
+    const result = baseReport();
+    result.roleSummaries = [roleSummary({ overdueOpenCount: 2 })];
     expect(parseTaskIntelligenceReport(result, "DAILY")).toBeNull();
   });
 });
