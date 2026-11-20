@@ -37,6 +37,7 @@ BEGIN
    ORDER BY s.version DESC
    LIMIT 1;
 
+  RAISE NOTICE 'snapshot lookup id=% found=% payload_type=%', v_snapshot_id, FOUND, pg_catalog.jsonb_typeof(v_payload);
   IF v_snapshot_id IS NULL THEN
     RETURN NULL;
   END IF;
@@ -53,6 +54,7 @@ BEGIN
       ERRCODE = '23503',
       MESSAGE = 'decision-memory snapshot has no same-organization outcome';
   END IF;
+  RAISE NOTICE 'outcome lookup found=% measured_type=%', FOUND, pg_catalog.jsonb_typeof(v_measured);
 
   v_result := coalesce(v_payload, '{}'::jsonb) || pg_catalog.jsonb_build_object(
     'id', v_snapshot_id::text,
@@ -61,6 +63,7 @@ BEGIN
     'capturedAt', v_captured_at,
     'actualMetric', NULL
   );
+  RAISE NOTICE 'snapshot initial projection type=%', pg_catalog.jsonb_typeof(v_result);
 
   -- A source-backed actual is exposed only when the terminal measurement is
   -- explicitly verified, complete, acceptable and every evidence ID resolves
@@ -95,6 +98,7 @@ BEGIN
           v_actual_as_of
         );
 
+        RAISE NOTICE 'evidence resolution ids_type=% records_type=% requested=% resolved_ids=% resolved_records=%', pg_catalog.jsonb_typeof(v_resolved->'ids'), pg_catalog.jsonb_typeof(v_resolved->'records'), pg_catalog.cardinality(v_evidence_ids), pg_catalog.jsonb_array_length(v_resolved->'ids'), pg_catalog.jsonb_array_length(v_resolved->'records');
         IF pg_catalog.jsonb_typeof(v_resolved->'ids') = 'array'
            AND pg_catalog.jsonb_typeof(v_resolved->'records') = 'array'
            AND pg_catalog.jsonb_array_length(v_resolved->'ids') = pg_catalog.cardinality(v_evidence_ids)
@@ -125,12 +129,14 @@ BEGIN
           v_result := pg_catalog.jsonb_set(
             v_result, '{actualMetric}', v_actual_metric, true
           );
+          RAISE NOTICE 'actual metric set type=% metric_type=%', pg_catalog.jsonb_typeof(v_result), pg_catalog.jsonb_typeof(v_actual_metric);
           v_result := pg_catalog.jsonb_set(
             v_result,
             '{evidenceRecords}',
             coalesce(v_result->'evidenceRecords', '[]'::jsonb) || v_resolved->'records',
             true
           );
+          RAISE NOTICE 'evidence records set result_type=% records_type=%', pg_catalog.jsonb_typeof(v_result), pg_catalog.jsonb_typeof(v_resolved->'records');
         END IF;
       END IF;
     EXCEPTION
@@ -142,10 +148,11 @@ BEGIN
     END;
   END IF;
 
+  RAISE NOTICE 'snapshot final projection id=% payload_type=% measured_type=% result_type=%', v_snapshot_id, pg_catalog.jsonb_typeof(v_payload), pg_catalog.jsonb_typeof(v_measured), pg_catalog.jsonb_typeof(v_result);
   IF v_result IS NULL THEN
     RAISE EXCEPTION USING
       ERRCODE = '22004',
-      MESSAGE = 'decision-memory snapshot projection unexpectedly produced NULL';
+      MESSAGE = pg_catalog.format('decision-memory snapshot projection unexpectedly produced NULL; snapshot=%s payload_type=%s measured_type=%s version=%s captured_at=%s', v_snapshot_id, pg_catalog.jsonb_typeof(v_payload), pg_catalog.jsonb_typeof(v_measured), v_version, v_captured_at);
   END IF;
 
   RETURN v_result;
