@@ -2461,7 +2461,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
                 </div>
               ) : null}
 
-              <section className="sf-checkout-card">
+              <section className="sf-checkout-card no-print">
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, lineHeight: 1.8, fontWeight: 800 }}>
                   <input
                     type="checkbox"
