@@ -60,6 +60,8 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
   const customerPassword = requiredEnv("E2E_PASSWORD");
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
+  const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL");
+  const accountantPassword = requiredEnv("E2E_ACCOUNTANT_PASSWORD");
   const orderId = requiredEnv("E2E_RETURN_ORDER_ID");
   const orderNumber = requiredEnv("E2E_RETURN_ORDER_NUMBER");
   const itemName = requiredEnv("E2E_RETURN_ITEM_NAME");
@@ -208,9 +210,9 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       expect(memoNumber, "draft credit memo exposes its source document number").toBeTruthy();
       const taskTitle = "مراجعة وترحيل قيد الإشعار الدائن " + memoNumber;
       const tasksPage = await tasksContext.newPage();
-      // Authenticate the operational task view in its own browser context so
-      // its session setup cannot reset the open finance dialog in staffContext.
-      await signIn(tasksPage, managerEmail, managerPassword);
+      // The memo was prepared by the manager (maker). Use the separately seeded
+      // accountant identity as checker; the journal-post capability rejects self-approval.
+      await signIn(tasksPage, accountantEmail, accountantPassword);
       await tasksPage.goto("/admin/tasks");
       const openCreditTask = tasksPage.locator(".task-card").filter({ hasText: taskTitle });
       await expect(openCreditTask).toBeVisible();
@@ -218,10 +220,22 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await expect(openCreditTask.getByText("بانتظار التنفيذ", { exact: true })).toBeVisible();
       completedStages.push("accountant_task_visible_while_credit_memo_journal_is_draft");
 
-      await row.getByRole("button", { name: "ترحيل القيد", exact: true }).click();
-      await expect(row.getByText("مرحل", { exact: true })).toBeVisible();
-      await expect(row.getByRole("button", { name: "ترحيل القيد", exact: true })).toHaveCount(0);
-      await expect(row.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toBeVisible();
+      const accountantFinancePage = await tasksContext.newPage();
+      await accountantFinancePage.goto("/admin/finance");
+      const openAccountantFinance = accountantFinancePage.getByRole("button", { name: "إشعارات المرتجعات الدائنة", exact: true });
+      await expect(openAccountantFinance).toBeVisible();
+      await openAccountantFinance.click();
+      const accountantFinanceDialog = accountantFinancePage.getByRole("dialog", { name: "مساحة إشعارات المرتجعات الدائنة" });
+      const accountantCreditSection = accountantFinanceDialog.locator('section[aria-labelledby="return-credit-heading"]');
+      const postedRow = accountantCreditSection.locator("article").filter({ hasText: orderNumber });
+      await expect(postedRow).toBeVisible();
+      await expect(postedRow.getByText("مسودة محاسبية", { exact: true })).toBeVisible();
+      await expect(postedRow.getByRole("button", { name: "ترحيل القيد", exact: true })).toBeVisible();
+
+      await postedRow.getByRole("button", { name: "ترحيل القيد", exact: true }).click();
+      await expect(postedRow.getByText("مرحل", { exact: true })).toBeVisible();
+      await expect(postedRow.getByRole("button", { name: "ترحيل القيد", exact: true })).toHaveCount(0);
+      await expect(postedRow.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toBeVisible();
 
       await tasksPage.goto("/admin/tasks");
       await tasksPage.getByLabel("الحالة").selectOption("completed");
@@ -229,18 +243,19 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await expect(completedCreditTask).toBeVisible();
       await expect(completedCreditTask.getByText("مكتملة", { exact: true })).toBeVisible();
       await expect(completedCreditTask.getByText(/أُغلقت بعد ترحيل القيد/)).toBeVisible();
+      await accountantFinancePage.close();
       await tasksPage.close();
       completedStages.push("accountant_task_closed_after_credit_journal_posting");
-      completedStages.push("credit_memo_journal_posted_from_ui");
+      completedStages.push("credit_memo_journal_posted_by_independent_checker");
 
       const reversalReason = "Playwright UI reversal acceptance after posted credit.";
-      await row.getByLabel(/^سبب عكس الإشعار/).fill(reversalReason);
-      await row.getByRole("button", { name: "عكس الإشعار والقيد", exact: true }).click();
-      await expect(row.getByText("معكوس ماليًا", { exact: true })).toBeVisible();
-      await expect(row).toContainText("رقم قيد العكس:");
-      await expect(row).toContainText(reversalReason);
-      await expect(row).toContainText("لم يُنشأ استرداد نقدي أو حركة مخزون.");
-      await expect(row.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toHaveCount(0);
+      await postedRow.getByLabel(/^سبب عكس الإشعار/).fill(reversalReason);
+      await postedRow.getByRole("button", { name: "عكس الإشعار والقيد", exact: true }).click();
+      await expect(postedRow.getByText("معكوس ماليًا", { exact: true })).toBeVisible();
+      await expect(postedRow).toContainText("رقم قيد العكس:");
+      await expect(postedRow).toContainText(reversalReason);
+      await expect(postedRow).toContainText("لم يُنشأ استرداد نقدي أو حركة مخزون.");
+      await expect(postedRow.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toHaveCount(0);
       completedStages.push("credit_memo_reversal_posted_and_visible_from_ui");
     });
 
