@@ -95,7 +95,7 @@ async function assertAuthorizationPrerequisiteUpgradeSafety(db) {
    const grant=await tx.unsafe("select role from public.authorization_role_capabilities where role='manager' and capability_key='inventory.reorder_point.write'");
    assert.equal(grant.length,1,"upgrade fixture requires a manager grant to remove");
    await tx.unsafe("update public.authorization_capabilities set scope_kind='warehouse',is_active=true where capability_key='inventory.balance.adjust'");
-   const preservedPolicy={requires_warehouse_assignment:true};
+   const preservedPolicy={requires_active_warehouse_assignment:true};
    await tx.unsafe(
     "update public.authorization_capabilities set scope_kind='warehouse',approval_mode='maker_checker',"+
     "separation_of_duties=true,state_requirements=$1::jsonb,is_active=false "+
