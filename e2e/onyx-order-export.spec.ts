@@ -74,9 +74,11 @@ test("manager order detail downloads the persisted-audit 27-column Onyx XLSX", a
   await expect(page.getByRole("heading", { name: "الطلبات" })).toBeVisible();
   await expect(page.getByRole("button", { name: "إدارة المرتجعات", exact: true })).toBeVisible();
 
-  const orderRow = page.getByRole("row").filter({ hasText: orderNumber });
-  await expect(orderRow, "The pre-seeded, delivered local order must be visible in the manager's tenant-scoped queue.").toBeVisible();
-  await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+  const orderSearch = page.getByRole("searchbox", { name: "البحث برقم الطلب" });
+  await orderSearch.fill(orderNumber);
+  const orderCard = page.locator(".admin-order-card").filter({ hasText: orderNumber });
+  await expect(orderCard, "The pre-seeded, delivered local order must be returned by the real tenant-scoped order-number search.").toBeVisible({ timeout: 30_000 });
+  await orderCard.getByRole("button", { name: "تفاصيل الطلب ومراجعته", exact: true }).click();
   await expect(page.getByRole("heading", { name: "الطلب #" + orderNumber })).toBeVisible();
 
   const exportButton = page.getByRole("button", { name: /تنزيل XLSX للأونكس/ });
