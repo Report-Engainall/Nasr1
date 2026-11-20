@@ -29,6 +29,7 @@ import { searchAdminWorkspaceRecords, type AdminWorkspaceSearchItem } from '@/li
 import { fetchCustomerDirectoryPage, fetchPricingCustomerOptions, type CustomerDirectoryRow } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { normalizePricingRuleTargetTier, PRICING_RULE_TARGET_OPTIONS } from '@/lib/pricing-rule-tiers';
+import { findPotentialPricingRuleConflicts } from '@/lib/pricing-rule-conflicts';
 import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -2789,7 +2790,7 @@ function Pricing({
         </div>
         <div className="toolbar-actions">
           <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث</Button>
-          {activeTab === 'rules' && <Button onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button>}
+          {activeTab === 'rules' && <Button disabled={loading || Boolean(error)} onClick={() => setShowCreate(true)}><Plus size={17} /> قاعدة جديدة</Button>}
         </div>
       </div>
 
@@ -2868,8 +2869,8 @@ function Pricing({
       </div>
     </section>
 
-    {showCreate && <PricingRuleModal key="create" onClose={() => setShowCreate(false)} onSaved={async () => { await refetch(); setShowCreate(false); onNotice('تم حفظ القاعدة؛ وقد تبقى بانتظار اعتماد المدير قبل تطبيق السعر.'); }} />}
-    {editingRule && <PricingRuleModal key={editingRule.id} rule={editingRule} onClose={() => setEditingRule(null)} onSaved={async () => { await refetch(); setEditingRule(null); onNotice('تم حفظ التعديلات؛ وقد تحتاج القاعدة إلى اعتماد المدير قبل تطبيقها.'); }} />}
+    {showCreate && <PricingRuleModal key="create" existingRules={data ?? []} onClose={() => setShowCreate(false)} onSaved={async () => { await refetch(); setShowCreate(false); onNotice('تم حفظ القاعدة؛ وقد تبقى بانتظار اعتماد المدير قبل تطبيق السعر.'); }} />}
+    {editingRule && <PricingRuleModal key={editingRule.id} rule={editingRule} existingRules={data ?? []} onClose={() => setEditingRule(null)} onSaved={async () => { await refetch(); setEditingRule(null); onNotice('تم حفظ التعديلات؛ وقد تحتاج القاعدة إلى اعتماد المدير قبل تطبيقها.'); }} />}
     {approvalRule && <PricingApprovalModal key={approvalRule.id} rule={approvalRule} onClose={() => setApprovalRule(null)} onSaved={async () => { await refetch(); setApprovalRule(null); onNotice('تم اعتماد قاعدة التسعير وحُفظ سبب الاعتماد في سجل التدقيق.'); }} />}
   </>;
 }
@@ -3023,7 +3024,7 @@ function localDateTimeValue(value?: string | null): string {
   return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
+export function PricingRuleModal({ rule, existingRules = [], onClose, onSaved }: { rule?: PricingRule; existingRules?: PricingRule[]; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const [productSearch, setProductSearch] = useState('');
   const [appliedProductSearch, setAppliedProductSearch] = useState('');
   const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(
@@ -3073,6 +3074,27 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
   const [effectiveUntil, setEffectiveUntil] = useState(localDateTimeValue(rule?.effective_until));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [conflictAcknowledged, setConflictAcknowledged] = useState(false);
+  const potentialRuleConflicts = useMemo(() => {
+    const quantity = Number(minQuantity);
+    const rank = Number(priority);
+    const from = effectiveFrom ? new Date(effectiveFrom) : null;
+    const until = effectiveUntil ? new Date(effectiveUntil) : null;
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(rank) || rank < 1 || rank > 100000 ||
+        (from && !Number.isFinite(from.getTime())) || (until && !Number.isFinite(until.getTime())) || (from && until && from > until)) return [];
+    return findPotentialPricingRuleConflicts({
+      id: rule?.id ?? null,
+      scope_type: scopeType,
+      scope_value: scopeType === 'product' || scopeType === 'category' ? scopeValue || null : null,
+      target_tier: targetTier,
+      min_quantity: quantity,
+      priority: rank,
+      effective_from: from ? from.toISOString() : null,
+      effective_until: until ? until.toISOString() : null,
+    }, existingRules);
+  }, [existingRules, rule?.id, scopeType, scopeValue, targetTier, minQuantity, priority, effectiveFrom, effectiveUntil]);
+  const potentialRuleConflictKey = potentialRuleConflicts.map((conflict) => conflict.ruleId).join('|');
+  useEffect(() => { setConflictAcknowledged(false); }, [potentialRuleConflictKey]);
 
   const pageProductOptions = products?.rows ?? [];
   const productOptions = existingProductOption && !pageProductOptions.some((product) => product.id === existingProductOption.id)
@@ -3112,6 +3134,10 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
     const until = effectiveUntil ? new Date(effectiveUntil) : null;
     if ((from && !Number.isFinite(from.getTime())) || (until && !Number.isFinite(until.getTime())) || (from && until && from > until)) {
       setError('تحقق من تاريخي بداية ونهاية القاعدة.');
+      return;
+    }
+    if (potentialRuleConflicts.length > 0 && !conflictAcknowledged) {
+      setError('توجد قواعد نشطة متداخلة. راجع قائمة التداخلات وأكد قرارك قبل الحفظ.');
       return;
     }
     setSaving(true);
@@ -3188,7 +3214,13 @@ export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRul
       </div>
       <p style={{ color: '#71868a', fontSize: 12, lineHeight: 1.7 }}>{rule ? 'سيُحدّث المحرك هذه القاعدة ويزيد رقم إصدارها ويسجل التغيير، ثم يعيد احتساب الأسعار ضمن النطاق والشريحة والكمية والفترة المختارة.' : 'الحفظ لا يغيّر قائمة الأسعار يدويًا؛ قاعدة البيانات تحسب الجملة والتجزئة وتكتب سجل التدقيق. لا تُطبّق القاعدة إلا ضمن النطاق والشريحة والكمية والفترة المختارة.'}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
+      {potentialRuleConflicts.length > 0 && <section className="panel" role="alert" style={{ display: 'grid', gap: 8, borderColor: '#d6a45a' }}>
+      <strong>تنبيه: توجد قواعد تسعير نشطة متداخلة في النطاق والشريحة والفترة</strong>
+      <ul>{potentialRuleConflicts.map((conflict) => <li key={conflict.ruleId}>«{conflict.ruleName}» — أولوية {formatNumber(conflict.priority)}، تبدأ من كمية {formatNumber(conflict.minQuantity)}{conflict.samePriority ? ' · نفس الأولوية؛ راجع أثر ترتيب القواعد' : ' · أولوية مختلفة؛ راجع قاعدة الحسم'}</li>)}</ul>
+      <p className="report-note">هذا كشف واجهة للتداخلات ذات النطاق المطابق فقط. لا يحسب أثر القاعدة الجديدة على الأسعار ولا يكتشف تقاطعات المنتج مع التصنيف؛ محرك الخادم هو المرجع النهائي.</p>
+      <label><input type="checkbox" checked={conflictAcknowledged} disabled={saving} onChange={(event) => setConflictAcknowledged(event.target.checked)} /> راجعت التداخلات وأؤكد متابعة الحفظ</label>
+    </section>}
+    <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable || (potentialRuleConflicts.length > 0 && !conflictAcknowledged)}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
     </form>
   </Modal>;
 }
