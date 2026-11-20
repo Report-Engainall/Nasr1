@@ -630,6 +630,174 @@ async function main() {
           "update public.inventory_adjustments set reason=reason where id=$1::uuid",
           [first.adjustment_id],
         ), "inventory adjustment history must be append-only");
+
+        // Prove the complete stock-count command, not only the draft-entry RPC.
+        // The manager who opens the first count has both entry and finalization
+        // capability, but Maker/Checker must still reject self-approval.
+        await applyActor(tx, actors.manager);
+        const makerKey = "inventory-count-maker-checker-" + process.pid + "-" + Date.now();
+        const makerSession = decodeJson((await tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+          [fixture.warehouse_id, makerKey, "P2 maker-checker self-approval acceptance"],
+        ))[0].result);
+        assert.equal(makerSession.status, "open");
+        const makerLines = await tx.unsafe(
+          "select product_id::text,expected_quantity from public.stock_count_lines where session_id=$1::uuid order by product_id",
+          [makerSession.id],
+        );
+        assert.ok(makerLines.length > 0, "maker-checker fixture must snapshot real warehouse balances");
+        for (const line of makerLines) {
+          await tx.unsafe(
+            "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+            [makerSession.id, line.product_id, line.expected_quantity],
+          );
+        }
+        const selfReviewDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(selfReviewDecision.decision, "REQUIRES_APPROVAL",
+          "the manager must have the review capability before the separate maker identity is evaluated");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.complete_stock_count($1::uuid)",
+          [makerSession.id],
+        ), "the stock-count maker cannot finalize their own session");
+        const makerDeniedState = await tx.unsafe(
+          "select status,completed_by::text from public.stock_count_sessions where id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.deepEqual(makerDeniedState[0], { status: "open", completed_by: null },
+          "self-approval denial must leave the count session open and uncompleted");
+        const makerDeniedMovement = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(makerDeniedMovement[0].count, 0,
+          "self-approval denial must not write an inventory movement");
+
+        // An administrator grant without this warehouse assignment must also fail.
+        // Disable only the test actor's matching assignment inside this rollback-only
+        // transaction, so the assertion is deterministic even with seeded local scopes.
+        await applyActor(tx, actors.admin);
+        await tx.unsafe("reset role");
+        await tx.unsafe(
+          "update public.authorization_profile_scopes set is_active=false,updated_at=statement_timestamp() " +
+          "where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.admin.profile_id, fixture.warehouse_id],
+        );
+        await applyActor(tx, actors.admin);
+        const unassignedReviewDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(unassignedReviewDecision.decision, "DENY",
+          "an administrator with no active warehouse assignment cannot review this count");
+        await expectSqlState(tx, "42501", () => tx.unsafe(
+          "select public.complete_stock_count($1::uuid)",
+          [makerSession.id],
+        ), "an unassigned administrator cannot finalize a warehouse count");
+
+        // Staff has the distinct count-entry capability. Assign the staff member
+        // to this warehouse, let them make a full physical count, and have the
+        // previously assigned manager approve it as the independent checker.
+        await tx.unsafe("reset role");
+        const staffScopeRows = await tx.unsafe(
+          "select revision from public.authorization_profile_scopes where organization_id=$1::uuid " +
+          "and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+          [organizationId, actors.staff.profile_id, fixture.warehouse_id],
+        );
+        const staffExpectedRevision = staffScopeRows.length ? Number(staffScopeRows[0].revision) : 0;
+        await applyActor(tx, actors.admin);
+        const staffAssignment = decodeJson((await tx.unsafe(
+          "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,$4::integer) as result",
+          [actors.staff.profile_id, fixture.warehouse_id, "P2 independent stock-count maker assignment", staffExpectedRevision],
+        ))[0].result);
+        assert.equal(staffAssignment.is_active, true,
+          "the administrator must establish an active warehouse assignment for the count maker");
+
+        await applyActor(tx, actors.staff);
+        const staffEntryDecision = decodeJson((await tx.unsafe(
+          "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
+          [fixture.warehouse_id],
+        ))[0].decision);
+        assert.equal(staffEntryDecision.decision, "PERMIT",
+          "an assigned staff member may enter physical counts without receiving balance-adjustment or finalization authority");
+        const staffKey = "inventory-count-independent-maker-" + process.pid + "-" + Date.now();
+        const staffSession = decodeJson((await tx.unsafe(
+          "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+          [fixture.warehouse_id, staffKey, "P2 independent stock-count maker acceptance"],
+        ))[0].result);
+        assert.equal(staffSession.status, "open");
+        const staffLines = await tx.unsafe(
+          "select product_id::text,expected_quantity from public.stock_count_lines where session_id=$1::uuid order by product_id",
+          [staffSession.id],
+        );
+        assert.ok(staffLines.length > 0, "independent maker session must snapshot the active warehouse balance set");
+        const reviewedQuantity = Number((currentQuantity + 1).toFixed(3));
+        let reviewedProductFound = false;
+        for (const line of staffLines) {
+          const countedQuantity = line.product_id === fixture.product_id
+            ? reviewedQuantity
+            : Number(line.expected_quantity);
+          if (line.product_id === fixture.product_id) reviewedProductFound = true;
+          await tx.unsafe(
+            "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+            [staffSession.id, line.product_id, countedQuantity],
+          );
+        }
+        assert.equal(reviewedProductFound, true,
+          "the active balance used by this test must be part of the staff's count snapshot");
+        const completeDecision = decodeJson((await (async () => {
+          await applyActor(tx, actors.manager);
+          return tx.unsafe(
+            "select public.current_authorization_decision('inventory.count.finalize',$1::uuid) as decision",
+            [fixture.warehouse_id],
+          );
+        })())[0].decision);
+        assert.equal(completeDecision.decision, "REQUIRES_APPROVAL",
+          "the assigned manager has the separate warehouse-scoped maker-checker review capability");
+        const completion = decodeJson((await tx.unsafe(
+          "select public.complete_stock_count($1::uuid) as result",
+          [staffSession.id],
+        ))[0].result);
+        assert.equal(completion.status, "completed");
+        assert.equal(completion.adjusted_lines, 1,
+          "the independent reviewer must apply the one real counted variance atomically");
+
+        const finalState = await tx.unsafe(
+          "select s.status,s.started_by::text,s.completed_by::text,l.counted_quantity,l.completed_quantity,l.variance " +
+          "from public.stock_count_sessions s join public.stock_count_lines l on l.session_id=s.id " +
+          "where s.id=$1::uuid and l.product_id=$2::uuid",
+          [staffSession.id, fixture.product_id],
+        );
+        assert.equal(finalState.length, 1);
+        assert.equal(finalState[0].status, "completed");
+        assert.equal(finalState[0].started_by, actors.staff.profile_id);
+        assert.equal(finalState[0].completed_by, actors.manager.profile_id);
+        assert.equal(Number(finalState[0].counted_quantity), reviewedQuantity);
+        assert.equal(Number(finalState[0].completed_quantity), reviewedQuantity);
+        assert.equal(Number(finalState[0].variance), 1);
+        const [balanceAfterReview] = await tx.unsafe(
+          "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+          [fixture.product_id, fixture.warehouse_id],
+        );
+        assert.equal(Number(balanceAfterReview.quantity_on_hand), reviewedQuantity,
+          "an independently approved count must reconcile the canonical stock balance");
+        const [movementProof] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' " +
+          "and reference_id=$1::uuid and movement_type='stock_count_adjustment'",
+          [staffSession.id],
+        );
+        assert.equal(movementProof.count, 1,
+          "the approved physical variance must write exactly one stock-count movement");
+        const [auditProof] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs where action='inventory.stock_count.completed' " +
+          "and entity_type='stock_count_session' and entity_id=$1::uuid",
+          [staffSession.id],
+        );
+        assert.equal(auditProof.count, 1,
+          "the independent finalization must append exactly one completion audit event");
+
         throw rollbackSentinel;
       });
     } catch (cause) {
@@ -639,7 +807,8 @@ async function main() {
     process.stdout.write(
       "PASS local PostgreSQL 17 RBAC V2 inventory adjustment: manager permit, explicit-deny precedence, " +
       "staff command/read denial, restricted projection, idempotent replay, stale/negative/reserved guards, " +
-      "one movement and audit row, append-only history, real sessions, and rollback-only test data.\n",
+      "one movement and audit row, append-only history, real sessions, independent stock-count Maker/Checker finalization, " +
+      "self-approval and unassigned-review denial, and rollback-only test data.\n",
     );
   } finally {
     await db.end({ timeout: 5 }).catch(() => {});
