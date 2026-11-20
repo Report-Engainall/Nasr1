@@ -11,6 +11,22 @@ function requiredEnv(name) {
 function asJson(value) {
   return typeof value === "string" ? JSON.parse(value) : value;
 }
+function installUndefinedBindGuard(client, label) {
+  const originalUnsafe = client.unsafe.bind(client);
+  client.unsafe = (query, values, ...options) => {
+    if (Array.isArray(values)) {
+      const index = values.findIndex((value) => value === undefined);
+      if (index >= 0) {
+        throw new Error(
+          "Undefined PostgreSQL bind detected before query execution: " + label +
+          " parameter $" + (index + 1) + " of " + values.length +
+          "; SQL: " + String(query).replace(/\s+/g, " ").slice(0, 360),
+        );
+      }
+    }
+    return originalUnsafe(query, values, ...options);
+  };
+}
 async function setIdentity(client, authUserId, email) {
   await client.unsafe("reset role").catch(() => {});
   await client.unsafe(
@@ -200,6 +216,10 @@ async function main() {
     managerA = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
     managerB = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
     adminDb = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+    installUndefinedBindGuard(serviceDb, "serviceDb");
+    installUndefinedBindGuard(managerA, "managerA");
+    installUndefinedBindGuard(managerB, "managerB");
+    installUndefinedBindGuard(adminDb, "adminDb");
     await Promise.all([
       setIdentity(managerA, managers[0].auth_user_id, managers[0].email),
       setIdentity(managerB, managers[0].auth_user_id, managers[0].email),
