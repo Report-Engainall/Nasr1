@@ -62,6 +62,8 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
   const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL");
   const accountantPassword = requiredEnv("E2E_ACCOUNTANT_PASSWORD");
+  const administratorEmail = requiredEnv("E2E_DEVICE_ADMIN_EMAIL");
+  const administratorPassword = requiredEnv("E2E_DEVICE_ADMIN_PASSWORD");
   const orderId = requiredEnv("E2E_RETURN_ORDER_ID");
   const orderNumber = requiredEnv("E2E_RETURN_ORDER_NUMBER");
   const itemName = requiredEnv("E2E_RETURN_ITEM_NAME");
@@ -73,6 +75,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
   // Keep task-page authentication isolated: re-authenticating in another tab
   // must not change the finance dialog's per-tab session while it is open.
   const tasksContext = await browser.newContext();
+  const reversalContext = await browser.newContext();
   const customer = await customerContext.newPage();
   const staff = await staffContext.newPage();
   const completedStages: string[] = [];
@@ -249,14 +252,46 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       completedStages.push("credit_memo_journal_posted_by_independent_checker");
 
       const reversalReason = "Playwright UI reversal acceptance after posted credit.";
-      await postedRow.getByLabel(/^سبب عكس الإشعار/).fill(reversalReason);
-      await postedRow.getByRole("button", { name: "عكس الإشعار والقيد", exact: true }).click();
+      const administratorPage = await reversalContext.newPage();
+      await signIn(administratorPage, administratorEmail, administratorPassword);
+      await administratorPage.goto("/admin/finance");
+      const openAdministratorFinance = administratorPage.getByRole("button", { name: "إشعارات المرتجعات الدائنة", exact: true });
+      await expect(openAdministratorFinance).toBeVisible();
+      await openAdministratorFinance.click();
+      const administratorDialog = administratorPage.getByRole("dialog", { name: "مساحة إشعارات المرتجعات الدائنة" });
+      const administratorSection = administratorDialog.locator('section[aria-labelledby="return-credit-heading"]');
+      const administratorRow = administratorSection.locator("article").filter({ hasText: orderNumber });
+      await expect(administratorRow).toBeVisible();
+      await administratorRow.getByLabel(/^سبب عكس الإشعار/).fill(reversalReason);
+      await administratorRow.getByRole("button", { name: "إعداد مسودة قيد العكس", exact: true }).click();
+      await expect(administratorRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.", { exact: true })).toBeVisible();
+      await expect(administratorRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true })).toBeEnabled();
+      completedStages.push("administrator_prepared_source_linked_reversal_draft");
+
+      await administratorRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true }).click();
+      await expect(administratorSection.getByRole("alert")).toContainText("checker different from the reversal maker");
+      await expect(administratorRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.", { exact: true })).toBeVisible();
+      completedStages.push("reversal_maker_self_post_denied_without_state_change");
+      await administratorPage.close();
+
+      const accountantReversalPage = await tasksContext.newPage();
+      await signIn(accountantReversalPage, accountantEmail, accountantPassword);
+      await accountantReversalPage.goto("/admin/finance");
+      const openAccountantReversalFinance = accountantReversalPage.getByRole("button", { name: "إشعارات المرتجعات الدائنة", exact: true });
+      await expect(openAccountantReversalFinance).toBeVisible();
+      await openAccountantReversalFinance.click();
+      const accountantReversalDialog = accountantReversalPage.getByRole("dialog", { name: "مساحة إشعارات المرتجعات الدائنة" });
+      const accountantReversalSection = accountantReversalDialog.locator('section[aria-labelledby="return-credit-heading"]');
+      const postedRow = accountantReversalSection.locator("article").filter({ hasText: orderNumber });
+      await expect(postedRow.getByText("مسودة قيد العكس بانتظار مُرحِّل مستقل.", { exact: true })).toBeVisible();
+      await postedRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true }).click();
       await expect(postedRow.getByText("معكوس ماليًا", { exact: true })).toBeVisible();
       await expect(postedRow).toContainText("رقم قيد العكس:");
       await expect(postedRow).toContainText(reversalReason);
       await expect(postedRow).toContainText("لم يُنشأ استرداد نقدي أو حركة مخزون.");
-      await expect(postedRow.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toHaveCount(0);
-      completedStages.push("credit_memo_reversal_posted_and_visible_from_ui");
+      await expect(postedRow.getByRole("button", { name: "ترحيل قيد العكس", exact: true })).toHaveCount(0);
+      completedStages.push("credit_memo_reversal_posted_by_independent_checker_and_visible_from_ui");
+      await accountantReversalPage.close();
     });
 
     await test.info().attach("customer-return-workflow-proof.json", {
@@ -276,6 +311,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       contentType: "application/json",
     });
   } finally {
+    await reversalContext.close();
     await tasksContext.close();
     await staffContext.close();
     await customerContext.close();
