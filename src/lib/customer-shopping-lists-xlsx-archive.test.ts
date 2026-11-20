@@ -15,14 +15,22 @@ function joinBytes(parts: Uint8Array[]): Uint8Array {
   return output;
 }
 
-function makeXlsxWithDataDescriptors(): Uint8Array {
+function makeXlsxWithDataDescriptors(rowCount = 1): Uint8Array {
   const encoder = new TextEncoder();
   const entries = [
     ["[Content_Types].xml", "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"></Types>"],
     ["_rels/.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"></Relationships>"],
     ["xl/workbook.xml", "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Products\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>"],
     ["xl/_rels/workbook.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>"],
-    ["xl/worksheets/sheet1.xml", "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>رمز الصنف</t></is></c><c r=\"B1\" t=\"inlineStr\"><is><t>الكمية</t></is></c><c r=\"C1\" t=\"inlineStr\"><is><t>الوحدة</t></is></c></row><row r=\"2\"><c r=\"A2\" t=\"inlineStr\"><is><t>RICE-1</t></is></c><c r=\"B2\"><v>2</v></c><c r=\"C2\" t=\"inlineStr\"><is><t>كيس</t></is></c></row></sheetData></worksheet>"],
+    ["xl/worksheets/sheet1.xml",
+      "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>رمز الصنف</t></is></c><c r=\"B1\" t=\"inlineStr\"><is><t>الكمية</t></is></c><c r=\"C1\" t=\"inlineStr\"><is><t>الوحدة</t></is></c></row>" +
+      Array.from({ length: rowCount }, (_, index) => {
+        const row = index + 2;
+        const code = rowCount === 1 ? "RICE-1" : "ITEM-" + (index + 1);
+        return "<row r=\"" + row + "\"><c r=\"A" + row + "\" t=\"inlineStr\"><is><t>" + code + "</t></is></c>" +
+          "<c r=\"B" + row + "\"><v>" + (rowCount === 1 ? "2" : "1") + "</v></c><c r=\"C" + row + "\" t=\"inlineStr\"><is><t>كيس</t></is></c></row>";
+      }).join("") +
+      "</sheetData></worksheet>"],
   ] as const;
   const localParts: Uint8Array[] = [];
   const centralParts: Uint8Array[] = [];
@@ -95,6 +103,38 @@ describe("customer shopping-list XLSX archive parser", () => {
       base_units_per_unit: 1,
       source_row: 2,
     }]);
+  });
+
+  it("accepts exactly 100 rows and rejects the 101st before the saved-list contract can fail", async () => {
+    const makeProducts = (count: number) => Array.from({ length: count }, (_, index) => ({
+      id: "00000000-0000-4000-8000-" + String(index + 1).padStart(12, "0"),
+      name: "صنف " + (index + 1),
+      item_code: "ITEM-" + (index + 1),
+      sku: null,
+      barcode: null,
+      unit: "كيس",
+    }));
+    const toFile = (bytes: Uint8Array): File => ({
+      name: "bulk-products.xlsx",
+      size: bytes.byteLength,
+      arrayBuffer: async (): Promise<ArrayBuffer> => {
+        const buffer = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(buffer).set(bytes);
+        return buffer;
+      },
+    } as File);
+
+    const accepted = await parseCustomerShoppingListXlsx(
+      toFile(makeXlsxWithDataDescriptors(100)),
+      makeProducts(100),
+    );
+    expect(accepted.imported_rows).toBe(100);
+    expect(accepted.lines).toHaveLength(100);
+
+    await expect(parseCustomerShoppingListXlsx(
+      toFile(makeXlsxWithDataDescriptors(101)),
+      makeProducts(101),
+    )).rejects.toThrow("100 صنف");
   });
 
 });
