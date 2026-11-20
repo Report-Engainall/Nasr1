@@ -60,8 +60,7 @@ describe("storefront product facts presentation", () => {
     expect(screen.getByRole("status")).toHaveTextContent("جار تحميل العلامة والمواصفات والعلاقات المعتمدة");
     expect(await screen.findByText("علامة موثقة")).toBeInTheDocument();
     expect(screen.getByText("YE")).toBeInTheDocument();
-    expect(screen.getByText("500 جم")).toBeInTheDocument();
-    expect(screen.getByText("500 جم", { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText("500 جم", { exact: true })).toHaveLength(2);
     expect(screen.getByText("24 كرتون لكل وحدة أساسية")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "المواصفات" })).toBeInTheDocument();
     expect(screen.getByText("منتج بديل")).toBeInTheDocument();
