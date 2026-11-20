@@ -228,7 +228,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
 
   const scope = await getStorefrontDataScope();
   const { organizationId: orgId, warehouseId, isStaff, canViewInternalProductPrices } = scope;
-  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
+  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,updated_at,min_order_quantity,order_quantity_multiple';
   let products: Product[];
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
@@ -347,6 +347,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     const staffProduct = p as Product & {
       status?: string;
       created_at?: string;
+      updated_at?: string;
       min_stock?: number | string | null;
     };
     const productFields: Record<string, unknown> = canViewInternalProductPrices
@@ -371,6 +372,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
             status: staffProduct.status,
             image_url: p.image_url,
             created_at: staffProduct.created_at,
+            updated_at: staffProduct.updated_at,
             min_order_quantity: Number(p.min_order_quantity ?? 1),
             order_quantity_multiple: Number(p.order_quantity_multiple ?? 1),
             min_stock: staffProduct.min_stock,
@@ -394,6 +396,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
           image_url: p.image_url,
           image_gallery_urls: galleryByProduct.get(p.id) ?? [],
           created_at: staffProduct.created_at,
+          updated_at: staffProduct.updated_at,
         };
 
     return {
