@@ -219,6 +219,10 @@ jobs:
       - name: Accept immutable ranked decision snapshots and command metadata on PostgreSQL 17
         run: node scripts/test-decision-outcome-snapshot-required.mjs
 
+      - name: Accept source-derived decision learning and persisted actualMetric evidence on PostgreSQL 17
+        timeout-minutes: 10
+        run: node scripts/test-decision-policy-learning-candidate.mjs
+
       - name: Accept verified-purchase review submission, moderation, privacy and tenant isolation
         run: node scripts/test-storefront-product-reviews.mjs
 
