@@ -334,6 +334,29 @@ async function main() {
         ))[0].decision);
         assert.equal(countEnterDecision.decision,"PERMIT",
           "the assigned manager must retain the independent stock-count entry capability");
+        const countStartDiagnostics = (await tx.unsafe(
+          "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
+          "public.current_organization_id()::text as organization_id, " +
+          "public.current_authorization_decision('inventory.count.start',$1::uuid) as decision, " +
+          "public.current_actor_has_capability('inventory.count.start',$1::uuid) as allowed, " +
+          "(select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('role',rc.role,'grant_source',rc.grant_source," +
+          "'valid_from',rc.valid_from,'expires_at',rc.expires_at)) from public.authorization_role_capabilities rc " +
+          "join public.user_roles ur on ur.role=rc.role and ur.profile_id=public.current_profile_id() " +
+          "where rc.capability_key='inventory.count.start') as role_grants, " +
+          "(select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('is_active',s.is_active,'valid_from',s.valid_from," +
+          "'expires_at',s.expires_at,'warehouse_id',s.warehouse_id)) from public.authorization_profile_scopes s " +
+          "where s.profile_id=public.current_profile_id() and s.scope_kind='warehouse' and s.warehouse_id=$1::uuid) as scopes, " +
+          "(select pg_catalog.jsonb_build_object('is_active',c.is_active,'scope_kind',c.scope_kind,'approval_mode',c.approval_mode) " +
+          "from public.authorization_capabilities c where c.capability_key='inventory.count.start') as capability, " +
+          "(select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('is_active',d.is_active,'reason',d.reason,'expires_at',d.expires_at)) " +
+          "from public.authorization_profile_denials d where d.profile_id=public.current_profile_id() " +
+          "and d.capability_key='inventory.count.start') as denials",
+          [fixture.warehouse_id],
+        ))[0];
+        assert.equal(countStartDiagnostics.profile_id, actors.manager.profile_id);
+        assert.equal(countStartDiagnostics.allowed, true,
+          "manager must have an active inventory.count.start grant and assigned warehouse: " +
+          JSON.stringify(countStartDiagnostics));
         assert.ok(otherWarehouse,"an independent unassigned warehouse fixture is required");
         const unassignedCountDecision=decodeJson((await tx.unsafe(
           "select public.current_authorization_decision('inventory.count.enter',$1::uuid) as decision",
