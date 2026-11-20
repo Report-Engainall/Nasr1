@@ -79,6 +79,11 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
 
+      - name: Install PostgreSQL client for isolated Onyx acceptance
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
       - name: Install project dependencies from the verified lockfile
         shell: bash
         run: |
@@ -182,6 +187,18 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
 
+      - name: Accept Onyx ProductUnits concurrency, replay and tenant isolation on PostgreSQL 17
+        shell: bash
+        env:
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          onyx_database="onyx_product_units_${GITHUB_RUN_ID}"
+          createdb --maintenance-db="$TEST_DATABASE_URL" --template=template0 "$onyx_database"
+          export ONYX_TEST_DATABASE_URL
+          ONYX_TEST_DATABASE_URL="$(node -e 'const value = new URL(process.env.TEST_DATABASE_URL); value.pathname = "/" + process.argv[1]; process.stdout.write(value.toString());' "$onyx_database")"
+          psql "$ONYX_TEST_DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file supabase/tests/onyx_product_unit_import_acceptance.sql
+
       - name: Accept verified-purchase review submission, moderation, privacy and tenant isolation
         run: node scripts/test-storefront-product-reviews.mjs
 
@@ -201,6 +218,7 @@ jobs:
             echo "- Fixtures are synthetic, tenant-scoped and created only in the local database."
             echo "- No hosted Supabase project, production secret, remote migration, production record or production write is used."
             echo "- Review acceptance and question acceptance are reported independently by their dedicated steps."
+            echo "- Onyx ProductUnits concurrency, snapshot replay and tenant mismatch are accepted in a separate empty PostgreSQL 17 database on the same isolated runner; no hosted project is written."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop disposable Supabase
