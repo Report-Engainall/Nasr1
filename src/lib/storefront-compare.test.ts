@@ -54,6 +54,21 @@ describe("profile-scoped storefront compare storage", () => {
     expect(readStorefrontCompareIds(storage, storefrontCompareStorageKey())).toEqual(["guest-product"]);
   });
 
+  it("does not read another authenticated account or guest choices when profile mapping is absent", () => {
+    const userA = "a2000000-0000-0000-0000-000000000001";
+    const userB = "b2000000-0000-0000-0000-000000000001";
+    const userAKey = storefrontCompareStorageKey(null, userA);
+    const userBKey = storefrontCompareStorageKey(null, userB);
+    const storage = memoryStorage({
+      [STOREFRONT_COMPARE_GUEST_STORAGE_KEY]: JSON.stringify(["guest-product"]),
+      [userAKey]: JSON.stringify(["account-a-product"]),
+    });
+
+    expect(readStorefrontCompareIds(storage, userAKey)).toEqual(["account-a-product"]);
+    expect(readStorefrontCompareIds(storage, userBKey)).toEqual([]);
+    expect(readStorefrontCompareIds(storage, STOREFRONT_COMPARE_GUEST_STORAGE_KEY)).toEqual(["guest-product"]);
+  });
+
   it("normalizes the list and enforces the three-product cap on writes and reads", () => {
     const storage = memoryStorage();
     const key = storefrontCompareStorageKey("a1000000-0000-0000-0000-000000000001");
