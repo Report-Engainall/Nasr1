@@ -140,10 +140,10 @@ async function createStatement(managerDb, mappingId, evidenceId, reference, peri
   assert.equal(result.replayed, false);
   return result.statement_id;
 }
-async function recordStatementLine(managerDb, statementId, lineNumber, transactionDate, reference, description, amount) {
+async function recordStatementLine(managerDb, statementId, lineNumber, transactionDate, reference, description, amount, idempotencyKey = randomUUID()) {
   const rows = await managerDb.unsafe(
     "select public.record_finance_bank_statement_line($1::uuid,$2::integer,$3::date,$4::text,$5::text,$6::numeric,$7::uuid) as result",
-    [statementId, lineNumber, transactionDate, reference, description, amount, randomUUID()],
+    [statementId, lineNumber, transactionDate, reference, description, amount, idempotencyKey],
   );
   const result = asJson(rows[0].result);
   assert.equal(typeof result.line_id, "string");
@@ -164,7 +164,7 @@ async function statementSnapshot(db, organizationId, statementId) {
     "'lines', coalesce((select jsonb_agg(to_jsonb(l) order by l.line_number) from public.finance_bank_statement_lines l where l.organization_id=$1::uuid and l.statement_id=$2::uuid),'[]'::jsonb)," +
     "'matches', coalesce((select jsonb_agg(to_jsonb(m) order by m.id::text) from public.finance_bank_statement_line_matches m join public.finance_bank_statement_lines l on l.organization_id=m.organization_id and l.id=m.statement_line_id where m.organization_id=$1::uuid and l.statement_id=$2::uuid),'[]'::jsonb)," +
     "'runs', coalesce((select jsonb_agg(to_jsonb(r) order by r.run_number) from public.finance_bank_statement_reconciliation_runs r where r.organization_id=$1::uuid and r.statement_id=$2::uuid),'[]'::jsonb)," +
-    "'audit', coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.audit_logs a where a.organization_id=$1::uuid and ((a.entity_type='finance_bank_statement_line_match' and a.entity_id in (select m.id from public.finance_bank_statement_line_matches m join public.finance_bank_statement_lines l on l.organization_id=m.organization_id and l.id=m.statement_line_id where m.organization_id=$1::uuid and l.statement_id=$2::uuid)) or (a.entity_type='finance_bank_statement_reconciliation_run' and a.entity_id in (select r.id from public.finance_bank_statement_reconciliation_runs r where r.organization_id=$1::uuid and r.statement_id=$2::uuid))),'[]'::jsonb)" +
+    "'audit', coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.audit_logs a where a.organization_id=$1::uuid and ((a.entity_type='finance_bank_statement_line' and a.action='finance.bank_statement_line_recorded' and a.entity_id in (select l.id from public.finance_bank_statement_lines l where l.organization_id=$1::uuid and l.statement_id=$2::uuid)) or (a.entity_type='finance_bank_statement_line_match' and a.entity_id in (select m.id from public.finance_bank_statement_line_matches m join public.finance_bank_statement_lines l on l.organization_id=m.organization_id and l.id=m.statement_line_id where m.organization_id=$1::uuid and l.statement_id=$2::uuid)) or (a.entity_type='finance_bank_statement_reconciliation_run' and a.entity_id in (select r.id from public.finance_bank_statement_reconciliation_runs r where r.organization_id=$1::uuid and r.statement_id=$2::uuid))),'[]'::jsonb)" +
     ")::text as snapshot",
     [organizationId, statementId],
   );
@@ -267,8 +267,10 @@ async function main() {
       managerA, mappingId, statementEvidenceA.id, "P2-STATEMENT-A-" + suffix,
       firstStatementDate, "1000.00", "900.00",
     );
+    const statementALineIdempotencyKey = randomUUID();
     const statementALine = await recordStatementLine(
       managerA, statementA, 1, firstStatementDate, "P2-A-001", "Bank expense day one", "-100.00",
+      statementALineIdempotencyKey,
     );
 
     const exactRetry = await Promise.all([
@@ -293,6 +295,21 @@ async function main() {
     assert.equal(replayAfterClose.match_id, exactRetry[0].match_id);
     assert.equal(replayAfterClose.replayed, true,
       "retry after the server committed and the statement was verified returns the original match");
+
+    const recordedLineReplay = asJson((await managerB.unsafe(
+      "select public.record_finance_bank_statement_line($1::uuid,1,$2::date,'P2-A-001','Bank expense day one',-100.00::numeric,$3::uuid) as result",
+      [statementA, firstStatementDate, statementALineIdempotencyKey],
+    ))[0].result);
+    assert.deepEqual(recordedLineReplay,{line_id:statementALine,replayed:true},
+      "a committed statement-line retry after VERIFIED must return the original line id");
+    await expectCode(
+      "a changed statement-line payload cannot reuse its key after VERIFIED",
+      () => managerB.unsafe(
+        "select public.record_finance_bank_statement_line($1::uuid,1,$2::date,'P2-A-001','Bank expense day one',-101.00::numeric,$3::uuid)",
+        [statementA, firstStatementDate, statementALineIdempotencyKey],
+      ),
+      "23505",
+    );
     const stateAfterReplay = await statementSnapshot(serviceDb, organizationId, statementA);
 
     const expenseDayTwoA = await recordCashExpense(
