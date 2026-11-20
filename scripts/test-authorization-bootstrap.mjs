@@ -57,12 +57,12 @@ function decodeJson(value) {
   return typeof value === "string" ? JSON.parse(value) : value;
 }
 
-async function capabilityDecision(db, actor, capabilityKey) {
+async function capabilityDecision(db, actor, capabilityKey, warehouseId) {
   return withActor(db, actor, async (tx) => {
     const rows = await tx.unsafe(
-      "select public.current_authorization_decision($1::text) as decision," +
-      "public.current_actor_has_capability($1::text) as allowed",
-      [capabilityKey],
+      "select public.current_authorization_decision($1::text,$2::uuid) as decision," +
+      "public.current_actor_has_capability($1::text,$2::uuid) as allowed",
+      [capabilityKey, warehouseId],
     );
     const decision = decodeJson(rows[0]?.decision);
     return { decision: decision?.decision, allowed: rows[0]?.allowed };
@@ -134,7 +134,7 @@ async function main() {
     const byKey = new Map(catalogRows.map((row) => [row.capability_key, row]));
 
     const adjust = byKey.get("inventory.balance.adjust");
-    assert.equal(adjust.scope_kind, "organization");
+    assert.equal(adjust.scope_kind, "warehouse");
     assert.equal(adjust.approval_mode, "none");
     assert.equal(adjust.separation_of_duties, false);
     assert.equal(adjust.is_active, true);
@@ -176,9 +176,13 @@ async function main() {
     assert.equal(countFinalize.state_requirements.requires_active_warehouse_assignment, true);
     assert.equal(countFinalize.state_requirements.reviewer_must_differ_from_counter, true);
 
-    const adminDecision = await capabilityDecision(db, actors.get("admin"), "inventory.balance.adjust");
-    assert.deepEqual(adminDecision, { decision: "PERMIT", allowed: true },
-      "admin must retain the approved inventory.balance.adjust capability");
+    const warehouseId = requiredEnv("E2E_PURCHASE_WAREHOUSE_ID");
+    const warehouseRows = await db.unsafe(
+      "select id::text from public.warehouses where id=$1::uuid and organization_id=$2::uuid and is_active=true",
+      [warehouseId, organizationId],
+    );
+    assert.equal(warehouseRows.length, 1,
+      "the seeded local purchase warehouse must be active inside the manager tenant");
 
     const managerDenial = await db.unsafe(
       "select is_active,reason from public.authorization_profile_denials " +
@@ -188,12 +192,14 @@ async function main() {
     assert.equal(managerDenial.length, 1, "the isolated P2 fixture must retain its explicit manager denial");
     assert.equal(managerDenial[0].is_active, true,
       "the isolated manager denial must remain active during acceptance");
-    const managerDecision = await capabilityDecision(db, actors.get("manager"), "inventory.balance.adjust");
+    const managerDecision = await capabilityDecision(
+      db, actors.get("manager"), "inventory.balance.adjust", warehouseId,
+    );
     assert.deepEqual(managerDecision, { decision: "DENY", allowed: false },
       "an explicit manager denial must override the persisted legacy role grant");
 
     for (const role of ["staff", "accountant", "customer_manager", "customer"]) {
-      const decision = await capabilityDecision(db, actors.get(role), "inventory.balance.adjust");
+      const decision = await capabilityDecision(db, actors.get(role), "inventory.balance.adjust", warehouseId);
       assert.deepEqual(decision, { decision: "DENY", allowed: false },
         role + " must be denied inventory.balance.adjust without an explicit grant");
     }
@@ -217,7 +223,7 @@ async function main() {
     );
 
     process.stdout.write(
-      "PASS Authorization V2 bootstrap: clean migration order, admin/manager inventory-adjustment grants, " +
+      "PASS Authorization V2 bootstrap: clean migration order, warehouse-scoped admin/manager inventory-adjustment grants, " +
       "staff/accountant/customer-manager/customer denial, private registry tables, warehouse draft-only count entry, " +
       "and independent warehouse maker-checker finalization.\n",
     );
