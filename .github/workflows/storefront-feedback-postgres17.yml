@@ -184,7 +184,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
 
-      - name: Accept Authorization V2 bootstrap, role grants and stock-count scope on local PostgreSQL 17
+      - name: Accept Authorization V2 bootstrap, six-role denials, explicit-deny precedence and stock-count scope on local PostgreSQL 17
         run: node scripts/test-authorization-bootstrap.mjs
 
       - name: Accept verified-purchase review submission, moderation, privacy and tenant isolation
@@ -205,6 +205,7 @@ jobs:
             echo "- The review and question scripts use the exact checked-out source and a disposable local Supabase/PostgreSQL 17 stack."
             echo "- Fixtures are synthetic, tenant-scoped and created only in the local database."
             echo "- No hosted Supabase project, production secret, remote migration, production record or production write is used."
+            echo "- Authorization acceptance uses real temporary local JWT sessions for all six roles and proves explicit-deny precedence over the manager legacy grant." 
             echo "- Review acceptance and question acceptance are reported independently by their dedicated steps."
           } >> "$GITHUB_STEP_SUMMARY"
 
