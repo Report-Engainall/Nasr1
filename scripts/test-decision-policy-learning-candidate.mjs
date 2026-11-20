@@ -39,6 +39,25 @@ async function signIn(apiUrl, publishableKey, email, password) {
 function decode(value) {
   return typeof value === "string" ? JSON.parse(value) : value;
 }
+function assertCompleteEvidenceProjection(snapshot, label) {
+  const records = snapshot?.evidenceRecords;
+  assert.ok(Array.isArray(records), label + " evidenceRecords must be a JSON array");
+  for (const metricName of ["expectedMetric", "actualMetric"]) {
+    const metric = snapshot?.[metricName];
+    const evidenceIds = metric?.lineage?.evidenceIds;
+    assert.ok(Array.isArray(evidenceIds) && evidenceIds.length > 0,
+      label + " " + metricName + " must retain source evidence IDs");
+    for (const evidenceId of evidenceIds) {
+      assert.ok(records.some((record) =>
+        record?.id === evidenceId &&
+        record.status === "VERIFIED" &&
+        record.completeness === "COMPLETE" &&
+        record.quality === "ACCEPTABLE"
+      ), label + " " + metricName + " evidence " + evidenceId +
+        " must resolve to a complete, acceptable source record");
+    }
+  }
+}
 async function expectSqlState(tx, expectedCode, action, label) {
   const savepoint = "policy_learning_expected_failure";
   await tx.unsafe("SAVEPOINT " + savepoint);
@@ -352,6 +371,10 @@ async function main() {
       assert.ok(sourceDiagnostics[0].reloaded_memory_snapshot.evidenceRecords.some((record) =>
         record.id === "dmactual:" + sourceDiagnostics[0].reloaded_memory_snapshot.id + ":invoice:" + invoiceId
       ), "reloaded evidenceRecords must include the full tenant-resolved source invoice");
+      assertCompleteEvidenceProjection(
+        decode(sourceDiagnostics[0].reloaded_memory_snapshot),
+        "reloaded decision snapshot",
+      );
       await setActor(tx, managerClaims);
 
       assert.ok(memoryResult?.snapshot && typeof memoryResult.snapshot.id === "string",
@@ -367,6 +390,7 @@ async function main() {
       assert.ok(memoryResult.snapshot.evidenceRecords.some((record) =>
         record.id === "dmactual:" + memoryResult.snapshot.id + ":invoice:" + invoiceId
       ), "the immutable memory snapshot must preserve its resolved source evidence record");
+      assertCompleteEvidenceProjection(memoryResult.snapshot, "immediate decision snapshot");
 
       const createRows = await tx.unsafe(
         "select public.create_decision_policy_learning_candidate($1::uuid[],$2::text) as result",
