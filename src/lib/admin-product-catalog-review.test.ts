@@ -77,7 +77,7 @@ describe('admin product catalog review and export', () => {
 
   it('neutralizes spreadsheet formulas in text cells and quotes CSV values', () => {
     const csv = buildAdminProductCatalogCsv([product({ name: ' =HYPERLINK("https://evil.example")' })], false);
-    expect(csv).toContain("' =HYPERLINK(""https://evil.example"")");
-    expect(csv.split('\\r\\n')).toHaveLength(2);
+    expect(csv).toContain(\`' =HYPERLINK(""https://evil.example"")\`);
+    expect(csv.split('\r\n')).toHaveLength(2);
   });
 });
