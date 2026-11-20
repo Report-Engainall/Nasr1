@@ -52,6 +52,7 @@ export function AdminCatalogChangeHistory({
   const [rows, setRows] = useState<CatalogAuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -93,7 +94,7 @@ export function AdminCatalogChangeHistory({
     }
     void load();
     return () => { active = false; };
-  }, [canRead, entityType, entityId]);
+  }, [canRead, entityType, entityId, reloadKey]);
 
   if (!canRead) return null;
 
@@ -107,8 +108,7 @@ export function AdminCatalogChangeHistory({
           <p className="report-note">أحدث 50 حدثًا موثقًا للكيان الحالي، مع وقت التنفيذ ومعرّف الحساب المنفذ. لا تُعرض لقطات الحقول القديمة والجديدة.</p>
         </div>
         <button type="button" className="btn outline" disabled={loading} onClick={() => {
-          // Changing the entity key is not required; remounting this component is the retry path.
-          window.dispatchEvent(new CustomEvent('nasr1-catalog-audit-refresh'));
+          setReloadKey((value) => value + 1);
         }} aria-label="تحديث سجل التغييرات">
           <RefreshCw size={15} /> تحديث
         </button>
