@@ -409,6 +409,16 @@ async function main() {
     // A commitment and its source evidence created after asOf must invalidate a historical snapshot
     // without modifying the already approved commitment or rewriting its evidence history.
     const evidenceSnapshotAsOf=new Date(Date.now()-1500).toISOString();
+    const snapshotSourceBeforeWrite=await db.unsafe(
+      "select c.id::text,c.status,c.due_date::text,c.created_at,c.updated_at,"+
+      "c.created_at<=$2::timestamptz as created_before_snapshot,"+
+      "c.updated_at<=$2::timestamptz as updated_before_snapshot,"+
+      "coalesce((select jsonb_agg(jsonb_build_object('id',e.id,'created_at',e.created_at,'before_snapshot',e.created_at<=$2::timestamptz) order by e.created_at,e.id) "+
+      "from public.cash_expense_commitment_evidence e where e.organization_id=c.organization_id and e.commitment_id=c.id),'[]'::jsonb) as evidence "+
+      "from public.cash_expense_commitments c where c.organization_id=$1::uuid and c.id=$3::uuid",
+      [organizationId,evidenceSnapshotAsOf,yer.id],
+    );
+    assert.equal(snapshotSourceBeforeWrite.length,1,"approved source fixture must exist before post-as-of mutation");
     const snapshotCommitment=await createCommitment(managerDb,{
       ...yerPayload,category:"Post-snapshot request",description:"New maintenance request created after snapshot",
       amount:"12.00",reference:"P2-COMMIT-ASOF-"+suffix,
@@ -419,7 +429,13 @@ async function main() {
     assert.equal(staleSnapshot.status,"PARTIAL","a new post-as-of commitment must invalidate the snapshot");
     assert.equal(staleSnapshot.completeness,"PARTIAL");
     assert.ok(staleSnapshot.changedAfterAsOfCount>=1);
-    assert.equal(staleSnapshot.entries.length,1,"the previously approved source remains visible but the snapshot is not complete");
+    assert.equal(staleSnapshot.entries.length,1,
+      "the previously approved source remains visible but the snapshot is not complete; " +
+      "source=" + JSON.stringify(snapshotSourceBeforeWrite[0]) +
+      "; schedule=" + JSON.stringify({
+        status:staleSnapshot.status,changedAfterAsOfCount:staleSnapshot.changedAfterAsOfCount,
+        entries:staleSnapshot.entries,evidenceRecords:staleSnapshot.evidenceRecords,
+      }));
     assert.equal(staleSnapshot.evidenceRecords.filter((e)=>e.id.startsWith("cash-expense-commitment-evidence:")).length,1,
       "the evidence passport contains only the pre-as-of approved source evidence");
 
