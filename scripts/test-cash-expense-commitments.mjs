@@ -9,12 +9,46 @@ function requiredEnv(name) {
   return value.replace(/^"(.*)"$/s, "$1");
 }
 function asJson(value) { return typeof value === "string" ? JSON.parse(value) : value; }
+/**
+ * postgres.js throws UNDEFINED_VALUE before sending SQL, which otherwise hides
+ * the failing call site. Report only client label, 1-based parameter position,
+ * and a bounded SQL shape; never log bound values, credentials or user data.
+ */
+function diagnoseUndefinedSqlParameters(client, label) {
+  return new Proxy(client, {
+    get(target, property) {
+      const value = Reflect.get(target, property, target);
+      if (property === "unsafe" && typeof value === "function") {
+        return (query, parameters, options) => {
+          if (Array.isArray(parameters)) {
+            const index = parameters.findIndex((parameter) => parameter === undefined);
+            if (index >= 0) {
+              const sqlShape = String(query).replace(/\\s+/g, " ").trim().slice(0, 220);
+              throw new Error(
+                "UNDEFINED_SQL_PARAMETER: client=" + label +
+                ", parameter=$" + (index + 1) +
+                ", sql=" + sqlShape +
+                "; bound values intentionally redacted",
+              );
+            }
+          }
+          return value.call(target, query, parameters, options);
+        };
+      }
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 const databaseUrl = requiredEnv("TEST_DATABASE_URL");
 const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
 const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
 validateCashExpenseEndpoints(supabaseUrl, databaseUrl);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
-const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+const db = diagnoseUndefinedSqlParameters(
+  postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 }),
+  "finance acceptance root client",
+);
 
 async function signIn(email, password) {
   const response = await fetch(new URL("/auth/v1/token?grant_type=password", supabaseUrl), {
@@ -158,10 +192,10 @@ async function main() {
   const accountant=await lookUp(accountantEmail,"accountant");
   const customer=await lookUp(customerEmail,null);
 
-  const managerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const adminDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const accountantDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
-  const customerDb=postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5});
+  const managerDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"manager");
+  const adminDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"admin");
+  const accountantDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"accountant");
+  const customerDb=diagnoseUndefinedSqlParameters(postgres(databaseUrl,{max:1,prepare:false,idle_timeout:5}),"customer");
   try {
     await Promise.all([
       setIdentity(managerDb,manager.auth_user_id,manager.email),
