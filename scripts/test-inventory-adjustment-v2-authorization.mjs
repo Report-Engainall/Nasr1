@@ -439,13 +439,26 @@ async function main() {
         ))[0].result);
         assert.equal(restoredCountEntryDenial.changed, true);
         await applyActor(tx, actors.manager);
+        const restoredCountEntryDiagnostics = await tx.unsafe(
+          "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as current_profile_id, " +
+          "(select d.is_active from public.authorization_profile_denials d where d.organization_id=$1::uuid and d.profile_id=$2::uuid and d.capability_key='inventory.count.enter') as denial_is_active, " +
+          "(select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('role',ur.role,'grant_source',rc.grant_source,'valid_from',rc.valid_from,'expires_at',rc.expires_at)) " +
+          " from public.authorization_role_capabilities rc join public.user_roles ur on ur.role=rc.role and ur.profile_id=$2::uuid " +
+          " where rc.capability_key='inventory.count.enter' and rc.valid_from<=statement_timestamp() and (rc.expires_at is null or rc.expires_at>statement_timestamp())) as active_role_grants, " +
+          "(select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('is_active',s.is_active,'valid_from',s.valid_from,'expires_at',s.expires_at)) " +
+          " from public.authorization_profile_scopes s where s.organization_id=$1::uuid and s.profile_id=$2::uuid and s.scope_kind='warehouse' and s.warehouse_id=$3::uuid) as warehouse_scopes, " +
+          "(select pg_catalog.jsonb_build_object('scope_kind',c.scope_kind,'approval_mode',c.approval_mode,'is_active',c.is_active) " +
+          " from public.authorization_capabilities c where c.capability_key='inventory.count.enter') as capability, " +
+          "public.current_authorization_decision('inventory.count.enter',$3::uuid) as decision, " +
+          "public.current_actor_has_capability('inventory.count.enter',$3::uuid) as allowed",
+          [organizationId, actors.manager.profile_id, fixture.warehouse_id],
+        );
+        const restoredCountEntry = restoredCountEntryDiagnostics[0];
         assert.equal(
-          (await tx.unsafe(
-            "select public.current_actor_has_capability('inventory.count.enter',$1::uuid) as allowed",
-            [fixture.warehouse_id],
-          ))[0].allowed,
+          restoredCountEntry.allowed,
           true,
-          "removing the test-only denial must restore count-entry for the exact assigned warehouse",
+          "removing the test-only denial must restore count-entry for the exact assigned warehouse: " +
+            JSON.stringify(restoredCountEntry),
         );
 
         // This first session exists only to prove count-entry and explicit-denial
