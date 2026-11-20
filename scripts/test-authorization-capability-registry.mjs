@@ -129,6 +129,7 @@ async function expectSqlStateInTransaction(tx,expectedCode,action,label) {
 async function assertStockCountWarehouseScope(db,actors,organizationId,assignedWarehouseId,unassignedWarehouseId) {
  const manager=actors.get("manager");
  const admin=actors.get("admin");
+ const reviewerGrantor=actors.get("admin_reviewer");
  await db.begin(async tx=>{
   await tx.unsafe("SAVEPOINT stock_count_warehouse_scope_acceptance");
   try {
@@ -180,7 +181,7 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
     "select public.complete_stock_count($1::uuid)",[sessionA.id]
    )),"the stock-count maker cannot finalize the same session");
-   const reviewerScope=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
+   const reviewerScope=await withActorOnTransaction(tx,reviewerGrantor,tx=>tx.unsafe(
     "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
     [admin.profile_id,assignedWarehouseId,"P2 isolated independent stock-count reviewer"]
    ));
@@ -374,6 +375,7 @@ async function main() {
    "and p.organization_id is not null group by p.id,p.auth_user_id,p.organization_id,p.email order by p.created_at,p.id");
   const loginEnv={
     admin:["E2E_DEVICE_ADMIN_EMAIL","E2E_DEVICE_ADMIN_PASSWORD"],
+    admin_reviewer:["E2E_DEVICE_REVIEWER_ADMIN_EMAIL","E2E_DEVICE_REVIEWER_ADMIN_PASSWORD"],
     manager:["E2E_MANAGER_EMAIL","E2E_MANAGER_PASSWORD"],
     staff:["E2E_STAFF_EMAIL","E2E_STAFF_PASSWORD"],
     accountant:["E2E_ACCOUNTANT_EMAIL","E2E_ACCOUNTANT_PASSWORD"],
@@ -386,13 +388,13 @@ async function main() {
   assert.ok(managerActor,"P2 local manager login must map to its own active manager profile");
   const org=managerActor.organization_id;
   const actors=new Map();
-  for(const role of ["admin","manager","staff","accountant","customer_manager","customer"]) {
+  for(const role of ["admin","admin_reviewer","manager","staff","accountant","customer_manager","customer"]) {
     const [emailName,passwordName]=loginEnv[role];
     const email=requiredEnv(emailName).trim();
     const actor=profiles.find(p=>
       p.organization_id===org&&
       p.email?.trim().toLowerCase()===email.toLowerCase()&&
-      p.roles.includes(role));
+      p.roles.includes(role==="admin_reviewer"?"admin":role));
     assert.ok(actor,"P2 local "+role+" credentials must map to that exact role profile in the manager tenant");
     actors.set(role,actor);
     try {
