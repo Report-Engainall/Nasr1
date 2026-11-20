@@ -9,22 +9,42 @@ function requiredEnv(name) {
   return value.replace(/^"(.*)"$/s, "$1");
 }
 function asJson(value) { return typeof value === "string" ? JSON.parse(value) : value; }
+let lastSqlContext = "no SQL statement has started";
+function findUndefinedParameter(value, path = "parameter") {
+  if (value === undefined) return path;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const found = findUndefinedParameter(value[index], path + "[" + index + "]");
+      if (found) return found;
+    }
+  } else if (value && typeof value === "object" && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+    for (const [key, child] of Object.entries(value)) {
+      const found = findUndefinedParameter(child, path + "." + key);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 function guardUndefinedSqlParameters(client, label) {
   return new Proxy(client, {
     get(target, property) {
       if (property === "unsafe") {
         return (query, parameters, ...options) => {
-          if (Array.isArray(parameters)) {
-            const undefinedIndex = parameters.findIndex((value) => value === undefined);
-            if (undefinedIndex !== -1) {
-              const statement = String(query).replace(/\s+/g, " ").slice(0, 180);
-              throw new Error(
-                "UNDEFINED_SQL_PARAMETER: " + label + " argument " +
-                (undefinedIndex + 1) + " for " + statement,
-              );
-            }
+          const statement = String(query).replace(/\s+/g, " ").slice(0, 220);
+          lastSqlContext = label + ": " + statement;
+          const missing = findUndefinedParameter(parameters);
+          if (missing) {
+            throw new Error("UNDEFINED_SQL_PARAMETER: " + label + " " + missing + " for " + statement);
           }
-          return target.unsafe(query, parameters, ...options);
+          try {
+            return target.unsafe(query, parameters, ...options);
+          } catch (error) {
+            const message = String(error?.message ?? error);
+            if (message.includes("UNDEFINED_VALUE")) {
+              throw new Error(message + " while executing " + label + " SQL: " + statement);
+            }
+            throw error;
+          }
         };
       }
       const value = Reflect.get(target, property, target);
@@ -32,6 +52,7 @@ function guardUndefinedSqlParameters(client, label) {
     },
   });
 }
+
 const databaseUrl = requiredEnv("TEST_DATABASE_URL");
 const supabaseUrl = requiredEnv("E2E_SUPABASE_URL");
 const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
@@ -496,6 +517,6 @@ async function main() {
   }
 }
 main().catch((error)=>{
-  process.stderr.write("FAIL PostgreSQL 17 operating expense commitment acceptance: "+String(error?.stack??error)+"\n");
+  process.stderr.write("FAIL PostgreSQL 17 operating expense commitment acceptance: "+String(error?.stack??error)+"\nLAST_SQL_CONTEXT: "+lastSqlContext+"\n");
   process.exitCode=1;
 }).finally(()=>db.end({timeout:5}).catch(()=>{}));
