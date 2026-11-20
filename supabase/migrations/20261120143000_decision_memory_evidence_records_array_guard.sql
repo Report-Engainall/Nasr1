@@ -84,6 +84,71 @@ BEGIN
 END
 $normalize_decision_memory_evidence_records$;
 
+-- Normalize inherited payloads in the read path before any measurement branch runs.
+-- This also covers snapshots whose persisted JSON explicitly contains evidenceRecords:null.
+DO $normalize_decision_memory_snapshot_projection_array$
+DECLARE
+  v_signature regprocedure := pg_catalog.to_regprocedure(
+    'public._decision_memory_snapshot(uuid,uuid)'
+  );
+  v_before text;
+  v_after text;
+  v_old_anchor text :=
+    '    ''capturedAt'', v_captured_at,' || pg_catalog.chr(10)
+    || '    ''actualMetric'', NULL' || pg_catalog.chr(10)
+    || '  );';
+  v_new_anchor text :=
+    '    ''capturedAt'', v_captured_at,' || pg_catalog.chr(10)
+    || '    ''actualMetric'', NULL,' || pg_catalog.chr(10)
+    || '    ''evidenceRecords'',' || pg_catalog.chr(10)
+    || '    CASE' || pg_catalog.chr(10)
+    || '      WHEN pg_catalog.jsonb_typeof(v_payload->''evidenceRecords'') = ''array''' || pg_catalog.chr(10)
+    || '        THEN v_payload->''evidenceRecords''' || pg_catalog.chr(10)
+    || '      ELSE ''[]''::jsonb' || pg_catalog.chr(10)
+    || '    END' || pg_catalog.chr(10)
+    || '  );';
+  v_owner text;
+  v_security_definer boolean;
+  v_volatility "char";
+BEGIN
+  IF v_signature IS NULL THEN
+    RAISE EXCEPTION '_decision_memory_snapshot(uuid,uuid) is required';
+  END IF;
+
+  v_before := pg_catalog.pg_get_functiondef(v_signature);
+  v_after := v_before;
+
+  IF pg_catalog.strpos(v_after,v_new_anchor)=0 THEN
+    IF pg_catalog.strpos(v_after,v_old_anchor)=0 THEN
+      RAISE EXCEPTION 'snapshot payload evidenceRecords initializer was not found';
+    END IF;
+    v_after := pg_catalog.replace(v_after,v_old_anchor,v_new_anchor);
+  END IF;
+
+  IF pg_catalog.strpos(v_after,v_new_anchor)=0 THEN
+    RAISE EXCEPTION 'snapshot evidenceRecords array initializer was not installed';
+  END IF;
+
+  IF v_after IS DISTINCT FROM v_before THEN
+    EXECUTE v_after;
+  END IF;
+
+  SELECT pg_catalog.pg_get_userbyid(p.proowner),p.prosecdef,p.provolatile
+    INTO v_owner,v_security_definer,v_volatility
+    FROM pg_catalog.pg_proc AS p
+   WHERE p.oid=v_signature;
+
+  IF v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM true
+     OR v_volatility IS DISTINCT FROM 'v'::"char" THEN
+    RAISE EXCEPTION 'snapshot projection owner, security-definer, or volatility contract changed';
+  END IF;
+END
+$normalize_decision_memory_snapshot_projection_array$;
+
+COMMENT ON FUNCTION public._decision_memory_snapshot(uuid,uuid) IS
+  'Reads the latest immutable same-tenant decision-memory snapshot and source-backed measurement. The inherited evidenceRecords payload is normalized to a JSON array before any projection branch runs; source-backed records are appended only after complete same-tenant evidence resolution.';
+
 COMMENT ON FUNCTION public.save_decision_memory_snapshot(uuid,integer,jsonb,text,text) IS
   'Saves the immutable validated decision-memory payload and returns the source-backed actual metric with a guaranteed JSON-array evidenceRecords field. A JSON literal null in a prior payload is normalized to an empty array before appending resolved same-tenant evidence; source evidence must resolve completely. Existing SECURITY DEFINER owner and ACL boundary are preserved.';
 
