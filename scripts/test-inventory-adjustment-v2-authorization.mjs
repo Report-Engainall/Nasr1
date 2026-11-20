@@ -443,6 +443,35 @@ async function main() {
           "removing the test-only denial must restore the independent count-entry capability",
         );
 
+        // This first session exists only to prove count-entry and explicit-denial
+        // behavior. Close it through the real audited cancellation command before
+        // opening the independent maker/checker sessions below. The production
+        // invariant intentionally permits only one open count per warehouse.
+        const cancelledDraft = decodeJson((await tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text) as result",
+          [countSession.id, "Close the authorization-entry fixture before maker-checker acceptance"],
+        ))[0].result);
+        assert.equal(cancelledDraft.status, "cancelled");
+        const [cancelledDraftState] = await tx.unsafe(
+          "select status,cancelled_by::text,cancelled_at from public.stock_count_sessions where id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(cancelledDraftState.status, "cancelled");
+        assert.equal(cancelledDraftState.cancelled_by, actors.manager.profile_id);
+        assert.ok(cancelledDraftState.cancelled_at);
+        const [cancelledDraftMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(cancelledDraftMovements.count, 0,
+          "cancelling a draft count must not create inventory movements");
+        const [cancelledDraftAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs where action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$1::uuid",
+          [countSession.id],
+        );
+        assert.equal(cancelledDraftAudit.count, 1,
+          "the draft fixture must close through exactly one audited cancellation");
+
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.get_inventory_adjustment_balances($1::uuid)",
           [fixture.warehouse_id],
