@@ -41,7 +41,7 @@ describe('admin product catalog review and export', () => {
     expect(report.missingUnit.map((row) => row.id)).toEqual([rows[0].id]);
     expect(report.missingDescription.map((row) => row.id)).toEqual([rows[0].id]);
     expect(report.missingBasePrice?.map((row) => row.id)).toEqual([rows[0].id]);
-    expect(report.productsWithIssues.find((row) => row.id === rows[0].id)?.issues).toHaveLength(4);
+    expect(report.productsWithIssues.find((row) => row.id === rows[0].id)?.issues).toHaveLength(7);
   });
 
   it('does not interpret a hidden price projection as a missing or zero price', () => {
@@ -53,7 +53,7 @@ describe('admin product catalog review and export', () => {
   it('detects duplicate identifiers across the complete supplied catalog, case-insensitively', () => {
     const rows = [
       product({ id: '11111111-1111-4111-8111-111111111111', sku: 'same-sku' }),
-      product({ id: '22222222-2222-4222-8222-222222222222', item_code: 'P-002', sku: 'SAME-SKU' }),
+      product({ id: '22222222-2222-4222-8222-222222222222', item_code: 'P-002', sku: 'SAME-SKU', barcode: '628000000002' }),
     ];
     const report = reviewAdminProductCatalog(rows, true);
     expect(report.duplicateIdentifiers).toHaveLength(1);
