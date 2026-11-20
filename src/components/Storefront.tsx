@@ -433,6 +433,20 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     }
   }, [cartReviewIdentity, cartReviewLines, settingsLoading]);
 
+  const previousStorefrontIdentityKeyRef = useRef(storefrontIdentityKey);
+  useEffect(() => {
+    if (previousStorefrontIdentityKeyRef.current === storefrontIdentityKey) return;
+    previousStorefrontIdentityKeyRef.current = storefrontIdentityKey;
+
+    // A browser may switch accounts without unmounting StorefrontSession.
+    // Never carry cart-removal or stock-review data from the previous identity.
+    setCartActionNotice(null);
+    setPendingCartRemoval(null);
+    setRecentlyRemovedCartItems([]);
+    setCartAvailabilityChanges([]);
+    setCartPricingPreviewStatus('loading');
+  }, [storefrontIdentityKey]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
     return () => window.clearTimeout(timer);
