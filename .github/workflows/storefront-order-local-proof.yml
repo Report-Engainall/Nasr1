@@ -134,7 +134,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          local_project="$RUNNER_TEMP/storefront-order-local"
+          local_project="$RUNNER_TEMP/p2-local-supabase"
           mkdir -p "$local_project/supabase"
           cp -R supabase/. "$local_project/supabase/"
           test -f "$local_project/supabase/config.toml"
@@ -158,7 +158,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/storefront-order-local"
+          cd "$RUNNER_TEMP/p2-local-supabase"
           test "$(sed -n '1p' supabase/config.toml)" = 'project_id = "storefront-order-local"'
           registry=ghcr.io
           for attempt in 1 2 3; do
@@ -179,14 +179,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/storefront-order-local"
+          cd "$RUNNER_TEMP/p2-local-supabase"
           timeout 12m supabase db reset --local
 
       - name: Export disposable Supabase environment
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/storefront-order-local"
+          cd "$RUNNER_TEMP/p2-local-supabase"
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
@@ -268,8 +268,8 @@ jobs:
         shell: bash
         run: |
           if [ -f "$RUNNER_TEMP/storefront-order-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/storefront-order-preview.pid")" >/dev/null 2>&1 || true; fi
-          if [ -d "$RUNNER_TEMP/storefront-order-local" ]; then
-            (cd "$RUNNER_TEMP/storefront-order-local" && supabase stop --no-backup >/dev/null 2>&1) || true
+          if [ -d "$RUNNER_TEMP/p2-local-supabase" ]; then
+            (cd "$RUNNER_TEMP/p2-local-supabase" && supabase stop --no-backup >/dev/null 2>&1) || true
           fi
 
       - name: Upload order traces and proof
