@@ -188,8 +188,8 @@ async function main() {
 
     const migrationPaths = [
       "../supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql",
-      "../supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql",
-      "../supabase/migrations/20261120131000_finance_opening_balance_exact_retry.sql",
+      "../supabase/migrations/20261120151000_finance_statement_line_exact_retry_closed_statement.sql",
+      "../supabase/migrations/20261120152000_finance_opening_balance_exact_retry.sql",
     ];
     for (const relativePath of migrationPaths) {
       const migrationPath = fileURLToPath(new URL(relativePath, import.meta.url));
