@@ -750,6 +750,35 @@ async function main() {
           [makerSession.id],
         ), "an unassigned administrator cannot finalize a warehouse count");
 
+        // Preserve the proved open state and zero-write self-approval denial,
+        // then close this temporary maker fixture through the audited cancel
+        // command before the independent staff-maker session is opened.
+        await applyActor(tx, actors.manager);
+        const cancelledMaker = decodeJson((await tx.unsafe(
+          "select public.cancel_stock_count($1::uuid,$2::text) as result",
+          [makerSession.id, "Close self-approval fixture before independent maker acceptance"],
+        ))[0].result);
+        assert.equal(cancelledMaker.status, "cancelled");
+        const [cancelledMakerState] = await tx.unsafe(
+          "select status,cancelled_by::text,cancelled_at from public.stock_count_sessions where id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(cancelledMakerState.status, "cancelled");
+        assert.equal(cancelledMakerState.cancelled_by, actors.manager.profile_id);
+        assert.ok(cancelledMakerState.cancelled_at);
+        const [cancelledMakerMovements] = await tx.unsafe(
+          "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(cancelledMakerMovements.count, 0,
+          "cancelling a rejected self-approval draft must not create inventory movements");
+        const [cancelledMakerAudit] = await tx.unsafe(
+          "select count(*)::integer as count from public.audit_logs where action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$1::uuid",
+          [makerSession.id],
+        );
+        assert.equal(cancelledMakerAudit.count, 1,
+          "the maker-checker draft must close through exactly one audited cancellation");
+
         // Staff has the distinct count-entry capability. Assign the staff member
         // to this warehouse, let them make a full physical count, and have the
         // previously assigned manager approve it as the independent checker.
