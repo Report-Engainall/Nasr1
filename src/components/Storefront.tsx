@@ -2601,6 +2601,11 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
                 </div>
               ))}
             </div>
+            {!user ? (
+              <div className="sf-checkout-privacy-note" role="note">
+                سجّل الدخول أولًا؛ لن تُعرض الأسعار دون معاينة خادمية مرتبطة بحسابك.
+              </div>
+            ) : null}
             <div className="sf-checkout-trust-note" role="note">
               <Check size={15} />
               <span>لم يُرسل أي طلب بعد. تُجرى مراجعة الأسعار والخصومات المسموح بها في الخطوة التالية فقط.</span>
