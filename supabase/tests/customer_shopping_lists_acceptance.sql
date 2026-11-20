@@ -328,7 +328,11 @@ BEGIN
   END IF;
 
   -- A manual review run is blocked on stale unit conversions and on insufficient current stock.
+  v_before_cart:=public.get_customer_cart();
   v_manual_run:=public.create_customer_shopping_list_run(v_list_id);
+  IF public.get_customer_cart()->'items' IS DISTINCT FROM v_before_cart->'items' THEN
+    RAISE EXCEPTION 'manual review creation must not modify the existing cart or place an order';
+  END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.audit_logs
      WHERE action='customer.shopping_list.review_requested'
