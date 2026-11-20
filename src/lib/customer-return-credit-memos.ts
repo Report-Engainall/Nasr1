@@ -37,8 +37,6 @@ export interface ReturnCreditMemoSummary {
   reversal_journal_entry_id: string | null;
   reversal_journal_entry_number: string | null;
   reversal_journal_status: "draft" | "posted" | null;
-  reversal_created_by_profile_id: string | null;
-  reversal_posted_by_profile_id: string | null;
   reversal_created_at: string | null;
   reversal_posted_at: string | null;
   receivable_account_id: string;
@@ -130,8 +128,31 @@ export function readReturnCreditMemoQueue(value: unknown): ReturnCreditQueue {
       if (!isRecord(memoRaw)) throw new Error("ملخص الإشعار الدائن غير صالح.");
       const status = requiredText(memoRaw.status, "credit_memo.status");
       const journalStatus = requiredText(memoRaw.journal_status, "credit_memo.journal_status");
+      const reversalJournalStatus = memoRaw.reversal_journal_status === "draft" || memoRaw.reversal_journal_status === "posted"
+        ? memoRaw.reversal_journal_status : null;
+      const reversalJournalId = nullableText(memoRaw.reversal_journal_entry_id);
+      const reversalCreatedAt = nullableText(memoRaw.reversal_created_at);
+      const reversalPostedAt = nullableText(memoRaw.reversal_posted_at);
+      const reversedAt = nullableText(memoRaw.reversed_at);
+      const reversalReason = nullableText(memoRaw.reversal_reason);
       if (!["draft", "posted", "void", "reversed"].includes(status) || !["draft", "posted", "void"].includes(journalStatus)) {
         throw new Error("حالة الإشعار الدائن أو القيد غير معروفة.");
+      }
+      if (status === "reversed" &&
+          (reversalJournalStatus !== "posted" || !reversalJournalId || !reversalCreatedAt ||
+           !reversalPostedAt || !reversedAt || !reversalReason)) {
+        throw new Error("الإشعار المعكوس يفتقد دليل مسودة العكس ومراجعها المستقل وقيدها المرحّل.");
+      }
+      if (status === "posted" && reversalJournalStatus === "draft" &&
+          (!reversalJournalId || !reversalCreatedAt || reversalPostedAt || reversedAt)) {
+        throw new Error("مسودة العكس لا تحمل حالة انتظار مراجع متسقة.");
+      }
+      if (status === "posted" && reversalJournalStatus === "posted") {
+        throw new Error("قيد عكس مرحّل لا يجوز أن يبقى الإشعار المصدر بحالة مرحّل.");
+      }
+      if (status !== "posted" && status !== "reversed" &&
+          (reversalJournalStatus || reversalJournalId || reversalCreatedAt || reversalPostedAt || reversedAt || reversalReason)) {
+        throw new Error("حالة إشعار غير مرحّل تحمل بيانات عكس غير متوقعة.");
       }
       creditMemo = {
         id: requiredText(memoRaw.id, "credit_memo.id"),
@@ -148,12 +169,9 @@ export function readReturnCreditMemoQueue(value: unknown): ReturnCreditQueue {
         reversal_reason: nullableText(memoRaw.reversal_reason),
         reversal_journal_entry_id: nullableText(memoRaw.reversal_journal_entry_id),
         reversal_journal_entry_number: nullableText(memoRaw.reversal_journal_entry_number),
-        reversal_journal_status: memoRaw.reversal_journal_status === "draft" || memoRaw.reversal_journal_status === "posted"
-          ? memoRaw.reversal_journal_status : null,
-        reversal_created_by_profile_id: nullableText(memoRaw.reversal_created_by_profile_id),
-        reversal_posted_by_profile_id: nullableText(memoRaw.reversal_posted_by_profile_id),
-        reversal_created_at: nullableText(memoRaw.reversal_created_at),
-        reversal_posted_at: nullableText(memoRaw.reversal_posted_at),
+        reversal_journal_status: reversalJournalStatus,
+        reversal_created_at: reversalCreatedAt,
+        reversal_posted_at: reversalPostedAt,
         receivable_account_id: requiredText(memoRaw.receivable_account_id, "credit_memo.receivable_account_id"),
         revenue_account_id: requiredText(memoRaw.revenue_account_id, "credit_memo.revenue_account_id"),
         tax_account_id: nullableText(memoRaw.tax_account_id),
