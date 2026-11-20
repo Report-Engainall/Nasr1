@@ -953,6 +953,37 @@ function StorefrontSession({
     });
   }
 
+  function updateCatalogFilters(next: Partial<{
+    availableOnly: boolean;
+    brandId: string;
+    unit: string;
+    priceDisplayableOnly: boolean;
+  }>) {
+    const filters = {
+      availableOnly: next.availableOnly ?? availableOnly,
+      brandId: next.brandId ?? brandId,
+      unit: next.unit ?? unit,
+      priceDisplayableOnly: next.priceDisplayableOnly ?? priceDisplayableOnly,
+    };
+    setAvailableOnly(filters.availableOnly);
+    setBrandId(filters.brandId);
+    setUnit(filters.unit);
+    setPriceDisplayableOnly(filters.priceDisplayableOnly);
+    setCatalogPage(1);
+    const normalizedSearch = normalizeCatalogSearchQuery(query).trim();
+    void navigate({
+      to: '/catalog',
+      search: {
+        ...(normalizedSearch ? { q: normalizedSearch } : {}),
+        ...(activeCat ? { category: activeCat } : {}),
+        ...(filters.availableOnly ? { available: '1' as const } : {}),
+        ...(filters.brandId ? { brand: filters.brandId } : {}),
+        ...(filters.unit ? { unit: filters.unit } : {}),
+        ...(filters.priceDisplayableOnly ? { priced: '1' as const } : {}),
+      },
+    });
+  }
+
   // Never reuse a prior server page for a different search, tenant or filter set.
   // The exact matching page remains readable offline; pending/failed requests fail closed.
   const pageSnapshotMatchesCurrentFilters = Boolean(
@@ -1060,11 +1091,7 @@ function StorefrontSession({
         <div role="status" className="sf-catalog-filter-notice" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '9px 16px', color: '#174b50', background: '#eaf6f4', borderBottom: '1px solid #c8e5e0', fontSize: 12 }}>
           <span>فلتر فعّال: أصناف ذات رصيد متاح معروف أكبر من صفر.</span>
           <button type="button" aria-label="إلغاء فلتر المتوفر فقط" onClick={() => {
-            setAvailableOnly(false);
-            void navigate({ to: '/catalog', search: {
-              ...(query.trim() ? { q: query.trim() } : {}),
-              ...(activeCat ? { category: activeCat } : {}),
-            } });
+            updateCatalogFilters({ availableOnly: false });
           }} style={{ border: '1px solid #83bdb4', borderRadius: 16, padding: '4px 10px', background: '#fff', color: '#174b50', fontWeight: 800 }}>
             إظهار كل الأصناف المطابقة
           </button>
@@ -1137,6 +1164,87 @@ function StorefrontSession({
             )}
 
             <section className="sf-products">
+              {isPagedView ? (
+                <section
+                  aria-label="فلاتر الكتالوج"
+                  data-testid="storefront-catalog-filters"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'end',
+                    gap: 12,
+                    padding: '14px 16px',
+                    marginBottom: 14,
+                    border: '1px solid #dce9e8',
+                    borderRadius: 14,
+                    background: '#fbfdfc',
+                  }}
+                >
+                  <label style={{ display: 'grid', gap: 5, minWidth: 170, flex: '1 1 190px', fontSize: 12, fontWeight: 800 }}>
+                    العلامة التجارية
+                    <select
+                      aria-label="العلامة التجارية"
+                      value={brandId}
+                      disabled={!pageInfo || productsLoading}
+                      onChange={(event) => updateCatalogFilters({ brandId: event.currentTarget.value })}
+                      style={{ minHeight: 40, padding: '7px 10px', border: '1px solid #cbdcda', borderRadius: 9, background: '#fff', color: '#173f42' }}
+                    >
+                      <option value="">كل العلامات التجارية</option>
+                      {(pageInfo?.filters.brands ?? []).map((brand) => (
+                        <option key={brand.id} value={brand.id}>{brand.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: 'grid', gap: 5, minWidth: 150, flex: '1 1 170px', fontSize: 12, fontWeight: 800 }}>
+                    وحدة البيع
+                    <select
+                      aria-label="وحدة البيع"
+                      value={unit}
+                      disabled={!pageInfo || productsLoading}
+                      onChange={(event) => updateCatalogFilters({ unit: event.currentTarget.value })}
+                      style={{ minHeight: 40, padding: '7px 10px', border: '1px solid #cbdcda', borderRadius: 9, background: '#fff', color: '#173f42' }}
+                    >
+                      <option value="">كل الوحدات</option>
+                      {(pageInfo?.filters.units ?? []).map((unitOption) => (
+                        <option key={unitOption} value={unitOption}>{unitOption}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40, fontSize: 12, fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={availableOnly}
+                      disabled={!pageInfo || productsLoading}
+                      onChange={(event) => updateCatalogFilters({ availableOnly: event.currentTarget.checked })}
+                    />
+                    الأصناف المتاحة فقط
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40, fontSize: 12, fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={priceDisplayableOnly}
+                      disabled={!pageInfo || productsLoading}
+                      onChange={(event) => updateCatalogFilters({ priceDisplayableOnly: event.currentTarget.checked })}
+                    />
+                    ذات السعر المصرح بعرضه فقط
+                  </label>
+                  {(brandId || unit || availableOnly || priceDisplayableOnly) ? (
+                    <button
+                      type="button"
+                      className="sf-btn-secondary"
+                      disabled={!pageInfo || productsLoading}
+                      onClick={() => updateCatalogFilters({
+                        availableOnly: false,
+                        brandId: '',
+                        unit: '',
+                        priceDisplayableOnly: false,
+                      })}
+                    >
+                      مسح الفلاتر
+                    </button>
+                  ) : null}
+                </section>
+              ) : null}
               <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب البحث والتصنيف والفلاتر`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
