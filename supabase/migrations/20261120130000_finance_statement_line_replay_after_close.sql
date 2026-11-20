@@ -65,10 +65,6 @@ BEGIN
   SELECT count(*)::integer INTO v_line_count FROM public.finance_bank_statement_lines l
   WHERE l.organization_id=v_org AND l.statement_id=v_statement.id;
   IF v_line_count>=10000 THEN RAISE EXCEPTION USING ERRCODE='54000',MESSAGE='bank statement line limit reached'; END IF;
-  v_fingerprint:=md5(jsonb_build_object(
-    'statement',p_statement_id,'line',p_line_number,'date',p_transaction_date,'reference',p_external_reference,
-    'description',btrim(p_description),'amount',p_signed_amount
-  )::text);
   INSERT INTO public.finance_bank_statement_lines(
     organization_id,statement_id,line_number,transaction_date,external_reference,description,signed_amount,
     idempotency_key,payload_fingerprint,created_by_profile_id
