@@ -504,6 +504,16 @@ async function main() {
       const mismatchedSnapshot = decode(mismatchRows[0].result);
       assert.equal(mismatchedSnapshot?.ok, true);
       assert.equal(mismatchedSnapshot.snapshot.version, 2);
+      assert.equal(
+        mismatchedSnapshot.snapshot.expectedMetric.asOf,
+        mismatchAsOf,
+        "the saved baseline must retain the deliberately older, still-valid as-of timestamp",
+      );
+      assert.equal(
+        mismatchedSnapshot.snapshot.actualMetric.asOf,
+        asOf,
+        "the saved measured outcome must retain its original source-measurement timestamp",
+      );
       assert.notEqual(
         mismatchedSnapshot.snapshot.expectedMetric.asOf,
         mismatchedSnapshot.snapshot.actualMetric.asOf,
