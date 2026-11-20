@@ -7,10 +7,12 @@ const LEGACY_CART_RESTORE_KEY = 'aghbari:cart-restore:v1';
 
 export type OfflineCartStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
+const PROFILE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** A cart draft is identity-scoped; local storage never holds authoritative prices or order totals. */
 export function offlineCartStorageKey(profileId?: string | null, authUserId?: string | null): string {
-  const profile = profileId?.trim();
-  if (profile) return `aghbari:cart:v2:customer:${encodeURIComponent(profile)}`;
+  const profile = typeof profileId === 'string' ? profileId.trim() : '';
+  if (PROFILE_ID_PATTERN.test(profile)) return `aghbari:cart:v2:customer:${encodeURIComponent(profile)}`;
 
   const authUser = authUserId?.trim();
   return authUser
@@ -64,7 +66,8 @@ export function loadOfflineCartDraft(
   authUserId?: string | null,
 ): CartLineDraft[] {
   const key = offlineCartStorageKey(profileId, authUserId);
-  const hasProfile = Boolean(profileId?.trim());
+  const normalizedProfileId = typeof profileId === 'string' ? profileId.trim() : '';
+  const hasProfile = PROFILE_ID_PATTERN.test(normalizedProfileId);
   const isGuest = !hasProfile && !authUserId?.trim();
 
   let currentRaw: string | null;
