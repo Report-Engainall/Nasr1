@@ -10,6 +10,7 @@ import { fetchAdminCategoryProducts, type AdminCategoryProductRow } from '@/lib/
 import { buildAdminCategoryTree, filterAdminCategoryTree, getAdminCategoryAncestorIds, getAdminCategoryPath, type AdminCategoryTreeNode } from '@/lib/admin-category-tree';
 import type { Category, ProductWithInventory } from '@/lib/types';
 import { storefrontCategorySlug } from '@/lib/storefront-slugs';
+import { countPublishedProductsByCategory } from '@/lib/admin-category-published-counts';
 import { AdminCatalogChangeHistory } from '@/components/AdminCatalogChangeHistory';
 import { useAuth } from '@/lib/auth';
 
@@ -125,7 +126,7 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
     setPublishedCountsError('');
     setPublishedCounts(null);
     try {
-      const counts = new Map<string, number>();
+      const productCategoryIds: Array<string | null> = [];
       const seen = new Set<string>();
       for (let page = 1; page <= 2500; page += 1) {
         const result = await fetchAdminProductsPage({ page, status: 'active' });
@@ -135,12 +136,10 @@ export function AdminCategoryTree({ onNotice, onOpenProduct }: {
         for (const product of result.items) {
           if (seen.has(product.id)) throw new Error('تكرر منتج بين صفحات القراءة؛ تعذر تأكيد عدد المنتجات المنشورة.');
           seen.add(product.id);
-          if (typeof product.category_id === 'string' && product.category_id) {
-            counts.set(product.category_id, (counts.get(product.category_id) ?? 0) + 1);
-          }
+          productCategoryIds.push(product.category_id ?? null);
         }
         if (!result.hasNextPage) {
-          setPublishedCounts(Object.fromEntries(categories.map((category) => [category.id, counts.get(category.id) ?? 0])));
+          setPublishedCounts(countPublishedProductsByCategory(categories.map((category) => category.id), productCategoryIds));
           return;
         }
       }
