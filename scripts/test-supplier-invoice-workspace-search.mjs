@@ -46,7 +46,26 @@ async function main(){
  const page2=await rpc("select public.fetch_purchase_supplier_invoice_workspace_filtered($1::uuid,1,1,NULL::text,'all'::text) as result",[po.id]);
  assert.equal(page2.invoice_count,3);assert.equal(page2.offset,1);assert.equal(page2.has_more,true);assert.equal(page2.invoices.length,1);
  const none=await rpc("select public.fetch_purchase_supplier_invoice_workspace_filtered($1::uuid,25,0,$2::text,'all'::text) as result",[po.id,"P2-NOT-FOUND"]);assert.equal(none.invoice_count,0);assert.deepEqual(none.invoices,[]);
+ const normalizedEmpty=await rpc("select public.fetch_purchase_supplier_invoice_workspace_filtered($1::uuid,25,0,$2::text,'all'::text) as result",[po.id,"\u0640\u064B \u0640"]);assert.equal(normalizedEmpty.invoice_count,3,"search normalized to empty must behave as no filter");
  await db.unsafe("reset role");
+ const otherOrg=await db.unsafe("select id::text from public.organizations where id<>$1::uuid and is_active=true order by id limit 1",[org]);
+ assert.equal(otherOrg.length,1,"tenant-isolation fixture requires the second local organization");
+ const foreignSupplier=randomUUID(),foreignName="P2-FOREIGN-SUPPLIER-"+randomUUID().replaceAll("-","").slice(0,10).toUpperCase();
+ await db.unsafe("insert into public.suppliers(id,organization_id,supplier_code,name,status) values($1::uuid,$2::uuid,$3,$4,'active')",[foreignSupplier,otherOrg[0].id,"P2-FOREIGN-"+randomUUID().replaceAll("-","").slice(0,8).toUpperCase(),foreignName]);
+ await db.unsafe("update public.purchase_orders set supplier_id=$3::uuid where organization_id=$1::uuid and id=$2::uuid",[org,po.id,foreignSupplier]);
+ await db.unsafe("update public.purchase_supplier_invoices set supplier_id=$3::uuid where organization_id=$1::uuid and purchase_order_id=$2::uuid",[org,po.id,foreignSupplier]);
+ await identity(manager.auth_user_id,manager.email);
+ const crossTenant=await rpc("select public.fetch_purchase_supplier_invoice_workspace_filtered(NULL::uuid,25,0,NULL::text,'all'::text) as result",[]);
+ assert.deepEqual(crossTenant.purchase_orders,[],"a purchase order linked to another tenant's supplier must not appear");
+ assert.deepEqual(crossTenant.receivable_lines,[],"receivable lines linked to another tenant's supplier must not appear");
+ assert.equal(crossTenant.invoice_count,0,"the invoice count must exclude a cross-tenant supplier relationship");
+ assert.deepEqual(crossTenant.invoices,[],"invoice details and supplier names must not leak across tenants");
+ const foreignNameSearch=await rpc("select public.fetch_purchase_supplier_invoice_workspace_filtered(NULL::uuid,25,0,$1::text,'all'::text) as result",[foreignName]);
+ assert.equal(foreignNameSearch.invoice_count,0,"search by another tenant's supplier name must reveal no invoice");
+ assert.deepEqual(foreignNameSearch.invoices,[]);
+ await db.unsafe("reset role");
+ await db.unsafe("update public.purchase_supplier_invoices set supplier_id=$3::uuid where organization_id=$1::uuid and purchase_order_id=$2::uuid",[org,po.id,supplier]);
+ await db.unsafe("update public.purchase_orders set supplier_id=$3::uuid where organization_id=$1::uuid and id=$2::uuid",[org,po.id,supplier]);
  const acl=await db.unsafe("select pg_catalog.has_function_privilege('anon','public.fetch_purchase_supplier_invoice_workspace_filtered(uuid,integer,integer,text,text)'::regprocedure,'EXECUTE') as anon_allowed,pg_catalog.has_function_privilege('authenticated','public.fetch_purchase_supplier_invoice_workspace_filtered(uuid,integer,integer,text,text)'::regprocedure,'EXECUTE') as auth_allowed");
  assert.equal(acl[0].anon_allowed,false);assert.equal(acl[0].auth_allowed,true);
  await identity(customer.auth_user_id,customer.email);let denied;try{await rpc("select public.fetch_purchase_supplier_invoice_workspace_filtered(NULL::uuid,25,0,NULL::text,'all'::text) as result",[]);}catch(e){denied=e;}
