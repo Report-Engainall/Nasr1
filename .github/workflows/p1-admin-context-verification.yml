@@ -27,6 +27,9 @@ on:
       - "src/components/AdminAiGovernanceWorkspace.tsx"
       - "src/components/AdminAiGovernanceWorkspace.test.tsx"
       - "src/components/Storefront.tsx"
+      - "src/components/CartShoppingListsAccess.tsx"
+      - "src/components/CartShoppingListsAccess.test.tsx"
+      - "src/lib/customer-cart.ts"
       - "src/components/store/ProductDataQualityPanel.tsx"
       - "src/components/store/StorefrontProductOffers.tsx"
       - "src/lib/storefront-product-offers.ts"
@@ -140,7 +143,6 @@ on:
       - "src/lib/bound-idempotency-key.ts"
       - "src/lib/bound-idempotency-key.test.ts"
       - "src/components/CustomerOrders.tsx"
-      - "src/test/customer-order-detail-route-acceptance.test.tsx"
       - "src/test/customer-order-list-route-acceptance.test.tsx"
       - "src/lib/use-refresh-while-active.ts"
       - "src/lib/use-refresh-while-active.test.tsx"
@@ -360,9 +362,11 @@ on:
       - "src/lib/admin-order-progress.test.ts"
       - "src/lib/api.admin-orders-page.test.ts"
       - "src/test/admin-products-page-status-migration.test.ts"
+      - "src/test/customer-order-detail-route-acceptance.test.tsx"
   pull_request:
     branches:
       - main
+    - "src/test/customer-order-detail-route-acceptance.test.tsx"
     paths:
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
@@ -377,6 +381,9 @@ on:
       - "src/components/admin/operations/**"
       - "src/components/reference-model/observability/**"
       - "src/components/Storefront.tsx"
+      - "src/components/CartShoppingListsAccess.tsx"
+      - "src/components/CartShoppingListsAccess.test.tsx"
+      - "src/lib/customer-cart.ts"
       - "src/components/store/ProductDataQualityPanel.tsx"
       - "src/components/store/StorefrontProductOffers.tsx"
       - "src/lib/storefront-product-offers.ts"
@@ -488,7 +495,6 @@ on:
       - "src/lib/bound-idempotency-key.ts"
       - "src/lib/bound-idempotency-key.test.ts"
       - "src/components/CustomerOrders.tsx"
-      - "src/test/customer-order-detail-route-acceptance.test.tsx"
       - "supabase/migrations/20261106233100_executive_liquidity_command_center.sql"
       - "supabase/migrations/20261106310000_supplier_invoice_due_date_cashflow_outflows.sql"
       - "supabase/migrations/20261106320000_finance_cash_opening_and_bank_reconciliation.sql"
