@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
+import { ArrowRight, Copy, Download, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
@@ -515,6 +515,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const cancellationRequestKey = useRef<BoundIdempotencyKey | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const [exportFeedback, setExportFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<'success' | 'error' | null>(null);
   const templateSaveInFlightRef = useRef(false);
   const { data, loading, error, refreshError, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
@@ -642,6 +643,24 @@ function OrderInvoiceInner({ id }: { id: string }) {
       setExportFeedback({ kind: 'success', message: 'تم تجهيز كشف الطلب بصيغة Excel للتنزيل. لا يحتوي الملف على أسعار أو تكاليف أو معرفات داخلية.' });
     } catch (cause) {
       setExportFeedback({ kind: 'error', message: cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel للطلب.' });
+    }
+  }
+
+  async function copyOrderReference() {
+    setCopyFeedback(null);
+    const orderReference = printDocument.orderNumber.trim();
+    if (!orderReference) {
+      setCopyFeedback('error');
+      return;
+    }
+    try {
+      if (typeof navigator === 'undefined' || typeof navigator.clipboard?.writeText !== 'function') {
+        throw new Error('Clipboard API is unavailable');
+      }
+      await navigator.clipboard.writeText(orderReference);
+      setCopyFeedback('success');
+    } catch {
+      setCopyFeedback('error');
     }
   }
 
@@ -825,6 +844,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
         <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>
+        <button type="button" className="sf-btn-secondary" aria-label="نسخ الرقم المرجعي للطلب" onClick={() => void copyOrderReference()}><Copy size={16} /> نسخ الرقم المرجعي</button>
         <button
           type="button"
           className="sf-btn-secondary"
@@ -837,6 +857,13 @@ function OrderInvoiceInner({ id }: { id: string }) {
         <button type="button" className="sf-btn-secondary" aria-label="تنزيل كشف الطلب بصيغة Excel" onClick={exportOrderWorkbook}><Download size={16} /> تنزيل Excel</button>
         <button className="sf-btn-primary" onClick={() => window.print()}><Printer size={16} /> طباعة / حفظ PDF</button>
       </div>
+      {copyFeedback ? (
+        <p className="no-print" role="status" aria-live="polite" style={{ ...card, marginBottom: 16 }}>
+          {copyFeedback === 'success'
+            ? 'تم نسخ الرقم المرجعي للطلب.'
+            : 'تعذر النسخ التلقائي؛ حدّد الرقم المرجعي الظاهر في المستند وانسخه يدويًا.'}
+        </p>
+      ) : null}
       {exportFeedback && (
         <div className="no-print" role={exportFeedback.kind === 'error' ? 'alert' : 'status'} style={{ ...card, marginBottom: 16, borderColor: exportFeedback.kind === 'error' ? '#dfb5ad' : '#b7d9ce' }}>
           <p style={{ margin: 0 }}>{exportFeedback.message}</p>
