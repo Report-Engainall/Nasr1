@@ -21,7 +21,19 @@ import { formatProductUpdatedAt } from '@/lib/storefront-product-data-quality';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
 import { StorefrontProductQuestions } from '@/components/StorefrontProductQuestions';
-import { resolveStorefrontPricePresentation } from '@/lib/storefront-price-visibility';
+import { resolveStorefrontPricePresentation, type CustomerOrderPricingPresentation } from '@/lib/storefront-price-visibility';
+import {
+  buildCartAvailabilitySnapshot,
+  compareCartAvailabilitySnapshots,
+  compareCartPricingSnapshots,
+  getCartAvailabilitySnapshot,
+  getCartPricingSnapshot,
+  rememberCartAvailabilitySnapshot,
+  rememberCartPricingSnapshot,
+  planCartAvailabilityAdjustments,
+  type CartAvailabilityAdjustment,
+  type CartAvailabilityChange,
+} from '@/lib/cart-review-snapshot';
 import { CustomerOrderPricingPreview, type CustomerOrderPricingPreviewStatus } from '@/components/CustomerOrderPricingPreview';
 import { isCheckoutAuthorizationDenied } from '@/lib/checkout-errors';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
@@ -50,6 +62,14 @@ type ProductUnitSelection = { unit_name: string; base_units_per_unit: number; se
 type StorefrontProductsSnapshot =
   | ({ mode: 'paged'; identityKey: string; search: string; categoryId: string | null; availableOnly: boolean } & StorefrontCatalogPage)
   | { mode: 'full'; items: ProductWithInventory[]; identityKey: string; publicCacheable: boolean };
+
+function formatCartReviewAmount(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('ar-YE', { style: 'currency', currency, maximumFractionDigits: 3 }).format(amount);
+  } catch {
+    return `${formatNumber(amount)} ${currency}`;
+  }
+}
 
 function pendingCartProduct(productId: string): ProductWithInventory {
   return {
@@ -256,7 +276,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     refetch: refetchCategories,
   } = useFetch(fetchCategories);
   const { data: promotions, loading: promotionsLoading, error: promotionsError, refreshError: promotionsRefreshError, refetch: refetchPromotions } = useFetch(fetchStorefrontPromotions);
-  const { data: settings } = useFetch(fetchSettingsMap);
+  const { data: settings, loading: settingsLoading } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId, user?.id);
   const wishlistStorageKey = storefrontWishlistStorageKey(user?.profileId, user?.id);
@@ -289,6 +309,10 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, string>>({});
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [cartActionNotice, setCartActionNotice] = useState<string | null>(null);
+  const [pendingCartRemoval, setPendingCartRemoval] = useState<{ item: CartItem; index: number } | null>(null);
+  const [recentlyRemovedCartItems, setRecentlyRemovedCartItems] = useState<Array<{ item: CartItem; index: number }>>([]);
+  const [cartPricingPreviewStatus, setCartPricingPreviewStatus] = useState<CustomerOrderPricingPreviewStatus>('loading');
+  const [cartAvailabilityChanges, setCartAvailabilityChanges] = useState<CartAvailabilityChange[]>([]);
   const [mobileMenu, setMobileMenu] = useState(false);
   // Store only the selected ID. Resolve product details from the current identity-bound
   // catalog so stale tenant objects cannot survive while auth or network requests change.
@@ -342,6 +366,14 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [customerCartSyncState, setCustomerCartSyncState] = useState<'idle' | 'loading' | 'synced' | 'pending' | 'error'>('idle');
   const [customerCartRetryCount, setCustomerCartRetryCount] = useState(0);
   const persistentCartProfileId = user && !user.isStaff && Array.isArray(user.roles) && user.roles.includes('customer') ? user.profileId : '';
+  const cartReviewIdentity = useMemo(() => ({ userId: user?.id ?? null, profileId: user?.profileId ?? null }), [user?.id, user?.profileId]);
+  const cartReviewLines = useMemo(
+    () => cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id)),
+    [cart],
+  );
+  const rememberCurrentCartPricing = useCallback((presentation: CustomerOrderPricingPresentation | null) => {
+    rememberCartPricingSnapshot(cartReviewIdentity, cartReviewLines, presentation);
+  }, [cartReviewIdentity, cartReviewLines]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
@@ -607,6 +639,16 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       if (cancelled) return;
       const byId = new Map(resolvedProducts.map((product) => [product.id, product]));
       const unresolvedIds = productIds.filter((productId) => !byId.has(productId));
+      const availabilitySnapshot = buildCartAvailabilitySnapshot(productIds, resolvedProducts);
+      if (initialView === 'cart') {
+        setCartAvailabilityChanges([]);
+        rememberCartAvailabilitySnapshot(cartReviewIdentity, productIds, availabilitySnapshot);
+      } else if (initialView === 'checkout') {
+        setCartAvailabilityChanges(compareCartAvailabilitySnapshots(
+          getCartAvailabilitySnapshot(cartReviewIdentity, productIds),
+          availabilitySnapshot,
+        ));
+      }
       // Product hydration is metadata-only, not a customer mutation. Do not bump
       // cartMutationRevisionRef or the parallel remote-cart read could mistake this
       // response for a user edit and skip merging the saved server cart.
@@ -632,7 +674,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     });
 
     return () => { cancelled = true; };
-  }, [authReady, cartRestored, cartProductDetailsKey, cartProductIds, cartStorageKey, cartProductRetryCount]);
+  }, [authReady, cartRestored, cartProductDetailsKey, cartProductIds, cartStorageKey, cartProductRetryCount, initialView, cartReviewIdentity]);
 
   useEffect(() => {
     if (isPagedView) return;
@@ -775,7 +817,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       ? Number(product.order_quantity_multiple) : 1;
     const availableRaw = product.inventory?.quantity_available;
     const available = typeof availableRaw === 'number' && Number.isFinite(availableRaw)
-      ? Math.max(existingItem.quantity, Math.floor(availableRaw))
+      ? Math.max(0, Math.floor(availableRaw))
       : null;
     if (!Number.isSafeInteger(requestedQuantity) || requestedQuantity < minimum ||
         (requestedQuantity - minimum) % multiple !== 0 ||
@@ -788,7 +830,76 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       item.product.id === productId ? { ...item, quantity: requestedQuantity } : item
     ));
   }
-  function removeFromCart(productId: string) { setCart((prev) => prev.filter((i) => i.product.id !== productId)); }
+  function requestCartRemoval(productId: string) {
+    const index = cart.findIndex((item) => item.product.id === productId);
+    if (index < 0) return;
+    setPendingCartRemoval({ item: cart[index], index });
+  }
+  function confirmCartRemoval() {
+    if (!pendingCartRemoval) return;
+    const removed = pendingCartRemoval;
+    setCart((previous) => previous.filter((item) => item.product.id !== removed.item.product.id));
+    setRecentlyRemovedCartItems((current) => [...current.filter((entry) => entry.item.product.id !== removed.item.product.id), removed]);
+    setPendingCartRemoval(null);
+    setCartActionNotice(null);
+  }
+  function undoCartRemoval() {
+    if (!recentlyRemovedCartItems.length) return;
+    const present = new Set(cart.map((item) => item.product.id));
+    const toRestore = recentlyRemovedCartItems
+      .filter((entry) => !present.has(entry.item.product.id))
+      .sort((left, right) => left.index - right.index);
+    if (!toRestore.length) {
+      setCartActionNotice('الأصناف المحذوفة موجودة بالفعل في السلة؛ لم تتم إضافة نسخ مكررة.');
+      setRecentlyRemovedCartItems([]);
+      return;
+    }
+    const restored = [...cart];
+    for (const entry of toRestore) {
+      restored.splice(Math.min(entry.index, restored.length), 0, entry.item);
+    }
+    setCart(restored);
+    setRecentlyRemovedCartItems([]);
+    setCartActionNotice('تمت استعادة الأصناف المحذوفة إلى السلة ومزامنة التغييرات.');
+  }
+
+  function applyCartAvailabilityChanges(adjustments: readonly CartAvailabilityAdjustment[]): { applied: boolean; message: string } {
+    const blocked = adjustments.filter((adjustment) => adjustment.action === 'blocked');
+    if (blocked.length) {
+      return {
+        applied: false,
+        message: 'لم يؤكد الخادم كمية متاحة لبعض الأصناف. ارجع إلى السلة وأعد تحميل بيانات المخزون؛ لم نغيّر أي كمية.',
+      };
+    }
+
+    const byProductId = new Map(adjustments.map((adjustment) => [adjustment.product_id.toLowerCase(), adjustment]));
+    const removed: Array<{ item: CartItem; index: number }> = [];
+    const updatedCart: CartItem[] = [];
+    cart.forEach((item, index) => {
+      const adjustment = byProductId.get(item.product.id.toLowerCase());
+      if (!adjustment || adjustment.action === 'keep') {
+        updatedCart.push(item);
+      } else if (adjustment.action === 'reduce' && adjustment.next_quantity !== null) {
+        updatedCart.push({ ...item, quantity: adjustment.next_quantity });
+      } else if (adjustment.action === 'remove') {
+        removed.push({ item, index });
+      }
+    });
+
+    setCart(updatedCart);
+    if (removed.length) {
+      setRecentlyRemovedCartItems((current) => [
+        ...current.filter((entry) => !removed.some((removedEntry) => removedEntry.item.product.id === entry.item.product.id)),
+        ...removed,
+      ]);
+    }
+    setCartAvailabilityChanges([]);
+    setCartActionNotice('تم تطبيق كميات الخادم الحالية على السلة. راجع الأصناف والفاتورة المحدثة قبل اعتماد الطلب.');
+    return {
+      applied: true,
+      message: 'طُبقت تعديلات التوفر على السلة وفق استجابة الخادم. راجع الكميات والفاتورة المحدثة ثم أكد الطلب من جديد.',
+    };
+  }
   function addMatrixSelection() {
     const selected = filtered.flatMap((product) => {
       const raw = matrixQuantities[product.id] ?? '';
@@ -1126,6 +1237,25 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         ) : (
           <section className="sf-cart-page">
             <h2>سلة المشتريات</h2>
+            {pendingCartRemoval && (
+              <div role="alertdialog" aria-modal="true" aria-labelledby="cart-remove-title" style={{ margin: '12px 0', padding: 14, border: '1px solid #e2b8a9', borderRadius: 12, background: '#fff8f5', color: '#6f382c' }}>
+                <strong id="cart-remove-title">تأكيد حذف الصنف</strong>
+                <p style={{ margin: '6px 0 12px' }}>هل تريد إزالة «{pendingCartRemoval.item.product.name}» بكمية {formatNumber(pendingCartRemoval.item.quantity)} {pendingCartRemoval.item.product.unit} من السلة؟ يمكنك استعادته بعد الحذف.</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="sf-btn-primary" onClick={confirmCartRemoval}>تأكيد الحذف</button>
+                  <button type="button" className="sf-btn-secondary" onClick={() => setPendingCartRemoval(null)}>إلغاء</button>
+                </div>
+              </div>
+            )}
+            {recentlyRemovedCartItems.length > 0 && (
+              <div role="status" aria-live="polite" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d6e7dc', background: '#f4faf6', color: '#24583e' }}>
+                <span>يمكن استعادة: {recentlyRemovedCartItems.map((entry) => entry.item.product.name).join('، ')}.</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="sf-btn-secondary" onClick={undoCartRemoval}>تراجع واستعادة الأصناف</button>
+                  <button type="button" className="sf-link" onClick={() => setRecentlyRemovedCartItems([])}>إغلاق</button>
+                </div>
+              </div>
+            )}
             {persistentCartProfileId && (
               <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d8e6e8', background: '#f7fafb', color: '#344b52', fontSize: 12 }}>
                 <span>{describeCustomerCartSyncState(customerCartSyncState, isOnline)}</span>
@@ -1138,7 +1268,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                 )}
               </div>
             )}
-            {!cart.length ? <div className="sf-empty"><ShoppingCart size={30} /><span>سلتك فارغة</span><button className="sf-link" onClick={() => void navigate({ to: '/' })}>تصفح المنتجات</button></div> :
+            {!cart.length ? <div className="sf-empty"><ShoppingCart size={30} /><span>سلتك فارغة</span><p>ابدأ بإضافة أصناف من الكتالوج، أو أعد استخدام قائمة مشتريات محفوظة.</p><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>تصفح المنتجات</button><Link className="sf-btn-secondary" to="/reorder">استعادة قائمة مشتريات محفوظة</Link></div></div> :
             !cartProductDetailsLoaded ? (
               <div className="sf-empty" role={cartProductDetailsState.error ? 'alert' : 'status'}>
                 <span>{cartProductDetailsState.error ?? 'جار استعادة تفاصيل أصناف سلتك...'}</span>
@@ -1163,6 +1293,11 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                         <div>
                           <strong>{unavailable ? 'صنف غير متاح حاليًا' : item.product.name}</strong>
                           <span>{unavailable ? <>معرّف الصنف المحفوظ: <bdi>{item.product.id.slice(0, 8)}</bdi></> : `الوحدة: ${item.product.unit}`}</span>
+                          {!unavailable && <small style={{ display: 'block', marginTop: 4, color: typeof item.product.inventory?.quantity_available === 'number' && item.quantity > item.product.inventory.quantity_available ? '#a52b2b' : '#647b78' }}>
+                            {typeof item.product.inventory?.quantity_available === 'number'
+                              ? `المتاح الآن: ${formatNumber(Math.max(0, item.product.inventory.quantity_available))} ${item.product.unit}${item.quantity > item.product.inventory.quantity_available ? ' — الكمية المطلوبة تتجاوز المتاح' : ''}`
+                              : 'المخزون الحالي غير مؤكد؛ سيُعاد التحقق منه على الخادم قبل الإرسال.'}
+                          </small>}
                         </div>
                       </div>
                       {unavailable ? (
@@ -1177,7 +1312,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                           onCommit={(quantity) => setCartQuantity(item.product.id, quantity)}
                         />
                       )}
-                      <button className="sf-cart-remove" aria-label={`حذف ${unavailable ? 'الصنف غير المتاح' : item.product.name} من السلة`} onClick={() => removeFromCart(item.product.id)}><Trash2 size={16} /></button>
+                      <button className="sf-cart-remove" aria-label={`حذف ${unavailable ? 'الصنف غير المتاح' : item.product.name} من السلة`} onClick={() => requestCartRemoval(item.product.id)}><Trash2 size={16} /></button>
                     </div>
                   );
                 })}
@@ -1188,12 +1323,15 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                   policyValue={settings?.show_price_in_cart}
                   surface="cart"
                   title="ملخص أسعار السلة"
+                  onStatusChange={setCartPricingPreviewStatus}
+                  onPresentationChange={rememberCurrentCartPricing}
                 />
               ) : null}
               {settings?.show_price_in_cart !== true && <div role="note" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>سيُراجع الطلب ويُعتمد من جهة الإدارة. إظهار الأسعار والإجماليات معطّل في إعدادات المتجر لهذه الشاشة.</div>}
+              {settingsLoading && <p role="status" className="sf-checkout-hint">جار تحميل سياسات عرض الأسعار قبل الانتقال إلى الدفع...</p>}
               <div className="sf-cart-actions">
                 <button className="sf-btn-secondary" onClick={() => void navigate({ to: '/' })}>متابعة التسوق</button>
-                <button className="sf-btn-primary" disabled={!cartProductDetailsReady} onClick={() => void navigate({ to: '/checkout' })}>إتمام الطلب <ChevronLeft size={16} /></button>
+                <button className="sf-btn-primary" disabled={!cartProductDetailsReady || settingsLoading || (settings?.show_price_in_cart === true && cartPricingPreviewStatus !== 'ready' && cartPricingPreviewStatus !== 'hidden')} onClick={() => void navigate({ to: '/checkout' })}>إتمام الطلب <ChevronLeft size={16} /></button>
               </div>
             </>
             )}
@@ -1208,7 +1346,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           </div></section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
-        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
+        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} availabilityChanges={cartAvailabilityChanges} recentlyRemovedCartItems={recentlyRemovedCartItems} onUndoCartRemoval={undoCartRemoval} onApplyAvailabilityChanges={applyCartAvailabilityChanges} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
           // A committed order must become a durable route, not transient checkout component state.
           // Replace checkout so browser Back cannot reopen a completed submission form.
           setCart([]);
@@ -1959,7 +2097,7 @@ function readStoredCheckoutAttempt(profileId: string | undefined): StoredCheckou
   }
 }
 
-function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
+function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, recentlyRemovedCartItems, onUndoCartRemoval, onApplyAvailabilityChanges, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; availabilityChanges: readonly CartAvailabilityChange[]; recentlyRemovedCartItems: readonly { item: CartItem; index: number }[]; onUndoCartRemoval: () => void; onApplyAvailabilityChanges: (adjustments: readonly CartAvailabilityAdjustment[]) => { applied: boolean; message: string }; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
   const { user } = useAuth();
   const isStaffOnly = Boolean(user?.isStaff && !user.roles?.includes('customer'));
   const [name, setName] = useState(user?.name ?? '');
@@ -1988,6 +2126,35 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     () => cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id)),
     [cart],
   );
+  const cartPricingBaseline = useMemo(
+    () => getCartPricingSnapshot({ userId: user?.id ?? null, profileId: user?.profileId ?? null }, checkoutItems),
+    [user?.id, user?.profileId, checkoutItems],
+  );
+  const [checkoutPricingPresentation, setCheckoutPricingPresentation] = useState<CustomerOrderPricingPresentation | null>(null);
+  const priceChanges = useMemo(
+    () => compareCartPricingSnapshots(cartPricingBaseline, checkoutPricingPresentation),
+    [cartPricingBaseline, checkoutPricingPresentation],
+  );
+  const availabilityAdjustments = useMemo(() => planCartAvailabilityAdjustments(
+    checkoutItems,
+    availabilityChanges,
+    cart.map((item) => ({
+      product_id: item.product.id,
+      min_order_quantity: item.product.min_order_quantity,
+      order_quantity_multiple: item.product.order_quantity_multiple,
+    })),
+  ), [checkoutItems, availabilityChanges, cart]);
+  const hasBlockedAvailabilityAdjustment = availabilityAdjustments.some((adjustment) => adjustment.action === 'blocked');
+  const priceChangesSignature = JSON.stringify(priceChanges);
+  const availabilityChangesSignature = JSON.stringify(availabilityChanges);
+  const [priceChangesAccepted, setPriceChangesAccepted] = useState(false);
+  const [availabilityChangesAccepted, setAvailabilityChangesAccepted] = useState(false);
+  const [stockUpdateNotice, setStockUpdateNotice] = useState('');
+  const handleCheckoutPricingPresentation = useCallback((presentation: CustomerOrderPricingPresentation | null) => {
+    setCheckoutPricingPresentation(presentation);
+  }, []);
+  useEffect(() => { setPriceChangesAccepted(false); }, [priceChangesSignature]);
+  useEffect(() => { setAvailabilityChangesAccepted(false); }, [availabilityChangesSignature]);
   const idempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const submitInFlightRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2125,8 +2292,14 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
 
   async function submit() {
     // A request may only be sent from the explicit review stage after the final confirmation.
-    if (checkoutStage !== 'review' || !finalConfirmationAccepted) {
-      setError('راجع مستند الطلب ثم فعّل التأكيد النهائي قبل الإرسال.');
+    if (checkoutStage !== 'review' || !finalConfirmationAccepted ||
+        (priceChanges.length > 0 && !priceChangesAccepted) ||
+        availabilityChanges.length > 0) {
+      setError(priceChanges.length > 0 && !priceChangesAccepted
+        ? 'راجع فروق الأسعار الحالية ووافق عليها صراحةً قبل الإرسال.'
+        : availabilityChanges.length > 0
+          ? 'طبّق تعديلات التوفر التي أعادها الخادم على السلة، ثم راجع الطلب من جديد قبل الإرسال.'
+          : 'راجع مستند الطلب ثم فعّل التأكيد النهائي قبل الإرسال.');
       return;
     }
     // Button disabled state updates after React commits; guard the same-tick duplicate event too.
@@ -2461,6 +2634,92 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
                 </div>
               ) : null}
 
+              {availabilityChanges.length > 0 && (
+                <section className="sf-checkout-card no-print" aria-label="تغيرات توفر الأصناف">
+                  <div className="sf-checkout-section-head"><span className="sf-checkout-section-number">!</span><div><h3>تغير التوفر منذ عرض السلة</h3><p>أُعيد جلب المخزون الحالي من الخادم عند فتح الدفع.</p></div></div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {availabilityChanges.map((change) => {
+                      const current = change.current_available === null ? 'غير مؤكد' : formatNumber(change.current_available);
+                      const previous = change.previous_available === null ? 'غير مؤكد' : formatNumber(change.previous_available);
+                      const label = change.kind === 'unavailable' ? 'أصبح الصنف غير متاح'
+                        : change.kind === 'restored' ? 'أصبح الصنف متاحًا مجددًا'
+                          : change.kind === 'reduced' ? 'انخفضت الكمية المتاحة'
+                            : change.kind === 'increased' ? 'ارتفعت الكمية المتاحة' : 'تغيرت حالة بيانات المخزون';
+                      const adjustment = availabilityAdjustments.find((item) => item.product_id.toLowerCase() === change.product_id);
+                      const suggested = adjustment?.action === 'reduce'
+                        ? `الكمية المقترحة بعد موافقتك: ${formatNumber(adjustment.next_quantity ?? 0)}`
+                        : adjustment?.action === 'remove'
+                          ? 'لا يفي المتاح بالحد الأدنى؛ سيُحذف الصنف بعد موافقتك ويمكن استعادته.'
+                          : adjustment?.action === 'blocked'
+                            ? 'لا توجد كمية مؤكدة؛ يلزم إعادة تحميل المخزون يدويًا.'
+                            : 'الكمية الحالية ضمن المتاح.';
+                      return <div key={change.product_id} style={{ display: 'grid', gap: 4, borderBottom: '1px solid #e7eeee', paddingBottom: 7 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                          <strong>{cart.find((item) => item.product.id.toLowerCase() === change.product_id)?.product.name ?? 'صنف من السلة'} — {label}</strong>
+                          <span>المتاح السابق: {previous} · الحالي: {current}</span>
+                        </div>
+                        <small>{suggested}</small>
+                      </div>;
+                    })}
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, lineHeight: 1.8, fontWeight: 750 }}>
+                    <input type="checkbox" checked={availabilityChangesAccepted} disabled={submitting || ambiguousSubmit} onChange={(event) => setAvailabilityChangesAccepted(event.target.checked)} style={{ marginTop: 6 }} />
+                    أوافق على تحديث السلة وفق الكميات المتاحة التي أعادها الخادم، بما في ذلك خفض الكميات أو إزالة الأصناف غير المتاحة.
+                  </label>
+                  <div className="sf-checkout-actions" style={{ marginTop: 12 }}>
+                    {hasBlockedAvailabilityAdjustment ? (
+                      <button type="button" className="sf-btn-secondary" onClick={onBack}>العودة إلى السلة لإعادة تحميل المخزون</button>
+                    ) : (
+                      <button type="button" className="sf-btn-primary" disabled={!availabilityChangesAccepted || submitting || ambiguousSubmit} onClick={() => {
+                        const result = onApplyAvailabilityChanges(availabilityAdjustments);
+                        if (!result.applied) {
+                          setError(result.message);
+                          return;
+                        }
+                        setError('');
+                        setStockUpdateNotice(result.message);
+                        setAvailabilityChangesAccepted(false);
+                        setFinalConfirmationAccepted(false);
+                      }}>تطبيق تعديلات الخادم على السلة</button>
+                    )}
+                  </div>
+                </section>
+              )}
+              {recentlyRemovedCartItems.length > 0 && (
+                <section className="sf-checkout-card no-print" aria-label="الأصناف التي أزيلت من السلة">
+                  <div className="sf-checkout-section-head">
+                    <span className="sf-checkout-section-number">↶</span>
+                    <div><h3>أصناف أُزيلت من السلة</h3><p>أزيلت بسبب عدم التوفر أو عدم بلوغ الحد الأدنى للطلب. يمكنك استعادتها، وسيعاد التحقق من مخزونها قبل الإرسال.</p></div>
+                  </div>
+                  <ul style={{ margin: 0, paddingInlineStart: 22, lineHeight: 1.9 }}>
+                    {recentlyRemovedCartItems.map((entry) => (
+                      <li key={entry.item.product.id}>{entry.item.product.name} — {formatNumber(entry.item.quantity)} {entry.item.product.unit}</li>
+                    ))}
+                  </ul>
+                  <button type="button" className="sf-btn-secondary" style={{ marginTop: 12 }} onClick={onUndoCartRemoval}>
+                    استعادة الأصناف المحذوفة وإعادة فحص التوفر
+                  </button>
+                </section>
+              )}
+              {priceChanges.length > 0 && (
+                <section className="sf-checkout-card no-print" aria-label="تغيرات الأسعار">
+                  <div className="sf-checkout-section-head"><span className="sf-checkout-section-number">!</span><div><h3>تغيرت الأسعار أو شروط العروض</h3><p>مقارنة بين معاينة السلة ومعاينة الدفع من الخادم. لا يُستخدم أي سعر مخزن محليًا.</p></div></div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {priceChanges.map((change) => (
+                      <div key={change.product_id} style={{ display: 'grid', gap: 3, borderBottom: '1px solid #e7eeee', paddingBottom: 8 }}>
+                        <strong>{change.name} × {formatNumber(change.quantity)}</strong>
+                        {change.previous_quantity !== change.quantity && <small>الكمية السابقة: {formatNumber(change.previous_quantity)} · الحالية: {formatNumber(change.quantity)}</small>}
+                        <span>السعر السابق للوحدة: {formatCartReviewAmount(change.previous_unit_price, change.previous_currency)}</span>
+                        <span>السعر الحالي للوحدة: {formatCartReviewAmount(change.current_unit_price, change.current_currency)} · {change.kind === 'currency' ? 'تغيير العملة' : change.kind === 'increase' ? 'زيادة' : change.kind === 'decrease' ? 'انخفاض' : 'تغير شروط العرض'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, lineHeight: 1.8, fontWeight: 750 }}>
+                    <input type="checkbox" checked={priceChangesAccepted} disabled={submitting || ambiguousSubmit} onChange={(event) => setPriceChangesAccepted(event.target.checked)} style={{ marginTop: 6 }} />
+                    راجعت فروق الأسعار وشروط العروض الحالية التي أعادها الخادم، وأوافق عليها قبل إرسال الطلب.
+                  </label>
+                </section>
+              )}
               <section className="sf-checkout-card no-print">
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, lineHeight: 1.8, fontWeight: 800 }}>
                   <input
@@ -2485,7 +2744,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
                     className="sf-btn-primary"
                     type="button"
                     onClick={() => void submit()}
-                    disabled={submitting || previewLoading || !cartValidation || pricePreviewPending || !finalConfirmationAccepted}
+                    disabled={submitting || previewLoading || !cartValidation || pricePreviewPending || !finalConfirmationAccepted || (priceChanges.length > 0 && !priceChangesAccepted) || availabilityChanges.length > 0}
                   >
                     {submitting
                       ? 'جارٍ إرسال الطلب...'
@@ -2512,6 +2771,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
                   {previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق من السلة</button>
                 </div>
               ) : null}
+              {stockUpdateNotice ? <div className="sf-checkout-trust-note" role="status" aria-live="polite">{stockUpdateNotice}</div> : null}
               {error ? <div className="sf-checkout-feedback sf-checkout-feedback-error" role="alert" aria-live="assertive">{error}</div> : null}
               {ambiguousSubmit ? (
                 <div className="sf-checkout-feedback sf-checkout-feedback-warning" role="status">
@@ -2555,6 +2815,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
               surface="orders"
               title="معاينة الأسعار المعتمدة قبل الإرسال"
               onStatusChange={setPricingPreviewStatus}
+              onPresentationChange={handleCheckoutPricingPresentation}
             />
             {priceVisibilityPolicy !== true ? (
               <div className="sf-checkout-privacy-note" role="note">
