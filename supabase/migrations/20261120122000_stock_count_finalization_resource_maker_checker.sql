@@ -1,8 +1,6 @@
--- Resolve stock-count finalization authorization using the exact warehouse
--- snapshot, then enforce a reviewer independent from the session maker before
--- entering the existing inventory adjustment transaction.
--- All stale-snapshot locks, reservation guards, movements and audit writes below
--- are retained unchanged from the current command implementation.
+-- Resolve stock-count finalization through the exact warehouse-scoped
+-- maker-checker capability while restoring the full balance-set and concurrency
+-- protections from the previously accepted stock-count finalizer.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.complete_stock_count(p_session_id uuid)
@@ -23,8 +21,8 @@ BEGIN
  IF NOT FOUND OR v_session.status<>'open' THEN
   RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='stock count is not open';
  END IF;
- -- Finalization is a warehouse-scoped maker-checker command. Resolve the
- -- session before authorization so the decision uses the exact warehouse.
+ -- Finalization is warehouse-scoped; resolve the saved session before checking
+ -- the reviewer's active grant and assignment for this exact warehouse.
  v_finalize_decision:=public.current_authorization_decision(
   'inventory.count.finalize',v_session.warehouse_id
  );
@@ -34,6 +32,57 @@ BEGIN
   RAISE EXCEPTION USING ERRCODE='42501',
    MESSAGE='stock-count finalization requires an assigned independent maker-checker reviewer';
  END IF;
+ -- Hold the warehouse against transfer/return/Onyx balance writers during the atomic finalization.
+ -- Purchase receiving uses a matching advisory lock because that writer may create a balance row.
+ PERFORM 1 FROM public.warehouses w
+  WHERE w.id=v_session.warehouse_id AND w.organization_id=v_org AND w.is_active
+  FOR UPDATE;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='stock-count warehouse is unavailable in this organization';
+ END IF;
+ PERFORM pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended(v_org::text||':purchase-receiving-warehouse:'||v_session.warehouse_id::text,0)
+ );
+ -- Other balance writers, including transfers, do not all acquire the purchase-receiving advisory key.
+ -- Take the table lock before locking individual balance rows so no writer can insert a new
+ -- product/warehouse balance between the snapshot-set check and the final adjustments.
+ -- Stock counts are infrequent; correctness requires a consistent balance set for this transaction.
+ LOCK TABLE public.inventory_balances IN EXCLUSIVE MODE;
+ -- Lock existing balance rows in stable order before comparing the snapshot set.
+ PERFORM 1
+  FROM public.products p
+  JOIN public.inventory_balances ib ON ib.product_id=p.id
+  WHERE p.organization_id=v_org AND p.status='active' AND ib.warehouse_id=v_session.warehouse_id
+  ORDER BY p.id
+  FOR SHARE OF ib;
+ -- New active balances (for example a receipt posted after the count started) invalidate
+ -- the snapshot. Also fail closed if a captured product/balance is no longer active/present.
+ IF EXISTS (
+  SELECT 1
+   FROM public.products p
+   JOIN public.inventory_balances ib ON ib.product_id=p.id
+   WHERE p.organization_id=v_org AND p.status='active'
+     AND ib.warehouse_id=v_session.warehouse_id
+     AND NOT EXISTS (
+      SELECT 1 FROM public.stock_count_lines l
+       WHERE l.session_id=v_session.id AND l.organization_id=v_org AND l.product_id=p.id
+     )
+ ) OR EXISTS (
+  SELECT 1
+   FROM public.stock_count_lines l
+   WHERE l.session_id=v_session.id AND l.organization_id=v_org
+     AND NOT EXISTS (
+      SELECT 1
+       FROM public.products p
+       JOIN public.inventory_balances ib ON ib.product_id=p.id
+       WHERE p.id=l.product_id AND p.organization_id=v_org AND p.status='active'
+         AND ib.warehouse_id=v_session.warehouse_id
+     )
+ ) THEN
+  RAISE EXCEPTION USING ERRCODE='40001',
+   MESSAGE='inventory balance set changed after the count snapshot; cancel this session and start a new count';
+ END IF;
+
  SELECT pg_catalog.count(*)::integer,pg_catalog.count(l.counted_quantity)::integer INTO v_line_count,v_counted_lines
   FROM public.stock_count_lines l WHERE l.session_id=v_session.id;
  IF v_line_count=0 OR v_counted_lines<>v_line_count OR v_session.counted_lines<>v_session.total_lines THEN
@@ -71,10 +120,9 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.complete_stock_count(uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.complete_stock_count(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.complete_stock_count(uuid) TO authenticated;
-
 COMMENT ON FUNCTION public.complete_stock_count(uuid) IS
-  'Atomically finalizes a warehouse-scoped stock-count snapshot only through an independently assigned maker-checker reviewer; preserves stale-snapshot rejection, reservation safety, movement history and audit.';
+ 'Atomically finalizes a warehouse-scoped stock-count snapshot only through an independently assigned maker-checker reviewer; locks stock writers and the complete balance set, rejects stale snapshots/reservation conflicts, and persists movements and audit.';
 
 COMMIT;
