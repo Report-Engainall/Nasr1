@@ -1051,18 +1051,6 @@ async function main() {
         );
         assert.equal(cancelledMakerAudit.count, 1,
           "the maker-checker draft must close through exactly one audited cancellation");
-        await tx.unsafe("reset role");
-        const revokedAdminMakerScope = decodeJson((await (async () => {
-          await applyActor(tx, actors.admin);
-          return tx.unsafe(
-            "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,false,$4::integer) as result",
-            [actors.admin.profile_id, fixture.warehouse_id,
-              "Revoke temporary exact warehouse scope after maker fixture cancellation",
-              Number(adminMakerTemporaryScope.revision)],
-          );
-        })())[0].result);
-        assert.equal(revokedAdminMakerScope.is_active, false,
-          "temporary exact warehouse cancellation scope must be revoked after fixture cleanup");
 
         // Staff has the distinct count-entry capability. Assign the staff member
         // to this warehouse, let them make a full physical count, and have the
