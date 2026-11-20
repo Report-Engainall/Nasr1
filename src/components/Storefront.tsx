@@ -37,6 +37,7 @@ import {
 } from '@/lib/cart-review-snapshot';
 import { CustomerOrderPricingPreview, type CustomerOrderPricingPreviewStatus } from '@/components/CustomerOrderPricingPreview';
 import { isCheckoutAuthorizationDenied } from '@/lib/checkout-errors';
+import { persistCheckoutAttempt as verifyPersistedCheckoutAttempt } from '@/lib/checkout-attempt-storage';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
 import { loadOfflineCartDraft, offlineCartStorageKey, saveOfflineCartDraft } from '@/lib/offline-cart';
 import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
@@ -2269,15 +2270,32 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, recentlyRe
     return true;
   }
 
+  function persistAttemptBeforeSend(attempt: StoredCheckoutAttempt): boolean {
+    const storageKey = checkoutAttemptStorageKey(user?.profileId);
+    if (!storageKey || typeof window === 'undefined') return false;
+    try {
+      return verifyPersistedCheckoutAttempt(window.sessionStorage, storageKey, attempt);
+    } catch {
+      return false;
+    }
+  }
+
   function getIdempotencyKey(): string | null {
     const signature = checkoutSignature();
     const activeAttempt = idempotencyRef.current;
     if (activeAttempt) {
-      if (activeAttempt.signature === signature) return activeAttempt.key;
-      setRecoveringAttempt(true);
-      setError('هناك طلب سابق لم تصل نتيجة تأكيده. لا يمكن إرسال بيانات مختلفة قبل حسم المحاولة السابقة؛ أعد إدخال بياناتها نفسها ثم أعد المحاولة.');
-      return null;
+      if (activeAttempt.signature !== signature) {
+        setRecoveringAttempt(true);
+        setError('هناك طلب سابق لم تصل نتيجة تأكيده. لا يمكن إرسال بيانات مختلفة قبل حسم المحاولة السابقة؛ أعد إدخال بياناتها نفسها ثم أعد المحاولة.');
+        return null;
+      }
+      if (!persistAttemptBeforeSend(activeAttempt)) {
+        setError('تعذر حفظ مفتاح محاولة الطلب والتحقق منه في تخزين الجلسة؛ لم يُرسل الطلب. فعّل تخزين الجلسة ثم أعد المحاولة، أو افتح طلباتي للتحقق من أي طلب سابق.');
+        return null;
+      }
+      return activeAttempt.key;
     }
+
     const saved = readStoredCheckoutAttempt(user?.profileId);
     if (saved) {
       if (saved.signature !== signature) {
@@ -2285,17 +2303,25 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, recentlyRe
         setError('توجد محاولة طلب محفوظة لم تصل نتيجة تأكيدها. أدخل بيانات الطلب السابق نفسها لإعادة المحاولة الآمنة؛ لن ننشئ طلبًا جديدًا ببيانات مختلفة.');
         return null;
       }
+      if (!persistAttemptBeforeSend(saved)) {
+        setError('تعذر التحقق من مفتاح المحاولة المحفوظ؛ لم يُعد إرسال الطلب. افتح طلباتي للتحقق من الطلب السابق قبل أي محاولة جديدة.');
+        return null;
+      }
       idempotencyRef.current = saved;
       setRecoveringAttempt(false);
       setAmbiguousSubmit(true);
       return saved.key;
     }
+
     const key = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : 'checkout_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
-    idempotencyRef.current = { signature, key };
-    const storageKey = checkoutAttemptStorageKey(user?.profileId);
-    try { if (storageKey) window.sessionStorage.setItem(storageKey, JSON.stringify({ signature, key })); } catch { /* in-page ref still protects retries when session storage is unavailable */ }
+    const attempt = { signature, key };
+    if (!persistAttemptBeforeSend(attempt)) {
+      setError('تعذر حفظ مفتاح محاولة الطلب والتحقق منه في تخزين الجلسة؛ لم يُرسل الطلب. اسمح بتخزين الجلسة في المتصفح ثم أعد المحاولة.');
+      return null;
+    }
+    idempotencyRef.current = attempt;
     return key;
   }
 
