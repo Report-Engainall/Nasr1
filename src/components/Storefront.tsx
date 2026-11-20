@@ -1346,7 +1346,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           </div></section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
-        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} availabilityChanges={cartAvailabilityChanges} onApplyAvailabilityChanges={applyCartAvailabilityChanges} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
+        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} availabilityChanges={cartAvailabilityChanges} recentlyRemovedCartItems={recentlyRemovedCartItems} onUndoCartRemoval={undoCartRemoval} onApplyAvailabilityChanges={applyCartAvailabilityChanges} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
           // A committed order must become a durable route, not transient checkout component state.
           // Replace checkout so browser Back cannot reopen a completed submission form.
           setCart([]);
@@ -2097,7 +2097,7 @@ function readStoredCheckoutAttempt(profileId: string | undefined): StoredCheckou
   }
 }
 
-function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAvailabilityChanges, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; availabilityChanges: readonly CartAvailabilityChange[]; onApplyAvailabilityChanges: (adjustments: readonly CartAvailabilityAdjustment[]) => { applied: boolean; message: string }; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
+function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, recentlyRemovedCartItems, onUndoCartRemoval, onApplyAvailabilityChanges, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; availabilityChanges: readonly CartAvailabilityChange[]; recentlyRemovedCartItems: readonly { item: CartItem; index: number }[]; onUndoCartRemoval: () => void; onApplyAvailabilityChanges: (adjustments: readonly CartAvailabilityAdjustment[]) => { applied: boolean; message: string }; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
   const { user } = useAuth();
   const isStaffOnly = Boolean(user?.isStaff && !user.roles?.includes('customer'));
   const [name, setName] = useState(user?.name ?? '');
@@ -2683,6 +2683,22 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAva
                       }}>تطبيق تعديلات الخادم على السلة</button>
                     )}
                   </div>
+                </section>
+              )}
+              {recentlyRemovedCartItems.length > 0 && (
+                <section className="sf-checkout-card no-print" aria-label="الأصناف التي أزيلت من السلة">
+                  <div className="sf-checkout-section-head">
+                    <span className="sf-checkout-section-number">↶</span>
+                    <div><h3>أصناف أُزيلت من السلة</h3><p>أزيلت بسبب عدم التوفر أو عدم بلوغ الحد الأدنى للطلب. يمكنك استعادتها، وسيعاد التحقق من مخزونها قبل الإرسال.</p></div>
+                  </div>
+                  <ul style={{ margin: 0, paddingInlineStart: 22, lineHeight: 1.9 }}>
+                    {recentlyRemovedCartItems.map((entry) => (
+                      <li key={entry.item.product.id}>{entry.item.product.name} — {formatNumber(entry.item.quantity)} {entry.item.product.unit}</li>
+                    ))}
+                  </ul>
+                  <button type="button" className="sf-btn-secondary" style={{ marginTop: 12 }} onClick={onUndoCartRemoval}>
+                    استعادة الأصناف المحذوفة وإعادة فحص التوفر
+                  </button>
                 </section>
               )}
               {priceChanges.length > 0 && (
