@@ -3,10 +3,11 @@
  * Never infer the kind from a mutable UI selection or from report_type: both product
  * and customer profiles are tabular.
  */
-export type OnyxSnapshotImportKind = "products" | "customers";
+export type OnyxSnapshotImportKind = "products" | "customers" | "product_units";
 
 export function resolveOnyxSnapshotImportKind(jobType: unknown): OnyxSnapshotImportKind | null {
   if (jobType === "unified_import_customers") return "customers";
   if (jobType === "unified_import_products" || jobType === "unified_import") return "products";
+  if (jobType === "product_units") return "product_units";
   return null;
 }
