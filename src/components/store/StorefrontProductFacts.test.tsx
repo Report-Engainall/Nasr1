@@ -75,6 +75,20 @@ describe("storefront product facts presentation", () => {
     expect(mockedFetch).toHaveBeenCalledWith(productId);
   });
 
+  it("does not render recommendation images that contain private access tokens", async () => {
+    mockedFetch.mockResolvedValue({
+      ...approvedFacts,
+      alternatives: [{
+        ...approvedFacts.alternatives[0],
+        image_url: "https://cdn.example.test/alternative.webp?token=private-token",
+      }],
+    });
+    const { container } = render(<StorefrontProductFacts productId={productId} onOpenProduct={vi.fn()} />);
+
+    expect(await screen.findByText("منتج بديل")).toBeInTheDocument();
+    expect(container.querySelector("img")).toBeNull();
+  });
+
   it("shows explicit unavailable states instead of inferring unverified product facts", async () => {
     mockedFetch.mockResolvedValue({
       productId,
