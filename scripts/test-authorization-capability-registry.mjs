@@ -773,22 +773,46 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   assert.deepEqual(warehouseBAuditAfter[0],warehouseBAuditBefore[0],
     "cross-warehouse completion denial must not add a completion audit");
 
-  // This open B-session exists only to prove cross-warehouse denial. Remove the
-  // disposable fixture after every assertion so later PostgreSQL acceptance
-  // scripts can independently select the same warehouse and exercise session
-  // creation without colliding with a leaked open-count row.
-  const removedStaffFixture = await db.unsafe(
-    "delete from public.stock_count_sessions where id=$1::uuid returning id::text",
+  // A stock-count snapshot is immutable history. Close the isolated fixture
+  // through the real authorized cancellation RPC instead of deleting its
+  // session/lines and violating the append-only history boundary.
+  await ensureWarehouseAssignment(admin,unassignedWarehouse,
+    "P2 cancellation fixture cleanup requires the assigned independent admin reviewer");
+  const cancellationRows=await withActor(db,admin,tx=>tx.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text) as result",
+    [staffSession.id,"Accepted isolated P2 cross-warehouse fixture cleanup"]
+  ));
+  const cancellationResult=typeof cancellationRows[0].result==="string"
+    ? JSON.parse(cancellationRows[0].result) : cancellationRows[0].result;
+  assert.equal(cancellationResult.status,"cancelled",
+    "the independent assigned administrator must close the test snapshot through the real cancellation RPC");
+  const cancelledFixture=await db.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid",
     [staffSession.id]
   );
-  assert.deepEqual(removedStaffFixture, [{ id: staffSession.id }],
-    "the cross-warehouse stock-count fixture must be removed after its denial proofs");
-  const remainingStaffFixtureLines = await db.unsafe(
+  assert.deepEqual(cancelledFixture[0],{
+    status:"cancelled",cancelled_by:admin.profile_id,
+    cancellation_reason:"Accepted isolated P2 cross-warehouse fixture cleanup"
+  },"cancellation must preserve a permanent, attributed session history");
+  const retainedFixtureLines=await db.unsafe(
     "select count(*)::integer as count from public.stock_count_lines where session_id=$1::uuid",
     [staffSession.id]
   );
-  assert.equal(remainingStaffFixtureLines[0].count, 0,
-    "deleting the disposable session must cascade its snapshot lines");
+  assert.equal(retainedFixtureLines[0].count,staffLines.length,
+    "cancelling a stock count must retain its immutable snapshot lines");
+  const cancellationAudits=await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [org,staffSession.id]
+  );
+  assert.equal(cancellationAudits[0].count,1,
+    "the authorized cancellation must write exactly one audit event");
+  const cancellationMovements=await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [staffSession.id]
+  );
+  assert.equal(cancellationMovements[0].count,0,
+    "cancelling an unfinished draft must not create stock movements");
 
   await assert.rejects(
     ()=>withActorAsServiceRole(db,manager,tx=>tx.unsafe(
