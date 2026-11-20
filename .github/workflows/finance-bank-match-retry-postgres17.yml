@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "supabase/migrations/20261117250000_finance_bank_match_exact_retry.sql"
+      - "supabase/migrations/20261120130000_finance_statement_line_exact_retry_closed_statement.sql"
       - "scripts/test-finance-bank-match-retry.mjs"
       - ".github/workflows/finance-bank-match-retry-postgres17.yml"
   push:
