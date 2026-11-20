@@ -439,6 +439,17 @@ async function main() {
         ))[0].result);
         assert.equal(restoredCountEntryDenial.changed, true);
         await applyActor(tx, actors.manager);
+        const restoredCountEntryPermission = await tx.unsafe(
+          "select public.current_actor_has_capability('inventory.count.enter',$1::uuid) as allowed",
+          [fixture.warehouse_id],
+        );
+        assert.equal(restoredCountEntryPermission[0].allowed, true,
+          "the authenticated manager must regain count-entry for the exact assigned warehouse");
+
+        // Registry tables deliberately revoke direct SELECT from authenticated.
+        // Capture internal diagnostic fields only after RESET ROLE; the actual
+        // permission assertion above remains under the real manager JWT/session.
+        await tx.unsafe("reset role");
         const restoredCountEntryDiagnostics = await tx.unsafe(
           "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as current_profile_id, " +
           "(select d.is_active from public.authorization_profile_denials d where d.organization_id=$1::uuid and d.profile_id=$2::uuid and d.capability_key='inventory.count.enter') as denial_is_active, " +
@@ -457,9 +468,10 @@ async function main() {
         assert.equal(
           restoredCountEntry.allowed,
           true,
-          "removing the test-only denial must restore count-entry for the exact assigned warehouse: " +
+          "privileged diagnostics must still resolve the same manager authorization decision: " +
             JSON.stringify(restoredCountEntry),
         );
+        await applyActor(tx, actors.manager);
 
         await expectSqlState(tx, "42501", () => tx.unsafe(
           "select public.get_inventory_adjustment_balances($1::uuid)",
