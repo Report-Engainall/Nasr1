@@ -510,7 +510,31 @@ const manager=actors.get("manager"),admin=actors.get("admin");
   await ensureWarehouseAssignment(staff,targetWarehouse,"P2 stock-count role-grant proof for staff on warehouse A");
   await ensureWarehouseAssignment(staff,unassignedWarehouse,"P2 stock-count trigger proof for staff on warehouse B");
   await ensureWarehouseAssignment(accountant,targetWarehouse,"P2 stock-count non-granted accountant proof");
-  await ensureWarehouseAssignment(customer,targetWarehouse,"P2 stock-count non-granted customer proof");
+  const customerWarehouseScopeBefore=await db.unsafe(
+    "select id::text,is_active from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+    [org,customer.profile_id,targetWarehouse]
+  );
+  assert.equal(customerWarehouseScopeBefore.length,0,
+    "customer identity must not begin with an internal warehouse assignment");
+  await assert.rejects(
+    withActor(db,admin,tx=>tx.unsafe(
+      "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
+      [customer.profile_id,targetWarehouse,"P2 customer must be denied internal warehouse scope"]
+    )),
+    (error)=>{
+      assert.equal(String(error?.code),"42501",
+        "the database scope boundary must reject warehouse assignment to a customer identity");
+      assert.match(String(error?.message??error),/customer accounts cannot receive internal warehouse or assigned-customer staff scopes/,
+        "the independent customer/staff account boundary must be the rejection source");
+      return true;
+    }
+  );
+  const customerWarehouseScopeAfter=await db.unsafe(
+    "select id::text,is_active from public.authorization_profile_scopes where organization_id=$1::uuid and profile_id=$2::uuid and scope_kind='warehouse' and warehouse_id=$3::uuid",
+    [org,customer.profile_id,targetWarehouse]
+  );
+  assert.deepEqual(customerWarehouseScopeAfter,customerWarehouseScopeBefore,
+    "a rejected customer assignment must not create or alter any internal warehouse scope");
   for(const actor of [accountant,customer]) {
     assert.equal(actor.roles.some(role=>["admin","manager","staff"].includes(role)),false,
       "accountant/customer test identity must not contain an operational stock-count role");
