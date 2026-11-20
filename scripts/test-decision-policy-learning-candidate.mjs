@@ -286,6 +286,7 @@ async function main() {
         "from public.decision_outcomes o where o.id=$1::uuid and o.organization_id=$3::uuid",
         [outcomeId, invoiceId, manager.organization_id, periodFrom, periodTo],
       );
+      process.stdout.write("Decision source projection diagnostic: " + JSON.stringify(sourceDiagnostics[0] ?? null) + "\\n");
       assert.equal(sourceDiagnostics.length, 1, "the measured decision must retain its same-tenant source row");
       assert.equal(sourceDiagnostics[0].has_measured_outcome, true,
         "the terminal MEASURE event must persist a structured outcome");
