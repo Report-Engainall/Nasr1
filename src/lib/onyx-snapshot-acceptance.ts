@@ -1,4 +1,4 @@
-export type OnyxStagedSnapshotKind = "inventory" | "product_units";
+export type OnyxStagedSnapshotKind = "products" | "customers" | "inventory" | "product_units";
 
 /**
  * ProductUnits snapshots may contain review-only metadata warnings; the
