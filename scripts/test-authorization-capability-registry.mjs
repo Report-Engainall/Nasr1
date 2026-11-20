@@ -198,6 +198,32 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    assert.notEqual(completedA[0].started_by,completedA[0].completed_by,
     "the persisted finalizer must be different from the session maker");
 
+   const cancelDraftStart=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [assignedWarehouseId,"authz-cancel-A-"+randomUUID().replaceAll("-",""),"PG17 assigned warehouse A cancellation"]
+   ));
+   const cancelDraft=decodeJson(cancelDraftStart[0]?.result);
+   assert.ok(cancelDraft?.id,"the assigned manager must create a second draft for cancellation acceptance");
+   const cancelResult=await withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text) as result",
+    [cancelDraft.id,"Physical recount is no longer required"]
+   ));
+   assert.equal(decodeJson(cancelResult[0]?.result)?.status,"cancelled",
+    "the assigned manager must cancel an open draft in warehouse A");
+   const cancelledSession=await tx.unsafe(
+    "select status,cancelled_by::text,cancellation_reason from public.stock_count_sessions where id=$1::uuid and organization_id=$2::uuid",
+    [cancelDraft.id,organizationId]
+   );
+   assert.equal(cancelledSession[0].status,"cancelled");
+   assert.equal(cancelledSession[0].cancelled_by,manager.profile_id);
+   assert.equal(cancelledSession[0].cancellation_reason,"Physical recount is no longer required");
+   const cancelAudit=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [organizationId,cancelDraft.id]
+   );
+   assert.equal(cancelAudit[0].count,1,"an accepted draft cancellation must append exactly one audit event");
+
    const grantB=await withActorOnTransaction(tx,admin,tx=>tx.unsafe(
     "select public.set_authorization_profile_scope($1::uuid,'warehouse',$2::uuid,$3::text,NULL::timestamptz,true,0) as result",
     [manager.profile_id,unassignedWarehouseId,"P2 temporary B assignment for revoke-and-deny acceptance"]
@@ -262,6 +288,11 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
     "and action='inventory.stock_count.line_counted' and entity_type='stock_count_line' and entity_id=$2::uuid",
     [organizationId,lineB.id]
    );
+   const cancelAuditBefore=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
    const balanceBefore=await tx.unsafe(
     "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
     [lineB.product_id,unassignedWarehouseId]
@@ -289,6 +320,25 @@ async function assertStockCountWarehouseScope(db,actors,organizationId,assignedW
    );
    assert.equal(lineCountAfter[0].count,lineCountBefore[0].count,
     "the rejected B line write must not add, remove, or duplicate draft lines");
+   await expectSqlStateInTransaction(tx,"42501",()=>withActorOnTransaction(tx,manager,tx=>tx.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text)",
+    [sessionB.id,"must be denied after B assignment revocation"]
+   )),"manager cannot cancel a stock-count draft after B assignment revocation");
+   const sessionBAfterCancelAttempt=await tx.unsafe(
+    "select status,cancelled_by::text from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(sessionBAfterCancelAttempt[0].status,"open",
+    "a denied B cancellation must leave the stock-count session open and unchanged");
+   assert.equal(sessionBAfterCancelAttempt[0].cancelled_by,null,
+    "a denied B cancellation must not write a cancellation identity");
+   const cancelAuditAfter=await tx.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+    "and action='inventory.stock_count.cancelled' and entity_type='stock_count_session' and entity_id=$2::uuid",
+    [organizationId,sessionB.id]
+   );
+   assert.equal(cancelAuditAfter[0].count,cancelAuditBefore[0].count,
+    "a denied B cancellation must not append an audit event");
    const balanceAfter=await tx.unsafe(
     "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
     [lineB.product_id,unassignedWarehouseId]
