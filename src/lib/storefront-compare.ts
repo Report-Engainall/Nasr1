@@ -9,7 +9,7 @@ type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
 /**
  * Keep anonymous compare choices compatible with the existing guest key while
- * isolating authenticated customers by verified profile id. The browser cache is
+ * isolating authenticated users by verified profile id or auth identity. The browser cache is
  * convenience state only: product data is always resolved from the live catalog.
  */
 export function storefrontCompareStorageKey(profileId?: string | null, authUserId?: string | null): string {
