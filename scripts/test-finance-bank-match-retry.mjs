@@ -301,6 +301,27 @@ async function main() {
       signedAmount: "725.00",
       idempotencyKey: randomUUID(),
     };
+    await expectSqlState(
+      actorRecordBankStatementLine(db, actor, true, {
+        ...recordInput,
+        signedAmount: "725.001",
+        idempotencyKey: randomUUID(),
+      }),
+      "22023",
+      "the server must reject bank-line amounts beyond two decimals instead of allowing numeric(18,2) to round them",
+    );
+    const rejectedPrecisionLines = await db.unsafe(
+      "select count(*)::integer as count from public.finance_bank_statement_lines where organization_id=$1::uuid and statement_id=$2::uuid",
+      [organizationId, recordStatementId],
+    );
+    assert.equal(rejectedPrecisionLines[0].count, 0,
+      "a rejected over-precision bank amount must not create a statement line");
+    const rejectedPrecisionAudits = await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='finance.bank_statement_line_recorded'",
+      [organizationId],
+    );
+    assert.equal(rejectedPrecisionAudits[0].count, 0,
+      "a rejected over-precision bank amount must not create an audit event");
     const firstRecorded = await actorRecordBankStatementLine(db, actor, true, recordInput);
     assert.equal(firstRecorded.replayed, false, "the first bank-line request must create a new row");
     assert.ok(firstRecorded.line_id, "the first bank-line request must return its persisted line identity");

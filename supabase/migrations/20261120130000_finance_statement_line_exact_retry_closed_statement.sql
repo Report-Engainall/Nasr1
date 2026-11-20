@@ -36,6 +36,7 @@ BEGIN
      OR p_description IS NULL OR char_length(btrim(p_description)) NOT BETWEEN 2 AND 500
      OR p_external_reference IS NOT NULL AND char_length(p_external_reference)>160
      OR p_signed_amount IS NULL OR p_signed_amount=0
+     OR p_signed_amount<>pg_catalog.trunc(p_signed_amount,2)
      OR p_signed_amount<=-10000000000000000 OR p_signed_amount>=10000000000000000
      OR p_idempotency_key IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='bank statement line is invalid';
