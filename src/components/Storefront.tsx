@@ -30,6 +30,8 @@ import {
   getCartPricingSnapshot,
   rememberCartAvailabilitySnapshot,
   rememberCartPricingSnapshot,
+  planCartAvailabilityAdjustments,
+  type CartAvailabilityAdjustment,
   type CartAvailabilityChange,
 } from '@/lib/cart-review-snapshot';
 import { CustomerOrderPricingPreview, type CustomerOrderPricingPreviewStatus } from '@/components/CustomerOrderPricingPreview';
@@ -308,7 +310,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [cartActionNotice, setCartActionNotice] = useState<string | null>(null);
   const [pendingCartRemoval, setPendingCartRemoval] = useState<{ item: CartItem; index: number } | null>(null);
-  const [recentlyRemovedCartItem, setRecentlyRemovedCartItem] = useState<{ item: CartItem; index: number } | null>(null);
+  const [recentlyRemovedCartItems, setRecentlyRemovedCartItems] = useState<Array<{ item: CartItem; index: number }>>([]);
   const [cartPricingPreviewStatus, setCartPricingPreviewStatus] = useState<CustomerOrderPricingPreviewStatus>('loading');
   const [cartAvailabilityChanges, setCartAvailabilityChanges] = useState<CartAvailabilityChange[]>([]);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -837,22 +839,66 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     if (!pendingCartRemoval) return;
     const removed = pendingCartRemoval;
     setCart((previous) => previous.filter((item) => item.product.id !== removed.item.product.id));
-    setRecentlyRemovedCartItem(removed);
+    setRecentlyRemovedCartItems((current) => [...current.filter((entry) => entry.item.product.id !== removed.item.product.id), removed]);
     setPendingCartRemoval(null);
     setCartActionNotice(null);
   }
   function undoCartRemoval() {
-    if (!recentlyRemovedCartItem) return;
-    if (cart.some((item) => item.product.id === recentlyRemovedCartItem.item.product.id)) {
-      setCartActionNotice('الصنف موجود بالفعل في السلة؛ لم تتم إضافة نسخة مكررة.');
-      setRecentlyRemovedCartItem(null);
+    if (!recentlyRemovedCartItems.length) return;
+    const present = new Set(cart.map((item) => item.product.id));
+    const toRestore = recentlyRemovedCartItems
+      .filter((entry) => !present.has(entry.item.product.id))
+      .sort((left, right) => left.index - right.index);
+    if (!toRestore.length) {
+      setCartActionNotice('الأصناف المحذوفة موجودة بالفعل في السلة؛ لم تتم إضافة نسخ مكررة.');
+      setRecentlyRemovedCartItems([]);
       return;
     }
     const restored = [...cart];
-    restored.splice(Math.min(recentlyRemovedCartItem.index, restored.length), 0, recentlyRemovedCartItem.item);
+    for (const entry of toRestore) {
+      restored.splice(Math.min(entry.index, restored.length), 0, entry.item);
+    }
     setCart(restored);
-    setRecentlyRemovedCartItem(null);
-    setCartActionNotice('تمت استعادة الصنف إلى السلة ومزامنة التغيير.');
+    setRecentlyRemovedCartItems([]);
+    setCartActionNotice('تمت استعادة الأصناف المحذوفة إلى السلة ومزامنة التغييرات.');
+  }
+
+  function applyCartAvailabilityChanges(adjustments: readonly CartAvailabilityAdjustment[]): { applied: boolean; message: string } {
+    const blocked = adjustments.filter((adjustment) => adjustment.action === 'blocked');
+    if (blocked.length) {
+      return {
+        applied: false,
+        message: 'لم يؤكد الخادم كمية متاحة لبعض الأصناف. ارجع إلى السلة وأعد تحميل بيانات المخزون؛ لم نغيّر أي كمية.',
+      };
+    }
+
+    const byProductId = new Map(adjustments.map((adjustment) => [adjustment.product_id.toLowerCase(), adjustment]));
+    const removed: Array<{ item: CartItem; index: number }> = [];
+    const updatedCart: CartItem[] = [];
+    cart.forEach((item, index) => {
+      const adjustment = byProductId.get(item.product.id.toLowerCase());
+      if (!adjustment || adjustment.action === 'keep') {
+        updatedCart.push(item);
+      } else if (adjustment.action === 'reduce' && adjustment.next_quantity !== null) {
+        updatedCart.push({ ...item, quantity: adjustment.next_quantity });
+      } else if (adjustment.action === 'remove') {
+        removed.push({ item, index });
+      }
+    });
+
+    setCart(updatedCart);
+    if (removed.length) {
+      setRecentlyRemovedCartItems((current) => [
+        ...current.filter((entry) => !removed.some((removedEntry) => removedEntry.item.product.id === entry.item.product.id)),
+        ...removed,
+      ]);
+    }
+    setCartAvailabilityChanges([]);
+    setCartActionNotice('تم تطبيق كميات الخادم الحالية على السلة. راجع الأصناف والفاتورة المحدثة قبل اعتماد الطلب.');
+    return {
+      applied: true,
+      message: 'طُبقت تعديلات التوفر على السلة وفق استجابة الخادم. راجع الكميات والفاتورة المحدثة ثم أكد الطلب من جديد.',
+    };
   }
   function addMatrixSelection() {
     const selected = filtered.flatMap((product) => {
@@ -1201,12 +1247,12 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
                 </div>
               </div>
             )}
-            {recentlyRemovedCartItem && (
+            {recentlyRemovedCartItems.length > 0 && (
               <div role="status" aria-live="polite" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d6e7dc', background: '#f4faf6', color: '#24583e' }}>
-                <span>تم حذف «{recentlyRemovedCartItem.item.product.name}» من السلة.</span>
+                <span>يمكن استعادة: {recentlyRemovedCartItems.map((entry) => entry.item.product.name).join('، ')}.</span>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="sf-btn-secondary" onClick={undoCartRemoval}>تراجع واستعادة الصنف</button>
-                  <button type="button" className="sf-link" onClick={() => setRecentlyRemovedCartItem(null)}>إغلاق</button>
+                  <button type="button" className="sf-btn-secondary" onClick={undoCartRemoval}>تراجع واستعادة الأصناف</button>
+                  <button type="button" className="sf-link" onClick={() => setRecentlyRemovedCartItems([])}>إغلاق</button>
                 </div>
               </div>
             )}
@@ -1300,7 +1346,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           </div></section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
-        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} availabilityChanges={cartAvailabilityChanges} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
+        ) : <Checkout cart={cart} priceVisibilityPolicy={settings?.show_price_in_orders} availabilityChanges={cartAvailabilityChanges} onApplyAvailabilityChanges={applyCartAvailabilityChanges} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => {
           // A committed order must become a durable route, not transient checkout component state.
           // Replace checkout so browser Back cannot reopen a completed submission form.
           setCart([]);
@@ -2051,7 +2097,7 @@ function readStoredCheckoutAttempt(profileId: string | undefined): StoredCheckou
   }
 }
 
-function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; availabilityChanges: readonly CartAvailabilityChange[]; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
+function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onApplyAvailabilityChanges, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; availabilityChanges: readonly CartAvailabilityChange[]; onApplyAvailabilityChanges: (adjustments: readonly CartAvailabilityAdjustment[]) => { applied: boolean; message: string }; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
   const { user } = useAuth();
   const isStaffOnly = Boolean(user?.isStaff && !user.roles?.includes('customer'));
   const [name, setName] = useState(user?.name ?? '');
@@ -2089,6 +2135,16 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onBack, on
     () => compareCartPricingSnapshots(cartPricingBaseline, checkoutPricingPresentation),
     [cartPricingBaseline, checkoutPricingPresentation],
   );
+  const availabilityAdjustments = useMemo(() => planCartAvailabilityAdjustments(
+    checkoutItems,
+    availabilityChanges,
+    cart.map((item) => ({
+      product_id: item.product.id,
+      min_order_quantity: item.product.min_order_quantity,
+      order_quantity_multiple: item.product.order_quantity_multiple,
+    })),
+  ), [checkoutItems, availabilityChanges, cart]);
+  const hasBlockedAvailabilityAdjustment = availabilityAdjustments.some((adjustment) => adjustment.action === 'blocked');
   const priceChangesSignature = JSON.stringify(priceChanges);
   const availabilityChangesSignature = JSON.stringify(availabilityChanges);
   const [priceChangesAccepted, setPriceChangesAccepted] = useState(false);
@@ -2588,16 +2644,41 @@ function Checkout({ cart, priceVisibilityPolicy, availabilityChanges, onBack, on
                         : change.kind === 'restored' ? 'أصبح الصنف متاحًا مجددًا'
                           : change.kind === 'reduced' ? 'انخفضت الكمية المتاحة'
                             : change.kind === 'increased' ? 'ارتفعت الكمية المتاحة' : 'تغيرت حالة بيانات المخزون';
-                      return <div key={change.product_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderBottom: '1px solid #e7eeee', paddingBottom: 7 }}>
-                        <strong>{cart.find((item) => item.product.id.toLowerCase() === change.product_id)?.product.name ?? 'صنف من السلة'} — {label}</strong>
-                        <span>المتاح السابق: {previous} · الحالي: {current}</span>
+                      const adjustment = availabilityAdjustments.find((item) => item.product_id.toLowerCase() === change.product_id);
+                      const suggested = adjustment?.action === 'reduce'
+                        ? `الكمية المقترحة بعد موافقتك: ${formatNumber(adjustment.next_quantity ?? 0)}`
+                        : adjustment?.action === 'remove'
+                          ? 'لا يفي المتاح بالحد الأدنى؛ سيُحذف الصنف بعد موافقتك ويمكن استعادته.'
+                          : adjustment?.action === 'blocked'
+                            ? 'لا توجد كمية مؤكدة؛ يلزم إعادة تحميل المخزون يدويًا.'
+                            : 'الكمية الحالية ضمن المتاح.';
+                      return <div key={change.product_id} style={{ display: 'grid', gap: 4, borderBottom: '1px solid #e7eeee', paddingBottom: 7 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                          <strong>{cart.find((item) => item.product.id.toLowerCase() === change.product_id)?.product.name ?? 'صنف من السلة'} — {label}</strong>
+                          <span>المتاح السابق: {previous} · الحالي: {current}</span>
+                        </div>
+                        <small>{suggested}</small>
                       </div>;
                     })}
                   </div>
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, lineHeight: 1.8, fontWeight: 750 }}>
                     <input type="checkbox" checked={availabilityChangesAccepted} disabled={submitting || ambiguousSubmit} onChange={(event) => setAvailabilityChangesAccepted(event.target.checked)} style={{ marginTop: 6 }} />
-                    راجعت الكميات المتاحة بعد تحديث الخادم، وأوافق على متابعة الطلب وفق التوفر الحالي.
+                    أوافق على تحديث السلة وفق الكميات المتاحة التي أعادها الخادم، بما في ذلك خفض الكميات أو إزالة الأصناف غير المتاحة.
                   </label>
+                  <div className="sf-checkout-actions" style={{ marginTop: 12 }}>
+                    {hasBlockedAvailabilityAdjustment ? (
+                      <button type="button" className="sf-btn-secondary" onClick={onBack}>العودة إلى السلة لإعادة تحميل المخزون</button>
+                    ) : (
+                      <button type="button" className="sf-btn-primary" disabled={!availabilityChangesAccepted || submitting || ambiguousSubmit} onClick={() => {
+                        const result = onApplyAvailabilityChanges(availabilityAdjustments);
+                        setError(result.message);
+                        if (result.applied) {
+                          setAvailabilityChangesAccepted(false);
+                          setFinalConfirmationAccepted(false);
+                        }
+                      }}>تطبيق تعديلات الخادم على السلة</button>
+                    )}
+                  </div>
                 </section>
               )}
               {priceChanges.length > 0 && (
