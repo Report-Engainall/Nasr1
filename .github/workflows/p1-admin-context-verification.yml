@@ -368,8 +368,8 @@ on:
   pull_request:
     branches:
       - main
-    - "src/test/customer-order-detail-route-acceptance.test.tsx"
     paths:
+      - "src/test/customer-order-detail-route-acceptance.test.tsx"
       - "src/lib/product-image-upload-handler.test.ts"
       - "supabase/functions/_shared/**"
       - "supabase/functions/product-image-upload/index.ts"
