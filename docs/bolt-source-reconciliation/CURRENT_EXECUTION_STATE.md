@@ -1,53 +1,58 @@
 # LIVE EXECUTION RESUME — 2026-11-20
 
-> Sole live pointer. Resume from the unaccepted P2 security/migration gate below. Historical sections after the marker remain unchanged reference evidence.
+> Sole live pointer. Continue from the current P2 transaction/security gate. Historical sections after the marker remain unchanged reference evidence.
 
-- Repository: Report-Engainall/Nasr1. Sole truth branch: main.
-- Live main HEAD observed before this pointer refresh: 1b26ae317662378e70eb4b9c2a573677a8c4a0be. The two commits after 1f5401cca7dff09f4f54a77cab5ec046a5b5ed06 are documentation-only (this pointer and the acceptance matrix); no application source changed on main after the tested #564 merge.
-- Last accepted feature merge: PR #564 at 1f5401cca7dff09f4f54a77cab5ec046a5b5ed06. No feature PR was merged during the current session.
-- Owners: P1 product/integration and sole merger; P2 PostgreSQL/RPC/migrations/transactions/inventory/finance/Onyx; P3 intelligence/BI/forecast.
-- No production/hosted Supabase mutation, live external integration write, deployment, Vercel action, Bolt, Lovable or paid AI was used.
+- Repository: `Report-Engainall/Nasr1`; only truth branch: `main`.
+- Current main HEAD: `0213eec123f818ecc1abafd3e3229472e3f26457`.
+- Latest accepted feature merge: PR #572, merged as `0213eec123f818ecc1abafd3e3229472e3f26457`.
+- Owners: P1 product/integration and sole merger; P2 PostgreSQL/RPC/migrations/transactions/inventory/finance/Onyx; P3 deterministic intelligence/BI/forecast.
+- No production/hosted Supabase mutation, deployment, Vercel action, Bolt/Lovable action or paid AI usage was performed.
 
-## Latest accepted merge and exact evidence
+## Latest accepted P3 integration — PR #572
 
-- PR #564 — P1 observability view binding regression; merge SHA 1f5401cca7dff09f4f54a77cab5ec046a5b5ed06; exact PR-head P1 run 44636195570 SUCCESS (Vitest, P1/P4 strict TypeScript, build).
-- Post-merge P1 run 44636641964 on exact main SHA 1f5401cca7dff09f4f54a77cab5ec046a5b5ed06: SUCCESS.
-- Post-merge P2 run 44636641956 on that same SHA: FAILURE. Public read-only UI smoke and authenticated-infrastructure gate succeeded; hosted customer/order/tenant job 135956795618 was SKIPPED; local Supabase order/tenant job 135958406917 failed during full migration replay because public.authorization_capabilities did not exist (SQLSTATE 42P01) while applying 20261116112000_inventory_adjustment_authorization_v2.sql. This is not a full order/tenant acceptance.
-- The dedicated inventory transfer replay-scope PG17 proof from PR #560 remains a narrow structural PASS; it does not supersede full local migration, authenticated transaction or tenant-isolation acceptance.
+- PR #572 — deterministic intelligence and financial precision integration; exact PR head `f5bebb5a3f0fe34ee4bdbc073a050f36e41439d7`; merged squash SHA `0213eec123f818ecc1abafd3e3229472e3f26457`.
+- Integrated unique work from #568, #569 and #571 without duplicate workflow paths:
+  - Process bottleneck engine rejects completion evidence after snapshot `asOf`, and avoids a misleading empty-comparison caveat; 13 deterministic regressions.
+  - Cashflow forecast restores 12 exact-cent/currency/as-of/completeness regressions; partial source evidence and missing opening balance never fabricate a closing projection.
+  - Shift cash restores 5 integer-cent engine regressions and 3 client RPC boundary regressions, including pre-RPC sub-cent/unsafe-value rejection and one-cent variance classification.
+  - The P1 workflow now covers these source/test files under both push and pull-request filters.
+- Exact PR-head P1 run 44652294633: SUCCESS — Vitest, P1 strict TypeScript, P4 strict TypeScript and production build.
+- Exact PR-head P2 run 44652294661: public read-only Storefront browser smoke SUCCESS; authenticated infrastructure gate SUCCESS; hosted customer/order/tenant job 136009929336 SKIPPED. This P3 change contains no SQL/RPC/RLS/role/data writes; no authenticated DB runtime acceptance is claimed.
+- Source PRs #568, #569 and #571 are closed as superseded after all unique work was moved into #572; their branches were not deleted.
 
-## Current blocking PR — #563
+## Current blocking P2 integration — PR #565
 
-- PR #563 — fix(p2): integrate Authorization V2, stock-count and decision PostgreSQL 17 acceptance.
-- Current PR head: 96dc7335298d355b31c3ecaff04ca417dd6f0a58; branch fix/p2-integrated-auth-decision-postgres17-20261120; base main. Compared with live main 1b26ae317662378e70eb4b9c2a573677a8c4a0be, the PR is 15 commits ahead and 7 behind (merge base 8bca69d98099a4e2910a476a9fb92b9dabc968c7); do not merge in this state.
-- P1 run 44638829602 on exact head 96dc733: SUCCESS.
-- Dedicated PostgreSQL 17 run 44638829592, job 135964258175: FAILURE. Full migration replay stops at supabase/migrations/20261116111500_authorization_capability_registry_prerequisites.sql with syntax error at or near "domain" (SQLSTATE 42601). The seed now says ON CONFLICT(capability_key) DO NOTHING but still contains dangling DO UPDATE assignments after it.
-- P2 run 44638829636 on exact head 96dc733: FAILURE. Public UI smoke and authenticated-infrastructure gate succeeded; hosted customer/order/tenant job 135964309833 was SKIPPED; local Supabase order/tenant job 135965338777 failed with the same SQLSTATE 42601 migration error. Therefore order, tenant and downstream DB/browser acceptance steps did not run.
-- The new 20261120120000_decision_memory_snapshot_read_your_writes.sql changes _decision_memory_snapshot to VOLATILE to address the previously observed same-command read-after-write NULL. It is a plausible targeted repair, not yet accepted by successful PostgreSQL 17 execution on the current head.
-- Authorization review remains incomplete: the current test checks catalog-seed replay but does not establish a complete pre-existing-database migration-chain regression, and does not prove a manager assigned to warehouse A can create/update count session/lines there while the same manager is denied in same-tenant warehouse B with 42501 and unchanged before/after row counts. Disabled-assignment denial and independent Maker–Checker finalization also require actual write-path evidence.
-- P1 submitted REQUEST_CHANGES review 5985158755 on exact head 96dc733 and posted CI evidence comment 7025363812. Do not transfer prior run results from 89cde2d4... to 96dc733.
+- PR #565 — Authorization V2, stock-count warehouse scope/Maker–Checker, decision snapshot read-after-write and downstream finance acceptance.
+- Current exact PR head: `11c353455e7d67c36f07ae0b15dc3e906d320fef`; base is prior main `139a753e38e1186b62f8f0afd9f22a57c4c876e0`. Main has since advanced by the independent #572 merge; check mergeability again before merge and do not overwrite the owner's active branch.
+- Exact-head P1 run 44652517766: SUCCESS — full Vitest, P1/P4 strict TypeScript and production build.
+- Exact-head PostgreSQL 17 run 44652517888, job 136010629595: full migration replay SUCCESS; Authorization V2 capability parity and customer/staff scope isolation SUCCESS; inventory adjustment plus exact warehouse-scope write denial is IN_PROGRESS at last observation.
+- Exact-head P2 run 44652517864: authenticated-infrastructure gate SUCCESS; public UI smoke IN_PROGRESS; hosted customer/order/tenant job 136011967708 SKIPPED. The local Supabase order/tenant job has not yet reached acceptance at this checkpoint.
+- Prior exact head `80c4798e32b3bafb0e69250afabf822b3271771a` P2 local acceptance failed at `test-decision-policy-learning-candidate.mjs`: the measured invoice payload was VERIFIED/COMPLETE/ACCEPTABLE and source evidence resolution returned one invoice, the memory snapshot row count was 1, but `_decision_memory_snapshot(...)` returned NULL. This is not an accepted outcome and no evidence gate was weakened.
+- The current head adds diagnostics for the snapshot/outcome JOIN count and keys, function owner, SECURITY DEFINER, owner BYPASSRLS, table RLS/FORCE RLS flags, current/session user, and direct read using persisted keys. Inspect the exact current-head result before changing SQL. The aim is to find the real visibility/join/owner defect; do not replace it with an unconditional NULL or broad `WHEN OTHERS` fallback.
+- Required before merge: complete PG17 A/B denial and maker-checker finalization; decision CREATE/snapshot/idempotency/legacy RPC denial; outcome learning measured-source read-after-write; finance source posting and audit; and the full local P2 order/tenant/browser path on one exact head. SKIPPED hosted tests remain SKIPPED, never PASS.
+- Release remains NO-GO until those source-backed security and transaction checks pass.
 
-## Other open work and preservation
+## Finance follow-on preservation
 
-- #559 and #561 remain historical component branches of #563; do not merge them separately.
-- #507 bank-reconciliation retry safety remains unaccepted: reload-safe idempotency identity and PG17 concurrency/replay/audit proof are required before any merge.
-- #533 supplier invoice full-register search remains stale and has tenant-join/security issues; #538 Onyx workbook import remains stale/mixed; #541/#526 asset replacement overlap. Do not merge these branches wholesale.
-- Cart recovery and #514 customer service deep links are already present on main; do not revive old duplicate branches. Keep #496 daily decision board separate and lower priority until core data/transaction blockers are resolved.
+- #566 reload-safe atomic bank-reconciliation retry has a focused finance PG17 proof on its earlier exact head, but its general P2 and full migration acceptance are not complete. Rebase/retest only after #565 fixes and accepts the migration chain.
+- #507 is not presumed duplicate of #566: compare and preserve its unique migration/test work before closing or superseding it.
+- Do not merge #507/#566 or older overlapping PRs wholesale while the full P2 migration/security gate is unresolved.
 
 ## First next actions
 
-1. P2: repair the malformed prerequisite capability seed by removing all dangling DO UPDATE assignments after ON CONFLICT(capability_key) DO NOTHING; run the full chronological migration replay on disposable PostgreSQL 17.
-2. P2: extend exact-scope PostgreSQL 17 acceptance with two warehouses in one tenant; an assigned manager must create a count session and draft line and edit it in A; the same manager must be denied in unassigned B at the decision and real RPC/trigger write boundary with 42501, while before/after session, line and inventory row counts remain identical. Also prove disabled assignment denial and separate Maker–Checker finalization/no self-approval.
-3. P2/P3: run the current decision snapshot read-after-write and outcome-learning tests on PG17; prove the returned snapshot is visible immediately and actualMetric is populated only from fully resolved tenant/period/asOf evidence; missing or foreign evidence remains WITHHELD. Do not weaken evidence validation.
-4. Rebase/update #563 from live main 1b26ae317662378e70eb4b9c2a573677a8c4a0be without Force Push, resolve the existing review findings, then run P1, full PG17 and P2 on one exact PR head. P1 reviews and merges only after all required checks pass and the change is conflict-free.
-5. After any merge, verify the new main SHA and exact post-merge checks; update only this pointer and affected acceptance-matrix rows. Keep hosted customer/order/tenant SKIPPED distinct from PASS. Production release remains NO-GO while required evidence is missing.
+1. Continue PR #565 exact-head runs 44652517888 and 44652517864. Complete the inventory A/B step and inspect the new outcome snapshot owner/RLS/JOIN diagnostic when the outcome-learning step runs.
+2. If the JOIN keys exist but the helper remains NULL, correct the actual function owner/RLS/query contract while preserving immutable snapshot, source evidence, as-of/period, idempotency, audit and Maker–Checker invariants; rerun full PG17 and P2 on the new exact SHA.
+3. Once #565 is fully accepted, update it to the current main base `0213eec123f818ecc1abafd3e3229472e3f26457` without Force Push; run all required checks on the resulting exact head; P1 merges only after review and acceptance.
+4. Re-run any P3 local authenticated coverage that was blocked by the earlier Authorization V2 migration sequence against the accepted new main. Keep prior source-only/client-only proofs distinct from database runtime acceptance.
+5. Verify the new main SHA and exact post-merge checks; update only this pointer and affected acceptance-matrix rows.
 
 ## Delivery discipline
 
-- main remains the only truth branch; short-lived feature branches and PRs are required. P1 alone merges.
-- PostgreSQL 17 uses disposable local databases only. Do not infer the application database from project names or historical refs.
-- No Vercel build/preview/deploy, Bolt, Lovable, paid AI, hosted migration or production write.
+- `main` is the only truth branch. P1 alone merges.
+- PostgreSQL 17 acceptance uses disposable isolated databases only; no production/hosted DB writes.
+- No Vercel build/preview/deploy, Bolt, Lovable, paid AI, or external provider calls.
 - IN_PROGRESS, QUEUED, SKIPPED, BLOCKED and infrastructure failures are never PASS.
-- Do not create daily reports, parallel matrices or new resume files.
+- Do not create daily reports, duplicate matrices or new resume files.
 
 ---
 
