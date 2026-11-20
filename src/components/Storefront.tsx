@@ -16,6 +16,7 @@ import { CartQuantityControl } from '@/components/store/CartQuantityControl';
 import { fetchStorefrontCartProductDetails } from '@/lib/storefront-cart-products';
 import { ProductMediaGallery } from '@/components/ProductMediaGallery';
 import { ProductDataQualityPanel } from '@/components/store/ProductDataQualityPanel';
+import { StorefrontProductOffers } from '@/components/store/StorefrontProductOffers';
 import { formatProductUpdatedAt } from '@/lib/storefront-product-data-quality';
 import { ProductPlaceholderArtwork } from '@/components/ProductPlaceholderArtwork';
 import { StorefrontProductReviews } from '@/components/StorefrontProductReviews';
@@ -254,7 +255,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
     error: categoriesError,
     refetch: refetchCategories,
   } = useFetch(fetchCategories);
-  const { data: promotions } = useFetch(fetchStorefrontPromotions);
+  const { data: promotions, loading: promotionsLoading, error: promotionsError, refreshError: promotionsRefreshError, refetch: refetchPromotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const cartStorageKey = offlineCartStorageKey(user?.profileId, user?.id);
@@ -1075,6 +1076,10 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           ? <ProductDetail
               product={selectedProduct}
               isStaff={user?.isStaff === true}
+              promotions={promotions}
+              promotionsLoading={promotionsLoading}
+              promotionsError={promotionsError ?? promotionsRefreshError}
+              onRetryPromotions={() => void refetchPromotions()}
               relatedProducts={(products ?? []).filter((candidate) =>
                 selectedProduct.category_id !== null
                 && candidate.id !== selectedProduct.id
@@ -1414,6 +1419,10 @@ export function ProductGrid({
 export function ProductDetail({
   product,
   isStaff,
+  promotions,
+  promotionsLoading,
+  promotionsError,
+  onRetryPromotions,
   relatedProducts = [],
   priceVisibilityPolicy,
   inWishlist,
@@ -1430,6 +1439,10 @@ export function ProductDetail({
 }: {
   product: ProductWithInventory;
   isStaff: boolean;
+  promotions: Promotion[] | null;
+  promotionsLoading: boolean;
+  promotionsError: string | null;
+  onRetryPromotions: () => void;
   relatedProducts: ProductWithInventory[];
   priceVisibilityPolicy: unknown;
   inWishlist: boolean;
@@ -1764,6 +1777,14 @@ export function ProductDetail({
           </div>
         </div>
       </div>
+      <StorefrontProductOffers
+        productId={product.id}
+        categoryId={product.category_id}
+        promotions={promotions}
+        loading={promotionsLoading}
+        error={promotionsError}
+        onRetry={onRetryPromotions}
+      />
       {relatedProducts.length > 0 && (
         <section className="sf-related-products" aria-labelledby="sf-related-products-title">
           <div className="sf-related-header">
